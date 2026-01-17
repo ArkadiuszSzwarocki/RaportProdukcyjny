@@ -1,270 +1,170 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raport Zarządczy</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { background-color: #f4f7f6; }
-        .dashboard-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        
-        .top-nav { margin-bottom: 30px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .nav-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .nav-title { font-size: 24px; color: #2c3e50; font-weight: bold; }
-        .btn-back { background: #95a5a6; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; }
+{% extends "layout.html" %}
 
-        .filter-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #e3f2fd; padding: 10px; border-radius: 5px; }
-        .filter-select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 16px; }
-        .btn-filter { background: #3498db; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+{% block content %}
 
-        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }
-        .kpi-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); text-align: center; border-bottom: 4px solid #ddd; }
-        .kpi-title { font-size: 14px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; }
-        .kpi-value { font-size: 32px; font-weight: bold; color: #2c3e50; margin: 10px 0; }
-        .kpi-sub { font-size: 13px; color: #95a5a6; }
-        .kpi-blue { border-color: #3498db; }
-        .kpi-green { border-color: #2ecc71; }
-        .kpi-red { border-color: #e74c3c; }
-        .kpi-orange { border-color: #f39c12; }
-
-        .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 30px; }
-        .chart-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .chart-title { font-size: 18px; color: #34495e; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-
-        .table-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow-x: auto; }
-        .styled-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-        .styled-table th { background-color: #f8f9fa; color: #333; font-weight: bold; text-align: center; padding: 12px; border-bottom: 2px solid #ddd; }
-        .styled-table td { padding: 12px; border-bottom: 1px solid #eee; color: #555; text-align: center; }
-        .styled-table tr:hover { background-color: #f1f1f1; }
-        .text-left { text-align: left !important; }
-        
-        .badge-abs { background-color: #ffebee; color: #c62828; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-        .badge-ot { background-color: #e3f2fd; color: #1565c0; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-        .badge-total { background-color: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 4px 8px; border-radius: 10px; }
-        .badge-check { color: green; font-size: 1.2em; }
-
-        .hidden {
-            display: none;
-        }
-        .kpi-value-high {
-            color: #27ae60;
-        }
-        .kpi-value-medium {
-            color: #f39c12;
-        }
-        .kpi-value-low {
-            color: #c0392b;
-        }
-        .absent-row {
-            background-color: #ffebee;
-        }
-        .stat-header-abs {
-            color: #c62828;
-        }
-        .stat-header-ot {
-            color: #1565c0;
-        }
-    </style>
-</head>
-<body>
-
-<div class="dashboard-container">
+<div class="section-header">
+    <h2 class="header-title">📊 Wyniki Produkcji: {{ tytul }}</h2>
     
-    <div class="top-nav">
-        <div class="nav-header">
-            <div class="nav-title">{{ tytul }}</div>
-            <a href="/" class="btn-back">Wróć do produkcji</a>
-        </div>
-        
-        <form action="/zarzad" method="GET" class="filter-form">
-            <label><strong>Tryb:</strong></label>
-            <select name="tryb" id="selectTryb" class="filter-select" onchange="pokazPola()" title="Wybierz tryb raportu">
+    <div class="header-actions">
+        <form action="/zarzad" method="GET" class="inline-form" style="display:flex; gap:10px; align-items:center;">
+            
+            <select name="tryb" onchange="this.form.submit()" style="padding:8px; border-radius:5px;">
                 <option value="dzien" {% if tryb=='dzien' %}selected{% endif %}>Dzień</option>
                 <option value="tydzien" {% if tryb=='tydzien' %}selected{% endif %}>Tydzień</option>
                 <option value="miesiac" {% if tryb=='miesiac' %}selected{% endif %}>Miesiąc</option>
                 <option value="rok" {% if tryb=='rok' %}selected{% endif %}>Rok</option>
             </select>
 
-            <input type="date" name="data" id="inputData" class="filter-select hidden" value="{{ wybrana_data }}">
-            
-            <select name="tydzien" id="inputTydzien" class="filter-select hidden">
-                {% for i in range(1, 54) %}
-                <option value="{{ i }}" {% if wybrany_tydzien==i %}selected{% endif %}>Tydzień {{ i }}</option>
-                {% endfor %}
-            </select>
-
-            <select name="miesiac" id="inputMiesiac" class="filter-select hidden">
-                <option value="1" {% if wybrany_miesiac==1 %}selected{% endif %}>Styczeń</option>
-                <option value="2" {% if wybrany_miesiac==2 %}selected{% endif %}>Luty</option>
-                <option value="3" {% if wybrany_miesiac==3 %}selected{% endif %}>Marzec</option>
-                <option value="4" {% if wybrany_miesiac==4 %}selected{% endif %}>Kwiecień</option>
-                <option value="5" {% if wybrany_miesiac==5 %}selected{% endif %}>Maj</option>
-                <option value="6" {% if wybrany_miesiac==6 %}selected{% endif %}>Czerwiec</option>
-                <option value="7" {% if wybrany_miesiac==7 %}selected{% endif %}>Lipiec</option>
-                <option value="8" {% if wybrany_miesiac==8 %}selected{% endif %}>Sierpień</option>
-                <option value="9" {% if wybrany_miesiac==9 %}selected{% endif %}>Wrzesień</option>
-                <option value="10" {% if wybrany_miesiac==10 %}selected{% endif %}>Październik</option>
-                <option value="11" {% if wybrany_miesiac==11 %}selected{% endif %}>Listopad</option>
-                <option value="12" {% if wybrany_miesiac==12 %}selected{% endif %}>Grudzień</option>
-            </select>
-
-            <select name="rok" id="inputRok" class="filter-select hidden">
-                <option value="2025" {% if wybrany_rok==2025 %}selected{% endif %}>2025</option>
-                <option value="2026" {% if wybrany_rok==2026 %}selected{% endif %}>2026</option>
-            </select>
-
-            <button type="submit" class="btn-filter">POKAŻ RAPORT</button>
+            {% if tryb == 'dzien' %}
+                <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" style="padding:8px;">
+            {% elif tryb == 'miesiac' %}
+                <select name="miesiac" onchange="this.form.submit()" style="padding:8px;">
+                    {% for m in range(1,13) %}
+                    <option value="{{ m }}" {% if m == wybrany_miesiac %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+                <input type="number" name="rok" value="{{ wybrany_rok }}" onchange="this.form.submit()" style="width:60px; padding:8px;">
+            {% elif tryb == 'rok' %}
+                <input type="number" name="rok" value="{{ wybrany_rok }}" onchange="this.form.submit()" style="width:60px; padding:8px;">
+            {% endif %}
         </form>
     </div>
-
-    <div class="kpi-grid">
-        <div class="kpi-card kpi-blue">
-            <div class="kpi-title">Wykonanie (Tony)</div>
-            <div class="kpi-value">{{ suma_wykonanie | round(1) }} t</div>
-            <div class="kpi-sub">Plan: {{ suma_plan }} t</div>
-        </div>
-        <div class="kpi-card kpi-green">
-            <div class="kpi-title">Realizacja Planu</div>
-            <div class="kpi-value {% if procent_wykonania >= 100 %}kpi-value-high{% elif procent_wykonania >= 80 %}kpi-value-medium{% else %}kpi-value-low{% endif %}">
-                {{ procent_wykonania | round(1) }}%
-            </div>
-            <div class="kpi-sub">Cel: 100%</div>
-        </div>
-        <div class="kpi-card kpi-red">
-            <div class="kpi-title">Przestoje Łącznie</div>
-            <div class="kpi-value">{{ total_czas_awarii }} min</div>
-            <div class="kpi-sub">{{ (total_czas_awarii / 60) | round(1) }} godzin</div>
-        </div>
-        <div class="kpi-card kpi-orange">
-            <div class="kpi-title">Ilość Zleceń</div>
-            <div class="kpi-value">{{ ilosc_zlecen }}</div>
-            <div class="kpi-sub">Zakończone</div>
-        </div>
-    </div>
-
-    {% if tryb != 'dzien' %}
-    <div class="charts-grid">
-        <div class="chart-card">
-            <div class="chart-title">📈 Trend Produkcji</div>
-            <canvas id="prodChart"></canvas>
-        </div>
-        <div class="chart-card">
-            <div class="chart-title">⚠️ Struktura Przestojów</div>
-            <canvas id="downtimeChart"></canvas>
-        </div>
-    </div>
-    {% endif %}
-
-    <div class="table-card">
-        {% if tryb == 'dzien' %}
-            <div class="chart-title">📋 Raport Osobowy (Kto gdzie pracował)</div>
-            <table class="styled-table">
-                <thead>
-                    <tr>
-                        <th class="text-left">Pracownik</th>
-                        <th>Zasyp</th>
-                        <th>Workowanie</th>
-                        <th>Magazyn</th>
-                        <th>Status HR</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in pracownicy_stats %}
-                    <tr class="{% if p.hr == 'Nieobecność' %}absent-row{% endif %}">
-                        <td class="text-left"><strong>{{ p.name }}</strong></td>
-                        <td><span class="badge-check">{{ p.zasyp }}</span></td>
-                        <td><span class="badge-check">{{ p.workowanie }}</span></td>
-                        <td><span class="badge-check">{{ p.magazyn }}</span></td>
-                        <td>
-                            {% if p.hr == 'Nieobecność' %}
-                                <span class="badge-abs">🔴 Nieobecny ({{ p.hr_godz | format_czasu }})</span>
-                            {% elif p.hr == 'Nadgodziny' %}
-                                <span class="badge-ot">🔵 Nadgodziny ({{ p.hr_godz | format_czasu }})</span>
-                            {% else %}-{% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-
-        {% else %}
-            <div class="chart-title">🏆 Statystyka Pracownicza (Frekwencja)</div>
-            <table class="styled-table">
-                <thead>
-                    <tr>
-                        <th class="text-left">Pracownik</th>
-                        <th>Liczba Zmian (Frekwencja)</th>
-                        <th class="stat-header-abs">Nieobecności (h)</th>
-                        <th class="stat-header-ot">Nadgodziny (h)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in pracownicy_stats %}
-                    <tr>
-                        <td class="text-left"><strong>{{ p.name }}</strong></td>
-                        <td><span class="badge-total">{{ p.total }}</span></td>
-                        <td>{% if p.abs > 0 %}<span class="badge-abs">{{ p.abs | format_czasu }}</span>{% else %}-{% endif %}</td>
-                        <td>{% if p.ot > 0 %}<span class="badge-ot">{{ p.ot | format_czasu }}</span>{% else %}-{% endif %}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% endif %}
-    </div>
-
 </div>
 
+<div style="display:flex; gap:20px; margin-bottom:30px; flex-wrap:wrap;">
+    <div style="flex:1; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1); border-left:5px solid #3498db;">
+        <div style="font-size:0.9em; color:gray; text-transform:uppercase;">Plan Produkcji</div>
+        <div style="font-size:2em; font-weight:bold; color:#2c3e50;">{{ suma_plan | round(1) }} t</div>
+    </div>
+    
+    <div style="flex:1; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1); border-left:5px solid #27ae60;">
+        <div style="font-size:0.9em; color:gray; text-transform:uppercase;">Wykonanie</div>
+        <div style="font-size:2em; font-weight:bold; color:#27ae60;">{{ suma_wykonanie | round(1) }} t</div>
+    </div>
+
+    <div style="flex:1; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1); border-left:5px solid {% if procent >= 100 %}#27ae60{% elif procent >= 80 %}#f39c12{% else %}#e74c3c{% endif %};">
+        <div style="font-size:0.9em; color:gray; text-transform:uppercase;">Realizacja</div>
+        <div style="font-size:2em; font-weight:bold; color:{% if procent >= 100 %}#27ae60{% elif procent >= 80 %}#f39c12{% else %}#e74c3c{% endif %};">
+            {{ procent | round(1) }}%
+        </div>
+    </div>
+
+    <div style="flex:1; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1); border-left:5px solid #c0392b;">
+        <div style="font-size:0.9em; color:gray; text-transform:uppercase;">Czas Postojów</div>
+        <div style="font-size:2em; font-weight:bold; color:#c0392b;">{{ time_aw }} min</div>
+    </div>
+</div>
+
+<div style="display:flex; gap:20px; margin-bottom:30px; flex-wrap:wrap;">
+    <div style="flex:2; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1);">
+        <h4 style="margin-top:0;">📈 Trend Produkcji</h4>
+        <div style="height:300px;">
+            <canvas id="chartProdukcja"></canvas>
+        </div>
+    </div>
+
+    <div style="flex:1; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1);">
+        <h4 style="margin-top:0;">⚠️ Przyczyny Postojów</h4>
+        <div style="height:300px; position:relative;">
+            <canvas id="chartAwarie"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="crew-box">
+    <h4>👥 Raport Pracowniczy</h4>
+    <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+        <thead style="background:#eee;">
+            <tr>
+                <th style="padding:10px; text-align:left;">Pracownik</th>
+                {% if tryb == 'dzien' %}
+                    <th style="padding:10px; text-align:center;">Zasyp</th>
+                    <th style="padding:10px; text-align:center;">Workowanie</th>
+                    <th style="padding:10px; text-align:center;">Magazyn</th>
+                    <th style="padding:10px; text-align:left;">Status HR</th>
+                {% else %}
+                    <th style="padding:10px; text-align:center;">Obecności (dni)</th>
+                    <th style="padding:10px; text-align:center;">Nadgodziny (h)</th>
+                    <th style="padding:10px; text-align:center;">Nieobecności (h)</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in pracownicy_stats %}
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:10px;"><strong>{{ p['name'] }}</strong></td>
+                {% if tryb == 'dzien' %}
+                    <td style="padding:10px; text-align:center;">{{ p['zasyp'] }}</td>
+                    <td style="padding:10px; text-align:center;">{{ p['workowanie'] }}</td>
+                    <td style="padding:10px; text-align:center;">{{ p['magazyn'] }}</td>
+                    <td style="padding:10px;">
+                        {% if p['hr'] == 'Nieobecność' %}<span style="color:red;">Nieobecny</span>
+                        {% elif p['hr'] == 'Nadgodziny' %}<span style="color:blue;">Nadgodziny</span>
+                        {% else %}-{% endif %}
+                    </td>
+                {% else %}
+                    <td style="padding:10px; text-align:center;">{{ p['total'] }}</td>
+                    <td style="padding:10px; text-align:center; color:blue;">{{ p['ot'] }}</td>
+                    <td style="padding:10px; text-align:center; color:red;">{{ p['abs'] }}</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-    function pokazPola() {
-        const tryb = document.getElementById('selectTryb').value;
-        const data = document.getElementById('inputData');
-        const tydzien = document.getElementById('inputTydzien');
-        const miesiac = document.getElementById('inputMiesiac');
-        const rok = document.getElementById('inputRok');
-
-        data.classList.add('hidden');
-        tydzien.classList.add('hidden');
-        miesiac.classList.add('hidden');
-        rok.classList.add('hidden');
-
-        if (tryb === 'dzien') {
-            data.classList.remove('hidden');
-        } else if (tryb === 'tydzien') {
-            rok.classList.remove('hidden');
-            tydzien.classList.remove('hidden');
-        } else if (tryb === 'miesiac') {
-            rok.classList.remove('hidden');
-            miesiac.classList.remove('hidden');
-        } else if (tryb === 'rok') {
-            rok.classList.remove('hidden');
-        }
-    }
-    // Uruchom przy starcie
-    pokazPola();
-
-    const ctxProd = document.getElementById('prodChart').getContext('2d');
+    // --- WYKRES PRODUKCJI (SŁUPKOWY) ---
+    const ctxProd = document.getElementById('chartProdukcja').getContext('2d');
     new Chart(ctxProd, {
         type: 'bar',
         data: {
+            // "safe" jest kluczowe, żeby Python przekazał dane jako JSON
             labels: {{ chart_labels | safe }},
             datasets: [
-                { label: 'Wykonanie (t)', data: {{ chart_wyk | safe }}, backgroundColor: 'rgba(46, 204, 113, 0.7)' },
-                { label: 'Plan (t)', data: {{ chart_plan | safe }}, type: 'line', borderColor: '#3498db' }
+                {
+                    label: 'Wykonanie (t)',
+                    data: {{ chart_wyk | safe }},
+                    backgroundColor: '#27ae60'
+                },
+                {
+                    label: 'Plan (t)',
+                    data: {{ chart_plan | safe }},
+                    backgroundColor: '#bdc3c7'
+                }
             ]
-        }
+        },
+        options: { responsive: true, maintainAspectRatio: false }
     });
 
-    const ctxDown = document.getElementById('downtimeChart').getContext('2d');
-    new Chart(ctxDown, {
-        type: 'doughnut',
-        data: {
-            labels: {{ pie_labels | safe }},
-            datasets: [{ data: {{ pie_values | safe }}, backgroundColor: ['#e74c3c', '#f39c12', '#3498db'] }]
-        }
-    });
+    // --- WYKRES AWARII (KOŁOWY) ---
+    const ctxAw = document.getElementById('chartAwarie').getContext('2d');
+    const labelsAw = {{ pie_labels | safe }};
+    
+    if (labelsAw.length > 0) {
+        new Chart(ctxAw, {
+            type: 'doughnut',
+            data: {
+                labels: labelsAw,
+                datasets: [{
+                    data: {{ pie_values | safe }},
+                    backgroundColor: ['#e74c3c', '#f39c12', '#3498db', '#9b59b6']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    } else {
+        // Jeśli brak awarii, rysujemy pusty szary okrąg z napisem
+        new Chart(ctxAw, {
+            type: 'doughnut',
+            data: { labels: ["Brak awarii"], datasets: [{ data: [1], backgroundColor: ["#ecf0f1"] }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { enabled: false } } }
+        });
+    }
 </script>
-
-</body>
-</html>
+{% endblock %}

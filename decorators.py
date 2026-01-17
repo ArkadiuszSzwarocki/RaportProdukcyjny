@@ -4,7 +4,6 @@ from functools import wraps
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Sprawdzamy, czy użytkownik jest zalogowany
         if not session.get('zalogowany'):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
@@ -13,8 +12,19 @@ def login_required(f):
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Sprawdzamy logowanie ORAZ rolę admina
         if not session.get('zalogowany') or session.get('rola') != 'admin':
-            return redirect(url_for('index')) # Odsyłamy na główną, nie do logowania
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# NOWE UPRAWNIENIE: Wpuszcza Admina, Lidera i Planistę
+def zarzad_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Lista ról, które mają dostęp do wyników
+        dozwolone = ['admin', 'lider', 'planista']
+        
+        if not session.get('zalogowany') or session.get('rola') not in dozwolone:
+            return redirect(url_for('index')) # Odsyła na główną, jeśli brak uprawnień
         return f(*args, **kwargs)
     return decorated_function

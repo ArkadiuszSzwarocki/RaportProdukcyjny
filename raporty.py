@@ -18,16 +18,33 @@ def format_godziny(wartosc):
         return f"{wartosc}h"
 
 def polskie_znaki_pdf(text):
-    """Podmienia polskie znaki dla biblioteki FPDF"""
+    """
+    Podmienia polskie znaki i znaki specjalne dla biblioteki FPDF.
+    Zapobiega błędom 'UnicodeEncodeError'.
+    """
     if text is None: return ""
     text = str(text)
+    
+    # 1. Mapa zamienników (Polskie znaki + znaki typograficzne z Worda/Excela)
     replacements = {
+        # Polskie
         'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
-        'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'
+        'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z',
+        # Specjalne (To one powodowały błąd!)
+        '\u2013': '-',  # Półpauza (Długi myślnik)
+        '\u2014': '-',  # Pauza (Bardzo długi myślnik)
+        '\u201c': '"',  # Cudzysłów otwierający
+        '\u201d': '"',  # Cudzysłów zamykający
+        '”': '"', '„': '"', '’': "'"
     }
+    
     for k, v in replacements.items():
         text = text.replace(k, v)
-    return text
+    
+    # 2. OSTATNIA DESKA RATUNKU
+    # Jeśli jakiś znak nadal nie pasuje do Latin-1 (np. emotikona), zamień go na "?"
+    # Dzięki temu system NIGDY się nie wyłączy przez błąd czcionki.
+    return text.encode('latin-1', 'replace').decode('latin-1')
 
 def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows):
     """Generuje plik Excel i zwraca jego nazwę"""
@@ -60,6 +77,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
     
     # --- UWAGI ---
     pdf.set_fill_color(240, 240, 240)
+    # Tutaj też używamy bezpiecznej funkcji
     pdf.multi_cell(0, 8, txt=polskie_znaki_pdf(f"UWAGI:\n{uwagi}"), fill=True)
     pdf.ln(5)
 
@@ -114,7 +132,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
             pdf.cell(90, 7, polskie_znaki_pdf(str(r[2])[:50]), 1, 0, 'L', fill)
             pdf.cell(40, 7, f"{r[3]} - {r[4]}", 1, 0, 'C', fill)
             
-            # Pobieramy minuty (ostatnia kolumna z zapytania)
+            # Pobieramy minuty
             minuty = str(r[5]) if len(r) > 5 and r[5] is not None else "0"
             pdf.cell(25, 7, f"{minuty} min", 1, 1, 'C', fill)
             fill = not fill
