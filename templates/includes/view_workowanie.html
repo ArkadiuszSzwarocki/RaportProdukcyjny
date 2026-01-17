@@ -1,0 +1,105 @@
+<div class="plan-box">
+    
+    {% set aktywne = [] %}
+    {% for p in plan if p[3] == 'w toku' %}
+        {% do aktywne.append(p) %}
+    {% endfor %}
+
+    {% if aktywne %}
+        {% for p in aktywne %}
+        <div style="background-color: #e3f2fd; border: 2px solid #2196f3; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(33, 150, 243, 0.2);">
+            <h3 style="margin-top:0; color:#1565c0; border-bottom: 2px solid #90caf9; padding-bottom: 10px;">📦 ODBIÓR PALET: {{ p[1] }}</h3>
+            
+            <div style="display:flex; gap:20px;">
+                <div style="flex:1; font-size:1.1em;">
+                    Plan: <strong>{{ p[2] }} t</strong> <br>
+                    Zrobiono: <strong style="color:green; font-size:1.3em;">{{ p[7] }} t</strong>
+                    
+                    <div style="margin-top:15px; background:white; padding:10px; border-radius:5px; max-height:200px; overflow-y:auto; border:1px solid #bbdefb;">
+                        <small style="color:gray">Ostatnie palety:</small>
+                        <ul style="padding-left:20px; margin:5px 0;">
+                        {% if palety_mapa[p[0]] %}
+                            {% for pal in palety_mapa[p[0]] %}
+                                <li>{{ pal[1] }} - <strong>{{ pal[0] | int }} kg</strong></li>
+                            {% endfor %}
+                        {% else %}
+                            <li>Brak palet</li>
+                        {% endif %}
+                        </ul>
+                    </div>
+                </div>
+
+                <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+                    <form action="/dodaj_palete/{{ p[0] }}" method="POST" style="background:white; padding:20px; border-radius:8px; text-align:center; border: 2px dashed #2196f3;">
+                        <label style="font-size:1.2em; font-weight:bold; color:#1565c0; display:block; margin-bottom:10px;">DODAJ PEŁNĄ PALETĘ</label>
+                        
+                        <div style="display:flex; justify-content:center; align-items:center; gap:10px;">
+                            <input type="number" step="1" name="waga_palety" value="1000" style="width:120px; height:50px; text-align:center; font-size:1.5em; font-weight:bold; border:2px solid #ccc; border-radius:5px;" onclick="this.select()" required>
+                            <span style="font-size:1.5em; font-weight:bold;">kg</span>
+                        </div>
+                        
+                        <button type="submit" class="btn-add-plan" style="width:100%; margin-top:15px; padding:15px; font-size:1.2em;">+ DODAJ PALETĘ</button>
+                    </form>
+
+                    <div style="display:flex; gap:10px;">
+                        <form action="/cofnij_palete/{{ p[0] }}" method="POST" onsubmit="return confirm('Cofnąć ostatnią paletę?');" style="flex:1;">
+                            <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                            <button type="submit" style="width:100%; background:#f39c12; color:white; border:none; padding:15px; font-weight:bold; border-radius:5px; cursor:pointer;">↩ COFNIJ</button>
+                        </form>
+                        
+                        <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm('Zakończyć zlecenie?');" style="flex:1;">
+                            <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                            <button type="submit" class="btn-stop" style="width:100%; padding:15px; font-size:1em;">■ ZAKOŃCZ</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        <h4 class="plan-title" style="color: gray; margin-top: 20px;">📋 Kolejka zleceń:</h4>
+    {% else %}
+        <h4 class="plan-title">📦 WORKOWANIE</h4>
+    {% endif %}
+
+    {% if not plan %}
+        <p style="color:gray; font-style:italic;">Brak zleceń.</p>
+    {% else %}
+        {% for p in plan if p[3] != 'w toku' %}
+        <div class="plan-item {% if p[3] == 'zakonczone' %}bg-zakonczone{% endif %}" style="opacity: {% if aktywne %}0.6{% else %}1{% endif %};">
+            <div style="flex:2;">
+                {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">OCZEKUJE</span>
+                {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">ZAMKNIĘTE</span>{% endif %}
+                
+                <span style="font-weight:bold;">{{ p[1] }}</span> ({{ p[2] }} t)
+                {% if p[3] == 'zakonczone' %} - Wyk: <strong>{{ p[7] }} t</strong>{% endif %}
+            </div>
+            
+            <div>
+                {% if p[3] == 'zaplanowane' %}
+                    <form action="/start_zlecenie/{{ p[0] }}" method="POST">
+                        <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                        <button type="submit" class="btn-start" style="padding:5px 15px; font-size:0.9em;">▶ START</button>
+                    </form>
+                {% endif %}
+                
+                {% if rola in ['planista', 'admin', 'lider'] %}
+                <form action="/usun_plan/{{ p[0] }}" method="POST" class="inline-form" onsubmit="return confirm('Usunąć?');" style="margin-left:10px;">
+                    <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                    <button type="submit" class="btn-delete">🗑</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+    
+    {% if rola in ['planista', 'admin', 'lider'] %}
+    <hr class="custom-hr">
+    <form action="/dodaj_plan" method="POST" class="form-flex">
+        <input type="date" name="data_planu" value="{{ dzisiaj }}" required style="width:auto;">
+        <input type="text" name="produkt" placeholder="Produkt" required class="select-flex">
+        <input type="number" step="0.1" name="tonaz" placeholder="Plan (t)" required style="width:70px;">
+        <button type="submit" class="btn-add-plan">DODAJ</button>
+    </form>
+    {% endif %}
+</div>

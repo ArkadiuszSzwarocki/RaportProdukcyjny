@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edycja wpisu</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f6f9; padding: 20px; display: flex; justify-content: center; }
+        .box { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
+        input, select, textarea { width: 100%; padding: 10px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        label { font-weight: bold; color: #555; }
+        .btn-save { background: #2196F3; color: white; border: none; padding: 12px; width: 100%; cursor: pointer; font-size: 16px; border-radius: 4px; }
+        .btn-cancel { background: #ddd; color: #333; text-decoration: none; padding: 10px; display: block; text-align: center; margin-top: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2>✏️ Edytuj Zgłoszenie</h2>
+    <form method="POST">
+        
+        <label for="kategoria">Rodzaj problemu:</label>
+        <select id="kategoria" name="kategoria" aria-label="Rodzaj problemu">
+            <option value="Awaria" {% if wpis[8] == 'Awaria' %}selected{% endif %}>🔴 Awaria</option>
+            <option value="Postój" {% if wpis[8] == 'Postój' %}selected{% endif %}>🟠 Postój</option>
+            <option value="Mikro zatrzymanie" {% if wpis[8] == 'Mikro zatrzymanie' %}selected{% endif %}>🔵 Mikro zatrzymanie</option>
+            <option value="Usterka" {% if wpis[8] == 'Usterka' %}selected{% endif %}>🟣 Usterka</option>
+        </select>
+
+        <label>Godzina START:</label>
+        <input type="time" name="czas_start" value="{{ wpis[6] if wpis[6] else '' }}" title="Wprowadź godzinę rozpoczęcia" placeholder="hh:mm">
+
+        <label>Godzina KONIEC:</label>
+        <input type="time" name="czas_stop" value="{{ wpis[7] if wpis[7] else '' }}" title="Wprowadź godzinę zakończenia" placeholder="hh:mm">
+
+        <label>Opis szczegółowy:</label>
+        <textarea name="problem" rows="4" title="Wprowadź szczegółowy opis problemu" placeholder="Opisz problem...">{{ wpis[4] }}</textarea>
+
+        <button type="submit" class="btn-save">💾 ZAPISZ ZMIANY</button>
+        <a href="/" class="btn-cancel">Anuluj</a>
+    </form>
+</div>
+
+</body>
+</html>

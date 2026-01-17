@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Produkcji - AGRONETZWERK</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+
+<div class="container">
+    <div class="top-bar">
+        <img src="https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png" class="logo" alt="Logo">
+        
+        {% if session.get('zalogowany') %}
+        <div class="user-info">
+            Zalogowany: <strong>{{ session.get('rola', '').upper() }}</strong>
+            
+            {% if session.get('rola') in ['admin', 'lider', 'planista'] %}
+                <a href="/zarzad" class="wyniki-btn">📊 WYNIKI</a>
+            {% endif %}
+            
+            {% if session.get('rola') == 'admin' %}
+                <a href="/admin" class="admin-btn">⚙️ ADMIN</a>
+            {% endif %}
+            
+            <a href="/logout" class="logout-btn">Wyloguj</a>
+        </div>
+        {% endif %}
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-container">
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+
+</div>
+
+{% block scripts %}{% endblock %}
+
+</body>
+</html>

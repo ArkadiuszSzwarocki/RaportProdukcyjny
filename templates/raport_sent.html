@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Raport Gotowy</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body { text-align: center; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; }
+        .success-box { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; text-align: left; }
+        h2 { color: #2e7d32; text-align: center; margin-bottom: 20px; }
+        .instruction { background: #fff3cd; border: 1px solid #ffeeba; padding: 15px; margin-bottom: 20px; border-radius: 5px; font-size: 16px; }
+        
+        .download-area { text-align: center; margin: 25px 0; display: flex; justify-content: center; gap: 20px; }
+        .btn-download { display: inline-flex; align-items: center; justify-content: center; padding: 12px 25px; border-radius: 5px; text-decoration: none; color: white; font-weight: bold; font-size: 16px; transition: transform 0.2s; }
+        .btn-download:hover { transform: scale(1.05); }
+        .btn-excel { background-color: #27ae60; }
+        .btn-pdf { background-color: #e74c3c; }
+
+        .btn-open-mail { display: block; width: 100%; padding: 15px; background: #2980b9; color: white; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px; font-weight: bold; text-decoration: none; text-align: center; }
+        .btn-open-mail:hover { background: #1f618d; }
+
+        .btn-back { display: block; text-align: center; margin-top: 20px; color: #7f8c8d; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="success-box">
+        <h2>✅ Zmiana Zamknięta Pomyślnie!</h2>
+        
+        <div class="instruction">
+            <strong>KROK 1:</strong> Pliki Excel i PDF powinny pobrać się automatycznie.<br>
+            <strong>KROK 2:</strong> Kliknij "Otwórz Outlooka".<br>
+            <strong>KROK 3:</strong> Przeciągnij pobrane pliki do okna wiadomości.
+        </div>
+
+        <div class="download-area">
+            <a href="{{ excel_url }}" class="btn-download btn-excel">📥 Pobierz Excel</a>
+            <a href="{{ pdf_url }}" class="btn-download btn-pdf">📄 Pobierz PDF</a>
+        </div>
+
+        <a href="{{ mailto_link | safe }}" class="btn-open-mail">📧 OTWÓRZ OUTLOOKA (Napisz maila)</a>
+
+        <a href="/login" class="btn-back">Wróć do logowania</a>
+    </div>
+
+    <script>
+        // Automatyczne pobieranie (z opóźnieniem)
+        setTimeout(function() { window.location.href = "{{ excel_url }}"; }, 500);
+        setTimeout(function() { window.location.href = "{{ pdf_url }}"; }, 1500);
+        
+        // Automatyczne otwarcie maila
+        setTimeout(function() { window.location.href = "{{ mailto_link | safe }}"; }, 2500);
+    </script>
+</body>
+</html>

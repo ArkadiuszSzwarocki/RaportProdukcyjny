@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Administratora</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #e0e7ff; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #1a237e; border-bottom: 2px solid #1a237e; padding-bottom: 10px;}
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px; border-bottom: 1px solid #ddd; text-align: left; font-size: 13px; }
+        th { background: #f0f0f0; }
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; box-sizing: border-box; margin-bottom: 5px; }
+        button { cursor: pointer; border: none; padding: 8px 12px; border-radius: 4px; color: white; font-weight: bold; }
+        .btn-add { background: #4CAF50; width: 100%; margin-top: 10px; }
+        .btn-del { background: #d32f2f; font-size: 12px; padding: 4px 8px; }
+        .btn-edit { background: #FF9800; font-size: 12px; padding: 4px 8px; }
+        .navbar { grid-column: 1 / -1; background: #333; color: white; padding: 15px; display: flex; justify-content: space-between; border-radius: 8px; margin-bottom: 10px; }
+        a { color: white; text-decoration: none; font-weight: bold; }
+        .tag-abs { color: red; font-weight: bold; }
+        .tag-ot { color: orange; font-weight: bold; }
+        
+        /* Styl dla pól czasu */
+        .time-inputs { display: flex; gap: 5px; margin-bottom: 5px; }
+        .time-inputs input { width: 50%; }
+
+        .text-gray-small {
+            font-size: 12px;
+            color: gray;
+        }
+        .form-background {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .form-background-green {
+            background: #e8f5e9;
+        }
+        .btn-save-hr {
+            background: #2E7D32;
+        }
+        .form-inline {
+            display: flex;
+            gap: 5px;
+            margin: 0;
+        }
+        .input-small-padding {
+            padding: 2px;
+            margin: 0;
+        }
+        .form-no-margin {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="navbar">
+        <span>🔒 PANEL ADMINISTRATORA</span>
+        <div>
+            <a href="/">Przejdź do Produkcji</a> | <a href="/logout">Wyloguj</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>👷‍♂️ Pracownicy</h2>
+        <p class="text-gray-small">Lista osób do wyboru w obsadzie.</p>
+        
+        <form action="/admin/pracownik/dodaj" method="POST" class="form-background">
+            <input type="text" name="imie_nazwisko" placeholder="Nowe nazwisko / Agencja" required>
+            <button type="submit" class="btn-add">DODAJ OSOBĘ</button>
+        </form>
+        
+        <table>
+            <tr><th>Nazwisko</th><th>Edycja</th><th>Usuń</th></tr>
+            {% for p in pracownicy %}
+            <tr>
+                <td>
+                    <form action="/admin/pracownik/edytuj" method="POST" class="form-inline">
+                        <input type="hidden" name="id" value="{{ p[0] }}">
+                        <input type="text" name="imie_nazwisko" value="{{ p[1] }}" class="input-small-padding" placeholder="Edytuj nazwisko">
+                        <button type="submit" class="btn-edit">OK</button>
+                    </form>
+                </td>
+                <td></td>
+                <td>
+                    <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" onsubmit="return confirm('Usunąć pracownika?')" class="form-inline">
+                        <button type="submit" class="btn-del">X</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>🔑 Konta Systemowe</h2>
+        <p class="text-gray-small">Loginy do systemu.</p>
+        
+        <form action="/admin/konto/dodaj" method="POST" class="form-background">
+            <input type="text" name="login" placeholder="Login" required>
+            <input type="text" name="haslo" placeholder="Hasło" required>
+            <select name="rola" title="Wybierz rolę">
+                <option value="pracownik">Pracownik</option>
+                <option value="lider">Lider</option>
+                <option value="planista">Planista</option>
+                <option value="admin">Admin</option>
+            </select>
+            <button type="submit" class="btn-add">STWÓRZ KONTO</button>
+        </form>
+        
+        <table>
+            <tr><th>Login</th><th>Rola</th><th>Usuń</th></tr>
+            {% for k in konta %}
+            <tr>
+                <td><strong>{{ k[1] }}</strong></td>
+                <td>{{ k[2].upper() }}</td>
+                <td>
+                    {% if k[1] != 'admin' %}
+                    <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usunąć konto?')" class="form-inline">
+                        <button type="submit" class="btn-del">X</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>📋 Raport HR (Dziś)</h2>
+        <p class="text-gray-small">Nieobecności i Nadgodziny.</p>
+        
+        <form action="/dodaj_obecnosc" method="POST" class="form-background form-background-green">
+            <input type="hidden" name="powrot" value="admin">
+            <input type="hidden" name="data_wpisu" value="{{ dzisiaj }}">
+            <label for="pracownik">Pracownik:</label>
+            <select id="pracownik" name="pracownik_id" required title="Wybierz pracownika">
+                {% for p in pracownicy %}
+                    <option value="{{ p[0] }}">{{ p[1] }}</option>
+                {% endfor %}
+            </select>
+            <label for="typ">Typ zgłoszenia:</label>
+            <select id="typ" name="typ" title="Wybierz typ zgłoszenia">
+                <option value="Nieobecność">🔴 Nieobecność (L4/Urlop)</option>
+                <option value="Nadgodziny">🔵 Nadgodziny</option>
+            </select>
+            <button type="submit" class="btn-add btn-save-hr">ZAPISZ HR</button>
+        </form>
+        
+        <table>
+            <tr><th>Kto</th><th>Co</th><th>Czas</th><th>X</th></tr>
+            {% for r in raporty_hr %}
+            <tr>
+                <td>{{ r[1] }}</td>
+                <td>
+                    {% if r[2] == 'Nieobecność' %}
+                        <span class="tag-abs">ABS</span>
+                    {% else %}
+                        <span class="tag-ot">OT</span>
+                    {% endif %}
+                </td>
+                <td>{{ r[3] | format_czasu }}</td>
+                <td>
+                    <form action="/usun_obecnosc/{{ r[0] }}" method="POST" class="form-no-margin">
+                        <input type="hidden" name="powrot" value="admin">
+                        <button type="submit" class="btn-del">X</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+</body>
+</html>
