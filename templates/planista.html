@@ -33,14 +33,13 @@
     <h4 style="margin-top:0;">+ Nowe Zlecenie</h4>
     <form action="{{ url_for('api.dodaj_plan_zaawansowany') }}" method="POST" class="form-flex">
         <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-        
-        <select name="sekcja" style="padding:8px; border-radius:4px; border:1px solid #ccc;">
-            <option value="Zasyp">Zasyp</option>
-            <option value="Workowanie">Workowanie</option>
-            <option value="Magazyn">Magazyn</option>
-        </select>
 
-        <input type="text" name="produkt" placeholder="Nazwa produktu" required class="select-flex" style="flex:2;">
+        <input type="hidden" name="sekcja" value="Zasyp">
+        <div style="padding:8px; background:#eee; border-radius:4px; color:#555; border:1px solid #ccc; font-size:0.9em; display:flex; align-items:center;">
+            Sekcja: <strong>ZASYP</strong>
+        </div>
+        
+                <input type="text" name="produkt" placeholder="Nazwa produktu" required class="select-flex" style="flex:2;">
         <input type="number" step="0.1" name="tonaz" placeholder="Tony" required style="width:80px; padding:8px;">
         
         <div style="display:flex; align-items:center; gap:5px; background:#fff3cd; padding:5px 10px; border-radius:4px; border:1px solid #ffeeba;">
@@ -60,13 +59,26 @@
     
     <div class="plan-card {{ status_class }}">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <div>
-                <span style="font-size:0.8em; text-transform:uppercase; color:gray; font-weight:bold;">{{ z[1] }}</span>
-                <h3 style="margin: 5px 0;">{{ z[2] }}</h3>
+            
+            <div style="display:flex; gap: 15px;">
+                
+                <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; min-width:30px;">
+                    <form action="{{ url_for('api.przesun_zlecenie', id=z[0], kierunek='gora') }}?data={{ wybrana_data }}" method="POST" style="margin-bottom:2px;">
+                        <button type="submit" style="border:none; background:none; cursor:pointer; font-size:1.3em; color:#7f8c8d; line-height:1;" title="Przesuń wyżej">⬆️</button>
+                    </form>
+                    <form action="{{ url_for('api.przesun_zlecenie', id=z[0], kierunek='dol') }}?data={{ wybrana_data }}" method="POST" style="margin-top:2px;">
+                        <button type="submit" style="border:none; background:none; cursor:pointer; font-size:1.3em; color:#7f8c8d; line-height:1;" title="Przesuń niżej">⬇️</button>
+                    </form>
+                </div>
+
                 <div>
-                    Plan: <strong>{{ z[3] }} t</strong> 
-                    {% if z[5] %} | Wykonanie: <strong style="color:green;">{{ z[5] }} t</strong>{% endif %}
-                    {% if z[4] == 'w toku' %}<span style="color:#2980b9; font-weight:bold;"> (W TOKU)</span>{% endif %}
+                    <span style="font-size:0.8em; text-transform:uppercase; color:gray; font-weight:bold;">{{ z[1] }}</span>
+                    <h3 style="margin: 5px 0;">{{ z[2] }}</h3>
+                    <div>
+                        Plan: <strong>{{ z[3] }} t</strong> 
+                        {% if z[5] %} | Wykonanie: <strong style="color:green;">{{ z[5] }} t</strong>{% endif %}
+                        {% if z[4] == 'w toku' %}<span style="color:#2980b9; font-weight:bold;"> (W TOKU)</span>{% endif %}
+                    </div>
                 </div>
             </div>
 
@@ -87,8 +99,7 @@
         </div>
 
         {% if palety_mapa[z[0]] %}
-        <div class="palety-list">
-            <strong>📦 Wyprodukowane palety:</strong>
+        <div class="palety-list" style="margin-left: 55px;"> <strong>📦 Wyprodukowane palety:</strong>
             <ul style="margin:5px 0; padding-left:20px;">
                 {% for p in palety_mapa[z[0]] %}
                     <li>Godz: {{ p.czas }} — <strong>{{ p.waga|int }} kg</strong></li>
@@ -97,8 +108,7 @@
         </div>
         {% endif %}
 
-        <div class="action-row">
-            <form action="{{ url_for('api.przenies_zlecenie', id=z[0]) }}" method="POST" style="display:flex; gap:5px; align-items:center;">
+        <div class="action-row" style="margin-left: 55px;"> <form action="{{ url_for('api.przenies_zlecenie', id=z[0]) }}" method="POST" style="display:flex; gap:5px; align-items:center;">
                 <input type="hidden" name="stara_data" value="{{ wybrana_data }}">
                 <label style="font-size:0.85em;">Przenieś na:</label>
                 <input type="date" name="nowa_data" required class="input-date-small">
@@ -114,5 +124,25 @@
 {% else %}
     <p style="text-align:center; color:gray; margin-top:30px;">Brak zleceń na ten dzień.</p>
 {% endfor %}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // 1. Jeśli mamy zapisaną pozycję, przewiń stronę do tego miejsca
+        const scrollPos = localStorage.getItem('planista_scroll_pos');
+        if (scrollPos) {
+            window.scrollTo(0, scrollPos);
+            localStorage.removeItem('planista_scroll_pos'); // Czyścimy pamięć
+        }
+
+        // 2. Jeśli użytkownik wysyła jakikolwiek formularz (strzałka, dodanie, edycja)
+        // zapisujemy aktualną pozycję suwaka
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function() {
+                localStorage.setItem('planista_scroll_pos', window.scrollY);
+            });
+        });
+    });
+</script>
 
 {% endblock %}

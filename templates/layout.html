@@ -14,30 +14,20 @@
         <img src="https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png" class="logo" alt="Logo">
         
         {% if session.get('zalogowany') %}
-       <div class="user-info">
-    Zalogowany: <strong>{{ session.get('rola', '').upper() }}</strong>
-    
-    {% if session.get('rola') in ['planista', 'admin'] %}
-        <a href="{{ url_for('planista.panel_planisty') }}" class="admin-btn" style="background-color: #8e44ad;">📅 PLANOWANIE</a>
-    {% endif %}
-    {% if session.get('rola') in ['admin', 'lider', 'planista'] %}
-        <a href="/zarzad" class="wyniki-btn">📊 WYNIKI</a>
-    {% endif %}
-    
-    ```
-
-### Co musisz teraz zrobić?
-
-1.  Upewnij się, że utworzyłeś pliki **`routes_planista.py`** oraz **`templates/planista.html`** z poprzedniej mojej odpowiedzi.
-2.  Zarejestruj Blueprint w `app.py` (jeśli jeszcze tego nie zrobiłeś):
-    ```python
-    from routes_planista import planista_bp  # Na górze pliku
-    app.register_blueprint(planista_bp)      # Tam gdzie inne blueprinty
-    ```
-3.  Wprowadź powyższe zmiany w `login` i `layout.html`.
-4.  **Zrestartuj serwer** (zamknij czarne okno konsoli i uruchom `run.bat` ponownie).
-
-Teraz po zalogowaniu jako `planista` zobaczysz nowy panel!
+        <div class="user-info">
+            Zalogowany: <strong>{{ session.get('rola', '').upper() }}</strong>
+            
+            {% if session.get('rola') in ['planista', 'admin'] %}
+                <a href="{{ url_for('planista.panel_planisty') }}" class="admin-btn" style="background-color: #8e44ad;">📅 PLANOWANIE</a>
+            {% endif %}
+            
+            {% if session.get('rola') in ['admin', 'lider', 'planista'] %}
+                <a href="/zarzad" class="wyniki-btn">📊 WYNIKI</a>
+            {% endif %}
+            
+            {% if session.get('rola') == 'admin' %}
+                <a href="/admin" class="admin-btn">⚙️ ADMIN</a>
+            {% endif %}
             
             <a href="/logout" class="logout-btn">Wyloguj</a>
         </div>
@@ -58,6 +48,7 @@ Teraz po zalogowaniu jako `planista` zobaczysz nowy panel!
 
 </div>
 
+<script src="{{ url_for('static', filename='scripts.js') }}"></script>
 {% block scripts %}{% endblock %}
 
 </body>
