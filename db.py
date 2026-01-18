@@ -10,25 +10,10 @@ def setup_database():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # 1. Tabela UŻYTKOWNICY
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS uzytkownicy (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                login VARCHAR(50) NOT NULL UNIQUE,
-                haslo VARCHAR(100) NOT NULL,
-                rola VARCHAR(20) NOT NULL
-            )
-        """)
+        # 1. TWORZENIE TABEL (Jeśli nie istnieją)
+        cursor.execute("CREATE TABLE IF NOT EXISTS uzytkownicy (id INT AUTO_INCREMENT PRIMARY KEY, login VARCHAR(50) UNIQUE, haslo VARCHAR(100), rola VARCHAR(20))")
+        cursor.execute("CREATE TABLE IF NOT EXISTS pracownicy (id INT AUTO_INCREMENT PRIMARY KEY, imie_nazwisko VARCHAR(100))")
 
-        # 2. Tabela PRACOWNICY
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS pracownicy (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                imie_nazwisko VARCHAR(100) NOT NULL
-            )
-        """)
-
-        # 3. Tabela PLAN PRODUKCJI
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS plan_produkcji (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -40,143 +25,65 @@ def setup_database():
                 real_start DATETIME,
                 real_stop DATETIME,
                 tonaz_rzeczywisty FLOAT,
-                kolejnosc INT DEFAULT 0
+                kolejnosc INT DEFAULT 0,
+                typ_produkcji VARCHAR(20) DEFAULT 'standard',
+                wyjasnienie_rozbieznosci TEXT
             )
         """)
 
-        # 4. Tabela DZIENNIK ZMIANY (Awarie/Przestoje)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS dziennik_zmiany (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                data_wpisu DATE NOT NULL,
-                sekcja VARCHAR(50),
-                problem TEXT,
-                czas_start DATETIME,
-                czas_stop DATETIME,
-                status VARCHAR(20) DEFAULT 'roboczy',
-                kategoria VARCHAR(50) NULL,
-                pracownik_id INT
-            )
-        """)
-
-        # 5. Tabela OBSADA ZMIANY
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS obsada_zmiany (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                data_wpisu DATE NOT NULL,
-                sekcja VARCHAR(50),
-                pracownik_id INT,
-                FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE
-            )
-        """)
-
-        # 6. Tabela OBECNOŚĆ (HR)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS obecnosc (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                data_wpisu DATE NOT NULL,
-                pracownik_id INT,
-                typ VARCHAR(50),
-                ilosc_godzin FLOAT DEFAULT 0,
-                komentarz TEXT,
-                FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE
-            )
-        """)
-
-        # 7. Tabela PALETY (Workowanie)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS palety_workowanie (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 plan_id INT,
-                waga FLOAT NOT NULL,
+                waga FLOAT,
+                tara FLOAT DEFAULT 0,
+                waga_brutto FLOAT DEFAULT 0,
                 data_dodania DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE
             )
         """)
 
-        # 8. Tabela RAPORTY KOŃCOWE (Uwagi lidera)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS raporty_koncowe (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                data_raportu DATE NOT NULL,
-                lider_uwagi TEXT
-            )
-        """)
+        cursor.execute("CREATE TABLE IF NOT EXISTS dziennik_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), problem TEXT, czas_start DATETIME, czas_stop DATETIME, status VARCHAR(20) DEFAULT 'roboczy', kategoria VARCHAR(50), pracownik_id INT)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS obsada_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), pracownik_id INT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS obecnosc (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, pracownik_id INT, typ VARCHAR(50), ilosc_godzin FLOAT DEFAULT 0, komentarz TEXT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS raporty_koncowe (id INT AUTO_INCREMENT PRIMARY KEY, data_raportu DATE, lider_uwagi TEXT)")
 
-        # --- SEKCJA AUTOMATYCZNYCH MIGRACJI I NAPRAW ---
+        # 2. AKTUALIZACJA STRUKTURY (MIGRACJE) - Sprawdzamy czy kolumny istnieją
         
-        # Dodanie domyślnego Admina i Planisty (jeśli nie istnieją)
+        # Sprawdź i dodaj 'wyjasnienie_rozbieznosci' do plan_produkcji
+        cursor.execute("SHOW COLUMNS FROM plan_produkcji LIKE 'wyjasnienie_rozbieznosci'")
+        if not cursor.fetchone():
+            print("⏳ Dodawanie kolumny 'wyjasnienie_rozbieznosci'...")
+            cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN wyjasnienie_rozbieznosci TEXT")
+
+        # Sprawdź i dodaj 'typ_produkcji' do plan_produkcji
+        cursor.execute("SHOW COLUMNS FROM plan_produkcji LIKE 'typ_produkcji'")
+        if not cursor.fetchone():
+            print("⏳ Dodawanie kolumny 'typ_produkcji'...")
+            cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN typ_produkcji VARCHAR(20) DEFAULT 'standard'")
+
+        # Sprawdź i dodaj 'tara' do palety_workowanie
+        cursor.execute("SHOW COLUMNS FROM palety_workowanie LIKE 'tara'")
+        if not cursor.fetchone():
+            print("⏳ Dodawanie kolumny 'tara' do palet...")
+            cursor.execute("ALTER TABLE palety_workowanie ADD COLUMN tara FLOAT DEFAULT 0")
+
+        # Sprawdź i dodaj 'waga_brutto' do palety_workowanie
+        cursor.execute("SHOW COLUMNS FROM palety_workowanie LIKE 'waga_brutto'")
+        if not cursor.fetchone():
+            print("⏳ Dodawanie kolumny 'waga_brutto' do palet...")
+            cursor.execute("ALTER TABLE palety_workowanie ADD COLUMN waga_brutto FLOAT DEFAULT 0")
+
+        # 3. DODANIE DOMYŚLNYCH KONT (Jeśli brak)
         cursor.execute("SELECT id FROM uzytkownicy WHERE login='admin'")
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES ('admin', 'admin123', 'admin')")
-            print("🔧 Dodano użytkownika: admin")
-
+        if not cursor.fetchone(): cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES ('admin', 'admin123', 'admin')")
+        
         cursor.execute("SELECT id FROM uzytkownicy WHERE login='planista'")
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES ('planista', 'planista123', 'planista')")
-            print("🔧 Dodano użytkownika: planista")
-
-        # Migracja 1: Dodanie kategorii do dziennika (jeśli brakuje)
-        try:
-            cursor.execute("ALTER TABLE dziennik_zmiany ADD COLUMN kategoria VARCHAR(50) NULL")
-            print("🔧 Baza zaktualizowana: dodano kolumnę 'kategoria'")
-        except:
-            pass
-
-        # Migracja 2: Dodanie kolejności do planu (DLA PLANISTY)
-        try:
-            cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN kolejnosc INT DEFAULT 0")
-            print("🔧 Baza zaktualizowana: dodano kolumnę 'kolejnosc'")
-            # Uzupełnienie zerami, żeby sortowanie działało od razu
-            cursor.execute("UPDATE plan_produkcji SET kolejnosc = id WHERE kolejnosc IS NULL")
-        except:
-            pass
+        if not cursor.fetchone(): cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES ('planista', 'planista123', 'planista')")
 
         conn.commit()
         conn.close()
+        print("✅ Baza danych zaktualizowana pomyślnie.")
         
     except Exception as e:
-        error_msg = f"KRYTYCZNY BŁĄD BAZY DANYCH: {e}"
-        print(error_msg)
-        logging.error(error_msg)
-
-def rollover_unfinished(from_date, to_date):
-    """
-    Przenosi niezakończone zlecenia z from_date na to_date.
-    Dotyczy statusów innych niż 'zakonczone' (czyli 'zaplanowane', 'w toku', 'nieoplacone').
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # Logika: Kopiuj wszystko co NIE jest zakończone
-        # Sprawdzamy duplikaty, aby nie powielić zlecenia jeśli skrypt odpali się 2 razy
-        cur.execute("""
-            INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, kolejnosc)
-            SELECT %s, p.sekcja, p.produkt, p.tonaz, 
-                   CASE WHEN p.status = 'w toku' THEN 'zaplanowane' ELSE p.status END,
-                   p.kolejnosc
-            FROM plan_produkcji p
-            WHERE p.data_planu = %s 
-              AND COALESCE(p.status, '') != 'zakonczone'
-              AND NOT EXISTS (
-                SELECT 1 FROM plan_produkcji p2
-                WHERE p2.data_planu = %s
-                  AND p2.sekcja = p.sekcja
-                  AND p2.produkt = p.produkt
-                  AND (p2.tonaz = p.tonaz OR (p2.tonaz IS NULL AND p.tonaz IS NULL))
-              )
-        """, (to_date, from_date, to_date))
-        
-        added = cur.rowcount
-        conn.commit()
-        conn.close()
-        return added
-    except Exception as e:
-        print(f"Błąd przy rollover: {e}")
-        logging.error(f"Błąd rollover: {e}")
-        try:
-            conn.close()
-        except:
-            pass
-        return 0
+        print(f"❌ BŁĄD KRYTYCZNY BAZY DANYCH: {e}")

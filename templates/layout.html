@@ -3,53 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Produkcji - AGRONETZWERK</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>System Produkcyjny</title>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
-<div class="container">
     <div class="top-bar">
-        <img src="https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png" class="logo" alt="Logo">
-        
-        {% if session.get('zalogowany') %}
-        <div class="user-info">
-            Zalogowany: <strong>{{ session.get('rola', '').upper() }}</strong>
-            
-            {% if session.get('rola') in ['planista', 'admin'] %}
-                <a href="{{ url_for('planista.panel_planisty') }}" class="admin-btn" style="background-color: #8e44ad;">📅 PLANOWANIE</a>
-            {% endif %}
-            
-            {% if session.get('rola') in ['admin', 'lider', 'planista'] %}
-                <a href="/zarzad" class="wyniki-btn">📊 WYNIKI</a>
-            {% endif %}
-            
-            {% if session.get('rola') == 'admin' %}
-                <a href="/admin" class="admin-btn">⚙️ ADMIN</a>
-            {% endif %}
-            
-            <a href="/logout" class="logout-btn">Wyloguj</a>
+        <div style="display:flex; align-items:center; gap:15px;">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height:40px;">
+            <h2 style="margin:0; font-size:1.2em;">AGRO<span style="color:#bdc3c7;">MES</span></h2>
         </div>
-        {% endif %}
+
+        <div class="user-info">
+            {% if session.get('rola') in ['admin', 'zarzad', 'planista', 'lider'] %}
+                <a href="/zarzad" class="btn" style="background:#8e44ad; color:white;">
+                    <span class="material-icons">bar_chart</span> WYNIKI
+                </a>
+            {% endif %}
+
+            {% if session.get('rola') in ['planista', 'admin'] %}
+                <a href="/planista" class="btn" style="background:#34495e; color:white;">
+                    <span class="material-icons">calendar_today</span> PLAN
+                </a>
+            {% endif %}
+
+            <span style="color:rgba(255,255,255,0.7);">Zalogowany: <strong>{{ session.get('rola')|upper }}</strong></span>
+            
+            <a href="/logout" class="logout-btn">
+                <span class="material-icons">logout</span>
+            </a>
+        </div>
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="flash-container">
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-container">
                 {% for category, message in messages %}
-                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    <div class="flash-message flash-{{ category }}">
+                        {{ message }}
+                    </div>
                 {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
-    {% block content %}{% endblock %}
-
-</div>
-
-<script src="{{ url_for('static', filename='scripts.js') }}"></script>
-{% block scripts %}{% endblock %}
+        {% block content %}{% endblock %}
+    </div>
 
 </body>
 </html>

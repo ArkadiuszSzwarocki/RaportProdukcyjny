@@ -2,144 +2,284 @@
 
 {% block content %}
 
-    <div class="tabs">
-        <a href="/?sekcja=Zasyp&data={{ dzisiaj }}" class="tab {% if sekcja == 'Zasyp' %}active{% endif %}">ZASYP</a>
-        <a href="/?sekcja=Workowanie&data={{ dzisiaj }}" class="tab {% if sekcja == 'Workowanie' %}active{% endif %}">WORKOWANIE</a>
-        <a href="/?sekcja=Magazyn&data={{ dzisiaj }}" class="tab {% if sekcja == 'Magazyn' %}active{% endif %}">MAGAZYN</a>
-    </div>
+<div id="modalOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999;" onclick="closeAllModals()"></div>
 
-    <div class="section-header">
-        <h2 class="header-title">Stanowisko: {{ sekcja }} ({{ dzisiaj }})</h2>
-        <div class="header-actions">
-            <a href="/export_excel?data={{ dzisiaj }}" class="btn-add-plan" style="background:#27ae60; text-decoration:none;">📥 Excel</a>
-            {% if rola in ['admin', 'lider', 'planista'] %}
-            <a href="/raporty_okresowe" class="btn-add-plan" style="background:#8e44ad; text-decoration:none;">📊 Raporty</a>
-            {% endif %}
-            <form action="/" method="GET" class="inline-form">
-                <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                <input type="date" name="data" value="{{ dzisiaj }}" onchange="this.form.submit()" style="padding:8px; border-radius:5px; border:1px solid #ccc;">
-            </form>
-        </div>
-    </div>
-
-    {% if sekcja == 'Zasyp' %}
-        {% include 'includes/view_zasyp.html' %}
-    {% elif sekcja == 'Workowanie' %}
-        {% include 'includes/view_workowanie.html' %}
-    {% elif sekcja == 'Magazyn' %}
-        {% include 'includes/view_magazyn.html' %}
-    {% endif %}
-
-    <div class="crew-box">
-        <h4>👷‍♂️ Obsada ({{ dzisiaj }})</h4>
-        <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:15px;">
-            {% for osoba in obsada %}
-                <div style="background:#eee; padding:5px 10px; border-radius:15px; display:flex; align-items:center;">
-                    {{ osoba[1] }}
-                    <form action="/usun_z_obsady/{{ osoba[0] }}" method="POST" style="margin-left:5px;">
-                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                        <button type="submit" style="background:none; border:none; color:red; cursor:pointer; font-weight:bold;">✕</button>
-                    </form>
-                </div>
-            {% endfor %}
-        </div>
-        <form action="/dodaj_do_obsady" method="POST" class="form-flex">
-            <input type="hidden" name="sekcja" value="{{ sekcja }}">
-            <select name="pracownik_id" class="select-flex">
-                {% for p in wszyscy_pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
-            </select>
-            <button type="submit" class="btn-add-plan" style="background:#3498db;">DODAJ OSOBĘ</button>
-        </form>
-    </div>
-
-    <div class="add-box">
-        <h4>🚨 Zgłoś Zdarzenie / Awarię</h4>
+<div class="section-header">
+    <div><h2 class="header-title">Hala Produkcyjna: <strong>{{ sekcja }}</strong></h2><p class="text-muted" style="margin:0;">{{ rola|upper }} | {{ dzisiaj }}</p></div>
+    <div style="display:flex; gap:10px;">
+        <button onclick="openModal('modalProblem')" class="btn" style="background:#e74c3c; color:white; display:flex; align-items:center; gap:5px;">⚠️ ZGŁOŚ</button>
         
-        <div style="max-height:200px; overflow-y:auto; margin-bottom:15px;">
-            {% if not wpisy %} <p style="color:gray;">Brak zgłoszeń.</p> {% endif %}
-            {% for w in wpisy %}
-            <div style="border-bottom:1px solid #eee; padding:5px; display:flex; justify-content:space-between;">
-                <div>
-                    <strong style="color:red;">{{ w[5] }}</strong>: {{ w[2] }} 
-                    <br><small>Start: {{ w[3] }} {% if w[4] %} | Stop: {{ w[4] }} ({{ w[6] }} min){% endif %}</small>
-                </div>
-                <div style="display:flex; gap:5px;">
-                    <a href="/edytuj/{{ w[0] }}" style="text-decoration:none;">✏️</a>
-                    {% if rola in ['lider', 'admin'] %}
-                    <form action="/usun_wpis/{{ w[0] }}" method="POST" class="inline-form" onsubmit="return confirm('Usunąć?');">
-                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                        <button type="submit" style="border:none; background:none; cursor:pointer;">🗑</button>
-                    </form>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <form action="/dodaj_wpis" method="POST">
-            <input type="hidden" name="sekcja" value="{{ sekcja }}">
-            <select name="kategoria" style="width:100%; padding:8px; margin-bottom:5px;">
-                <option value="Awaria">🔴 Awaria (Maszyna stoi)</option>
-                <option value="Postój">🟠 Postój (Brak surowca/Przerwa)</option>
-                <option value="Mikro zatrzymanie">🔵 Mikro zatrzymanie</option>
-                <option value="Usterka">🟣 Usterka (Maszyna pracuje, ale źle)</option>
-            </select>
-            <input type="time" name="czas_start" id="czasStart" required style="width:100%; padding:8px; margin-bottom:5px;">
-            
-            <textarea name="problem" id="opisProblemu" placeholder="Opis problemu (min. 50 znaków)..." rows="2" class="textarea-full" required></textarea>
-            <div id="licznikZnakow" style="font-size:12px; margin-bottom:5px;">Znaków: 0/50</div>
-            <button id="btnZglos" type="submit" class="btn-stop" style="width:100%;" disabled>ZGŁOŚ</button>
-        </form>
+        <a href="/?sekcja=Zasyp" class="btn {% if sekcja=='Zasyp' %}btn-primary{% else %}btn-outline{% endif %}">Zasyp</a>
+        <a href="/?sekcja=Workowanie" class="btn {% if sekcja=='Workowanie' %}btn-primary{% else %}btn-outline{% endif %}">Workowanie</a>
+        <a href="/?sekcja=Magazyn" class="btn {% if sekcja=='Magazyn' %}btn-primary{% else %}btn-outline{% endif %}">Magazyn</a>
     </div>
+</div>
 
-    {% if rola == 'lider' %}
-    <div class="leader-panel" id="panel-lidera">
-        <h3>👑 Panel Lidera (Raportowanie)</h3>
-        
-        <div style="margin-bottom:15px;">
-            {% for r in raporty_hr %}
-            <div class="hr-list-item">
-                <strong>{{ r[1] }}</strong>: 
-                {% if r[2]=='Nieobecność' %}<span class="text-red">NIEOBECNOŚĆ</span>
-                {% else %}<span class="text-blue">NADGODZINY</span>{% endif %}
-                ({{ r[3] | format_czasu }}) - <i>{{ r[4] }}</i>
-                <form action="/usun_obecnosc/{{ r[0] }}" method="POST" style="float:right;" onsubmit="return confirm('Usunąć?');">
-                    <button type="submit" style="color:red; border:none; background:none; cursor:pointer;">[X]</button>
+<div class="section-box" style="margin-bottom:20px; padding:10px 15px; display:flex; align-items:center; justify-content:space-between; background:#fff;">
+    <div style="display:flex; align-items:center; gap:10px;">
+        <strong style="color:#2c3e50;">👥 Obsada Linii:</strong>
+        {% for o in obsada %}
+            <div style="background:#ecf0f1; padding:3px 8px; border-radius:12px; font-size:0.9em; display:flex; align-items:center; gap:5px;">
+                {{ o[1] }}
+                {% if rola in ['lider', 'admin', 'pracownik'] %}
+                <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" style="margin:0;">
+                    <button type="submit" style="border:none; background:none; color:red; cursor:pointer; font-weight:bold;">&times;</button>
                 </form>
+                {% endif %}
             </div>
-            {% endfor %}
-        </div>
-
-        <form action="/dodaj_obecnosc" method="POST" class="form-flex">
-            <input type="hidden" name="data_wpisu" value="{{ dzisiaj }}">
-            <select name="pracownik_id" class="select-flex">
-                {% for p in wszyscy_pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
-            </select>
-            <select name="typ" class="select-flex" id="selectTyp">
-                <option value="Nieobecność">Nieobecność</option>
-                <option value="Nadgodziny">Nadgodziny</option>
-            </select>
-            <div class="time-input-container">
-                <input type="number" name="godziny" placeholder="HH" min="0" max="23"><span class="time-colon">:</span>
-                <input type="number" name="minuty" placeholder="MM" min="0" max="59">
-            </div>
-            <input type="text" name="komentarz" id="inputPowod" placeholder="Powód..." class="input-comment">
-            <button type="submit" class="btn-hr-add">DODAJ</button>
-        </form>
-        
-        <hr class="custom-hr">
-        <form action="/wyslij_raport_email" method="POST" class="mt-15">
-            <textarea name="uwagi_lidera" placeholder="Podsumowanie zmiany dla Zarządu..." class="textarea-full"></textarea>
-            <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:10px;">
-                <button type="submit" class="btn-email" onclick="return confirm('Wygenerować raport i zamknąć zmianę?')">📧 ZAMKNIJ I POBIERZ RAPORT</button>
-                <button type="submit" formaction="/zamknij_zmiane" class="btn-stop" style="background:gray;" onclick="return confirm('Zamknąć BEZ raportu?')">ZAMKNIJ BEZ RAPORTU</button>
-            </div>
-        </form>
+        {% else %}
+            <span style="color:#aaa; font-style:italic;">Brak przypisanych pracowników.</span>
+        {% endfor %}
     </div>
+    
+    {% if rola in ['lider', 'admin', 'pracownik'] %}
+    <form action="{{ url_for('api.dodaj_do_obsady') }}" method="POST" style="display:flex; gap:5px;">
+        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+        <select name="pracownik_id" required style="padding:5px; border-radius:4px; border:1px solid #ccc;">
+            <option value="" disabled selected>+ Dodaj osobę</option>
+            {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn-action" style="background:#2ecc71; color:white;">OK</button>
+    </form>
     {% endif %}
+</div>
 
-{% endblock %}
+{% if sekcja == 'Magazyn' %}
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px;">
+        <div class="stat-card"><span class="label">Przyjęto Netto</span><strong class="value" style="color:green;">{{ suma_wykonanie|int }} kg</strong></div>
+        <div class="stat-card"><span class="label">Ilość Palet</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
+    </div>
+{% else %}
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
+        <div class="stat-card"><span class="label">Plan</span><strong class="value">{{ suma_plan|int }} kg</strong></div>
+        <div class="stat-card"><span class="label">Wykonanie</span><strong class="value" style="color:green;">{{ suma_wykonanie|int }} kg</strong></div>
+        <div class="stat-card"><span class="label">% Realizacji</span><strong class="value">{{ (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
+    </div>
+{% endif %}
 
-{% block scripts %}
-<script src="{{ url_for('static', filename='scripts.js') }}"></script>
+{% if wpisy %}
+<div style="margin-bottom:20px;">
+    {% for w in wpisy[:2] %}
+        <div style="background:#fff3cd; color:#856404; padding:8px 15px; border-radius:4px; border:1px solid #ffeeba; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+            <span>⚠️ <strong>{{ w[3] }}</strong> [{{ w[5] }}]: {{ w[2] }}</span>
+            {% if rola in ['lider', 'admin'] %}<form action="{{ url_for('api.usun_wpis', id=w[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" style="color:#856404; background:none; border:none; cursor:pointer;">✖</button></form>{% endif %}
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% set ns = namespace(is_active=false) %}
+{% for p in plan %}{% if p[3] == 'w toku' %}{% set ns.is_active = true %}{% endif %}{% endfor %}
+
+<div class="section-box" style="padding:0;">
+    <div style="padding:15px; background:#f8f9fa; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
+        <h3 style="margin:0; color:#2c3e50;">📋 {% if sekcja=='Magazyn' %}Rejestr Przyjęć{% else %}Kolejka Produkcyjna{% endif %}</h3>
+        <span class="badge-info">{{ sekcja|upper }}</span>
+    </div>
+
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>#</th><th>Produkt</th><th>Plan (kg)</th><th>Czas Pracy</th><th>Status</th><th>Realizacja</th><th class="text-right">Akcje</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in plan %}
+            <tr class="row-{{ p[3]|replace(' ', '') }}">
+                <td style="color:#888;">{{ loop.index }}</td>
+                <td><strong style="color:var(--primary-color);">{{ p[1] }}</strong><div style="font-size:0.8em; color:#888;">{{ p[9]|upper }}</div></td>
+                <td><strong>{{ p[2]|int }} kg</strong></td>
+                <td style="font-size:0.9em;">
+                    {% if p[4] %}<div style="color:green;">Start: {{ p[4] }}</div>{% endif %}
+                    {% if p[5] %}<div style="color:#c0392b;">Stop: {{ p[5] }}</div>{% endif %}
+                </td>
+                <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
+                <td>
+                    <strong style="color:{% if p[7] > 0 %}green{% else %}#aaa{% endif %};">{{ p[7]|int }} kg</strong>
+                    {% if palety_mapa[p[0]] %}
+                        <button onclick="toggleDetails({{ p[0] }})" class="btn-toggle" style="margin-left: 5px;">
+                            📦 {{ palety_mapa[p[0]]|length }} szt. ▼
+                        </button>
+                    {% endif %}
+                </td>
+                <td class="text-right">
+                    {% if rola in ['lider', 'admin', 'pracownik'] and sekcja != 'Magazyn' %}
+                        {% if p[3] == 'zaplanowane' %}
+                            {% if ns.is_active %}<button disabled class="btn-action btn-disabled"><span class="material-icons">block</span></button>
+                            {% else %}<form action="{{ url_for('api.start_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>{% endif %}
+                        {% elif p[3] == 'w toku' %}
+                            <div style="display:flex; gap:5px; justify-content:flex-end;">
+                                {% if sekcja == 'Workowanie' %}<button onclick="openModal('paleta-{{ p[0] }}')" class="btn-action btn-start" style="background:#8e44ad;">{% if p[9] == 'bigbag' %}+ BIGBAG{% else %}+ PALETA{% endif %}</button>{% endif %}
+                                {% if sekcja == 'Zasyp' %}<button onclick="openModal('stop-zasyp-{{ p[0] }}')" class="btn-action btn-stop">STOP</button>
+                                {% else %}<form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-stop">STOP</button></form>{% endif %}
+                            </div>
+                            <div id="paleta-{{ p[0] }}" class="modal-popup">
+                                <h4 style="margin:0 0 10px 0; color:#8e44ad;">{% if p[9] == 'bigbag' %}📦 Nowy BigBag{% else %}📦 Nowa Paleta{% endif %}</h4>
+                                <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" style="display:flex; flex-direction:column; gap:10px;">
+                                    <input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="typ_produkcji" value="{{ p[9] }}">
+                                    {% if p[9] == 'bigbag' %}<label>Waga Palety (TARA) [kg]:</label><input type="number" step="1" name="waga_palety" value="25" style="padding:10px; font-weight:bold;">
+                                    {% else %}<label>Waga Produktu (Netto) [kg]:</label><input type="number" step="1" name="waga_palety" value="1000" style="padding:10px; font-weight:bold;">{% endif %}
+                                    <div style="display:flex; gap:10px;"><button type="submit" class="btn-action btn-save" style="flex:1;">DODAJ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel" style="flex:1;">ANULUJ</button></div>
+                                </form>
+                            </div>
+                            <div id="stop-zasyp-{{ p[0] }}" class="modal-popup">
+                                <h4 style="margin:0 0 10px 0; color:#c0392b;">🛑 Zatrzymaj (Zasyp)</h4>
+                                <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST" style="display:flex; flex-direction:column; gap:10px;">
+                                    <input type="hidden" name="sekcja" value="{{ sekcja }}"><label>Zużycie (kg):</label><input type="number" step="1" name="final_tonaz" value="{{ p[7]|int if p[7] else '' }}" required style="padding:10px; font-weight:bold;">
+                                    <div style="display:flex; gap:10px;"><button type="submit" class="btn-action btn-stop" style="flex:1;">ZATWIERDŹ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel" style="flex:1;">ANULUJ</button></div>
+                                </form>
+                            </div>
+                        {% elif p[3] == 'zakonczone' %}
+                            <div style="display:flex; align-items:center; justify-content:flex-end; gap:10px;">
+                                <span class="material-icons" style="color:green;">check_circle</span>
+                                {% if sekcja == 'Zasyp' and p[13] and not p[10] %}
+                                    <button onclick="openModal('wyjasnij-{{ p[0] }}')" class="btn-action" style="background:#e74c3c; color:white; font-size:0.8em; animation: pulse 2s infinite;">⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</button>
+                                    <div id="wyjasnij-{{ p[0] }}" class="modal-popup"><h4 style="margin:0 0 10px 0; color:#e74c3c;">⚠️ Rozbieżność Wagi</h4><p style="font-size:0.9em; margin-bottom:10px;">Zasyp: <strong>{{ p[7]|int }} kg</strong><br>Workowanie: <strong>{{ p[11]|int }} kg</strong><br>Różnica: <strong style="color:red;">{{ p[12]|int }} kg</strong></p><form action="{{ url_for('api.zapisz_wyjasnienie', id=p[0]) }}" method="POST" style="display:flex; flex-direction:column; gap:10px;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><textarea name="wyjasnienie" placeholder="Przyczyna..." required rows="3" style="padding:10px; border:1px solid #ccc;"></textarea><div style="display:flex; gap:10px;"><button type="submit" class="btn-action btn-save" style="flex:1;">ZAPISZ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel" style="flex:1;">ANULUJ</button></div></form></div>
+                                {% endif %}
+                                {% if rola in ['lider', 'admin'] %}<form action="{{ url_for('api.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić?');"><button type="submit" class="btn-action btn-outline" style="border-color:#f39c12; color:#f39c12;"><span class="material-icons">replay</span></button></form>{% endif %}
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% if palety_mapa[p[0]] and (sekcja == 'Workowanie' or sekcja == 'Magazyn') %}
+            <tr id="details-{{ p[0] }}" style="display:none; background-color:#fafafa; border-left: 4px solid #8e44ad;">
+                <td colspan="7" style="padding:0;">
+                    <div style="padding:10px 50px;">
+                        <table style="width:100%; font-size:0.9em; background:white; border:1px solid #ddd;">
+                            <thead style="background:#eee;"><tr><th>Nr</th><th>Godzina</th><th>Typ</th><th>Waga Netto</th><th>Opcje</th></tr></thead>
+                            <tbody>
+                                {% for pal in palety_mapa[p[0]] %}
+                                <tr>
+                                    <td>{{ loop.index }}</td><td>🕒 {{ pal[1] }}</td><td><span style="font-size:0.8em; color:#888;">{{ pal[4]|upper }}</span></td>
+                                    <td>
+                                        {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
+                                            {% if pal[0] == 0 %}<button onclick="openModal('waga-{{ pal[2] }}')" class="btn-action" style="background:#e67e22; color:white; padding:2px 8px; font-size:0.8em;">⚖️ WAŻENIE</button>
+                                            {% else %}<strong>{{ pal[0]|int }} kg</strong><button onclick="openModal('waga-{{ pal[2] }}')" class="btn-icon" style="color:#f39c12; background:none; border:none; cursor:pointer; margin-left:5px;">✏️</button>{% endif %}
+                                            <div id="waga-{{ pal[2] }}" class="modal-popup">
+                                                <h4 style="margin:0 0 10px 0;">⚖️ Ważenie BigBag</h4><div style="margin-bottom:10px; font-size:0.9em;">Tara palety: <strong>{{ pal[5]|int }} kg</strong></div>
+                                                <form action="{{ url_for('api.wazenie_magazyn', paleta_id=pal[2]) }}" method="POST" style="display:flex; flex-direction:column; gap:10px;"><input type="hidden" name="sekcja" value="Magazyn"><input type="hidden" name="data_powrotu" value="{{ dzisiaj }}"><label>Waga BRUTTO (z paletą) [kg]:</label><input type="number" step="1" name="waga_brutto" value="{{ pal[6]|int if pal[6] > 0 else '' }}" placeholder="np. 1025" required style="padding:10px; font-weight:bold; font-size:1.2em;"><div style="display:flex; gap:10px;"><button type="submit" class="btn-action btn-save" style="flex:1;">ZAPISZ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel" style="flex:1;">ANULUJ</button></div></form>
+                                            </div>
+                                        {% else %}<strong>{{ pal[0]|int }} kg</strong>{% endif %}
+                                    </td>
+                                    <td>{% if rola in ['lider', 'admin'] and sekcja == 'Workowanie' %}<form action="{{ url_for('api.usun_palete', id=pal[3]) }}" method="POST" onsubmit="return confirm('Usuń?');"><button type="submit" style="color:red; background:none; border:none; cursor:pointer;">❌</button></form>{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            {% endif %}
+        {% else %}<tr><td colspan="7" style="text-align:center; padding:30px;">Brak danych.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if rola in ['lider', 'admin'] %}
+
+<div class="section-box" style="margin-top: 30px; border-left: 5px solid #8e44ad;">
+    <h3 style="margin-top:0; color:#8e44ad;">🏥 HR / Nieobecności i Nadgodziny</h3>
+    <form action="{{ url_for('api.dodaj_obecnosc') }}" method="POST" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:15px;">
+        <select name="pracownik_id" required style="padding:10px; border-radius:4px; font-weight:bold;">
+            <option value="" disabled selected>-- Pracownik --</option>
+            {% for p in wszyscy_pracownicy %}
+            <option value="{{ p[0] }}">{{ p[1] }}</option>
+            {% endfor %}
+        </select>
+        <select name="typ" required style="padding:10px;">
+            <option value="Nieobecność">L4 / Urlop (Nieobecność)</option>
+            <option value="Nadgodziny">Nadgodziny</option>
+            <option value="Inne">Inne</option>
+        </select>
+        <input type="number" step="0.5" name="godziny" placeholder="Ilość godzin" style="padding:10px; width:100px;">
+        <input type="text" name="komentarz" placeholder="Komentarz (opcjonalnie)" style="padding:10px; flex:1;">
+        <button type="submit" class="btn-action" style="background:#8e44ad; color:white;">ZAPISZ</button>
+    </form>
+
+    <table class="modern-table" style="font-size:0.9em;">
+        <thead><tr><th>Pracownik</th><th>Typ</th><th>Godziny</th><th>Komentarz</th><th>Opcje</th></tr></thead>
+        <tbody>
+            {% for r in raporty_hr %}
+            <tr>
+                <td><strong>{{ r[1] }}</strong></td>
+                <td><span class="badge-info" style="background: #e1bee7; color: #4a148c;">{{ r[2] }}</span></td>
+                <td>{{ r[3] }} h</td>
+                <td>{{ r[4] }}</td>
+                <td><form action="{{ url_for('api.usun_obecnosc', id=r[0]) }}" method="POST"><button type="submit" style="color:red; border:none; background:none; cursor:pointer;">❌</button></form></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align:center; color:#aaa;">Brak wpisów HR dzisiaj.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="section-box" style="margin-top: 30px; margin-bottom:50px; background:#2c3e50; color:white; padding:20px;">
+    <h3 style="margin-top:0; color:#ecf0f1; border-bottom:1px solid #7f8c8d; padding-bottom:10px;">📝 Raport Końcowy Lidera</h3>
+    <form action="{{ url_for('zamknij_zmiane') }}" method="POST">
+        <label style="display:block; margin-bottom:5px;">Notatki / Uwagi do zmiany:</label>
+        <textarea name="uwagi_lidera" rows="4" style="width:100%; padding:10px; border-radius:4px; border:none; margin-bottom:15px;" placeholder="Wpisz podsumowanie zmiany, problemy, uwagi dla następnej zmiany..."></textarea>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:0.9em; color:#bdc3c7;">* Kliknięcie zakończy wszystkie aktywne zlecenia.</div>
+            <button type="submit" class="btn-action" style="background:#e67e22; color:white; padding:15px 30px; font-size:1.1em; font-weight:bold;" onclick="return confirm('Czy na pewno chcesz zamknąć zmianę i wysłać raport?')">📧 WYŚLIJ RAPORT I ZAMKNIJ ZMIANĘ</button>
+        </div>
+    </form>
+</div>
+
+{% endif %}
+
+<div id="modalProblem" class="modal-popup" style="display:none;">
+    <h3 style="margin-top:0; color:#e67e22;">⚠️ Zgłoś Problem / Przestój</h3>
+    <form action="{{ url_for('api.dodaj_wpis') }}" method="POST" style="display:flex; flex-direction:column; gap:15px;">
+        <input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+        
+        <label>Typ Zdarzenia:</label>
+        <select name="kategoria" required style="padding:10px; border-radius:4px; font-weight:bold;">
+            <option value="" disabled selected>-- Wybierz --</option>
+            <option value="Przezbrojenie">⚙️ Przezbrojenie</option>
+            <option value="Awaria">🛑 Awaria Maszyny</option>
+            <option value="Brak Surowca">📦 Brak Surowca</option>
+            <option value="Przerwa">☕ Przerwa</option>
+            <option value="Inne">📝 Inne</option>
+        </select>
+        
+        <label>Czas Wystąpienia:</label>
+        <input type="time" name="czas_start" value="{{ now_time }}" style="padding:10px; border-radius:4px; border:1px solid #ccc;">
+        
+        <label>Opis (opcjonalnie):</label>
+        <textarea name="problem" placeholder="Co się stało?" rows="3" style="padding:10px; border:1px solid #ccc;"></textarea>
+        
+        <div style="display:flex; gap:10px;">
+            <button type="submit" class="btn-action" style="background:#e67e22; color:white; flex:1;">ZGŁOŚ</button>
+            <button type="button" onclick="closeAllModals()" class="btn-action" style="background:#95a5a6; color:white; flex:1;">ANULUJ</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    function toggleDetails(id) { var row = document.getElementById('details-' + id); row.style.display = (row.style.display === 'none') ? 'table-row' : 'none'; }
+    function openModal(id) { document.getElementById('modalOverlay').style.display = 'block'; document.getElementById(id).style.display = 'flex'; }
+    function closeAllModals() { document.getElementById('modalOverlay').style.display = 'none'; document.querySelectorAll('.modal-popup').forEach(el => el.style.display = 'none'); }
+    let idleTime = 0; document.addEventListener('mousemove', () => idleTime = 0); document.addEventListener('keypress', () => idleTime = 0);
+    setInterval(() => { idleTime++; if (idleTime >= 15 && document.getElementById('modalOverlay').style.display === 'none') { window.location.reload(); } }, 1000);
+</script>
+
+<style>
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    .modal-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 1000; display: none; flex-direction: column; min-width: 300px; }
+    .stat-card { background:white; padding:15px; border-radius:8px; border:1px solid #ddd; text-align:center; }
+    .modern-table { width:100%; border-collapse:collapse; }
+    .modern-table td, th { padding:10px; border-bottom:1px solid #eee; }
+    .btn-action { padding:5px 10px; border-radius:4px; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+    .btn-start { background:#27ae60; color:white; }
+    .btn-stop { background:#c0392b; color:white; }
+    .btn-save { background:#2980b9; color:white; }
+    .btn-cancel { background:#95a5a6; color:white; }
+    .btn-disabled { background:#ddd; color:#999; cursor:not-allowed; }
+    .btn-toggle { background:none; border:1px solid #ccc; border-radius:12px; font-size:0.75em; padding:2px 8px; cursor:pointer; margin-top:3px; }
+    .row-wtoku { background-color: #fff5f5; border-left: 3px solid #c0392b; }
+</style>
+
 {% endblock %}

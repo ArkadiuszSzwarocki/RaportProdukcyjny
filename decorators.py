@@ -1,30 +1,38 @@
-from flask import session, redirect, url_for
 from functools import wraps
+from flask import session, redirect, flash
 
+# 1. WYMAGANE LOGOWANIE (Dla wszystkich podstron)
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get('zalogowany'):
-            return redirect(url_for('login'))
+        if 'zalogowany' not in session:
+            return redirect('/login')
         return f(*args, **kwargs)
     return decorated_function
 
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('zalogowany') or session.get('rola') != 'admin':
-            return redirect(url_for('index'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-# NOWE UPRAWNIENIE: Wpuszcza Admina, Lidera i Planistę
+# 2. DOSTĘP DO WYNIKÓW (Zarząd, Admin, Planista, Lider)
 def zarzad_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Lista ról, które mają dostęp do wyników
-        dozwolone = ['admin', 'lider', 'planista']
+        if 'zalogowany' not in session:
+            return redirect('/login')
         
-        if not session.get('zalogowany') or session.get('rola') not in dozwolone:
-            return redirect(url_for('index')) # Odsyła na główną, jeśli brak uprawnień
+        # Uprawnienia do widoku /zarzad
+        if session.get('rola') not in ['zarzad', 'admin', 'planista', 'lider']:
+            return redirect('/')
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+# 3. DOSTĘP DO PANELU ADMINA (Tylko Admin - tego brakowało!)
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'zalogowany' not in session:
+            return redirect('/login')
+        
+        if session.get('rola') != 'admin':
+            return redirect('/')
+            
         return f(*args, **kwargs)
     return decorated_function

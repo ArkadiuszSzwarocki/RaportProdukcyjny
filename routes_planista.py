@@ -1,61 +1,95 @@
-from flask import Blueprint, render_template, request, redirect, session, url_for
-from datetime import date, timedelta, datetime
+from flask import Blueprint, render_template, request, redirect, session, flash, url_for
 from db import get_db_connection
+from datetime import date, datetime
 from decorators import login_required
 
 planista_bp = Blueprint('planista', __name__)
 
-@planista_bp.route('/planista')
+# --- KONFIGURACJA NORM (KG NA GODZINĘ) ---
+# Tutaj możesz dostosować prędkość maszyny
+NORMY_KG_H = {
+    'standard': 3500,  # 3.5 tony na godzinę (Worki 25kg)
+    'bigbag': 5000,    # 5.0 ton na godzinę
+    'szycie': 2500     # 2.5 tony na godzinę
+}
+
+@planista_bp.route('/planista', methods=['GET', 'POST'])
 @login_required
 def panel_planisty():
-    if session.get('rola') not in ['planista', 'admin']:
+    if session.get('rola') not in ['planista', 'admin', 'zarzad', 'lider']:
         return redirect('/')
-
-    data_str = request.args.get('data', str(date.today()))
-    try:
-        wybrana_data = datetime.strptime(data_str, '%Y-%m-%d').date()
-    except:
-        wybrana_data = date.today()
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # --- NOWE: Naprawa kolejności (jeśli są nulle, wstawiamy ID) ---
-    # To zapewnia, że stare zlecenia też będą miały numerki
-    cursor.execute("UPDATE plan_produkcji SET kolejnosc = id WHERE kolejnosc IS NULL OR kolejnosc = 0")
-    conn.commit()
+    wybrana_data = request.args.get('data', str(date.today()))
 
-    # --- NOWE ZAPYTANIE SORTUJĄCE PO 'kolejnosc' ---
-    # Sortujemy najpierw po tym czy 'w toku' (zawsze góra), a potem ręczna kolejność
-    query = """
-        SELECT id, sekcja, produkt, tonaz, status, tonaz_rzeczywisty, 
-               TIME_FORMAT(real_start, '%H:%i') as start, 
-               TIME_FORMAT(real_stop, '%H:%i') as stop,
-               kolejnosc
+    cursor.execute("""
+        SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci 
         FROM plan_produkcji 
-        WHERE data_planu = %s 
-        ORDER BY 
-            CASE status WHEN 'w toku' THEN 1 ELSE 2 END, 
-            kolejnosc ASC
-    """
-    cursor.execute(query, (wybrana_data,))
-    zlecenia = cursor.fetchall()
-
-    zlecenie_ids = [z[0] for z in zlecenia]
-    palety_mapa = {}
+        WHERE data_planu = %s AND sekcja = 'Zasyp'
+        ORDER BY kolejnosc
+    """, (wybrana_data,))
     
-    if zlecenie_ids:
-        format_strings = ','.join(['%s'] * len(zlecenie_ids))
-        cursor.execute(f"SELECT plan_id, waga, DATE_FORMAT(data_dodania, '%H:%i') FROM palety_workowanie WHERE plan_id IN ({format_strings}) ORDER BY id DESC", tuple(zlecenie_ids))
-        palety = cursor.fetchall()
-        for p in palety:
-            pid = p[0]
-            if pid not in palety_mapa: palety_mapa[pid] = []
-            palety_mapa[pid].append({'waga': p[1], 'czas': p[2]})
+    plany = cursor.fetchall()
+    plany_list = [list(p) for p in plany] # Lista edytowalna
+
+    palety_mapa = {}
+    suma_plan = 0
+    suma_wyk = 0
+    
+    # NOWE ZMIENNE DO CZASU
+    suma_minut_plan = 0 
+    
+    for p in plany_list:
+        waga_plan = p[3] if p[3] else 0
+        typ_prod = p[9]
+        
+        # 1. OBLICZANIE CZASU (Waga / Norma * 60 min)
+        norma = NORMY_KG_H.get(typ_prod, 3000) # Domyślnie 3000 jeśli nieznany typ
+        czas_trwania_min = int((waga_plan / norma) * 60)
+        
+        # Dodajemy obliczony czas do listy p (index 11)
+        p.append(czas_trwania_min) 
+        
+        suma_plan += waga_plan
+        suma_minut_plan += czas_trwania_min
+
+        # 2. POBIERANIE WYKONANIA
+        cursor.execute("""
+            SELECT SUM(tonaz_rzeczywisty) 
+            FROM plan_produkcji 
+            WHERE data_planu=%s AND produkt=%s AND typ_produkcji=%s AND sekcja IN ('Workowanie', 'Magazyn')
+        """, (wybrana_data, p[2], typ_prod))
+        res_wyk = cursor.fetchone()
+        wykonanie_rzeczywiste = res_wyk[0] if res_wyk and res_wyk[0] else 0
+        
+        p[8] = wykonanie_rzeczywiste
+        suma_wyk += wykonanie_rzeczywiste
+
+        # 3. POBIERANIE PALET
+        cursor.execute("""
+            SELECT pw.waga, DATE_FORMAT(pw.data_dodania, '%H:%i'), pw.tara, pw.waga_brutto 
+            FROM palety_workowanie pw
+            JOIN plan_produkcji pp ON pw.plan_id = pp.id
+            WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.typ_produkcji = %s AND pp.sekcja = 'Workowanie'
+            ORDER BY pw.id DESC
+        """, (wybrana_data, p[2], typ_prod))
+        palety_mapa[p[0]] = cursor.fetchall()
 
     conn.close()
 
-    next_date = (wybrana_data + timedelta(days=1)).isoformat()
-    prev_date = (wybrana_data - timedelta(days=1)).isoformat()
+    procent = (suma_wyk / suma_plan * 100) if suma_plan > 0 else 0
+    
+    # Obliczenie obłożenia zmiany (450 min to 7.5h pracy netto)
+    procent_czasu = (suma_minut_plan / 450 * 100)
 
-    return render_template('planista.html', zlecenia=zlecenia, palety_mapa=palety_mapa, wybrana_data=wybrana_data, next_date=next_date, prev_date=prev_date)
+    return render_template('planista.html', 
+                           plany=plany_list, 
+                           wybrana_data=wybrana_data, 
+                           palety_mapa=palety_mapa,
+                           suma_plan=suma_plan,
+                           suma_wyk=suma_wyk,
+                           procent=procent,
+                           suma_minut_plan=suma_minut_plan, # Przekazujemy sumę minut
+                           procent_czasu=procent_czasu)     # Przekazujemy % zajętości zmiany
