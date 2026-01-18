@@ -51,3 +51,40 @@ def setup_database():
 
         conn.commit(); conn.close()
     except Exception as e: print(f"Błąd bazy: {e}")
+
+
+def rollover_unfinished(from_date, to_date):
+    """Przenosi niezakończone zlecenia z from_date na to_date.
+
+    Mechanizm: kopiujemy wiersze z plan_produkcji, które mają status != 'zakonczone'
+    i zaplanowaną datę = from_date. Przy kopiowaniu unikamy duplikatów —
+    jeżeli dla tej samej kombinacji sekcja/produkt/tonaz istnieje już rekord
+    na to_date, kopiowanie jest pomijane.
+
+    Zwraca liczbę dodanych wierszy.
+    """
+    try:
+        conn = get_db_connection(); cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status)
+            SELECT %s, p.sekcja, p.produkt, p.tonaz, 'zaplanowane'
+            FROM plan_produkcji p
+            WHERE p.data_planu = %s AND COALESCE(p.status, '') != 'zakonczone'
+              AND NOT EXISTS (
+                SELECT 1 FROM plan_produkcji p2
+                WHERE p2.data_planu = %s
+                  AND p2.sekcja = p.sekcja
+                  AND p2.produkt = p.produkt
+                  AND (p2.tonaz = p.tonaz OR (p2.tonaz IS NULL AND p.tonaz IS NULL))
+              )
+        """, (to_date, from_date, to_date))
+        added = cur.rowcount
+        conn.commit(); conn.close()
+        return added
+    except Exception as e:
+        print(f"Błąd przy rollover: {e}")
+        try:
+            conn.close()
+        except:
+            pass
+        return 0

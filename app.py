@@ -51,6 +51,11 @@ def index():
     aktywna_sekcja = request.args.get('sekcja', 'Zasyp'); data_str = request.args.get('data')
     try: dzisiaj = datetime.strptime(data_str, '%Y-%m-%d').date() if data_str else date.today()
     except: dzisiaj = date.today()
+
+    try:
+        next_date = (dzisiaj + timedelta(days=1)).isoformat()
+    except:
+        next_date = str((datetime.now() + timedelta(days=1)).date())
     
     conn = get_db_connection(); cursor = conn.cursor()
     cursor.execute("SELECT * FROM pracownicy ORDER BY imie_nazwisko"); wszyscy = cursor.fetchall()
@@ -67,7 +72,7 @@ def index():
                 cursor.execute("SELECT waga, DATE_FORMAT(data_dodania, '%H:%i') FROM palety_workowanie WHERE plan_id = %s ORDER BY id DESC", (p[0],)); palety_mapa[p[0]] = cursor.fetchall()
     
     cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu = %s", (dzisiaj,)); raporty_hr = cursor.fetchall(); conn.close()
-    return render_template('dashboard.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session['rola'], dzisiaj=dzisiaj, raporty_hr=raporty_hr)
+    return render_template('dashboard.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session['rola'], dzisiaj=dzisiaj, raporty_hr=raporty_hr, next_date=next_date)
 
 @app.route('/wyslij_raport_email', methods=['POST'])
 def wyslij_raport_email():
@@ -145,6 +150,12 @@ def zarzad_panel():
     wybrany_rok = get_arg_int('rok', teraz.year)
     wybrany_miesiac = get_arg_int('miesiac', teraz.month)
     wybrana_data = request.args.get('data') or str(teraz.date())
+
+    # Podajemy również datę następną, żeby formularz mógł domyślnie ustawić to_date
+    try:
+        next_date = (date.fromisoformat(wybrana_data) + timedelta(days=1)).isoformat()
+    except Exception:
+        next_date = str((teraz + timedelta(days=1)).date())
 
     if tryb == 'dzien': 
         d_od = d_do = wybrana_data
@@ -225,7 +236,8 @@ def zarzad_panel():
         chart_wyk=json.dumps(ch_w), 
         pie_labels=json.dumps(pie_l), 
         pie_values=json.dumps(pie_v), 
-        pracownicy_stats=p_stats
+        pracownicy_stats=p_stats,
+        next_date=next_date
     )
 
 if __name__ == '__main__':

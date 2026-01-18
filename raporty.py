@@ -1,6 +1,6 @@
 import os
-import pandas as pd
-from fpdf import FPDF
+
+# Opóźnione importy ciężkich zależności (pandas, fpdf)
 
 # Upewniamy się, że folder istnieje
 if not os.path.exists('raporty'):
@@ -50,19 +50,23 @@ def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows):
     """Generuje plik Excel i zwraca jego nazwę"""
     nazwa_excel = f"Raport_{dzisiaj}.xlsx"
     sciezka = os.path.join('raporty', nazwa_excel)
-    
+    # importujemy pandas tylko podczas generowania excela (unikamy ciężkiego importu przy starcie aplikacji)
+    import pandas as pd
+
     with pd.ExcelWriter(sciezka, engine='openpyxl') as writer:
         pd.DataFrame(prod_rows, columns=['Sekcja', 'Produkt', 'Plan', 'Wykonanie']).to_excel(writer, sheet_name='Produkcja', index=False)
         pd.DataFrame(awarie_rows, columns=['Sekcja', 'Kategoria', 'Problem', 'Start', 'Stop', 'Minuty']).to_excel(writer, sheet_name='Awarie', index=False)
         pd.DataFrame(hr_rows, columns=['Pracownik', 'Typ', 'Godziny']).to_excel(writer, sheet_name='HR', index=False)
-    
+
     return nazwa_excel
 
 def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
     """Generuje plik PDF z tabelami"""
     nazwa_pdf = f"Raport_{dzisiaj}.pdf"
     sciezka = os.path.join('raporty', nazwa_pdf)
-    
+    # importujemy FPDF tylko podczas generowania PDF (unikamy importu przy starcie aplikacji)
+    from fpdf import FPDF
+
     pdf = FPDF()
     pdf.add_page()
     

@@ -1,84 +1,91 @@
-/* static/scripts.js */
+/* static/scripts.js - Refaktoryzacja: czytelne funkcje, stałe i inicjalizacja */
 
-document.addEventListener("DOMContentLoaded", function() {
+(function () {
+    'use strict';
+
+    // --- Stałe konfiguracyjne ---
+    const REFRESH_INTERVAL_MS = 60_000; // odśwież co 60s, gdy nic nie jest wprowadzane
+    const MIN_VALID_CHARS = 50; // minimalna liczba "ważnych" znaków
+    const ACTIVE_BG = '#d32f2f';
+    const INACTIVE_BG = 'gray';
+
+    // --- Elementy DOM (cache) ---
     const czasInput = document.getElementById('czasStart');
-    // Usunęliśmy pobieranie errorTime, bo znosimy limit czasu
     const poleTekstowe = document.getElementById('opisProblemu');
     const licznik = document.getElementById('licznikZnakow');
     const przycisk = document.getElementById('btnZglos');
-    
-    // --- OBSŁUGA FORMULARZA HR (WYMUSZANIE POWODU) ---
+
+    // HR: typ i pole "powód"
     const selectTyp = document.getElementById('selectTyp');
     const inputPowod = document.getElementById('inputPowod');
 
-    if (selectTyp && inputPowod) {
-        selectTyp.addEventListener('change', function() {
-            if (this.value === 'Nadgodziny') {
-                inputPowod.required = true;
-                inputPowod.classList.add('input-required');
-                inputPowod.placeholder = "WPISZ POWÓD (Wymagane!)";
-            } else {
-                inputPowod.required = false;
-                inputPowod.classList.remove('input-required');
-                inputPowod.placeholder = "Powód...";
-            }
-        });
+    // --- Pomocnicze funkcje ---
+    // Zwraca treść z usuniętymi znakami specjalnymi (liczymy tylko znaczące znaki)
+    function getCzystaTresc(tekst) {
+        return (tekst || '').replace(/[^a-zA-Z0-9ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, '');
     }
 
-    // --- OBSŁUGA ZGŁASZANIA AWARII (LICZNIK ZNAKÓW) ---
-    function aktualizujWalidacje() {
-        if (!poleTekstowe || !licznik || !przycisk) return;
-        
-        // Liczymy znaki (usuwamy znaki specjalne)
-        const czystaTresc = poleTekstowe.value.replace(/[^a-zA-Z0-9ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, '');
-        const liczbaZnakow = czystaTresc.length;
-        
-        // ZMIANA: ZMNIEJSZONO LIMIT DO 50 ZNAKÓW
-        const wymagane = 50;
-        
-        licznik.innerText = `Liczba ważnych znaków: ${liczbaZnakow} / ${wymagane}`;
-        
-        // ZMIANA: USUNIĘTO SPRAWDZANIE GODZINY 15:00 (czasOK jest zawsze true)
-        
-        if (liczbaZnakow >= wymagane) { 
-            licznik.style.color = 'green'; 
-            przycisk.disabled = false; 
-            przycisk.style.background = '#d32f2f'; // Czerwony (aktywny)
-            przycisk.style.cursor = 'pointer'; 
-            przycisk.innerText = 'ZGŁOŚ PROBLEM'; 
-        } else { 
-            licznik.style.color = 'red'; 
-            przycisk.disabled = true; 
-            przycisk.style.background = 'gray'; 
-            przycisk.style.cursor = 'not-allowed'; 
-            przycisk.innerText = `ZGŁOŚ PROBLEM (Brakuje ${wymagane - liczbaZnakow})`; 
+    // Ustawia wygląd i stan przycisku oraz tekst licznika
+    function ustawStanPrzycisku(liczbaZnakow) {
+        if (!licznik || !przycisk) return;
+
+        licznik.innerText = `Liczba ważnych znaków: ${liczbaZnakow} / ${MIN_VALID_CHARS}`;
+
+        if (liczbaZnakow >= MIN_VALID_CHARS) {
+            licznik.style.color = 'green';
+            przycisk.disabled = false;
+            przycisk.style.background = ACTIVE_BG;
+            przycisk.style.cursor = 'pointer';
+            przycisk.innerText = 'ZGŁOŚ PROBLEM';
+        } else {
+            licznik.style.color = 'red';
+            przycisk.disabled = true;
+            przycisk.style.background = INACTIVE_BG;
+            przycisk.style.cursor = 'not-allowed';
+            przycisk.innerText = `ZGŁOŚ PROBLEM (Brakuje ${MIN_VALID_CHARS - liczbaZnakow})`;
         }
     }
 
-    // Automatyczne ustawienie godziny na obecną
-    if (czasInput) { 
-        const now = new Date(); 
-        const godzina = String(now.getHours()).padStart(2, '0'); 
-        const minuta = String(now.getMinutes()).padStart(2, '0'); 
-        czasInput.value = `${godzina}:${minuta}`; 
-        // Usunęliśmy nasłuchiwanie czasu, bo nie ma już blokady
+    // Główna funkcja walidacji treści pola z opisem problemu
+    function aktualizujWalidacje() {
+        if (!poleTekstowe) return;
+        const czysta = getCzystaTresc(poleTekstowe.value);
+        ustawStanPrzycisku(czysta.length);
     }
 
-    if (poleTekstowe) { 
-        poleTekstowe.addEventListener('input', aktualizujWalidacje); 
+    // Inicjalne ustawienie pola czasu na aktualną godzinę
+    function inicjujGodzine() {
+        if (!czasInput) return;
+        const now = new Date();
+        const godz = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        czasInput.value = `${godz}:${min}`;
     }
-    
-    // Uruchomienie przy starcie
-    aktualizujWalidacje();
-});
 
-
-// Automatyczne odświeżanie strony co 60 sekund (60000 ms)
-// Tylko jeśli nikt nic nie wpisuje (żeby nie skasować wpisywanego tekstu)
-setInterval(function() {
-    const aktywneElementy = document.querySelectorAll('input:focus, textarea:focus, select:focus');
-    if (aktywneElementy.length === 0) {
-        // Jeśli użytkownik nic nie pisze -> odśwież
-        window.location.reload();
+    // Obsługa wyboru typu (HR) — wymuszanie pola "powód" dla Nadgodzin
+    function initSelectTypListener() {
+        if (!selectTyp || !inputPowod) return;
+        selectTyp.addEventListener('change', function () {
+            const wymagane = this.value === 'Nadgodziny';
+            inputPowod.required = wymagane;
+            inputPowod.classList.toggle('input-required', wymagane);
+            inputPowod.placeholder = wymagane ? 'WPISZ POWÓD (Wymagane!)' : 'Powód...';
+        });
     }
-}, 60000);
+
+    // Inicjalizacja po załadowaniu DOM
+    document.addEventListener('DOMContentLoaded', function () {
+        inicjujGodzine();
+        initSelectTypListener();
+        if (poleTekstowe) poleTekstowe.addEventListener('input', aktualizujWalidacje);
+        // Wywołanie raz, żeby ustawić początkowy stan przycisku/licznika
+        aktualizujWalidacje();
+    });
+
+    // Auto-refresh: odśwież gdy nikt nic nie wpisuje
+    setInterval(function () {
+        const aktywne = document.querySelectorAll('input:focus, textarea:focus, select:focus');
+        if (aktywne.length === 0) window.location.reload();
+    }, REFRESH_INTERVAL_MS);
+
+})();

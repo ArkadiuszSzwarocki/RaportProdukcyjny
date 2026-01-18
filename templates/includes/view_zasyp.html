@@ -40,8 +40,15 @@
 
     {% if aktywne %}
     <details style="margin-top: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
-        <summary style="padding: 12px; cursor: pointer; font-weight: bold; color: #555; list-style: none; outline: none; font-size: 0.9em;">
-            🔽 POKAŻ / UKRYJ KOLEJKĘ ZLECEŃ
+        <summary style="padding: 12px; cursor: pointer; font-weight: bold; color: #555; list-style: none; outline: none; font-size: 0.9em; display: flex; align-items: center; gap:12px;">
+            <span>🔽 POKAŻ / UKRYJ KOLEJKĘ ZLECEŃ</span>
+            {% if rola in ['planista', 'lider'] %}
+                <form action="{{ url_for('api.manual_rollover') }}" method="POST" style="margin-left:8px;">
+                    <input type="hidden" name="from_date" value="{{ dzisiaj }}">
+                    <input type="hidden" name="to_date" value="{{ next_date }}">
+                    <button type="submit" onclick="return confirm('Na pewno przenieść niezakończone zlecenia? To usunie oryginały.')" style="background:#c0392b; color:white; border:none; padding:6px 8px; border-radius:4px; cursor:pointer; font-size:0.85em;">Przenieś zlecenia</button>
+                </form>
+            {% endif %}
         </summary>
         <div style="padding: 15px; border-top: 1px solid #ddd; background: white;">
     {% else %}
