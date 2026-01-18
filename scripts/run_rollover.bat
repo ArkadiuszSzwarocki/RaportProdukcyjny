@@ -2,18 +2,32 @@
 REM Plik uruchamiający skrypt rollover (uruchamiać codziennie o 06:00)
 SETLOCAL
 
-REM Zmień poniższe ścieżki jeśli Twoje środowisko jest w innym miejscu
-set PYTHON=C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Scripts\python.exe
-set PROJECT_DIR=C:\Users\arkad\Documents\GitHub\RaportProdukcyjny
+REM --- KONFIGURACJA ŚCIEŻEK (DYNAMICZNA) ---
+
+REM Ustal folder projektu (jeden poziom wyżej niż ten skrypt, bo skrypt jest w folderze 'scripts')
+pushd "%~dp0.."
+set PROJECT_DIR=%CD%
+popd
+
+REM Ustal ścieżki do Pythona i skryptu względem folderu projektu
+set PYTHON=%PROJECT_DIR%\.venv\Scripts\python.exe
 set SCRIPT=%PROJECT_DIR%\scripts\rollover.py
 set LOG_DIR=%PROJECT_DIR%\logs
 
+REM --- KONIEC KONFIGURACJI ---
 
+REM Utwórz folder logów jeśli nie istnieje
+IF NOT EXIST "%LOG_DIR%" mkdir "%LOG_DIR%"
 
+REM Przejdź do folderu projektu (ważne dla importów w Pythonie)
+cd /d "%PROJECT_DIR%"
 
+echo [%DATE% %TIME%] Uruchomiono rollover >> "%LOG_DIR%\rollover.log"
 
+REM Uruchom skrypt
+"%PYTHON%" "%SCRIPT%" >> "%LOG_DIR%\rollover.log" 2>&1
 
+echo [%DATE% %TIME%] Zakonczono (kod=%ERRORLEVEL%) >> "%LOG_DIR%\rollover.log"
 
-
-
-exit /b %ERRORLEVEL%ENDLOCALecho [%DATE% %TIME%] Zakonczono (kod=%ERRORLEVEL%) >> "%LOG_DIR%\rollover.log"%PYTHON% %SCRIPT% >> "%LOG_DIR%\rollover.log" 2>&1echo [%DATE% %TIME%] Uruchomiono rollover >> "%LOG_DIR%\rollover.log"cd /d "%PROJECT_DIR%"IF NOT EXIST "%LOG_DIR%" mkdir "%LOG_DIR%"n
+ENDLOCAL
+exit /b %ERRORLEVEL%

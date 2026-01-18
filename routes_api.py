@@ -1,4 +1,5 @@
 from flask import Blueprint, request, redirect, url_for, flash, render_template, session
+import os
 from datetime import date, datetime
 from contextlib import contextmanager
 
@@ -42,8 +43,15 @@ def dodaj_plan():
 @api_bp.route('/usun_plan/<int:id>', methods=['POST'])
 @login_required
 def usun_plan(id):
+    # KROK 2: Zabezpieczenie - upewniamy się, że ID to na pewno liczba
+    try:
+        id = int(id)
+    except ValueError:
+        return "Błąd: Nieprawidłowe ID", 400
+
     data_powrotu = request.form.get('data_powrotu', date.today())
     with db_cursor(commit=True) as cur:
+        # Tu jest drugie zabezpieczenie: użycie %s zamiast f-stringa
         cur.execute("DELETE FROM plan_produkcji WHERE id=%s", (id,))
 
     return redirect(url_for('index', sekcja='Zasyp', data=data_powrotu))
@@ -303,8 +311,80 @@ def manual_rollover():
             )
             deleted = cur.rowcount
 
+        # Logowanie wyniku do pliku dla diagnostyki
+        try:
+            logs_dir = os.path.join(os.getcwd(), 'logs')
+            os.makedirs(logs_dir, exist_ok=True)
+            with open(os.path.join(logs_dir, 'manual_rollover.log'), 'a', encoding='utf-8') as lf:
+                lf.write(f"[{datetime.now().isoformat()}] manual_rollover from={from_date} to={to_date} inserted={inserted} deleted={deleted}\n")
+        except Exception:
+            pass
+
         flash(f'Przeniesiono {deleted} zleceń (dodano {inserted}).', 'success')
     except Exception as e:
+        try:
+            logs_dir = os.path.join(os.getcwd(), 'logs')
+            os.makedirs(logs_dir, exist_ok=True)
+            with open(os.path.join(logs_dir, 'manual_rollover.log'), 'a', encoding='utf-8') as lf:
+                lf.write(f"[{datetime.now().isoformat()}] manual_rollover ERROR from={from_date} to={to_date} err={e}\n")
+        except Exception:
+            pass
         flash(f'Błąd podczas przenoszenia: {e}', 'error')
 
     return redirect(url_for('zarzad_panel'))
+# W routes_api.py - Aktualizacja dodaj_plan i nowe endpointy
+
+@api_bp.route('/dodaj_plan_zaawansowany', methods=['POST'])
+@login_required
+def dodaj_plan_zaawansowany():
+    if session.get('rola') not in ['planista', 'admin']:
+        return redirect('/')
+
+    sekcja = request.form.get('sekcja')
+    data_planu = request.form.get('data_planu')
+    produkt = request.form.get('produkt')
+    tonaz = request.form.get('tonaz')
+    # Checkbox w HTML zwraca 'on' jeśli zaznaczony, lub None
+    wymaga_oplaty = request.form.get('wymaga_oplaty') 
+    
+    status = 'nieoplacone' if wymaga_oplaty else 'zaplanowane'
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja) VALUES (%s, %s, %s, %s, %s)",
+        (data_planu, produkt, tonaz, status, sekcja)
+    )
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('planista.panel_planisty', data=data_planu))
+
+@api_bp.route('/zmien_status_zlecenia/<int:id>', methods=['POST'])
+@login_required
+def zmien_status_zlecenia(id):
+    nowy_status = request.form.get('status')
+    data_powrotu = request.form.get('data_powrotu')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE plan_produkcji SET status=%s WHERE id=%s", (nowy_status, id))
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('planista.panel_planisty', data=data_powrotu))
+
+@api_bp.route('/przenies_zlecenie/<int:id>', methods=['POST'])
+@login_required
+def przenies_zlecenie(id):
+    nowa_data = request.form.get('nowa_data')
+    stara_data = request.form.get('stara_data') # do powrotu
+    
+    if nowa_data:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE plan_produkcji SET data_planu=%s WHERE id=%s", (nowa_data, id))
+        conn.commit()
+        conn.close()
+    
+    return redirect(url_for('planista.panel_planisty', data=stara_data))

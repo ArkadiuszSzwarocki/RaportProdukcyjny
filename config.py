@@ -1,15 +1,19 @@
 import os
+from dotenv import load_dotenv
 
-# Klucz do sesji
-SECRET_KEY = 'tajnyKluczAgronetzwerk'
+# Wczytaj zmienne z pliku .env
+load_dotenv()
 
-# Dane do bazy
+# Klucz do sesji (pobierany z .env, a jeśli brak - używa domyślnego)
+SECRET_KEY = os.getenv('SECRET_KEY', 'tajnyKluczAgronetzwerk')
+
+# Dane do bazy - teraz pobierane bezpiecznie z .env
 DB_CONFIG = {
-    'host': '192.168.0.18',      
-    'port': 3307,                
-    'database': 'biblioteka',    
-    'user': 'biblioteka',        
-    'password': 'Filipinka2025',
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': int(os.getenv('DB_PORT', 3307)),
+    'database': os.getenv('DB_NAME', 'biblioteka'),
+    'user': os.getenv('DB_USER', 'biblioteka'),
+    'password': os.getenv('DB_PASSWORD', ''),  # Puste domyślnie, wymusza pobranie z .env
     'charset': 'utf8mb4'
 }
 
