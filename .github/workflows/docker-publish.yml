@@ -1,7 +1,14 @@
+name: Docker Publish
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
 env:
   REGISTRY: ghcr.io
   # Zmieniamy to na małe litery ręcznie lub używamy funkcji:
-  IMAGE_NAME: arkadiuszszwarocki/raportprodukcyjny 
+  IMAGE_NAME: arkadiuszszwarocki/raportprodukcyjny
 
 jobs:
   build:
