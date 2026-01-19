@@ -51,4 +51,4 @@ jobs:
           context: .
           push: true
           # Użyj wartości ustawionej w kroku `set_image` (runtime output)
-          tags: ${{ env.REGISTRY }}/${{ steps.set_image.outputs.image }}:latest
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
