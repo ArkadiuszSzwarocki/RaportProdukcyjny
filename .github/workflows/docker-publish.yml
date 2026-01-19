@@ -27,8 +27,8 @@ jobs:
       - name: Set IMAGE_NAME (lowercase, safe for tags)
         id: set_image
         run: |
-          # Zamieniamy GITHUB_REPOSITORY na małe litery i zastępujemy '/' znakiem '_'
-          IMAGE=$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]' | sed 's#/#_#g')
+          # Zamieniamy GITHUB_REPOSITORY na małe litery i zachowujemy '/' aby uzyskać format owner/repo
+          IMAGE=$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
           echo "IMAGE_NAME=$IMAGE" >> $GITHUB_ENV
           echo "image=$IMAGE" >> $GITHUB_OUTPUT
 
