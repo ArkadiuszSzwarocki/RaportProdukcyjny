@@ -12,6 +12,10 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Nadpisujemy możliwą repozytorium-wide zmienną IMAGE_NAME żeby
+      # nie przepływała do kroków przed ustawieniem poprawnej wartości.
+      IMAGE_NAME: ''
     permissions:
       contents: read
       packages: write
@@ -28,7 +32,7 @@ jobs:
           echo "IMAGE_NAME=$IMAGE" >> $GITHUB_ENV
           echo "image=$IMAGE" >> $GITHUB_OUTPUT
 
-      - name: Debug: show resolved image name
+      - name: "Debug: show resolved image name"
         run: |
           echo "GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
           echo "env IMAGE_NAME=$IMAGE_NAME"
