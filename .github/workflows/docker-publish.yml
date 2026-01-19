@@ -7,8 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Zmieniamy to na małe litery ręcznie lub używamy funkcji:
-  IMAGE_NAME: arkadiuszszwarocki/raportprodukcyjny
+  # IMAGE_NAME będzie ustawione w kroku po checkout, aby wymusić małe litery
 
 jobs:
   build:
@@ -20,6 +19,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set IMAGE_NAME (lowercase, safe for tags)
+        run: |
+          # Zamieniamy GITHUB_REPOSITORY na małe litery i zastępujemy '/' znakiem '-'
+          IMAGE=$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]' | sed 's#/#_#g')
+          echo "IMAGE_NAME=$IMAGE" >> $GITHUB_ENV
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
