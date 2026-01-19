@@ -1,16 +1,21 @@
 name: Docker Publish
-on: 
+on:
   push:
-    branches: 
+    branches:
       - main
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
+  # IMAGE_NAME będzie ustawione w kroku po checkout, aby wymusić małe litery
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Nadpisujemy możliwą repozytorium-wide zmienną IMAGE_NAME żeby
+      # nie przepływała do kroków przed ustawieniem poprawnej wartości.
+      IMAGE_NAME: ''
     permissions:
       contents: read
       packages: write
@@ -19,11 +24,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name:  Set IMAGE_NAME (lowercase, Docker-compliant)
+      - name: Set IMAGE_NAME (lowercase, safe for tags)
         id: set_image
         run: |
-          # Zamieniamy na małe litery i podkreślniki na myślniki
-          IMAGE=$(echo "$GITHUB_REPOSITORY" | tr '[: upper:]' '[:lower:]' | tr '_' '-')
+          # Zamieniamy GITHUB_REPOSITORY na małe litery i zachowujemy '/' aby uzyskać format owner/repo
+          IMAGE=$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
           echo "IMAGE_NAME=$IMAGE" >> $GITHUB_ENV
           echo "image=$IMAGE" >> $GITHUB_OUTPUT
 
@@ -35,25 +40,15 @@ jobs:
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
-        with: 
-          registry: ${{ env. REGISTRY }}
+        with:
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          # Użyj wartości ustawionej w kroku `set_image` (runtime output)
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
