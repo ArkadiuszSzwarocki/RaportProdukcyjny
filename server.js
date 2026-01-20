@@ -10,6 +10,15 @@ import pdfParse from 'pdf-parse';
 
 dotenv.config();
 
+// Helper: konwersja snake_case -> camelCase dla rzędów z bazy
+const toCamel = (s) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+const normalizeRow = (row) => {
+    const out = {};
+    for (const k of Object.keys(row || {})) out[toCamel(k)] = row[k];
+    return out;
+};
+const normalizeRows = (rows) => (Array.isArray(rows) ? rows.map(normalizeRow) : rows);
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -126,7 +135,7 @@ initTables();
 app.get('/api/roles', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM roles');
-        res.json(rows);
+        res.json(normalizeRows(rows));
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Błąd pobierania ról' });
@@ -137,7 +146,7 @@ app.get('/api/roles', async (req, res) => {
 app.get('/api/sub-roles', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM sub_roles');
-        res.json(rows);
+        res.json(normalizeRows(rows));
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Błąd pobierania pod-ról' });
@@ -166,10 +175,12 @@ app.post('/api/auth/login', async (req, res) => {
 
         // 2. Weryfikacja hasła
         let passwordIsValid = false;
-        if (user.password && (user.password.startsWith('$2b$') || user.password.startsWith('$2a$'))) {
-            passwordIsValid = await bcrypt.compare(password, user.password);
-        } else if (user.password) {
-            passwordIsValid = (password === user.password); // Fallback dla starych haseł
+        // Preferuj hash (może być w kolumnie `password` lub `password_hash`), fallback na plaintext
+        const hashCandidate = user.password || user.password_hash || null;
+        if (hashCandidate && (hashCandidate.startsWith('$2b$') || hashCandidate.startsWith('$2a$'))) {
+            passwordIsValid = await bcrypt.compare(password, hashCandidate);
+        } else if (hashCandidate) {
+            passwordIsValid = (password === hashCandidate); // Fallback dla starych haseł przechowywanych bez hasha
         }
 
         if (!passwordIsValid) {
@@ -178,29 +189,25 @@ app.post('/api/auth/login', async (req, res) => {
 
         // 3. Generowanie tokenu
         // TUTA NASTĘPUJE KLUCZOWA ZMIANA - mapujemy role_id na role
+        // token: preferuj role_id/sub_role_id, fallback na role/sub_role
+        const role = user.role_id || user.role || user.role_name;
+        const subRole = user.sub_role_id || user.sub_role || null;
+
         const token = jwt.sign(
-            { 
-                id: user.id, 
-                username: user.username, 
-                role: user.role_id,      // <--- ZMIANA: Bierzemy role_id z bazy (np. 'admin')
-                subRole: user.sub_role_id 
-            }, 
-            JWT_SECRET, 
+            { id: user.id, username: user.username, role, subRole },
+            JWT_SECRET,
             { expiresIn: '24h' }
         );
 
-        // Usuwamy hasło z obiektu, który zwracamy
-        const { password: _, ...userWithoutPassword } = user;
-        
-        // Ważne: Frontend oczekuje pola 'role', więc dodajemy je do obiektu odpowiedzi ręcznie
-        userWithoutPassword.role = user.role_id; 
+        // Normalizujemy i wycinamy hasło
+        const userNormalized = normalizeRow(user);
+        delete userNormalized.password;
+        userNormalized.role = role;
+        if (subRole) userNormalized.subRole = subRole;
 
-        console.log(`✅ Zalogowano użytkownika: ${username} (Rola: ${user.role_id})`);
-        
-        res.json({ 
-            token, 
-            user: userWithoutPassword 
-        });
+        console.log(`✅ Zalogowano użytkownika: ${username} (Rola: ${role})`);
+
+        res.json({ token, user: userNormalized });
 
     } catch (err) {
         console.error('❌ Błąd logowania:', err);
@@ -215,7 +222,8 @@ initTables();
 
 app.get('/api/inventory/sessions', verifyToken, async (req, res) => {
     try {
-        const [sessions] = await pool.query('SELECT * FROM inventory_sessions ORDER BY created_at DESC');
+        const [sessionsRaw] = await pool.query('SELECT * FROM inventory_sessions ORDER BY created_at DESC');
+        const sessions = normalizeRows(sessionsRaw);
         for (let session of sessions) {
             const [snapshots] = await pool.query('SELECT pallet_id as palletId, product_name as productName, expected_quantity as expectedQuantity, location_id as locationId FROM inventory_snapshots WHERE session_id = ?', [session.id]);
             const [scans] = await pool.query('SELECT location_id, pallet_id, counted_quantity FROM inventory_scans WHERE session_id = ?', [session.id]);

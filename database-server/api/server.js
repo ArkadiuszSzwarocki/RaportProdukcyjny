@@ -19,6 +19,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Helper: konwersja snake_case -> camelCase dla wyników z DB
+const toCamel = (s) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+const normalizeRow = (row) => {
+    const out = {};
+    for (const k of Object.keys(row || {})) out[toCamel(k)] = row[k];
+    return out;
+};
+const normalizeRows = (rows) => (Array.isArray(rows) ? rows.map(normalizeRow) : rows);
+
 // Konfiguracja bazy danych pobierana ze zmiennych środowiskowych
 let dbConfig = {
     host: process.env.DB_HOST || 'localhost',
@@ -101,8 +110,8 @@ app.get('/api/health', async (req, res) => {
 // GET: Pobieranie dostaw
 app.get('/api/deliveries', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM deliveries ORDER BY createdAt DESC');
-        const deliveries = rows.map(row => ({
+        const [rows] = await pool.query('SELECT * FROM deliveries ORDER BY created_at DESC');
+        const deliveries = normalizeRows(rows).map(row => ({
             ...row,
             items: typeof row.items === 'string' ? JSON.parse(row.items) : row.items
         }));
@@ -116,8 +125,8 @@ app.get('/api/deliveries', async (req, res) => {
 // GET: Pobierz surowce (raw materials / palety)
 app.get('/api/raw-materials', async (req, res) => {
     try {
-        const [rows] = await pool.query(`SELECT id, nrPalety, nazwa, dataProdukcji, dataPrzydatnosci, initialWeight, currentWeight, isBlocked, blockReason, currentLocation, batchNumber, packageForm, unit, labAnalysisNotes, createdAt, updatedAt FROM raw_materials ORDER BY createdAt DESC`);
-        res.json(rows);
+        const [rows] = await pool.query(`SELECT id, nrPalety, nazwa, dataProdukcji, dataPrzydatnosci, initialWeight, currentWeight, isBlocked, blockReason, currentLocation, batchNumber, packageForm, unit, labAnalysisNotes, created_at, updatedAt FROM raw_materials ORDER BY created_at DESC`);
+        res.json(normalizeRows(rows));
     } catch (err) {
         console.error('Błąd pobierania raw_materials:', err);
         res.status(500).json({ error: 'Błąd pobierania surowców z bazy' });
@@ -191,7 +200,7 @@ app.delete('/api/deliveries/:id', async (req, res) => {
 app.get('/api/users', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM users ORDER BY username');
-        res.json(rows);
+        res.json(normalizeRows(rows));
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Błąd pobierania użytkowników' });
@@ -203,10 +212,8 @@ app.get('/api/users/:id', async (req, res) => {
     const { id } = req.params;
     try {
         const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [id]);
-        if (rows.length === 0) {
-            return res.status(404).json({ error: 'Użytkownik nie znaleziony' });
-        }
-        res.json(rows[0]);
+        if (rows.length === 0) return res.status(404).json({ error: 'Użytkownik nie znaleziony' });
+        res.json(normalizeRow(rows[0]));
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Błąd pobierania użytkownika' });
