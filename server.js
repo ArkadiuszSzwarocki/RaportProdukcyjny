@@ -36,6 +36,7 @@ const verifyToken = (req, res, next) => {
 const hashPassword = async (password) => await bcrypt.hash(password, BCRYPT_ROUNDS);
 const comparePassword = async (password, hash) => await bcrypt.compare(password, hash);
 const generateToken = (user) => jwt.sign({ id: user.id, username: user.username, role: user.role_name, subRole: user.sub_role_id }, JWT_SECRET, { expiresIn: '24h' });
+
 const generate18DigitId = () => {
     const epoch1982 = new Date('1982-06-07T00:00:00Z').getTime();
     const diff = Math.max(0, Date.now() - epoch1982);
@@ -61,31 +62,71 @@ let dbConfig = {
 
 let pool = mysql.createPool(dbConfig);
 
+// --- FUNKCJA INICJALIZACJI TABEL (POPRAWIONA) ---
 async function initTables() {
     try {
-        // ... (istniejące tabele użytkowników, ról itp.)
+        const tableOptions = "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+        // 1. Tabele NIEZALEŻNE (rodzice) - muszą powstać pierwsze
+        
+        // Tabela Receptur (potrzebna dla production_runs)
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS recipes (
+                id VARCHAR(50) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                ingredients JSON,
+                packagingBOM JSON,
+                PRIMARY KEY (id)
+            ) ${tableOptions};
+        `);
+
+        // Tabela Sesji Inwentaryzacyjnych
         await pool.execute(`
             CREATE TABLE IF NOT EXISTS inventory_sessions (
-                id VARCHAR(50) PRIMARY KEY,
+                id VARCHAR(50) NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 status ENUM('ongoing', 'pending_review', 'completed', 'cancelled') DEFAULT 'ongoing',
                 created_by VARCHAR(100),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 finalized_at TIMESTAMP NULL,
-                finalized_by VARCHAR(100)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+                finalized_by VARCHAR(100),
+                PRIMARY KEY (id)
+            ) ${tableOptions};
         `);
 
-        // Ensure inventory_sessions uses InnoDB and correct collation —
-        // sometimes existing tables were created with MyISAM and then
-        // adding foreign keys fails with errno 150. Convert if needed.
-        try {
-            await pool.execute("ALTER TABLE inventory_sessions ENGINE=InnoDB");
-            await pool.execute("ALTER TABLE inventory_sessions CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-        } catch (e) {
-            console.warn('⚠️ Nie udało się skonwertować inventory_sessions do InnoDB:', e.message || e);
-        }
+        // Tabela Surowców (wymagana przez logikę inwentaryzacji w API)
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS raw_materials (
+                id VARCHAR(50) NOT NULL,
+                nazwa VARCHAR(255) NOT NULL,
+                currentWeight DECIMAL(10,3) DEFAULT 0,
+                currentLocation VARCHAR(100),
+                batchNumber VARCHAR(100),
+                isBlocked TINYINT(1) DEFAULT 0,
+                blockReason TEXT,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id)
+            ) ${tableOptions};
+        `);
 
+        // 2. Tabele ZALEŻNE (dzieci) - tworzone po rodzicach
+
+        // Tabela Zleceń Produkcyjnych (klucz obcy do recipes)
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS production_runs (
+                id VARCHAR(50) NOT NULL,
+                recipeId VARCHAR(50),
+                status VARCHAR(50) DEFAULT 'planned',
+                plannedDate DATE,
+                startTime DATETIME,
+                endTime DATETIME,
+                downtimes JSON,
+                PRIMARY KEY (id),
+                CONSTRAINT fk_recipe_prod FOREIGN KEY (recipeId) REFERENCES recipes(id) ON DELETE SET NULL
+            ) ${tableOptions};
+        `);
+
+        // Tabela Snapshotów Inwentaryzacji (klucz obcy do inventory_sessions)
         await pool.execute(`
             CREATE TABLE IF NOT EXISTS inventory_snapshots (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -94,10 +135,11 @@ async function initTables() {
                 product_name VARCHAR(255),
                 expected_quantity DECIMAL(10,3),
                 location_id VARCHAR(100),
-                FOREIGN KEY (session_id) REFERENCES inventory_sessions(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+                CONSTRAINT fk_inv_session_snap FOREIGN KEY (session_id) REFERENCES inventory_sessions(id) ON DELETE CASCADE
+            ) ${tableOptions};
         `);
 
+        // Tabela Skanów Inwentaryzacji (klucz obcy do inventory_sessions)
         await pool.execute(`
             CREATE TABLE IF NOT EXISTS inventory_scans (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -108,11 +150,11 @@ async function initTables() {
                 scanned_by VARCHAR(100),
                 scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY unique_scan (session_id, location_id, pallet_id),
-                FOREIGN KEY (session_id) REFERENCES inventory_sessions(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+                CONSTRAINT fk_inv_session_scan FOREIGN KEY (session_id) REFERENCES inventory_sessions(id) ON DELETE CASCADE
+            ) ${tableOptions};
         `);
 
-        console.log('✅ Tabele inwentaryzacji gotowe');
+        console.log('✅ Baza danych została pomyślnie zsynchronizowana i naprawiona.');
     } catch (err) {
         console.error('❌ Błąd inicjalizacji tabel:', err.message);
     }
@@ -259,11 +301,13 @@ app.post('/api/inventory/start', verifyToken, async (req, res) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
-        await conn.execute('INSERT INTO inventory_sessions (id, name, userId, status) VALUES (?, ?, ?, ?)', [sessionId, name, userId, 'ongoing']);
+        await conn.execute('INSERT INTO inventory_sessions (id, name, created_by, status) VALUES (?, ?, ?, ?)', [sessionId, name, userId, 'ongoing']);
 
-        const [materials] = await conn.query('SELECT id, name, quantity, locationId FROM raw_materials WHERE locationId IN (?)', [locations]);
+        // Pobieramy dane z raw_materials (używamy poprawnej nazwy kolumny currentLocation zamiast locationId)
+        const [materials] = await conn.query('SELECT id, nazwa, currentWeight, currentLocation FROM raw_materials WHERE currentLocation IN (?)', [locations]);
+        
         if (materials.length > 0) {
-            const values = materials.map(m => [sessionId, m.id, m.name, m.quantity, m.locationId]);
+            const values = materials.map(m => [sessionId, m.id, m.nazwa, m.currentWeight, m.currentLocation]);
             await conn.query('INSERT INTO inventory_snapshots (session_id, pallet_id, product_name, expected_quantity, location_id) VALUES ?', [values]);
         }
 
@@ -277,9 +321,8 @@ app.post('/api/inventory/start', verifyToken, async (req, res) => {
     }
 });
 
-// ... (reszta endpointów)
-
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 SERWER API DZIAŁA: http://localhost:${PORT}`);
+    console.log(`📡 Połączono z bazą: ${dbConfig.host}:${dbConfig.port}`);
 });
