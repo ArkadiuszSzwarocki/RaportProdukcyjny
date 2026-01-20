@@ -134,9 +134,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                         Zaloguj kodem QR
                     </Button>
                 </div>
+                {/* Version badge */}
+                <div className="fixed right-3 bottom-3 text-xs text-slate-400 bg-secondary-800/60 px-2 py-1 rounded-md pointer-events-none select-none">
+                    <VersionBadge />
+                </div>
             </div>
         </>
     );
+};
+
+const VersionBadge: React.FC = () => {
+    const [v, setV] = useState<string>('');
+    useEffect(() => {
+        let mounted = true;
+        fetch('/version.txt').then(r => r.text()).then(t => { if (mounted) setV(t.trim()); }).catch(() => {});
+        return () => { mounted = false; };
+    }, []);
+    return <span>{v || 'ver: unknown'}</span>;
 };
 
 export default LoginPage;
