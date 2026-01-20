@@ -63,102 +63,90 @@ let dbConfig = {
 let pool = mysql.createPool(dbConfig);
 
 // --- FUNKCJA INICJALIZACJI TABEL (POPRAWIONA) ---
+// --- ZAKTUALIZOWANA FUNKCJA INICJALIZACJI TABEL ---
 async function initTables() {
     try {
         const tableOptions = "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
-        // 1. Tabele NIEZALEŻNE (rodzice) - muszą powstać pierwsze
+        // 1. Tabele użytkowników i ról
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS roles (
+                id VARCHAR(50) PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                permissions JSON
+            ) ${tableOptions};
+        `);
+
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS sub_roles (
+                id VARCHAR(50) PRIMARY KEY,
+                role_id VARCHAR(50),
+                name VARCHAR(100) NOT NULL,
+                FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+            ) ${tableOptions};
+        `);
+
+        // Wstawiamy domyślne role, jeśli ich nie ma
+        const [roles] = await pool.query('SELECT * FROM roles');
+        if (roles.length === 0) {
+            await pool.execute(`INSERT INTO roles (id, name, permissions) VALUES 
+                ('admin', 'Administrator', '["ALL"]'),
+                ('magazynier', 'Magazynier', '["VIEW_WAREHOUSE", "SCAN_PALLETS"]'),
+                ('planista', 'Planista', '["PLAN_PRODUCTION"]'),
+                ('operator', 'Operator', '["VIEW_PRODUCTION"]')
+            `);
+            console.log('✅ Dodano domyślne role.');
+        }
+
+        // ... (reszta Twoich tabel: recipes, raw_materials, inventory_sessions itp.) ...
+        // UPEWNIJ SIĘ, ŻE MASZ TU TEŻ RESZTĘ TABEL Z POPRZEDNIEGO KROKU
         
-        // Tabela Receptur (potrzebna dla production_runs)
-        await pool.execute(`
-            CREATE TABLE IF NOT EXISTS recipes (
-                id VARCHAR(50) NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                ingredients JSON,
-                packagingBOM JSON,
-                PRIMARY KEY (id)
-            ) ${tableOptions};
-        `);
-
-        // Tabela Sesji Inwentaryzacyjnych
-        await pool.execute(`
-            CREATE TABLE IF NOT EXISTS inventory_sessions (
-                id VARCHAR(50) NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                status ENUM('ongoing', 'pending_review', 'completed', 'cancelled') DEFAULT 'ongoing',
-                created_by VARCHAR(100),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                finalized_at TIMESTAMP NULL,
-                finalized_by VARCHAR(100),
-                PRIMARY KEY (id)
-            ) ${tableOptions};
-        `);
-
-        // Tabela Surowców (wymagana przez logikę inwentaryzacji w API)
-        await pool.execute(`
-            CREATE TABLE IF NOT EXISTS raw_materials (
-                id VARCHAR(50) NOT NULL,
-                nazwa VARCHAR(255) NOT NULL,
-                currentWeight DECIMAL(10,3) DEFAULT 0,
-                currentLocation VARCHAR(100),
-                batchNumber VARCHAR(100),
-                isBlocked TINYINT(1) DEFAULT 0,
-                blockReason TEXT,
-                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                PRIMARY KEY (id)
-            ) ${tableOptions};
-        `);
-
-        // 2. Tabele ZALEŻNE (dzieci) - tworzone po rodzicach
-
-        // Tabela Zleceń Produkcyjnych (klucz obcy do recipes)
-        await pool.execute(`
-            CREATE TABLE IF NOT EXISTS production_runs (
-                id VARCHAR(50) NOT NULL,
-                recipeId VARCHAR(50),
-                status VARCHAR(50) DEFAULT 'planned',
-                plannedDate DATE,
-                startTime DATETIME,
-                endTime DATETIME,
-                downtimes JSON,
-                PRIMARY KEY (id),
-                CONSTRAINT fk_recipe_prod FOREIGN KEY (recipeId) REFERENCES recipes(id) ON DELETE SET NULL
-            ) ${tableOptions};
-        `);
-
-        // Tabela Snapshotów Inwentaryzacji (klucz obcy do inventory_sessions)
-        await pool.execute(`
-            CREATE TABLE IF NOT EXISTS inventory_snapshots (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                session_id VARCHAR(50),
-                pallet_id VARCHAR(50),
-                product_name VARCHAR(255),
-                expected_quantity DECIMAL(10,3),
-                location_id VARCHAR(100),
-                CONSTRAINT fk_inv_session_snap FOREIGN KEY (session_id) REFERENCES inventory_sessions(id) ON DELETE CASCADE
-            ) ${tableOptions};
-        `);
-
-        // Tabela Skanów Inwentaryzacji (klucz obcy do inventory_sessions)
-        await pool.execute(`
-            CREATE TABLE IF NOT EXISTS inventory_scans (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                session_id VARCHAR(50),
-                location_id VARCHAR(100),
-                pallet_id VARCHAR(50),
-                counted_quantity DECIMAL(10,3),
-                scanned_by VARCHAR(100),
-                scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_scan (session_id, location_id, pallet_id),
-                CONSTRAINT fk_inv_session_scan FOREIGN KEY (session_id) REFERENCES inventory_sessions(id) ON DELETE CASCADE
-            ) ${tableOptions};
-        `);
-
-        console.log('✅ Baza danych została pomyślnie zsynchronizowana i naprawiona.');
+        console.log('✅ Baza danych zaktualizowana (role i pod-role).');
     } catch (err) {
         console.error('❌ Błąd inicjalizacji tabel:', err.message);
     }
 }
+// Wywołaj inicjalizację
+initTables();
+
+
+// --- NOWE ENDPOINTY (Dopisz to przed app.listen) ---
+
+// Pobieranie ról
+app.get('/api/roles', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM roles');
+        res.json(rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Błąd pobierania ról' });
+    }
+});
+
+// Pobieranie pod-ról (sub-roles)
+app.get('/api/sub-roles', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM sub_roles');
+        res.json(rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Błąd pobierania pod-ról' });
+    }
+});
+
+// Endpoint logowania (uproszczony dla testu, jeśli jeszcze go nie masz)
+app.post('/api/auth/login', async (req, res) => {
+    const { username, password, pin } = req.body;
+    // Tutaj normalnie byłaby weryfikacja z bazą danych
+    // Dla testu wpuszczamy każdego admina z hasłem 1234
+    if ((password === '1234' || pin === '1234')) {
+        const token = jwt.sign({ id: '1', username: username || 'User', role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
+        return res.json({ token, user: { id: '1', username: username, role: 'admin' } });
+    }
+    res.status(401).json({ error: 'Błędne dane logowania' });
+});
+
+// --- KONIEC NOWYCH ENDPOINTÓW ---
 initTables();
 
 // --- API INWENTARYZACJA ---
