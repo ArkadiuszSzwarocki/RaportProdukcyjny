@@ -125,7 +125,7 @@ app.get('/api/deliveries', async (req, res) => {
 // GET: Pobierz surowce (raw materials / palety)
 app.get('/api/raw-materials', async (req, res) => {
     try {
-        const [rows] = await pool.query(`SELECT id, nrPalety, nazwa, dataProdukcji, dataPrzydatnosci, initialWeight, currentWeight, isBlocked, blockReason, currentLocation, batchNumber, packageForm, unit, labAnalysisNotes, created_at, updatedAt FROM raw_materials ORDER BY created_at DESC`);
+        const [rows] = await pool.query(`SELECT id, nrPalety, nazwa, dataProdukcji, dataPrzydatnosci, initialWeight, currentWeight, isBlocked, blockReason, currentLocation, batchNumber, packageForm, unit, labAnalysisNotes, COALESCE(created_at, createdAt) as createdAt, COALESCE(updated_at, updatedAt) as updatedAt FROM raw_materials ORDER BY COALESCE(created_at, createdAt) DESC`);
         res.json(normalizeRows(rows));
     } catch (err) {
         console.error('Błąd pobierania raw_materials:', err);
