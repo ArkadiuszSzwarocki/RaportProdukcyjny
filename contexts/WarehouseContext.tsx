@@ -179,9 +179,36 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
 
     // Pobieranie surowców z API
     const fetchRawMaterials = useCallback(async () => {
+        const tryFetch = async (url: string) => {
+            try {
+                const r = await fetch(url);
+                return r;
+            } catch (e) {
+                return null;
+            }
+        };
+
         try {
-            const response = await fetch(`${API_BASE_URL}/raw-materials`);
-            if (response.ok) {
+            // 1) Primary: configured API_BASE_URL
+            let response = await tryFetch(`${API_BASE_URL}/raw-materials`);
+
+            // 2) If response missing, 404 or HTML (vite dev server returned index.html), fallback to relative /api
+            const isHtml = (res: Response | null) => {
+                if (!res) return false;
+                const ct = res.headers.get('content-type') || '';
+                return ct.includes('text/html');
+            };
+
+            if (!response || response.status === 404 || isHtml(response)) {
+                response = await tryFetch('/api/raw-materials');
+            }
+
+            // 3) Final fallback: direct localhost backend
+            if (!response || response.status === 404 || isHtml(response)) {
+                response = await tryFetch('http://localhost:5001/api/raw-materials');
+            }
+
+            if (response && response.ok) {
                 const data = await response.json();
                 // Transformuj dane z bazy na format aplikacji
                 const transformed: RawMaterialLogEntry[] = data.map((row: any) => ({
