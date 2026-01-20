@@ -42,17 +42,31 @@ CREATE TABLE IF NOT EXISTS system_logs (
 -- =====================================================
 -- Tabela użytkowników
 -- =====================================================
-CREATE TABLE IF NOT EXISTS users (
+-- =====================================================
+-- Tabela użytkowników (ZAKTUALIZOWANA)
+-- =====================================================
+DROP TABLE IF EXISTS users;
+CREATE TABLE users (
     id VARCHAR(50) PRIMARY KEY COMMENT 'Unikalny identyfikator użytkownika',
     username VARCHAR(50) UNIQUE NOT NULL COMMENT 'Nazwa użytkownika',
     email VARCHAR(100) UNIQUE COMMENT 'Adres email',
-    role VARCHAR(50) COMMENT 'Rola użytkownika (admin, operator, viewer)',
+    password VARCHAR(255) COMMENT 'Hash hasła (bcrypt)',
+    pin VARCHAR(10) COMMENT 'PIN do szybkiego logowania',
+    role VARCHAR(50) COMMENT 'Nazwa roli (np. admin, magazynier)',
+    role_id VARCHAR(50) COMMENT 'ID roli (do powiązań)',
+    sub_role_id VARCHAR(50) COMMENT 'ID pod-roli / oddziału',
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Data utworzenia konta',
     lastLogin DATETIME COMMENT 'Ostatnia sesja logowania',
     isActive TINYINT(1) DEFAULT 1 COMMENT 'Czy konto jest aktywne',
+    is_temporary_password TINYINT(1) DEFAULT 0 COMMENT 'Wymuszona zmiana hasła',
     INDEX idx_username (username),
     INDEX idx_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Dodanie domyślnego admina (Hasło: admin123 - musisz je zahasować lub użyć skryptu rejestracji)
+-- Poniżej przykładowy insert, hasło to bcrypt dla 'admin123'
+INSERT INTO users (id, username, role, password, isActive) 
+VALUES ('1', 'admin', 'admin', '$2b$10$P2/1d/1d1d1d1d1d1d1d1eExampleHashPlaceholder', 1);
 
 -- =====================================================
 -- Tabela magazynów

@@ -49,12 +49,22 @@ const generate18DigitId = () => {
     return base.substring(0, 18);
 };
 
+//let dbConfig = {
+   // host: process.env.DB_HOST || 'localhost',
+   // port: parseInt(process.env.DB_PORT || '3307'),
+   // user: process.env.DB_USER || 'root',
+   // password: process.env.DB_PASSWORD || '',
+  //  database: process.env.DB_NAME || 'mleczna_droga',
+   // waitForConnections: true,
+   // connectionLimit: 10,
+  //  queueLimit: 0
+//};
 let dbConfig = {
     host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '3307'),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'mleczna_droga',
+    port: parseInt(process.env.DB_PORT || '3307'), // <--- UPEWNIJ SIĘ ŻE JEST 3307
+    user: process.env.DB_USER || 'root',            // <--- ZMIANA NA USERA Z DOCKERA
+    password: process.env.DB_PASSWORD || 'Filipinka2010',// <--- ZMIANA NA HASŁO Z DOCKERA
+    database: process.env.DB_NAME || 'MleczDroga',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
@@ -134,16 +144,68 @@ app.get('/api/sub-roles', async (req, res) => {
     }
 });
 
-// Endpoint logowania (uproszczony dla testu, jeśli jeszcze go nie masz)
+// ==========================================================
+// BEZPIECZNY ENDPOINT LOGOWANIA (POPRAWIONY DLA TABELI ROLES)
+// ==========================================================
 app.post('/api/auth/login', async (req, res) => {
-    const { username, password, pin } = req.body;
-    // Tutaj normalnie byłaby weryfikacja z bazą danych
-    // Dla testu wpuszczamy każdego admina z hasłem 1234
-    if ((password === '1234' || pin === '1234')) {
-        const token = jwt.sign({ id: '1', username: username || 'User', role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
-        return res.json({ token, user: { id: '1', username: username, role: 'admin' } });
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Wymagana nazwa użytkownika i hasło.' });
     }
-    res.status(401).json({ error: 'Błędne dane logowania' });
+
+    try {
+        // 1. Pobierz użytkownika (u Ciebie w bazie jest role_id, a nie role)
+        const [rows] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
+
+        if (rows.length === 0) {
+            return res.status(401).json({ error: 'Błędna nazwa użytkownika lub hasło.' });
+        }
+
+        const user = rows[0];
+
+        // 2. Weryfikacja hasła
+        let passwordIsValid = false;
+        if (user.password && (user.password.startsWith('$2b$') || user.password.startsWith('$2a$'))) {
+            passwordIsValid = await bcrypt.compare(password, user.password);
+        } else if (user.password) {
+            passwordIsValid = (password === user.password); // Fallback dla starych haseł
+        }
+
+        if (!passwordIsValid) {
+            return res.status(401).json({ error: 'Błędna nazwa użytkownika lub hasło.' });
+        }
+
+        // 3. Generowanie tokenu
+        // TUTA NASTĘPUJE KLUCZOWA ZMIANA - mapujemy role_id na role
+        const token = jwt.sign(
+            { 
+                id: user.id, 
+                username: user.username, 
+                role: user.role_id,      // <--- ZMIANA: Bierzemy role_id z bazy (np. 'admin')
+                subRole: user.sub_role_id 
+            }, 
+            JWT_SECRET, 
+            { expiresIn: '24h' }
+        );
+
+        // Usuwamy hasło z obiektu, który zwracamy
+        const { password: _, ...userWithoutPassword } = user;
+        
+        // Ważne: Frontend oczekuje pola 'role', więc dodajemy je do obiektu odpowiedzi ręcznie
+        userWithoutPassword.role = user.role_id; 
+
+        console.log(`✅ Zalogowano użytkownika: ${username} (Rola: ${user.role_id})`);
+        
+        res.json({ 
+            token, 
+            user: userWithoutPassword 
+        });
+
+    } catch (err) {
+        console.error('❌ Błąd logowania:', err);
+        res.status(500).json({ error: 'Wystąpił błąd serwera podczas logowania.' });
+    }
 });
 
 // --- KONIEC NOWYCH ENDPOINTÓW ---

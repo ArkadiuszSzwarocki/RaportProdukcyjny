@@ -9,7 +9,7 @@ export default defineConfig({
     port: 5173,      // Port frontendu
     proxy: {
       '/api': {
-        target: 'http://localhost:5005', // Przekierowanie do backendu
+        target: 'http://localhost:5001', // Przekierowanie do backendu
         changeOrigin: true,
         secure: false,
       },

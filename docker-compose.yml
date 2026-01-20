@@ -10,7 +10,7 @@ services:
       MYSQL_USER: dev
       MYSQL_PASSWORD: devpass
     ports:
-      - "5001:3306"
+      - "3307:3306"
     volumes:
       - ./database-server/mysql-data:/var/lib/mysql
     healthcheck:
