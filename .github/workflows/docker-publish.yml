@@ -38,6 +38,9 @@ jobs:
             type=raw,value=latest
             type=sha
 
+      - name: Generate version.txt
+        run: node scripts/update-version.js
+
       - name: Zbudowanie i wypchnięcie obrazu (Build & Push)
         uses: docker/build-push-action@v5
         with:

@@ -13,6 +13,9 @@ RUN npm install --legacy-peer-deps
 # Kopiujemy resztę kodu aplikacji
 COPY . .
 
+# Ensure version file (generated in CI) is copied into image public folder
+COPY public/version.txt public/version.txt
+
 # Otwieramy porty.
 # 5173 - domyślny port Vite (Frontend)
 # 3000 - częsty port dla server.js (Backend) - jeśli masz inny, zmienimy to
