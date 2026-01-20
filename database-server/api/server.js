@@ -28,6 +28,23 @@ const normalizeRow = (row) => {
 };
 const normalizeRows = (rows) => (Array.isArray(rows) ? rows.map(normalizeRow) : rows);
 
+// Mapowanie aliasów lokalizacji do kanonicznych identyfikatorów używanych w frontendzie
+const LOCATION_ALIAS_MAP = {
+    'BUFFER_MS01': 'BF_MS01',
+    'BUFFER_MP01': 'BF_MP01',
+    'BUFFER_MS': 'BF_MS01',
+    'BUFFOR_MS01': 'BF_MS01',
+    'BUFOR_MS01': 'BF_MS01',
+    'BUFFER_MP': 'BF_MP01',
+    'MOP01': 'MOP01',
+    'PSD': 'PSD'
+};
+const normalizeLocation = (loc) => {
+    if (!loc) return loc;
+    const key = String(loc).trim().toUpperCase();
+    return LOCATION_ALIAS_MAP[key] || loc;
+};
+
 // Konfiguracja bazy danych pobierana ze zmiennych środowiskowych
 let dbConfig = {
     host: process.env.DB_HOST || 'localhost',
@@ -137,7 +154,13 @@ app.get('/api/raw-materials', async (req, res) => {
         const updatedSelect = updatedField ? `${updatedField} as updatedAt` : 'NULL as updatedAt';
         const sql = `SELECT ${selectList}${selectList ? ',' : ''} ${createdSelect}, ${updatedSelect} FROM raw_materials ORDER BY createdAt DESC`;
         const [rows] = await pool.query(sql);
-        res.json(normalizeRows(rows));
+        // Apply normalization to raw rows (handle different column namings) then convert to camelCase
+        for (const r of rows) {
+            const rawLoc = r.currentLocation || r.current_location || null;
+            r.currentLocation = normalizeLocation(rawLoc);
+        }
+        const normalized = normalizeRows(rows).map(r => ({ ...r, currentLocation: normalizeLocation(r.currentLocation) }));
+        res.json(normalized);
     } catch (err) {
         console.error('Błąd pobierania raw_materials:', err);
         res.status(500).json({ error: 'Błąd pobierania surowców z bazy' });

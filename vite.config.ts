@@ -8,8 +8,8 @@ export default defineConfig({
     host: '0.0.0.0', // Umożliwia dostęp z sieci (np. z QNAP)
     port: 5173,      // Port frontendu
     proxy: {
-      '/api': {
-        target: 'http://localhost:5001', // Przekierowanie do backendu
+        '/api': {
+        target: 'http://localhost:5001', // Przekierowanie do database-server API
         changeOrigin: true,
         secure: false,
       },
