@@ -212,52 +212,65 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
 
     // Nowe logowanie - używa JWT
     const handleLogin = async (username: string, password: string): Promise<{ success: boolean; message: string; user?: User }> => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/login`, {
+        const tryLogin = async (pathSuffix: string) => {
+            const res = await fetch(`${API_BASE_URL}${pathSuffix}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
+            return res;
+        };
+
+        try {
+            // Najpierw spróbuj /login, jeśli to zwróci 404/HTML -> fallback do /auth/login
+            let response = await tryLogin('/login');
+
+            // Jeśli odpowiedź to HTML (np. Vite zwraca index.html) lub 404, spróbuj /auth/login
+            const contentType = response.headers.get('content-type') || '';
+            if (!response.ok && response.status === 404) {
+                response = await tryLogin('/auth/login');
+            } else if (contentType.includes('text/html')) {
+                response = await tryLogin('/auth/login');
+            }
 
             if (response.ok) {
-                const result = await response.json();
-                
-                // Zapisz JWT token
-                localStorage.setItem('jwt_token', result.token);
-                
-                // Ustaw bieżącego użytkownika
-                const user = result.user as User;
-                
-                // Pobierz uprawnienia indywidualne + z roli
+                // Bezpiecznie parsuj JSON
+                let result: any;
                 try {
-                    console.log(`🔐 Pobieranie uprawnień dla user.id=${user.id}`);
+                    result = await response.json();
+                } catch (e) {
+                    console.error('Błąd parsowania odpowiedzi logowania jako JSON', e);
+                    return { success: false, message: 'Nieprawidłowa odpowiedź serwera' };
+                }
+
+                localStorage.setItem('jwt_token', result.token);
+                const user = result.user as User;
+
+                // Pobierz uprawnienia
+                try {
                     const permResponse = await fetch(`${API_BASE_URL}/permissions/${user.id}`);
-                    console.log(`🔐 Odpowiedź uprawnień: status=${permResponse.status}`);
                     if (permResponse.ok) {
                         const permData = await permResponse.json();
-                        console.log(`🔐 Uprawnienia z API:`, permData.permissions);
                         user.permissions = permData.permissions as Permission[];
                     } else {
-                        console.warn(`🔐 Błąd pobierania uprawnień, kod: ${permResponse.status}`);
                         user.permissions = [];
                     }
                 } catch (err) {
-                    console.warn('Błąd pobierania uprawnień:', err);
                     user.permissions = [];
                 }
-                
-                console.log(`🔐 Finalny user z uprawnieniami:`, user);
-                
+
                 setCurrentUser(user);
-                
-                // Odśwież listę użytkowników z API po zalogowaniu
-                await refreshUsersFromAPI();
-                
-                console.log(`✅ Zalogowano jako ${username}`);
+                // Odśwież listę użytkowników
+                if (typeof refreshUsersFromAPI === 'function') await refreshUsersFromAPI();
                 return { success: true, message: 'Zalogowano pomyślnie', user };
             } else {
-                const error = await response.json();
-                return { success: false, message: error.error || 'Błąd logowania' };
+                // Spróbuj odczytać JSON z błędem, jeśli jest
+                try {
+                    const errorBody = await response.json();
+                    return { success: false, message: errorBody.error || 'Błąd logowania' };
+                } catch (e) {
+                    return { success: false, message: `Błąd logowania (kod ${response.status})` };
+                }
             }
         } catch (error) {
             console.log('❌ Błąd logowania:', error);
