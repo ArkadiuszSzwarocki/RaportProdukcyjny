@@ -125,7 +125,18 @@ app.get('/api/deliveries', async (req, res) => {
 // GET: Pobierz surowce (raw materials / palety)
 app.get('/api/raw-materials', async (req, res) => {
     try {
-        const [rows] = await pool.query(`SELECT id, nrPalety, nazwa, dataProdukcji, dataPrzydatnosci, initialWeight, currentWeight, isBlocked, blockReason, currentLocation, batchNumber, packageForm, unit, labAnalysisNotes, COALESCE(created_at, createdAt) as createdAt, COALESCE(updated_at, updatedAt) as updatedAt FROM raw_materials ORDER BY COALESCE(created_at, createdAt) DESC`);
+        // Determine available columns to avoid referencing non-existent fields
+        const [cols] = await pool.query("SHOW COLUMNS FROM raw_materials");
+        const colSet = new Set((cols || []).map(c => c.Field));
+        const desired = ['id','nrPalety','nazwa','dataProdukcji','dataPrzydatnosci','initialWeight','currentWeight','isBlocked','blockReason','currentLocation','batchNumber','packageForm','unit','labAnalysisNotes'];
+        const available = desired.filter(f => colSet.has(f));
+        const createdField = colSet.has('created_at') ? 'created_at' : (colSet.has('createdAt') ? 'createdAt' : null);
+        const updatedField = colSet.has('updated_at') ? 'updated_at' : (colSet.has('updatedAt') ? 'updatedAt' : null);
+        const selectList = available.join(', ');
+        const createdSelect = createdField ? `${createdField} as createdAt` : 'NULL as createdAt';
+        const updatedSelect = updatedField ? `${updatedField} as updatedAt` : 'NULL as updatedAt';
+        const sql = `SELECT ${selectList}${selectList ? ',' : ''} ${createdSelect}, ${updatedSelect} FROM raw_materials ORDER BY createdAt DESC`;
+        const [rows] = await pool.query(sql);
         res.json(normalizeRows(rows));
     } catch (err) {
         console.error('Błąd pobierania raw_materials:', err);
