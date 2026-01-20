@@ -13,8 +13,15 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "server": "node server.js",
-    "db:init": "node seed-db.js"
+    "db:init": "node seed-db.js",
+    "install-hooks": "git config core.hooksPath .githooks"
   },
+  "husky": {
+    "hooks": {
+      "pre-commit": "node scripts/update-version.js && git add public/version.txt || true"
+    }
+  },
+  
   "dependencies": {
     "@tanstack/react-virtual": "^3.0.0",
     "bcrypt": "^6.0.0",

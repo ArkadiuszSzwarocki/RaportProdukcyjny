@@ -1,0 +1,5 @@
+#!/bin/sh
+# Aktualizuj public/version.txt i dołącz do commita przed każdym commitem
+cd "$(git rev-parse --show-toplevel)" || exit 0
+node scripts/update-version.js || true
+git add public/version.txt || true
