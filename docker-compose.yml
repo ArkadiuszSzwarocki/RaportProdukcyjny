@@ -5,10 +5,8 @@ services:
     container_name: mleczna-mariadb
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: Filipinka2025
+      MYSQL_ROOT_PASSWORD: Filipinka2010
       MYSQL_DATABASE: MleczDroga
-      MYSQL_USER: dev
-      MYSQL_PASSWORD: devpass
     ports:
       - "3307:3306"
     volumes:
