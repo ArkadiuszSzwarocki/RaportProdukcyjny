@@ -82,8 +82,10 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
             const res = await fetch(`${API_BASE_URL}/raw-materials`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            console.log('refreshRawMaterials ->', `${API_BASE_URL}/raw-materials`, 'status', res.status);
             if (res.ok) {
                 const data = await res.json();
+                console.log('refreshRawMaterials -> received', Array.isArray(data) ? data.length : typeof data, 'items');
                 const transformed = data.map((row: any) => ({
                     id: row.id,
                     palletData: {
@@ -118,6 +120,7 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
             const res = await fetch(`${API_BASE_URL}/inventory/sessions`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            console.log('refreshInventorySessions ->', `${API_BASE_URL}/inventory/sessions`, 'status', res.status);
             if (res.ok) {
                 const data = await res.json();
                 setInventorySessions(data);
@@ -281,6 +284,11 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
         handleStartInventorySession, handleCancelInventorySession, handleRecordInventoryScan,
         handleUpdateInventoryLocationStatus, handleFinalizeInventorySession, handleCompleteScanningSession,
         combinedWarehouseInfos, allManageableLocations: managedLocations,
+        // Dodane pola, aby uproszczony kontekst nie łamał komponentów oczekujących tych wartości
+        suppliers: SUPPLIERS_LIST,
+        customers: [],
+        palletBalances: [],
+        palletTransactions: [],
         expiringPalletsDetails: [] // uproszczone dla przykładu
     };
 
