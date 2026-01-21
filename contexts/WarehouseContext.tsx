@@ -203,9 +203,9 @@ export const WarehouseProvider: React.FC<PropsWithChildren> = ({ children }) => 
                 response = await tryFetch('/api/raw-materials');
             }
 
-            // 3) Final fallback: direct localhost backend
+            // 3) Final fallback: direct localhost backend (development when proxy not configured)
             if (!response || response.status === 404 || isHtml(response)) {
-                response = await tryFetch('http://localhost:5001/api/raw-materials');
+                response = await tryFetch('http://localhost:8089/api/raw-materials');
             }
 
             if (response && response.ok) {

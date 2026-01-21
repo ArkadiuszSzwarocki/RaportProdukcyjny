@@ -48,9 +48,9 @@ jobs:
             if docker ps -a --format '{{.Names}}' | grep -q "${{ secrets.QNAP_CONTAINER_NAME }}"; then
               docker rm -f ${{ secrets.QNAP_CONTAINER_NAME }} || true
             fi
-            docker run -d --restart unless-stopped \
+              docker run -d --restart unless-stopped \
               --name ${{ secrets.QNAP_CONTAINER_NAME }} \
-              -p ${{ secrets.QNAP_APP_PORT }}:5001 \
+              -p ${{ secrets.QNAP_APP_PORT }}:8089 \
               ${{ secrets.REGISTRY_HOST }}/${{ secrets.REGISTRY_REPOSITORY }}:${{ github.sha }}
 
 # Notes:

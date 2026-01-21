@@ -31,7 +31,7 @@ self.addEventListener('fetch', event => {
   }
 
   // Bypass cache for API calls - ALWAYS fetch from network
-  if (request.url.includes('/api/') || request.url.includes(':5001') || request.url.includes(':3002')) {
+  if (request.url.includes('/api/') || request.url.includes(':3002')) {
     event.respondWith(fetch(request));
     return;
   }

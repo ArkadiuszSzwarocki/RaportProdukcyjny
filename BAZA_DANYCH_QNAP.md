@@ -15,7 +15,7 @@ Baza: MleczDroga
 Plik `.env` w katalogu głównym zawiera zmienne środowiskowe dla backendu:
 
 ```env
-PORT=5001
+PORT=8089
 DB_HOST=filipinka.myqnapcloud.com
 DB_PORT=3307
 DB_USER=rootMlecznaDroga
@@ -29,14 +29,14 @@ DB_NAME=MleczDroga
 Plik `.env.local` zawiera zmienne dla frontendu (Vite):
 
 ```env
-VITE_API_URL=http://localhost:5001/api
+VITE_API_URL=http://localhost:8089/api
 ```
 
 **Lokalizacja:** `/workspaces/Mleczna-droga/.env.local`
 
 **Dla połączenia z zdalnym QNAP zmień na:**
 ```env
-VITE_API_URL=http://filipinka.myqnapcloud.com:5001/api
+VITE_API_URL=http://filipinka.myqnapcloud.com:8089/api
 ```
 
 ## Zmienne Środowiskowe
@@ -54,7 +54,7 @@ Backend automatycznie czyta zmienne z `.env`:
 Frontend czyta zmienną `VITE_API_URL` w `constants.ts`:
 
 ```typescript
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8089/api';
 ```
 
 ## Uruchamianie
@@ -78,7 +78,7 @@ npm run dev
 
 ### Health Check (backend)
 ```bash
-curl http://localhost:5001/api/health
+curl http://localhost:8089/api/health
 ```
 
 Prawidłowa odpowiedź:
@@ -97,7 +97,7 @@ Prawidłowa odpowiedź:
 1. **Backend** - zostaw domyślnie na localhost (domyślnie w `.env`)
 2. **Frontend** - zmień `.env.local`:
 ```env
-VITE_API_URL=http://localhost:5001/api
+VITE_API_URL=http://localhost:8089/api
 ```
 
 ### Dla połączenia z QNAP:
@@ -107,7 +107,7 @@ DB_HOST=filipinka.myqnapcloud.com
 ```
 2. **Frontend** - zmień `.env.local`:
 ```env
-VITE_API_URL=http://filipinka.myqnapcloud.com:5001/api
+VITE_API_URL=http://filipinka.myqnapcloud.com:8089/api
 ```
 
 ## Bezpieczeństwo
@@ -124,7 +124,7 @@ Dodaj `.env` do `.gitignore`:
 ## Troubleshooting
 
 ### Błąd: "connect ECONNREFUSED"
-- Sprawdź czy backend jest uruchomiony na porcie 5001
+- Sprawdź czy backend jest uruchomiony na porcie 8089
 - Sprawdź czy QNAP jest dostępny (ping filipinka.myqnapcloud.com)
 - Sprawdź czy dane logowania są prawidłowe
 
@@ -150,7 +150,7 @@ Dodaj `.env` do `.gitignore`:
 ┌─────────────────────┐
 │  Backend (Node.js)  │
 │  server.js          │
-│  Port: 5001         │
+│  Port: 8089         │
 └──────────┬──────────┘
            │
            │ TCP/IP
