@@ -47,16 +47,16 @@ jobs:
       - name: Deploy to QNAP via SSH
         if: ${{ env.QNAP_HOST != '' && env.QNAP_USER != '' && env.QNAP_SSH_PRIVATE_KEY != '' }}
         uses: appleboy/ssh-action@v0.1.9
+        env:
+          REG_HOST: ${{ env.REG_HOST }}
+          REG_REPO: ${{ env.REG_REPO }}
+          QNAP_CONTAINER_NAME: ${{ env.QNAP_CONTAINER_NAME }}
+          QNAP_APP_PORT: ${{ env.QNAP_APP_PORT }}
         with:
           host: ${{ env.QNAP_HOST }}
           username: ${{ env.QNAP_USER }}
           key: ${{ env.QNAP_SSH_PRIVATE_KEY }}
           port: ${{ env.QNAP_SSH_PORT || '22' }}
-          env:
-            REG_HOST: ${{ env.REG_HOST }}
-            REG_REPO: ${{ env.REG_REPO }}
-            QNAP_CONTAINER_NAME: ${{ env.QNAP_CONTAINER_NAME }}
-            QNAP_APP_PORT: ${{ env.QNAP_APP_PORT }}
           script: |
             set -e
             echo "Pulling image on QNAP"
