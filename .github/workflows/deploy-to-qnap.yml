@@ -1,8 +1,9 @@
+---
 name: Build and Deploy to QNAP
 
-on:
+"on":
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build-and-deploy:
@@ -21,7 +22,8 @@ jobs:
       - name: Log in to container registry
         uses: docker/login-action@v2
         with:
-          registry: ${{ secrets.REGISTRY_HOST }} # e.g. ghcr.io or docker.io
+          # e.g. ghcr.io or docker.io
+          registry: ${{ secrets.REGISTRY_HOST }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
@@ -31,10 +33,14 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.REGISTRY_HOST }}/${{ secrets.REGISTRY_REPOSITORY }}:${{ github.sha }}
+          tags: >-
+            ${{ secrets.REGISTRY_HOST }}/${{ secrets.REGISTRY_REPOSITORY }}:${{
+            github.sha }}
 
       - name: Deploy to QNAP via SSH
-        if: ${{ secrets.QNAP_HOST && secrets.QNAP_USER && secrets.QNAP_SSH_PRIVATE_KEY }}
+        if: >-
+          ${{ secrets.QNAP_HOST && secrets.QNAP_USER &&
+          secrets.QNAP_SSH_PRIVATE_KEY }}
         uses: appleboy/ssh-action@v0.1.9
         with:
           host: ${{ secrets.QNAP_HOST }}
@@ -44,17 +50,25 @@ jobs:
           script: |
             set -e
             echo "Pulling image on QNAP"
-            docker pull ${{ secrets.REGISTRY_HOST }}/${{ secrets.REGISTRY_REPOSITORY }}:${{ github.sha }}
-            if docker ps -a --format '{{.Names}}' | grep -q "${{ secrets.QNAP_CONTAINER_NAME }}"; then
-              docker rm -f ${{ secrets.QNAP_CONTAINER_NAME }} || true
+            REGISTRY="${{ secrets.REGISTRY_HOST }}"
+            REPO="${{ secrets.REGISTRY_REPOSITORY }}"
+            TAG="${{ github.sha }}"
+            IMAGE="$REGISTRY/$REPO:$TAG"
+            docker pull "$IMAGE"
+            CONTAINER="${{ secrets.QNAP_CONTAINER_NAME }}"
+            if docker ps -a --format '{{.Names}}' | grep -q "$CONTAINER"; then
+              docker rm -f "$CONTAINER" || true
             fi
-              docker run -d --restart unless-stopped \
-              --name ${{ secrets.QNAP_CONTAINER_NAME }} \
+            docker run -d --restart unless-stopped \
+              --name "$CONTAINER" \
               -p ${{ secrets.QNAP_APP_PORT }}:8089 \
-              ${{ secrets.REGISTRY_HOST }}/${{ secrets.REGISTRY_REPOSITORY }}:${{ github.sha }}
+              "$IMAGE"
 
 # Notes:
-# - Set repository secrets in GitHub: REGISTRY_HOST, REGISTRY_USERNAME, REGISTRY_PASSWORD,
-#   REGISTRY_REPOSITORY (e.g. org/repo), QNAP_HOST, QNAP_USER, QNAP_SSH_PRIVATE_KEY, QNAP_CONTAINER_NAME, QNAP_APP_PORT.
-# - If QNAP needs registry auth, ensure the QNAP has credentials or extend the SSH script to `docker login` there.
-# - Adjust `docker run` flags (volumes, env vars) to match your production needs.
+# - Set repository secrets in GitHub: REGISTRY_HOST, REGISTRY_USERNAME,
+#   REGISTRY_PASSWORD, REGISTRY_REPOSITORY (e.g. org/repo), QNAP_HOST,
+#   QNAP_USER, QNAP_SSH_PRIVATE_KEY, QNAP_CONTAINER_NAME, QNAP_APP_PORT.
+# - If QNAP needs registry auth, ensure the QNAP has credentials or
+#   extend the SSH script to `docker login` there.
+# - Adjust `docker run` flags (volumes, env vars) to match your
+#   production needs.
