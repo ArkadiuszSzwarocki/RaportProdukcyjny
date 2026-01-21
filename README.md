@@ -3,11 +3,13 @@
 This repository contains everything you need to run the app locally.
 
 **Wersja zapoznawcza**
+
 - **Wersja**: 0.1.0 (wersja zapoznawcza)
 - **Autor**: ArkadiuszSzwarocki
 - **Data**: 2026-01-05
 
 **Opis aplikacji**
+
 - **Cel**: System do zarządzania produkcją i magazynowaniem (m.in. receptury, zlecenia produkcyjne, mieszanki, palety, przesunięcia magazynowe).
 - **Technologie**: Frontend: React + Vite; Backend: Node.js / Express; Baza danych: MySQL (skrypty w [database/schema.sql](database/schema.sql)).
 - **Użytkownicy**: operatorzy produkcji, magazynierzy, planowanie produkcji i administracja.
@@ -15,7 +17,6 @@ This repository contains everything you need to run the app locally.
 ## Run Locally
 
 **Prerequisites:**  Node.js
-
 
 1. Install dependencies:
    `npm install`
@@ -26,6 +27,7 @@ This repository contains everything you need to run the app locally.
        ```bash
        cp .env.example .env
        ```
+
     - Windows PowerShell:
 
        ```powershell
@@ -40,11 +42,13 @@ This repository contains everything you need to run the app locally.
        ```bash
        npm run backend
        ```
+
     - Start frontend only:
 
        ```bash
        npm run frontend
        ```
+
     - Start both in dev mode:
 
        ```bash
