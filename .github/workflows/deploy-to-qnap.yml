@@ -7,6 +7,17 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      REG_HOST: ${{ secrets.REGISTRY_HOST }}
+      REG_REPO: ${{ secrets.REGISTRY_REPOSITORY }}
+      REG_USER: ${{ secrets.REGISTRY_USERNAME }}
+      REG_PASS: ${{ secrets.REGISTRY_PASSWORD }}
+      QNAP_HOST: ${{ secrets.QNAP_HOST }}
+      QNAP_USER: ${{ secrets.QNAP_USER }}
+      QNAP_SSH_PRIVATE_KEY: ${{ secrets.QNAP_SSH_PRIVATE_KEY }}
+      QNAP_SSH_PORT: ${{ secrets.QNAP_SSH_PORT }}
+      QNAP_CONTAINER_NAME: ${{ secrets.QNAP_CONTAINER_NAME }}
+      QNAP_APP_PORT: ${{ secrets.QNAP_APP_PORT }}
 
     steps:
       - name: Checkout
@@ -21,9 +32,9 @@ jobs:
       - name: Log in to container registry
         uses: docker/login-action@v2
         with:
-          registry: ${{ secrets.REGISTRY_HOST }} # e.g. ghcr.io or docker.io
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+          registry: ${{ env.REG_HOST }} # e.g. ghcr.io or docker.io
+          username: ${{ env.REG_USER }}
+          password: ${{ env.REG_PASS }}
 
       - name: Build and push image
         uses: docker/build-push-action@v4
@@ -31,32 +42,32 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.REGISTRY_HOST }}/${{ secrets.REGISTRY_REPOSITORY }}:${{ github.sha }}
+          tags: ${{ env.REG_HOST }}/${{ env.REG_REPO }}:${{ github.sha }}
 
       - name: Deploy to QNAP via SSH
-        if: ${{ secrets.QNAP_HOST != '' && secrets.QNAP_USER != '' && secrets.QNAP_SSH_PRIVATE_KEY != '' }}
+        if: ${{ env.QNAP_HOST != '' && env.QNAP_USER != '' && env.QNAP_SSH_PRIVATE_KEY != '' }}
         uses: appleboy/ssh-action@v0.1.9
         with:
-          host: ${{ secrets.QNAP_HOST }}
-          username: ${{ secrets.QNAP_USER }}
-          key: ${{ secrets.QNAP_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.QNAP_SSH_PORT || '22' }}
+          host: ${{ env.QNAP_HOST }}
+          username: ${{ env.QNAP_USER }}
+          key: ${{ env.QNAP_SSH_PRIVATE_KEY }}
+          port: ${{ env.QNAP_SSH_PORT || '22' }}
           env:
-            REG_HOST: ${{ secrets.REGISTRY_HOST }}
-            REG_REPO: ${{ secrets.REGISTRY_REPOSITORY }}
-            QNAP_CONTAINER_NAME: ${{ secrets.QNAP_CONTAINER_NAME }}
-            QNAP_APP_PORT: ${{ secrets.QNAP_APP_PORT }}
+            REG_HOST: ${{ env.REG_HOST }}
+            REG_REPO: ${{ env.REG_REPO }}
+            QNAP_CONTAINER_NAME: ${{ env.QNAP_CONTAINER_NAME }}
+            QNAP_APP_PORT: ${{ env.QNAP_APP_PORT }}
           script: |
             set -e
             echo "Pulling image on QNAP"
-            docker pull ${REG_HOST}/${REG_REPO}:${{ github.sha }}
+            docker pull ${{ env.REG_HOST }}/${{ env.REG_REPO }}:${{ github.sha }}
             if docker ps -a --format '{{.Names}}' | grep -q "${QNAP_CONTAINER_NAME}"; then
               docker rm -f "${QNAP_CONTAINER_NAME}" || true
             fi
             docker run -d --restart unless-stopped \
               --name "${QNAP_CONTAINER_NAME}" \
               -p "${QNAP_APP_PORT}:8089" \
-              ${REG_HOST}/${REG_REPO}:${{ github.sha }}
+              ${{ env.REG_HOST }}/${{ env.REG_REPO }}:${{ github.sha }}
 
 # Notes:
 # - Set repository secrets in GitHub: REGISTRY_HOST, REGISTRY_USERNAME, REGISTRY_PASSWORD,
