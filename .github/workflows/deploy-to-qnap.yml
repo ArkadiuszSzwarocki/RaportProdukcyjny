@@ -7,15 +7,6 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      REG_HOST: ${{ secrets.REGISTRY_HOST }}
-      REG_REPO: ${{ secrets.REGISTRY_REPOSITORY }}
-      QNAP_HOST: ${{ secrets.QNAP_HOST }}
-      QNAP_USER: ${{ secrets.QNAP_USER }}
-      QNAP_SSH_PRIVATE_KEY: ${{ secrets.QNAP_SSH_PRIVATE_KEY }}
-      QNAP_SSH_PORT: ${{ secrets.QNAP_SSH_PORT }}
-      QNAP_CONTAINER_NAME: ${{ secrets.QNAP_CONTAINER_NAME }}
-      QNAP_APP_PORT: ${{ secrets.QNAP_APP_PORT }}
 
     steps:
       - name: Checkout
@@ -29,10 +20,8 @@ jobs:
 
       - name: Log in to container registry
         uses: docker/login-action@v2
-        env:
-          REGISTRY_HOST: ${{ secrets.REGISTRY_HOST }}
         with:
-          registry: ${{ env.REGISTRY_HOST }} # e.g. ghcr.io or docker.io
+          registry: ${{ secrets.REGISTRY_HOST }} # e.g. ghcr.io or docker.io
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
@@ -45,13 +34,18 @@ jobs:
           tags: ${{ secrets.REGISTRY_HOST }}/${{ secrets.REGISTRY_REPOSITORY }}:${{ github.sha }}
 
       - name: Deploy to QNAP via SSH
-        if: ${{ env.QNAP_HOST != '' && env.QNAP_USER != '' && env.QNAP_SSH_PRIVATE_KEY != '' }}
+        if: ${{ secrets.QNAP_HOST != '' && secrets.QNAP_USER != '' && secrets.QNAP_SSH_PRIVATE_KEY != '' }}
         uses: appleboy/ssh-action@v0.1.9
         with:
-          host: ${{ env.QNAP_HOST }}
-          username: ${{ env.QNAP_USER }}
-          key: ${{ env.QNAP_SSH_PRIVATE_KEY }}
-          port: ${{ env.QNAP_SSH_PORT || '22' }}
+          host: ${{ secrets.QNAP_HOST }}
+          username: ${{ secrets.QNAP_USER }}
+          key: ${{ secrets.QNAP_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.QNAP_SSH_PORT || '22' }}
+          env:
+            REG_HOST: ${{ secrets.REGISTRY_HOST }}
+            REG_REPO: ${{ secrets.REGISTRY_REPOSITORY }}
+            QNAP_CONTAINER_NAME: ${{ secrets.QNAP_CONTAINER_NAME }}
+            QNAP_APP_PORT: ${{ secrets.QNAP_APP_PORT }}
           script: |
             set -e
             echo "Pulling image on QNAP"
