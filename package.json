@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "frontend": "vite --host --port 5173 --strictPort",
-    "backend": "cross-env PORT=3000 node server.js",
+    "backend": "node server.js",
     "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"yellow,blue\" \"npm run backend\" \"npm run frontend\"",
     "build": "tsc && vite build",
     "preview": "vite preview",
