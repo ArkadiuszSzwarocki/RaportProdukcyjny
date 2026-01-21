@@ -1,7 +1,3 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
-
 # Mleczna-droga
 
 This repository contains everything you need to run the app locally.
@@ -26,10 +22,12 @@ This repository contains everything you need to run the app locally.
 2. Copy the example env and fill real values (DO NOT commit secrets):
 
     - Unix / macOS:
+
        ```bash
        cp .env.example .env
        ```
     - Windows PowerShell:
+
        ```powershell
        Copy-Item .env.example .env
        ```
@@ -38,19 +36,23 @@ This repository contains everything you need to run the app locally.
 
 3. Run the app:
     - Start backend only:
+
        ```bash
        npm run backend
        ```
     - Start frontend only:
+
        ```bash
        npm run frontend
        ```
     - Start both in dev mode:
+
        ```bash
        npm run dev
        ```
 
 Notes:
+
 - Backend default port: `8089` (set by `PORT` in `.env`).
 - Frontend dev server default: `5173`.
 - The frontend reads `VITE_API_URL` via `import.meta.env.VITE_API_URL` (see [constants.ts](constants.ts#L1)).
