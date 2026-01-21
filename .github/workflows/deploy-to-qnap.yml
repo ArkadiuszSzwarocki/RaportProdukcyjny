@@ -36,6 +36,11 @@ jobs:
       - name: Deploy to QNAP via SSH
         if: ${{ secrets.QNAP_HOST && secrets.QNAP_USER && secrets.QNAP_SSH_PRIVATE_KEY }}
         uses: appleboy/ssh-action@v0.1.9
+        env:
+          REG_HOST: ${{ secrets.REGISTRY_HOST }}
+          REG_REPO: ${{ secrets.REGISTRY_REPOSITORY }}
+          QNAP_CONTAINER_NAME: ${{ secrets.QNAP_CONTAINER_NAME }}
+          QNAP_APP_PORT: ${{ secrets.QNAP_APP_PORT }}
         with:
           host: ${{ secrets.QNAP_HOST }}
           username: ${{ secrets.QNAP_USER }}
@@ -48,10 +53,10 @@ jobs:
             if docker ps -a --format '{{.Names}}' | grep -q "${{ secrets.QNAP_CONTAINER_NAME }}"; then
               docker rm -f ${{ secrets.QNAP_CONTAINER_NAME }} || true
             fi
-              docker run -d --restart unless-stopped \
-              --name ${{ secrets.QNAP_CONTAINER_NAME }} \
-              -p ${{ secrets.QNAP_APP_PORT }}:8089 \
-              ${{ secrets.REGISTRY_HOST }}/${{ secrets.REGISTRY_REPOSITORY }}:${{ github.sha }}
+            docker run -d --restart unless-stopped \
+              --name "${QNAP_CONTAINER_NAME}" \
+              -p "${QNAP_APP_PORT}:8089" \
+              ${REG_HOST}/${REG_REPO}:${{ github.sha }}
 
 # Notes:
 # - Set repository secrets in GitHub: REGISTRY_HOST, REGISTRY_USERNAME, REGISTRY_PASSWORD,
