@@ -1,7 +1,8 @@
 # Konfiguracja Bazy Danych QNAP
 
 ## Dane Połączenia
-```
+
+```text
 Host: filipinka.myqnapcloud.com
 Port: 3307
 Użytkownik: rootMlecznaDroga
@@ -12,6 +13,7 @@ Baza: MleczDroga
 ## Struktury Plików Konfiguracyjnych
 
 ### Backend (.env)
+
 Plik `.env` w katalogu głównym zawiera zmienne środowiskowe dla backendu:
 
 ```env
@@ -26,6 +28,7 @@ DB_NAME=MleczDroga
 **Lokalizacja:** `/workspaces/Mleczna-droga/.env`
 
 ### Frontend (.env.local)
+
 Plik `.env.local` zawiera zmienne dla frontendu (Vite):
 
 ```env
@@ -35,6 +38,7 @@ VITE_API_URL=http://localhost:8089/api
 **Lokalizacja:** `/workspaces/Mleczna-droga/.env.local`
 
 **Dla połączenia z zdalnym QNAP zmień na:**
+
 ```env
 VITE_API_URL=http://filipinka.myqnapcloud.com:8089/api
 ```
@@ -42,7 +46,9 @@ VITE_API_URL=http://filipinka.myqnapcloud.com:8089/api
 ## Zmienne Środowiskowe
 
 ### Backend (server.js)
+
 Backend automatycznie czyta zmienne z `.env`:
+
 - `DB_HOST` - adres hosta bazy danych
 - `DB_PORT` - port (domyślnie 3307)
 - `DB_USER` - użytkownik
@@ -51,6 +57,7 @@ Backend automatycznie czyta zmienne z `.env`:
 - `PORT` - port serwera API (domyślnie 5000)
 
 ### Frontend (constants.ts)
+
 Frontend czyta zmienną `VITE_API_URL` w `constants.ts`:
 
 ```typescript
@@ -59,17 +66,20 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:80
 
 ## Uruchamianie
 
-### Tylko backend (połączony z QNAP):
+### Tylko backend (połączony z QNAP)
+
 ```bash
 npm run backend
 ```
 
-### Tylko frontend:
+### Tylko frontend
+
 ```bash
 npm run frontend
 ```
 
-### Oba jednocześnie (dev mode):
+### Oba jednocześnie (dev mode)
+
 ```bash
 npm run dev
 ```
@@ -77,11 +87,13 @@ npm run dev
 ## Sprawdzanie Połączenia
 
 ### Health Check (backend)
+
 ```bash
 curl http://localhost:8089/api/health
 ```
 
 Prawidłowa odpowiedź:
+
 ```json
 {
   "status": "OK",
@@ -93,19 +105,25 @@ Prawidłowa odpowiedź:
 
 ## Przełączanie między Localhost a QNAP
 
-### Dla pracy lokalnej:
+### Dla pracy lokalnej
+
 1. **Backend** - zostaw domyślnie na localhost (domyślnie w `.env`)
 2. **Frontend** - zmień `.env.local`:
+
 ```env
 VITE_API_URL=http://localhost:8089/api
 ```
 
-### Dla połączenia z QNAP:
+### Dla połączenia z QNAP
+
 1. **Backend** - zmień `.env`:
+
 ```env
 DB_HOST=filipinka.myqnapcloud.com
 ```
+
 2. **Frontend** - zmień `.env.local`:
+
 ```env
 VITE_API_URL=http://filipinka.myqnapcloud.com:8089/api
 ```
@@ -115,6 +133,7 @@ VITE_API_URL=http://filipinka.myqnapcloud.com:8089/api
 ⚠️ **WAŻNE:** Nie commituj pliku `.env` z hasłami do repozytorium!
 
 Dodaj `.env` do `.gitignore`:
+
 ```
 .env
 .env.local
@@ -124,15 +143,18 @@ Dodaj `.env` do `.gitignore`:
 ## Troubleshooting
 
 ### Błąd: "connect ECONNREFUSED"
+
 - Sprawdź czy backend jest uruchomiony na porcie 8089
 - Sprawdź czy QNAP jest dostępny (ping filipinka.myqnapcloud.com)
 - Sprawdź czy dane logowania są prawidłowe
 
 ### Błąd: "getaddrinfo ENOTFOUND"
+
 - Sprawdź połączenie internetowe
 - Sprawdź czy URL jest prawidłowy: `filipinka.myqnapcloud.com`
 
 ### CORS Errors
+
 - Backend ma już zdefiniowany CORS (`cors` middleware w server.js)
 - Jeśli problem persystuje, sprawdź czy backend jest dostępny
 
@@ -165,6 +187,7 @@ Dodaj `.env` do `.gitignore`:
 ## Zapytania do Bazy Danych
 
 ### Przykładowe zapytania SQL
+
 ```sql
 SELECT TABLE_NAME, ENGINE, TABLE_COLLATION
 FROM information_schema.TABLES
@@ -173,12 +196,14 @@ WHERE TABLE_SCHEMA='MleczDroga'
 ```
 
 ### Tworzenie kopii zapasowej tabeli `inventory_sessions`
+
 ```sql
 CREATE TABLE inventory_sessions_backup LIKE inventory_sessions;
 INSERT INTO inventory_sessions_backup SELECT * FROM inventory_sessions;
 ```
 
 ### Zmiana silnika i kodowania tabeli `inventory_sessions`
+
 ```sql
 ALTER TABLE inventory_sessions ENGINE=InnoDB, CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
@@ -199,4 +224,3 @@ Jeżeli używamy automatycznego deploymentu przez GitHub Actions (plik `.github/
 - `QNAP_SSH_PORT` — opcjonalny port SSH (domyślnie `22`)
 
 Uwaga: nie umieszczaj w repozytorium haseł ani kluczy prywatnych. Dodaj je jako Secrets, a workflow będzie ich bezpiecznie używał.
-
