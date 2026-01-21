@@ -16,7 +16,9 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 
 const app = express();
-app.use(cors());
+// Zezwól na żądania z frontendu podczas developmentu (tymczasowo allow all)
+app.use(cors({ origin: '*' }));
+app.options('*', cors());
 app.use(express.json());
 
 // Helper: konwersja snake_case -> camelCase dla wyników z DB

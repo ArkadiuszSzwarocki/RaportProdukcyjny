@@ -20,7 +20,9 @@ const normalizeRow = (row) => {
 const normalizeRows = (rows) => (Array.isArray(rows) ? rows.map(normalizeRow) : rows);
 
 const app = express();
-app.use(cors());
+// Zezwól na żądania z frontendu podczas developmentu (tymczasowo allow all)
+app.use(cors({ origin: '*' }));
+app.options('*', cors());
 app.use(express.json());
 app.use(express.text({ type: ['text/*', 'application/csv'] }));
 
