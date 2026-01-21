@@ -23,6 +23,35 @@ This repository contains everything you need to run the app locally.
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Copy the example env and fill real values (DO NOT commit secrets):
+
+    - Unix / macOS:
+       ```bash
+       cp .env.example .env
+       ```
+    - Windows PowerShell:
+       ```powershell
+       Copy-Item .env.example .env
+       ```
+
+    Edit `.env` and set `DB_*`, `JWT_SECRET` and `VITE_API_URL` as needed. For frontend dev, `VITE_API_URL` should include `/api` (e.g. `http://localhost:8089/api` or `https://mlecznadroga.mycloudnas.com/api`).
+
 3. Run the app:
-   `npm run dev`
+    - Start backend only:
+       ```bash
+       npm run backend
+       ```
+    - Start frontend only:
+       ```bash
+       npm run frontend
+       ```
+    - Start both in dev mode:
+       ```bash
+       npm run dev
+       ```
+
+Notes:
+- Backend default port: `8089` (set by `PORT` in `.env`).
+- Frontend dev server default: `5173`.
+- The frontend reads `VITE_API_URL` via `import.meta.env.VITE_API_URL` (see [constants.ts](constants.ts#L1)).
+- `.env` and `.env.local` are included in `.gitignore` to avoid leaking secrets.
