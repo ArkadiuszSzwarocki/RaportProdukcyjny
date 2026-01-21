@@ -136,7 +136,7 @@ export const MixingWorkerPage: React.FC = () => {
         setFeedback({ type: result.success ? 'success' : 'error', message: result.message });
         setPalletToConsume(null);
         if(result.success) {
-            setTimeout(() => setFeedback(null), 3000);
+            setTimeout(() => setFeedback(null), 8089);
         }
     };
     
