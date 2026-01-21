@@ -47,11 +47,6 @@ jobs:
       - name: Deploy to QNAP via SSH
         if: ${{ env.QNAP_HOST != '' && env.QNAP_USER != '' && env.QNAP_SSH_PRIVATE_KEY != '' }}
         uses: appleboy/ssh-action@v0.1.9
-        env:
-          REG_HOST: ${{ env.REG_HOST }}
-          REG_REPO: ${{ env.REG_REPO }}
-          QNAP_CONTAINER_NAME: ${{ env.QNAP_CONTAINER_NAME }}
-          QNAP_APP_PORT: ${{ env.QNAP_APP_PORT }}
         with:
           host: ${{ env.QNAP_HOST }}
           username: ${{ env.QNAP_USER }}
@@ -61,12 +56,12 @@ jobs:
             set -e
             echo "Pulling image on QNAP"
             docker pull ${{ env.REG_HOST }}/${{ env.REG_REPO }}:${{ github.sha }}
-            if docker ps -a --format '{{.Names}}' | grep -q "${QNAP_CONTAINER_NAME}"; then
-              docker rm -f "${QNAP_CONTAINER_NAME}" || true
+            if docker ps -a --format '{{.Names}}' | grep -q "${{ env.QNAP_CONTAINER_NAME }}"; then
+              docker rm -f "${{ env.QNAP_CONTAINER_NAME }}" || true
             fi
             docker run -d --restart unless-stopped \
-              --name "${QNAP_CONTAINER_NAME}" \
-              -p "${QNAP_APP_PORT}:8089" \
+              --name "${{ env.QNAP_CONTAINER_NAME }}" \
+              -p "${{ env.QNAP_APP_PORT }}:8089" \
               ${{ env.REG_HOST }}/${{ env.REG_REPO }}:${{ github.sha }}
 
 # Notes:

@@ -183,3 +183,20 @@ INSERT INTO inventory_sessions_backup SELECT * FROM inventory_sessions;
 ALTER TABLE inventory_sessions ENGINE=InnoDB, CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
+## Required secrets (GitHub Actions)
+
+Jeżeli używamy automatycznego deploymentu przez GitHub Actions (plik `.github/workflows/deploy-to-qnap.yml`), repozytorium musi mieć skonfigurowane poniższe *Secrets* w ustawieniach GitHub (`Settings → Secrets → Actions`):
+
+- `REGISTRY_HOST` — adres rejestru (np. `ghcr.io` lub `registry.example.com`)
+- `REGISTRY_USERNAME` — nazwa użytkownika do rejestru
+- `REGISTRY_PASSWORD` — hasło/token do rejestru
+- `REGISTRY_REPOSITORY` — pełna nazwa repozytorium obrazu (np. `owner/repo`)
+- `QNAP_HOST` — host QNAP (np. `filipinka.myqnapcloud.com`)
+- `QNAP_USER` — użytkownik SSH na QNAP (np. `admin`)
+- `QNAP_SSH_PRIVATE_KEY` — prywatny klucz SSH (warto ustawić jako *private* secret)
+- `QNAP_CONTAINER_NAME` — nazwa kontenera Docker na QNAP
+- `QNAP_APP_PORT` — port, na którym ma być wystawiona aplikacja (np. `8089`)
+- `QNAP_SSH_PORT` — opcjonalny port SSH (domyślnie `22`)
+
+Uwaga: nie umieszczaj w repozytorium haseł ani kluczy prywatnych. Dodaj je jako Secrets, a workflow będzie ich bezpiecznie używał.
+
