@@ -20,8 +20,10 @@ jobs:
 
       - name: Log in to container registry
         uses: docker/login-action@v2
+        env:
+          REGISTRY_HOST: ${{ secrets.REGISTRY_HOST }}
         with:
-          registry: ${{ secrets.REGISTRY_HOST }} # e.g. ghcr.io or docker.io
+          registry: ${{ env.REGISTRY_HOST }} # e.g. ghcr.io or docker.io
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
@@ -34,7 +36,7 @@ jobs:
           tags: ${{ secrets.REGISTRY_HOST }}/${{ secrets.REGISTRY_REPOSITORY }}:${{ github.sha }}
 
       - name: Deploy to QNAP via SSH
-        if: ${{ secrets.QNAP_HOST && secrets.QNAP_USER && secrets.QNAP_SSH_PRIVATE_KEY }}
+        if: ${{ secrets.QNAP_HOST != '' && secrets.QNAP_USER != '' && secrets.QNAP_SSH_PRIVATE_KEY != '' }}
         uses: appleboy/ssh-action@v0.1.9
         env:
           REG_HOST: ${{ secrets.REGISTRY_HOST }}
@@ -49,9 +51,9 @@ jobs:
           script: |
             set -e
             echo "Pulling image on QNAP"
-            docker pull ${{ secrets.REGISTRY_HOST }}/${{ secrets.REGISTRY_REPOSITORY }}:${{ github.sha }}
-            if docker ps -a --format '{{.Names}}' | grep -q "${{ secrets.QNAP_CONTAINER_NAME }}"; then
-              docker rm -f ${{ secrets.QNAP_CONTAINER_NAME }} || true
+            docker pull ${REG_HOST}/${REG_REPO}:${{ github.sha }}
+            if docker ps -a --format '{{.Names}}' | grep -q "${QNAP_CONTAINER_NAME}"; then
+              docker rm -f "${QNAP_CONTAINER_NAME}" || true
             fi
             docker run -d --restart unless-stopped \
               --name "${QNAP_CONTAINER_NAME}" \
