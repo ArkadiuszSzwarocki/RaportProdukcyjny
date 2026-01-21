@@ -53,9 +53,9 @@ const normalizeLocation = (loc) => {
 const dbConfig = {
     host: process.env.DB_HOST || '127.0.0.1',
     port: parseInt(process.env.DB_PORT || '3307'),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'Filipinka2010',
-    database: process.env.DB_NAME || 'MleczDroga',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
