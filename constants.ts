@@ -21,7 +21,23 @@ const getEnvVar = (key: string, fallback: string): string => {
 };
 
 // Adres backendu Node.js (serwer-api) - pobierany bezpiecznie
-export const API_BASE_URL = getEnvVar('VITE_API_URL', '/api');
+// Normalize API base URL:
+// - If VITE_API_URL is a host (http(s)://host:port) and doesn't include '/api', append '/api'.
+// - If not set, fallback to the relative '/api' so dev proxy works.
+const rawApi = getEnvVar('VITE_API_URL', '/api');
+export const API_BASE_URL = (() => {
+  try {
+    if (!rawApi) return '/api';
+    // If value looks like a full URL (starts with http) and doesn't contain '/api', append it
+    if (/^https?:\/\//i.test(rawApi) && !/\/api(\/|$)/i.test(rawApi)) {
+      return rawApi.replace(/\/+$/,'') + '/api';
+    }
+    // otherwise return as-is (handles '/api' or relative paths)
+    return rawApi.replace(/\/+$/,'');
+  } catch (e) {
+    return '/api';
+  }
+})();
 
 export const INITIAL_PRINTERS: PrinterDef[] = [
     { id: 'biuro', name: 'Biuro (TSC)', ip: '192.168.1.236' },
