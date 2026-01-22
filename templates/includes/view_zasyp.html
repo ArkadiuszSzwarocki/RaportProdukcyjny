@@ -1,34 +1,27 @@
 <div class="plan-box">
-    
+
     {% set aktywne = [] %}
     {% for p in plan if p[3] == 'w toku' %}
         {% do aktywne.append(p) %}
     {% endfor %}
 
     {% if aktywne %}
-        <div style="background-color: #e3f2fd; border: 2px solid #2196f3; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);">
-            <h3 style="margin-top:0; color:#1565c0; border-bottom: 1px solid #90caf9; padding-bottom: 5px; font-size: 1em; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">
-                🚀 Trwa Realizacja
-            </h3>
-            
+        <div class="plan-box" style="background-color:#e9f4ff; border:2px solid #2196f3; padding:15px; border-radius:8px; margin-bottom:20px; box-shadow: 0 2px 8px rgba(33,150,243,0.08);">
+            <h3 class="header-title" style="margin-bottom:10px; text-transform:uppercase; letter-spacing:1px; color:#1565c0;">🚀 Trwa Realizacja</h3>
+
             {% for p in aktywne %}
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px;">
+            <div class="d-flex" style="justify-content:space-between; gap:15px; flex-wrap:wrap;">
                 <div>
-                    <h1 style="margin: 0 0 10px 0; font-size: 2em; color: #333; line-height: 1.1;">{{ p[1] }}</h1>
-                    <div style="font-size: 1.1em; line-height: 1.4;">
-                        Plan: <strong>{{ p[2] }} ton</strong> <br>
-                        <span style="color:#e67e22; font-weight:bold; background: #fff3e0; padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">
-                            🕒 Start: {{ p[4] }}
-                        </span>
+                    <h1 class="header-title" style="margin:0 0 10px 0; font-size:2em; color:#333;">{{ p[1] }}</h1>
+                    <div class="small" style="line-height:1.4;">Plan: <strong>{{ p[2] }} ton</strong> <br>
+                        <span class="status-plan" style="padding:2px 6px; border-radius:4px; font-weight:bold;">🕒 Start: {{ p[4] }}</span>
                     </div>
                 </div>
-                
+
                 <div style="text-align:right;">
                     <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm('Czy na pewno ZAKOŃCZYĆ to zlecenie?');">
                         <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-                        <button type="submit" class="btn-stop" style="padding: 12px 25px; font-size: 1em; font-weight: bold; cursor: pointer; white-space: nowrap; border: none; background-color: #e74c3c; color: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                            ■ ZAKOŃCZ ZLECENIE
-                        </button>
+                        <button type="submit" class="btn-stop">■ ZAKOŃCZ ZLECENIE</button>
                     </form>
                 </div>
             </div>
@@ -39,24 +32,26 @@
     {% endif %}
 
     {% if aktywne %}
-    <details style="margin-top: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
-        <summary style="padding: 12px; cursor: pointer; font-weight: bold; color: #555; list-style: none; outline: none; font-size: 0.9em; display: flex; align-items: center; gap:12px;">
+    <details style="margin-top:10px; border:1px solid #ccc; border-radius:5px; background-color:#f9f9f9;">
+        <summary class="d-flex align-center" style="padding:12px; cursor:pointer; font-weight:bold; color:#555; gap:12px;">
             <span>🔽 POKAŻ / UKRYJ KOLEJKĘ ZLECEŃ</span>
-            {% if rola in ['planista', 'lider'] %}
-                <form action="{{ url_for('api.manual_rollover') }}" method="POST" style="margin-left:8px;">
+        </summary>
+        {% if rola in ['planista', 'lider'] %}
+            <div style="margin:8px 0 0 0;">
+                <form action="{{ url_for('api.manual_rollover') }}" method="POST" style="display:inline-block;">
                     <input type="hidden" name="from_date" value="{{ dzisiaj }}">
                     <input type="hidden" name="to_date" value="{{ next_date }}">
-                    <button type="submit" onclick="return confirm('Na pewno przenieść niezakończone zlecenia? To usunie oryginały.')" style="background:#c0392b; color:white; border:none; padding:6px 8px; border-radius:4px; cursor:pointer; font-size:0.85em;">Przenieś zlecenia</button>
+                    <button type="submit" onclick="return confirm('Na pewno przenieść niezakończone zlecenia? To usunie oryginały.')" class="btn-action" style="background:#c0392b; color:white; padding:6px 8px; border-radius:4px; font-size:0.85em;">Przenieś zlecenia</button>
                 </form>
-            {% endif %}
-        </summary>
+            </div>
+        {% endif %}
         <div style="padding: 15px; border-top: 1px solid #ddd; background: white;">
     {% else %}
         <div>
     {% endif %}
 
         {% if not plan %}
-            <p style="color:gray; font-style:italic; text-align:center;">Brak planu na dziś.</p>
+            <p class="text-muted" style="font-style:italic; text-align:center;">Brak planu na dziś.</p>
         {% else %}
             {% for p in plan if p[3] != 'w toku' %}
             <div class="plan-item {% if p[3] == 'zakonczone' %}bg-zakonczone{% endif %}">
@@ -67,15 +62,15 @@
                     <span style="font-size:1.1em; font-weight:bold;">{{ p[1] }}</span> | Plan: {{ p[2] }} t
                     
                     {% if p[3] == 'zakonczone' %}
-                        <span style="color:green; margin-left:10px;">✅ Wyk: <strong>{{ p[7] }} t</strong></span>
+                        <span class="text-success" style="margin-left:10px;">✅ Wyk: <strong>{{ p[7] }} t</strong></span>
                         {% if rola in ['planista', 'lider', 'admin'] %}
                             <form action="/zapisz_tonaz/{{ p[0] }}" method="POST" class="inline-form">
                                 <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-                                <input type="number" step="0.01" name="tonaz_rzeczywisty" placeholder="Waga" value="{{ p[7] if p[7] else '' }}" style="width:60px; padding: 2px;">
-                                <button type="submit" style="border:none; background:none; cursor:pointer;" title="Zapisz">💾</button>
+                                <input type="number" step="0.01" name="tonaz_rzeczywisty" placeholder="Waga" aria-label="Waga rzeczywista (t)" value="{{ p[7] if p[7] else '' }}" class="input-sm" style="width:60px;">
+                                <button type="submit" class="btn-icon" title="Zapisz">💾</button>
                             </form>
                         {% endif %}
-                        <br><small style="color:gray">Czas: {{ p[6] }} min</small>
+                        <br><small class="text-muted">Czas: {{ p[6] }} min</small>
                     {% endif %}
                 </div>
 
@@ -83,7 +78,7 @@
                     {% if p[3] == 'zaplanowane' and rola != 'planista' %}
                         <form action="/start_zlecenie/{{ p[0] }}" method="POST" class="inline-form">
                             <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-                            <button type="submit" class="btn-start" style="padding: 8px 20px; font-size: 0.9em;">▶ START</button>
+                            <button type="submit" class="btn-start">▶ START</button>
                         </form>
                     {% endif %}
                     
@@ -98,7 +93,7 @@
             {% endfor %}
         {% endif %}
 
-        </div> 
+        </div>
     {% if aktywne %}</details>{% endif %}
 
     {% if plan and rola != 'planista' and not aktywne %}
@@ -111,9 +106,9 @@
     {% if rola in ['planista', 'admin', 'lider'] %}
     <hr class="custom-hr">
     <form action="/dodaj_plan" method="POST" class="form-flex">
-        <input type="date" name="data_planu" value="{{ dzisiaj }}" required style="width:auto; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-        <input type="text" name="produkt" placeholder="Produkt" required class="select-flex" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-        <input type="number" step="0.1" name="tonaz" placeholder="Tony" required style="width:70px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        <input type="date" name="data_planu" value="{{ dzisiaj }}" required class="input-sm" style="width:auto;" aria-label="Data planu">
+        <input type="text" name="produkt" placeholder="Produkt" required class="select-flex" aria-label="Produkt">
+        <input type="number" step="0.1" name="tonaz" placeholder="Tony" required class="input-sm" style="width:70px;" aria-label="Tonaz">
         <button type="submit" class="btn-add-plan">DODAJ</button>
     </form>
     {% endif %}

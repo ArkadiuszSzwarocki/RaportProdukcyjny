@@ -10,20 +10,20 @@
 <body>
 
     <div class="top-bar">
-        <div style="display:flex; align-items:center; gap:15px;">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height:40px;">
-            <h2 style="margin:0; font-size:1.2em;">AGRO<span style="color:#bdc3c7;">MES</span></h2>
+        <div class="d-flex align-center" style="gap:15px;">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-sm" onerror="this.onerror=null;this.src='https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';">
+            <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
         </div>
 
         <div class="user-info">
             {% if session.get('rola') in ['admin', 'zarzad', 'planista', 'lider'] %}
-                <a href="/zarzad" class="btn" style="background:#8e44ad; color:white;">
+                <a href="/zarzad" class="btn btn-wyniki">
                     <span class="material-icons">bar_chart</span> WYNIKI
                 </a>
             {% endif %}
 
             {% if session.get('rola') in ['planista', 'admin'] %}
-                <a href="/planista" class="btn" style="background:#34495e; color:white;">
+                <a href="/planista" class="btn btn-plan">
                     <span class="material-icons">calendar_today</span> PLAN
                 </a>
             {% endif %}

@@ -4,7 +4,7 @@
 
 <div class="section-header">
     <h2 class="header-title">⚙️ Panel Administratora</h2>
-    <div style="display:flex; gap:10px;">
+    <div class="d-flex gap-10">
         <a href="/admin?tab=users" class="btn">Użytkownicy</a>
         <a href="/admin?tab=production" class="btn btn-primary">Produkcja</a>
         <a href="/admin?tab=logs" class="btn">Logi Systemowe</a>
@@ -15,13 +15,13 @@
 
 {% if active_tab == 'users' %}
 <div class="section-box">
-    <div style="padding:15px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+    <div class="d-flex justify-between align-center p-15" style="border-bottom:1px solid var(--border-color);">
         <h3>Zarządzanie użytkownikami</h3>
-        <div style="display:flex; gap:8px;">
-            <form action="/admin/konto/dodaj" method="POST" style="display:flex; gap:8px; align-items:center;">
-                <input name="login" placeholder="Login" required style="padding:8px; border:1px solid #ddd; border-radius:4px;">
-                <input name="haslo" placeholder="Hasło" required style="padding:8px; border:1px solid #ddd; border-radius:4px;">
-                <select name="rola" style="padding:8px; border:1px solid #ddd; border-radius:4px;">
+        <div class="d-flex gap-8">
+            <form action="/admin/konto/dodaj" method="POST" class="form-flex align-center">
+                <input name="login" placeholder="Login" required class="input-sm" aria-label="Login użytkownika">
+                <input name="haslo" placeholder="Hasło" required class="input-sm" aria-label="Hasło użytkownika">
+                <select name="rola" class="input-sm" aria-label="Rola użytkownika">
                     <option value="admin">admin</option>
                     <option value="lider">lider</option>
                     <option value="planista">planista</option>
@@ -46,14 +46,14 @@
                 <td>{{ k[1] }}</td>
                 <td>{{ k[2] }}</td>
                 <td class="text-right">
-                    <div style="display:flex; justify-content:flex-end; gap:8px; align-items:center;">
+                    <div class="d-flex justify-end gap-8 align-center">
                         <details style="display:inline-block;">
                             <summary class="btn">Edytuj</summary>
-                            <form action="/admin/konto/edytuj" method="POST" style="padding:10px; display:flex; gap:8px; align-items:center;">
+                            <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
                                 <input type="hidden" name="id" value="{{ k[0] }}">
-                                <input name="login" value="{{ k[1] }}" required style="padding:6px; border:1px solid #ddd; border-radius:4px;">
-                                <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" style="padding:6px; border:1px solid #ddd; border-radius:4px;">
-                                <select name="rola" style="padding:6px; border:1px solid #ddd; border-radius:4px;">
+                                <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login do edycji">
+                                <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
+                                <select name="rola" class="input-sm" aria-label="Rola do edycji">
                                     <option value="admin" {% if k[2]=='admin' %}selected{% endif %}>admin</option>
                                     <option value="lider" {% if k[2]=='lider' %}selected{% endif %}>lider</option>
                                     <option value="planista" {% if k[2]=='planista' %}selected{% endif %}>planista</option>
@@ -76,16 +76,13 @@
     </table>
 </div>
 
-<style>
-    details summary { cursor:pointer; padding:6px 10px; border-radius:4px; background:#f4f4f4; display:inline-block; }
-</style>
 
 {% else %}
 
-<div class="section-box">
-    <div style="padding:15px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
-        <h3>Zarządzanie Produkcją (Wszystkie Sekcje)</h3>
-        <input type="text" placeholder="Szukaj zlecenia..." style="padding:8px; border:1px solid #ddd; border-radius:4px; font-size:0.9em;">
+    <div class="section-box">
+    <div class="d-flex justify-between align-center p-15" style="border-bottom:1px solid var(--border-color);">
+    <h3>Zarządzanie Produkcją (Wszystkie Sekcje)</h3>
+    <input type="text" placeholder="Szukaj zlecenia..." class="input-sm small" aria-label="Szukaj zlecenia">
     </div>
 
     <table class="modern-table">
@@ -111,7 +108,7 @@
                 <td>
                     {{ z.tonaz }} t 
                     {% if z.tonaz_rzeczywisty %}
-                    <span style="color:var(--success-color);">/ {{ z.tonaz_rzeczywisty }} t</span>
+                    <span class="text-success">/ {{ z.tonaz_rzeczywisty }} t</span>
                     {% endif %}
                 </td>
                 <td>
@@ -120,10 +117,10 @@
                     </span>
                 </td>
                 <td>
-                    <span style="font-size:0.9em; color:#888;">System</span>
+                    <span class="small text-muted">System</span>
                 </td>
                 <td class="text-right">
-                    <div style="display:flex; justify-content:flex-end; gap:5px;">
+                    <div class="d-flex justify-end gap-5">
                         <a href="/admin/edycja_zlecenia/{{ z.id }}" class="btn-icon" title="Edytuj">
                             <span class="material-icons">edit</span>
                         </a>
@@ -143,24 +140,7 @@
     </table>
 </div>
 
-<style>
-    /* Wspólne style tabeli (możesz przenieść do style.css) */
-    .modern-table { width:100%; border-collapse:collapse; }
-    .modern-table th { background:#f8f9fa; color:var(--text-muted); font-size:0.85em; padding:12px; border-bottom:2px solid var(--border-color); text-align:left; }
-    .modern-table td { padding:12px; border-bottom:1px solid var(--border-color); }
-    
-    .status-badge { padding:3px 8px; border-radius:4px; font-size:0.75em; font-weight:bold; }
-    .status-wtoku { background:#e3f2fd; color:#0d47a1; }
-    .status-zakonczone { background:#d4edda; color:#155724; }
-    
-    .badge-sekcja { background:#eee; color:#555; padding:2px 6px; border-radius:3px; font-size:0.85em; border:1px solid #ddd; }
-
-    .btn-icon { background:none; border:none; cursor:pointer; color:var(--text-muted); padding:4px; display:inline-flex; align-items:center; }
-    .btn-icon:hover { color:var(--primary-color); background:#f0f0f0; border-radius:4px; }
-    .btn-delete:hover { color:var(--danger-color); background:#fff5f5; }
-    .text-center { text-align:center; padding:20px; color:#999; }
-    .text-right { text-align:right; }
-</style>
+ 
 
 {% endif %}
 
