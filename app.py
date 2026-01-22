@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, url_for, send_file
+from flask import Flask, render_template, request, redirect, session, url_for, send_file, flash
 from waitress import serve
 from datetime import date, datetime, timedelta
 import os
@@ -34,7 +34,8 @@ def login():
             if hashed and check_password_hash(hashed, request.form['haslo']):
                 session['zalogowany'] = True; session['rola'] = rola
                 return redirect('/planista' if rola == 'planista' else '/')
-        return render_template('login.html', message="Błędne dane!")
+        flash("Błędne dane!", 'danger')
+        return redirect('/login')
     return render_template('login.html')
 
 @app.route('/logout')

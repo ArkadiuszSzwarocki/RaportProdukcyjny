@@ -12,7 +12,12 @@ def setup_database():
         cursor = conn.cursor()
         
         # 1. TWORZENIE TABEL (Jeśli nie istnieją)
-        cursor.execute("CREATE TABLE IF NOT EXISTS uzytkownicy (id INT AUTO_INCREMENT PRIMARY KEY, login VARCHAR(50) UNIQUE, haslo VARCHAR(100), rola VARCHAR(20))")
+        cursor.execute("CREATE TABLE IF NOT EXISTS uzytkownicy (id INT AUTO_INCREMENT PRIMARY KEY, login VARCHAR(50) UNIQUE, haslo VARCHAR(255), rola VARCHAR(20))")
+        # Ensure 'haslo' column is large enough for modern password hashes
+        try:
+            cursor.execute("ALTER TABLE uzytkownicy MODIFY haslo VARCHAR(255)")
+        except Exception:
+            pass
         cursor.execute("CREATE TABLE IF NOT EXISTS pracownicy (id INT AUTO_INCREMENT PRIMARY KEY, imie_nazwisko VARCHAR(100))")
 
         cursor.execute("""
