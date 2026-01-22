@@ -1,0 +1,23 @@
+name: Docker Build and Push
+on:
+  push:
+    branches: [ "main" ] # Automat ruszy po każdym 'git push'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }} # Tu używamy Twojego sekretu
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          tags: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
