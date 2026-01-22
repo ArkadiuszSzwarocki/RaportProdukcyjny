@@ -30,3 +30,37 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera):
         f.write(f"AWRIE/PRZESTOJE: {len(df_awarie)} wpisów.")
 
     return xls_path, txt_path
+
+
+def generuj_excel_zmiany(data_raportu):
+    """Kompatybilna z app.py: zwraca ścieżkę do wygenerowanego pliku Excel (lub None)."""
+    try:
+        xls, _ = generuj_paczke_raportow(data_raportu, '')
+        return xls
+    except Exception as e:
+        print(f"Błąd generowania excela: {e}")
+        return None
+
+
+def otworz_outlook_z_raportem(sciezka_xls, uwagi_lidera):
+    """Próbuje otworzyć Outlook i przygotować maila z załącznikiem.
+    Jeśli środowisko nie obsługuje COM/Outlook, funkcja nie podniesie wyjątku.
+    """
+    try:
+        import win32com.client
+    except Exception as e:
+        print(f"win32com unavailable: {e}")
+        return False
+
+    try:
+        outlook = win32com.client.Dispatch('Outlook.Application')
+        mail = outlook.CreateItem(0)
+        mail.Subject = f"Raport produkcyjny - {datetime.now().date()}"
+        mail.Body = uwagi_lidera or ''
+        if sciezka_xls and os.path.exists(sciezka_xls):
+            mail.Attachments.Add(os.path.abspath(sciezka_xls))
+        mail.Display(False)
+        return True
+    except Exception as e:
+        print(f"Błąd otwierania Outlooka: {e}")
+        return False
