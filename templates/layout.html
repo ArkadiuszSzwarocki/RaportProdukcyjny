@@ -28,6 +28,12 @@
                 </a>
             {% endif %}
 
+            {% if session.get('rola') == 'admin' %}
+                <a href="/admin/users" class="btn btn-primary">
+                    <span class="material-icons">manage_accounts</span> UŻYTKOWNICY
+                </a>
+            {% endif %}
+
             <span style="color:rgba(255,255,255,0.7);">Zalogowany: <strong>{{ session.get('rola')|upper }}</strong></span>
             
             <a href="/logout" class="logout-btn">
