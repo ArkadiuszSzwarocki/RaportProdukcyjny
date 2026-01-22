@@ -89,7 +89,9 @@ def setup_database():
         for row in existing:
             uid, pwd = row[0], row[1]
             if pwd and not str(pwd).startswith('pbkdf2:'):
-                new_h = generate_password_hash(str(pwd))
+                # Re-hash existing plaintext passwords (or non-pbkdf2 hashes)
+                # Force using PBKDF2-SHA256 for compatibility with check_password_hash
+                new_h = generate_password_hash(str(pwd), method='pbkdf2:sha256')
                 cursor.execute("UPDATE uzytkownicy SET haslo=%s WHERE id=%s", (new_h, uid))
                 migrated += 1
         if migrated:
@@ -97,11 +99,11 @@ def setup_database():
 
         cursor.execute("SELECT id FROM uzytkownicy WHERE login='admin'")
         if not cursor.fetchone():
-            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('admin', generate_password_hash('masterkey'), 'admin'))
+            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('admin', generate_password_hash('masterkey', method='pbkdf2:sha256'), 'admin'))
 
         cursor.execute("SELECT id FROM uzytkownicy WHERE login='planista'")
         if not cursor.fetchone():
-            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('planista', generate_password_hash('planista123'), 'planista'))
+            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('planista', generate_password_hash('planista123', method='pbkdf2:sha256'), 'planista'))
 
         conn.commit()
         conn.close()
