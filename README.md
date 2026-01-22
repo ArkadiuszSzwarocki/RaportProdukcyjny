@@ -73,7 +73,7 @@ db_config = {
     'port': 3307,                # Port (domyślnie 3307)
     'database': 'biblioteka',    # Nazwa bazy
     'user': 'biblioteka',        # Użytkownik
-    'password': 'Filipinka2025', # Hasło
+    'password': 88888888888888, # Hasło
     'charset': 'utf8mb4'
 }
 ```
@@ -85,18 +85,7 @@ python app.py
 
 Aplikacja będzie dostępna pod adresem: `http://localhost:5000`
 
-## 👤 Domyślne Konta
 
-Po pierwszym uruchomieniu system automatycznie tworzy następujące konta:
-
-| Login | Hasło | Rola |
-|-------|-------|------|
-| admin | masterkey | Administrator |
-| lider | admin123 | Lider zmiany |
-| planista | plan123 | Planista produkcji |
-| pracownik | user123 | Pracownik |
-
-**⚠️ WAŻNE**: Zmień domyślne hasła po pierwszym zalogowaniu!
 
 ## 🗄️ Struktura Bazy Danych
 
