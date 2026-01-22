@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="section-header">
+    <h2 class="header-title">⚙️ Zarządzanie użytkownikami</h2>
+    <div>
+        <a href="/admin" class="btn">Powrót do panelu</a>
+    </div>
+</div>
+
+<div class="section-box">
+    {% if needs_reset and needs_reset|length > 0 %}
+    <div class="alert alert-warning">
+        <strong>Uwaga:</strong> następujące konta korzystają ze starszego formatu haseł i wymagają resetu: {{ needs_reset|join(', ') }}.
+        Możesz ustawić tymczasowe hasło lub poprosić użytkowników o zmianę.
+    </div>
+    {% endif %}
+
+    <div class="p-15" style="border-bottom:1px solid var(--border-color);">
+        <h3>Dodaj nowe konto</h3>
+        <form action="/admin/konto/dodaj" method="POST" class="form-flex">
+            <input name="login" placeholder="Login" required class="input-sm" aria-label="Login">
+            <input name="haslo" placeholder="Hasło" class="input-sm" aria-label="Hasło">
+            <select name="rola" class="input-sm" aria-label="Rola">
+                <option value="admin">admin</option>
+                <option value="lider">lider</option>
+                <option value="planista">planista</option>
+                <option value="pracownik">pracownik</option>
+            </select>
+            <button class="btn btn-primary" type="submit">Dodaj konto</button>
+        </form>
+    </div>
+
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>Login</th>
+                <th>Rola</th>
+                <th class="text-right">Akcje</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for k in konta %}
+            <tr>
+                <td>{{ k[1] }}</td>
+                <td>{{ k[2] }}</td>
+                <td class="text-right">
+                    <div class="d-flex justify-end gap-8 align-center">
+                        <details style="display:inline-block;">
+                            <summary class="btn">Edytuj</summary>
+                            <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
+                                <input type="hidden" name="id" value="{{ k[0] }}">
+                                <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login do edycji">
+                                <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
+                                <select name="rola" class="input-sm" aria-label="Rola do edycji">
+                                    <option value="admin" {% if k[2]=='admin' %}selected{% endif %}>admin</option>
+                                    <option value="lider" {% if k[2]=='lider' %}selected{% endif %}>lider</option>
+                                    <option value="planista" {% if k[2]=='planista' %}selected{% endif %}>planista</option>
+                                    <option value="pracownik" {% if k[2]=='pracownik' %}selected{% endif %}>pracownik</option>
+                                </select>
+                                <button type="submit" class="btn">Zapisz</button>
+                            </form>
+                        </details>
+
+                        <form action="/admin/konto/edytuj" method="POST" class="form-inline">
+                            <input type="hidden" name="id" value="{{ k[0] }}">
+                            <input type="hidden" name="login" value="{{ k[1] }}">
+                            <input type="hidden" name="rola" value="{{ k[2] }}">
+                            <input name="haslo" placeholder="Tymczasowe hasło" class="input-sm" aria-label="Tymczasowe hasło">
+                            <button type="submit" class="btn btn-warning">Ustaw tymczasowe</button>
+                        </form>
+
+                        <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto {{ k[1] }}?');">
+                            <button type="submit" class="btn btn-danger">Usuń</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="3" class="text-center">Brak kont w bazie.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

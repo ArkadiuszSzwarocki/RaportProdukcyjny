@@ -23,6 +23,18 @@ def admin_panel():
     conn.close()
     return render_template('admin.html', pracownicy=pracownicy, konta=konta, raporty_hr=raporty_hr, dzisiaj=date.today(), zlecenia=zlecenia, needs_reset=needs_reset)
 
+
+@admin_bp.route('/admin/users')
+@admin_required
+def admin_users():
+    conn = get_db_connection(); cursor = conn.cursor()
+    cursor.execute("SELECT id, login, rola, haslo FROM uzytkownicy ORDER BY login")
+    rows = cursor.fetchall()
+    konta = [(r[0], r[1], r[2]) for r in rows]
+    needs_reset = [r[1] for r in rows if r[3] and (str(r[3]).startswith('scrypt:') or not str(r[3]).startswith('pbkdf2:'))]
+    conn.close()
+    return render_template('admin_users.html', konta=konta, needs_reset=needs_reset)
+
 @admin_bp.route('/admin/pracownik/dodaj', methods=['POST'])
 @admin_required
 def admin_dodaj_pracownika():
