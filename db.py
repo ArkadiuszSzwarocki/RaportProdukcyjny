@@ -92,7 +92,7 @@ def setup_database():
 
         cursor.execute("SELECT id FROM uzytkownicy WHERE login='admin'")
         if not cursor.fetchone():
-            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('admin', generate_password_hash('admin123'), 'admin'))
+            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('admin', generate_password_hash('masterkey'), 'admin'))
 
         cursor.execute("SELECT id FROM uzytkownicy WHERE login='planista'")
         if not cursor.fetchone():

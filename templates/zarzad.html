@@ -4,16 +4,20 @@
 
 <div class="section-header">
     <div><h2 class="header-title">📊 Wyniki Produkcyjne: <strong>{{ tytul }}</strong></h2></div>
-    <div style="display:flex; gap:10px; align-items:center;">
+    <div class="filters">
         <a href="/zarzad?tryb=dzien&data={{ wybrana_data }}" class="btn {% if tryb=='dzien' %}btn-primary{% endif %}">Dzień</a>
         <a href="/zarzad?tryb=miesiac&rok={{ wybrany_rok }}&miesiac={{ wybrany_miesiac }}" class="btn {% if tryb=='miesiac' %}btn-primary{% endif %}">Miesiąc</a>
         <a href="/zarzad?tryb=rok&rok={{ wybrany_rok }}" class="btn {% if tryb=='rok' %}btn-primary{% endif %}">Rok</a>
-        <form action="/zarzad" method="GET" style="display:flex; gap:5px; align-items:center; margin-left:10px;">
+        <form action="/zarzad" method="GET" class="filters-form">
             <input type="hidden" name="tryb" value="{{ tryb }}">
-            {% if tryb == 'dzien' %}<input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" style="padding:6px; border:1px solid #ccc; border-radius:4px;">
-            {% elif tryb == 'miesiac' %}<select name="miesiac" onchange="this.form.submit()" style="padding:6px;">{% for m in range(1,13) %}<option value="{{ m }}" {% if m==wybrany_miesiac %}selected{% endif %}>{{ m }}</option>{% endfor %}</select>
-            <select name="rok" onchange="this.form.submit()" style="padding:6px;">{% for r in range(2024, 2030) %}<option value="{{ r }}" {% if r==wybrany_rok %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
-            {% elif tryb == 'rok' %}<select name="rok" onchange="this.form.submit()" style="padding:6px;">{% for r in range(2024, 2030) %}<option value="{{ r }}" {% if r==wybrany_rok %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>{% endif %}
+            {% if tryb == 'dzien' %}
+                <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="filters-input">
+            {% elif tryb == 'miesiac' %}
+                <select name="miesiac" onchange="this.form.submit()" class="filters-input">{% for m in range(1,13) %}<option value="{{ m }}" {% if m==wybrany_miesiac %}selected{% endif %}>{{ m }}</option>{% endfor %}</select>
+                <select name="rok" onchange="this.form.submit()" class="filters-input">{% for r in range(2024, 2030) %}<option value="{{ r }}" {% if r==wybrany_rok %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+            {% elif tryb == 'rok' %}
+                <select name="rok" onchange="this.form.submit()" class="filters-input">{% for r in range(2024, 2030) %}<option value="{{ r }}" {% if r==wybrany_rok %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+            {% endif %}
         </form>
     </div>
 </div>
