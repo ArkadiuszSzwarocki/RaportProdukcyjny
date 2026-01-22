@@ -15,6 +15,11 @@
 
 {% if active_tab == 'users' %}
 <div class="section-box">
+    {% if needs_reset and needs_reset|length > 0 %}
+    <div class="alert alert-warning">
+        <strong>Uwaga:</strong> następujące konta korzystają ze starszego formatu haseł i wymagają resetu: {{ needs_reset|join(', ') }}. Proszę wymusić zmianę hasła (Edytuj → ustaw nowe hasło) lub poprosić użytkowników o reset.
+    </div>
+    {% endif %}
     <div class="d-flex justify-between align-center p-15" style="border-bottom:1px solid var(--border-color);">
         <h3>Zarządzanie użytkownikami</h3>
         <div class="d-flex gap-8">
