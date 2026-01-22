@@ -88,12 +88,15 @@ def setup_database():
         migrated = 0
         for row in existing:
             uid, pwd = row[0], row[1]
-            if pwd and not str(pwd).startswith('pbkdf2:'):
-                # Re-hash existing plaintext passwords (or non-pbkdf2 hashes)
-                # Force using PBKDF2-SHA256 for compatibility with check_password_hash
-                new_h = generate_password_hash(str(pwd), method='pbkdf2:sha256')
-                cursor.execute("UPDATE uzytkownicy SET haslo=%s WHERE id=%s", (new_h, uid))
-                migrated += 1
+            # Only migrate if the stored value does not look like a hash we already support.
+            # Skip values that start with known hash prefixes (e.g., 'pbkdf2:', 'scrypt:').
+            if pwd:
+                s = str(pwd)
+                if not (s.startswith('pbkdf2:') or s.startswith('scrypt:') or s.startswith('sha1:')):
+                    # Treat as plaintext and hash it using PBKDF2-SHA256
+                    new_h = generate_password_hash(s, method='pbkdf2:sha256')
+                    cursor.execute("UPDATE uzytkownicy SET haslo=%s WHERE id=%s", (new_h, uid))
+                    migrated += 1
         if migrated:
             print(f"🔐 Zhashowano {migrated} istniejących haseł użytkowników.")
 
