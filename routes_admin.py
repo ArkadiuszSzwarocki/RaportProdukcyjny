@@ -18,7 +18,18 @@ def admin_panel():
     konta = [(r[0], r[1], r[2]) for r in konta_raw]
     # Wylicz listę loginów, które mają hashe w formacie nie-pbkdf2 (np. scrypt)
     needs_reset = [r[1] for r in konta_raw if r[3] and (str(r[3]).startswith('scrypt:') or not str(r[3]).startswith('pbkdf2:'))]
-    cursor.execute("SELECT id, data_planu, sekcja, produkt, tonaz, tonaz_rzeczywisty, status FROM plan_produkcji ORDER BY data_planu DESC LIMIT 50"); zlecenia = cursor.fetchall()
+    cursor.execute("SELECT id, data_planu, sekcja, produkt, tonaz, tonaz_rzeczywisty, status FROM plan_produkcji ORDER BY data_planu DESC LIMIT 50"); zlecenia_rows = cursor.fetchall()
+    # Convert tuples to objects with attribute access for templates
+    class _Z:
+        def __init__(self, r):
+            self.id = r[0]
+            self.data_planu = r[1]
+            self.sekcja = r[2]
+            self.produkt = r[3]
+            self.tonaz = r[4]
+            self.tonaz_rzeczywisty = r[5]
+            self.status = r[6]
+    zlecenia = [_Z(r) for r in zlecenia_rows]
     cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu = %s", (date.today(),)); raporty_hr = cursor.fetchall()
     conn.close()
     return render_template('admin.html', pracownicy=pracownicy, konta=konta, raporty_hr=raporty_hr, dzisiaj=date.today(), zlecenia=zlecenia, needs_reset=needs_reset)
