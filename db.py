@@ -1,6 +1,7 @@
 import mysql.connector
 import logging
 from config import DB_CONFIG
+from werkzeug.security import generate_password_hash
 
 def get_db_connection():
     return mysql.connector.connect(**DB_CONFIG, buffered=True)
@@ -74,12 +75,28 @@ def setup_database():
             print("⏳ Dodawanie kolumny 'waga_brutto' do palet...")
             cursor.execute("ALTER TABLE palety_workowanie ADD COLUMN waga_brutto FLOAT DEFAULT 0")
 
-        # 3. DODANIE DOMYŚLNYCH KONT (Jeśli brak)
+        # 3. DODANIE DOMYŚLNYCH KONT (Jeśli brak) - zapisujemy hasła zhaszowane
+        cursor.execute("SELECT id, haslo FROM uzytkownicy")
+        existing = cursor.fetchall()
+
+        # Jeśli tabela ma wpisy, spróbuj zidentyfikować i zhashować plaintext hasła
+        migrated = 0
+        for row in existing:
+            uid, pwd = row[0], row[1]
+            if pwd and not str(pwd).startswith('pbkdf2:'):
+                new_h = generate_password_hash(str(pwd))
+                cursor.execute("UPDATE uzytkownicy SET haslo=%s WHERE id=%s", (new_h, uid))
+                migrated += 1
+        if migrated:
+            print(f"🔐 Zhashowano {migrated} istniejących haseł użytkowników.")
+
         cursor.execute("SELECT id FROM uzytkownicy WHERE login='admin'")
-        if not cursor.fetchone(): cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES ('admin', 'admin123', 'admin')")
-        
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('admin', generate_password_hash('admin123'), 'admin'))
+
         cursor.execute("SELECT id FROM uzytkownicy WHERE login='planista'")
-        if not cursor.fetchone(): cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES ('planista', 'planista123', 'planista')")
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('planista', generate_password_hash('planista123'), 'planista'))
 
         conn.commit()
         conn.close()

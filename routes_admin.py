@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, flash
 from datetime import date
 from db import get_db_connection
+from werkzeug.security import generate_password_hash
 # Importujemy dekorator
 from decorators import admin_required
 
@@ -12,9 +13,10 @@ def admin_panel():
     conn = get_db_connection(); cursor = conn.cursor()
     cursor.execute("SELECT * FROM pracownicy ORDER BY imie_nazwisko"); pracownicy = cursor.fetchall()
     cursor.execute("SELECT id, login, rola FROM uzytkownicy ORDER BY login"); konta = cursor.fetchall()
+    cursor.execute("SELECT id, data_planu, sekcja, produkt, tonaz, tonaz_rzeczywisty, status FROM plan_produkcji ORDER BY data_planu DESC LIMIT 50"); zlecenia = cursor.fetchall()
     cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu = %s", (date.today(),)); raporty_hr = cursor.fetchall()
     conn.close()
-    return render_template('admin.html', pracownicy=pracownicy, konta=konta, raporty_hr=raporty_hr, dzisiaj=date.today())
+    return render_template('admin.html', pracownicy=pracownicy, konta=konta, raporty_hr=raporty_hr, dzisiaj=date.today(), zlecenia=zlecenia)
 
 @admin_bp.route('/admin/pracownik/dodaj', methods=['POST'])
 @admin_required
@@ -38,9 +40,32 @@ def admin_usun_pracownika(id):
 @admin_required
 def admin_dodaj_konto():
     conn = get_db_connection(); cursor = conn.cursor()
-    try: cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", (request.form['login'], request.form['haslo'], request.form['rola'])); flash("Dodano.", "success")
+    try:
+        pwd = request.form.get('haslo', '')
+        hashed = generate_password_hash(pwd) if pwd else ''
+        cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", (request.form['login'], hashed, request.form['rola']))
+        flash("Dodano.", "success")
     except: flash("Login zajęty!", "error")
     conn.commit(); conn.close(); return redirect('/admin')
+
+
+@admin_bp.route('/admin/konto/edytuj', methods=['POST'])
+@admin_required
+def admin_edytuj_konto():
+    conn = get_db_connection(); cursor = conn.cursor()
+    uid = request.form.get('id')
+    login = request.form.get('login')
+    rola = request.form.get('rola')
+    haslo = request.form.get('haslo', '').strip()
+    try:
+        if haslo:
+            cursor.execute("UPDATE uzytkownicy SET login=%s, haslo=%s, rola=%s WHERE id=%s", (login, generate_password_hash(haslo), rola, uid))
+        else:
+            cursor.execute("UPDATE uzytkownicy SET login=%s, rola=%s WHERE id=%s", (login, rola, uid))
+        conn.commit(); flash("Zaktualizowano.", "success")
+    except Exception:
+        conn.rollback(); flash("Błąd aktualizacji (login może być zajęty).", "error")
+    conn.close(); return redirect('/admin?tab=users')
 
 @admin_bp.route('/admin/konto/usun/<int:id>', methods=['POST'])
 @admin_required

@@ -11,6 +11,77 @@
     </div>
 </div>
 
+{% set active_tab = request.args.get('tab', 'production') %}
+
+{% if active_tab == 'users' %}
+<div class="section-box">
+    <div style="padding:15px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+        <h3>Zarządzanie użytkownikami</h3>
+        <div style="display:flex; gap:8px;">
+            <form action="/admin/konto/dodaj" method="POST" style="display:flex; gap:8px; align-items:center;">
+                <input name="login" placeholder="Login" required style="padding:8px; border:1px solid #ddd; border-radius:4px;">
+                <input name="haslo" placeholder="Hasło" required style="padding:8px; border:1px solid #ddd; border-radius:4px;">
+                <select name="rola" style="padding:8px; border:1px solid #ddd; border-radius:4px;">
+                    <option value="admin">admin</option>
+                    <option value="lider">lider</option>
+                    <option value="planista">planista</option>
+                    <option value="pracownik">pracownik</option>
+                </select>
+                <button class="btn btn-primary" type="submit">Dodaj</button>
+            </form>
+        </div>
+    </div>
+
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>Login</th>
+                <th>Rola</th>
+                <th class="text-right">Opcje</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for k in konta %}
+            <tr>
+                <td>{{ k[1] }}</td>
+                <td>{{ k[2] }}</td>
+                <td class="text-right">
+                    <div style="display:flex; justify-content:flex-end; gap:8px; align-items:center;">
+                        <details style="display:inline-block;">
+                            <summary class="btn">Edytuj</summary>
+                            <form action="/admin/konto/edytuj" method="POST" style="padding:10px; display:flex; gap:8px; align-items:center;">
+                                <input type="hidden" name="id" value="{{ k[0] }}">
+                                <input name="login" value="{{ k[1] }}" required style="padding:6px; border:1px solid #ddd; border-radius:4px;">
+                                <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" style="padding:6px; border:1px solid #ddd; border-radius:4px;">
+                                <select name="rola" style="padding:6px; border:1px solid #ddd; border-radius:4px;">
+                                    <option value="admin" {% if k[2]=='admin' %}selected{% endif %}>admin</option>
+                                    <option value="lider" {% if k[2]=='lider' %}selected{% endif %}>lider</option>
+                                    <option value="planista" {% if k[2]=='planista' %}selected{% endif %}>planista</option>
+                                    <option value="pracownik" {% if k[2]=='pracownik' %}selected{% endif %}>pracownik</option>
+                                </select>
+                                <button type="submit" class="btn">Zapisz</button>
+                            </form>
+                        </details>
+
+                        <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto {{ k[1] }}?');">
+                            <button type="submit" class="btn btn-danger">Usuń</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="3" class="text-center">Brak kont w bazie.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+    details summary { cursor:pointer; padding:6px 10px; border-radius:4px; background:#f4f4f4; display:inline-block; }
+</style>
+
+{% else %}
+
 <div class="section-box">
     <div style="padding:15px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
         <h3>Zarządzanie Produkcją (Wszystkie Sekcje)</h3>

@@ -6,6 +6,7 @@ import json
 from collections import defaultdict
 
 from config import SECRET_KEY
+from werkzeug.security import check_password_hash
 from db import get_db_connection, setup_database
 from raporty import format_godziny
 from routes_admin import admin_bp
@@ -26,11 +27,13 @@ setup_database()
 def login():
     if request.method == 'POST':
         conn = get_db_connection(); cursor = conn.cursor()
-        cursor.execute("SELECT rola FROM uzytkownicy WHERE login = %s AND haslo = %s", (request.form['login'], request.form['haslo']))
-        user = cursor.fetchone(); conn.close()
-        if user:
-            session['zalogowany'] = True; session['rola'] = user[0]
-            return redirect('/planista' if user[0] == 'planista' else '/')
+        cursor.execute("SELECT id, haslo, rola FROM uzytkownicy WHERE login = %s", (request.form['login'],))
+        row = cursor.fetchone(); conn.close()
+        if row:
+            uid, hashed, rola = row[0], row[1], row[2]
+            if hashed and check_password_hash(hashed, request.form['haslo']):
+                session['zalogowany'] = True; session['rola'] = rola
+                return redirect('/planista' if rola == 'planista' else '/')
         return render_template('login.html', message="Błędne dane!")
     return render_template('login.html')
 

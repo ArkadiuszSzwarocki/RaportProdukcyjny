@@ -1,4 +1,4 @@
-# Changelog - System Biblioteka
+**# Changelog - System Biblioteka
 
 Wszystkie istotne zmiany w projekcie będą dokumentowane w tym pliku.
 
