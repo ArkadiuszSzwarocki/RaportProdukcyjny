@@ -43,12 +43,50 @@
     </div>
 
     <script>
-        // Automatyczne pobieranie (z opóźnieniem)
-        setTimeout(function() { window.location.href = "{{ excel_url }}"; }, 500);
-        setTimeout(function() { window.location.href = "{{ pdf_url }}"; }, 1500);
-        
-        // Automatyczne otwarcie maila
-        setTimeout(function() { window.location.href = "{{ mailto_link | safe }}"; }, 2500);
+        (function(){
+            const excelUrl = "{{ excel_url }}";
+            const pdfUrl = "{{ pdf_url }}";
+            const mailto = "{{ mailto_link | safe }}";
+            const useMultiple = {{ 'true' if use_multiple_downloads else 'false' }};
+
+            function triggerDownloadByAnchor(url, filename) {
+                const a = document.createElement('a');
+                a.href = url;
+                if (filename) a.download = filename;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+
+            function fetchAndDownload(url, filename) {
+                // try to fetch and create a Blob to preserve filename
+                fetch(url, { credentials: 'same-origin' }).then(resp => {
+                    if (!resp.ok) throw new Error('Network error');
+                    return resp.blob();
+                }).then(blob => {
+                    const blobUrl = URL.createObjectURL(blob);
+                    triggerDownloadByAnchor(blobUrl, filename);
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                }).catch(err => {
+                    // fallback to simple anchor download
+                    console.warn('Fetch download failed, falling back to anchor:', err);
+                    triggerDownloadByAnchor(url, filename);
+                });
+            }
+
+            // sequence: excel then pdf, then open mailto
+            if (useMultiple) {
+                setTimeout(() => fetchAndDownload(excelUrl, 'Raport.xlsx'), 500);
+                setTimeout(() => fetchAndDownload(pdfUrl, 'Raport.pdf'), 1500);
+            } else {
+                setTimeout(() => { window.location.href = excelUrl; }, 500);
+                setTimeout(() => { window.location.href = pdfUrl; }, 1500);
+            }
+
+            // open mailto after downloads
+            setTimeout(() => { window.location.href = mailto; }, 2600);
+        })();
     </script>
 </body>
 </html>
