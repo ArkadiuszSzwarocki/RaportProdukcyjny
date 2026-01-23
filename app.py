@@ -43,8 +43,22 @@ logging.getLogger('werkzeug').addHandler(handler)
 @app.errorhandler(Exception)
 def handle_unexpected_error(error):
     # Zarejestruj pełen traceback w logu i zwróć przyjazny komunikat użytkownikowi
-    app.logger.exception('Unhandled exception: %s', error)
+    try:
+        from flask import request
+        app.logger.exception('Unhandled exception on %s %s: %s', request.method, request.path, error)
+    except Exception:
+        app.logger.exception('Unhandled exception: %s', error)
     return render_template('500.html') if os.path.exists(os.path.join(app.template_folder or '', '500.html')) else ("Wewnętrzny błąd serwera", 500)
+
+
+
+@app.before_request
+def log_request_info():
+    try:
+        from flask import request
+        app.logger.debug('Incoming request: %s %s', request.method, request.path)
+    except Exception:
+        pass
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
