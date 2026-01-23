@@ -247,9 +247,9 @@ def zamknij_zmiane():
     
     # 2. Generujemy raporty (Excel + notatka)
     try:
-        xls_path, txt_path = generuj_excel_zmiany(date.today())
+        xls_path, txt_path, pdf_path = generuj_excel_zmiany(date.today())
     except Exception:
-        xls_path = None; txt_path = None
+        xls_path = None; txt_path = None; pdf_path = None
 
     # 3. Spróbuj otworzyć Outlooka (jeśli dostępny) — nie przerywamy w przeciwnym wypadku
     try:
@@ -269,6 +269,8 @@ def zamknij_zmiane():
                     z.write(xls_path, arcname=os.path.basename(xls_path))
                 if txt_path and os.path.exists(txt_path):
                     z.write(txt_path, arcname=os.path.basename(txt_path))
+                if 'pdf_path' in locals() and pdf_path and os.path.exists(pdf_path):
+                    z.write(pdf_path, arcname=os.path.basename(pdf_path))
             return send_file(zip_path, as_attachment=True)
         except Exception:
             app.logger.exception('Failed to create/send zip')

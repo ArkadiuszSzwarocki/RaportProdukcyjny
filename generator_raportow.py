@@ -7,8 +7,10 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera):
     conn = get_db_connection()
     
     # Pobieranie danych
-    df_plan = pd.read_sql("SELECT produkt, tonaz, tonaz_rzeczywisty FROM plan_produkcji WHERE data_planu = %s", conn, params=(data_raportu,))
-    df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem FROM dziennik_zmiany WHERE data_wpisu = %s", conn, params=(data_raportu,))
+    df_plan = pd.read_sql("SELECT sekcja, produkt, tonaz, tonaz_rzeczywisty FROM plan_produkcji WHERE data_planu = %s", conn, params=(data_raportu,))
+    df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem, start_czas, stop_czas, minuty FROM dziennik_zmiany WHERE data_wpisu = %s", conn, params=(data_raportu,))
+    # HR / obecności
+    df_hr = pd.read_sql("SELECT p.imie_nazwisko as pracownik, o.typ, o.ilosc_godzin FROM obecnosc o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu = %s", conn, params=(data_raportu,))
     conn.close()
 
     folder = 'raporty_temp'
@@ -19,6 +21,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera):
     with pd.ExcelWriter(xls_path, engine='openpyxl') as writer:
         df_plan.to_excel(writer, sheet_name='Produkcja', index=False)
         df_awarie.to_excel(writer, sheet_name='Awarie', index=False)
+        df_hr.to_excel(writer, sheet_name='HR', index=False)
 
     # 2. Notatnik (Treść do maila)
     txt_path = os.path.join(folder, f"Do_Maila_{data_raportu}.txt")
@@ -29,13 +32,34 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera):
         f.write(f"PRODUKCJA: {int(df_plan['tonaz_rzeczywisty'].sum())} kg\n")
         f.write(f"AWRIE/PRZESTOJE: {len(df_awarie)} wpisów.")
 
-    return xls_path, txt_path
+    # 3. PDF (używamy helpera z raporty.py)
+    try:
+        from raporty import generuj_pdf
+        # Przygotuj struktury wymagane przez generuj_pdf (listy krotek)
+        prod_rows = []
+        for _, row in df_plan.iterrows():
+            prod_rows.append((row.get('sekcja', ''), row.get('produkt', ''), row.get('tonaz', None), row.get('tonaz_rzeczywisty', None)))
+
+        awarie_rows = []
+        for _, row in df_awarie.iterrows():
+            awarie_rows.append((row.get('sekcja', ''), row.get('kategoria', ''), row.get('problem', ''), row.get('start_czas', ''), row.get('stop_czas', ''), row.get('minuty', None)))
+
+        hr_rows = []
+        for _, row in df_hr.iterrows():
+            hr_rows.append((row.get('pracownik', ''), row.get('typ', ''), row.get('ilosc_godzin', None)))
+
+        pdf_name = generuj_pdf(data_raportu, uwagi_lidera, '', prod_rows, awarie_rows, hr_rows)
+        pdf_path = os.path.join('raporty', pdf_name) if pdf_name else None
+    except Exception:
+        pdf_path = None
+
+    return xls_path, txt_path, pdf_path
 
 
 def generuj_excel_zmiany(data_raportu):
     """Kompatybilna z app.py: zwraca ścieżkę do wygenerowanego pliku Excel (lub None)."""
     try:
-        xls, txt = generuj_paczke_raportow(data_raportu, '')
+        xls, txt, pdf = generuj_paczke_raportow(data_raportu, '')
         # Przenieś wygenerowane pliki do trwałego folderu `raporty` dostępnego przez aplikację
         import shutil
         raporty_dir = 'raporty'
@@ -51,10 +75,21 @@ def generuj_excel_zmiany(data_raportu):
             shutil.move(txt, new_txt)
         except Exception:
             new_txt = txt
-        return new_xls, new_txt
+        # PDF is already generated in 'raporty' by generuj_pdf (if available)
+        new_pdf = None
+        try:
+            if pdf:
+                # jeśli pdf jest już pełną ścieżką - zachowaj; jeśli tylko nazwą - dołącz katalog raporty
+                new_pdf = pdf if os.path.isabs(pdf) else os.path.join(raporty_dir, os.path.basename(pdf))
+                if not os.path.exists(new_pdf):
+                    new_pdf = None
+        except Exception:
+            new_pdf = None
+
+        return new_xls, new_txt, new_pdf
     except Exception as e:
         print(f"Błąd generowania excela: {e}")
-        return None
+        return None, None, None
 
 
 def otworz_outlook_z_raportem(sciezka_xls, uwagi_lidera):
