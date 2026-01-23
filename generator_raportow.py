@@ -35,8 +35,23 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera):
 def generuj_excel_zmiany(data_raportu):
     """Kompatybilna z app.py: zwraca ścieżkę do wygenerowanego pliku Excel (lub None)."""
     try:
-        xls, _ = generuj_paczke_raportow(data_raportu, '')
-        return xls
+        xls, txt = generuj_paczke_raportow(data_raportu, '')
+        # Przenieś wygenerowane pliki do trwałego folderu `raporty` dostępnego przez aplikację
+        import shutil
+        raporty_dir = 'raporty'
+        if not os.path.exists(raporty_dir):
+            os.makedirs(raporty_dir)
+        try:
+            new_xls = os.path.join(raporty_dir, os.path.basename(xls))
+            shutil.move(xls, new_xls)
+        except Exception:
+            new_xls = xls
+        try:
+            new_txt = os.path.join(raporty_dir, os.path.basename(txt))
+            shutil.move(txt, new_txt)
+        except Exception:
+            new_txt = txt
+        return new_xls
     except Exception as e:
         print(f"Błąd generowania excela: {e}")
         return None
