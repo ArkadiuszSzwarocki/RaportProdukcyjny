@@ -1,5 +1,5 @@
-from flask import Blueprint, request, redirect, url_for, flash, session
-from datetime import date, datetime
+from flask import Blueprint, request, redirect, url_for, flash, session, render_template
+from datetime import date, datetime, timedelta, time
 from db import get_db_connection
 from decorators import login_required
 
@@ -209,8 +209,79 @@ def usun_wpis(id): conn = get_db_connection(); cursor = conn.cursor(); cursor.ex
 @login_required
 def edytuj(id):
     conn = get_db_connection(); cursor = conn.cursor()
-    if request.method == 'POST': cursor.execute("UPDATE dziennik_zmiany SET problem=%s, kategoria=%s, czas_start=%s, czas_stop=%s WHERE id=%s", (request.form.get('problem'), request.form.get('kategoria'), request.form.get('czas_start') or None, request.form.get('czas_stop') or None, id)); conn.commit(); conn.close(); return redirect('/')
-    cursor.execute("SELECT * FROM dziennik_zmiany WHERE id = %s", (id,)); wpis = cursor.fetchone(); conn.close(); return render_template('edycja.html', wpis=wpis)
+    try:
+        if request.method == 'POST':
+            cursor.execute("UPDATE dziennik_zmiany SET problem=%s, kategoria=%s, czas_start=%s, czas_stop=%s WHERE id=%s", (
+                request.form.get('problem'), request.form.get('kategoria'), request.form.get('czas_start') or None, request.form.get('czas_stop') or None, id
+            ))
+            conn.commit(); conn.close();
+            return redirect('/')
+
+        cursor.execute("SELECT * FROM dziennik_zmiany WHERE id = %s", (id,)); wpis = cursor.fetchone()
+        if not wpis:
+            # brak wpisu — przyjazne przekierowanie
+            conn.close()
+            from flask import flash
+            flash('Wpis nie został odnaleziony.', 'warning')
+            return redirect(bezpieczny_powrot())
+
+        # Format time fields for the template (HH:MM). db may return timedelta or datetime
+        wpis_display = list(wpis)
+        for ti in (6, 7):
+            try:
+                val = wpis[ti]
+                if val is None:
+                    wpis_display[ti] = ''
+                elif isinstance(val, datetime):
+                    wpis_display[ti] = val.strftime('%H:%M')
+                elif isinstance(val, time):
+                    wpis_display[ti] = val.strftime('%H:%M')
+                elif isinstance(val, timedelta):
+                    total_seconds = int(val.total_seconds())
+                    h = total_seconds // 3600
+                    m = (total_seconds % 3600) // 60
+                    wpis_display[ti] = f"{h:02d}:{m:02d}"
+                else:
+                    # fallback to string, try to extract HH:MM
+                    s = str(val)
+                    if ':' in s:
+                        parts = s.split(':')
+                        wpis_display[ti] = f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+                    else:
+                        wpis_display[ti] = s
+            except Exception:
+                wpis_display[ti] = ''
+
+        conn.close()
+        return render_template('edycja.html', wpis=wpis_display)
+    except Exception:
+        # Zaloguj i pokaż przyjazny komunikat zamiast 500
+        app = None
+        try:
+            from flask import current_app
+            app = current_app._get_current_object()
+            app.logger.exception('Error in edytuj endpoint for id=%s', id)
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        from flask import flash
+        flash('Wystąpił błąd podczas ładowania wpisu.', 'danger')
+        return redirect(bezpieczny_powrot())
+
+
+@api_bp.route('/ustawienia', methods=['GET'])
+@login_required
+def ustawienia():
+    """Prosty widok ustawień (placeholder)."""
+    try:
+        return render_template('ustawienia.html')
+    except Exception:
+        from flask import flash
+        flash('Nie można otworzyć strony ustawień.', 'danger')
+        return redirect('/')
 
 @api_bp.route('/zapisz_tonaz_deprecated/<int:id>', methods=['POST'])
 def zapisz_tonaz_deprecated(id): return redirect(bezpieczny_powrot())

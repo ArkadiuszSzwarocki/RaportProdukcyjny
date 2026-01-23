@@ -16,23 +16,19 @@
         </div>
 
         <div class="user-info">
-            {% if session.get('rola') in ['admin', 'zarzad', 'planista', 'lider'] %}
+            {% if session.get('rola') in ['admin', 'zarzad', 'planista', 'lider', 'dur', 'laboratorium'] %}
                 <a href="/zarzad" class="btn btn-wyniki">
                     <span class="material-icons">bar_chart</span> WYNIKI
                 </a>
             {% endif %}
 
-            {% if session.get('rola') in ['planista', 'admin'] %}
+            {% if session.get('rola') in ['planista', 'admin', 'zarzad', 'lider'] %}
                 <a href="/planista" class="btn btn-plan">
                     <span class="material-icons">calendar_today</span> PLAN
                 </a>
             {% endif %}
 
-            {% if session.get('rola') == 'admin' %}
-                <a href="/admin/users" class="btn btn-primary">
-                    <span class="material-icons">manage_accounts</span> UŻYTKOWNICY
-                </a>
-            {% endif %}
+            {# top users button removed per UI change request #}
 
             <span style="color:rgba(255,255,255,0.7);">Zalogowany: <strong>{{ session.get('rola')|upper }}</strong></span>
             
@@ -42,7 +38,27 @@
         </div>
     </div>
 
-    <div class="container">
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
+            <nav class="sidebar-nav">
+                    {% if session.get('rola') in ['produkcja','lider','admin','zarzad','pracownik'] %}
+                        <a href="{{ url_for('index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">Zasyp</a>
+                        <a href="{{ url_for('index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">Workowanie</a>
+                        <a href="{{ url_for('index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">Magazyn</a>
+                    {% endif %}
+                <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">Wyniki</a>
+                <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">Plan</a>
+                {% if session.get('rola') == 'admin' %}
+                    <a href="/admin/ustawienia" class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">Ustawienia</a>
+                {% endif %}
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/logout" class="btn-icon">Wyloguj</a>
+            </div>
+        </aside>
+
+        <main class="main-content">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-container">
@@ -56,6 +72,7 @@
         {% endwith %}
 
         {% block content %}{% endblock %}
+        </main>
     </div>
 
 </body>

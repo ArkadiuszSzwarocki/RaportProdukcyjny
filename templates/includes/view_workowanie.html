@@ -30,6 +30,7 @@
                 </div>
 
                 <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+                    {% if rola in ['produkcja','lider','admin','pracownik'] %}
                     <form action="/dodaj_palete/{{ p[0] }}" method="POST" style="background:white; padding:20px; border-radius:8px; text-align:center; border: 2px dashed #2196f3;">
                         <label class="header-title" style="display:block; margin-bottom:10px; color:#1565c0;">DODAJ PEŁNĄ PALETĘ</label>
                         
@@ -40,6 +41,7 @@
                         
                         <button type="submit" class="btn-add-plan" style="width:100%; margin-top:15px; padding:15px; font-size:1.2em;">+ DODAJ PALETĘ</button>
                     </form>
+                    {% endif %}
 
                     <div class="d-flex" style="gap:10px;">
                         <form action="/cofnij_palete/{{ p[0] }}" method="POST" onsubmit="return confirm('Cofnąć ostatnią paletę?');" style="flex:1;">

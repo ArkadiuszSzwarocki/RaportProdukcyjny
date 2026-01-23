@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+    <div class="section-header">
+        <h2>Ustawienia</h2>
+        <div><a href="/admin" class="btn">Powrót do panelu</a></div>
+    </div>
+
+    <style>
+        .hub { display:flex; gap:20px; margin-top:20px; }
+        .tile { flex:1; padding:30px; border:1px solid #ddd; border-radius:8px; text-align:center; background:#fff; }
+        .tile h3{ margin:0 0 8px 0 }
+        .tile p{ color:#666 }
+        .tile a.btn { margin-top:12px }
+    </style>
+
+    <div class="hub">
+        <div class="tile">
+            <h3>Użytkownicy</h3>
+            <p>Dodawaj, edytuj i usuwaj konta użytkowników oraz przypisuj role.</p>
+            <a href="/admin/ustawienia/uzytkownicy" class="btn btn-primary">Przejdź do użytkowników</a>
+        </div>
+        <div class="tile">
+            <h3>Pracownicy</h3>
+            <p>Zarządzaj listą pracowników używaną w systemie.</p>
+            <a href="/admin/ustawienia/pracownicy" class="btn btn-primary">Przejdź do pracowników</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

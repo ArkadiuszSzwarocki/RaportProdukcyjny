@@ -210,6 +210,17 @@ def zarzad_panel():
         p_stats = [{'name': k, **v} for k, v in p_dict.items()]; p_stats.sort(key=lambda x: x['total'], reverse=True)
     conn.close(); return render_template('zarzad.html', tryb=tryb, tytul=tytul, wybrany_rok=wybrany_rok, wybrany_miesiac=wybrany_miesiac, wybrana_data=wybrana_data, suma_plan=kpi[0], suma_wykonanie=kpi[1], ilosc_zlecen=kpi[2], procent=(kpi[1]/kpi[0]*100) if kpi[0] else 0, time_aw=sum(pie_v), chart_labels=json.dumps(ch_l), chart_plan=json.dumps(ch_plan), chart_zasyp=json.dumps(ch_zasyp), chart_work=json.dumps(ch_work), pie_labels=json.dumps(pie_l), pie_values=json.dumps(pie_v), pracownicy_stats=p_stats)
 
+
+@app.route('/ustawienia')
+@login_required
+def ustawienia_app():
+    """Fallback ustawienia route w `app.py` na wypadek braku rejestracji w blueprintach."""
+    try:
+        return render_template('ustawienia.html')
+    except Exception:
+        app.logger.exception('Failed to render ustawienia')
+        return redirect('/')
+
 @app.route('/pobierz_raport/<filename>')
 @login_required
 def pobierz_raport(filename): return send_file(os.path.join('raporty', filename), as_attachment=True)

@@ -1,0 +1,93 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+    <div class="section-header">
+        <h2>Ustawienia / Użytkownicy i Pracownicy</h2>
+        <div><a href="/admin" class="btn">Powrót do panelu</a></div>
+    </div>
+
+    <div class="two-col">
+        <div>
+            <h3>Pracownicy</h3>
+            <form action="/admin/pracownik/dodaj" method="POST" class="form-flex">
+                <input name="imie_nazwisko" placeholder="Imię i nazwisko" required class="input-sm">
+                <button class="btn btn-primary" type="submit">Dodaj</button>
+            </form>
+
+            <style>
+                .cards-grid { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+                .card { background:#fff; border:1px solid #ddd; padding:10px; border-radius:6px; width:220px; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+                .card h4 { margin:0 0 6px 0; font-size:14px; }
+                .card .meta { font-size:12px; color:#666; }
+                .card .actions { margin-top:8px; text-align:right; }
+            </style>
+
+            <div class="cards-grid">
+                {% for p in pracownicy %}
+                    <div class="card">
+                        <h4>{{ p[1] }}</h4>
+                        <div class="meta">ID: {{ p[0] }}</div>
+                        <div class="actions">
+                            <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" style="display:inline-block;" onsubmit="return confirm('Usuń pracownika?');"><button class="btn btn-danger">Usuń</button></form>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="card">Brak pracowników.</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div>
+            <h3>Konta użytkowników</h3>
+            <form action="/admin/konto/dodaj" method="POST" class="form-flex">
+                <input name="login" placeholder="Login" required class="input-sm">
+                <input name="haslo" placeholder="Hasło (opcjonalnie)" class="input-sm">
+                <select name="rola" class="input-sm">
+                    <option value="admin">admin</option>
+                    <option value="zarzad">zarzad</option>
+                    <option value="lider">lider</option>
+                    <option value="planista">planista</option>
+                    <option value="dur">dur</option>
+                    <option value="produkcja">produkcja</option>
+                    <option value="laboratorium">laboratorium</option>
+                    <option value="pracownik">pracownik</option>
+                </select>
+                <button class="btn btn-primary" type="submit">Dodaj konto</button>
+            </form>
+
+            <div class="cards-grid">
+                {% for k in konta %}
+                    <div class="card">
+                        <h4>{{ k[1] }}</h4>
+                        <div class="meta">Rola: {{ k[2] }} — ID: {{ k[0] }}</div>
+                        <div class="actions">
+                            <details style="display:inline-block;"><summary class="btn">Edytuj</summary>
+                                <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
+                                    <input type="hidden" name="id" value="{{ k[0] }}">
+                                    <input name="login" value="{{ k[1] }}" required class="input-sm">
+                                    <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm">
+                                    <select name="rola" class="input-sm">
+                                        <option value="admin" {% if k[2]=='admin' %}selected{% endif %}>admin</option>
+                                        <option value="zarzad" {% if k[2]=='zarzad' %}selected{% endif %}>zarzad</option>
+                                        <option value="lider" {% if k[2]=='lider' %}selected{% endif %}>lider</option>
+                                        <option value="planista" {% if k[2]=='planista' %}selected{% endif %}>planista</option>
+                                        <option value="dur" {% if k[2]=='dur' %}selected{% endif %}>dur</option>
+                                        <option value="produkcja" {% if k[2]=='produkcja' %}selected{% endif %}>produkcja</option>
+                                        <option value="laboratorium" {% if k[2]=='laboratorium' %}selected{% endif %}>laboratorium</option>
+                                        <option value="pracownik" {% if k[2]=='pracownik' %}selected{% endif %}>pracownik</option>
+                                    </select>
+                                    <button type="submit" class="btn">Zapisz</button>
+                                </form>
+                            </details>
+                            <form action="/admin/konto/usun/{{ k[0] }}" method="POST" style="display:inline-block; margin-left:6px;" onsubmit="return confirm('Usuń konto?');"><button class="btn btn-danger">Usuń</button></form>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="card">Brak kont.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

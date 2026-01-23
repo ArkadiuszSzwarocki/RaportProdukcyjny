@@ -46,15 +46,45 @@ def admin_users():
     conn.close()
     return render_template('admin_users.html', konta=konta, needs_reset=needs_reset)
 
+
+@admin_bp.route('/admin/ustawienia')
+@admin_required
+def admin_ustawienia():
+    # Show selection tiles (Użytkownicy / Pracownicy)
+    return render_template('ustawienia_index.html')
+
+
+@admin_bp.route('/admin/ustawienia/uzytkownicy')
+@admin_required
+def admin_ustawienia_uzytkownicy():
+    conn = get_db_connection(); cursor = conn.cursor()
+    cursor.execute("SELECT id, login, rola, grupa, haslo FROM uzytkownicy ORDER BY login"); rows = cursor.fetchall()
+    konta = [(r[0], r[1], r[2], r[3]) for r in rows]
+    needs_reset = [r[1] for r in rows if r[4] and (str(r[4]).startswith('scrypt:') or not str(r[4]).startswith('pbkdf2:'))]
+    conn.close()
+    return render_template('ustawienia_uzytkownicy.html', konta=konta, needs_reset=needs_reset)
+
+
+@admin_bp.route('/admin/ustawienia/pracownicy')
+@admin_required
+def admin_ustawienia_pracownicy():
+    conn = get_db_connection(); cursor = conn.cursor()
+    cursor.execute("SELECT id, imie_nazwisko, grupa FROM pracownicy ORDER BY imie_nazwisko"); pracownicy = cursor.fetchall()
+    conn.close()
+    return render_template('ustawienia_pracownicy.html', pracownicy=pracownicy)
+
 @admin_bp.route('/admin/pracownik/dodaj', methods=['POST'])
 @admin_required
 def admin_dodaj_pracownika():
-    conn = get_db_connection(); cursor = conn.cursor(); cursor.execute("INSERT INTO pracownicy (imie_nazwisko) VALUES (%s)", (request.form['imie_nazwisko'],)); conn.commit(); conn.close(); flash("Dodano.", "success"); return redirect('/admin')
+    conn = get_db_connection(); cursor = conn.cursor();
+    grupa = request.form.get('grupa', '').strip()
+    cursor.execute("INSERT INTO pracownicy (imie_nazwisko, grupa) VALUES (%s, %s)", (request.form['imie_nazwisko'], grupa)); conn.commit(); conn.close(); flash("Dodano.", "success"); return redirect('/admin')
 
 @admin_bp.route('/admin/pracownik/edytuj', methods=['POST'])
 @admin_required
 def admin_edytuj_pracownika():
-    conn = get_db_connection(); cursor = conn.cursor(); cursor.execute("UPDATE pracownicy SET imie_nazwisko=%s WHERE id=%s", (request.form['imie_nazwisko'], request.form['id'])); conn.commit(); conn.close(); flash("Zaktualizowano.", "success"); return redirect('/admin')
+    conn = get_db_connection(); cursor = conn.cursor(); grupa = request.form.get('grupa', '').strip()
+    cursor.execute("UPDATE pracownicy SET imie_nazwisko=%s, grupa=%s WHERE id=%s", (request.form['imie_nazwisko'], grupa, request.form['id'])); conn.commit(); conn.close(); flash("Zaktualizowano.", "success"); return redirect('/admin')
 
 @admin_bp.route('/admin/pracownik/usun/<int:id>', methods=['POST'])
 @admin_required
@@ -72,7 +102,8 @@ def admin_dodaj_konto():
         pwd = request.form.get('haslo', '')
         # Używaj spójnego algorytmu PBKDF2-SHA256 przy tworzeniu nowych kont
         hashed = generate_password_hash(pwd, method='pbkdf2:sha256') if pwd else ''
-        cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", (request.form['login'], hashed, request.form['rola']))
+        grupa = request.form.get('grupa','').strip()
+        cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola, grupa) VALUES (%s, %s, %s, %s)", (request.form['login'], hashed, request.form['rola'], grupa))
         flash("Dodano.", "success")
     except: flash("Login zajęty!", "error")
     conn.commit(); conn.close(); return redirect('/admin')
@@ -85,12 +116,13 @@ def admin_edytuj_konto():
     uid = request.form.get('id')
     login = request.form.get('login')
     rola = request.form.get('rola')
+    grupa = request.form.get('grupa','').strip()
     haslo = request.form.get('haslo', '').strip()
     try:
         if haslo:
-            cursor.execute("UPDATE uzytkownicy SET login=%s, haslo=%s, rola=%s WHERE id=%s", (login, generate_password_hash(haslo, method='pbkdf2:sha256'), rola, uid))
+            cursor.execute("UPDATE uzytkownicy SET login=%s, haslo=%s, rola=%s, grupa=%s WHERE id=%s", (login, generate_password_hash(haslo, method='pbkdf2:sha256'), rola, grupa, uid))
         else:
-            cursor.execute("UPDATE uzytkownicy SET login=%s, rola=%s WHERE id=%s", (login, rola, uid))
+            cursor.execute("UPDATE uzytkownicy SET login=%s, rola=%s, grupa=%s WHERE id=%s", (login, rola, grupa, uid))
         conn.commit(); flash("Zaktualizowano.", "success")
     except Exception:
         conn.rollback(); flash("Błąd aktualizacji (login może być zajęty).", "error")

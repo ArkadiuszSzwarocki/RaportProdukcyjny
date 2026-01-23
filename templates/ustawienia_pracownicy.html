@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+    <div class="section-header">
+        <h2>Pracownicy</h2>
+        <div><a href="/admin/ustawienia" class="btn">Powrót</a></div>
+    </div>
+
+    <form action="/admin/pracownik/dodaj" method="POST" class="form-flex">
+        <input name="imie_nazwisko" placeholder="Imię i nazwisko" required class="input-sm">
+            <input name="grupa" placeholder="Grupa (opcjonalnie)" class="input-sm">
+        <button class="btn btn-primary" type="submit">Dodaj</button>
+    </form>
+
+    <div class="list-view">
+        {% for p in pracownicy %}
+            {% set name = p[1] %}
+            {% set initial = name.split(' ')[0][:1].upper() %}
+            <div class="list-row">
+                <div class="avatar">{{ initial }}</div>
+                <div class="user-main">
+                    <div class="user-top">
+                        <div class="user-name">{{ p[1] }}</div>
+                            {% if p|length > 2 and p[2] %}
+                            <div style="margin-left:8px;"><span class="role-badge role-pracownik">{{ p[2] }}</span></div>
+                            {% endif %}
+                    </div>
+                    <div class="user-sub">ID: {{ p[0] }}</div>
+                </div>
+                <div class="list-actions">
+                    <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" onsubmit="return confirm('Usuń pracownika?');"><button class="btn btn-danger">Usuń</button></form>
+                </div>
+            </div>
+        {% else %}
+            <div class="card">Brak pracowników.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

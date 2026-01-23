@@ -7,7 +7,7 @@
         <p>W przypadku problemów z wózkiem widłowym, użyj sekcji <strong>"Zgłoś Zdarzenie"</strong> poniżej.</p>
      </div>
 
-     {% if rola in ['planista', 'admin', 'lider'] %}
+    {% if rola in ['produkcja', 'lider', 'admin'] %}
      <hr class="custom-hr">
      <h4 style="margin-bottom:10px; color:#555;">+ Dodaj Zadanie dla Magazynu</h4>
     <form action="/dodaj_plan" method="POST" class="form-flex">

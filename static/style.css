@@ -32,6 +32,30 @@ body {
     padding: 20px;
 }
 
+/* --- APP LAYOUT: SIDEBAR + MAIN --- */
+.app-layout { display: flex; min-height: calc(100vh - 60px); }
+.sidebar {
+    width: 220px;
+    background: #ffffff;
+    border-right: 1px solid var(--border-color);
+    padding: 20px 12px;
+    box-sizing: border-box;
+}
+.sidebar-logo { font-weight: 700; color: var(--primary-color); margin-bottom: 12px; font-size: 1.1em; }
+.sidebar-nav { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.sidebar-nav .nav-item {
+    display: block;
+    padding: 10px 12px;
+    color: var(--text-main);
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+}
+.sidebar-nav .nav-item:hover { background: #f4f6f9; }
+.sidebar-nav .nav-item.active { background: var(--accent-color); color: white; }
+.sidebar-footer { margin-top: auto; padding-top: 12px; }
+.main-content { flex: 1; padding: 20px; box-sizing: border-box; }
+
 /* --- TOP BAR --- */
 .top-bar {
     background-color: var(--primary-color);
@@ -103,6 +127,62 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     margin-bottom: 20px;
     box-shadow: var(--shadow-sm);
     position: relative;
+}
+
+/* Settings cards grid (Użytkownicy / Pracownicy) */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 80px;
+}
+.card h4 { margin: 0 0 6px 0; font-size: 1.05em; color: var(--primary-color); }
+.card .meta { color: var(--text-muted); font-size: 0.9em; margin-bottom: 8px; }
+.card .actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+
+/* Make action buttons smaller and consistent inside cards */
+.card .btn { padding: 6px 10px; font-size: 0.85em; border-radius: 6px; }
+.card .btn-danger { background: var(--danger-color); color: white; }
+.card details summary { padding: 6px 10px; border-radius: 6px; background: #f4f6f8; }
+
+@media (max-width: 768px) {
+    .cards-grid { grid-template-columns: 1fr; }
+}
+
+/* List view for users/pracownicy with avatars and role badges */
+.list-view { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.list-row { display: flex; gap: 12px; align-items: center; background: var(--bg-card); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; box-shadow: var(--shadow-sm); }
+.avatar { width:44px; height:44px; border-radius:50%; background:var(--accent-color); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.05em; }
+.user-main { flex:1; display:flex; flex-direction:column; }
+.user-top { display:flex; gap:8px; align-items:center; }
+.user-name { font-weight:700; color:var(--primary-color); }
+.user-sub { color:var(--text-muted); font-size:0.95em; }
+.role-badge { padding:4px 8px; border-radius:999px; font-size:0.78em; font-weight:700; color:white; }
+.role-admin { background:#2d3436; }
+.role-zarzad { background:#8e44ad; }
+.role-lider { background:#2ecc71; }
+.role-planista { background:#3498db; }
+.role-dur { background:#f39c12; color:#222; }
+.role-produkcja { background:#e74c3c; }
+.role-laboratorium { background:#16a085; }
+.role-pracownik { background:#95a5a6; }
+.list-actions { display:flex; gap:8px; align-items:center; }
+.list-actions .btn { padding:6px 10px; font-size:0.9em; }
+
+@media (max-width: 768px) {
+    .list-row { flex-direction: row; }
+    .avatar { width:40px; height:40px; }
 }
 
 /* --- FORMS --- */
@@ -186,6 +266,11 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border-color); }
         flex-direction: column;
         gap: 10px;
     }
+    .app-layout { flex-direction: column; }
+    .sidebar { width: 100%; display: flex; gap: 10px; align-items: center; padding: 10px; }
+    .sidebar-nav { flex-direction: row; overflow-x: auto; }
+    .sidebar-nav .nav-item { white-space: nowrap; }
+    .main-content { padding: 10px; }
     .user-info {
         width: 100%;
         justify-content: space-between;

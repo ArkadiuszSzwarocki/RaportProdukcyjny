@@ -69,11 +69,16 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
 
     pdf = FPDF()
     pdf.add_page()
-    
+
+    # Ogólne ustawienia linii
+    pdf.set_draw_color(80, 80, 80)
+    pdf.set_line_width(0.35)
+
     # --- NAGŁÓWEK ---
-    pdf.set_font("Arial", 'B', 16)
-    pdf.set_fill_color(44, 62, 80); pdf.set_text_color(255, 255, 255)
-    pdf.cell(0, 15, txt=polskie_znaki_pdf(f"RAPORT ZMIANY: {dzisiaj}"), ln=1, align='C', fill=True)
+    pdf.set_font("Arial", 'B', 18)
+    pdf.set_fill_color(41, 128, 185); pdf.set_text_color(255, 255, 255)
+    pdf.cell(0, 16, txt=polskie_znaki_pdf(f"RAPORT ZMIANY: {dzisiaj}"), ln=1, align='C', fill=True)
+    pdf.ln(2)
     
     # --- INFO LIDER ---
     pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", size=10); pdf.ln(5)
@@ -85,36 +90,157 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
     pdf.multi_cell(0, 8, txt=polskie_znaki_pdf(f"UWAGI:\n{uwagi}"), fill=True)
     pdf.ln(5)
 
-    # --- TABELA PRODUKCJA ---
-    pdf.set_font("Arial", 'B', 12); pdf.set_fill_color(52, 152, 219); pdf.set_text_color(255, 255, 255)
-    pdf.cell(0, 8, "PRODUKCJA", ln=1, fill=True)
-    
-    # Nagłówki tabeli
-    pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", 'B', 9); pdf.set_fill_color(220, 220, 220)
-    pdf.cell(35, 7, "Sekcja", 1, 0, 'C', True)
-    pdf.cell(90, 7, "Produkt", 1, 0, 'C', True)
-    pdf.cell(30, 7, "Plan", 1, 0, 'C', True)
-    pdf.cell(35, 7, "Wykonanie", 1, 1, 'C', True)
-    
-    # Dane tabeli
-    pdf.set_font("Arial", size=9)
-    fill = False
-    for r in prod_rows:
-        pdf.set_fill_color(245, 245, 245) if fill else pdf.set_fill_color(255, 255, 255)
-        
-        # Formatowanie liczb i naprawa "Nonet"
-        plan_str = f"{r[2]} t" if r[2] else "-"
-        wyk_str = f"{r[3]} t" if r[3] is not None else "0.0 t"
+    # --- TABELA PRODUKCJA (grupowana po produkcie) ---
+    pdf.set_font("Arial", 'B', 14); pdf.set_fill_color(41, 128, 185); pdf.set_text_color(255, 255, 255)
+    pdf.cell(0, 10, "PRODUKCJA", ln=1, fill=True)
+    pdf.ln(3)
 
-        pdf.cell(35, 7, polskie_znaki_pdf(str(r[0])), 1, 0, 'L', fill)
-        pdf.cell(90, 7, polskie_znaki_pdf(str(r[1])[:45]), 1, 0, 'L', fill)
-        pdf.cell(30, 7, plan_str, 1, 0, 'C', fill)
-        pdf.cell(35, 7, wyk_str, 1, 1, 'C', fill)
-        fill = not fill
-    pdf.ln(5)
+    # Zbuduj mapowanie produktów -> sekcje
+    products = []
+    prod_map = {}
+    def _normalize_prod_name(p):
+        if p is None:
+            return ""
+        # usuń wiodące/końcowe spacje i skompresuj wielokrotne spacje
+        return ' '.join(str(p).strip().split())
+
+    for sec, prod, plan, wyk in prod_rows:
+        key = _normalize_prod_name(prod)
+        if key not in prod_map:
+            # zachowaj oryginalną (ale znormalizowaną) nazwę do wyświetlenia
+            prod_map[key] = {'_display': key}
+            products.append(key)
+        prod_map[key][sec] = (plan, wyk)
+
+    # Kolej sekcji do wyświetlenia
+    section_order = ['Zasyp', 'Workowanie', 'Magazyn']
+
+    import math
+
+    def _fmt_kg(v):
+        try:
+            if v is None:
+                return "-"
+            # jeśli to string, spróbuj sparsować
+            val = float(v)
+            if math.isnan(val):
+                return "-"
+            if abs(val - int(val)) < 1e-9:
+                return f"{int(val)} kg"
+            # pokazujemy jedną cyfrę po przecinku jeśli niecałkowite
+            return f"{round(val, 1)} kg"
+        except Exception:
+            return str(v)
+
+    pdf.set_font("Arial", size=9)
+    # pomocnik do rysowania naglowka kontynuacji przy nowej stronie
+    def _print_produkcja_continued():
+        pdf.set_font("Arial", 'B', 11); pdf.set_fill_color(41, 128, 185); pdf.set_text_color(255,255,255)
+        pdf.cell(0, 8, "PRODUKCJA (cd.)", ln=1, fill=True)
+        pdf.ln(2)
+
+    for prod in products:
+        # Nagłówek produktu
+        # Zanim narysujemy blok produktu - sprawdźmy, czy jest miejsce na cały blok
+        rows_count = len(section_order)
+        # wysokość bloku (przybliżona): nagłówek produktu + nagłowek kolumn + wiersze sekcji + rozliczenie + odstępy
+        block_h = 8 + 8 + rows_count * 7 + 10 + 6
+        available_h = pdf.h - pdf.b_margin - pdf.get_y()
+        if available_h < block_h:
+            pdf.add_page()
+            _print_produkcja_continued()
+
+        pdf.set_fill_color(230, 230, 230); pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", 'B', 12)
+        # pozwól by nazwa produktu zawierała długi tekst - użyj multi_cell jeśli za długa
+        prod_name = polskie_znaki_pdf(str(prod_map.get(prod, {}).get('_display', prod)))
+        # jeśli nazwa mieści się w szerokości, rysuj normalnie, inaczej użyj multi_cell
+        curr_x = pdf.get_x(); curr_y = pdf.get_y()
+        max_w = pdf.w - pdf.l_margin - pdf.r_margin
+        # estimate text width
+        if pdf.get_string_width(prod_name) < max_w - 4:
+            pdf.cell(0, 8, prod_name, ln=1, fill=True)
+        else:
+            pdf.multi_cell(0, 6, prod_name, fill=True)
+
+        # Nagłówki kolumn dla bloku produktu
+        pdf.set_font("Arial", 'B', 10); pdf.set_fill_color(230, 230, 230); pdf.set_text_color(0,0,0)
+        # ustawione szerokości kolumn: Sekcja (50), Plan (65), Wykonanie (65)
+        col_w = (50, 65, 65)
+        pdf.cell(col_w[0], 8, "Sekcja", 1, 0, 'C', True)
+        pdf.cell(col_w[1], 8, "Plan", 1, 0, 'C', True)
+        pdf.cell(col_w[2], 8, "Wykonanie", 1, 1, 'C', True)
+
+        # Wiersze sekcji w ustalonej kolejności
+        pdf.set_font("Arial", size=9)
+        fill = False
+        total_plan = 0.0
+        total_wyk = 0.0
+        for sec in section_order:
+            # delikatne naprzemienne tło dla czytelności
+            if fill:
+                pdf.set_fill_color(250, 250, 250)
+            else:
+                pdf.set_fill_color(245, 245, 245)
+            plan, wyk = prod_map.get(prod, {}).get(sec, (None, None))
+            # liczymy sumy - jeśli wartość None, traktujemy jako 0
+            try:
+                pval = float(plan) if plan is not None else 0.0
+            except Exception:
+                pval = 0.0
+            try:
+                wval = float(wyk) if wyk is not None else 0.0
+            except Exception:
+                wval = 0.0
+            total_plan += pval
+            total_wyk += wval
+            plan_str = _fmt_kg(pval) if pval else "-"
+            wyk_str = _fmt_kg(wval) if (wval or wval == 0) else "-"
+            pdf.cell(col_w[0], 7, polskie_znaki_pdf(sec), 1, 0, 'L', fill)
+            pdf.cell(col_w[1], 7, plan_str, 1, 0, 'C', fill)
+            pdf.cell(col_w[2], 7, wyk_str, 1, 1, 'C', fill)
+            fill = not fill
+
+        # Rozliczenie: tylko między Zasyp (plan) a Workowanie (wykonanie)
+        try:
+            # używamy wykonania z Zasyp (tonaz_rzeczywisty) jako porównania z wykonaniem z Workowanie
+            z_wyk_raw = prod_map.get(prod, {}).get('Zasyp', (None, None))[1]
+            w_wyk_raw = prod_map.get(prod, {}).get('Workowanie', (None, None))[1]
+            z_plan = float(z_wyk_raw) if z_wyk_raw is not None else 0.0
+            if math.isnan(z_plan):
+                z_plan = 0.0
+        except Exception:
+            z_plan = 0.0
+        try:
+            w_wyk = float(w_wyk_raw) if w_wyk_raw is not None else 0.0
+            if math.isnan(w_wyk):
+                w_wyk = 0.0
+        except Exception:
+            w_wyk = 0.0
+
+        diff = w_wyk - z_plan
+        diff_sign = '+' if diff >= 0 else '-'
+        diff_abs = abs(diff)
+        if math.isnan(diff_abs):
+            diff_str = "-"
+        else:
+            # Jeśli różnica jest w przybliżeniu liczbą całkowitą, pokaż bez miejsc po przecinku,
+            # w przeciwnym razie pokaż jedną cyfrę po przecinku (np. 57.5 kg)
+            if math.isclose(diff_abs, round(diff_abs), abs_tol=1e-9):
+                diff_str = f"{diff_sign}{int(round(diff_abs))} kg"
+            else:
+                diff_str = f"{diff_sign}{round(diff_abs,1):.1f} kg"
+
+        pdf.set_font("Arial", 'B', 10)
+        if diff >= 0:
+            pdf.set_text_color(34, 139, 34)
+        else:
+            pdf.set_text_color(192, 57, 43)
+        pdf.cell(0, 8, polskie_znaki_pdf(f"Rozliczenie (Workowanie - Zasyp): {diff_str}"), ln=1)
+        pdf.set_text_color(0,0,0)
+        pdf.ln(4)
 
     # --- TABELA AWARIE ---
-    pdf.set_font("Arial", 'B', 12); pdf.set_fill_color(231, 76, 60); pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", 'B', 12); pdf.set_fill_color(192, 57, 43); pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 8, "AWARIE I POSTOJE", ln=1, fill=True)
     
     pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", size=9)
@@ -143,7 +269,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
     pdf.ln(5)
 
     # --- TABELA HR ---
-    pdf.set_font("Arial", 'B', 12); pdf.set_fill_color(46, 204, 113); pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", 'B', 12); pdf.set_fill_color(39, 174, 96); pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 8, "KADRY (HR)", ln=1, fill=True)
     
     pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", size=9)
@@ -163,6 +289,17 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
             pdf.cell(60, 7, polskie_znaki_pdf(str(r[1])), 1, 0, 'L', fill)
             pdf.cell(60, 7, format_godziny(r[2]), 1, 1, 'C', fill)
             fill = not fill
+
+    # Jeśli plik już istnieje (np. otwarty w czytniku), spróbuj go usunąć przed zapisem.
+    try:
+        if os.path.exists(sciezka):
+            try:
+                os.remove(sciezka)
+            except Exception:
+                # jeśli nie można usunąć (plik zablokowany), zapisz pod tymczasową nazwą
+                sciezka = sciezka.replace('.pdf', '_new.pdf')
+    except Exception:
+        pass
 
     pdf.output(sciezka)
     return nazwa_pdf

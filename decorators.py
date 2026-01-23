@@ -18,7 +18,7 @@ def zarzad_required(f):
             return redirect('/login')
         
         # Uprawnienia do widoku /zarzad
-        if session.get('rola') not in ['zarzad', 'admin', 'planista', 'lider']:
+        if session.get('rola') not in ['zarzad', 'admin', 'planista', 'lider', 'laboratorium']:
             return redirect('/')
             
         return f(*args, **kwargs)

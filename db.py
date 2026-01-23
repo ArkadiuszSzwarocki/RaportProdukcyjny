@@ -84,6 +84,17 @@ def setup_database():
         cursor.execute("SELECT id, haslo FROM uzytkownicy")
         existing = cursor.fetchall()
 
+        # Ensure 'grupa' column exists on users and employees for RBAC grouping
+        cursor.execute("SHOW COLUMNS FROM uzytkownicy LIKE 'grupa'")
+        if not cursor.fetchone():
+            print("⏳ Dodawanie kolumny 'grupa' do uzytkownicy...")
+            cursor.execute("ALTER TABLE uzytkownicy ADD COLUMN grupa VARCHAR(50) DEFAULT ''")
+
+        cursor.execute("SHOW COLUMNS FROM pracownicy LIKE 'grupa'")
+        if not cursor.fetchone():
+            print("⏳ Dodawanie kolumny 'grupa' do pracownicy...")
+            cursor.execute("ALTER TABLE pracownicy ADD COLUMN grupa VARCHAR(50) DEFAULT ''")
+
         # Jeśli tabela ma wpisy, spróbuj zidentyfikować i zhashować plaintext hasła
         migrated = 0
         for row in existing:
