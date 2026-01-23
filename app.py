@@ -259,7 +259,7 @@ def zamknij_zmiane():
         app.logger.exception('Outlook open failed')
 
     # 4. Jeśli pliki wygenerowane, zwracamy ZIP do pobrania (automatyczne pobranie plików przez przeglądarkę)
-    if xls_path or txt_path:
+    if xls_path or txt_path or ('pdf_path' in locals() and pdf_path):
         from zipfile import ZipFile
         zip_name = f"Raport_{date.today()}.zip"
         zip_path = os.path.join('raporty', zip_name)
