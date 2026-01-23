@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, redirect, session, url_for, s
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import threading
+import time
 from waitress import serve
 from datetime import date, datetime, timedelta
 import os
@@ -49,6 +51,42 @@ def handle_unexpected_error(error):
     except Exception:
         app.logger.exception('Unhandled exception: %s', error)
     return render_template('500.html') if os.path.exists(os.path.join(app.template_folder or '', '500.html')) else ("Wewnętrzny błąd serwera", 500)
+
+
+def _cleanup_old_reports(folder='raporty', max_age_hours=24, interval_seconds=3600):
+    """Wątek: usuwa pliki w `folder` starsze niż `max_age_hours` co `interval_seconds`."""
+    try:
+        while True:
+            try:
+                if os.path.exists(folder):
+                    now = time.time()
+                    max_age = max_age_hours * 3600
+                    for name in os.listdir(folder):
+                        path = os.path.join(folder, name)
+                        try:
+                            if os.path.isfile(path):
+                                mtime = os.path.getmtime(path)
+                                if now - mtime > max_age:
+                                    try:
+                                        os.remove(path)
+                                        app.logger.info('Removed old report file: %s', path)
+                                    except Exception:
+                                        app.logger.exception('Failed to remove file: %s', path)
+                        except Exception:
+                            app.logger.exception('Error checking file: %s', path)
+            except Exception:
+                app.logger.exception('Error in cleanup loop')
+            time.sleep(interval_seconds)
+    except Exception:
+        app.logger.exception('Cleanup thread terminating unexpectedly')
+
+
+# Start cleanup thread (daemon) to remove old report files
+try:
+    cleanup_thread = threading.Thread(target=_cleanup_old_reports, kwargs={'folder':'raporty','max_age_hours':24,'interval_seconds':3600}, daemon=True)
+    cleanup_thread.start()
+except Exception:
+    app.logger.exception('Failed to start cleanup thread')
 
 
 
