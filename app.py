@@ -1,4 +1,7 @@
 from flask import Flask, render_template, request, redirect, session, url_for, send_file, flash
+import logging
+from logging.handlers import RotatingFileHandler
+import os
 from waitress import serve
 from datetime import date, datetime, timedelta
 import os
@@ -22,6 +25,26 @@ app.register_blueprint(api_bp)
 app.register_blueprint(planista_bp)
 app.jinja_env.filters['format_czasu'] = format_godziny
 setup_database()
+
+# Logging: zapisz pełne błędy do pliku logs/app.log
+logs_dir = os.path.join(os.path.dirname(__file__), 'logs')
+if not os.path.exists(logs_dir):
+    os.makedirs(logs_dir)
+log_path = os.path.join(logs_dir, 'app.log')
+handler = RotatingFileHandler(log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8')
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+handler.setFormatter(formatter)
+app.logger.setLevel(logging.DEBUG)
+app.logger.addHandler(handler)
+logging.getLogger('werkzeug').addHandler(handler)
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    # Zarejestruj pełen traceback w logu i zwróć przyjazny komunikat użytkownikowi
+    app.logger.exception('Unhandled exception: %s', error)
+    return render_template('500.html') if os.path.exists(os.path.join(app.template_folder or '', '500.html')) else ("Wewnętrzny błąd serwera", 500)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
