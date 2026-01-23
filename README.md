@@ -64,6 +64,15 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+#### Zależności developerskie
+
+Jeśli chcesz uruchamiać testy lokalnie lub w środowisku CI, zainstaluj zależności developerskie:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+
 4. **Skonfiguruj bazę danych**
    
    Edytuj plik `app.py` i dostosuj konfigurację bazy danych (linie 11-18):
