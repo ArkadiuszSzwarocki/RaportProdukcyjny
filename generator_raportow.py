@@ -51,7 +51,7 @@ def generuj_excel_zmiany(data_raportu):
             shutil.move(txt, new_txt)
         except Exception:
             new_txt = txt
-        return new_xls
+        return new_xls, new_txt
     except Exception as e:
         print(f"Błąd generowania excela: {e}")
         return None

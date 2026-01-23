@@ -207,14 +207,35 @@ def zamknij_zmiane():
     conn.commit()
     conn.close()
     
-    # 2. Generujemy raport Excel
-    sciezka = generuj_excel_zmiany(date.today())
-    
-    # 3. Otwieramy Outlooka na serwerze
-    if sciezka:
-        otworz_outlook_z_raportem(sciezka, uwagi)
-    
-    session.clear()
+    # 2. Generujemy raporty (Excel + notatka)
+    try:
+        xls_path, txt_path = generuj_excel_zmiany(date.today())
+    except Exception:
+        xls_path = None; txt_path = None
+
+    # 3. Spróbuj otworzyć Outlooka (jeśli dostępny) — nie przerywamy w przeciwnym wypadku
+    try:
+        if xls_path:
+            otworz_outlook_z_raportem(xls_path, uwagi)
+    except Exception:
+        app.logger.exception('Outlook open failed')
+
+    # 4. Jeśli pliki wygenerowane, zwracamy ZIP do pobrania (automatyczne pobranie plików przez przeglądarkę)
+    if xls_path or txt_path:
+        from zipfile import ZipFile
+        zip_name = f"Raport_{date.today()}.zip"
+        zip_path = os.path.join('raporty', zip_name)
+        try:
+            with ZipFile(zip_path, 'w') as z:
+                if xls_path and os.path.exists(xls_path):
+                    z.write(xls_path, arcname=os.path.basename(xls_path))
+                if txt_path and os.path.exists(txt_path):
+                    z.write(txt_path, arcname=os.path.basename(txt_path))
+            return send_file(zip_path, as_attachment=True)
+        except Exception:
+            app.logger.exception('Failed to create/send zip')
+
+    # Fallback: jeśli nic do pobrania, przekieruj na stronę logowania
     return redirect('/login')
 
 @app.route('/wyslij_raport_email', methods=['POST'])
