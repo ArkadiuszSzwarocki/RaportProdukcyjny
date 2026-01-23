@@ -8,7 +8,11 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera):
     
     # Pobieranie danych
     df_plan = pd.read_sql("SELECT sekcja, produkt, tonaz, tonaz_rzeczywisty FROM plan_produkcji WHERE data_planu = %s", conn, params=(data_raportu,))
-    df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem, start_czas, stop_czas, minuty FROM dziennik_zmiany WHERE data_wpisu = %s", conn, params=(data_raportu,))
+    # Awarie: spróbuj pobrać szczegółowe kolumny, ale jeśli ich nie ma w schemacie, użyj prostszego SELECT
+    try:
+        df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem, start_czas, stop_czas, minuty FROM dziennik_zmiany WHERE data_wpisu = %s", conn, params=(data_raportu,))
+    except Exception:
+        df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem FROM dziennik_zmiany WHERE data_wpisu = %s", conn, params=(data_raportu,))
     # HR / obecności
     df_hr = pd.read_sql("SELECT p.imie_nazwisko as pracownik, o.typ, o.ilosc_godzin FROM obecnosc o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu = %s", conn, params=(data_raportu,))
     conn.close()
