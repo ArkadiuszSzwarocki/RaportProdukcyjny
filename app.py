@@ -162,6 +162,21 @@ def zarzad_panel():
 @login_required
 def pobierz_raport(filename): return send_file(os.path.join('raporty', filename), as_attachment=True)
 
+
+@app.route('/pobierz_logi')
+@login_required
+def pobierz_logi():
+    """Tymczasowy, chroniony endpoint do pobrania pliku logów aplikacji.
+
+    Dostęp: tylko role 'admin' i 'zarzad'. Zwraca `app.log` jako załącznik.
+    """
+    if session.get('rola') not in ['admin', 'zarzad']:
+        return ("Brak dostępu", 403)
+    log_path = os.path.join(os.path.dirname(__file__), 'logs', 'app.log')
+    if not os.path.exists(log_path):
+        return ("Brak logu", 404)
+    return send_file(log_path, as_attachment=True)
+
 @app.route('/zamknij_zmiane', methods=['POST'])
 @login_required
 def zamknij_zmiane():
