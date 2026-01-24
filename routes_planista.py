@@ -1,6 +1,6 @@
-from flask import Blueprint, render_template, request, redirect, session, flash, url_for
+from flask import Blueprint, render_template, request
 from db import get_db_connection
-from datetime import date, datetime
+from datetime import date
 from decorators import roles_required
 
 planista_bp = Blueprint('planista', __name__)

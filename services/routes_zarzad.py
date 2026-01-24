@@ -1,7 +1,7 @@
 # routes_zarzad.py
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, render_template, request
 from datetime import datetime, date, timedelta
-from decorators import zarzad_required, login_required
+from decorators import zarzad_required
 from services.stats_service import get_date_range, get_kpi_data, get_chart_data, get_worker_stats
 from db import get_db_connection # Do raportów okresowych jeśli nie przeniesione w całości
 

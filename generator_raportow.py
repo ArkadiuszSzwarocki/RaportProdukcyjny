@@ -72,7 +72,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera):
 
         pdf_name = generuj_pdf(data_raportu, uwagi_lidera, '', prod_rows, awarie_rows, hr_rows)
         pdf_path = os.path.join('raporty', pdf_name) if pdf_name else None
-    except Exception as e:
+    except Exception:
         import traceback
         traceback.print_exc()
         pdf_path = None

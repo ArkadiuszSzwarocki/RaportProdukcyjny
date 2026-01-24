@@ -1,5 +1,4 @@
 import mysql.connector
-import logging
 from config import DB_CONFIG
 from werkzeug.security import generate_password_hash
 

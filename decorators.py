@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import session, redirect, flash
+from flask import session, redirect
 
 # 1. WYMAGANE LOGOWANIE (Dla wszystkich podstron)
 def login_required(f):

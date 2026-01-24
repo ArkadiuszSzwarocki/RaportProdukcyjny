@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import re,glob,os
+import re
+import glob
+import os
 whitelist='tools/spelling_whitelist.txt'
 pattern=re.compile(r"[A-Za-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ0-9\-]+")
 words=set()

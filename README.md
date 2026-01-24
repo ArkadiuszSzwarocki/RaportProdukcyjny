@@ -1,6 +1,7 @@
 # Biblioteka - System Zarządzania Produkcją Agronetzwerk
 
-System webowy do zarządzania produkcją, planowaniem i raportowaniem w zakładzie produkcyjnym.
+System webowy do zarządzania produkcją i planowaniem oraz do raportowania
+zdarzeń w zakładzie produkcyjnym.
 
 ## 📋 Funkcjonalności
 
@@ -56,7 +57,7 @@ System webowy do zarządzania produkcją, planowaniem i raportowaniem w zakładz
 1. **Sklonuj repozytorium** (lub pobierz pliki)
 
 ```bash
-cd c:\Users\arkad\Documents\GitHub\Biblioteka
+cd C:\path\to\RaportProdukcyjny
 ```
 
 1. **Utwórz wirtualne środowisko**
@@ -74,7 +75,8 @@ pip install -r requirements.txt
 
 #### Zależności developerskie
 
-Jeśli chcesz uruchamiać testy lokalnie lub w środowisku CI, zainstaluj zależności developerskie:
+Jeśli chcesz uruchamiać testy lokalnie lub w środowisku CI,
+zainstaluj zależności developerskie:
 
 ```bash
 pip install -r requirements-dev.txt
@@ -86,12 +88,12 @@ Edytuj plik `app.py` i dostosuj konfigurację bazy danych (linie 11-18):
 
 ```python
 db_config = {
-		'host': '192.168.0.18',      # Adres serwera MySQL
-		'port': 3307,                # Port (domyślnie 3307)
-		'database': 'biblioteka',    # Nazwa bazy
-		'user': 'biblioteka',        # Użytkownik
-		'password': 88888888888888,  # Hasło
-		'charset': 'utf8mb4'
+    'host': '192.168.0.18',  # Adres serwera MySQL
+    'port': 3307,            # Port (domyślnie 3307)
+    'database': 'biblioteka',# Nazwa bazy
+    'user': 'biblioteka',    # Użytkownik
+    'password': 88888888888888,  # Hasło
+    'charset': 'utf8mb4'
 }
 ```
 
@@ -145,9 +147,9 @@ System automatycznie tworzy następujące tabele:
 ### 5. Export Excel (`/export_excel`)
 
 - Raport dzienny zawierający:
-	- Arkusz "Produkcja" — plan i wykonanie
-	- Arkusz "Awarie" — problemy produkcyjne
-	- Arkusz "HR" — nieobecności i nadgodziny
+    - Arkusz "Produkcja" — plan i wykonanie
+    - Arkusz "Awarie" — problemy produkcyjne
+    - Arkusz "HR" — nieobecności i nadgodziny
 
 ## 🔒 Zabezpieczenia
 
@@ -196,7 +198,9 @@ System automatycznie przenosi niezakończone zlecenia z poprzednich dni na dzie�
 
 ### Przejścia/Zmiany
 
-System pozwala na oznaczanie przerw w produkcji jako "PRZEJŚCIE / ZMIANA" z automatycznym zamykaniem poprzedniego zlecenia.
+System pozwala na oznaczanie przerw w produkcji jako "PRZEJŚCIE / ZMIANA".
+
+Funkcja ta może automatycznie zamykać poprzednie zlecenie po rozpoczęciu nowego.
 
 ## 🐛 Rozwiązywanie Problemów
 
@@ -219,7 +223,10 @@ pip install -r requirements.txt
 
 ## 🧰 Development (zalecane: Python 3.11)
 
-Jeśli rozwijasz projekt lokalnie lub uruchamiasz testy, użyj Pythona 3.11 (wiele binarnych wheel'y dla `numpy`/`pandas` jest dostępnych dla 3.11 na Windows, co eliminuje konieczność kompilacji C-extensionów).
+Jeśli rozwijasz projekt lokalnie lub uruchamiasz testy, użyj Pythona 3.11.
+
+Wiele binarnych wheel'y dla `numpy` i `pandas` jest dostępnych dla 3.11 na Windows,
+co eliminuje konieczność kompilacji C-extensionów.
 
 Krótkie kroki (Windows PowerShell):
 
@@ -244,7 +251,8 @@ python app.py
 pytest -q
 ```
 
-Alternatywa: jeśli używasz `conda`, utwórz środowisko `conda` z Pythonem 3.11 i zainstaluj zależności tam.
+Alternatywa: jeśli używasz `conda`, utwórz środowisko `conda` z Pythonem 3.11
+i zainstaluj zależności tam.
 
 ### Problemy z kodowaniem
 

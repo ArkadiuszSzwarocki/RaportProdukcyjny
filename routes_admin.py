@@ -76,7 +76,7 @@ def admin_ustawienia_pracownicy():
 @admin_bp.route('/admin/pracownik/dodaj', methods=['POST'])
 @admin_required
 def admin_dodaj_pracownika():
-    conn = get_db_connection(); cursor = conn.cursor();
+    conn = get_db_connection(); cursor = conn.cursor()
     grupa = request.form.get('grupa', '').strip()
     cursor.execute("INSERT INTO pracownicy (imie_nazwisko, grupa) VALUES (%s, %s)", (request.form['imie_nazwisko'], grupa)); conn.commit(); conn.close(); flash("Dodano.", "success"); return redirect('/admin')
 

@@ -1,4 +1,6 @@
-import fitz, os, sys
+import fitz
+import os
+import sys
 
 pdf_path = os.path.join(os.path.dirname(__file__), '..', 'raporty', 'Raport_2026-01-23.pdf')
 pdf_path = os.path.abspath(pdf_path)

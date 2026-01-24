@@ -1,4 +1,11 @@
 import requests
+import pytest
+
+# Skip module if server not available
+try:
+    requests.get('http://127.0.0.1:8082', timeout=1)
+except requests.RequestException:
+    pytest.skip("Server not running on 127.0.0.1:8082 - skipping network script", allow_module_level=True)
 
 s = requests.Session()
 url = 'http://127.0.0.1:8082/login'

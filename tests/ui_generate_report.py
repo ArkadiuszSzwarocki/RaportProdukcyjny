@@ -1,5 +1,12 @@
 import requests
+import pytest
 import os
+
+# Skip UI tests if server not reachable
+try:
+	requests.get('http://127.0.0.1:8082', timeout=1)
+except requests.RequestException:
+	pytest.skip("Server not running on 127.0.0.1:8082 - skipping UI script", allow_module_level=True)
 
 BASE = 'http://127.0.0.1:8082'
 LOGIN_URL = BASE + '/login'

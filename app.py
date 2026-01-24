@@ -6,7 +6,6 @@ import threading
 import time
 from waitress import serve
 from datetime import date, datetime, timedelta
-import os
 import json
 from collections import defaultdict
 
@@ -228,9 +227,9 @@ def zarzad_panel():
     p_stats = []
     if tryb == 'dzien':
         cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko"); all_p = cursor.fetchall(); p_dict = {p[1]: {'zasyp':'-','workowanie':'-','magazyn':'-','hr':'-'} for p in all_p}
-        cursor.execute("SELECT p.imie_nazwisko, o.sekcja FROM obsada_zmiany o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu=%s", (d_od,)); 
+        cursor.execute("SELECT p.imie_nazwisko, o.sekcja FROM obsada_zmiany o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu=%s", (d_od,)) 
         for r in cursor.fetchall(): p_dict[r[0]][r[1].lower()] = '✅'
-        cursor.execute("SELECT p.imie_nazwisko, o.typ FROM obecnosc o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu=%s", (d_od,)); 
+        cursor.execute("SELECT p.imie_nazwisko, o.typ FROM obecnosc o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu=%s", (d_od,)) 
         for r in cursor.fetchall(): p_dict[r[0]]['hr'] = r[1]
         p_stats = [{'name': k, **v} for k, v in p_dict.items()]
     else:

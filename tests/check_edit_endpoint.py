@@ -1,5 +1,6 @@
 from db import get_db_connection
-import requests, os
+import requests
+import pytest
 
 # find first wpis id
 def first_wpis():
@@ -15,6 +16,12 @@ if __name__ == '__main__':
     if not id:
         print('No wpisy found')
     else:
+        # Skip if server not reachable
+        try:
+            requests.get('http://127.0.0.1:8082', timeout=1)
+        except requests.RequestException:
+            pytest.skip("Server not running on 127.0.0.1:8082 - skipping script", allow_module_level=True)
+
         s = requests.Session()
         login = s.post('http://127.0.0.1:8082/login', data={'login':'admin','haslo':'masterkey'}, allow_redirects=False)
         print('login', login.status_code)

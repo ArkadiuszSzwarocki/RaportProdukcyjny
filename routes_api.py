@@ -237,7 +237,7 @@ def edytuj(id):
             cursor.execute("UPDATE dziennik_zmiany SET problem=%s, kategoria=%s, czas_start=%s, czas_stop=%s WHERE id=%s", (
                 request.form.get('problem'), request.form.get('kategoria'), request.form.get('czas_start') or None, request.form.get('czas_stop') or None, id
             ))
-            conn.commit(); conn.close();
+            conn.commit(); conn.close()
             return redirect('/')
 
         cursor.execute("SELECT * FROM dziennik_zmiany WHERE id = %s", (id,)); wpis = cursor.fetchone()

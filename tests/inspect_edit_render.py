@@ -1,5 +1,6 @@
 from db import get_db_connection
 import requests
+import pytest
 
 def first_wpis():
     conn = get_db_connection(); cursor = conn.cursor()
@@ -12,6 +13,12 @@ if __name__ == '__main__':
         print('No wpis found'); raise SystemExit(1)
     id, problem, czas_start, czas_stop, kategoria = row
     print('DB values:', problem, czas_start, czas_stop, kategoria)
+    # Skip when server not running
+    try:
+        requests.get('http://127.0.0.1:8082', timeout=1)
+    except requests.RequestException:
+        pytest.skip("Server not running on 127.0.0.1:8082 - skipping network script", allow_module_level=True)
+
     s = requests.Session()
     s.post('http://127.0.0.1:8082/login', data={'login':'admin','haslo':'masterkey'}, allow_redirects=False)
     r = s.get(f'http://127.0.0.1:8082/edytuj/{id}')

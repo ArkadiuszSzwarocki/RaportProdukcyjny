@@ -1,4 +1,11 @@
 import requests
+import pytest
+
+# Skip smoke tests if server not reachable
+try:
+    requests.get('http://127.0.0.1:8082', timeout=1)
+except requests.RequestException:
+    pytest.skip("Server not running on 127.0.0.1:8082 - skipping smoke tests", allow_module_level=True)
 
 BASE = 'http://127.0.0.1:8082'
 ADMIN_LOGIN = 'admin'

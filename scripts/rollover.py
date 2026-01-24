@@ -8,7 +8,6 @@ python scripts/rollover.py --from 2025-01-17 --to 2025-01-18
 """
 from datetime import date, timedelta
 import argparse
-import sys
 
 # Upewnij się, że ścieżka projektu jest w PYTHONPATH gdy uruchamiasz skrypt
 from db import rollover_unfinished
