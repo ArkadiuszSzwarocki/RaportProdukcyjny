@@ -134,12 +134,12 @@
                 </td>
                 <td class="text-right">
                     <div class="d-flex justify-end gap-5">
-                        <a href="/admin/edycja_zlecenia/{{ z.id }}" class="btn-icon" title="Edytuj">
+                        <a href="/admin/edycja_zlecenia/{{ z.id }}" class="btn-icon" title="Edytuj" aria-label="Edytuj zlecenie">
                             <span class="material-icons">edit</span>
                         </a>
                         <form action="{{ url_for('api.usun_plan', id=z.id) }}" method="POST" onsubmit="return confirm('Czy na pewno usunąć to zlecenie? Operacja jest nieodwracalna.');">
                             <input type="hidden" name="data_powrotu" value="{{ z.data_planu }}">
-                            <button type="submit" class="btn-icon btn-delete" title="Usuń">
+                            <button type="submit" class="btn-icon btn-delete" title="Usuń" aria-label="Usuń zlecenie">
                                 <span class="material-icons">delete</span>
                             </button>
                         </form>
