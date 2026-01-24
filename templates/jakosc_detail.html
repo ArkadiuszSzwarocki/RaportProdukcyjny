@@ -2,7 +2,7 @@
 {% block content %}
 <h2>Zlecenie jakościowe — szczegóły (ID: {{ plan_id }})</h2>
 {% if plan %}
-  <ul class="list-unstyled">
+  <ul class="list-unstyled">{%- if plan %}
     <li><strong>Produkt:</strong> {{ plan[1] }}</li>
     <li><strong>Data planu:</strong> {{ plan[2] }}</li>
     <li><strong>Sekcja:</strong> {{ plan[3] }}</li>
@@ -10,7 +10,7 @@
     <li><strong>Status:</strong> {{ plan[5] }}</li>
     <li><strong>Real:</strong> {{ plan[6] }} - {{ plan[7] }}</li>
     <li><strong>Uwagi:</strong> {{ plan[9] or '-' }}</li>
-  </ul>
+  {%- endif %}</ul>
 
   <h4>Dokumenty jakościowe</h4>
   <form method="post" enctype="multipart/form-data">
