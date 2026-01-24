@@ -53,7 +53,7 @@
     <div class="grid-auto-fit">
         <div class="stat-card"><span class="label">Plan</span><strong class="value">{{ suma_plan|int }} kg</strong></div>
         <div class="stat-card"><span class="label">Wykonanie</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
-        <div class="stat-card"><span class="label">% Realizacji</span><strong class="value">{{ (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
+        <div class="stat-card"><span class="label">% Realizacja</span><strong class="value">{{ (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
     </div>
 {% endif %}
 
@@ -113,7 +113,7 @@
                 <td>
                     <strong class="{% if p[7] > 0 %}text-success{% else %}text-muted{% endif %}">{{ p[7]|int }} kg</strong>
                     {% if palety_mapa[p[0]] %}
-                        <button type="button" onclick="toggleDetails({{ p[0] }})" class="btn-toggle ml-5">
+                        <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
                             📦 {{ palety_mapa[p[0]]|length }} szt. ▼
                         </button>
                     {% endif %}

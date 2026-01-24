@@ -192,6 +192,36 @@ Zainstaluj brakujące pakiety:
 pip install -r requirements.txt
 ```
 
+## 🧰 Development (zalecane: Python 3.11)
+
+Jeśli rozwijasz projekt lokalnie lub uruchamiasz testy, użyj Pythona 3.11 (wiele binarnych wheel'y dla `numpy`/`pandas` jest dostępnych dla 3.11 na Windows, co eliminuje konieczność kompilacji C-extensionów).
+
+Krótkie kroki (Windows PowerShell):
+
+```powershell
+# 1. Sprawdź czy masz py launcher i Python 3.11
+py -0p
+py -3.11 -V
+
+# 2. Utwórz virtualenv z Python 3.11
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# 3. Zaktualizuj narzędzia instalacyjne i zainstaluj zależności
+python -m pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+
+# 4. Uruchom serwer (w nowym oknie terminala)
+python app.py
+
+# 5. Uruchom testy w głównym terminalu
+pytest -q
+```
+
+Alternatywa: jeśli używasz `conda`, utwórz środowisko `conda` z Pythonem 3.11 i zainstaluj zależności tam.
+
+
 ### Problemy z kodowaniem
 Upewnij się, że baza używa `utf8mb4`:
 ```sql
