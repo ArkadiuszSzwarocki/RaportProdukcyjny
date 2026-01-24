@@ -26,6 +26,17 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; else pip install pytest pytest-mock; fi
+      - name: Start application (background)
+        run: |
+          nohup python app.py > server.log 2>&1 &
+          echo "Waiting for server on http://127.0.0.1:8082/ ..."
+          for i in {1..30}; do
+            if curl -sS http://127.0.0.1:8082/ >/dev/null 2>&1; then
+              echo "Server is up"
+              break
+            fi
+            sleep 1
+          done
 
       - name: Run tests
         run: |

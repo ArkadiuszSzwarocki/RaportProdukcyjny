@@ -8,12 +8,14 @@
 - Dodaje `tools/spelling_whitelist.txt` z terminologią projektu (zmniejsza ostrzeżenia spellcheck)
 
 ## Jak przetestować
-1. Uruchom aplikację lokalnie (`run.bat` na Windows) i otwórz http://localhost:5000
+
+1. Uruchom aplikację lokalnie (`run.bat` na Windows) i otwórz <http://localhost:5000>
 2. Przetestuj na mobilnym viewport: menu boczne powinno być ukryte i otwierać się po kliknięciu hamburgera jako panel z overlay.
 3. Sprawdź, czy nie ma 404 dla `/static/favicon.svg`.
 4. Przejrzyj kilka szablonów admin/planista/jakość — powinny mieć etykiety i `aria-label` tam, gdzie brakowało.
 
 ## Checklist
+
 - [ ] Visual QA na małych ekranach (mobile)
 - [ ] Przegląd etykiet i tekstów domenowych (język biznesowy)
 - [ ] Code review

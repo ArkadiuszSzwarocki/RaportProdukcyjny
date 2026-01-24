@@ -53,7 +53,7 @@
     <div class="grid-auto-fit">
         <div class="stat-card"><span class="label">Plan</span><strong class="value">{{ suma_plan|int }} kg</strong></div>
         <div class="stat-card"><span class="label">Wykonanie</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
-        <div class="stat-card"><span class="label">% Realizacji</span><strong class="value">{{ (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
+        <div class="stat-card"><span class="label">% Realizacja</span><strong class="value">{{ (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
     </div>
 {% endif %}
 
