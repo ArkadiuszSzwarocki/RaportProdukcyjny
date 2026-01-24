@@ -67,7 +67,7 @@
                             <form action="/zapisz_tonaz/{{ p[0] }}" method="POST" class="inline-form">
                                 <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
                                 <input type="number" step="0.01" name="tonaz_rzeczywisty" placeholder="Waga" aria-label="Waga rzeczywista (t)" value="{{ p[7] if p[7] else '' }}" class="input-sm w-60">
-                                <button type="submit" class="btn-icon" title="Zapisz">💾</button>
+                                <button type="submit" class="btn-icon" title="Zapisz" aria-label="Zapisz">💾</button>
                             </form>
                         {% endif %}
                         <br><small class="text-muted">Czas: {{ p[6] }} min</small>
@@ -85,7 +85,7 @@
                     {% if rola in ['planista', 'admin', 'lider'] %}
                     <form action="/usun_plan/{{ p[0] }}" method="POST" class="inline-form" onsubmit="return confirm('Usunąć?');">
                         <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-                        <button type="submit" class="btn-delete">🗑</button>
+                        <button type="submit" class="btn-delete" aria-label="Usuń plan">🗑</button>
                     </form>
                     {% endif %}
                 </div>

@@ -92,13 +92,13 @@
                 <td>
                     <div class="d-flex gap-5 align-center">
                         {% if p[4] not in ['w toku', 'zakonczone'] %}
-                            <form action="/przesun_zlecenie/{{ p[0] }}/gora?data={{ wybrana_data }}" method="POST"><button type="submit" class="btn-icon">⬆</button></form>
-                            <form action="/przesun_zlecenie/{{ p[0] }}/dol?data={{ wybrana_data }}" method="POST"><button type="submit" class="btn-icon">⬇</button></form>
+                            <form action="/przesun_zlecenie/{{ p[0] }}/gora?data={{ wybrana_data }}" method="POST"><button type="submit" class="btn-icon" aria-label="Przenieś w górę">⬆</button></form>
+                            <form action="/przesun_zlecenie/{{ p[0] }}/dol?data={{ wybrana_data }}" method="POST"><button type="submit" class="btn-icon" aria-label="Przenieś w dół">⬇</button></form>
                             <form action="/usun_plan/{{ p[0] }}" method="POST" onsubmit="return confirm('Usunąć?')">
                                 <input type="hidden" name="widok_powrotu" value="planista"><input type="hidden" name="data_powrotu" value="{{ wybrana_data }}">
-                                <button type="submit" class="btn-icon text-danger-color">✖</button>
+                                <button type="submit" class="btn-icon text-danger-color" aria-label="Usuń plan">✖</button>
                             </form>
-                            <button type="button" onclick="openMoveModal({{ p[0] }}, '{{ p[2] }}')" class="btn-icon text-primary">📅</button>
+                            <button type="button" onclick="openMoveModal({{ p[0] }}, '{{ p[2] }}')" class="btn-icon text-primary" aria-label="Przenieś plan">📅</button>
                         {% else %}
                             <span class="text-muted fs-120" title="Zablokowane">🔒</span>
                         {% endif %}

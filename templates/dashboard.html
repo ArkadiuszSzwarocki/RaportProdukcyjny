@@ -23,7 +23,7 @@
                 {{ o[1] }}
                 {% if rola in ['lider', 'admin', 'pracownik'] %}
                 <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0">
-                    <button type="submit" class="btn-delete">&times;</button>
+                    <button type="submit" class="btn-delete" aria-label="Usuń z obsady">&times;</button>
                 </form>
                 {% endif %}
             </div>
@@ -67,7 +67,7 @@
                     <a href="{{ url_for('api.edytuj', id=w[0]) }}" title="Edytuj wpis" class="font-bold text-warning-dark no-underline">✎</a>
                     <form action="{{ url_for('api.usun_wpis', id=w[0]) }}" method="POST" class="m-0">
                         <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                        <button type="submit" class="btn-icon text-warning-dark">✖</button>
+                        <button type="submit" class="btn-icon text-warning-dark" aria-label="Usuń wpis">✖</button>
                     </form>
                 </div>
             {% endif %}
@@ -134,15 +134,15 @@
                                 <h4 class="m-0 text-zarzad">{% if p[9] == 'bigbag' %}📦 Nowy BigBag{% else %}📦 Nowa Paleta{% endif %}</h4>
                                 <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" class="d-flex flex-column gap-10">
                                     <input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="typ_produkcji" value="{{ p[9] }}">
-                                    {% if p[9] == 'bigbag' %}<label>Waga Palety (TARA) [kg]:</label><input type="number" step="1" name="waga_palety" value="25" class="input-sm font-bold">
-                                    {% else %}<label>Waga Produktu (Netto) [kg]:</label><input type="number" step="1" name="waga_palety" value="1000" class="input-sm font-bold">{% endif %}
+                                    {% if p[9] == 'bigbag' %}<label>Waga Palety (TARA) [kg]:</label><input type="number" step="1" name="waga_palety" value="25" class="input-sm font-bold" aria-label="Waga palety (TARA) [kg]">
+                                    {% else %}<label>Waga Produktu (Netto) [kg]:</label><input type="number" step="1" name="waga_palety" value="1000" class="input-sm font-bold" aria-label="Waga produktu (Netto) [kg]">{% endif %}
                                     <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">DODAJ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
                                 </form>
                             </div>
                             <div id="stop-zasyp-{{ p[0] }}" class="modal-popup">
                                 <h4 class="m-0 text-danger-color">🛑 Zatrzymaj (Zasyp)</h4>
                                 <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST" class="d-flex flex-column gap-10">
-                                    <input type="hidden" name="sekcja" value="{{ sekcja }}"><label>Zużycie (kg):</label><input type="number" step="1" name="final_tonaz" value="{{ p[7]|int if p[7] else '' }}" required class="input-sm font-bold">
+                                    <input type="hidden" name="sekcja" value="{{ sekcja }}"><label>Zużycie (kg):</label><input type="number" step="1" name="final_tonaz" value="{{ p[7]|int if p[7] else '' }}" required class="input-sm font-bold" aria-label="Zużycie (kg)">
                                     <div class="d-flex gap-10"><button type="submit" class="btn-action btn-stop flex-1">ZATWIERDŹ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
                                 </form>
                             </div>
@@ -161,7 +161,7 @@
                                         </form>
                                     </div>
                                 {% endif %}
-                                {% if rola in ['lider', 'admin'] %}<form action="{{ url_for('api.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić?');"><button type="submit" class="btn-action btn-outline-warning"><span class="material-icons">replay</span></button></form>{% endif %}
+                                {% if rola in ['lider', 'admin'] %}<form action="{{ url_for('api.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić?');"><button type="submit" class="btn-action btn-outline-warning" aria-label="Przywróć zlecenie"><span class="material-icons">replay</span></button></form>{% endif %}
                             </div>
                         {% endif %}
                     {% endif %}
@@ -180,7 +180,7 @@
                                     <td>
                                         {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
                                             {% if pal[0] == 0 %}<button type="button" onclick="openModal('waga-{{ pal[2] }}')" class="btn-action btn-warning small">⚖️ WAŻENIE</button>
-                                            {% else %}<strong>{{ pal[0]|int }} kg</strong><button type="button" onclick="openModal('waga-{{ pal[2] }}')" class="btn-icon ml-5">✏️</button>{% endif %}
+                                            {% else %}<strong>{{ pal[0]|int }} kg</strong><button type="button" onclick="openModal('waga-{{ pal[2] }}')" class="btn-icon ml-5" aria-label="Edytuj wagę">✏️</button>{% endif %}
                                             <div id="waga-{{ pal[2] }}" class="modal-popup">
                                                 <h4 class="m-0">⚖️ Ważenie BigBag</h4>
                                                 <div class="mb-15 small">Tara palety: <strong>{{ pal[5]|int }} kg</strong></div>
@@ -193,7 +193,7 @@
                                             </div>
                                         {% else %}<strong>{{ pal[0]|int }} kg</strong>{% endif %}
                                     </td>
-                                    <td>{% if rola in ['lider', 'admin'] and sekcja == 'Workowanie' %}<form action="{{ url_for('api.usun_palete', id=pal[3]) }}" method="POST" onsubmit="return confirm('Usuń?');"><button type="submit" class="btn-icon text-danger-color">❌</button></form>{% endif %}</td>
+                                    <td>{% if rola in ['lider', 'admin'] and sekcja == 'Workowanie' %}<form action="{{ url_for('api.usun_palete', id=pal[3]) }}" method="POST" onsubmit="return confirm('Usuń?');"><button type="submit" class="btn-icon text-danger-color" aria-label="Usuń paletę">❌</button></form>{% endif %}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -237,7 +237,7 @@
                 <td><span class="badge-info badge-purple">{{ r[2] }}</span></td>
                 <td>{{ r[3] }} h</td>
                 <td>{{ r[4] }}</td>
-                <td><form action="{{ url_for('api.usun_obecnosc', id=r[0]) }}" method="POST"><button type="submit" class="btn-icon text-danger-color">❌</button></form></td>
+                                    <td><form action="{{ url_for('api.usun_obecnosc', id=r[0]) }}" method="POST"><button type="submit" class="btn-icon text-danger-color" aria-label="Usuń wpis HR">❌</button></form></td>
             </tr>
             {% else %}
             <tr><td colspan="5" class="text-center text-muted">Brak wpisów HR dzisiaj.</td></tr>

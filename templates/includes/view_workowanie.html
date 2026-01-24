@@ -51,7 +51,7 @@
                         
                                 <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm('Zakończyć zlecenie?');" class="flex-1">
                             <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-                            <button type="submit" class="btn-stop">■ ZAKOŃCZ</button>
+                            <button type="submit" class="btn-stop" aria-label="Zakończ zlecenie">■ ZAKOŃCZ</button>
                         </form>
                     </div>
                 </div>
@@ -80,14 +80,14 @@
                 {% if p[3] == 'zaplanowane' %}
                     <form action="/start_zlecenie/{{ p[0] }}" method="POST">
                         <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-                        <button type="submit" class="btn-start btn-small">▶ START</button>
+                        <button type="submit" class="btn-start btn-small" aria-label="Start zlecenia">▶ START</button>
                     </form>
                 {% endif %}
                 
                 {% if rola in ['planista', 'admin', 'lider'] %}
                 <form action="/usun_plan/{{ p[0] }}" method="POST" class="inline-form ml-10" onsubmit="return confirm('Usunąć?');">
                     <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-                    <button type="submit" class="btn-delete">🗑</button>
+                    <button type="submit" class="btn-delete" aria-label="Usuń plan">🗑</button>
                 </form>
                 {% endif %}
             </div>
