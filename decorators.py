@@ -36,3 +36,37 @@ def admin_required(f):
             
         return f(*args, **kwargs)
     return decorated_function
+
+
+def roles_required(*roles, groups=None):
+    """Decorator factory: pozwala określić listę dopuszczalnych ról i opcjonalnie grup.
+
+    Użycie:
+      @roles_required('planista', 'lider')
+      def view(): ...
+
+      @roles_required('produkcja', groups=['linia1','linia2'])
+      def view(): ...
+    """
+    def wrapper(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if 'zalogowany' not in session:
+                return redirect('/login')
+
+            # Admin ma zawsze dostęp
+            if session.get('rola') == 'admin':
+                return f(*args, **kwargs)
+
+            user_rola = session.get('rola')
+            user_grupa = session.get('grupa')
+
+            if roles and user_rola not in roles:
+                return redirect('/')
+
+            if groups and user_grupa not in groups:
+                return redirect('/')
+
+            return f(*args, **kwargs)
+        return decorated
+    return wrapper

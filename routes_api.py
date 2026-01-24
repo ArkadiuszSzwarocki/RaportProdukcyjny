@@ -1,7 +1,7 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template
 from datetime import date, datetime, timedelta, time
 from db import get_db_connection
-from decorators import login_required
+from decorators import login_required, roles_required
 
 api_bp = Blueprint('api', __name__)
 
@@ -108,9 +108,9 @@ def wazenie_magazyn(paleta_id):
     conn.commit(); conn.close(); return redirect(bezpieczny_powrot())
 
 @api_bp.route('/usun_palete/<int:id>', methods=['POST'])
-@login_required
+@api_bp.route('/usun_palete/<int:id>', methods=['POST'])
+@roles_required('lider', 'admin')
 def usun_palete(id):
-    if session.get('rola') not in ['lider', 'admin']: return redirect(bezpieczny_powrot())
     conn = get_db_connection(); cursor = conn.cursor()
     cursor.execute("SELECT plan_id FROM palety_workowanie WHERE id=%s", (id,)); res = cursor.fetchone()
     if res:
@@ -122,9 +122,8 @@ def usun_palete(id):
 # ================= ZARZĄDZANIE (ZABEZPIECZONE) =================
 
 @api_bp.route('/przywroc_zlecenie/<int:id>', methods=['POST'])
-@login_required
+@roles_required('lider', 'admin')
 def przywroc_zlecenie(id):
-    if session.get('rola') not in ['lider', 'admin']: return redirect('/')
     conn = get_db_connection(); cursor = conn.cursor(); cursor.execute("SELECT sekcja FROM plan_produkcji WHERE id=%s", (id,)); res = cursor.fetchone()
     if res: cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (res[0],)); cursor.execute("UPDATE plan_produkcji SET status='w toku', real_stop=NULL WHERE id=%s", (id,)); conn.commit()
     conn.close(); return redirect(bezpieczny_powrot())
@@ -147,9 +146,8 @@ def usun_plan(id):
     return redirect(bezpieczny_powrot())
 
 @api_bp.route('/dodaj_plan_zaawansowany', methods=['POST'])
-@login_required
+@roles_required('planista', 'admin')
 def dodaj_plan_zaawansowany():
-    if session.get('rola') not in ['planista', 'admin']: return redirect('/')
     sekcja = request.form.get('sekcja'); data_planu = request.form.get('data_planu'); produkt = request.form.get('produkt'); typ = request.form.get('typ_produkcji', 'standard'); status = 'nieoplacone' if request.form.get('wymaga_oplaty') else 'zaplanowane'
     try: tonaz = int(float(request.form.get('tonaz')))
     except: tonaz = 0
@@ -174,10 +172,14 @@ def przenies_zlecenie(id):
     cursor.execute("UPDATE plan_produkcji SET data_planu=%s, kolejnosc=%s WHERE id=%s", (nd, nk, id))
     conn.commit(); conn.close(); return redirect(bezpieczny_powrot())
 
+
+# Endpoint '/przenies_do_jakosc' usunięty — dezynfekcja jest planowana przez laboratorium
+# i zgłaszana planiście; nie używamy już serwerowego mechanizmu "przenieś do Jakość".
+
+
 @api_bp.route('/przesun_zlecenie/<int:id>/<kierunek>', methods=['POST'])
-@login_required
+@roles_required('planista', 'admin')
 def przesun_zlecenie(id, kierunek):
-    if session.get('rola') not in ['planista', 'admin']: return redirect('/')
     data = request.args.get('data', str(date.today())); conn = get_db_connection(); cursor = conn.cursor()
     
     # BLOKADA: Sprawdź status przed przesunięciem
@@ -194,6 +196,27 @@ def przesun_zlecenie(id, kierunek):
             conn.commit()
             
     conn.close(); return redirect(url_for('planista.panel_planisty', data=data))
+
+
+# ================= JAKOŚĆ -> DODAJ DO PLANÓW =================
+@api_bp.route('/jakosc/dodaj_do_planow/<int:id>', methods=['POST'])
+@roles_required('planista', 'admin')
+def jakosc_dodaj_do_planow(id):
+    """Utwórz zaplanowane zlecenie produkcyjne na podstawie zlecenia jakościowego."""
+    conn = get_db_connection(); cursor = conn.cursor()
+    cursor.execute("SELECT produkt, tonaz, typ_produkcji FROM plan_produkcji WHERE id=%s", (id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close(); flash('Nie znaleziono zlecenia jakościowego', 'danger'); return redirect(bezpieczny_powrot())
+
+    produkt, tonaz, typ = row[0], row[1] or 0, row[2] if len(row) > 2 else None
+    data_planu = request.form.get('data_planu') or request.form.get('data_powrot') or str(date.today())
+    # Oblicz nową kolejność
+    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+    res = cursor.fetchone(); nk = (res[0] if res and res[0] else 0) + 1
+    cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji) VALUES (%s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk, typ))
+    conn.commit(); conn.close(); flash('Zlecenie dodane do planów', 'success')
+    return redirect(bezpieczny_powrot())
 
 # ================= DZIENNIK =================
 

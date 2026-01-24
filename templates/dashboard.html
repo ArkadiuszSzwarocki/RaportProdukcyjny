@@ -2,12 +2,12 @@
 
 {% block content %}
 
-<div id="modalOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999;" onclick="closeAllModals()"></div>
+<div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()"></div>
 
-<div class="section-header">
-    <div><h2 class="header-title">Hala Produkcyjna: <strong>{{ sekcja }}</strong></h2><p class="text-muted" style="margin:0;">{{ rola|upper }} | {{ dzisiaj }}</p></div>
-    <div style="display:flex; gap:10px;">
-        <button onclick="openModal('modalProblem')" class="btn" style="background:#e74c3c; color:white; display:flex; align-items:center; gap:5px;">⚠️ ZGŁOŚ</button>
+    <div class="section-header">
+    <div><h2 class="header-title">Hala Produkcyjna: <strong>{{ sekcja }}</strong></h2><p class="text-muted m-0">{{ rola|upper }} | {{ dzisiaj }}</p></div>
+    <div class="d-flex gap-10">
+        <button type="button" onclick="openModal('modalProblem')" class="btn btn-danger">⚠️ ZGŁOŚ</button>
         
         <a href="/?sekcja=Zasyp" class="btn {% if sekcja=='Zasyp' %}btn-primary{% else %}btn-outline{% endif %}">Zasyp</a>
         <a href="/?sekcja=Workowanie" class="btn {% if sekcja=='Workowanie' %}btn-primary{% else %}btn-outline{% endif %}">Workowanie</a>
@@ -15,59 +15,59 @@
     </div>
 </div>
 
-<div class="section-box" style="margin-bottom:20px; padding:10px 15px; display:flex; align-items:center; justify-content:space-between; background:#fff;">
-    <div style="display:flex; align-items:center; gap:10px;">
-        <strong style="color:#2c3e50;">👥 Obsada Linii:</strong>
+<div class="section-box d-flex align-center justify-between">
+    <div class="d-flex align-center gap-10">
+        <strong>👥 Obsada Linii:</strong>
         {% for o in obsada %}
-            <div style="background:#ecf0f1; padding:3px 8px; border-radius:12px; font-size:0.9em; display:flex; align-items:center; gap:5px;">
+            <div class="chip">
                 {{ o[1] }}
                 {% if rola in ['lider', 'admin', 'pracownik'] %}
-                <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" style="margin:0;">
-                    <button type="submit" style="border:none; background:none; color:red; cursor:pointer; font-weight:bold;">&times;</button>
+                <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0">
+                    <button type="submit" class="btn-delete">&times;</button>
                 </form>
                 {% endif %}
             </div>
         {% else %}
-            <span style="color:#aaa; font-style:italic;">Brak przypisanych pracowników.</span>
+            <span class="text-muted text-muted-italic">Brak przypisanych pracowników.</span>
         {% endfor %}
     </div>
     
     {% if rola in ['lider', 'admin', 'pracownik'] %}
-    <form action="{{ url_for('api.dodaj_do_obsady') }}" method="POST" style="display:flex; gap:5px;">
+    <form action="{{ url_for('api.dodaj_do_obsady') }}" method="POST" class="d-flex gap-5">
         <input type="hidden" name="sekcja" value="{{ sekcja }}">
-        <select name="pracownik_id" required style="padding:5px; border-radius:4px; border:1px solid #ccc;">
+        <select name="pracownik_id" required title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm">
             <option value="" disabled selected>+ Dodaj osobę</option>
             {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
         </select>
-        <button type="submit" class="btn-action" style="background:#2ecc71; color:white;">OK</button>
+        <button type="submit" class="btn btn-start">OK</button>
     </form>
     {% endif %}
 </div>
 
 {% if sekcja == 'Magazyn' %}
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px;">
-        <div class="stat-card"><span class="label">Przyjęto Netto</span><strong class="value" style="color:green;">{{ suma_wykonanie|int }} kg</strong></div>
+    <div class="grid-2">
+        <div class="stat-card"><span class="label">Przyjęto Netto</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
         <div class="stat-card"><span class="label">Ilość Palet</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
     </div>
 {% else %}
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
+    <div class="grid-auto-fit">
         <div class="stat-card"><span class="label">Plan</span><strong class="value">{{ suma_plan|int }} kg</strong></div>
-        <div class="stat-card"><span class="label">Wykonanie</span><strong class="value" style="color:green;">{{ suma_wykonanie|int }} kg</strong></div>
+        <div class="stat-card"><span class="label">Wykonanie</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
         <div class="stat-card"><span class="label">% Realizacji</span><strong class="value">{{ (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
     </div>
 {% endif %}
 
 {% if wpisy %}
-<div style="margin-bottom:20px;">
+<div class="mb-20">
     {% for w in wpisy[:2] %}
-        <div style="background:#fff3cd; color:#856404; padding:8px 15px; border-radius:4px; border:1px solid #ffeeba; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+        <div class="alert-warning d-flex justify-between align-center mb-5">
             <span>⚠️ <strong>{{ w[3] }}</strong> [{{ w[5] }}]: {{ w[2] }}</span>
             {% if rola in ['lider', 'admin'] %}
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <a href="{{ url_for('api.edytuj', id=w[0]) }}" title="Edytuj wpis" style="color:#856404; text-decoration:none; font-weight:bold;">✎</a>
-                    <form action="{{ url_for('api.usun_wpis', id=w[0]) }}" method="POST" style="margin:0;">
+                <div class="d-flex gap-8 align-center">
+                    <a href="{{ url_for('api.edytuj', id=w[0]) }}" title="Edytuj wpis" class="font-bold text-warning-dark no-underline">✎</a>
+                    <form action="{{ url_for('api.usun_wpis', id=w[0]) }}" method="POST" class="m-0">
                         <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                        <button type="submit" style="color:#856404; background:none; border:none; cursor:pointer;">✖</button>
+                        <button type="submit" class="btn-icon text-warning-dark">✖</button>
                     </form>
                 </div>
             {% endif %}
@@ -79,11 +79,19 @@
 {% set ns = namespace(is_active=false) %}
 {% for p in plan %}{% if p[3] == 'w toku' %}{% set ns.is_active = true %}{% endif %}{% endfor %}
 
-<div class="section-box" style="padding:0;">
-    <div style="padding:15px; background:#f8f9fa; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
-        <h3 style="margin:0; color:#2c3e50;">📋 {% if sekcja=='Magazyn' %}Rejestr Przyjęć{% else %}Kolejka Produkcyjna{% endif %}</h3>
+    <div class="section-box p-0">
+    <div class="p-15 p-15-bg">
+        <h3 class="m-0 text-primary">📋 {% if sekcja=='Magazyn' %}Rejestr Przyjęć{% else %}Kolejka Produkcyjna{% endif %}</h3>
         <span class="badge-info">{{ sekcja|upper }}</span>
     </div>
+    {% if rola == 'planista' and quality_count and quality_count > 0 %}
+    <div class="alert-warning d-flex justify-between align-center mb-10">
+        <div class="text-warning-dark font-bold">🔔 Są {{ quality_count }} zgłoszeń dezynfekcji od laboratorium — sprawdź i dodaj do planów.</div>
+        <div>
+            <a href="{{ url_for('jakosc_index') }}" class="btn-action btn-warning">Przejdź do Jakość</a>
+        </div>
+    </div>
+    {% endif %}
 
     <table class="modern-table">
         <thead>
@@ -94,83 +102,98 @@
         <tbody>
         {% for p in plan %}
             <tr class="row-{{ p[3]|replace(' ', '') }}">
-                <td style="color:#888;">{{ loop.index }}</td>
-                <td><strong style="color:var(--primary-color);">{{ p[1] }}</strong><div style="font-size:0.8em; color:#888;">{{ p[9]|upper }}</div></td>
+                <td class="text-muted">{{ loop.index }}</td>
+                <td><strong class="text-primary">{{ p[1] }}</strong><div class="small text-muted">{{ p[9]|upper }}</div></td>
                 <td><strong>{{ p[2]|int }} kg</strong></td>
-                <td style="font-size:0.9em;">
-                    {% if p[4] %}<div style="color:green;">Start: {{ p[4] }}</div>{% endif %}
-                    {% if p[5] %}<div style="color:#c0392b;">Stop: {{ p[5] }}</div>{% endif %}
+                <td class="small">
+                    {% if p[4] %}<div class="text-success">Start: {{ p[4] }}</div>{% endif %}
+                    {% if p[5] %}<div class="text-danger-color">Stop: {{ p[5] }}</div>{% endif %}
                 </td>
                 <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
                 <td>
-                    <strong style="color:{% if p[7] > 0 %}green{% else %}#aaa{% endif %};">{{ p[7]|int }} kg</strong>
+                    <strong class="{% if p[7] > 0 %}text-success{% else %}text-muted{% endif %}">{{ p[7]|int }} kg</strong>
                     {% if palety_mapa[p[0]] %}
-                        <button onclick="toggleDetails({{ p[0] }})" class="btn-toggle" style="margin-left: 5px;">
+                        <button type="button" onclick="toggleDetails({{ p[0] }})" class="btn-toggle ml-5">
                             📦 {{ palety_mapa[p[0]]|length }} szt. ▼
                         </button>
                     {% endif %}
+                    {# Przyciski przenoszenia do Jakość usunięte — dezynfekcja planowana przez laboratorium i zgłaszana planiście. #}
                 </td>
                 <td class="text-right">
                     {% if rola in ['lider', 'admin', 'pracownik'] and sekcja != 'Magazyn' %}
                         {% if p[3] == 'zaplanowane' %}
-                            {% if ns.is_active %}<button disabled class="btn-action btn-disabled"><span class="material-icons">block</span></button>
+                            {% if ns.is_active %}<button type="button" disabled class="btn-action btn-disabled"><span class="material-icons">block</span></button>
                             {% else %}<form action="{{ url_for('api.start_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>{% endif %}
                         {% elif p[3] == 'w toku' %}
-                            <div style="display:flex; gap:5px; justify-content:flex-end;">
-                                {% if sekcja == 'Workowanie' %}<button onclick="openModal('paleta-{{ p[0] }}')" class="btn-action btn-start" style="background:#8e44ad;">{% if p[9] == 'bigbag' %}+ BIGBAG{% else %}+ PALETA{% endif %}</button>{% endif %}
-                                {% if sekcja == 'Zasyp' %}<button onclick="openModal('stop-zasyp-{{ p[0] }}')" class="btn-action btn-stop">STOP</button>
+                            <div class="d-flex gap-5 justify-end">
+                                {% if sekcja == 'Workowanie' %}<button type="button" onclick="openModal('paleta-{{ p[0] }}')" class="btn-action btn-purple">{% if p[9] == 'bigbag' %}+ BIGBAG{% else %}+ PALETA{% endif %}</button>{% endif %}
+                                {% if sekcja == 'Zasyp' %}<button type="button" onclick="openModal('stop-zasyp-{{ p[0] }}')" class="btn-action btn-stop">STOP</button>
                                 {% else %}<form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-stop">STOP</button></form>{% endif %}
                             </div>
                             <div id="paleta-{{ p[0] }}" class="modal-popup">
-                                <h4 style="margin:0 0 10px 0; color:#8e44ad;">{% if p[9] == 'bigbag' %}📦 Nowy BigBag{% else %}📦 Nowa Paleta{% endif %}</h4>
-                                <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" style="display:flex; flex-direction:column; gap:10px;">
+                                <h4 class="m-0 text-zarzad">{% if p[9] == 'bigbag' %}📦 Nowy BigBag{% else %}📦 Nowa Paleta{% endif %}</h4>
+                                <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" class="d-flex flex-column gap-10">
                                     <input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="typ_produkcji" value="{{ p[9] }}">
-                                    {% if p[9] == 'bigbag' %}<label>Waga Palety (TARA) [kg]:</label><input type="number" step="1" name="waga_palety" value="25" style="padding:10px; font-weight:bold;">
-                                    {% else %}<label>Waga Produktu (Netto) [kg]:</label><input type="number" step="1" name="waga_palety" value="1000" style="padding:10px; font-weight:bold;">{% endif %}
-                                    <div style="display:flex; gap:10px;"><button type="submit" class="btn-action btn-save" style="flex:1;">DODAJ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel" style="flex:1;">ANULUJ</button></div>
+                                    {% if p[9] == 'bigbag' %}<label>Waga Palety (TARA) [kg]:</label><input type="number" step="1" name="waga_palety" value="25" class="input-sm font-bold">
+                                    {% else %}<label>Waga Produktu (Netto) [kg]:</label><input type="number" step="1" name="waga_palety" value="1000" class="input-sm font-bold">{% endif %}
+                                    <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">DODAJ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
                                 </form>
                             </div>
                             <div id="stop-zasyp-{{ p[0] }}" class="modal-popup">
-                                <h4 style="margin:0 0 10px 0; color:#c0392b;">🛑 Zatrzymaj (Zasyp)</h4>
-                                <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST" style="display:flex; flex-direction:column; gap:10px;">
-                                    <input type="hidden" name="sekcja" value="{{ sekcja }}"><label>Zużycie (kg):</label><input type="number" step="1" name="final_tonaz" value="{{ p[7]|int if p[7] else '' }}" required style="padding:10px; font-weight:bold;">
-                                    <div style="display:flex; gap:10px;"><button type="submit" class="btn-action btn-stop" style="flex:1;">ZATWIERDŹ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel" style="flex:1;">ANULUJ</button></div>
+                                <h4 class="m-0 text-danger-color">🛑 Zatrzymaj (Zasyp)</h4>
+                                <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST" class="d-flex flex-column gap-10">
+                                    <input type="hidden" name="sekcja" value="{{ sekcja }}"><label>Zużycie (kg):</label><input type="number" step="1" name="final_tonaz" value="{{ p[7]|int if p[7] else '' }}" required class="input-sm font-bold">
+                                    <div class="d-flex gap-10"><button type="submit" class="btn-action btn-stop flex-1">ZATWIERDŹ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
                                 </form>
                             </div>
                         {% elif p[3] == 'zakonczone' %}
-                            <div style="display:flex; align-items:center; justify-content:flex-end; gap:10px;">
-                                <span class="material-icons" style="color:green;">check_circle</span>
-                                {% if sekcja == 'Zasyp' and p[13] and not p[10] %}
-                                    <button onclick="openModal('wyjasnij-{{ p[0] }}')" class="btn-action" style="background:#e74c3c; color:white; font-size:0.8em; animation: pulse 2s infinite;">⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</button>
-                                    <div id="wyjasnij-{{ p[0] }}" class="modal-popup"><h4 style="margin:0 0 10px 0; color:#e74c3c;">⚠️ Rozbieżność Wagi</h4><p style="font-size:0.9em; margin-bottom:10px;">Zasyp: <strong>{{ p[7]|int }} kg</strong><br>Workowanie: <strong>{{ p[11]|int }} kg</strong><br>Różnica: <strong style="color:red;">{{ p[12]|int }} kg</strong></p><form action="{{ url_for('api.zapisz_wyjasnienie', id=p[0]) }}" method="POST" style="display:flex; flex-direction:column; gap:10px;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><textarea name="wyjasnienie" placeholder="Przyczyna..." required rows="3" style="padding:10px; border:1px solid #ccc;"></textarea><div style="display:flex; gap:10px;"><button type="submit" class="btn-action btn-save" style="flex:1;">ZAPISZ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel" style="flex:1;">ANULUJ</button></div></form></div>
+                                    <div class="d-flex align-center justify-end gap-10">
+                                <span class="material-icons text-success">check_circle</span>
+                                    {% if sekcja == 'Zasyp' and p[13] and not p[10] %}
+                                    <button type="button" onclick="openModal('wyjasnij-{{ p[0] }}')" class="btn-action btn-stop btn-small pulse-animation">⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</button>
+                                    <div id="wyjasnij-{{ p[0] }}" class="modal-popup">
+                                        <h4 class="m-0 text-danger-color">⚠️ Rozbieżność Wagi</h4>
+                                        <p class="small mb-15">Zasyp: <strong>{{ p[7]|int }} kg</strong><br>Workowanie: <strong>{{ p[11]|int }} kg</strong><br>Różnica: <strong class="text-danger-color">{{ p[12]|int }} kg</strong></p>
+                                        <form action="{{ url_for('api.zapisz_wyjasnienie', id=p[0]) }}" method="POST" class="d-flex flex-column gap-10">
+                                            <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                                            <textarea name="wyjasnienie" placeholder="Przyczyna..." required rows="3" class="input-sm"></textarea>
+                                            <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">ZAPISZ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                        </form>
+                                    </div>
                                 {% endif %}
-                                {% if rola in ['lider', 'admin'] %}<form action="{{ url_for('api.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić?');"><button type="submit" class="btn-action btn-outline" style="border-color:#f39c12; color:#f39c12;"><span class="material-icons">replay</span></button></form>{% endif %}
+                                {% if rola in ['lider', 'admin'] %}<form action="{{ url_for('api.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić?');"><button type="submit" class="btn-action btn-outline-warning"><span class="material-icons">replay</span></button></form>{% endif %}
                             </div>
                         {% endif %}
                     {% endif %}
                 </td>
             </tr>
             {% if palety_mapa[p[0]] and (sekcja == 'Workowanie' or sekcja == 'Magazyn') %}
-            <tr id="details-{{ p[0] }}" style="display:none; background-color:#fafafa; border-left: 4px solid #8e44ad;">
-                <td colspan="7" style="padding:0;">
-                    <div style="padding:10px 50px;">
-                        <table style="width:100%; font-size:0.9em; background:white; border:1px solid #ddd;">
-                            <thead style="background:#eee;"><tr><th>Nr</th><th>Godzina</th><th>Typ</th><th>Waga Netto</th><th>Opcje</th></tr></thead>
+            <tr id="details-{{ p[0] }}" class="details-row">
+                <td colspan="7" class="p-0">
+                    <div class="p-10">
+                        <table class="modern-table small">
+                            <thead><tr><th>Nr</th><th>Godzina</th><th>Typ</th><th>Waga Netto</th><th>Opcje</th></tr></thead>
                             <tbody>
                                 {% for pal in palety_mapa[p[0]] %}
                                 <tr>
-                                    <td>{{ loop.index }}</td><td>🕒 {{ pal[1] }}</td><td><span style="font-size:0.8em; color:#888;">{{ pal[4]|upper }}</span></td>
+                                    <td>{{ loop.index }}</td><td>🕒 {{ pal[1] }}</td><td><span class="small text-muted">{{ pal[4]|upper }}</span></td>
                                     <td>
                                         {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
-                                            {% if pal[0] == 0 %}<button onclick="openModal('waga-{{ pal[2] }}')" class="btn-action" style="background:#e67e22; color:white; padding:2px 8px; font-size:0.8em;">⚖️ WAŻENIE</button>
-                                            {% else %}<strong>{{ pal[0]|int }} kg</strong><button onclick="openModal('waga-{{ pal[2] }}')" class="btn-icon" style="color:#f39c12; background:none; border:none; cursor:pointer; margin-left:5px;">✏️</button>{% endif %}
+                                            {% if pal[0] == 0 %}<button type="button" onclick="openModal('waga-{{ pal[2] }}')" class="btn-action btn-warning small">⚖️ WAŻENIE</button>
+                                            {% else %}<strong>{{ pal[0]|int }} kg</strong><button type="button" onclick="openModal('waga-{{ pal[2] }}')" class="btn-icon ml-5">✏️</button>{% endif %}
                                             <div id="waga-{{ pal[2] }}" class="modal-popup">
-                                                <h4 style="margin:0 0 10px 0;">⚖️ Ważenie BigBag</h4><div style="margin-bottom:10px; font-size:0.9em;">Tara palety: <strong>{{ pal[5]|int }} kg</strong></div>
-                                                <form action="{{ url_for('api.wazenie_magazyn', paleta_id=pal[2]) }}" method="POST" style="display:flex; flex-direction:column; gap:10px;"><input type="hidden" name="sekcja" value="Magazyn"><input type="hidden" name="data_powrotu" value="{{ dzisiaj }}"><label>Waga BRUTTO (z paletą) [kg]:</label><input type="number" step="1" name="waga_brutto" value="{{ pal[6]|int if pal[6] > 0 else '' }}" placeholder="np. 1025" required style="padding:10px; font-weight:bold; font-size:1.2em;"><div style="display:flex; gap:10px;"><button type="submit" class="btn-action btn-save" style="flex:1;">ZAPISZ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel" style="flex:1;">ANULUJ</button></div></form>
+                                                <h4 class="m-0">⚖️ Ważenie BigBag</h4>
+                                                <div class="mb-15 small">Tara palety: <strong>{{ pal[5]|int }} kg</strong></div>
+                                                <form action="{{ url_for('api.wazenie_magazyn', paleta_id=pal[2]) }}" method="POST" class="d-flex flex-column gap-10">
+                                                    <input type="hidden" name="sekcja" value="Magazyn"><input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                                                    <label>Waga BRUTTO (z paletą) [kg]:</label>
+                                                    <input type="number" step="1" name="waga_brutto" value="{{ pal[6]|int if pal[6] > 0 else '' }}" placeholder="np. 1025" required class="input-sm font-bold" aria-label="Waga BRUTTO (kg)">
+                                                    <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">ZAPISZ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                                </form>
                                             </div>
                                         {% else %}<strong>{{ pal[0]|int }} kg</strong>{% endif %}
                                     </td>
-                                    <td>{% if rola in ['lider', 'admin'] and sekcja == 'Workowanie' %}<form action="{{ url_for('api.usun_palete', id=pal[3]) }}" method="POST" onsubmit="return confirm('Usuń?');"><button type="submit" style="color:red; background:none; border:none; cursor:pointer;">❌</button></form>{% endif %}</td>
+                                    <td>{% if rola in ['lider', 'admin'] and sekcja == 'Workowanie' %}<form action="{{ url_for('api.usun_palete', id=pal[3]) }}" method="POST" onsubmit="return confirm('Usuń?');"><button type="submit" class="btn-icon text-danger-color">❌</button></form>{% endif %}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -179,72 +202,72 @@
                 </td>
             </tr>
             {% endif %}
-        {% else %}<tr><td colspan="7" style="text-align:center; padding:30px;">Brak danych.</td></tr>{% endfor %}
+        {% else %}<tr><td colspan="7" class="text-center p-30">Brak danych.</td></tr>{% endfor %}
         </tbody>
     </table>
 </div>
 
 {% if rola in ['lider', 'admin'] %}
 
-<div class="section-box" style="margin-top: 30px; border-left: 5px solid #8e44ad;">
-    <h3 style="margin-top:0; color:#8e44ad;">🏥 HR / Nieobecności i Nadgodziny</h3>
-    <form action="{{ url_for('api.dodaj_obecnosc') }}" method="POST" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:15px;">
-        <select name="pracownik_id" required style="padding:10px; border-radius:4px; font-weight:bold;">
+<div class="section-box border-left-zarzad">
+    <h3 class="m-0 text-zarzad">🏥 HR / Nieobecności i Nadgodziny</h3>
+    <form action="{{ url_for('api.dodaj_obecnosc') }}" method="POST" class="form-flex mb-15">
+        <select name="pracownik_id" required title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm font-bold">
             <option value="" disabled selected>-- Pracownik --</option>
             {% for p in wszyscy_pracownicy %}
             <option value="{{ p[0] }}">{{ p[1] }}</option>
             {% endfor %}
         </select>
-        <select name="typ" required style="padding:10px;">
+        <select name="typ" required title="Typ wpisu" aria-label="Typ wpisu" class="input-sm">
             <option value="Nieobecność">L4 / Urlop (Nieobecność)</option>
             <option value="Nadgodziny">Nadgodziny</option>
             <option value="Inne">Inne</option>
         </select>
-        <input type="number" step="0.5" name="godziny" placeholder="Ilość godzin" style="padding:10px; width:100px;">
-        <input type="text" name="komentarz" placeholder="Komentarz (opcjonalnie)" style="padding:10px; flex:1;">
-        <button type="submit" class="btn-action" style="background:#8e44ad; color:white;">ZAPISZ</button>
+        <input type="number" step="0.5" name="godziny" placeholder="Ilość godzin" class="input-sm w-100px" aria-label="Ilość godzin">
+        <input type="text" name="komentarz" placeholder="Komentarz (opcjonalnie)" class="input-sm flex-1" aria-label="Komentarz (opcjonalnie)">
+        <button type="submit" class="btn-action btn-purple">ZAPISZ</button>
     </form>
 
-    <table class="modern-table" style="font-size:0.9em;">
+    <table class="modern-table small">
         <thead><tr><th>Pracownik</th><th>Typ</th><th>Godziny</th><th>Komentarz</th><th>Opcje</th></tr></thead>
         <tbody>
             {% for r in raporty_hr %}
             <tr>
                 <td><strong>{{ r[1] }}</strong></td>
-                <td><span class="badge-info" style="background: #e1bee7; color: #4a148c;">{{ r[2] }}</span></td>
+                <td><span class="badge-info badge-purple">{{ r[2] }}</span></td>
                 <td>{{ r[3] }} h</td>
                 <td>{{ r[4] }}</td>
-                <td><form action="{{ url_for('api.usun_obecnosc', id=r[0]) }}" method="POST"><button type="submit" style="color:red; border:none; background:none; cursor:pointer;">❌</button></form></td>
+                <td><form action="{{ url_for('api.usun_obecnosc', id=r[0]) }}" method="POST"><button type="submit" class="btn-icon text-danger-color">❌</button></form></td>
             </tr>
             {% else %}
-            <tr><td colspan="5" style="text-align:center; color:#aaa;">Brak wpisów HR dzisiaj.</td></tr>
+            <tr><td colspan="5" class="text-center text-muted">Brak wpisów HR dzisiaj.</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 
-<div class="section-box" style="margin-top: 30px; margin-bottom:50px; background:#2c3e50; color:white; padding:20px;">
-    <h3 style="margin-top:0; color:#ecf0f1; border-bottom:1px solid #7f8c8d; padding-bottom:10px;">📝 Raport Końcowy Lidera</h3>
+<div class="section-box mb-30 bg-dark text-white p-20">
+    <h3 class="m-0 text-light bb-light">📝 Raport Końcowy Lidera</h3>
     <form action="{{ url_for('zamknij_zmiane') }}" method="POST">
-        <label style="display:block; margin-bottom:5px;">Notatki / Uwagi do zmiany:</label>
-        <textarea name="uwagi_lidera" rows="4" style="width:100%; padding:10px; border-radius:4px; border:none; margin-bottom:15px;" placeholder="Wpisz podsumowanie zmiany, problemy, uwagi dla następnej zmiany..."></textarea>
+        <label class="form-label">Notatki / Uwagi do zmiany:</label>
+        <textarea name="uwagi_lidera" rows="4" class="input-sm mb-15" placeholder="Wpisz podsumowanie zmiany, problemy, uwagi dla następnej zmiany..."></textarea>
         
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div style="font-size:0.9em; color:#bdc3c7;">* Kliknięcie zakończy wszystkie aktywne zlecenia.</div>
-            <button type="submit" class="btn-action" style="background:#e67e22; color:white; padding:15px 30px; font-size:1.1em; font-weight:bold;" onclick="return confirm('Czy na pewno chcesz zamknąć zmianę i wysłać raport?')">📧 WYŚLIJ RAPORT I ZAMKNIJ ZMIANĘ</button>
+        <div class="d-flex justify-between align-center">
+            <div class="small text-muted">* Kliknięcie zakończy wszystkie aktywne zlecenia.</div>
+            <button type="submit" class="btn-warning font-bold" onclick="return confirm('Czy na pewno chcesz zamknąć zmianę i wysłać raport?')">📧 WYŚLIJ RAPORT I ZAMKNIJ ZMIANĘ</button>
         </div>
     </form>
 </div>
 
 {% endif %}
 
-<div id="modalProblem" class="modal-popup" style="display:none;">
-    <h3 style="margin-top:0; color:#e67e22;">⚠️ Zgłoś Problem / Przestój</h3>
-    <form action="{{ url_for('api.dodaj_wpis') }}" method="POST" style="display:flex; flex-direction:column; gap:15px;">
+<div id="modalProblem" class="modal-popup hidden">
+    <h3 class="m-0 text-warning">⚠️ Zgłoś Problem / Przestój</h3>
+    <form action="{{ url_for('api.dodaj_wpis') }}" method="POST" class="d-flex flex-column gap-15">
         <input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
         
         <label>Typ Zdarzenia:</label>
-        <select name="kategoria" required style="padding:10px; border-radius:4px; font-weight:bold;">
+        <select name="kategoria" required title="Kategoria zdarzenia" aria-label="Kategoria zdarzenia" class="input-sm font-bold">
             <option value="" disabled selected>-- Wybierz --</option>
             <option value="Przezbrojenie">⚙️ Przezbrojenie</option>
             <option value="Awaria">🛑 Awaria Maszyny</option>
@@ -254,40 +277,26 @@
         </select>
         
         <label>Czas Wystąpienia:</label>
-        <input type="time" name="czas_start" value="{{ now_time }}" style="padding:10px; border-radius:4px; border:1px solid #ccc;">
+        <input type="time" name="czas_start" value="{{ now_time }}" class="input-sm" aria-label="Czas wystąpienia">
         
         <label>Opis (opcjonalnie):</label>
-        <textarea name="problem" placeholder="Co się stało?" rows="3" style="padding:10px; border:1px solid #ccc;"></textarea>
+        <textarea name="problem" placeholder="Co się stało?" rows="3" class="input-sm"></textarea>
         
-        <div style="display:flex; gap:10px;">
-            <button type="submit" class="btn-action" style="background:#e67e22; color:white; flex:1;">ZGŁOŚ</button>
-            <button type="button" onclick="closeAllModals()" class="btn-action" style="background:#95a5a6; color:white; flex:1;">ANULUJ</button>
+        <div class="d-flex gap-10">
+            <button type="submit" class="btn-action btn-warning flex-1">ZGŁOŚ</button>
+            <button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button>
         </div>
     </form>
 </div>
 
 <script>
-    function toggleDetails(id) { var row = document.getElementById('details-' + id); row.style.display = (row.style.display === 'none') ? 'table-row' : 'none'; }
+    function toggleDetails(id) { var row = document.getElementById('details-' + id); var hidden = getComputedStyle(row).display === 'none'; row.style.display = hidden ? 'table-row' : 'none'; }
     function openModal(id) { document.getElementById('modalOverlay').style.display = 'block'; document.getElementById(id).style.display = 'flex'; }
     function closeAllModals() { document.getElementById('modalOverlay').style.display = 'none'; document.querySelectorAll('.modal-popup').forEach(el => el.style.display = 'none'); }
     let idleTime = 0; document.addEventListener('mousemove', () => idleTime = 0); document.addEventListener('keypress', () => idleTime = 0);
     setInterval(() => { idleTime++; if (idleTime >= 15 && document.getElementById('modalOverlay').style.display === 'none') { window.location.reload(); } }, 1000);
 </script>
 
-<style>
-    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-    .modal-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 1000; display: none; flex-direction: column; min-width: 300px; }
-    .stat-card { background:white; padding:15px; border-radius:8px; border:1px solid #ddd; text-align:center; }
-    .modern-table { width:100%; border-collapse:collapse; }
-    .modern-table td, th { padding:10px; border-bottom:1px solid #eee; }
-    .btn-action { padding:5px 10px; border-radius:4px; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
-    .btn-start { background:#27ae60; color:white; }
-    .btn-stop { background:#c0392b; color:white; }
-    .btn-save { background:#2980b9; color:white; }
-    .btn-cancel { background:#95a5a6; color:white; }
-    .btn-disabled { background:#ddd; color:#999; cursor:not-allowed; }
-    .btn-toggle { background:none; border:1px solid #ccc; border-radius:12px; font-size:0.75em; padding:2px 8px; cursor:pointer; margin-top:3px; }
-    .row-wtoku { background-color: #fff5f5; border-left: 3px solid #c0392b; }
-</style>
+<!-- moved CSS to static/style.css -->
 
 {% endblock %}

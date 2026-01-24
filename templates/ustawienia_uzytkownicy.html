@@ -8,10 +8,10 @@
     </div>
 
     <form action="/admin/konto/dodaj" method="POST" class="form-flex">
-        <input name="login" placeholder="Login" required class="input-sm">
-        <input name="haslo" placeholder="Hasło (opcjonalnie)" class="input-sm">
-        <input name="grupa" placeholder="Grupa (opcjonalnie)" class="input-sm">
-        <select name="rola" class="input-sm">
+        <input name="login" placeholder="Login" required class="input-sm" aria-label="Login">
+        <input name="haslo" placeholder="Hasło (opcjonalnie)" class="input-sm" aria-label="Hasło (opcjonalnie)">
+        <input name="grupa" placeholder="Grupa (opcjonalnie)" class="input-sm" aria-label="Grupa (opcjonalnie)">
+        <select name="rola" class="input-sm" title="Rola konta" aria-label="Rola konta">
             <option value="admin">admin</option>
             <option value="zarzad">zarzad</option>
             <option value="lider">lider</option>
@@ -33,7 +33,7 @@
                     <div class="user-top">
                         <div class="user-name">{{ k[1] }}</div>
                         {% set role = k[2] %}
-                        <div style="margin-left:8px;">
+                        <div class="ml-5">
                             <span class="role-badge role-{{ role|replace(' ','') }}">{{ role }}</span>
                         </div>
                     </div>
@@ -43,10 +43,10 @@
                     <details><summary class="btn">Edytuj</summary>
                         <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
                             <input type="hidden" name="id" value="{{ k[0] }}">
-                            <input name="login" value="{{ k[1] }}" required class="input-sm">
-                            <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm">
-                            <input name="grupa" placeholder="Grupa (opcjonalnie)" value="{{ k[3] if k|length > 3 else '' }}" class="input-sm">
-                            <select name="rola" class="input-sm">
+                            <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login (edycja)">
+                            <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
+                            <input name="grupa" placeholder="Grupa (opcjonalnie)" value="{{ k[3] if k|length > 3 else '' }}" class="input-sm" aria-label="Grupa (opcjonalnie)">
+                            <select name="rola" class="input-sm" title="Rola konta" aria-label="Rola konta">
                                 <option value="admin" {% if k[2]=='admin' %}selected{% endif %}>admin</option>
                                 <option value="zarzad" {% if k[2]=='zarzad' %}selected{% endif %}>zarzad</option>
                                 <option value="lider" {% if k[2]=='lider' %}selected{% endif %}>lider</option>
@@ -59,7 +59,7 @@
                             <button type="submit" class="btn">Zapisz</button>
                         </form>
                     </details>
-                    <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto?');"><button class="btn btn-danger">Usuń</button></form>
+                    <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto?');"><button type="submit" class="btn btn-danger">Usuń</button></form>
                 </div>
             </div>
         {% else %}

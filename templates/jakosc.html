@@ -1,0 +1,51 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Jakość — zlecenia</h2>
+<p class="text-muted">Lista zleceń oznaczonych jako jakość (dezynfekcja, dokumentacja laboratorium itp.).</p>
+
+{% if rola in ['laboratorium', 'lider', 'zarzad', 'admin'] %}
+    <div>
+  <form action="{{ url_for('jakosc_dodaj') }}" method="POST" class="d-flex gap-8 align-center">
+    <input type="text" name="produkt" title="Produkt" placeholder="Produkt" required class="input-sm" aria-label="Produkt">
+    <input type="number" name="tonaz" title="Tonaż" placeholder="Tonaż" min="0" class="input-sm w-80" aria-label="Tonaż">
+    <input type="date" name="data_planu" title="Data planu" value="{{ request.args.get('data') or '' }}" class="input-sm" aria-label="Data planu">
+    <select name="typ_produkcji" title="Typ produkcji" aria-label="Typ produkcji" class="input-sm">
+      <option value="standard">standard</option>
+      <option value="bigbag">bigbag</option>
+    </select>
+    <button type="submit" class="btn-action btn-primary">Utwórz zlecenie jakości</button>
+  </form>
+</div>
+{% endif %}
+
+<table class="table table-sm table-striped">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Data</th>
+      <th>Produkt</th>
+      <th>Sekcja</th>
+      <th>Tonaż</th>
+      <th>Status</th>
+      <th>Real</th>
+      <th>Dokumenty</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for z in zlecenia %}
+    <tr>
+      <td>{{ z[0] }}</td>
+      <td>{{ z[2] }}</td>
+      <td><a href="{{ url_for('jakosc_detail', plan_id=z[0]) }}">{{ z[1] }}</a></td>
+      <td>{{ z[3] }}</td>
+      <td>{{ z[4] or '-' }}</td>
+      <td>{{ z[5] }}</td>
+      <td>{{ z[6] }} - {{ z[7] }}</td>
+      <td><a href="{{ url_for('jakosc_detail', plan_id=z[0]) }}">Szczegóły</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="text-center text-muted">Brak zleceń jakościowych</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

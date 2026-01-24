@@ -6,19 +6,19 @@
     {% endfor %}
 
     {% if aktywne %}
-        <div class="plan-box" style="background-color:#e9f4ff; border:2px solid #2196f3; padding:15px; border-radius:8px; margin-bottom:20px; box-shadow: 0 2px 8px rgba(33,150,243,0.08);">
-            <h3 class="header-title" style="margin-bottom:10px; text-transform:uppercase; letter-spacing:1px; color:#1565c0;">🚀 Trwa Realizacja</h3>
+        <div class="plan-box">
+            <h3 class="header-title">🚀 Trwa Realizacja</h3>
 
             {% for p in aktywne %}
-            <div class="d-flex" style="justify-content:space-between; gap:15px; flex-wrap:wrap;">
+            <div class="d-flex justify-between gap-10">
                 <div>
-                    <h1 class="header-title" style="margin:0 0 10px 0; font-size:2em; color:#333;">{{ p[1] }}</h1>
-                    <div class="small" style="line-height:1.4;">Plan: <strong>{{ p[2] }} ton</strong> <br>
-                        <span class="status-plan" style="padding:2px 6px; border-radius:4px; font-weight:bold;">🕒 Start: {{ p[4] }}</span>
+                    <h1 class="header-title header-lg">{{ p[1] }}</h1>
+                    <div class="small lh-14">Plan: <strong>{{ p[2] }} ton</strong> <br>
+                        <span class="status-badge">🕒 Start: {{ p[4] }}</span>
                     </div>
                 </div>
 
-                <div style="text-align:right;">
+                <div class="text-right">
                     <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm('Czy na pewno ZAKOŃCZYĆ to zlecenie?');">
                         <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
                         <button type="submit" class="btn-stop">■ ZAKOŃCZ ZLECENIE</button>
@@ -32,41 +32,41 @@
     {% endif %}
 
     {% if aktywne %}
-    <details style="margin-top:10px; border:1px solid #ccc; border-radius:5px; background-color:#f9f9f9;">
-        <summary class="d-flex align-center" style="padding:12px; cursor:pointer; font-weight:bold; color:#555; gap:12px;">
+    <details>
+        <summary class="d-flex align-center">
             <span>🔽 POKAŻ / UKRYJ KOLEJKĘ ZLECEŃ</span>
         </summary>
         {% if rola in ['lider', 'admin'] %}
-            <div style="margin:8px 0 0 0;">
-                <form action="{{ url_for('api.manual_rollover') }}" method="POST" style="display:inline-block;">
+            <div>
+                <form action="{{ url_for('api.manual_rollover') }}" method="POST" class="inline-block">
                     <input type="hidden" name="from_date" value="{{ dzisiaj }}">
                     <input type="hidden" name="to_date" value="{{ next_date }}">
-                    <button type="submit" onclick="return confirm('Na pewno przenieść niezakończone zlecenia? To usunie oryginały.')" class="btn-action" style="background:#c0392b; color:white; padding:6px 8px; border-radius:4px; font-size:0.85em;">Przenieś zlecenia</button>
+                    <button type="submit" onclick="return confirm('Na pewno przenieść niezakończone zlecenia? To usunie oryginały.')" class="btn-action btn-delete">Przenieś zlecenia</button>
                 </form>
             </div>
         {% endif %}
-        <div style="padding: 15px; border-top: 1px solid #ddd; background: white;">
+        <div class="p-15 p-15-white-top">
     {% else %}
         <div>
     {% endif %}
 
-        {% if not plan %}
-            <p class="text-muted" style="font-style:italic; text-align:center;">Brak planu na dziś.</p>
+            {% if not plan %}
+            <p class="text-muted text-muted-italic text-center">Brak planu na dziś.</p>
         {% else %}
             {% for p in plan if p[3] != 'w toku' %}
-            <div class="plan-item {% if p[3] == 'zakonczone' %}bg-zakonczone{% endif %}">
-                <div style="flex:2;">
+                <div class="plan-item {% if p[3] == 'zakonczone' %}bg-zakonczone{% endif %}">
+                <div class="flex-2">
                     {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">OCZEKUJE</span>
                     {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">GOTOWE</span>{% endif %}
                     
-                    <span style="font-size:1.1em; font-weight:bold;">{{ p[1] }}</span> | Plan: {{ p[2] }} t
+                    <span class="fs-110 font-bold">{{ p[1] }}</span> | Plan: {{ p[2] }} t
                     
                         {% if p[3] == 'zakonczone' %}
-                        <span class="text-success" style="margin-left:10px;">✅ Wyk: <strong>{{ p[7] }} t</strong></span>
+                        <span class="text-success ml-5">✅ Wyk: <strong>{{ p[7] }} t</strong></span>
                         {% if rola in ['lider', 'admin', 'produkcja'] %}
                             <form action="/zapisz_tonaz/{{ p[0] }}" method="POST" class="inline-form">
                                 <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-                                <input type="number" step="0.01" name="tonaz_rzeczywisty" placeholder="Waga" aria-label="Waga rzeczywista (t)" value="{{ p[7] if p[7] else '' }}" class="input-sm" style="width:60px;">
+                                <input type="number" step="0.01" name="tonaz_rzeczywisty" placeholder="Waga" aria-label="Waga rzeczywista (t)" value="{{ p[7] if p[7] else '' }}" class="input-sm w-60">
                                 <button type="submit" class="btn-icon" title="Zapisz">💾</button>
                             </form>
                         {% endif %}
@@ -97,7 +97,7 @@
     {% if aktywne %}</details>{% endif %}
 
     {% if plan and rola != 'planista' and not aktywne %}
-        <form action="/start_przejscie" method="POST" onsubmit="return confirm('Rozpocząć PRZEJŚCIE?');" style="margin-top:20px;">
+        <form action="/start_przejscie" method="POST" onsubmit="return confirm('Rozpocząć PRZEJŚCIE?');">
             <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
             <button type="submit" class="btn-changeover">🔁 ZACZNIJ PRZEJŚCIE</button>
         </form>
@@ -106,9 +106,9 @@
     {% if rola in ['planista', 'admin', 'lider'] %}
     <hr class="custom-hr">
     <form action="/dodaj_plan" method="POST" class="form-flex">
-        <input type="date" name="data_planu" value="{{ dzisiaj }}" required class="input-sm" style="width:auto;" aria-label="Data planu">
+        <input type="date" name="data_planu" value="{{ dzisiaj }}" required class="input-sm" aria-label="Data planu">
         <input type="text" name="produkt" placeholder="Produkt" required class="select-flex" aria-label="Produkt">
-        <input type="number" step="0.1" name="tonaz" placeholder="Tony" required class="input-sm" style="width:70px;" aria-label="Tonaz">
+        <input type="number" step="0.1" name="tonaz" placeholder="Tony" required class="input-sm w-70" aria-label="Tonaz">
         <button type="submit" class="btn-add-plan">DODAJ</button>
     </form>
     {% endif %}

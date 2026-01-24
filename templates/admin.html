@@ -20,7 +20,7 @@
         <strong>Uwaga:</strong> następujące konta korzystają ze starszego formatu haseł i wymagają resetu: {{ needs_reset|join(', ') }}. Proszę wymusić zmianę hasła (Edytuj → ustaw nowe hasło) lub poprosić użytkowników o reset.
     </div>
     {% endif %}
-    <div class="d-flex justify-between align-center p-15" style="border-bottom:1px solid var(--border-color);">
+    <div class="d-flex justify-between align-center p-15 bb-1">
         <h3>Zarządzanie użytkownikami</h3>
         <div class="d-flex gap-8">
             <form action="/admin/konto/dodaj" method="POST" class="form-flex align-center">
@@ -56,7 +56,7 @@
                 <td>{{ k[2] }}</td>
                 <td class="text-right">
                     <div class="d-flex justify-end gap-8 align-center">
-                        <details style="display:inline-block;">
+                        <details class="inline-block">
                             <summary class="btn">Edytuj</summary>
                             <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
                                 <input type="hidden" name="id" value="{{ k[0] }}">
@@ -93,7 +93,7 @@
 {% else %}
 
     <div class="section-box">
-    <div class="d-flex justify-between align-center p-15" style="border-bottom:1px solid var(--border-color);">
+    <div class="d-flex justify-between align-center p-15 bb-1">
     <h3>Zarządzanie Produkcją (Wszystkie Sekcje)</h3>
     <input type="text" placeholder="Szukaj zlecenia..." class="input-sm small" aria-label="Szukaj zlecenia">
     </div>

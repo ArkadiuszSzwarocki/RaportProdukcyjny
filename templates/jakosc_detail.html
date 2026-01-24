@@ -1,0 +1,37 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Zlecenie jakościowe — szczegóły (ID: {{ plan_id }})</h2>
+{% if plan %}
+  <ul class="list-unstyled">
+    <li><strong>Produkt:</strong> {{ plan[1] }}</li>
+    <li><strong>Data planu:</strong> {{ plan[2] }}</li>
+    <li><strong>Sekcja:</strong> {{ plan[3] }}</li>
+    <li><strong>Tonaż:</strong> {{ plan[4] or '-' }}</li>
+    <li><strong>Status:</strong> {{ plan[5] }}</li>
+    <li><strong>Real:</strong> {{ plan[6] }} - {{ plan[7] }}</li>
+    <li><strong>Uwagi:</strong> {{ plan[9] or '-' }}</li>
+  </ul>
+
+  <h4>Dokumenty jakościowe</h4>
+  <form method="post" enctype="multipart/form-data">
+    <div class="mb-3">
+      <input type="file" name="file" title="Wybierz dokument" aria-label="Wybierz dokument" class="form-control" />
+    </div>
+    <button class="btn btn-primary" type="submit">Prześlij dokument</button>
+  </form>
+
+  <hr />
+  <ul class="list-group mt-3">
+    {% for f in files %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <span>{{ f }}</span>
+        <a href="{{ url_for('jakosc_download', plan_id=plan_id, filename=f) }}" class="btn btn-sm btn-outline-secondary">Pobierz</a>
+      </li>
+    {% else %}
+      <li class="list-group-item text-muted">Brak dokumentów</li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="alert alert-warning">Zlecenie nie istnieje.</div>
+{% endif %}
+{% endblock %}

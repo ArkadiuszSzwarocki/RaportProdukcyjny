@@ -12,12 +12,13 @@ from collections import defaultdict
 
 from config import SECRET_KEY
 from werkzeug.security import check_password_hash
+from werkzeug.utils import secure_filename
 from db import get_db_connection, setup_database
 from raporty import format_godziny
 from routes_admin import admin_bp
 from routes_api import api_bp
 from routes_planista import planista_bp
-from decorators import login_required, zarzad_required
+from decorators import login_required, zarzad_required, roles_required
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -141,9 +142,26 @@ def index():
     
     for p in plan_dnia:
         if p[7] is None: p[7] = 0
-        suma_plan += p[2] if p[2] else 0
+        # Rozpoznaj zlecenia jakościowe (nie wliczane do produkcji)
+        produkt_lower = str(p[1]).strip().lower() if p[1] else ''
+        # Najpierw sprawdź pole typ_zlecenia w DB (jeśli dostępne), fallback do nazwy produktu
+        is_quality = False
+        try:
+            cursor.execute("SELECT COALESCE(typ_zlecenia, ''), sekcja FROM plan_produkcji WHERE id=%s", (p[0],))
+            rz = cursor.fetchone()
+            if rz and (str(rz[0]).strip().lower() == 'jakosc' or (len(rz) > 1 and str(rz[1]).strip() == 'Jakosc')):
+                is_quality = True
+        except Exception:
+            pass
+        if not is_quality:
+            if produkt_lower in ['dezynfekcja linii', 'dezynfekcja']:
+                is_quality = True
+
+        if not is_quality:
+            suma_plan += p[2] if p[2] else 0
+
         current_wykonanie = p[7]
-        
+
         if aktywna_sekcja == 'Magazyn':
             cursor.execute("SELECT pw.waga, DATE_FORMAT(pw.data_dodania, '%H:%i'), pw.id, pw.plan_id, p.typ_produkcji, pw.tara, pw.waga_brutto FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id WHERE p.data_planu = %s AND p.produkt = %s AND p.sekcja = 'Workowanie' ORDER BY pw.id DESC", (dzisiaj, p[1]))
             palety = cursor.fetchall()
@@ -151,13 +169,16 @@ def index():
             # SUMA W KG (BEZ DZIELENIA)
             waga_kg = sum(pal[0] for pal in palety)
             p[7] = waga_kg
-            suma_wykonanie += waga_kg
+            if not is_quality:
+                suma_wykonanie += waga_kg
         elif aktywna_sekcja == 'Workowanie':
             cursor.execute("SELECT pw.waga, DATE_FORMAT(pw.data_dodania, '%H:%i'), pw.id, pw.plan_id, p.typ_produkcji, pw.tara, pw.waga_brutto FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id WHERE pw.plan_id = %s ORDER BY pw.id DESC", (p[0],)); palety = cursor.fetchall()
             palety_mapa[p[0]] = palety
-            suma_wykonanie += current_wykonanie
+            if not is_quality:
+                suma_wykonanie += current_wykonanie
         else:
-            suma_wykonanie += current_wykonanie
+            if not is_quality:
+                suma_wykonanie += current_wykonanie
 
         waga_workowania = 0; diff = 0; alert = False
         if aktywna_sekcja == 'Zasyp':
@@ -175,8 +196,18 @@ def index():
         kandydaci.sort(key=lambda x: x[0])
         if kandydaci: next_workowanie_id = kandydaci[0][0]
 
-    cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu = %s", (dzisiaj,)); raporty_hr = cursor.fetchall(); conn.close()
-    return render_template('dashboard.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'))
+    cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu = %s", (dzisiaj,))
+    raporty_hr = cursor.fetchall()
+
+    # Liczba zleceń jakościowych zgłoszonych przez laboratorium (nieprodukcyjne)
+    try:
+        cursor.execute("SELECT COUNT(1) FROM plan_produkcji WHERE (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone'")
+        quality_count = int(cursor.fetchone()[0] or 0)
+    except Exception:
+        quality_count = 0
+
+    conn.close()
+    return render_template('dashboard.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count)
 
 @app.route('/zarzad')
 @zarzad_required
@@ -226,22 +257,118 @@ def ustawienia_app():
 def pobierz_raport(filename): return send_file(os.path.join('raporty', filename), as_attachment=True)
 
 
+@app.route('/jakosc')
+@roles_required('laboratorium', 'lider', 'zarzad', 'admin', 'planista')
+def jakosc_index():
+    """Lista zleceń jakościowych (typ_zlecenia = 'jakosc')."""
+    try:
+        conn = get_db_connection(); cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, produkt, data_planu, sekcja, tonaz, status, TIME_FORMAT(real_start, '%H:%i'), TIME_FORMAT(real_stop, '%H:%i'), tonaz_rzeczywisty
+            FROM plan_produkcji
+            WHERE COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc'
+            ORDER BY data_planu DESC, id DESC
+        """)
+        zlecenia = cursor.fetchall()
+        conn.close()
+        return render_template('jakosc.html', zlecenia=zlecenia, rola=session.get('rola'))
+    except Exception:
+        app.logger.exception('Failed to render /jakosc')
+        return redirect('/')
+
+
+@app.route('/jakosc/dodaj', methods=['POST'])
+@roles_required('laboratorium', 'lider', 'zarzad', 'admin')
+def jakosc_dodaj():
+    """Utwórz nowe zlecenie jakościowe (sekcja 'Jakosc', typ_zlecenia='jakosc')."""
+    try:
+        produkt = request.form.get('produkt')
+        if not produkt:
+            flash('Podaj nazwę produktu', 'warning'); return redirect(url_for('jakosc_index'))
+        data_planu = request.form.get('data_planu') or str(date.today())
+        try:
+            tonaz = int(float(request.form.get('tonaz') or 0))
+        except Exception:
+            tonaz = 0
+        typ = request.form.get('typ_produkcji') or 'standard'
+
+        conn = get_db_connection(); cursor = conn.cursor()
+        cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+        res = cursor.fetchone(); nk = (res[0] if res and res[0] else 0) + 1
+        cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, typ_zlecenia) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Jakosc', nk, typ, 'jakosc'))
+        conn.commit(); conn.close()
+        flash('Zlecenie jakościowe utworzone', 'success')
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        app.logger.exception('Failed to create jakosc order')
+        flash('Błąd podczas tworzenia zlecenia jakościowego', 'danger')
+    return redirect(url_for('jakosc_index'))
+
+
+@app.route('/jakosc/<int:plan_id>', methods=['GET', 'POST'])
+@roles_required('laboratorium', 'lider', 'zarzad', 'admin', 'planista')
+def jakosc_detail(plan_id):
+    """Szczegóły zlecenia jakościowego i upload dokumentów."""
+    docs_dir = os.path.join('raporty', 'jakosc_docs', str(plan_id))
+    try:
+        conn = get_db_connection(); cursor = conn.cursor()
+        cursor.execute("SELECT id, produkt, data_planu, sekcja, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, wyjasnienie_rozbieznosci FROM plan_produkcji WHERE id=%s", (plan_id,))
+        plan = cursor.fetchone()
+        conn.close()
+
+        if request.method == 'POST':
+            # Tylko role laboratorum/lider/zarzad/admin mogą przesyłać pliki.
+            if session.get('rola') not in ['laboratorium', 'lider', 'zarzad', 'admin']:
+                flash('Brak uprawnień do przesyłania plików', 'danger')
+                return redirect(url_for('jakosc_detail', plan_id=plan_id))
+            f = request.files.get('file')
+            if f and f.filename:
+                filename = secure_filename(f.filename)
+                os.makedirs(docs_dir, exist_ok=True)
+                save_path = os.path.join(docs_dir, filename)
+                f.save(save_path)
+                flash('Plik przesłany', 'success')
+            else:
+                flash('Brak pliku do przesłania', 'warning')
+            return redirect(url_for('jakosc_detail', plan_id=plan_id))
+
+        files = []
+        if os.path.exists(docs_dir):
+            files = sorted(os.listdir(docs_dir), reverse=True)
+
+        return render_template('jakosc_detail.html', plan=plan, files=files, plan_id=plan_id, rola=session.get('rola'))
+    except Exception:
+        app.logger.exception('Failed to render /jakosc/%s', plan_id)
+        return redirect('/jakosc')
+
+
+@app.route('/jakosc/download/<int:plan_id>/<path:filename>')
+@roles_required('laboratorium', 'lider', 'zarzad', 'admin', 'planista')
+def jakosc_download(plan_id, filename):
+    docs_dir = os.path.join('raporty', 'jakosc_docs', str(plan_id))
+    file_path = os.path.join(docs_dir, filename)
+    if not os.path.exists(file_path):
+        return ("Plik nie znaleziony", 404)
+    return send_file(file_path, as_attachment=True)
+
+
 @app.route('/pobierz_logi')
-@login_required
+@roles_required('admin', 'zarzad')
 def pobierz_logi():
     """Tymczasowy, chroniony endpoint do pobrania pliku logów aplikacji.
 
     Dostęp: tylko role 'admin' i 'zarzad'. Zwraca `app.log` jako załącznik.
     """
-    if session.get('rola') not in ['admin', 'zarzad']:
-        return ("Brak dostępu", 403)
     log_path = os.path.join(os.path.dirname(__file__), 'logs', 'app.log')
     if not os.path.exists(log_path):
         return ("Brak logu", 404)
     return send_file(log_path, as_attachment=True)
 
 @app.route('/zamknij_zmiane', methods=['POST'])
-@login_required
+@roles_required('lider', 'admin')
 def zamknij_zmiane():
     from generator_raportow import generuj_excel_zmiany, otworz_outlook_z_raportem
     import os

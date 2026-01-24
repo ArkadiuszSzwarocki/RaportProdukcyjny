@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, session, flash, url_for
 from db import get_db_connection
 from datetime import date, datetime
-from decorators import login_required
+from decorators import roles_required
 
 planista_bp = Blueprint('planista', __name__)
 
@@ -14,10 +14,8 @@ NORMY_KG_H = {
 }
 
 @planista_bp.route('/planista', methods=['GET', 'POST'])
-@login_required
+@roles_required('planista', 'zarzad', 'lider', 'admin')
 def panel_planisty():
-    if session.get('rola') not in ['planista', 'admin', 'zarzad', 'lider']:
-        return redirect('/')
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -84,6 +82,17 @@ def panel_planisty():
     # Obliczenie obłożenia zmiany (450 min to 7.5h pracy netto)
     procent_czasu = (suma_minut_plan / 450 * 100)
 
+    # Pobierz zlecenia jakościowe zgłoszone na wybraną datę (laboratorium)
+    try:
+        conn = get_db_connection(); cursor = conn.cursor()
+        cursor.execute("SELECT id, produkt, tonaz, sekcja, status FROM plan_produkcji WHERE data_planu=%s AND (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone' ORDER BY id DESC", (wybrana_data,))
+        quality_orders = cursor.fetchall()
+        quality_count = len(quality_orders)
+        conn.close()
+    except Exception:
+        quality_orders = []
+        quality_count = 0
+
     return render_template('planista.html', 
                            plany=plany_list, 
                            wybrana_data=wybrana_data, 
@@ -92,4 +101,6 @@ def panel_planisty():
                            suma_wyk=suma_wyk,
                            procent=procent,
                            suma_minut_plan=suma_minut_plan, # Przekazujemy sumę minut
-                           procent_czasu=procent_czasu)     # Przekazujemy % zajętości zmiany
+                           procent_czasu=procent_czasu,     # Przekazujemy % zajętości zmiany
+                           quality_count=quality_count,
+                           quality_orders=quality_orders)

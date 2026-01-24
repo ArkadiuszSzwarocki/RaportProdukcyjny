@@ -68,6 +68,17 @@ def setup_database():
             print("⏳ Dodawanie kolumny 'typ_produkcji'...")
             cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN typ_produkcji VARCHAR(20) DEFAULT 'standard'")
 
+        # Sprawdź i dodaj 'typ_zlecenia' do plan_produkcji (np. 'jakosc' dla zlecen jakościowych)
+        cursor.execute("SHOW COLUMNS FROM plan_produkcji LIKE 'typ_zlecenia'")
+        if not cursor.fetchone():
+            print("⏳ Dodawanie kolumny 'typ_zlecenia' do plan_produkcji...")
+            cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN typ_zlecenia VARCHAR(50) DEFAULT ''")
+            # Zaktualizuj istniejące rekordy rozpoznane jako dezynfekcja
+            try:
+                cursor.execute("UPDATE plan_produkcji SET typ_zlecenia='jakosc' WHERE LOWER(TRIM(produkt)) IN ('dezynfekcja linii','dezynfekcja')")
+            except Exception:
+                pass
+
         # Sprawdź i dodaj 'tara' do palety_workowanie
         cursor.execute("SHOW COLUMNS FROM palety_workowanie LIKE 'tara'")
         if not cursor.fetchone():

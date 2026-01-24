@@ -17,7 +17,7 @@
     </div>
     {% endif %}
 
-    <div class="p-15" style="border-bottom:1px solid var(--border-color);">
+    <div class="p-15 bb-1">
         <h3>Dodaj nowe konto</h3>
         <form action="/admin/konto/dodaj" method="POST" class="form-flex">
             <input name="login" placeholder="Login" required class="input-sm" aria-label="Login">
@@ -51,7 +51,7 @@
                 <td>{{ k[2] }}</td>
                 <td class="text-right">
                     <div class="d-flex justify-end gap-8 align-center">
-                        <details style="display:inline-block;">
+                        <details class="inline-block">
                             <summary class="btn">Edytuj</summary>
                             <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
                                 <input type="hidden" name="id" value="{{ k[0] }}">

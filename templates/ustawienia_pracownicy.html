@@ -8,8 +8,8 @@
     </div>
 
     <form action="/admin/pracownik/dodaj" method="POST" class="form-flex">
-        <input name="imie_nazwisko" placeholder="Imię i nazwisko" required class="input-sm">
-            <input name="grupa" placeholder="Grupa (opcjonalnie)" class="input-sm">
+        <input name="imie_nazwisko" placeholder="Imię i nazwisko" required class="input-sm" aria-label="Imię i nazwisko">
+            <input name="grupa" placeholder="Grupa (opcjonalnie)" class="input-sm" aria-label="Grupa (opcjonalnie)">
         <button class="btn btn-primary" type="submit">Dodaj</button>
     </form>
 
@@ -23,13 +23,13 @@
                     <div class="user-top">
                         <div class="user-name">{{ p[1] }}</div>
                             {% if p|length > 2 and p[2] %}
-                            <div style="margin-left:8px;"><span class="role-badge role-pracownik">{{ p[2] }}</span></div>
+                            <div class="ml-5"><span class="role-badge role-pracownik">{{ p[2] }}</span></div>
                             {% endif %}
                     </div>
                     <div class="user-sub">ID: {{ p[0] }}</div>
                 </div>
                 <div class="list-actions">
-                    <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" onsubmit="return confirm('Usuń pracownika?');"><button class="btn btn-danger">Usuń</button></form>
+                    <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" onsubmit="return confirm('Usuń pracownika?');"><button type="submit" class="btn btn-danger">Usuń</button></form>
                 </div>
             </div>
         {% else %}

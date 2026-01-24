@@ -35,7 +35,7 @@ def get_kpi_data(d_od, d_do):
                COALESCE(SUM(tonaz_rzeczywisty), 0), 
                COUNT(id) 
         FROM plan_produkcji 
-        WHERE data_planu BETWEEN %s AND %s AND status='zakonczone'
+        WHERE data_planu BETWEEN %s AND %s AND status='zakonczone' AND COALESCE(typ_zlecenia, '') != 'jakosc'
     """, (d_od, d_do))
     kpi = cursor.fetchone()
     conn.close()
@@ -55,7 +55,7 @@ def get_chart_data(d_od, d_do):
     cursor.execute("""
         SELECT data_planu, SUM(tonaz), SUM(COALESCE(tonaz_rzeczywisty, 0)) 
         FROM plan_produkcji 
-        WHERE data_planu BETWEEN %s AND %s 
+        WHERE data_planu BETWEEN %s AND %s AND COALESCE(typ_zlecenia, '') != 'jakosc'
         GROUP BY data_planu ORDER BY data_planu
     """, (d_od, d_do))
     ch = cursor.fetchall()

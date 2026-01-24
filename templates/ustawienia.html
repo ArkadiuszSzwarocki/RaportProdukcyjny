@@ -11,25 +11,19 @@
         <div>
             <h3>Pracownicy</h3>
             <form action="/admin/pracownik/dodaj" method="POST" class="form-flex">
-                <input name="imie_nazwisko" placeholder="Imię i nazwisko" required class="input-sm">
+                <input name="imie_nazwisko" placeholder="Imię i nazwisko" required class="input-sm" aria-label="Imię i nazwisko">
                 <button class="btn btn-primary" type="submit">Dodaj</button>
             </form>
 
-            <style>
-                .cards-grid { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
-                .card { background:#fff; border:1px solid #ddd; padding:10px; border-radius:6px; width:220px; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
-                .card h4 { margin:0 0 6px 0; font-size:14px; }
-                .card .meta { font-size:12px; color:#666; }
-                .card .actions { margin-top:8px; text-align:right; }
-            </style>
+            <!-- styles moved to static/style.css -->
 
             <div class="cards-grid">
                 {% for p in pracownicy %}
                     <div class="card">
                         <h4>{{ p[1] }}</h4>
                         <div class="meta">ID: {{ p[0] }}</div>
-                        <div class="actions">
-                            <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" style="display:inline-block;" onsubmit="return confirm('Usuń pracownika?');"><button class="btn btn-danger">Usuń</button></form>
+                            <div class="actions">
+                            <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" class="inline-block" onsubmit="return confirm('Usuń pracownika?');"><button type="submit" class="btn btn-danger">Usuń</button></form>
                         </div>
                     </div>
                 {% else %}
@@ -41,9 +35,9 @@
         <div>
             <h3>Konta użytkowników</h3>
             <form action="/admin/konto/dodaj" method="POST" class="form-flex">
-                <input name="login" placeholder="Login" required class="input-sm">
-                <input name="haslo" placeholder="Hasło (opcjonalnie)" class="input-sm">
-                <select name="rola" class="input-sm">
+                <input name="login" placeholder="Login" required class="input-sm" aria-label="Login">
+                <input name="haslo" placeholder="Hasło (opcjonalnie)" class="input-sm" aria-label="Hasło (opcjonalnie)">
+                <select name="rola" class="input-sm" title="Rola konta" aria-label="Rola konta">
                     <option value="admin">admin</option>
                     <option value="zarzad">zarzad</option>
                     <option value="lider">lider</option>
@@ -62,12 +56,12 @@
                         <h4>{{ k[1] }}</h4>
                         <div class="meta">Rola: {{ k[2] }} — ID: {{ k[0] }}</div>
                         <div class="actions">
-                            <details style="display:inline-block;"><summary class="btn">Edytuj</summary>
+                            <details class="inline-block"><summary class="btn">Edytuj</summary>
                                 <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
                                     <input type="hidden" name="id" value="{{ k[0] }}">
-                                    <input name="login" value="{{ k[1] }}" required class="input-sm">
-                                    <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm">
-                                    <select name="rola" class="input-sm">
+                                    <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login (edycja)">
+                                    <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
+                                    <select name="rola" class="input-sm" title="Rola konta" aria-label="Rola konta">
                                         <option value="admin" {% if k[2]=='admin' %}selected{% endif %}>admin</option>
                                         <option value="zarzad" {% if k[2]=='zarzad' %}selected{% endif %}>zarzad</option>
                                         <option value="lider" {% if k[2]=='lider' %}selected{% endif %}>lider</option>
@@ -80,7 +74,7 @@
                                     <button type="submit" class="btn">Zapisz</button>
                                 </form>
                             </details>
-                            <form action="/admin/konto/usun/{{ k[0] }}" method="POST" style="display:inline-block; margin-left:6px;" onsubmit="return confirm('Usuń konto?');"><button class="btn btn-danger">Usuń</button></form>
+                            <form action="/admin/konto/usun/{{ k[0] }}" method="POST" class="inline-block ml-5" onsubmit="return confirm('Usuń konto?');"><button type="submit" class="btn btn-danger">Usuń</button></form>
                         </div>
                     </div>
                 {% else %}

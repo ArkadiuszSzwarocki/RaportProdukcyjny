@@ -62,7 +62,7 @@ def zarzad_panel():
     )
 
 @zarzad_bp.route('/raporty_okresowe')
-@login_required
+@zarzad_required
 def raporty_okresowe():
     # Tu również można zastosować stats_service, aby odchudzić kod
     teraz = datetime.now()

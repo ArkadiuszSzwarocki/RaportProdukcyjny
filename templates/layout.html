@@ -10,7 +10,7 @@
 <body>
 
     <div class="top-bar">
-        <div class="d-flex align-center" style="gap:15px;">
+        <div class="d-flex align-center gap-15">
             <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-sm" onerror="this.onerror=null;this.src='https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';">
             <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
         </div>
@@ -30,7 +30,7 @@
 
             {# top users button removed per UI change request #}
 
-            <span style="color:rgba(255,255,255,0.7);">Zalogowany: <strong>{{ session.get('rola')|upper }}</strong></span>
+            <span class="user-role">Zalogowany: <strong>{{ session.get('rola')|upper }}</strong></span>
             
             <a href="/logout" class="logout-btn">
                 <span class="material-icons">logout</span>
@@ -46,6 +46,7 @@
                         <a href="{{ url_for('index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">Zasyp</a>
                         <a href="{{ url_for('index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">Workowanie</a>
                         <a href="{{ url_for('index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">Magazyn</a>
+                        <a href="{{ url_for('jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">Jakość</a>
                     {% endif %}
                 <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">Wyniki</a>
                 <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">Plan</a>

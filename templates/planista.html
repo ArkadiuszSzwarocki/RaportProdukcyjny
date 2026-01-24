@@ -10,32 +10,43 @@
     </form>
 </div>
 
-<div class="stat-grid" style="gap:15px; margin-bottom:20px;">
+{% if quality_count and quality_count > 0 %}
+<div class="plan-box d-flex justify-between align-center">
+    <div class="text-warning"><strong>🔔 Laboratorium zgłosiło {{ quality_count }}</strong> zleceń dezynfekcji na {{ wybrana_data }} — sprawdź Jakość i dodaj do planów.</div>
+    {% if session.get('rola') == 'planista' %}
+    <div>
+        <button type="button" onclick="document.getElementById('modalJakosc').classList.remove('hidden')" class="btn-action btn-warning">Szczegóły dezynfekcji</button>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="stat-grid">
     
     <div class="stat-card {% if suma_minut_plan > 450 %}border-danger-left{% else %}border-success-left{% endif %}">
         <span class="label">Obłożenie Zmiany (450 min)</span>
-        <div class="header-title" style="font-size:1.8em; font-weight:bold;">{{ suma_minut_plan }} min</div>
+        <div class="header-title header-lg">{{ suma_minut_plan }} min</div>
         <div class="small text-muted">{% if suma_minut_plan > 450 %}⚠️ Przekroczono o {{ suma_minut_plan - 450 }} min!{% else %}Zapas: {{ 450 - suma_minut_plan }} min{% endif %}</div>
-        <div class="progress" style="height:6px; border-radius:3px; margin-top:5px;"><div class="progress-bar" style="width:{{ [procent_czasu, 100]|min }}%; background:{% if suma_minut_plan > 450 %}#e74c3c{% else %}#2ecc71{% endif %};"></div></div>
+        <div class="progress"><div class="progress-bar {% if suma_minut_plan > 450 %}progress-bar-danger{% else %}progress-bar-success{% endif %} progress-w-{{ [procent_czasu, 100]|min|round(0)|int }}"></div></div>
     </div>
 
     <div class="stat-card border-primary-left">
         <span class="label">Plan Wagowy</span>
-        <div class="header-title" style="font-size:1.8em; font-weight:bold; color:#34495e;">{{ suma_plan|int }} kg</div>
+        <div class="header-title header-lg">{{ suma_plan|int }} kg</div>
         <div class="small text-muted">Cel: min 21 000 kg</div>
     </div>
 
     <div class="stat-card border-warning-left">
         <span class="label">Realizacja Planu</span>
-        <div class="header-title {% if procent >= 100 %}text-success{% else %}text-warning{% endif %}" style="font-size:1.8em; font-weight:bold;">{{ procent|int }}%</div>
+        <div class="header-title header-lg {% if procent >= 100 %}text-success{% else %}text-warning{% endif %}">{{ procent|int }}%</div>
         <div class="small text-muted">Wykonano: {{ suma_wyk|int }} kg</div>
     </div>
 </div>
 
-    <div class="section-box" style="padding:0;">
-    <div class="d-flex justify-between align-center p-15" style="background:#f8f9fa; border-bottom:1px solid #eee;">
-        <h3 style="margin:0; color:#2c3e50;">📋 Główny Plan: <strong>{{ wybrana_data }}</strong></h3>
-        <button type="button" onclick="document.getElementById('modalDodaj').style.display='flex'" class="btn-action btn-action-success">+ DODAJ PLAN</button>
+    <div class="section-box section-box-no-pad">
+        <div class="d-flex justify-between align-center p-15 p-15-bg">
+        <h3 class="m-0">📋 Główny Plan: <strong>{{ wybrana_data }}</strong></h3>
+        <button type="button" onclick="document.getElementById('modalDodaj').classList.remove('hidden')" class="btn-action btn-action-success">+ DODAJ PLAN</button>
     </div>
 
     <table class="modern-table">
@@ -53,7 +64,7 @@
         <tbody>
             {% for p in plany %}
             <tr>
-                <td><strong class="header-title" style="font-size:1.1em;">{{ p[2] }}</strong></td>
+                <td><strong class="header-title">{{ p[2] }}</strong></td>
                 <td class="small text-muted">{{ p[9]|upper }}</td>
                 <td><strong>{{ p[3]|int }} kg</strong></td>
                 
@@ -63,9 +74,9 @@
                 </td>
 
                 <td>
-                    {% if p[8] > 0 %}
+                        {% if p[8] > 0 %}
                         <strong class="text-success">{{ p[8]|int }} kg</strong>
-                        {% if p[10] %}<br><span class="small" style="color:red;">⚠️ {{ p[10] }}</span>{% endif %}
+                        {% if p[10] %}<br><span class="small text-danger-color">⚠️ {{ p[10] }}</span>{% endif %}
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
@@ -74,8 +85,8 @@
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
-                    {% if p[4] == 'zakonczone' %}<span class="text-success" style="font-weight:bold;">✔ Zakończone</span>
-                    {% elif p[4] == 'w toku' %}<span class="text-warning" style="font-weight:bold; animation: pulse 2s infinite;">⏳ W toku</span>
+                    {% if p[4] == 'zakonczone' %}<span class="text-success font-bold">✔ Zakończone</span>
+                    {% elif p[4] == 'w toku' %}<span class="text-warning font-bold pulse-animation">⏳ W toku</span>
                     {% else %}<span class="text-muted">Zaplanowane</span>{% endif %}
                 </td>
                 <td>
@@ -85,11 +96,11 @@
                             <form action="/przesun_zlecenie/{{ p[0] }}/dol?data={{ wybrana_data }}" method="POST"><button type="submit" class="btn-icon">⬇</button></form>
                             <form action="/usun_plan/{{ p[0] }}" method="POST" onsubmit="return confirm('Usunąć?')">
                                 <input type="hidden" name="widok_powrotu" value="planista"><input type="hidden" name="data_powrotu" value="{{ wybrana_data }}">
-                                <button type="submit" class="btn-icon" style="color:red;">✖</button>
+                                <button type="submit" class="btn-icon text-danger-color">✖</button>
                             </form>
-                            <button type="button" onclick="openMoveModal({{ p[0] }}, '{{ p[2] }}')" class="btn-icon" style="color:#3498db;">📅</button>
+                            <button type="button" onclick="openMoveModal({{ p[0] }}, '{{ p[2] }}')" class="btn-icon text-primary">📅</button>
                         {% else %}
-                            <span style="color:#ccc; font-size:1.2em;" title="Zablokowane">🔒</span>
+                            <span class="text-muted fs-120" title="Zablokowane">🔒</span>
                         {% endif %}
                     </div>
                 </td>
@@ -97,8 +108,8 @@
             
             {% if palety_mapa[p[0]] %}
             <tr id="details-{{ p[0] }}" class="details-row">
-                <td colspan="8" style="padding:0;">
-                    <div style="padding:10px 50px;">
+                <td colspan="8" class="p-0">
+                    <div class="p-10">
                         <table class="small-table">
                             <thead><tr><th>Nr</th><th>Godzina</th><th>Netto</th><th>Brutto</th><th>Tara</th></tr></thead>
                             <tbody>
@@ -113,42 +124,42 @@
                 </td>
             </tr>
             {% endif %}
-            {% else %}<tr><td colspan="8" style="text-align:center; padding:20px;">Brak planu.</td></tr>{% endfor %}
+            {% else %}<tr><td colspan="8" class="text-center p-20">Brak planu.</td></tr>{% endfor %}
         </tbody>
     </table>
 </div>
 
-<div id="modalDodaj" class="modal-popup" style="display:none;">
+<div id="modalDodaj" class="modal-popup hidden">
     <h3>➕ Dodaj Zlecenie</h3>
-    <form action="/dodaj_plan_zaawansowany" method="POST" class="d-flex" style="flex-direction:column; gap:10px;">
+    <form action="/dodaj_plan_zaawansowany" method="POST" class="d-flex flex-column gap-10">
         <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
         <input type="hidden" name="sekcja" value="Zasyp">
         <label>Typ:</label>
-        <select name="typ_produkcji" class="input-sm">
+        <select name="typ_produkcji" class="input-sm" title="Typ produkcji" aria-label="Typ produkcji">
             <option value="standard">Standard (25kg)</option>
             <option value="bigbag">Big Bag</option>
             <option value="szycie">Szycie</option>
         </select>
         <label>Produkt:</label>
-        <input type="text" name="produkt" required placeholder="np. Ekogroszek" class="input-sm">
+            <input type="text" name="produkt" required placeholder="np. Ekogroszek" class="input-sm" aria-label="Produkt">
         <label>Ilość (kg):</label>
-        <input type="number" step="1" name="tonaz" required placeholder="np. 24000" class="input-sm">
-        <div class="d-flex" style="gap:10px; margin-top:10px;">
-            <button type="submit" class="btn-action btn-action-success" style="flex:1;">ZAPISZ</button>
-            <button type="button" onclick="document.getElementById('modalDodaj').style.display='none'" class="btn-action btn-action-cancel" style="flex:1;">ANULUJ</button>
+            <input type="number" step="1" name="tonaz" required placeholder="np. 24000" class="input-sm" aria-label="Tonaż planu">
+        <div class="d-flex gap-10">
+            <button type="submit" class="btn-action btn-action-success flex-1">ZAPISZ</button>
+            <button type="button" onclick="document.getElementById('modalDodaj').classList.add('hidden')" class="btn-action btn-action-cancel flex-1">ANULUJ</button>
         </div>
     </form>
 </div>
 
-<div id="modalMove" class="modal-popup" style="display:none;">
+<div id="modalMove" class="modal-popup hidden">
     <h3>📅 Przenieść?</h3>
-    <p id="moveProduktName" style="font-weight:bold;"></p>
-    <form action="" id="formMove" method="POST" class="d-flex" style="flex-direction:column; gap:10px;">
+    <p id="moveProduktName" class="font-bold"></p>
+    <form action="" id="formMove" method="POST" class="d-flex flex-column gap-10">
         <label>Data:</label>
-        <input type="date" name="nowa_data" required class="input-sm">
-        <div class="d-flex" style="gap:10px;">
-            <button type="submit" class="btn-action btn-action-success" style="flex:1;">PRZENIEŚ</button>
-            <button type="button" onclick="document.getElementById('modalMove').style.display='none'" class="btn-action btn-action-cancel" style="flex:1;">ANULUJ</button>
+            <input type="date" name="nowa_data" required class="input-sm" aria-label="Nowa data">
+        <div class="d-flex gap-10">
+            <button type="submit" class="btn-action btn-action-success flex-1">PRZENIEŚ</button>
+            <button type="button" onclick="document.getElementById('modalMove').classList.add('hidden')" class="btn-action btn-action-cancel flex-1">ANULUJ</button>
         </div>
     </form>
 </div>
@@ -157,6 +168,45 @@
     function toggleDetails(id) { var row = document.getElementById('details-' + id); row.style.display = (row.style.display === 'none') ? 'table-row' : 'none'; }
     function openMoveModal(id, nazwa) { document.getElementById('modalMove').style.display = 'flex'; document.getElementById('moveProduktName').innerText = nazwa; document.getElementById('formMove').action = "/przenies_zlecenie/" + id; }
 </script>
+
+
+<!-- Modal: Szczegóły zleceń jakościowych -->
+<div id="modalJakosc" class="modal-popup hidden">
+        <h3>🔬 Zlecenia zgłoszone przez laboratorium - {{ wybrana_data }}</h3>
+        {% if quality_orders and quality_orders|length > 0 %}
+        <div class="max-h-60vh">
+            <table class="small-table">
+                <thead><tr><th>ID</th><th>Produkt</th><th>Tonaż</th><th>Sekcja</th><th>Status</th><th>Akcje</th></tr></thead>
+                <tbody>
+                {% for q in quality_orders %}
+                    <tr>
+                        <td>{{ q[0] }}</td>
+                        <td>{{ q[1] }}</td>
+                        <td>{{ q[2] or '-' }}</td>
+                        <td>{{ q[3] }}</td>
+                        <td>{{ q[4] }}</td>
+                        <td>
+                            <div class="d-flex gap-6">
+                                <a href="{{ url_for('jakosc_detail', plan_id=q[0]) }}" class="btn-action btn-primary">Szczegóły</a>
+                                <form action="{{ url_for('api.jakosc_dodaj_do_planow', id=q[0]) }}" method="POST" class="inline-form">
+                                    <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
+                                    <input type="hidden" name="data_powrot" value="{{ wybrana_data }}">
+                                    <button type="submit" class="btn-action btn-action-success">Dodaj do planu</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+            <div class="text-muted">Brak zgłoszeń jakościowych dla wybranej daty.</div>
+        {% endif %}
+        <div class="d-flex gap-8 mb-10">
+            <button type="button" onclick="document.getElementById('modalJakosc').classList.add('hidden')" class="btn-action btn-action-cancel">Zamknij</button>
+        </div>
+</div>
 
  
 {% endblock %}
