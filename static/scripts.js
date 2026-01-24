@@ -100,6 +100,44 @@
             poleTekstowe.addEventListener('input', aktualizujWalidacje);
             aktualizujWalidacje();
         }
+
+        // --- Responsive sidebar (hamburger + overlay) ---
+        const hamburger = document.getElementById('hamburgerBtn');
+        const overlay = document.getElementById('sidebarOverlay');
+        const sidebar = document.getElementById('appSidebar');
+
+        function openSidebar() {
+            document.body.classList.add('sidebar-open');
+            if (hamburger) hamburger.setAttribute('aria-expanded', 'true');
+            if (sidebar) sidebar.setAttribute('aria-hidden', 'false');
+            if (overlay) overlay.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeSidebar() {
+            document.body.classList.remove('sidebar-open');
+            if (hamburger) hamburger.setAttribute('aria-expanded', 'false');
+            if (sidebar) sidebar.setAttribute('aria-hidden', 'true');
+            if (overlay) overlay.setAttribute('aria-hidden', 'true');
+        }
+
+        if (hamburger) {
+            hamburger.addEventListener('click', function (e) {
+                const open = document.body.classList.contains('sidebar-open');
+                if (open) closeSidebar(); else openSidebar();
+            });
+        }
+        if (overlay) {
+            overlay.addEventListener('click', function () { closeSidebar(); });
+        }
+        // close on Esc
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeSidebar();
+        });
+
+        // close sidebar automatically when window resized to large screens
+        window.addEventListener('resize', function () {
+            if (window.innerWidth > 900) closeSidebar();
+        });
     });
 
     // Auto-refresh: odśwież gdy nikt nic nie wpisuje przez określony czas

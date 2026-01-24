@@ -4,12 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>System Produkcyjny</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
     <div class="top-bar">
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false" onclick="document.body.classList.toggle('sidebar-open'); this.setAttribute('aria-expanded', document.body.classList.contains('sidebar-open'))">
+            <span class="material-icons">menu</span>
+        </button>
         <div class="d-flex align-center gap-15">
             <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-sm" onerror="this.onerror=null;this.src='https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';">
             <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
@@ -39,7 +43,8 @@
     </div>
 
     <div class="app-layout">
-        <aside class="sidebar">
+        <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+        <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
             <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
             <nav class="sidebar-nav">
                     {% if session.get('rola') in ['produkcja','lider','admin','zarzad','pracownik'] %}
@@ -59,7 +64,7 @@
             </div>
         </aside>
 
-        <main class="main-content">
+        <main class="main-content" id="mainContent">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-container">
@@ -76,5 +81,6 @@
         </main>
     </div>
 
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
 </body>
 </html>
