@@ -113,7 +113,7 @@
                 <td>
                     <strong class="{% if p[7] > 0 %}text-success{% else %}text-muted{% endif %}">{{ p[7]|int }} kg</strong>
                     {% if palety_mapa[p[0]] %}
-                        <button type="button" onclick="toggleDetails({{ p[0] }})" class="btn-toggle ml-5">
+                        <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
                             📦 {{ palety_mapa[p[0]]|length }} szt. ▼
                         </button>
                     {% endif %}
