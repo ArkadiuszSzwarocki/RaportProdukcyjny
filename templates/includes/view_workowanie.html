@@ -17,13 +17,15 @@
                     
                     <div class="p-10 panel-white-border max-h-60vh mb-15">
                         <small class="text-muted">Ostatnie palety:</small>
-                        <ul class="list-compact">{%- if palety_mapa[p[0]] %}
-                            {%- for pal in palety_mapa[p[0]] %}
+                        <ul class="list-compact">
+                        {% if palety_mapa[p[0]] %}
+                            {% for pal in palety_mapa[p[0]] %}
                                 <li>{{ pal[1] }} - <strong>{{ pal[0] | int }} kg</strong></li>
-                            {%- endfor %}
-                        {%- else %}
+                            {% endfor %}
+                        {% else %}
                             <li>Brak palet</li>
-                        {%- endif %}</ul>
+                        {% endif %}
+                        </ul>
                     </div>
                 </div>
 

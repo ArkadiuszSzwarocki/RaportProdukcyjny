@@ -24,4 +24,4 @@ jobs:
 
       - name: Run cspell
         run: |
-          cspell --config .cspell.json "**/*" 
+          cspell --config .cspell.json "**/*"

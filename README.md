@@ -180,7 +180,9 @@ System pozwala na oznaczanie przerw w produkcji jako "PRZEJŚCIE / ZMIANA" z aut
 ## 🐛 Rozwiązywanie Problemów
 
 ### Błąd połączenia z bazą
+
 Sprawdź:
+
 - Czy serwer MySQL jest uruchomiony
 - Poprawność danych w `db_config`
 - Czy baza `biblioteka` została utworzona
