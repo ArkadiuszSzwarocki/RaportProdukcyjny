@@ -1,0 +1,41 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="page-header">
+    <h1>⚠️ Zgłoś Problem / Usterkę</h1>
+</div>
+
+<div class="section-box p-20">
+    <form action="{{ url_for('api.dodaj_wpis') }}" method="POST" class="d-flex flex-column gap-15 max-width-700">
+        <label for="sekcja">Sekcja:</label>
+        <select id="sekcja" name="sekcja" required class="input-sm">
+            <option value="Zasyp">Zasyp</option>
+            <option value="Workowanie">Workowanie</option>
+            <option value="Magazyn">Magazyn</option>
+            <option value="Inne">Inne</option>
+        </select>
+
+        <label for="kategoria">Typ Zdarzenia:</label>
+        <select id="kategoria" name="kategoria" required class="input-sm">
+            <option value="">-- Wybierz --</option>
+            <option value="Przezbrojenie">Przezbrojenie</option>
+            <option value="Awaria">Awaria Maszyny</option>
+            <option value="Brak Surowca">Brak Surowca</option>
+            <option value="Przerwa">Przerwa</option>
+            <option value="Inne">Inne</option>
+        </select>
+
+        <label for="czas_start">Czas wystąpienia:</label>
+        <input id="czas_start" type="time" name="czas_start" value="{{ now_time if now_time is defined else '' }}" class="input-sm" title="Czas wystąpienia" placeholder="HH:MM">
+
+        <label>Opis (opcjonalnie):</label>
+        <textarea name="problem" rows="6" class="input-sm" placeholder="Opisz problem"></textarea>
+
+        <div class="d-flex gap-10">
+            <button type="submit" class="btn-action btn-warning">ZGŁOŚ</button>
+            <a href="/" class="btn-action btn-cancel">ANULUJ</a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
