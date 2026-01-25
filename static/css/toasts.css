@@ -1,0 +1,7 @@
+/* Shared toast/snackbar styles */
+#toastContainer { position: fixed; right: 16px; bottom: 16px; z-index: 1200; }
+.toast { background:#222; color:#fff; padding:8px 12px; margin-top:8px; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); opacity:0.98; }
+.toast.success { background: #28a745; }
+.toast.warning { background: #ff9800; }
+.toast.danger { background: #dc3545; }
+.toast.info { background: #17a2b8; }

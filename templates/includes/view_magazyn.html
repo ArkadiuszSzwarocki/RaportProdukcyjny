@@ -10,7 +10,7 @@
     {% if rola in ['produkcja', 'lider', 'admin'] %}
      <hr class="custom-hr">
      <h4>+ Dodaj Zadanie dla Magazynu</h4>
-    <form action="/dodaj_plan" method="POST" class="form-flex">
+    <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="form-flex">
         <input type="date" name="data_planu" title="Data planu" value="{{ dzisiaj }}" required class="input-sm" aria-label="Data planu">
         <input type="text" name="produkt" title="Treść zadania / Produkt" placeholder="Treść zadania / Produkt" required class="select-flex" aria-label="Produkt">
         <input type="number" step="0.1" name="tonaz" title="Ilość" placeholder="Ilość" required class="input-sm w-80" aria-label="Ilość">

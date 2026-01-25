@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+
+{% block title %}DUR - Awarie{% endblock %}
+
+{% block content %}
+<div style="padding: 20px; max-width: 1400px; margin: 0 auto;">
+  <h1 style="color: #2c3e50; margin-bottom: 30px;">⚠️ Awarie i Przestoje - Zatwierdzanie</h1>
+  
+  {% if awarie %}
+    {% for awaria in awarie %}
+    <div style="margin-bottom: 30px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+      <!-- NAGŁÓWEK AWARII -->
+      <div style="padding: 15px; background: {% if awaria.status == 'roboczy' %}#fff3cd{% elif awaria.status == 'zatwierdzone' %}#d4edda{% else %}#f8d7da{% endif %}; border-left: 5px solid {% if awaria.status == 'roboczy' %}#ffc107{% elif awaria.status == 'zatwierdzone' %}#28a745{% else %}#dc3545{% endif %};">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; margin-bottom: 10px;">
+          <div>
+            <strong>Data:</strong> {{ awaria.data_wpisu }}<br>
+            <strong>Sekcja:</strong> {{ awaria.sekcja }}
+          </div>
+          <div>
+            <strong>Kategoria:</strong> {{ awaria.kategoria }}<br>
+            <strong>Raportował:</strong> {{ awaria.pracownik_name }}
+          </div>
+          <div>
+            <strong>Start:</strong> {{ awaria.czas_start_str }}<br>
+            <strong>Stop:</strong> {{ awaria.czas_stop_str }}
+          </div>
+          <div>
+            <strong>Status:</strong>
+            {% if awaria.status == 'roboczy' %}
+              <span style="padding: 4px 8px; border-radius: 4px; background: #ffc107; color: #000; font-weight: bold;">Robocze</span>
+            {% elif awaria.status == 'zatwierdzone' %}
+              <span style="padding: 4px 8px; border-radius: 4px; background: #28a745; color: white; font-weight: bold;">✓ Zatwierdzone</span>
+            {% elif awaria.status == 'odrzucone' %}
+              <span style="padding: 4px 8px; border-radius: 4px; background: #dc3545; color: white; font-weight: bold;">✗ Odrzucone</span>
+            {% endif %}
+          </div>
+        </div>
+        <div style="padding: 10px; background: rgba(0,0,0,0.05); border-radius: 4px;">
+          <strong>Problem:</strong><br>
+          {{ awaria.problem }}
+        </div>
+      </div>
+      
+      <!-- KOMENTARZE -->
+      {% if awaria.komentarze %}
+      <div style="padding: 15px; background: #f9f9f9; border-top: 1px solid #ddd;">
+        <h4 style="margin: 0 0 15px 0; color: #2c3e50;">💬 Komentarze ({{ awaria.komentarze|length }})</h4>
+        {% for kom in awaria.komentarze %}
+        <div style="padding: 10px; background: white; border-left: 3px solid #2c3e50; margin-bottom: 10px; border-radius: 4px;">
+          <small style="color: #666; display: block; margin-bottom: 5px;">
+            <strong>{{ kom.imie_nazwisko or 'Anonimowy' }}</strong> - {{ kom.created_at.strftime('%Y-%m-%d %H:%M:%S') if kom.created_at else 'N/A' }}
+          </small>
+          <p style="margin: 0; padding: 0;">{{ kom.tresc }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      
+      <!-- FORMULARZ AKCJI -->
+      <div style="padding: 15px; background: #f0f0f0; border-top: 1px solid #ddd;">
+        <form method="POST" action="{{ url_for('dur_zatwierdz_awarię', awaria_id=awaria.id) }}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; align-items: flex-end;">
+          
+          <!-- Pole czasu zakończenia -->
+          <div>
+            <label style="display: block; font-weight: bold; margin-bottom: 5px; font-size: 12px;">
+              ⏰ Czas zakończenia (opcjonalnie)
+            </label>
+            <input type="time" name="czas_stop" value="{{ awaria.czas_stop_str if awaria.czas_stop_str != '??:??' else '' }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; font-size: 14px;">
+          </div>
+          
+          <!-- Pole komentarza -->
+          <div>
+            <label style="display: block; font-weight: bold; margin-bottom: 5px; font-size: 12px;">
+              📝 Twój komentarz (opcjonalnie)
+            </label>
+            <input type="text" name="komentarz" placeholder="np. Naprawa ukończona..." style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; font-size: 14px;">
+          </div>
+          
+          <!-- Przyciski akcji -->
+          <div style="display: flex; gap: 8px;">
+            <!-- Zatwierdź -->
+            <button type="submit" name="status" value="zatwierdzone" style="flex: 1; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s;">
+              ✓ Zatwierdź
+            </button>
+            
+            <!-- Odrzuć -->
+            <button type="submit" name="status" value="odrzucone" style="flex: 1; padding: 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s;">
+              ✗ Odrzuć
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+    
+    <div style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 4px; font-size: 14px;">
+      <p><strong>Razem awarii:</strong> {{ awarie|length }}</p>
+      <p><strong>Roboczych:</strong> {{ awarie|selectattr('status', 'equalto', 'roboczy')|list|length }}</p>
+      <p><strong>Zatwierdzonych:</strong> {{ awarie|selectattr('status', 'equalto', 'zatwierdzone')|list|length }}</p>
+      <p><strong>Odrzuconych:</strong> {{ awarie|selectattr('status', 'equalto', 'odrzucone')|list|length }}</p>
+    </div>
+  {% else %}
+    <div style="padding: 40px; text-align: center; background: #f8f9fa; border-radius: 4px;">
+      <h3 style="color: #6c757d;">Brak awarii w ostatnich 30 dniach</h3>
+      <p style="color: #999;">Wszystkie systemy działają bez problemów! 🎉</p>
+    </div>
+  {% endif %}
+</div>
+
+<style>
+  input[type="time"],
+  input[type="text"] {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+  
+  button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  
+  form {
+    margin: 0;
+  }
+</style>
+{% endblock %}

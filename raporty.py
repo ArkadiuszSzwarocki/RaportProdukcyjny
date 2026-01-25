@@ -14,7 +14,7 @@ def format_godziny(wartosc):
         h = int(val)
         m = int(round((val - h) * 60))
         return f"{h}h {m}m"
-    except:
+    except Exception:
         return f"{wartosc}h"
 
 def polskie_znaki_pdf(text):
@@ -76,22 +76,27 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
 
     # --- NAGŁÓWEK ---
     pdf.set_font("Arial", 'B', 18)
-    pdf.set_fill_color(41, 128, 185); pdf.set_text_color(255, 255, 255)
+    pdf.set_fill_color(41, 128, 185)
+    pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 16, txt=polskie_znaki_pdf(f"RAPORT ZMIANY: {dzisiaj}"), ln=1, align='C', fill=True)
     pdf.ln(2)
     
     # --- INFO LIDER ---
-    pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", size=10); pdf.ln(5)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", size=10)
+    pdf.ln(5)
     pdf.cell(0, 8, txt=polskie_znaki_pdf(f"Lider Zmiany: {lider}"), ln=1)
     
-    # --- UWAGI ---
+    # --- NOTATKI ZMIANOWE ---
     pdf.set_fill_color(240, 240, 240)
     # Tutaj też używamy bezpiecznej funkcji
-    pdf.multi_cell(0, 8, txt=polskie_znaki_pdf(f"UWAGI:\n{uwagi}"), fill=True)
+    pdf.multi_cell(0, 8, txt=polskie_znaki_pdf(f"NOTATKI ZMIANOWE:\n{uwagi}"), fill=True)
     pdf.ln(5)
 
     # --- TABELA PRODUKCJA (grupowana po produkcie) ---
-    pdf.set_font("Arial", 'B', 14); pdf.set_fill_color(41, 128, 185); pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_fill_color(41, 128, 185)
+    pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 10, "PRODUKCJA", ln=1, fill=True)
     pdf.ln(3)
 
@@ -135,7 +140,9 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
     pdf.set_font("Arial", size=9)
     # pomocnik do rysowania naglowka kontynuacji przy nowej stronie
     def _print_produkcja_continued():
-        pdf.set_font("Arial", 'B', 11); pdf.set_fill_color(41, 128, 185); pdf.set_text_color(255,255,255)
+        pdf.set_font("Arial", 'B', 11)
+        pdf.set_fill_color(41, 128, 185)
+        pdf.set_text_color(255,255,255)
         pdf.cell(0, 8, "PRODUKCJA (cd.)", ln=1, fill=True)
         pdf.ln(2)
 
@@ -150,11 +157,14 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
             pdf.add_page()
             _print_produkcja_continued()
 
-        pdf.set_fill_color(230, 230, 230); pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", 'B', 12)
+        pdf.set_fill_color(230, 230, 230)
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_font("Arial", 'B', 12)
         # pozwól by nazwa produktu zawierała długi tekst - użyj multi_cell jeśli za długa
         prod_name = polskie_znaki_pdf(str(prod_map.get(prod, {}).get('_display', prod)))
         # jeśli nazwa mieści się w szerokości, rysuj normalnie, inaczej użyj multi_cell
-        curr_x = pdf.get_x(); curr_y = pdf.get_y()
+        curr_x = pdf.get_x()
+        curr_y = pdf.get_y()
         max_w = pdf.w - pdf.l_margin - pdf.r_margin
         # estimate text width
         if pdf.get_string_width(prod_name) < max_w - 4:
@@ -163,7 +173,9 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
             pdf.multi_cell(0, 6, prod_name, fill=True)
 
         # Nagłówki kolumn dla bloku produktu
-        pdf.set_font("Arial", 'B', 10); pdf.set_fill_color(230, 230, 230); pdf.set_text_color(0,0,0)
+        pdf.set_font("Arial", 'B', 10)
+        pdf.set_fill_color(230, 230, 230)
+        pdf.set_text_color(0,0,0)
         # ustawione szerokości kolumn: Sekcja (50), Plan (65), Wykonanie (65)
         col_w = (50, 65, 65)
         pdf.cell(col_w[0], 8, "Sekcja", 1, 0, 'C', True)
@@ -240,14 +252,18 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
         pdf.ln(4)
 
     # --- TABELA AWARIE ---
-    pdf.set_font("Arial", 'B', 12); pdf.set_fill_color(192, 57, 43); pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(192, 57, 43)
+    pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 8, "AWARIE I POSTOJE", ln=1, fill=True)
     
-    pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", size=9)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", size=9)
     if not awarie_rows:
         pdf.cell(0, 8, "Brak zgloszen.", 1, 1)
     else:
-        pdf.set_fill_color(220, 220, 220); pdf.set_font("Arial", 'B', 9)
+        pdf.set_fill_color(220, 220, 220)
+        pdf.set_font("Arial", 'B', 9)
         pdf.cell(35, 7, "Sekcja/Kat.", 1, 0, 'L', True)
         pdf.cell(90, 7, "Opis Problemu", 1, 0, 'L', True)
         pdf.cell(40, 7, "Czas", 1, 0, 'C', True)
@@ -269,14 +285,18 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
     pdf.ln(5)
 
     # --- TABELA HR ---
-    pdf.set_font("Arial", 'B', 12); pdf.set_fill_color(39, 174, 96); pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(39, 174, 96)
+    pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 8, "KADRY (HR)", ln=1, fill=True)
     
-    pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", size=9)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", size=9)
     if not hr_rows:
         pdf.cell(0, 8, "Wszyscy obecni.", 1, 1)
     else:
-        pdf.set_fill_color(220, 220, 220); pdf.set_font("Arial", 'B', 9)
+        pdf.set_fill_color(220, 220, 220)
+        pdf.set_font("Arial", 'B', 9)
         pdf.cell(70, 7, "Pracownik", 1, 0, 'L', True)
         pdf.cell(60, 7, "Typ", 1, 0, 'L', True)
         pdf.cell(60, 7, "Czas", 1, 1, 'C', True)

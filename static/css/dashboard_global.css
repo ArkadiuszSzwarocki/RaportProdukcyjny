@@ -1,0 +1,7 @@
+/* Minimal styles for global dashboard */
+.table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+.table th, .table td { border: 1px solid #ddd; padding: 8px; }
+.table th { background: #f5f5f5; }
+section { margin-bottom: 1.5rem; padding: 0.5rem; border: 1px solid #eee; }
+form label { display: inline-block; margin-right: 1rem; }
+button { padding: 6px 10px; }

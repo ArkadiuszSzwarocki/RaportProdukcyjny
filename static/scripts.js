@@ -3,6 +3,8 @@
 (function () {
     'use strict';
 
+    
+
     // --- Stałe konfiguracyjne ---
     const REFRESH_INTERVAL_MS = 60_000; // Auto-odświeżanie co 60s
     const MIN_VALID_CHARS = 50; // Walidacja opisu awarii
@@ -88,6 +90,22 @@
         });
     }
 
+    // --- Ochrona przed auto-reloadem po ustawieniu skip_open_stop ---
+    function skipOpenStopActive() {
+        try {
+            const v = sessionStorage.getItem('skip_open_stop');
+            if (v !== '1') return false;
+            const key = 'skip_open_stop_ts';
+            const now = Date.now();
+            const ts = parseInt(sessionStorage.getItem(key) || '0', 10);
+            if (!ts) { sessionStorage.setItem(key, String(now)); return true; }
+            // zachowaj odstęp ochronny 5s od momentu pierwszego zauważenia flagi
+            return (now - ts) < 5000;
+        } catch (e) {
+            return false;
+        }
+    }
+
     // --- INICJALIZACJA ---
     document.addEventListener('DOMContentLoaded', function () {
         // Uruchomienie mechanizmu scrolla
@@ -143,7 +161,7 @@
     // Auto-refresh: odśwież gdy nikt nic nie wpisuje przez określony czas
     setInterval(function () {
         const aktywne = document.querySelectorAll('input:focus, textarea:focus, select:focus');
-        if (aktywne.length === 0) window.location.reload();
+        if (aktywne.length === 0 && !skipOpenStopActive()) window.location.reload();
     }, REFRESH_INTERVAL_MS);
 
 })();

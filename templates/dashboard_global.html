@@ -1,0 +1,230 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_global.css') }}">
+
+<div class="dashboard-header">
+  <h1 class="dashboard-title">Dashboard</h1>
+</div>
+
+<section>
+  <h2>📋 Zatwierdzenia Wniosków</h2>
+  {% if wnioski_pending and (session.get('rola') in ['lider','admin']) %}
+    <table class="modern-table">
+      <thead><tr><th>👤 Pracownik</th><th>📁 Typ</th><th>📅 Zakres</th><th>⏱️ Czas</th><th>📤 Złożono</th><th>⚙️ Akcje</th></tr></thead>
+      <tbody id="wnioskiPendingBody">
+      {% for w in wnioski_pending %}
+        <tr data-id="{{ w.id }}">
+          <td>{{ w.pracownik }}</td>
+          <td>{{ w.typ }}</td>
+          <td>{{ w.data_od }}{% if w.data_do and w.data_do != w.data_od %} - {{ w.data_do }}{% endif %}</td>
+          <td>{{ w.czas_od or '' }} - {{ w.czas_do or '' }}</td>
+          <td>{{ w.zlozono }}</td>
+          <td>
+            <button class="wn-approve" data-id="{{ w.id }}">Zatwierdź</button>
+            <button class="wn-reject" data-id="{{ w.id }}">Odrzuć</button>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Brak oczekujących wniosków lub brak uprawnień.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Wpisz nieobecność</h2>
+  <form id="form_absence" action="{{ url_for('api.dodaj_obecnosc') }}" method="post">
+    <label>Pracownik: <select name="pracownik_id">
+      {% for p in wszyscy_pracownicy %}
+        <option value="{{ p[0] }}">{{ p[1] }}</option>
+      {% endfor %}
+    </select></label>
+    <label>Typ: <select id="abs_typ_select" name="typ"><option>Nieobecność</option><option>Urlop</option><option>Wyjscie prywatne</option></select></label>
+    <label>Godziny: <input type="text" name="godziny" value="0"></label>
+    <label>Komentarz: <input type="text" name="komentarz"></label>
+    <label id="abs_wyjscie_label_from" class="abs-wyjscie-label hidden">Wyjście od: <input type="time" id="abs_wyjscie_from" name="wyjscie_od"></label>
+    <label id="abs_wyjscie_label_to" class="abs-wyjscie-label hidden">Wyjście do: <input type="time" id="abs_wyjscie_to" name="wyjscie_do"></label>
+    <button type="submit">Zapisz nieobecność</button>
+  </form>
+</section>
+
+<section>
+  <h2>🏖️ Planowane Urlopy (Następne 60 Dni)</h2>
+  {% if planned_leaves %}
+    <table class="modern-table">
+      <thead><tr><th>👤 Pracownik</th><th>📁 Typ</th><th>📅 Zakres</th><th>📊 Status</th></tr></thead>
+      <tbody>
+      {% for pl in planned_leaves %}
+        <tr>
+          <td>{{ pl.pracownik }}</td>
+          <td>{{ pl.typ }}</td>
+          <td>{{ pl.data_od }}{% if pl.data_do and pl.data_do != pl.data_od %} - {{ pl.data_do }}{% endif %}</td>
+          <td>{{ pl.status }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Brak planowanych urlopów.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>❌ Ostatnie Nieobecności (30 Dni)</h2>
+  {% if recent_absences %}
+    <table class="modern-table">
+      <thead><tr><th>📅 Data</th><th>👤 Pracownik</th><th>📁 Typ</th><th>⏰ Godziny</th><th>💬 Komentarz</th></tr></thead>
+      <tbody>
+      {% for a in recent_absences %}
+        <tr>
+          <td>{{ a.data }}</td>
+          <td>{{ a.pracownik }}</td>
+          <td>{{ a.typ }}</td>
+          <td>{{ a.godziny }}</td>
+          <td>{{ a.komentarz }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Brak ostatnich nieobecności.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>📝 Notatki Zmiany</h2>
+  <form action="/add_shift_note" method="post" style="margin-bottom: 20px;" id="noteForm">
+    <label style="display: block; margin-bottom: 10px; font-weight: bold;">Notatka:</label>
+    <textarea name="note" required style="width:100%; min-height:350px; padding:15px; font-size:14px; border: 2px solid #333; border-radius: 4px; font-family: Arial, sans-serif; box-sizing: border-box;"></textarea>
+    <input type="hidden" name="date" value="{{ dzisiaj }}">
+    <input type="hidden" name="pracownik_id" value="{{ session.get('pracownik_id') or '' }}">
+    <button type="submit" style="margin-top: 10px; padding: 10px 20px; font-size: 14px; font-weight: bold; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Zapisz notatkę</button>
+  </form>
+
+  <div style="margin-top: 30px; border-top: 2px solid #ddd; padding-top: 20px;">
+    <h3>📌 Zapisane Notatki</h3>
+    {% if shift_notes %}
+      {% for n in shift_notes %}
+      <div style="background: #f9f9f9; padding: 15px; margin-bottom: 15px; border-left: 4px solid #4CAF50; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div style="flex-grow: 1;">
+            <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
+              <strong>📅 {{ n.date }}</strong> • <em>{{ n.author }}</em>
+            </div>
+            <div style="font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">{{ n.note }}</div>
+          </div>
+          {% if session.get('rola') in ['lider', 'admin'] and session.get('imie_nazwisko') == n.author or session.get('login') == n.author %}
+          <div style="margin-left: 15px; white-space: nowrap;">
+            <button class="note-edit-btn" data-id="{{ n.id }}" style="padding: 6px 12px; margin-right: 5px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ Edytuj</button>
+            <button class="note-delete-btn" data-id="{{ n.id }}" style="padding: 6px 12px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ Usuń</button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="color: #999; text-align: center; padding: 20px;">Brak notatek. Dodaj nową notatkę powyżej.</p>
+    {% endif %}
+  </div>
+</section>
+
+<!-- Przycisk Zakończ zmianę na dole - POWIĘKSZONY 4x -->
+{% if session.get('rola') in ['lider', 'admin'] %}
+<div style="text-align: center; margin-top: 40px; padding: 30px; border-top: 3px solid #ddd;">
+  <form method="POST" action="{{ url_for('api.zamknij_zmiane_global') }}" style="display: inline;">
+    <button 
+      type="submit" 
+      class="btn-action btn-success btn-end-shift" 
+      style="padding: 60px 120px; font-size: 64px; font-weight: bold; background-color: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+      🏁 Zakończ zmianę i pobierz raporty
+    </button>
+  </form>
+</div>
+{% endif %}
+
+<script>
+document.addEventListener('click', function(e){
+  if(e.target.classList.contains('wn-approve') || e.target.classList.contains('wn-reject')){
+    const id = e.target.getAttribute('data-id');
+    const action = e.target.classList.contains('wn-approve') ? 'approve' : 'reject';
+    fetch(`/api/wnioski/${id}/${action}`, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}})
+      .then(r=>r.json()).then(j=>{
+        if(j && j.success){
+          const tr = document.querySelector(`tr[data-id="${id}"]`);
+          if(tr) tr.remove();
+        } else {
+          alert((j && j.message) || 'Błąd');
+        }
+      }).catch(()=>alert('Błąd sieci'));
+  }
+});
+</script>
+
+<script>
+// Note form submission - no auto-refresh, let flash message show
+const noteForm = document.getElementById('noteForm');
+if(noteForm){
+  noteForm.addEventListener('submit', function(e) {
+    // Just submit normally, page will refresh after redirect
+  });
+}
+
+// Obsługa edycji i usuwania notatek
+document.addEventListener('click', function(e){
+  if(e.target.classList.contains('note-delete-btn')){
+    const id = e.target.getAttribute('data-id');
+    if(confirm('Czy na pewno chcesz usunąć tę notatkę?')){
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/api/shift_note/${id}/delete`;
+      document.body.appendChild(form);
+      form.submit();
+    }
+  }
+  if(e.target.classList.contains('note-edit-btn')){
+    const id = e.target.getAttribute('data-id');
+    const noteDiv = e.target.closest('div[style*="background: #f9f9f9"]');
+    const noteText = noteDiv.querySelector('div:last-of-type').innerText;
+    const newText = prompt('Edytuj notatkę:', noteText);
+    if(newText !== null && newText.trim() !== ''){
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/api/shift_note/${id}/update`;
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'note';
+      input.value = newText;
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
+    }
+  }
+});
+</script>
+
+<script>
+// Show/hide time inputs for Wyjscie prywatne in global dashboard absence form
+document.addEventListener('DOMContentLoaded', function(){
+  var sel = document.getElementById('abs_typ_select');
+  var fromLabel = document.getElementById('abs_wyjscie_label_from');
+  var toLabel = document.getElementById('abs_wyjscie_label_to');
+  function update(){
+    if(!sel) return;
+    if(sel.value === 'Wyjscie prywatne'){
+      fromLabel.classList.remove('hidden');
+      toLabel.classList.remove('hidden');
+      document.getElementById('abs_wyjscie_from').required = true;
+      document.getElementById('abs_wyjscie_to').required = true;
+    } else {
+      fromLabel.classList.add('hidden');
+      toLabel.classList.add('hidden');
+      try{ document.getElementById('abs_wyjscie_from').required = false; document.getElementById('abs_wyjscie_to').required = false; }catch(e){}
+    }
+  }
+  if(sel){ sel.addEventListener('change', update); update(); }
+});
+</script>
+
+{% endblock %}

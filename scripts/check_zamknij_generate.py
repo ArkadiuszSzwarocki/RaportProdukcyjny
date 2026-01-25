@@ -8,7 +8,8 @@ from app import app
 from datetime import date
 
 def insert_test_plan():
-    conn = get_db_connection(); cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     today = date.today()
     cursor.execute("INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status) VALUES (%s, %s, %s, %s, %s)", (today, 'Zasyp', 'TEST_PRODUKT', 100.0, 'w toku'))
     conn.commit()
@@ -40,12 +41,14 @@ def check_and_run():
     print('Files in raporty_temp:', files)
 
     # Check DB: last raporty_koncowe
-    conn = get_db_connection(); cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     cursor.execute("SELECT id, data_raportu, lider_uwagi FROM raporty_koncowe ORDER BY id DESC LIMIT 1")
     row = cursor.fetchone()
     print('Last raporty_koncowe row:', row)
     cursor.execute("SELECT id, status FROM plan_produkcji WHERE produkt=%s ORDER BY id DESC LIMIT 1", ('TEST_PRODUKT',))
-    p = cursor.fetchone(); print('Test plan row:', p)
+    p = cursor.fetchone()
+    print('Test plan row:', p)
     conn.close()
 
 
@@ -67,7 +70,8 @@ def cleanup_test_artifacts(test_product='TEST_PRODUKT', raport_uwagi='Automatycz
                 print('Nie udało się usunąć pliku', p, e)
 
     # Cleanup DB
-    conn = get_db_connection(); cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         cursor.execute("DELETE FROM plan_produkcji WHERE produkt=%s", (test_product,))
         cursor.execute("DELETE FROM raporty_koncowe WHERE lider_uwagi=%s AND data_raportu=%s", (raport_uwagi, date.today()))

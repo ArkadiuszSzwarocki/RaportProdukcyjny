@@ -16,8 +16,10 @@ def zarzad_panel():
     # Pomocnicza funkcja wewnętrzna
     def get_arg_int(key, default):
         val = request.args.get(key)
-        try: return int(val)
-        except: return default
+        try:
+            return int(val)
+        except Exception:
+            return default
 
     wybrany_rok = get_arg_int('rok', teraz.year)
     wybrany_miesiac = get_arg_int('miesiac', teraz.month)
@@ -37,7 +39,7 @@ def zarzad_panel():
     # Oblicz datę następną dla nawigacji
     try:
         next_date = (date.fromisoformat(str(wybrana_data)) + timedelta(days=1)).isoformat()
-    except:
+    except Exception:
         next_date = str((teraz + timedelta(days=1)).date())
 
     return render_template(

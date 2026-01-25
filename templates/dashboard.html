@@ -7,11 +7,6 @@
     <div class="section-header">
     <div><h2 class="header-title">Hala Produkcyjna: <strong>{{ sekcja }}</strong></h2><p class="text-muted m-0">{{ rola|upper }} | {{ dzisiaj }}</p></div>
     <div class="d-flex gap-10">
-        <button type="button" onclick="openModal('modalProblem')" class="btn btn-danger">⚠️ ZGŁOŚ</button>
-        
-        <a href="/?sekcja=Zasyp" class="btn {% if sekcja=='Zasyp' %}btn-primary{% else %}btn-outline{% endif %}">Zasyp</a>
-        <a href="/?sekcja=Workowanie" class="btn {% if sekcja=='Workowanie' %}btn-primary{% else %}btn-outline{% endif %}">Workowanie</a>
-        <a href="/?sekcja=Magazyn" class="btn {% if sekcja=='Magazyn' %}btn-primary{% else %}btn-outline{% endif %}">Magazyn</a>
     </div>
 </div>
 
@@ -49,6 +44,47 @@
         <div class="stat-card"><span class="label">Przyjęto Netto</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
         <div class="stat-card"><span class="label">Ilość Palet</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
     </div>
+    <div class="section-box mb-10">
+        <h4 class="m-0">📦 Palety do Zatwierdzenia</h4>
+        <div class="mt-10">
+                    {% if unconfirmed_palety and unconfirmed_palety|length > 0 %}
+                        <table class="modern-table small">
+                            <thead>
+                                <tr>
+                                    <th>Nr</th>
+                                    <th>📋 Produkt</th>
+                                    <th>⚖️ Waga</th>
+                                    <th>🕒 Dodana</th>
+                                    <th>⏱️ Czas</th>
+                                    <th>✅ Akcja</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                        {% for p in unconfirmed_palety %}
+                            <tr>
+                                <td class="text-muted font-bold">{{ p[4] if p[4] is not none else p[0] }}</td>
+                                <td><strong class="text-primary">{{ p[1] }}</strong></td>
+                                <td><strong class="text-success">{{ p[2] }}</strong></td>
+                                <td class="time-display">{{ p[3] }}</td>
+                                <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</span></td>
+                                <td>
+                                    <form action="{{ url_for('api.potwierdz_palete', paleta_id=p[0]) }}" method="POST" class="confirm-paleta-form inline-form">
+                                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                                        <button type="submit" class="btn-action btn-success btn-small">Zatwierdź</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <div class="text-muted text-center p-10">Brak palet oczekujących na zatwierdzenie.</div>
+                    {% endif %}
+        </div>
+    </div>
+    {% if rola in ['lider', 'admin'] %}
+    <!-- Przycisk wysyłania przypomnień usunięty. Potwierdzanie palet odbywa się przez sekcję 'Zatwierdź' w Magazyn. -->
+    {% endif %}
 {% else %}
     <div class="grid-auto-fit">
         <div class="stat-card"><span class="label">Plan</span><strong class="value">{{ suma_plan|int }} kg</strong></div>
@@ -61,7 +97,10 @@
 <div class="mb-20">
     {% for w in wpisy[:2] %}
         <div class="alert-warning d-flex justify-between align-center mb-5">
-            <span>⚠️ <strong>{{ w[3] }}</strong> [{{ w[5] }}]: {{ w[2] }}</span>
+            <div>
+                <span>⚠️ <strong>{{ w[3] }}</strong> [{{ w[5] }}]: {{ w[2] }}</span>
+                <div class="small text-muted">od {{ w[3] }}{% if w[4] %} — do {{ w[4] }}{% endif %}</div>
+            </div>
             {% if rola in ['lider', 'admin'] %}
                 <div class="d-flex gap-8 align-center">
                     <a href="{{ url_for('api.edytuj', id=w[0]) }}" title="Edytuj wpis" class="font-bold text-warning-dark no-underline">✎</a>
@@ -79,6 +118,15 @@
 {% set ns = namespace(is_active=false) %}
 {% for p in plan %}{% if p[3] == 'w toku' %}{% set ns.is_active = true %}{% endif %}{% endfor %}
 
+{# Defensive: prefer server-provided `hr_pracownicy`; fallback to full lists if not provided #}
+{% if hr_pracownicy is not defined %}
+    {% if wszyscy_pracownicy is defined %}
+        {% set hr_pracownicy = wszyscy_pracownicy %}
+    {% else %}
+        {% set hr_pracownicy = pracownicy %}
+    {% endif %}
+{% endif %}
+
     <div class="section-box p-0">
     <div class="p-15 p-15-bg">
         <h3 class="m-0 text-primary">📋 {% if sekcja=='Magazyn' %}Rejestr Przyjęć{% else %}Kolejka Produkcyjna{% endif %}</h3>
@@ -92,22 +140,34 @@
         </div>
     </div>
     {% endif %}
+        
 
     <table class="modern-table">
         <thead>
             <tr>
-                <th>#</th><th>Produkt</th><th>Plan (kg)</th><th>Czas Pracy</th><th>Status</th><th>Realizacja</th><th class="text-right">Akcje</th>
+                <th>#</th><th>📦 Produkt</th><th>📋 Plan</th><th>🕒 Czas Pracy</th><th>📊 Status</th><th>✅ Realizacja</th><th class="text-right">⚙️ Akcje</th>
             </tr>
         </thead>
         <tbody>
         {% for p in plan %}
             <tr class="row-{{ p[3]|replace(' ', '') }}">
-                <td class="text-muted">{{ loop.index }}</td>
-                <td><strong class="text-primary">{{ p[1] }}</strong><div class="small text-muted">{{ p[9]|upper }}</div></td>
-                <td><strong>{{ p[2]|int }} kg</strong></td>
+                <td class="text-muted font-bold">{{ loop.index }}</td>
+                <td>
+                    <strong class="text-primary">{{ p[1] }}</strong>
+                    <div class="small badge-sekcja">{{ p[9]|upper }}</div>
+                </td>
+                <td>
+                    <strong class="text-success">{{ p[2]|int }} kg</strong>
+                </td>
                 <td class="small">
-                    {% if p[4] %}<div class="text-success">Start: {{ p[4] }}</div>{% endif %}
-                    {% if p[5] %}<div class="text-danger-color">Stop: {{ p[5] }}</div>{% endif %}
+                    {% if p[4] %}<div class="time-display">🟢 {{ p[4] }}</div>{% endif %}
+                    {% if p[5] %}<div class="time-display text-danger-color">🔴 {{ p[5] }}</div>{% endif %}
+                    {% if p[6] is not none and p[6] > 0 %}
+                        {% set mins = p[6] %}
+                        {% set h = (mins // 60) %}
+                        {% set m = mins % 60 %}
+                        <div class="duration-badge">⏱️ {% if h > 0 %}{{ h }}h {% endif %}{{ m }}m</div>
+                    {% endif %}
                 </td>
                 <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
                 <td>
@@ -126,9 +186,15 @@
                             {% else %}<form action="{{ url_for('api.start_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>{% endif %}
                         {% elif p[3] == 'w toku' %}
                             <div class="d-flex gap-5 justify-end">
-                                {% if sekcja == 'Workowanie' %}<button type="button" onclick="openModal('paleta-{{ p[0] }}')" class="btn-action btn-purple">{% if p[9] == 'bigbag' %}+ BIGBAG{% else %}+ PALETA{% endif %}</button>{% endif %}
-                                {% if sekcja == 'Zasyp' %}<button type="button" onclick="openModal('stop-zasyp-{{ p[0] }}')" class="btn-action btn-stop">STOP</button>
-                                {% else %}<form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-stop">STOP</button></form>{% endif %}
+                                {% if sekcja == 'Workowanie' %}
+                                    <button type="button" onclick="openModal('paleta-{{ p[0] }}')" class="btn-action btn-purple">{% if p[9] == 'bigbag' %}+ BIGBAG{% else %}+ PALETA{% endif %}</button>
+                                {% endif %}
+                                {% if sekcja == 'Zasyp' %}
+                                    <button type="button" onclick="openModal('szarza-{{ p[0] }}')" class="btn-action btn-green">+ SZARŻA</button>
+                                    <button type="button" onclick="openModal('stop-zasyp-{{ p[0] }}')" class="btn-action btn-stop">STOP</button>
+                                {% else %}
+                                    <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-stop">STOP</button></form>
+                                {% endif %}
                             </div>
                             <div id="paleta-{{ p[0] }}" class="modal-popup">
                                 <h4 class="m-0 text-zarzad">{% if p[9] == 'bigbag' %}📦 Nowy BigBag{% else %}📦 Nowa Paleta{% endif %}</h4>
@@ -139,6 +205,16 @@
                                     <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">DODAJ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
                                 </form>
                             </div>
+                                <div id="szarza-{{ p[0] }}" class="modal-popup">
+                                    <h4 class="m-0 text-zarzad">📦 Nowa Szarża (Zasyp)</h4>
+                                    <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" class="d-flex flex-column gap-10">
+                                        <input type="hidden" name="sekcja" value="Zasyp">
+                                        <input type="hidden" name="typ_produkcji" value="{{ p[9] }}">
+                                        <label>Waga Szarży (Netto) [kg]:</label>
+                                        <input type="number" step="1" name="waga_palety" value="1000" class="input-sm font-bold" aria-label="Waga szarży (Netto) [kg]">
+                                        <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">DODAJ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                    </form>
+                                </div>
                             <div id="stop-zasyp-{{ p[0] }}" class="modal-popup">
                                 <h4 class="m-0 text-danger-color">🛑 Zatrzymaj (Zasyp)</h4>
                                 <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST" class="d-flex flex-column gap-10">
@@ -146,6 +222,15 @@
                                     <div class="d-flex gap-10"><button type="submit" class="btn-action btn-stop flex-1">ZATWIERDŹ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
                                 </form>
                             </div>
+                            {% if sekcja != 'Zasyp' %}
+                            <div id="stop-{{ p[0] }}" class="modal-popup">
+                                <h4 class="m-0 text-danger-color">🛑 Zatrzymaj</h4>
+                                <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST" class="d-flex flex-column gap-10">
+                                    <input type="hidden" name="sekcja" value="{{ sekcja }}"><label>Zużycie (kg):</label><input type="number" step="1" name="final_tonaz" value="{{ p[7]|int if p[7] else '' }}" required class="input-sm font-bold" aria-label="Zużycie (kg)">
+                                    <div class="d-flex gap-10"><button type="submit" class="btn-action btn-stop flex-1">ZATWIERDŹ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                </form>
+                            </div>
+                            {% endif %}
                         {% elif p[3] == 'zakonczone' %}
                                     <div class="d-flex align-center justify-end gap-10">
                                 <span class="material-icons text-success">check_circle</span>
@@ -167,20 +252,22 @@
                     {% endif %}
                 </td>
             </tr>
-            {% if palety_mapa[p[0]] and (sekcja == 'Workowanie' or sekcja == 'Magazyn') %}
+            {% if palety_mapa[p[0]] and (sekcja == 'Workowanie' or sekcja == 'Magazyn' or sekcja == 'Zasyp') %}
             <tr id="details-{{ p[0] }}" class="details-row">
                 <td colspan="7" class="p-0">
                     <div class="p-10">
                         <table class="modern-table small">
-                            <thead><tr><th>Nr</th><th>Godzina</th><th>Typ</th><th>Waga Netto</th><th>Opcje</th></tr></thead>
+                            <thead><tr><th>Nr</th><th>🕒 Godzina</th><th>Typ</th><th>Waga</th><th>⏱️ Czas</th><th>Opcje</th></tr></thead>
                             <tbody>
                                 {% for pal in palety_mapa[p[0]] %}
                                 <tr>
-                                    <td>{{ loop.index }}</td><td>🕒 {{ pal[1] }}</td><td><span class="small text-muted">{{ pal[4]|upper }}</span></td>
+                                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                                    <td class="time-display"><span>{{ pal[1] }}</span></td>
+                                    <td><span class="badge-sekcja">{{ pal[4]|upper }}</span></td>
                                     <td>
                                         {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
                                             {% if pal[0] == 0 %}<button type="button" onclick="openModal('waga-{{ pal[2] }}')" class="btn-action btn-warning small">⚖️ WAŻENIE</button>
-                                            {% else %}<strong>{{ pal[0]|int }} kg</strong><button type="button" onclick="openModal('waga-{{ pal[2] }}')" class="btn-icon ml-5" aria-label="Edytuj wagę">✏️</button>{% endif %}
+                                            {% else %}<strong class="text-success">{{ pal[0]|int }} kg</strong><button type="button" onclick="openModal('waga-{{ pal[2] }}')" class="btn-icon ml-5" aria-label="Edytuj wagę">✏️</button>{% endif %}
                                             <div id="waga-{{ pal[2] }}" class="modal-popup">
                                                 <h4 class="m-0">⚖️ Ważenie BigBag</h4>
                                                 <div class="mb-15 small">Tara palety: <strong>{{ pal[5]|int }} kg</strong></div>
@@ -191,9 +278,52 @@
                                                     <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">ZAPISZ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
                                                 </form>
                                             </div>
-                                        {% else %}<strong>{{ pal[0]|int }} kg</strong>{% endif %}
+                                        {% else %}<strong class="text-primary">{{ pal[0]|int }} kg</strong>{% endif %}
                                     </td>
-                                    <td>{% if rola in ['lider', 'admin'] and sekcja == 'Workowanie' %}<form action="{{ url_for('api.usun_palete', id=pal[3]) }}" method="POST" onsubmit="return confirm('Usuń?');"><button type="submit" class="btn-icon text-danger-color" aria-label="Usuń paletę">❌</button></form>{% endif %}</td>
+                                    <td>
+                                        <span class="paleta-elapsed duration-badge" data-start="{{ pal[9] }}"></span>
+                                    </td>
+                                    <td>
+                                        {% if pal[7] and pal[7] != '' %}
+                                            {% if pal[7] == 'do_przyjecia' %}
+                                                <span class="badge badge-warning">🔄 Do przyjęcia</span>
+                                            {% elif pal[7] == 'przyjeta' %}
+                                                <span class="badge badge-success">✅ Przyjęta</span>
+                                            {% elif pal[7] == 'zamknieta' %}
+                                                <span class="badge badge-secondary">🔒 Zamknięta</span>
+                                            {% else %}
+                                                <span class="badge">{{ pal[7] }}</span>
+                                            {% endif %}
+                                        {% endif %}
+                                        {% if rola in ['lider', 'admin'] %}
+                                            <button type="button" onclick="openModal('editpal-{{ pal[2] }}')" class="btn-icon" aria-label="Edytuj paletę">✏️</button>
+                                            <button type="button" onclick="openModal('confirm-delete-{{ pal[2] }}')" class="btn-icon text-danger-color" aria-label="Usuń paletę">🗑️</button>
+                                        {% endif %}
+                                        {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in ['lider','admin']) and pal[7] == 'do_przyjecia' %}
+                                            <form action="{{ url_for('api.potwierdz_palete', paleta_id=pal[2]) }}" method="POST" class="inline-form" style="display:inline-block; margin-left:8px;">
+                                                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                                                <button type="submit" class="btn-action btn-save btn-small">Potwierdź</button>
+                                            </form>
+                                        {% endif %}
+                                    <div id="editpal-{{ pal[2] }}" class="modal-popup">
+                                        <h4 class="m-0">✏️ Edytuj paletę</h4>
+                                        <form action="{{ url_for('api.edytuj_palete', paleta_id=pal[2]) }}" method="POST" class="d-flex flex-column gap-10">
+                                            <label>Waga (Netto) [kg]:</label>
+                                            <input type="number" step="1" name="waga_palety" value="{{ pal[0]|int if pal[0] else '' }}" required class="input-sm font-bold" aria-label="Waga (kg)">
+                                            <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">ZAPISZ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                        </form>
+                                    </div>
+                                    <div id="confirm-delete-{{ pal[2] }}" class="modal-popup">
+                                        <h4 class="m-0">🗑️ Usuń paletę</h4>
+                                        <p class="mb-15">Czy na pewno chcesz usunąć tę paletę?</p>
+                                        <div class="d-flex gap-10">
+                                            <form action="{{ url_for('api.usun_palete', id=pal[2]) }}" method="POST" class="flex-1">
+                                                <button type="submit" class="btn-action btn-danger flex-1">🗑️ Usuń</button>
+                                            </form>
+                                            <button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">Anuluj</button>
+                                        </div>
+                                    </div>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -207,96 +337,341 @@
     </table>
 </div>
 
-{% if rola in ['lider', 'admin'] %}
-
-<div class="section-box border-left-zarzad">
-    <h3 class="m-0 text-zarzad">🏥 HR / Nieobecności i Nadgodziny</h3>
-    <form action="{{ url_for('api.dodaj_obecnosc') }}" method="POST" class="form-flex mb-15">
-        <select name="pracownik_id" required title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm font-bold">
-            <option value="" disabled selected>-- Pracownik --</option>
-            {% for p in wszyscy_pracownicy %}
-            <option value="{{ p[0] }}">{{ p[1] }}</option>
-            {% endfor %}
-        </select>
-        <select name="typ" required title="Typ wpisu" aria-label="Typ wpisu" class="input-sm">
-            <option value="Nieobecność">L4 / Urlop (Nieobecność)</option>
-            <option value="Nadgodziny">Nadgodziny</option>
-            <option value="Inne">Inne</option>
-        </select>
-        <input type="number" step="0.5" name="godziny" placeholder="Ilość godzin" class="input-sm w-100px" aria-label="Ilość godzin">
-        <input type="text" name="komentarz" placeholder="Komentarz (opcjonalnie)" class="input-sm flex-1" aria-label="Komentarz (opcjonalnie)">
-        <button type="submit" class="btn-action btn-purple">ZAPISZ</button>
-    </form>
-
-    <table class="modern-table small">
-        <thead><tr><th>Pracownik</th><th>Typ</th><th>Godziny</th><th>Komentarz</th><th>Opcje</th></tr></thead>
-        <tbody>
-            {% for r in raporty_hr %}
-            <tr>
-                <td><strong>{{ r[1] }}</strong></td>
-                <td><span class="badge-info badge-purple">{{ r[2] }}</span></td>
-                <td>{{ r[3] }} h</td>
-                <td>{{ r[4] }}</td>
-                                    <td><form action="{{ url_for('api.usun_obecnosc', id=r[0]) }}" method="POST"><button type="submit" class="btn-icon text-danger-color" aria-label="Usuń wpis HR">❌</button></form></td>
-            </tr>
-            {% else %}
-            <tr><td colspan="5" class="text-center text-muted">Brak wpisów HR dzisiaj.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<div class="section-box mb-30 bg-dark text-white p-20">
-    <h3 class="m-0 text-light bb-light">📝 Raport Końcowy Lidera</h3>
-    <form action="{{ url_for('zamknij_zmiane') }}" method="POST">
-        <label class="form-label">Notatki / Uwagi do zmiany:</label>
-        <textarea name="uwagi_lidera" rows="4" class="input-sm mb-15" placeholder="Wpisz podsumowanie zmiany, problemy, uwagi dla następnej zmiany..."></textarea>
-        
-        <div class="d-flex justify-between align-center">
-            <div class="small text-muted">* Kliknięcie zakończy wszystkie aktywne zlecenia.</div>
-            <button type="submit" class="btn-warning font-bold" onclick="return confirm('Czy na pewno chcesz zamknąć zmianę i wysłać raport?')">📧 WYŚLIJ RAPORT I ZAMKNIJ ZMIANĘ</button>
-        </div>
-    </form>
-</div>
-
-{% endif %}
-
-<div id="modalProblem" class="modal-popup hidden">
-    <h3 class="m-0 text-warning">⚠️ Zgłoś Problem / Przestój</h3>
-    <form action="{{ url_for('api.dodaj_wpis') }}" method="POST" class="d-flex flex-column gap-15">
-        <input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-        
-        <label>Typ Zdarzenia:</label>
-        <select name="kategoria" required title="Kategoria zdarzenia" aria-label="Kategoria zdarzenia" class="input-sm font-bold">
-            <option value="" disabled selected>-- Wybierz --</option>
-            <option value="Przezbrojenie">⚙️ Przezbrojenie</option>
-            <option value="Awaria">🛑 Awaria Maszyny</option>
-            <option value="Brak Surowca">📦 Brak Surowca</option>
-            <option value="Przerwa">☕ Przerwa</option>
-            <option value="Inne">📝 Inne</option>
-        </select>
-        
-        <label>Czas Wystąpienia:</label>
-        <input type="time" name="czas_start" value="{{ now_time }}" class="input-sm" aria-label="Czas wystąpienia">
-        
-        <label>Opis (opcjonalnie):</label>
-        <textarea name="problem" placeholder="Co się stało?" rows="3" class="input-sm"></textarea>
-        
-        <div class="d-flex gap-10">
-            <button type="submit" class="btn-action btn-warning flex-1">ZGŁOŚ</button>
-            <button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button>
-        </div>
-    </form>
-</div>
+    {# HR, Nadgodziny i Raport Końcowy usunięte z tego widoku — przeniesione do dashboard_global.html #}
 
 <script>
     function toggleDetails(id) { var row = document.getElementById('details-' + id); var hidden = getComputedStyle(row).display === 'none'; row.style.display = hidden ? 'table-row' : 'none'; }
-    function openModal(id) { document.getElementById('modalOverlay').style.display = 'block'; document.getElementById(id).style.display = 'flex'; }
+    function openModal(id) { 
+        console.log('[debug] openModal called for id=', id);
+        try { console.trace(); } catch(e){}
+        try{
+            // Telemetry: detailed trace for STOP modals
+            if (id && id.startsWith && id.startsWith('stop')){
+                try{
+                    console.log('[stop-trace] openModal for', id);
+                    console.trace('[stop-trace] call stack for openModal');
+                    var payload = {id: id, stack: (new Error()).stack || null, url: location.href};
+                    if (navigator.sendBeacon){
+                        try{ navigator.sendBeacon('/telemetry/openmodal', JSON.stringify(payload)); }catch(e){}
+                    } else {
+                        try{ fetch('/telemetry/openmodal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), keepalive:true}).catch(()=>{}); }catch(e){}
+                    }
+                }catch(e){}
+            }
+            // NOTE: suppression removed — use AJAX submit to avoid accidental overlay click interception
+        }catch(e){}
+        document.getElementById('modalOverlay').style.display = 'block';
+        document.getElementById(id).style.display = 'flex';
+    }
     function closeAllModals() { document.getElementById('modalOverlay').style.display = 'none'; document.querySelectorAll('.modal-popup').forEach(el => el.style.display = 'none'); }
     let idleTime = 0; document.addEventListener('mousemove', () => idleTime = 0); document.addEventListener('keypress', () => idleTime = 0);
     setInterval(() => { idleTime++; if (idleTime >= 15 && document.getElementById('modalOverlay').style.display === 'none') { window.location.reload(); } }, 1000);
+    // Ensure all modals are hidden by default on initial load
+    try{ closeAllModals(); }catch(e){}
 </script>
 
+<script>
+// Live elapsed timers for unconfirmed palety
+function formatElapsed(secs){
+    if(secs < 0) secs = 0;
+    const h = Math.floor(secs/3600);
+    const m = Math.floor((secs%3600)/60);
+    const s = secs%60;
+    if(h>0) return h+"h "+String(m).padStart(2,'0')+"m";
+    if(m>0) return m+"m "+String(s).padStart(2,'0')+"s";
+    return s+"s";
+}
+function updatePaletaTimers(){
+    document.querySelectorAll('.paleta-elapsed').forEach(function(el){
+        const ds = el.getAttribute('data-start');
+        if(!ds) return;
+        // parse 'YYYY-MM-DD HH:MM:SS' by replacing space with 'T'
+        let t = ds.replace(' ', 'T');
+        // If no timezone, Date.parse treats as local in most browsers
+        const start = Date.parse(t);
+        if(isNaN(start)) return;
+        const now = Date.now();
+        const secs = Math.floor((now - start)/1000);
+        el.textContent = '⏱️ ' + formatElapsed(secs);
+    });
+}
+document.addEventListener('DOMContentLoaded', function(){ updatePaletaTimers(); setInterval(updatePaletaTimers, 1000); });
+</script>
+
+<!-- Przypomnienia usunięte: funkcja remind_unconfirmed_palety zostaje, ale nie ma przycisku w UI. -->
+
 <!-- moved CSS to static/style.css -->
+<script>
+// AJAX approve/reject for dashboard wnioski_pending
+document.addEventListener('DOMContentLoaded', function(){
+    // showToast() provided by static/js/toasts.js
+
+    var forms = document.querySelectorAll('.wn-form');
+    forms.forEach(function(f){
+        f.addEventListener('submit', function(e){
+            e.preventDefault();
+            var url = f.getAttribute('action');
+            var row = f.closest('tr');
+            var btn = f.querySelector('.wn-btn'); if(btn) btn.disabled = true;
+            fetch(url, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams()})
+            .then(function(r){ try{ return r.json(); }catch(e){ return {}; } })
+            .then(function(j){
+                if(j && j.success){ if(row) row.remove(); showToast(j.message || 'Wniosek przetworzony', 'success'); }
+                else { showToast((j && j.message) ? j.message : 'Błąd', 'danger'); if(btn) btn.disabled = false; }
+            }).catch(function(err){ console.error(err); showToast('Błąd sieci', 'danger'); if(btn) btn.disabled = false; });
+        });
+    });
+});
+</script>
 
 {% endblock %}
+
+{% if sekcja == 'Magazyn' %}
+<style>
+#unconfirmed-modal { display: none; flex-direction: column; max-width: 700px; }
+</style>
+<div id="unconfirmed-modal" class="modal-popup">
+    <h4 class="m-0 text-danger-color">❗ Palety do zatwierdzenia</h4>
+    <div id="unconfirmed-list" class="mb-15 small"></div>
+    <div class="d-flex gap-10"><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+</div>
+
+<script id="unconfirmed-data" type="application/json">{{ (unconfirmed_palety|default([])) | tojson }}</script>
+<script>
+(function(){
+    var unconfirmed = [];
+    try {
+        var el = document.getElementById('unconfirmed-data');
+        if (el && el.textContent) { unconfirmed = JSON.parse(el.textContent || '[]'); }
+    } catch(e) { console.error('Failed to parse unconfirmed data', e); unconfirmed = []; }
+    try{
+        if (unconfirmed && unconfirmed.length){
+            var now = Date.now();
+            var overdue = unconfirmed.filter(function(p){
+                var t = Date.parse(p[3]);
+                return !isNaN(t) && (now - t) > 10*60*1000; // 10 minut
+            });
+            if (overdue.length){
+                var list = document.getElementById('unconfirmed-list');
+                overdue.forEach(function(p){
+                    var el = document.createElement('div');
+                    el.className = 'mb-5';
+                    var txt = document.createElement('span');
+                    txt.textContent = 'Paleta #' + p[0] + ' (plan ' + p[1] + ' - ' + p[2] + ') dodana: ' + p[3];
+                    el.appendChild(txt);
+                    var form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/api/potwierdz_palete/' + p[0];
+                    form.style.display = 'inline-block';
+                    form.style.marginLeft = '8px';
+                    var btn = document.createElement('button');
+                    btn.type = 'submit';
+                    btn.className = 'btn-action btn-success';
+                    btn.textContent = 'Zatwierdzam paletę';
+                    form.appendChild(btn);
+                    el.appendChild(form);
+                    if (list) list.appendChild(el);
+                });
+                openModal('unconfirmed-modal');
+            }
+        }
+    }catch(e){console.error(e)}
+})();
+</script>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    // Disable submit button after first click for dodawanie palet (prevent double-add)
+    document.querySelectorAll('form[action*="/api/dodaj_palete"]').forEach(function(f){
+        f.addEventListener('submit', function(e){
+            var btn = f.querySelector('button[type="submit"]');
+            if(btn){ btn.disabled = true; btn.classList.add('btn-disabled'); }
+        });
+    });
+    // Toast helper
+    var toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    toastContainer.style.position = 'fixed';
+    toastContainer.style.right = '20px';
+    toastContainer.style.top = '20px';
+    toastContainer.style.zIndex = 9999;
+    document.body.appendChild(toastContainer);
+    function showToast(msg, type){
+        var t = document.createElement('div');
+        t.className = 'toast ' + (type||'');
+        t.style.background = (type=='success')? '#2ecc71' : (type=='error'? '#e74c3c' : '#333');
+        t.style.color = '#fff';
+        t.style.padding = '10px 14px';
+        t.style.marginTop = '8px';
+        t.style.borderRadius = '4px';
+        t.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+        t.textContent = msg;
+        toastContainer.appendChild(t);
+        setTimeout(function(){ t.style.opacity = '0'; setTimeout(function(){ t.remove(); }, 300); }, 3500);
+    }
+
+    // Intercept potwierdz_palete forms and send via fetch with retry/backoff; remove tile on success
+    // Use event delegation to handle forms added dynamically
+    document.addEventListener('submit', function(e){
+        var form = e.target;
+        if (!form.classList.contains('confirm-paleta-form')) return;
+        
+        console.log('[DEBUG] confirm-paleta-form submit intercepted (event delegation)');
+        e.preventDefault();
+        var btn = form.querySelector('button[type="submit"]');
+        if(btn){ btn.disabled = true; }
+        var attempts = 0;
+        var maxAttempts = 3;
+        function doFetch(){
+            attempts++;
+            fetch(form.action, { method: 'POST', credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} })
+                .then(function(res){
+                    if(res.ok){
+                        console.log('[DEBUG] potwierdz_palete success');
+                        showToast('Potwierdzono paletę', 'success');
+                        var li = form.closest('li');
+                        if(li) {
+                            console.log('[DEBUG] removing <li> element');
+                            li.remove();
+                        }
+                        // Soft reload using current URL - will keep user on same sekcja/page
+                        // Using location.href with same URL causes page reload but preserves query params
+                        setTimeout(function(){
+                            console.log('[DEBUG] soft reload with location.href');
+                            location.href = location.href;
+                        }, 300);
+                    } else {
+                        if(attempts < maxAttempts){
+                            var delay = 300 * Math.pow(2, attempts-1);
+                            setTimeout(doFetch, delay);
+                        } else {
+                            showToast('Błąd potwierdzenia (server)', 'error');
+                            if(btn){ btn.disabled = false; }
+                        }
+                    }
+                })
+                .catch(function(err){
+                    if(attempts < maxAttempts){
+                        var delay = 300 * Math.pow(2, attempts-1);
+                        setTimeout(doFetch, delay);
+                    } else {
+                        showToast('Błąd sieci podczas potwierdzania', 'error');
+                        if(btn){ btn.disabled = false; }
+                    }
+                });
+        }
+        doFetch();
+    }, false);
+});
+</script>
+
+<script>
+// Jeśli URL zawiera open_stop, otwórz modal stop dla podanego plan_id
+// Usuń parametr `open_stop` z URL natychmiast — zapobiega niechcianemu auto-otwieraniu modalów
+(function(){
+    try{
+        const params = new URLSearchParams(window.location.search);
+        if(params.has('open_stop')){
+            console.log('[debug] Removing open_stop from URL to prevent auto modal open. skip_open_stop=', sessionStorage.getItem('skip_open_stop'));
+            params.delete('open_stop');
+            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.history.replaceState({}, document.title, newUrl);
+            // Nie otwieramy modalu automatycznie w tej wersji.
+        }
+    }catch(e){console.error(e)}
+})();
+</script>
+
+<script>
+// Toast notification function
+function showToast(message, type = 'error') {
+    // Remove old toasts
+    const oldToasts = document.querySelectorAll('.toast-notification');
+    oldToasts.forEach(t => t.remove());
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: ${type === 'error' ? '#d32f2f' : '#4caf50'};
+        color: white;
+        padding: 16px 24px;
+        border-radius: 4px;
+        font-size: 14px;
+        z-index: 10000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease-out;
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+// Add CSS animation for toast
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(400px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(400px); opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
+
+// AJAX submit for dodaj_palete forms to avoid click interception by overlays
+document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('form[action*="/dodaj_palete"]').forEach(form => {
+        form.addEventListener('submit', async function(e){
+            e.preventDefault();
+            // disable pointer events on stop-* overlays to avoid interception
+            const stopEls = Array.from(document.querySelectorAll('[id^="stop-"]'));
+            stopEls.forEach(el => { el.dataset._savedPe = el.style.pointerEvents || ''; el.style.pointerEvents = 'none'; });
+            // safety timeout to restore if request hangs
+            let restoreCalled = false;
+            const restore = () => {
+                if(restoreCalled) return; restoreCalled = true;
+                stopEls.forEach(el => { if(el.dataset._savedPe !== undefined){ el.style.pointerEvents = el.dataset._savedPe; delete el.dataset._savedPe; } else { el.style.pointerEvents = ''; } });
+            };
+            const timeoutId = setTimeout(restore, 3000);
+            try{
+                sessionStorage.setItem('skip_open_stop','1');
+                const action = form.getAttribute('action');
+                const fd = new FormData(form);
+                const resp = await fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' });
+                clearTimeout(timeoutId);
+                restore();
+                
+                // Check for error responses (4xx, 5xx)
+                if (!resp.ok) {
+                    const errorText = await resp.text();
+                    showToast(errorText || `Błąd ${resp.status}: Nie udało się dodać przedmiotu`, 'error');
+                    return;
+                }
+                
+                if(resp.redirected){ window.location.href = resp.url; return; }
+                // Reload with current URL parameters preserved (sekcja, data, etc)
+                window.location.href = window.location.href;
+            }catch(err){
+                clearTimeout(timeoutId);
+                restore();
+                console.error('AJAX dodaj_palete failed, falling back to normal submit', err);
+                showToast('Błąd sieci: ' + err.message, 'error');
+                form.submit();
+            }
+        });
+    });
+});
+</script>

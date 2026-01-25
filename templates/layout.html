@@ -5,36 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>System Produkcyjny</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+    <link rel="shortcut icon" href="{{ url_for('favicon') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" sizes="any">
+    <meta name="theme-color" content="#ffffff">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/toasts.css') }}">
 </head>
 <body>
 
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
     <div class="top-bar">
-        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false" onclick="document.body.classList.toggle('sidebar-open'); this.setAttribute('aria-expanded', document.body.classList.contains('sidebar-open'))">
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
             <span class="material-icons">menu</span>
         </button>
         <div class="d-flex align-center gap-15">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-sm" onerror="this.onerror=null;this.src='https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';">
+            <img src="{{ url_for('static', filename='agro_logo.png') }}" alt="Company logo: the word agro with AGRO and MES styled difference and a simple agricultural emblema; place in the top bar header beige the page title agro; conveys a Natural, professional, trustworthy tone" class="logo-sm" onerror="handleLogoError(this)">
             <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
         </div>
 
         <div class="user-info">
             {% if session.get('rola') in ['admin', 'zarzad', 'planista', 'lider', 'dur', 'laboratorium'] %}
-                <a href="/zarzad" class="btn btn-wyniki">
-                    <span class="material-icons">bar_chart</span> WYNIKI
+                <a href="/zarzad" class="btn-icon" title="Wyniki">
+                    <span class="material-icons">bar_chart</span>
                 </a>
             {% endif %}
 
-            {% if session.get('rola') in ['planista', 'admin', 'zarzad', 'lider'] %}
-                <a href="/planista" class="btn btn-plan">
-                    <span class="material-icons">calendar_today</span> PLAN
+            {# removed PLAN button per request #}
+
+            {% if session.get('zalogowany') %}
+                <a href="{{ url_for('report_issue') }}" class="btn-icon" title="Zgłoś problem">
+                    <span class="material-icons">report_problem</span>
                 </a>
             {% endif %}
 
             {# top users button removed per UI change request #}
 
-            <span class="user-role">Zalogowany: <strong>{{ session.get('rola')|upper }}</strong></span>
+            <span class="user-role">Zalogowany: <strong>{{ session.get('imie_nazwisko') or session.get('login') or 'N/A' }}</strong></span>
             
             <a href="/logout" class="logout-btn" aria-label="Wyloguj">
                 <span class="material-icons">logout</span>
@@ -48,13 +56,21 @@
             <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
             <nav class="sidebar-nav">
                     {% if session.get('rola') in ['produkcja','lider','admin','zarzad','pracownik'] %}
+                        {# Dashboard link for leaders/admins #}
+                        {% if session.get('rola') in ['lider','admin'] %}
+                            <a href="{{ url_for('index') }}" class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">Dashboard</a>
+                        {% endif %}
                         <a href="{{ url_for('index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">Zasyp</a>
                         <a href="{{ url_for('index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">Workowanie</a>
                         <a href="{{ url_for('index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">Magazyn</a>
                         <a href="{{ url_for('jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">Jakość</a>
                     {% endif %}
                 <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">Wyniki</a>
+                {% if session.get('rola') in ['dur', 'admin', 'zarzad'] %}
+                    <a href="/dur/awarie" class="nav-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">⚠️ Awarie</a>
+                {% endif %}
                 <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">Plan</a>
+                <a href="{{ url_for('moje_godziny') }}" class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">Moje godziny</a>
                 {% if session.get('rola') == 'admin' %}
                     <a href="/admin/ustawienia" class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">Ustawienia</a>
                 {% endif %}
@@ -81,6 +97,82 @@
         </main>
     </div>
 
+    <script src="{{ url_for('static', filename='js/toasts.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+    <script>
+        function handleLogoError(img){
+            try{
+                if(img.src.indexOf('agro_logo.png') !== -1){
+                    img.src = '{{ url_for("static", filename="logo.png") }}';
+                } else {
+                    img.onerror = null;
+                    img.src = 'https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';
+                }
+            }catch(e){
+                img.onerror = null;
+            }
+        }
+    </script>
+
+    <!-- Hamburger menu - run immediately, don't wait for DOMContentLoaded -->
+    <script>
+        (function() {
+            const hamburgerBtn = document.getElementById('hamburgerBtn');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            const appSidebar = document.getElementById('appSidebar');
+            const navItems = appSidebar ? appSidebar.querySelectorAll('.nav-item') : [];
+
+            console.log('🍔 [HAMBURGER INIT]', {
+                btn: hamburgerBtn ? '✓' : '✗',
+                overlay: sidebarOverlay ? '✓' : '✗',
+                sidebar: appSidebar ? '✓' : '✗',
+                navItems: navItems.length
+            });
+
+            if (!hamburgerBtn) {
+                console.error('❌ Hamburger button not found!');
+                return;
+            }
+
+            // Toggle on click
+            hamburgerBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                document.body.classList.toggle('sidebar-open');
+                const isOpen = document.body.classList.contains('sidebar-open');
+                hamburgerBtn.setAttribute('aria-expanded', String(isOpen));
+                console.log('🍔 [CLICKED]', isOpen ? 'OPEN' : 'CLOSED');
+            });
+
+            // Close on overlay click
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    document.body.classList.remove('sidebar-open');
+                    hamburgerBtn.setAttribute('aria-expanded', 'false');
+                    console.log('❌ [OVERLAY CLICK]');
+                });
+            }
+
+            // Close on nav item click
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    document.body.classList.remove('sidebar-open');
+                    hamburgerBtn.setAttribute('aria-expanded', 'false');
+                    console.log('📍 [NAV ITEM CLICK]');
+                });
+            });
+
+            // Close on Escape
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    document.body.classList.remove('sidebar-open');
+                    hamburgerBtn.setAttribute('aria-expanded', 'false');
+                    console.log('⎋ [ESCAPE]');
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

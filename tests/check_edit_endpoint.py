@@ -4,7 +4,8 @@ import pytest
 
 # find first wpis id
 def first_wpis():
-    conn = get_db_connection(); cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     cursor.execute("SELECT id FROM dziennik_zmiany ORDER BY id LIMIT 1")
     r = cursor.fetchone()
     conn.close()

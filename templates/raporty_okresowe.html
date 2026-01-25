@@ -22,27 +22,40 @@
         <a href="/" class="back-btn">Powrót</a>
     </div>
     <div class="kpi-grid">
-        <div class="kpi-card"><span class="kpi-label">Wyprodukowano ({{ miesiac }}/{{ rok }})</span><span class="kpi-val kpi-val-green">{{ stats[1] }} ton</span></div>
-        <div class="kpi-card"><span class="kpi-label">Zlecenia</span><span class="kpi-val">{{ stats[0] }}</span></div>
-        <div class="kpi-card"><span class="kpi-label">Czas Pracy</span><span class="kpi-val">{{ (stats[2] / 60) | round(1) }} h</span></div>
+        <div class="kpi-card">
+            <span class="kpi-label">📦 Wyprodukowano ({{ miesiac }}/{{ rok }})</span>
+            <span class="kpi-val kpi-val-green">{{ stats[1] }} ton</span>
+        </div>
+        <div class="kpi-card">
+            <span class="kpi-label">📋 Zlecenia</span>
+            <span class="kpi-val kpi-val-blue">{{ stats[0] }}</span>
+        </div>
+        <div class="kpi-card">
+            <span class="kpi-label">⏱️ Czas Pracy</span>
+            <span class="kpi-val kpi-val-orange">{{ (stats[2] / 60) | round(1) }} h</span>
+        </div>
     </div>
     <div class="charts-grid">
         <div class="chart-box">
             <h4 class="chart-title">🛑 Awarie ({{ miesiac }}/{{ rok }})</h4>
             {% if not awarie %}<p class="no-downtime-message">Brak przestojów.</p>{% else %}
-            <table class="awarie-table">
-                <tr>
-                    <th>Powód</th>
-                    <th>Ilość</th>
-                    <th>Czas (min)</th>
-                </tr>
+            <table class="modern-table small">
+                <thead>
+                    <tr>
+                        <th>❌ Powód</th>
+                        <th>📊 Ilość</th>
+                        <th>⏱️ Czas (min)</th>
+                    </tr>
+                </thead>
+                <tbody>
                 {% for a in awarie %}
                 <tr>
                     <td>{{ a[0] }}</td>
-                    <td>{{ a[1] }}</td>
-                    <td class="awarie-time">{{ a[2] }}</td>
+                    <td class="text-center"><strong>{{ a[1] }}</strong></td>
+                    <td class="text-center text-danger-color"><strong>{{ a[2] }} min</strong></td>
                 </tr>
                 {% endfor %}
+                </tbody>
             </table>
             {% endif %}
         </div>

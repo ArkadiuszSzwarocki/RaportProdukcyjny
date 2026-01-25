@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request
 from db import get_db_connection
+from dto.paleta import PaletaDTO
 from datetime import date
 from decorators import roles_required
 
@@ -67,13 +68,23 @@ def panel_planisty():
 
         # 3. POBIERANIE PALET
         cursor.execute("""
-            SELECT pw.waga, DATE_FORMAT(pw.data_dodania, '%H:%i'), pw.tara, pw.waga_brutto 
+            SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, pp.produkt, pp.typ_produkcji
             FROM palety_workowanie pw
             JOIN plan_produkcji pp ON pw.plan_id = pp.id
             WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.typ_produkcji = %s AND pp.sekcja = 'Workowanie'
             ORDER BY pw.id DESC
         """, (wybrana_data, p[2], typ_prod))
-        palety_mapa[p[0]] = cursor.fetchall()
+        raw_pal = cursor.fetchall()
+        formatted = []
+        for r in raw_pal:
+            dto = PaletaDTO.from_db_row(r)
+            dt = dto.data_dodania
+            try:
+                sdt = dt.strftime('%H:%M') if hasattr(dt, 'strftime') else str(dt)
+            except Exception:
+                sdt = str(dt)
+            formatted.append((dto.waga, sdt, dto.tara, dto.waga_brutto))
+        palety_mapa[p[0]] = formatted
 
     conn.close()
 
@@ -84,7 +95,8 @@ def panel_planisty():
 
     # Pobierz zlecenia jakościowe zgłoszone na wybraną datę (laboratorium)
     try:
-        conn = get_db_connection(); cursor = conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         cursor.execute("SELECT id, produkt, tonaz, sekcja, status FROM plan_produkcji WHERE data_planu=%s AND (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone' ORDER BY id DESC", (wybrana_data,))
         quality_orders = cursor.fetchall()
         quality_count = len(quality_orders)

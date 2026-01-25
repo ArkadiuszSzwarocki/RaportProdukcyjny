@@ -1,0 +1,467 @@
+{% extends 'layout.html' %}
+{% block content %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/moje_godziny.css') }}">
+<h2>Moje godziny</h2>
+{% if not mapped %}
+  <div class="alert alert-warning">Twoje konto nie jest powiązane z rekordem pracownika. Skontaktuj się z administratorem.</div>
+{% endif %}
+
+<p>Zakres: {{ d_od }} — {{ d_do }}</p>
+  {% if pracownicy_list %}
+    <form method="get" class="mb-3">
+      <label for="pracownik_select">Przeglądaj pracownika:</label>
+      <select id="pracownik_select" name="pracownik_id" title="Wybierz pracownika do przeglądu" onchange="this.form.submit()" class="form-control pracownik-select">
+        <option value="">-- wybierz --</option>
+        {% for p in pracownicy_list %}
+          <option value="{{ p[0] }}" {% if selected_pid and p[0]==selected_pid %}selected{% endif %}>{{ p[1] }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  {% endif %}
+  <div class="mp-flex-row">
+    <div>
+      <h4>Twoje podsumowanie</h4>
+      <ul>
+        <li>Liczba zmian obecności w tym okresie: <strong id="obecnosciCount_owner">{{ owner_summary.obecnosci }}</strong></li>
+        <li>Wyjścia prywatne (suma godzin): <strong id="wyjsciaHours_owner">{{ '%.2f'|format(owner_summary.wyjscia_hours) }} h</strong></li>
+        <li>Urlop bieżący (dni): <strong id="urlopBiez_owner">{{ owner_summary.urlop_biezacy if owner_summary.urlop_biezacy is defined else 0 }}</strong></li>
+        <li>Urlop zaległy (dni): <strong id="urlopZal_owner">{{ owner_summary.urlop_zalegly if owner_summary.urlop_zalegly is defined else 0 }}</strong></li>
+      </ul>
+    </div>
+    {% if viewed_summary %}
+    <div>
+      <h4>Przeglądany pracownik</h4>
+      <ul>
+        <li>Liczba zmian obecności w tym okresie: <strong id="obecnosciCount_viewed">{{ viewed_summary.obecnosci }}</strong></li>
+        <li>Wyjścia prywatne (suma godzin): <strong id="wyjsciaHours_viewed">{{ '%.2f'|format(viewed_summary.wyjscia_hours) }} h</strong></li>
+        <li>Urlop bieżący (dni): <strong id="urlopBiez_viewed">{{ viewed_summary.urlop_biezacy if viewed_summary.urlop_biezacy is defined else 0 }}</strong></li>
+        <li>Urlop zaległy (dni): <strong id="urlopZal_viewed">{{ viewed_summary.urlop_zalegly if viewed_summary.urlop_zalegly is defined else 0 }}</strong></li>
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+  <h3>Złóż wniosek o wolne</h3>
+  <form action="{{ url_for('api.submit_wniosek') }}" method="post" class="mb-3">
+    <div class="row">
+      <div class="col-md-3"><label for="typ_select">Typ</label>
+        <select id="typ_select" name="typ" class="form-control" title="Wybierz typ wniosku">
+          <option>Urlop</option>
+          <option>Nieobecność</option>
+          <option>Wyjście prywatne</option>
+        </select>
+      </div>
+      <div class="col-md-3"><label>Od</label><input id="data_od" type="date" name="data_od" class="form-control" required title="Data od" placeholder="RRRR-MM-DD"></div>
+      <div class="col-md-3"><label>Do</label><input id="data_do" type="date" name="data_do" class="form-control" required title="Data do" placeholder="RRRR-MM-DD"></div>
+      <div class="col-md-3 d-none" id="timeColOd"><label for="czas_od">Czas od</label><input id="czas_od" type="time" name="czas_od" title="Czas od" placeholder="HH:MM" class="form-control"></div>
+    </div>
+    <div class="row mt-2">
+      <div class="col-md-9"></div>
+      <div class="col-md-3 align-self-end"><button type="submit" class="btn btn-primary">Złóż wniosek</button></div>
+    </div>
+  </form>
+
+  <h3>Twoje wnioski</h3>
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th>Data</th><th>Typ</th><th>Okres</th><th>Stan</th>
+        {% if session.get('rola') in ['lider','admin'] %}<th>Akcje</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+    {% for w in wnioski %}
+      <tr data-wnid="{{ w.id }}">
+        <td>{{ w.zlozono }}</td>
+        <td>{{ w.typ }}</td>
+        <td>{{ w.data_od }} → {{ w.data_do }}{% if w.czas_od %} ({{ w.czas_od }}-{{ w.czas_do }}){% endif %}</td>
+        <td>{{ w.status }}</td>
+        {% if session.get('rola') in ['lider','admin'] %}
+          <td>
+            {% if w.status != 'approved' %}
+              <button class="btn btn-sm btn-success wn-action" data-id="{{ w.id }}" data-action="approve">Zatwierdź</button>
+              <button type="button" class="btn btn-sm btn-danger wn-action ml-6" data-id="{{ w.id }}" data-action="reject">Odrzuć</button>
+            {% else %}
+              <span class="badge badge-success">Zatwierdzony</span>
+            {% endif %}
+          </td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <h3>Suma godzin wg typu</h3>
+  <table class="table" id="typyTable_owner">
+    <thead><tr><th>Typ</th><th>Godziny</th></tr></thead>
+    <tbody>
+    {% for t, h in owner_summary.typy.items() %}
+      <tr data-typ="{{ t }}"><td>{{ t or '(brak)' }}</td><td class="typ-hours">{{ '%.2f'|format(h) }} h</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if viewed_summary %}
+  <h4>Typy — przeglądany</h4>
+  <table class="table" id="typyTable_viewed">
+    <thead><tr><th>Typ</th><th>Godziny</th></tr></thead>
+    <tbody>
+    {% for t, h in viewed_summary.typy.items() %}
+      <tr data-typ="{{ t }}"><td>{{ t or '(brak)' }}</td><td class="typ-hours">{{ '%.2f'|format(h) }} h</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h3>Kalendarz godzin (miesiąc)</h3>
+  <style>
+    .cal-grid { width:100%; border-collapse: collapse; }
+    .cal-grid th { text-align:center; padding:6px; background:#f7f7f7; }
+    .cal-grid td { width:14%; vertical-align: top; border:1px solid #eee; padding:8px; height:100px; }
+    .cal-day { font-weight:600; margin-bottom:6px; }
+    .cal-hours { font-size:0.9em; }
+    .cal-type { font-size:0.85em; font-weight:600; margin-top:6px; display:inline-block; padding:2px 6px; border-radius:4px; background:#f0f0f0; color:#333; }
+    .cal-hr { background:#ffe6e6; }
+    .cal-approved { outline: 3px solid #c8f7c5; }
+    .badge { display:inline-block; padding:2px 6px; border-radius:4px; font-size:0.8em; margin-top:6px; }
+    .badge-success { background:#28a745; color:#fff; }
+    .text-danger { color:#b30000; font-weight:600; }
+    /* Toast styles moved to static/css/toasts.css */
+    /* Spinner */
+    .spinner { width:18px; height:18px; border:3px solid rgba(0,0,0,0.1); border-top:3px solid #007bff; border-radius:50%; animation: spin 1s linear infinite; display:inline-block; vertical-align:middle; }
+    @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    /* utility spacing to avoid inline styles */
+    .ml-6 { margin-left: 6px; }
+  </style>
+    <div class="mp-cal-row">
+      {# Decide which calendar to show: prefer viewed (selected) if present, otherwise owner #}
+      {% set show_viewed = (calendar_days_viewed is defined and calendar_days_viewed) or (selected_pid) %}
+      {% if show_viewed %}
+        {% set display_days = calendar_days_viewed if (calendar_days_viewed is defined and calendar_days_viewed) else calendar_days_owner %}
+        {% set display_pid = viewed_pid or selected_pid or owner_pid %}
+      {% else %}
+        {% set display_days = calendar_days_owner %}
+        {% set display_pid = owner_pid %}
+      {% endif %}
+      <div class="mp-cal-col-main">
+        <h4>Kalendarz pracownika</h4>
+        <table class="cal-grid">
+          <tr>
+            <th>Pon</th><th>Wt</th><th>Śr</th><th>Czw</th><th>Pt</th><th>Sob</th><th>Nd</th>
+          </tr>
+          <tr>
+          {% for d in display_days %}
+            {% set wd = d.date.weekday() %}
+            {% if loop.first and wd > 0 %}
+              {% for i in range(wd) %}
+                <td></td>
+              {% endfor %}
+            {% endif %}
+            {% set classes = [] %}
+            {% if d.hr %}{% do classes.append('cal-hr') %}{% endif %}
+            {% if d.approved %}{% do classes.append('cal-approved') %}{% endif %}
+            <td data-date="{{ d.date }}" data-pid="{{ display_pid }}" class="{{ ' '.join(classes) }}">
+              <div class="cal-day">{{ d.date.day }}</div>
+              <div class="cal-hours">{{ '%.2f'|format(d.hours) }} h</div>
+              {% if d.typ_label %}<div class="cal-type">{{ d.typ_label }}</div>{% endif %}
+              {% if d.approved %}<div class="badge badge-success">Zatwierdzone</div>{% endif %}
+              {% if d.hr %}<div class="text-danger">HR</div>{% endif %}
+            </td>
+            {% if wd == 6 and not loop.last %}
+              </tr><tr>
+            {% endif %}
+          {% endfor %}
+          </tr>
+        </table>
+      </div>
+    </div>
+  <!-- Modal for day wnioski -->
+  <div id="wniosekModal" class="modal d-none" role="dialog" aria-modal="true" aria-labelledby="modalDate">
+    <div class="modal-content modal-large">
+      <h4 id="modalTitle">Wnioski dla dnia <span id="modalDate"></span></h4>
+      <div id="modalBody">Ładowanie...</div>
+      <div class="modal-footer"><button onclick="closeModal()" class="btn">Zamknij</button></div>
+    </div>
+  </div>
+
+  <!-- Confirm modal for approve/reject -->
+  <div id="confirmModal" class="modal d-none" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="modal-content modal-small">
+      <h4 id="confirmTitle">Potwierdzenie</h4>
+      <div id="confirmBody">Czy na pewno?</div>
+      <div id="confirmSpinner" class="confirm-spinner d-none mt-2"><span class="spinner" aria-hidden="true"></span> <span class="ml-6">Przetwarzanie...</span></div>
+      <div class="modal-footer">
+        <button id="confirmCancel" class="btn">Anuluj</button>
+        <button id="confirmOk" class="btn btn-primary ml-6">Potwierdź</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const my_pid = '{{ session.get("pracownik_id") or "" }}';
+    const my_role = '{{ (session.get("rola") or "")|lower }}';
+    // showToast() provided by static/js/toasts.js
+
+    // Modal state for pagination
+    const modalState = { items: [], page: 1, pageSize: 5, date: null, pid: null };
+
+    function renderModalPage(){
+      const body = document.getElementById('modalBody');
+      const items = modalState.items || [];
+      const page = modalState.page || 1;
+      const ps = modalState.pageSize || 5;
+      const start = (page-1)*ps; const end = start + ps;
+      if(items.length === 0){ body.innerHTML = '<div>Brak wniosków dla tego dnia.</div>'; return; }
+      let html = '<ul style="list-style:none;padding:0;">';
+      items.slice(start, end).forEach(w=>{
+        html += '<li style="padding:8px;border-bottom:1px solid #eee;">';
+        html += '<strong>'+w.typ+'</strong> '+w.data_od+' → '+w.data_do+'<br/>'+(w.czas_od?('('+w.czas_od+'-'+(w.czas_do||'')+') ') : '');
+        if(w.status !== 'approved'){
+          html += '<button class="btn btn-sm btn-success wn-action" data-id="'+w.id+'" data-action="approve" style="display:inline-block;margin-right:8px;">Zatwierdź</button>';
+          html += '<button class="btn btn-sm btn-danger wn-action" data-id="'+w.id+'" data-action="reject" style="display:inline-block;">Odrzuć</button>';
+        } else {
+          html += '<span class="badge badge-success">Zatwierdzony</span>';
+        }
+        html += '</li>';
+      });
+      html += '</ul>';
+      // pagination controls
+      const totalPages = Math.max(1, Math.ceil(items.length / ps));
+      if(totalPages > 1){
+        html += '<div style="text-align:center;margin-top:8px;">';
+        html += '<button id="pgPrev" class="btn btn-sm" style="margin-right:8px;">Poprzednia</button>';
+        html += '<span style="margin:0 8px;">Strona '+page+' / '+totalPages+'</span>';
+        html += '<button id="pgNext" class="btn btn-sm" style="margin-left:8px;">Następna</button>';
+        html += '</div>';
+      }
+      body.innerHTML = html;
+      // attach pagination handlers
+      const prev = document.getElementById('pgPrev');
+      const next = document.getElementById('pgNext');
+      if(prev) prev.addEventListener('click', function(){ if(modalState.page>1){ modalState.page--; renderModalPage(); } });
+      if(next) next.addEventListener('click', function(){ if(modalState.page<totalPages){ modalState.page++; renderModalPage(); } });
+    }
+
+    // Delegated handler for AJAX approve/reject buttons (class .wn-action)
+    (function(){
+      let pending = null; // {id, action}
+      const confirmModal = document.getElementById('confirmModal');
+      const confirmBody = document.getElementById('confirmBody');
+      const confirmOk = document.getElementById('confirmOk');
+      const confirmCancel = document.getElementById('confirmCancel');
+      const confirmSpinner = document.getElementById('confirmSpinner');
+
+      function showConfirm(id, action, label){
+        pending = {id, action};
+        confirmBody.textContent = label;
+        confirmSpinner.style.display = 'none';
+        confirmModal.style.display = 'flex';
+        // accessibility: focus
+        setTimeout(()=>{ try{ confirmOk.focus(); }catch(e){} }, 50);
+      }
+      function hideConfirm(){ pending = null; confirmModal.style.display = 'none'; }
+
+      document.addEventListener('click', function(e){
+        const btn = e.target.closest('.wn-action');
+        if(!btn) return;
+        e.preventDefault();
+        const id = btn.getAttribute('data-id');
+        const action = btn.getAttribute('data-action');
+        const label = action === 'approve' ? 'Zatwierdzić wniosek?' : 'Odrzucić wniosek?';
+        showConfirm(id, action, label);
+      }, true);
+
+      confirmCancel.addEventListener('click', function(){ hideConfirm(); });
+
+      confirmOk.addEventListener('click', function(){
+        if(!pending) return;
+        confirmSpinner.style.display = '';
+        // perform AJAX
+        fetch('/api/wnioski/'+encodeURIComponent(pending.id)+'/'+encodeURIComponent(pending.action), {
+          method: 'POST',
+          headers: {'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/x-www-form-urlencoded'},
+          body: new URLSearchParams()
+        }).then(r=>r.json()).then(j=>{
+              confirmSpinner.style.display = 'none';
+              if(j && j.success){
+            const id = pending.id; const action = pending.action;
+            // update table row
+            const row = document.querySelector('tr[data-wnid="'+id+'"]');
+            if(row){
+              const statusCell = row.querySelector('td:nth-child(4)'); if(statusCell) statusCell.textContent = action === 'approve' ? 'Zatwierdzony' : 'Odrzucony';
+              const actionCell = row.querySelector('td:nth-child(6)'); if(actionCell) actionCell.innerHTML = action === 'approve' ? '<span class="badge badge-success">Zatwierdzony</span>' : '<span class="badge">Odrzucony</span>';
+            }
+            // update modal list if present
+            // update underlying modal state items
+            modalState.items = modalState.items.map(it => it.id == id ? Object.assign({}, it, {status: action === 'approve' ? 'approved' : 'rejected'}) : it);
+            renderModalPage();
+            // refresh summary counters for owner and (optional) viewed
+            try{
+              refreshSummary('{{ owner_pid }}', 'owner');
+            }catch(e){}
+            /*{% if viewed_summary %}*/
+            try{ refreshSummary('{{ viewed_pid }}', 'viewed'); }catch(e){}
+            /*{% endif %}*/
+            showToast(j.message || 'OK', 'success');
+            hideConfirm();
+          } else {
+            showToast((j && j.message) ? j.message : 'Błąd przetwarzania', 'danger');
+            confirmSpinner.style.display = 'none';
+          }
+        }).catch(err=>{ console.error(err); showToast('Błąd sieci', 'danger'); confirmSpinner.style.display='none'; });
+      });
+    })();
+
+    function closeModal(){ document.getElementById('wniosekModal').style.display='none'; }
+
+    // Edit hours helpers
+    function submitEditHours(){
+      const btn = document.getElementById('editHoursBtn');
+      const pid = btn.getAttribute('data-pid');
+      const date = btn.getAttribute('data-date');
+      const val = document.getElementById('editHoursInput').value;
+      if(!pid || !date) return showToast('Brak danych do zapisu', 'warning');
+      fetch('/edytuj_godziny', {
+        method: 'POST',
+        headers: {'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({pracownik_id: pid, date: date, godziny: val})
+      }).then(r=>r.json()).then(j=>{
+        if(j && j.success){
+          showToast(j.message || 'Zapisano godziny', 'success');
+          // update clicked cell if present
+          // find any td[data-date][data-pid] matching
+          const cell = document.querySelector('td[data-date="'+date+'"][data-pid="'+pid+'"]');
+          if(cell){ const ch = cell.querySelector('.cal-hours'); if(ch) ch.textContent = parseFloat(val||0).toFixed(2)+' h'; }
+          // refresh summary
+          try{ refreshSummary(pid, 'viewed'); }catch(e){}
+        } else {
+          showToast((j && j.message) ? j.message : 'Błąd zapisu', 'danger');
+        }
+      }).catch(e=>{ console.error(e); showToast('Błąd sieci przy zapisie', 'danger'); });
+    }
+
+    // Toggle visibility of date/time inputs depending on selected typ
+    function updateWniosekFields(){
+      try{
+        const typ = document.getElementById('typ_select').value;
+        const timeColOd = document.getElementById('timeColOd');
+        const timeColDo = document.getElementById('timeColDo');
+        const czasOd = document.getElementById('czas_od');
+        const czasDo = document.getElementById('czas_do');
+        const dataDoWrapper = document.getElementById('data_do');
+        const dataOd = document.getElementById('data_od');
+        if(!timeColOd || !timeColDo || !dataOd) return;
+        if(typ === 'Wyjście prywatne'){
+          // Wyjście prywatne — jedno wyjście w danym dniu. Pokaż pola czasowe, ukryj pole data_do (ale zostaw w formularzu).
+          timeColOd.style.display = '';
+          timeColDo.style.display = '';
+          if(czasOd) czasOd.required = true;
+          if(czasDo) czasDo.required = true;
+          if(dataDoWrapper) { dataDoWrapper.style.display = 'none'; dataDoWrapper.value = dataOd.value || ''; }
+          // sync values
+          if(dataOd){ dataOd.addEventListener('change', function(){ if(document.getElementById('typ_select').value === 'Wyjście prywatne'){ if(dataDoWrapper) dataDoWrapper.value = dataOd.value; } }); }
+        } else {
+          timeColOd.style.display = 'none';
+          timeColDo.style.display = 'none';
+          if(czasOd) { czasOd.required = false; czasOd.value = ''; }
+          if(czasDo) { czasDo.required = false; czasDo.value = ''; }
+          if(dataDoWrapper) { dataDoWrapper.style.display = ''; }
+        }
+      }catch(e){ console.error('updateWniosekFields error', e); }
+    }
+
+    // Attach click handlers to calendar cells (data-date attribute) — use data-pid on each cell
+    document.addEventListener('DOMContentLoaded', function(){
+      const cells = document.querySelectorAll('td[data-date]');
+      cells.forEach(function(c){ c.addEventListener('click', function(){
+        const date = c.getAttribute('data-date');
+        const pid = c.getAttribute('data-pid') || '{{ selected_pid or (session.get("pracownik_id") or "") }}';
+        if(!pid) { showToast('Brak pracownika do przeglądu', 'warning'); return; }
+        openModalFor(date, pid, c);
+      }); });
+      // wire up type selector to toggle fields
+      const typSel = document.getElementById('typ_select');
+      if(typSel){ typSel.addEventListener('change', updateWniosekFields); updateWniosekFields(); }
+      // initial refresh of summaries
+      try{ refreshSummary('{{ owner_pid }}', 'owner'); }catch(e){}
+      /*{% if viewed_summary %}*/
+      try{ refreshSummary('{{ viewed_pid }}', 'viewed'); }catch(e){}
+      /*{% endif %}*/
+    });
+
+    function openModalFor(date, pid, cellEl){
+      document.getElementById('wniosekModal').style.display='flex';
+      document.getElementById('modalDate').textContent = date;
+      const body = document.getElementById('modalBody');
+      body.innerHTML = 'Ładowanie...';
+      fetch('/api/wnioski/day?pracownik_id='+encodeURIComponent(pid)+'&date='+encodeURIComponent(date))
+        .then(r=>r.json()).then(j=>{
+          if(j.wnioski && j.wnioski.length){
+            modalState.items = j.wnioski.map(w=>Object.assign({}, w)); modalState.page = 1; modalState.date = date; modalState.pid = pid;
+            renderModalPage();
+          } else {
+            body.innerHTML = '<div>Brak wniosków dla tego dnia.</div>';
+            modalState.items = [];
+          }
+          // show/hide edit section depending on permission
+          const editSection = document.getElementById('editHoursSection');
+          const editInput = document.getElementById('editHoursInput');
+          const editBtn = document.getElementById('editHoursBtn');
+          if(my_pid == pid || ['lider','admin'].includes(my_role)){
+            if(cellEl){ const ch = cellEl.querySelector('.cal-hours'); if(ch){ editInput.value = parseFloat(ch.textContent)||0; } }
+            editBtn.setAttribute('data-pid', pid); editBtn.setAttribute('data-date', date);
+            editSection.style.display = '';
+          } else {
+            editSection.style.display = 'none';
+          }
+        }).catch(e=>{ body.innerHTML = '<div>Błąd ładowania</div>'; });
+    }
+
+    // Refresh summary counters (obecnosci, wyjscia_hours, typy) for given pid and target suffix ('owner'|'viewed')
+    function refreshSummary(pid, suffix){
+      if(!pid) return;
+      const suf = suffix ? ('_' + suffix) : '';
+      fetch('/api/wnioski/summary?pracownik_id='+encodeURIComponent(pid), {headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(r=>r.json()).then(j=>{
+          if(j && !j.error){
+            const ob = document.getElementById('obecnosciCount' + suf); if(ob) ob.textContent = j.obecnosci;
+            const wh = document.getElementById('wyjsciaHours' + suf); if(wh) wh.textContent = (parseFloat(j.wyjscia_hours)||0).toFixed(2) + ' h';
+            const ub = document.getElementById('urlopBiez' + suf); if(ub) ub.textContent = j.urlop_biezacy || 0;
+            const uz = document.getElementById('urlopZal' + suf); if(uz) uz.textContent = j.urlop_zalegly || 0;
+            if(j.typy){
+              const table = document.getElementById('typyTable' + (suffix ? ('_' + suffix) : ''));
+              Object.keys(j.typy).forEach(t=>{
+                if(table){
+                  const row = table.querySelector('tr[data-typ="'+t+'"]');
+                  if(row){ const cell = row.querySelector('.typ-hours'); if(cell) cell.textContent = (parseFloat(j.typy[t])||0).toFixed(2)+' h'; }
+                }
+              });
+            }
+          }
+        }).catch(err=>{ console.error('Summary fetch error', err); });
+    }
+  </script>
+  
+  <!-- Edit hours section inside modal -->
+  <script>
+    // Insert edit section markup into modal (keeps template structure tidy)
+    (function(){
+      const modalInner = document.querySelector('#wniosekModal > div');
+      if(!modalInner) return;
+      const div = document.createElement('div');
+      div.id = 'editHoursSection'; div.style.display = 'none'; div.style.marginTop = '10px';
+      div.innerHTML = '<label for="editHoursInput">Godziny (h)</label> <input id="editHoursInput" type="number" step="0.25" min="0" style="width:80px;margin-left:8px;"> <button id="editHoursBtn" class="btn btn-primary" style="margin-left:8px;">Zapisz godziny</button>';
+      modalInner.insertBefore(div, modalInner.querySelector('#modalBody').nextSibling);
+      // attach handler
+      setTimeout(function(){ const b = document.getElementById('editHoursBtn'); if(b) b.addEventListener('click', submitEditHours); }, 200);
+    })();
+  </script>
+  
+  <!-- Legend for calendar types (moved under calendar) -->
+  <div style="margin-top:14px; background:#fff; border:1px solid #e6e6e6; padding:10px 12px; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.03); font-size:0.9em;">
+    <strong>Legenda:</strong>
+    <span style="margin-left:8px; display:inline-block;"><span class="cal-type" style="background:#eef;">Obecny</span> — pracuje</span>
+    <span style="margin-left:8px; display:inline-block;"><span class="cal-type">U</span> — Urlop</span>
+    <span style="margin-left:8px; display:inline-block;"><span class="cal-type">WP</span> — Wyjście prywatne</span>
+    <span style="margin-left:8px; display:inline-block;"><span class="cal-type">N</span> — Nieobecny</span>
+    <span style="margin-left:8px; display:inline-block;"><span class="cal-type">OG</span> — Odbiór godzin</span>
+    <span style="margin-left:8px; display:inline-block;"><span class="cal-type">OP</span> — Opieka</span>
+  </div>
+{% endblock %}

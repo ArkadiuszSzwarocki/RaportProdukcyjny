@@ -46,48 +46,46 @@
     <div class="section-box section-box-no-pad">
         <div class="d-flex justify-between align-center p-15 p-15-bg">
         <h3 class="m-0">📋 Główny Plan: <strong>{{ wybrana_data }}</strong></h3>
-        <button type="button" onclick="document.getElementById('modalDodaj').classList.remove('hidden')" class="btn-action btn-action-success">+ DODAJ PLAN</button>
+        <button type="button" id="btnDodajPlan" onclick="document.getElementById('modalDodaj').classList.remove('hidden')" class="btn-action btn-action-success">+ DODAJ PLAN</button>
     </div>
 
     <table class="modern-table">
         <thead>
             <tr>
-                <th>Produkt</th>
-                <th>Typ</th>
-                <th>Plan (kg)</th>
-                <th>Estymacja</th> <th>Wykonanie (kg)</th>
-                <th>Palety</th>
-                <th>Status</th>
-                <th>Akcje</th>
+                <th>📦 Produkt</th>
+                <th>🏷️ Typ</th>
+                <th>📋 Plan</th>
+                <th>⏱️ Estymacja</th>
+                <th>✅ Wykonanie</th>
+                <th>📚 Palety</th>
+                <th>📊 Status</th>
+                <th class="text-right">⚙️ Akcje</th>
             </tr>
         </thead>
         <tbody>
             {% for p in plany %}
             <tr>
-                <td><strong class="header-title">{{ p[2] }}</strong></td>
-                <td class="small text-muted">{{ p[9]|upper }}</td>
-                <td><strong>{{ p[3]|int }} kg</strong></td>
-                
-                <td class="small text-muted">
-                    <span class="material-icons icon-muted">schedule</span> 
-                    ~{{ p[11] }} min
-                </td>
-
+                <td><strong class="text-primary">{{ p[2] }}</strong></td>
+                <td><span class="badge-sekcja">{{ p[9]|upper }}</span></td>
+                <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
                 <td>
-                        {% if p[8] > 0 %}
+                    <span class="duration-badge">{{ p[11] }} min</span>
+                </td>
+                <td>
+                    {% if p[8] > 0 %}
                         <strong class="text-success">{{ p[8]|int }} kg</strong>
                         {% if p[10] %}<br><span class="small text-danger-color">⚠️ {{ p[10] }}</span>{% endif %}
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
                     {% if palety_mapa[p[0]] %}
-                        <button type="button" onclick="toggleDetails({{ p[0] }})" class="btn-toggle">📦 {{ palety_mapa[p[0]]|length }} szt. ▼</button>
+                        <button type="button" onclick="toggleDetails({{ p[0] }})" class="btn-toggle">📦 {{ palety_mapa[p[0]]|length }} szt.</button>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
-                    {% if p[4] == 'zakonczone' %}<span class="text-success font-bold">✔ Zakończone</span>
-                    {% elif p[4] == 'w toku' %}<span class="text-warning font-bold pulse-animation">⏳ W toku</span>
-                    {% else %}<span class="text-muted">Zaplanowane</span>{% endif %}
+                    {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
+                    {% elif p[4] == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
+                    {% else %}<span class="status-badge status-zaplanowane">ZAPLANOWANE</span>{% endif %}
                 </td>
                 <td>
                     <div class="d-flex gap-5 align-center">
@@ -110,12 +108,12 @@
             <tr id="details-{{ p[0] }}" class="details-row">
                 <td colspan="8" class="p-0">
                     <div class="p-10">
-                        <table class="small-table">
-                            <thead><tr><th>Nr</th><th>Godzina</th><th>Netto</th><th>Brutto</th><th>Tara</th></tr></thead>
+                        <table class="modern-table small">
+                            <thead><tr><th>Nr</th><th>🕒 Godzina</th><th>📦 Netto</th><th>⚖️ Brutto</th><th>📌 Tara</th></tr></thead>
                             <tbody>
                                 {% for pal in palety_mapa[p[0]] %}
                                 <tr>
-                                    <td>{{ loop.index }}</td><td>🕒 {{ pal[1] }}</td><td><strong>{{ pal[0]|int }} kg</strong></td><td>{{ pal[3]|int }} kg</td><td class="text-muted">{{ pal[2]|int }} kg</td>
+                                    <td class="text-muted font-bold">{{ loop.index }}</td><td class="time-display">{{ pal[1] }}</td><td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td><td class="text-success">{{ pal[3]|int }} kg</td><td class="text-muted">{{ pal[2]|int }} kg</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -131,7 +129,7 @@
 
 <div id="modalDodaj" class="modal-popup hidden">
     <h3>➕ Dodaj Zlecenie</h3>
-    <form action="/dodaj_plan_zaawansowany" method="POST" class="d-flex flex-column gap-10">
+    <form action="{{ url_for('api.dodaj_plan_zaawansowany') }}" method="POST" class="d-flex flex-column gap-10">
         <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
         <input type="hidden" name="sekcja" value="Zasyp">
         <label>Typ:</label>
@@ -167,6 +165,25 @@
 <script>
     function toggleDetails(id) { var row = document.getElementById('details-' + id); row.style.display = (row.style.display === 'none') ? 'table-row' : 'none'; }
     function openMoveModal(id, nazwa) { document.getElementById('modalMove').style.display = 'flex'; document.getElementById('moveProduktName').innerText = nazwa; document.getElementById('formMove').action = "/przenies_zlecenie/" + id; }
+</script>
+
+<script>
+    // Fallback listener in case inline onclick is blocked; adds console logging for debugging
+    (function(){
+        try{
+            var btn = document.getElementById('btnDodajPlan');
+            var modal = document.getElementById('modalDodaj');
+            if(btn && modal){
+                btn.addEventListener('click', function(e){
+                    console.log('btnDodajPlan clicked - opening modal');
+                    modal.classList.remove('hidden');
+                    modal.style.display = 'flex';
+                });
+            } else {
+                console.log('btnDodajPlan or modalDodaj not found', !!btn, !!modal);
+            }
+        }catch(err){ console.log('error attaching btnDodajPlan listener', err); }
+    })();
 </script>
 
 

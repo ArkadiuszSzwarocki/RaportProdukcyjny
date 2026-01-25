@@ -1,0 +1,278 @@
+{% extends "layout.html" %}
+
+{% block title %}Podsumowanie Zmiany{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="section-box">
+        <h1>📋 Podsumowanie Zmiany</h1>
+        
+        <!-- Informacje o zmianie -->
+        <div class="info-grid">
+            <div class="info-item">
+                <strong>📅 Data:</strong> {{ zmiana_data.data }}
+            </div>
+            <div class="info-item">
+                <strong>🏭 Sekcja:</strong> {{ zmiana_data.sekcja }}
+            </div>
+            <div class="info-item">
+                <strong>👤 Lider:</strong> {{ zmiana_data.lider_name }}
+            </div>
+        </div>
+        
+        <!-- Pracownicy -->
+        <div class="mt-30">
+            <h3>👥 Pracownicy na zmianie</h3>
+            {% if zmiana_data.pracownicy %}
+            <div class="pracownicy-list">
+                {% for p in zmiana_data.pracownicy %}
+                <span class="badge badge-info">{{ p.imie }}</span>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">Brak danych o pracownikach</p>
+            {% endif %}
+        </div>
+        
+        <!-- Plany produkcji -->
+        <div class="mt-30">
+            <h3>📊 Plany Produkcji</h3>
+            {% if zmiana_data.plany %}
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>📦 Produkt</th>
+                        <th>📋 Plan (t)</th>
+                        <th>✅ Wykonanie (t)</th>
+                        <th>📊 Status</th>
+                        <th>⏰ Czas</th>
+                        <th>📦 Palety</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for plan in zmiana_data.plany %}
+                    <tr>
+                        <td><strong class="text-primary">{{ plan.produkt }}</strong></td>
+                        <td>{{ plan.tonaz|default(0) }}</td>
+                        <td><strong class="text-success">{{ plan.tonaz_wykonania|default(0) }}</strong></td>
+                        <td>
+                            {% if plan.status == 'w toku' %}
+                                <span class="badge badge-warning">🔄 W toku</span>
+                            {% elif plan.status == 'zaplanowane' %}
+                                <span class="badge badge-info">📅 Zaplanowana</span>
+                            {% elif plan.status == 'zamknieta' %}
+                                <span class="badge badge-success">✅ Zamknięta</span>
+                            {% else %}
+                                <span class="badge">{{ plan.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted">{{ plan.real_start }} - {{ plan.real_stop }}</td>
+                        <td class="text-center">
+                            <strong>{{ plan.palety|length }}</strong>
+                            {% if plan.palety %}
+                            <button type="button" class="btn-icon" onclick="togglePalety('plan-{{ plan.id }}')" aria-label="Pokaż palety">📦</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    
+                    <!-- Szczegóły palet -->
+                    {% if plan.palety %}
+                    <tr id="plan-{{ plan.id }}-details" class="details-row" style="display: none;">
+                        <td colspan="6" class="p-0">
+                            <div class="p-10">
+                                <table class="modern-table small">
+                                    <thead>
+                                        <tr>
+                                            <th>Nr</th>
+                                            <th>⚖️ Waga (kg)</th>
+                                            <th>🕒 Dodana</th>
+                                            <th>✅ Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for pal in plan.palety %}
+                                        <tr>
+                                            <td class="text-muted">{{ loop.index }}</td>
+                                            <td><strong class="text-success">{{ pal.waga|int }}</strong></td>
+                                            <td class="time-display">{{ pal.data_dodania }}</td>
+                                            <td>
+                                                {% if pal.status == 'do_przyjecia' %}
+                                                    <span class="badge badge-warning">🔄 Do przyjęcia</span>
+                                                {% elif pal.status == 'przyjeta' %}
+                                                    <span class="badge badge-success">✅ Przyjęta</span>
+                                                {% else %}
+                                                    <span class="badge">{{ pal.status }}</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted">Brak planów produkcji na dzisiaj</p>
+            {% endif %}
+        </div>
+        
+        <!-- Notatki Lidera -->
+        <div class="mt-30">
+            <h3>📝 Notatki Lidera</h3>
+            <form id="raport-form" method="POST" action="{{ url_for('api.zapisz_raport_koncowy') }}" class="d-flex flex-column gap-15">
+                <input type="hidden" name="sekcja" value="{{ zmiana_data.sekcja }}">
+                
+                <textarea name="notatki" id="notatki" class="input-lg" placeholder="Wpisz notatki z zmiany, uwagi, problemy, osiągnięcia..." rows="6" style="font-size: 14px; padding: 12px; border-radius: 6px; border: 1px solid #ddd;"></textarea>
+                
+                <!-- Opcje exportu -->
+                <div class="export-options">
+                    <h4>📥 Eksportuj raport jako:</h4>
+                    <div class="d-flex gap-10 flex-wrap">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="export_email" checked> 📧 Email (txt)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="export_excel"> 📊 Excel
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="export_pdf"> 📄 PDF
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Przyciski akcji -->
+                <div class="d-flex gap-10">
+                    <button type="submit" class="btn-action btn-save flex-1" style="font-size: 16px; padding: 12px;">
+                        ✅ Zakończ zmianę i Zapisz Raport
+                    </button>
+                    <a href="{{ url_for('index', sekcja=zmiana_data.sekcja) }}" class="btn-action btn-cancel flex-1" style="font-size: 16px; padding: 12px; text-align: center; text-decoration: none;">
+                        ❌ Anuluj
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+    padding: 20px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: 8px;
+}
+
+.info-item {
+    padding: 10px;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.pracownicy-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.badge-info {
+    background: linear-gradient(135deg, #bbdefb 0%, #64b5f6 100%);
+    color: #1565c0;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    border: 1px solid #42a5f5;
+}
+
+.export-options {
+    background: #f9fafb;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    margin: 15px 0;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.checkbox-label input[type="checkbox"] {
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    accent-color: #2196F3;
+}
+
+.mt-30 {
+    margin-top: 30px;
+}
+</style>
+
+<script>
+function togglePalety(planId) {
+    const detailsRow = document.getElementById(planId + '-details');
+    if (detailsRow) {
+        detailsRow.style.display = detailsRow.style.display === 'none' ? 'table-row' : 'none';
+    }
+}
+
+document.getElementById('raport-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const notatki = document.getElementById('notatki').value;
+    const exportEmail = document.querySelector('input[name="export_email"]').checked;
+    const exportExcel = document.querySelector('input[name="export_excel"]').checked;
+    const exportPdf = document.querySelector('input[name="export_pdf"]').checked;
+    
+    // Najpierw zapisz raport w bazie
+    const formData = new FormData(this);
+    
+    fetch(this.action, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(() => {
+        // Po zapisaniu, jeśli są wybrane exporty, pobierz raporty
+        if (exportEmail || exportExcel || exportPdf) {
+            const params = new URLSearchParams({
+                data: '{{ zmiana_data.data }}',
+                sekcja: '{{ zmiana_data.sekcja }}',
+                notatki: notatki
+            });
+            
+            if (exportEmail) {
+                window.location.href = '/api/pobierz-raport?format=email&' + params.toString();
+            }
+            if (exportExcel) {
+                window.location.href = '/api/pobierz-raport?format=excel&' + params.toString();
+            }
+            if (exportPdf) {
+                window.location.href = '/api/pobierz-raport?format=pdf&' + params.toString();
+            }
+        }
+        
+        // Po krótkim opóźnieniu przejdź na dashboard
+        setTimeout(() => {
+            window.location.href = '/?sekcja={{ zmiana_data.sekcja }}';
+        }, 1000);
+    })
+    .catch(error => {
+        console.error('Błąd:', error);
+        alert('Błąd przy zapisywaniu raportu');
+    });
+});
+</script>
+{% endblock %}

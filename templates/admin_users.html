@@ -22,15 +22,11 @@
         <form action="/admin/konto/dodaj" method="POST" class="form-flex">
             <input name="login" placeholder="Login" required class="input-sm" aria-label="Login">
             <input name="haslo" placeholder="Hasło" class="input-sm" aria-label="Hasło">
+            <input name="imie_nazwisko" placeholder="Imię i nazwisko (opcjonalnie)" class="input-sm" aria-label="Imię i nazwisko">
             <select name="rola" class="input-sm" aria-label="Rola">
-                <option value="admin">admin</option>
-                <option value="zarzad">zarzad</option>
-                <option value="lider">lider</option>
-                <option value="planista">planista</option>
-                <option value="dur">dur</option>
-                <option value="produkcja">produkcja</option>
-                <option value="laboratorium">laboratorium</option>
-                <option value="pracownik">pracownik</option>
+                {% for r in roles %}
+                    <option value="{{ r[0] }}">{{ r[1] }}</option>
+                {% endfor %}
             </select>
             <button class="btn btn-primary" type="submit">Dodaj konto</button>
         </form>
@@ -58,14 +54,9 @@
                                 <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login do edycji">
                                 <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
                                 <select name="rola" class="input-sm" aria-label="Rola do edycji">
-                                    <option value="admin" {% if k[2]=='admin' %}selected{% endif %}>admin</option>
-                                    <option value="zarzad" {% if k[2]=='zarzad' %}selected{% endif %}>zarzad</option>
-                                    <option value="lider" {% if k[2]=='lider' %}selected{% endif %}>lider</option>
-                                    <option value="planista" {% if k[2]=='planista' %}selected{% endif %}>planista</option>
-                                    <option value="dur" {% if k[2]=='dur' %}selected{% endif %}>dur</option>
-                                    <option value="produkcja" {% if k[2]=='produkcja' %}selected{% endif %}>produkcja</option>
-                                    <option value="laboratorium" {% if k[2]=='laboratorium' %}selected{% endif %}>laboratorium</option>
-                                    <option value="pracownik" {% if k[2]=='pracownik' %}selected{% endif %}>pracownik</option>
+                                    {% for r in roles %}
+                                        <option value="{{ r[0] }}" {% if k[2]==r[0] %}selected{% endif %}>{{ r[1] }}</option>
+                                    {% endfor %}
                                 </select>
                                 <button type="submit" class="btn">Zapisz</button>
                             </form>

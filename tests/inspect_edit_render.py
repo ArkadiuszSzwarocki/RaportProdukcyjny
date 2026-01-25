@@ -3,14 +3,18 @@ import requests
 import pytest
 
 def first_wpis():
-    conn = get_db_connection(); cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     cursor.execute("SELECT id, problem, czas_start, czas_stop, kategoria FROM dziennik_zmiany ORDER BY id LIMIT 1")
-    r = cursor.fetchone(); conn.close(); return r
+    r = cursor.fetchone()
+    conn.close()
+    return r
 
 if __name__ == '__main__':
     row = first_wpis()
     if not row:
-        print('No wpis found'); raise SystemExit(1)
+        print('No wpis found')
+        raise SystemExit(1)
     id, problem, czas_start, czas_stop, kategoria = row
     print('DB values:', problem, czas_start, czas_stop, kategoria)
     # Skip when server not running

@@ -122,7 +122,7 @@ System automatycznie tworzy następujące tabele:
 ### 1. Dashboard Produkcji (`/`)
 
 - Podgląd planu produkcji na wybrany dzień
-- Śledzenie statusu zleceń (zaplanowane → w toku → zakończone)
+- Śledzenie status zleceń (zaplanowane → w toku → zakończone)
 - Zgłaszanie problemów produkcyjnych
 - Zarządzanie obsadą zmianową
 

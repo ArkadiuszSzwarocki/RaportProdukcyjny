@@ -13,6 +13,8 @@ class PaletaDTO:
     data_dodania: Optional[datetime] = None
     produkt: Optional[str] = None
     typ_produkcji: Optional[str] = None
+    status: Optional[str] = None
+    czas_potwierdzenia_s: Optional[int] = None
 
     @classmethod
     def from_db_row(cls, row: Any, columns: Optional[Tuple[str, ...]] = None) -> "PaletaDTO":
@@ -46,7 +48,7 @@ class PaletaDTO:
             return cls.from_db_row(data)
 
         # Fallback: przyjmij standardowy porządek (częste zapytania w projekcie)
-        # (id, plan_id, waga, tara, waga_brutto, data_dodania, produkt, typ_produkcji)
+        # (id, plan_id, waga, tara, waga_brutto, data_dodania, produkt, typ_produkcji, status, czas_potwierdzenia_s)
         try:
             return cls(
                 id=row[0] if len(row) > 0 else None,
@@ -57,6 +59,8 @@ class PaletaDTO:
                 data_dodania=row[5] if len(row) > 5 else None,
                 produkt=row[6] if len(row) > 6 else None,
                 typ_produkcji=row[7] if len(row) > 7 else None,
+                status=row[8] if len(row) > 8 else None,
+                czas_potwierdzenia_s=row[9] if len(row) > 9 else None,
             )
         except Exception:
             return cls()

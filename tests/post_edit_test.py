@@ -5,7 +5,8 @@ from datetime import datetime
 # get first wpis id
 
 def first_wpis():
-    conn = get_db_connection(); cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     cursor.execute("SELECT id FROM dziennik_zmiany ORDER BY id LIMIT 1")
     r = cursor.fetchone()
     conn.close()
@@ -13,7 +14,8 @@ def first_wpis():
 
 
 def fetch_wpis(id):
-    conn = get_db_connection(); cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     cursor.execute("SELECT id, data_wpisu, sekcja, problem, czas_start, czas_stop, status, kategoria FROM dziennik_zmiany WHERE id=%s", (id,))
     r = cursor.fetchone()
     conn.close()

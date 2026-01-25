@@ -105,7 +105,7 @@
 
     {% if rola in ['planista', 'admin', 'lider'] %}
     <hr class="custom-hr">
-    <form action="/dodaj_plan" method="POST" class="form-flex">
+    <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="form-flex">
         <input type="date" name="data_planu" value="{{ dzisiaj }}" required class="input-sm" aria-label="Data planu">
         <input type="text" name="produkt" placeholder="Produkt" required class="select-flex" aria-label="Produkt">
         <input type="number" step="0.1" name="tonaz" placeholder="Tony" required class="input-sm w-70" aria-label="Tonaz">
