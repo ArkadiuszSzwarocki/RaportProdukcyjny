@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Usuń paletę</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>body{margin:0;padding:12px;font-family:sans-serif;} .box{max-width:420px;margin:8px auto;} .actions{display:flex;gap:8px;margin-top:10px}</style>
+</head>
+<body>
+  <div class="box">
+    <h3>🗑️ Usuń paletę</h3>
+    <p>Czy na pewno usunąć paletę <strong>{{ paleta_id }}</strong>?</p>
+    <form action="{{ url_for('api.usun_palete', id=paleta_id) }}" method="POST">
+      <div class="actions">
+        <button type="submit" class="btn btn-danger">Usuń</button>
+        <button type="button" class="btn btn-outline" onclick="window.close();">Anuluj</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

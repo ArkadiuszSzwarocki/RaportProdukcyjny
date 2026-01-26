@@ -15,6 +15,44 @@
     --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
 }
 
+/* Drawer (modal-like panel) styles for paleta */
+.drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s;
+    z-index: 9998;
+}
+.drawer-overlay.open { opacity: 1; visibility: visible; }
+
+.drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 380px;
+    max-width: 95%;
+    background: #fff;
+    box-shadow: -12px 0 24px rgba(0,0,0,0.12);
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(.2,.8,.2,1);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+}
+.drawer.open { transform: translateX(0); }
+.drawer .drawer-header { padding: 14px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center; }
+.drawer .drawer-body { padding: 14px; overflow:auto; }
+.drawer .form-row label { display:block; margin-bottom:6px; font-weight:600; }
+
+@media (max-width: 600px){
+    .drawer { width: 100%; }
+}
+
+
+
 body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     background-color: var(--bg-body);
@@ -331,15 +369,7 @@ td { padding: 12px 10px; border-block-end: 1px solid var(--border-color); }
     .action-row form { width: 100%; }
     .action-row button { width: 100%; justify-content: center; }
 
-    /* 9. Modalne okna na mobilach */
-    .modal-popup { 
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        max-width: 95vw;
-        width: auto;
-    }
+    /* 9. Modalne okna na mobilach - USUNIĘTE */
 }
 
 /* ========== Utility & Component helpers added by full refactor ========== */
@@ -541,29 +571,91 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 /* Table small helpers */
 .text-center { text-align: center; }
 
-/* Modal and action button helpers */
-.modal-popup { 
-    position: fixed; 
-    top: 50%; 
-    left: 50%; 
-    transform: translate(-50%, -50%); 
-    background: white; 
-    padding: 25px; 
-    border-radius: 8px; 
-    box-shadow: 0 5px 25px rgba(0,0,0,0.3); 
-    z-index: 13000; 
-    visibility: hidden;
-    opacity: 0;
-    flex-direction: column; 
-    min-width: 300px; 
-    max-width: 85vw; 
-    border: 1px solid #ddd; 
-    max-height: 85vh; 
-    overflow: visible;
+/* Modal, side-drawer and modal-open styles removed — mechanizm popup wyłączony */
+/* Slide-over (smukły panel od prawej) */
+.slide-over-container {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 0; /* expanded when open */
     pointer-events: none;
-    user-select: none;
-    transition: none;
+    z-index: 1200;
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-end;
 }
+.slide-over {
+    pointer-events: auto;
+    width: 480px;
+    max-width: 95vw;
+    height: 100%;
+    background: #ffffff;
+    box-shadow: -8px 0 24px rgba(0,0,0,0.18);
+    transform: translateX(110%);
+    transition: transform 320ms cubic-bezier(.2,.9,.3,1), opacity 220ms ease;
+    opacity: 0;
+    display: flex;
+    flex-direction: column;
+}
+.slide-over.open { transform: translateX(0); opacity: 1; }
+.slide-over .so-header { padding: 12px 14px; border-bottom: 1px solid #eee; display:flex; align-items:center; justify-content:space-between; }
+.slide-over .so-body { padding: 12px 14px; overflow:auto; flex:1 1 auto; }
+.slide-over .so-footer { padding: 10px 14px; border-top: 1px solid #eee; text-align: right; }
+.slide-over .so-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #666; }
+.slide-over-mini { width: 320px; }
+
+/* small helper for transient mode (floating) */
+.slide-over.transient { box-shadow: -6px 6px 18px rgba(0,0,0,0.14); border-radius: 6px 0 0 6px; top: 12px; height: auto; max-height: 80vh; right: 12px; }
+
+/* Backdrop for secure slide-over */
+.slide-over-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.46);
+    z-index: 1190;
+    opacity: 0;
+    transition: opacity 220ms ease;
+}
+.slide-over-backdrop.show { opacity: 1; }
+
+/* when slide-over exists, ensure body doesn't scroll */
+.slide-over-open { overflow: hidden; }
+
+/* Centered modal popup */
+.center-modal-container {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1205;
+    pointer-events: none;
+}
+.center-modal {
+    pointer-events: auto;
+    width: 640px;
+    max-width: 95vw;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    transform: scale(0.95);
+    opacity: 0;
+    transition: transform 240ms cubic-bezier(.2,.9,.3,1), opacity 200ms ease;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+}
+.center-modal.open { transform: scale(1); opacity: 1; }
+.center-modal .cm-header { padding: 12px 16px; border-bottom: 1px solid #eee; display:flex; align-items:center; justify-content:space-between; }
+.center-modal .cm-body { padding: 14px; overflow:auto; flex:1 1 auto; }
+.center-modal .cm-footer { padding: 10px 16px; border-top: 1px solid #eee; text-align: right; }
+.center-modal .cm-close { background:none; border:none; font-size:20px; cursor:pointer; color:#666; }
+
+.center-modal.transient { width: 420px; border-radius: 6px; }
+
+
 .btn-toggle { background: none; border: 1px solid #ccc; border-radius: 12px; font-size: 0.75em; padding: 2px 8px; cursor: pointer; color: #555; }
 .btn-action { 
     border: none; 
@@ -573,6 +665,9 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
     font-weight: 600;
     font-size: 0.9em;
     pointer-events: auto;
+    outline: none;
+    box-sizing: border-box;
+    min-width: 80px;
 }
 .btn-action-success { background: var(--success-color); color: white; }
 .btn-action-cancel { background: #95a5a6; color: white; }
@@ -600,18 +695,7 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 .wn-reject:hover {
     background: #c0392b;
 }
-/* Overlay behind modals */
-.modal-overlay { 
-    position: fixed; 
-    inset: 0; 
-    background: rgba(0,0,0,0.35); 
-    z-index: 12000;
-    overflow: visible;
-    visibility: hidden;
-    opacity: 0;
-    pointer-events: none;
-    transition: none;
-}
+/* modal-overlay removed */
 /* ===== Rules moved from templates (centralized) ===== */
 
 /* ustawienia_index tiles */
@@ -1029,6 +1113,8 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
         top: 0;
         left: -280px;
         height: 100vh;
+        z-index: 13001;
+        /* ensure modal stays above overlay and other content */
         width: 280px;
         max-width: 85%;
         transition: left 0.28s ease;

@@ -12,7 +12,7 @@ from collections import defaultdict
 from config import SECRET_KEY
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
-from db import get_db_connection, setup_database
+import db
 from dto.paleta import PaletaDTO
 from raporty import format_godziny
 from routes_admin import admin_bp
@@ -27,7 +27,23 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(api_bp, url_prefix='/api')
 app.register_blueprint(planista_bp)
 app.jinja_env.filters['format_czasu'] = format_godziny
-setup_database()
+try:
+    # Avoid running DB setup during pytest collection or when tests monkeypatch DB.
+    # Pytest sets the `PYTEST_CURRENT_TEST` env var during collection/execution.
+    import os as _os
+    if 'PYTEST_CURRENT_TEST' not in _os.environ:
+        db.setup_database()
+    else:
+        app.logger.debug('Skipping setup_database() under pytest')
+except Exception:
+    try:
+        app.logger.exception('setup_database() failed or skipped')
+    except Exception:
+        pass
+
+# Ensure we always resolve DB connection at call-time so tests can monkeypatch `db.get_db_connection`
+def get_db_connection():
+    return db.get_db_connection()
 
 
 # Backwards-compatible aliases for forms that post to root paths (keep working without reloading pages)
@@ -221,6 +237,23 @@ def log_request_info():
         app.logger.debug('Incoming request (pid=%s): %s %s', pid, request.method, full)
     except Exception:
         pass
+
+
+@app.route('/debug/modal-move', methods=['POST'])
+def debug_modal_move():
+    try:
+        data = request.get_json(force=True)
+        # Log as info; JSON-encode to keep single-line entries
+        try:
+            app.logger.info('Modal-move debug: %s', json.dumps(data, ensure_ascii=False))
+        except Exception:
+            app.logger.info('Modal-move debug: %s', str(data))
+    except Exception as e:
+        try:
+            app.logger.exception('Failed to record modal-move debug: %s', e)
+        except Exception:
+            pass
+    return ('', 204)
 
 
 @app.after_request

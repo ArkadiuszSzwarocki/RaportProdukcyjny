@@ -1,0 +1,12 @@
+<div class="p-15">
+    <h4 class="m-0 text-zarzad">📦 Nowa Szarża</h4>
+    <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST" class="mt-10">
+        <input type="hidden" name="sekcja" value="Zasyp">
+        <label>Waga Szarży (Netto) [kg]:</label>
+        <input type="number" step="1" name="waga_palety" value="" class="input-sm font-bold" aria-label="Waga szarży (Netto) [kg]" required>
+        <div class="mt-10">
+            <button type="submit" class="btn-action btn-primary">Dodaj szarżę</button>
+            <button type="button" onclick="closeSlideOver(this)" class="btn-action btn-outline">Anuluj</button>
+        </div>
+    </form>
+</div>

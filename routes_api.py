@@ -96,6 +96,29 @@ def zapisz_wyjasnienie(id):
     conn.close()
     return redirect(bezpieczny_powrot())
 
+
+# Modal-like page endpoints for in-page slide-over usage
+@api_bp.route('/koniec_zlecenie_page/<int:id>', methods=['GET'])
+@login_required
+def koniec_zlecenie_page(id):
+    # Render a small form that posts to existing /koniec_zlecenie/<id>
+    sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Zasyp'))
+    return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja)
+
+
+@api_bp.route('/szarza_page/<int:plan_id>', methods=['GET'])
+@login_required
+def szarza_page(plan_id):
+    # Render a simple form to add a szarża (delegates to dodaj_palete POST)
+    return render_template('szarza.html', plan_id=plan_id)
+
+
+@api_bp.route('/wyjasnij_page/<int:id>', methods=['GET'])
+@login_required
+def wyjasnij_page(id):
+    # Render form to submit wyjasnienie via zapisz_wyjasnienie
+    return render_template('wyjasnij.html', id=id)
+
 # ================= PALETY =================
 
 @api_bp.route('/dodaj_palete/<int:plan_id>', methods=['POST'])
@@ -294,6 +317,61 @@ def dodaj_palete(plan_id):
     # Nie ustawiamy parametru `open_stop` tutaj — unikamy automatycznego
     # otwierania modalu STOP po dodaniu palety/szarży.
     return redirect(bezpieczny_powrot())
+
+
+@api_bp.route('/dodaj_palete_page/<int:plan_id>', methods=['GET'])
+@login_required
+def dodaj_palete_page(plan_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    produkt = None
+    sekcja = None
+    typ = None
+    try:
+        cursor.execute("SELECT produkt, sekcja, typ_produkcji FROM plan_produkcji WHERE id=%s", (plan_id,))
+        row = cursor.fetchone()
+        if row:
+            produkt, sekcja, typ = row[0], row[1], row[2]
+    except Exception:
+        try: current_app.logger.exception('Failed to fetch plan %s for dodaj_palete_page', plan_id)
+        except Exception: pass
+    finally:
+        try: conn.close()
+        except Exception: pass
+    return render_template('dodaj_palete.html', plan_id=plan_id, produkt=produkt, sekcja=sekcja, typ=typ)
+
+
+@api_bp.route('/edytuj_palete_page/<int:paleta_id>', methods=['GET'])
+@login_required
+def edytuj_palete_page(paleta_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    waga = None
+    sekcja = None
+    try:
+        cursor.execute("SELECT waga, plan_id FROM palety_workowanie WHERE id=%s", (paleta_id,))
+        row = cursor.fetchone()
+        if row:
+            waga = row[0]
+            plan_id = row[1]
+            cursor.execute("SELECT sekcja FROM plan_produkcji WHERE id=%s", (plan_id,))
+            r2 = cursor.fetchone()
+            if r2:
+                sekcja = r2[0]
+    except Exception:
+        try: current_app.logger.exception('Failed to load paleta %s for edit page', paleta_id)
+        except Exception: pass
+    finally:
+        try: conn.close()
+        except Exception: pass
+    return render_template('edytuj_palete.html', paleta_id=paleta_id, waga=waga, sekcja=sekcja)
+
+
+
+@api_bp.route('/confirm_delete_palete_page/<int:paleta_id>', methods=['GET'])
+@login_required
+def confirm_delete_palete_page(paleta_id):
+    return render_template('confirm_delete_palete.html', paleta_id=paleta_id)
 
 
 @api_bp.route('/potwierdz_palete/<int:paleta_id>', methods=['POST'])

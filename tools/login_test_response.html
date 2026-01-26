@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Produkcyjny</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <link rel="icon" href="/static/favicon.svg" sizes="any">
+    <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/toasts.css">
+</head>
+<body class="sekcja-workowanie">
+
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="top-bar">
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
+            <span class="material-icons">menu</span>
+        </button>
+        <div class="d-flex align-center gap-15">
+            <img src="/static/agro_logo.png" alt="Company logo: the word agro with AGRO and MES styled difference and a simple agricultural emblema; place in the top bar header beige the page title agro; conveys a Natural, professional, trustworthy tone" class="logo-sm" onerror="handleLogoError(this)">
+            <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
+        </div>
+
+        <div class="user-info">
+            
+                <a href="/zarzad" class="btn-icon" title="Wyniki">
+                    <span class="material-icons">bar_chart</span>
+                </a>
+            
+
+            
+
+            
+                <a href="/zglos" class="btn-icon" title="Zgłoś problem">
+                    <span class="material-icons">report_problem</span>
+                </a>
+            
+
+            
+
+            <span class="user-role">Zalogowany: <strong>admin</strong></span>
+            
+            <a href="/logout" class="logout-btn" aria-label="Wyloguj">
+                <span class="material-icons">logout</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="app-layout">
+        <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+        <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
+            <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
+            <nav class="sidebar-nav">
+                    
+                        
+                        
+                            <a href="/" class="nav-item ">Dashboard</a>
+                        
+                        <a href="/?sekcja=Zasyp" class="nav-item ">Zasyp</a>
+                        <a href="/?sekcja=Workowanie" class="nav-item active">Workowanie</a>
+                        <a href="/?sekcja=Magazyn" class="nav-item ">Magazyn</a>
+                        <a href="/jakosc" class="nav-item ">Jakość</a>
+                    
+                <a href="/zarzad" class="nav-item ">Wyniki</a>
+                
+                    <a href="/dur/awarie" class="nav-item ">⚠️ Awarie</a>
+                
+                <a href="/planista" class="nav-item ">Plan</a>
+                <a href="/moje_godziny" class="nav-item ">Moje godziny</a>
+                
+                    <a href="/admin/ustawienia" class="nav-item ">Ustawienia</a>
+                
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/logout" class="btn-icon">Wyloguj</a>
+            </div>
+        </aside>
+
+        <main class="main-content" id="mainContent">
+        
+            
+        
+
+        
+
+<div id="modalOverlay" class="modal-overlay"></div>
+
+    <div class="section-header">
+    <div><h2 class="header-title">Hala Produkcyjna: <strong>Workowanie</strong></h2><p class="text-muted m-0">ADMIN | 2026-01-26</p></div>
+    <div class="d-flex gap-10">
+    </div>
+</div>
+
+<div class="section-box d-flex align-center justify-between">
+    <div class="d-flex align-center gap-10">
+        <strong>👥 Obsada Linii:</strong>
+        
+            <span class="text-muted text-muted-italic">Brak przypisanych pracowników.</span>
+        
+    </div>
+    
+    
+    <form action="/api/dodaj_do_obsady" method="POST" class="d-flex gap-5">
+        <input type="hidden" name="sekcja" value="Workowanie">
+        <select name="pracownik_id" required title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm">
+            <option value="" disabled selected>+ Dodaj osobę</option>
+            <option value="3">Agencja 1</option><option value="4">Agencja 2</option><option value="5">Agencja 3</option><option value="6">Agencja 4</option><option value="24">Arkadiusz Szwarocki</option><option value="13">Bartłomiej Luberacki</option><option value="9">Jakub Godosz</option><option value="17">Janek Warzywoda</option><option value="15">Justyna Gałek</option><option value="1">Karolina Koza</option><option value="11">Marcin Boczkowski</option><option value="8">Mateusz Budzałek</option><option value="12">Mateusz Burzykowski</option><option value="7">Vania</option>
+        </select>
+        <button type="submit" class="btn btn-start">OK</button>
+    </form>
+    
+</div>
+
+
+    <div class="grid-auto-fit">
+        <div class="stat-card"><span class="label">Plan</span><strong class="value">2000 kg</strong></div>
+        <div class="stat-card"><span class="label">Wykonanie</span><strong class="value text-success">2000 kg</strong></div>
+        <div class="stat-card"><span class="label">% Realizacja</span><strong class="value">100%</strong></div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+    <div class="section-box p-0">
+    <div class="p-15 p-15-bg">
+        <h3 class="m-0 text-primary">📋 Kolejka Produkcyjna</h3>
+        <span class="badge-info">WORKOWANIE</span>
+    </div>
+    
+        
+
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>#</th><th>📦 Produkt</th><th>📋 Plan</th><th>🕒 Czas Pracy</th><th>📊 Status</th><th>✅ Realizacja</th><th class="text-right">⚙️ Akcje</th>
+            </tr>
+        </thead>
+        <tbody>
+        
+            <tr class="row-wtoku">
+                <td class="text-muted font-bold">1</td>
+                <td>
+                    <strong class="text-primary">AGRO MILK  TOP</strong>
+                    <div class="small badge-sekcja">STANDARD</div>
+                </td>
+                <td>
+                    <strong class="text-success">2000 kg</strong>
+                </td>
+                <td class="small">
+                    <div class="time-display">🟢 10:03</div>
+                    
+                    
+                </td>
+                <td><span class="status-badge status-wtoku">W TOKU</span></td>
+                <td>
+                    <strong class="text-success">2000 kg</strong>
+                    
+                        <button type="button" onclick="toggleDetails('244')" class="btn-toggle ml-5">
+                            📦 2 szt. ▼
+                        </button>
+                    
+                    
+                </td>
+                <td class="text-right">
+                    
+                        
+                            <div class="d-flex gap-5 justify-end">
+                                
+                                    <button type="button" onclick="openModal('paleta-244')" class="btn-action btn-purple">+ PALETA</button>
+                                
+                                
+                                    <form action="/api/koniec_zlecenie/244" method="POST"><input type="hidden" name="sekcja" value="Workowanie"><button type="submit" class="btn-action btn-stop">STOP</button></form>
+                                
+                            </div>
+                            <div id="paleta-244" class="modal-popup">
+                                <h4 class="m-0 text-zarzad">📦 Nowa Paleta</h4>
+                                <form action="/api/dodaj_palete/244" method="POST" class="d-flex flex-column gap-10">
+                                    <input type="hidden" name="sekcja" value="Workowanie"><input type="hidden" name="typ_produkcji" value="standard">
+                                    <label>Waga Produktu (Netto) [kg]:</label><input type="number" step="1" name="waga_palety" value="1000" class="input-sm font-bold" aria-label="Waga produktu (Netto) [kg]">
+                                    <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">DODAJ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                </form>
+                            </div>
+                                <div id="szarza-244" class="modal-popup">
+                                    <h4 class="m-0 text-zarzad">📦 Nowa Szarża (Zasyp)</h4>
+                                    <form action="/api/dodaj_palete/244" method="POST" class="d-flex flex-column gap-10">
+                                        <input type="hidden" name="sekcja" value="Zasyp">
+                                        <input type="hidden" name="typ_produkcji" value="standard">
+                                        <label>Waga Szarży (Netto) [kg]:</label>
+                                        <input type="number" step="1" name="waga_palety" value="1000" class="input-sm font-bold" aria-label="Waga szarży (Netto) [kg]">
+                                        <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">DODAJ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                    </form>
+                                </div>
+                            <div id="stop-zasyp-244" class="modal-popup">
+                                <h4 class="m-0 text-danger-color">🛑 Zatrzymaj (Zasyp)</h4>
+                                <form action="/api/koniec_zlecenie/244" method="POST" class="d-flex flex-column gap-10">
+                                    <input type="hidden" name="sekcja" value="Workowanie"><label>Zużycie (kg):</label><input type="number" step="1" name="final_tonaz" value="2000" required class="input-sm font-bold" aria-label="Zużycie (kg)">
+                                    <div class="d-flex gap-10"><button type="submit" class="btn-action btn-stop flex-1">ZATWIERDŹ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                </form>
+                            </div>
+                            
+                            <div id="stop-244" class="modal-popup">
+                                <h4 class="m-0 text-danger-color">🛑 Zatrzymaj</h4>
+                                <form action="/api/koniec_zlecenie/244" method="POST" class="d-flex flex-column gap-10">
+                                    <input type="hidden" name="sekcja" value="Workowanie"><label>Zużycie (kg):</label><input type="number" step="1" name="final_tonaz" value="2000" required class="input-sm font-bold" aria-label="Zużycie (kg)">
+                                    <div class="d-flex gap-10"><button type="submit" class="btn-action btn-stop flex-1">ZATWIERDŹ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                </form>
+                            </div>
+                            
+                        
+                    
+                </td>
+            </tr>
+            
+            <tr id="details-244" class="details-row">
+                <td colspan="7" class="p-0">
+                    <div class="p-10">
+                        <table class="modern-table small">
+                            <thead><tr><th>Nr</th><th>🕒 Godzina</th><th>Typ</th><th>Waga</th><th>⏱️ Czas</th><th>Opcje</th></tr></thead>
+                            <tbody>
+                                
+                                <tr>
+                                    <td class="text-muted font-bold">1</td>
+                                    <td class="time-display"><span>17:11</span></td>
+                                    <td><span class="badge-sekcja">STANDARD</span></td>
+                                    <td>
+                                        <strong class="text-primary">1000 kg</strong>
+                                    </td>
+                                    <td>
+                                        <span class="paleta-elapsed duration-badge" data-start="2026-01-26 17:11:12"></span>
+                                    </td>
+                                    <td>
+                                        
+                                            
+                                                <span class="badge badge-success">✅ Przyjęta</span>
+                                            
+                                        
+                                        
+                                            <button type="button" onclick="openModal('editpal-241')" class="btn-icon" aria-label="Edytuj paletę">✏️</button>
+                                            <button type="button" onclick="openModal('confirm-delete-241')" class="btn-icon text-danger-color" aria-label="Usuń paletę">🗑️</button>
+                                        
+                                        
+                                    <div id="editpal-241" class="modal-popup">
+                                        <h4 class="m-0">✏️ Edytuj paletę</h4>
+                                        <form action="/api/edytuj_palete/241" method="POST" class="d-flex flex-column gap-10">
+                                            <label>Waga (Netto) [kg]:</label>
+                                            <input type="number" step="1" name="waga_palety" value="1000" required class="input-sm font-bold" aria-label="Waga (kg)">
+                                            <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">ZAPISZ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                        </form>
+                                    </div>
+                                    <div id="confirm-delete-241" class="modal-popup">
+                                        <h4 class="m-0">🗑️ Usuń paletę</h4>
+                                        <p class="mb-15">Czy na pewno chcesz usunąć tę paletę?</p>
+                                        <div class="d-flex gap-10">
+                                            <form action="/api/usun_palete/241" method="POST" class="flex-1">
+                                                <button type="submit" class="btn-action btn-danger flex-1">🗑️ Usuń</button>
+                                            </form>
+                                            <button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">Anuluj</button>
+                                        </div>
+                                    </div>
+                                    </td>
+                                </tr>
+                                
+                                <tr>
+                                    <td class="text-muted font-bold">2</td>
+                                    <td class="time-display"><span>10:03</span></td>
+                                    <td><span class="badge-sekcja">STANDARD</span></td>
+                                    <td>
+                                        <strong class="text-primary">1000 kg</strong>
+                                    </td>
+                                    <td>
+                                        <span class="paleta-elapsed duration-badge" data-start="2026-01-26 10:03:52"></span>
+                                    </td>
+                                    <td>
+                                        
+                                            
+                                                <span class="badge badge-success">✅ Przyjęta</span>
+                                            
+                                        
+                                        
+                                            <button type="button" onclick="openModal('editpal-234')" class="btn-icon" aria-label="Edytuj paletę">✏️</button>
+                                            <button type="button" onclick="openModal('confirm-delete-234')" class="btn-icon text-danger-color" aria-label="Usuń paletę">🗑️</button>
+                                        
+                                        
+                                    <div id="editpal-234" class="modal-popup">
+                                        <h4 class="m-0">✏️ Edytuj paletę</h4>
+                                        <form action="/api/edytuj_palete/234" method="POST" class="d-flex flex-column gap-10">
+                                            <label>Waga (Netto) [kg]:</label>
+                                            <input type="number" step="1" name="waga_palety" value="1000" required class="input-sm font-bold" aria-label="Waga (kg)">
+                                            <div class="d-flex gap-10"><button type="submit" class="btn-action btn-save flex-1">ZAPISZ</button><button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">ANULUJ</button></div>
+                                        </form>
+                                    </div>
+                                    <div id="confirm-delete-234" class="modal-popup">
+                                        <h4 class="m-0">🗑️ Usuń paletę</h4>
+                                        <p class="mb-15">Czy na pewno chcesz usunąć tę paletę?</p>
+                                        <div class="d-flex gap-10">
+                                            <form action="/api/usun_palete/234" method="POST" class="flex-1">
+                                                <button type="submit" class="btn-action btn-danger flex-1">🗑️ Usuń</button>
+                                            </form>
+                                            <button type="button" onclick="closeAllModals()" class="btn-action btn-cancel flex-1">Anuluj</button>
+                                        </div>
+                                    </div>
+                                    </td>
+                                </tr>
+                                
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            
+        
+        </tbody>
+    </table>
+</div>
+
+    
+
+<script>
+    function toggleDetails(id) {
+        var row = document.getElementById('details-' + id);
+        if (!row) return;
+        var isHidden = getComputedStyle(row).display === 'none' || row.style.display === 'none';
+        row.style.display = isHidden ? 'table-row' : 'none';
+    }
+    
+    function openModal(id) { 
+        var modal = document.getElementById(id);
+        if (modal) {
+            modal.style.visibility = 'visible';
+            modal.style.opacity = '1';
+            modal.style.pointerEvents = 'auto';
+            try { modal.style.zIndex = '13001'; } catch(e) {}
+            // Lock vertical position: compute top in pixels so later height changes don't re-center modal
+            try {
+                var h = modal.offsetHeight || modal.getBoundingClientRect().height || 0;
+                var topPx = Math.max(10, Math.round((window.innerHeight - h) / 2));
+                modal.style.top = topPx + 'px';
+                // keep horizontal centering via translateX only
+                modal.style.left = '50%';
+                modal.style.transform = 'translateX(-50%)';
+            } catch (e) { /* ignore */ }
+        }
+        var overlay = document.getElementById('modalOverlay');
+        if (overlay) {
+            overlay.style.visibility = 'visible';
+            overlay.style.pointerEvents = 'auto';
+            try { overlay.style.opacity = '1'; } catch(e) {}
+            try { overlay.classList.add('modal-overlay--visible'); } catch(e) {}
+        }
+        try { document.body.classList.add('modal-open'); } catch(e) {}
+        try { logModalMove(id); } catch(e) {}
+    }
+    
+    function closeAllModals() { 
+        document.querySelectorAll('.modal-popup').forEach(function(m) {
+            m.style.visibility = 'hidden';
+            m.style.opacity = '0';
+            m.style.pointerEvents = 'none';
+            // remove locked top so modal returns to CSS-centered default
+            try { m.style.top = ''; m.style.transform = ''; } catch(e){}
+            try { m.style.zIndex = ''; } catch(e){}
+        });
+        var overlay = document.getElementById('modalOverlay');
+        if (overlay) {
+            overlay.style.visibility = 'hidden';
+            overlay.style.pointerEvents = 'none';
+            try { overlay.style.opacity = '0'; } catch(e) {}
+            try { overlay.classList.remove('modal-overlay--visible'); } catch(e) {}
+        }
+        try { document.body.classList.remove('modal-open'); } catch(e) {}
+    }
+    
+    // Zamknij wszystko na start
+    closeAllModals();
+</script>
+
+<script>
+// Modal movement logger: logs bounding rect before and after a small mousemove below the modal,
+// prints to console and posts JSON to server endpoint `/debug/modal-move`.
+function logModalMove(id){
+    try{
+        var modal = document.getElementById(id);
+        if(!modal) return;
+        var r1 = modal.getBoundingClientRect();
+        console.log('modal-debug before', r1);
+        setTimeout(function(){
+            try{
+                var x = r1.x + r1.width/2;
+                var y = r1.y + r1.height + 10;
+                var ev = new MouseEvent('mousemove', {clientX: x, clientY: y, bubbles: true});
+                document.dispatchEvent(ev);
+            }catch(e){/* ignore */}
+            try{
+                var r2 = modal.getBoundingClientRect();
+                console.log('modal-debug after', r2);
+                var moved = Math.abs(r1.x - r2.x) > 1 || Math.abs(r1.y - r2.y) > 1;
+                // send to server (best-effort, don't block)
+                try{
+                    fetch('/debug/modal-move', {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({id:id, before:r1, after:r2, moved: moved})
+                    }).catch(function(e){});
+                }catch(e){}
+            }catch(e){}
+        }, 200);
+    }catch(e){console.error('logModalMove failed', e);}
+}
+</script>
+
+<script>
+// Live elapsed timers for unconfirmed palety
+function formatElapsed(secs){
+    if(secs < 0) secs = 0;
+    const h = Math.floor(secs/3600);
+    const m = Math.floor((secs%3600)/60);
+    const s = secs%60;
+    if(h>0) return h+"h "+String(m).padStart(2,'0')+"m";
+    if(m>0) return m+"m "+String(s).padStart(2,'0')+"s";
+    return s+"s";
+}
+function updatePaletaTimers(){
+    document.querySelectorAll('.paleta-elapsed').forEach(function(el){
+        const ds = el.getAttribute('data-start');
+        if(!ds) return;
+        // parse 'YYYY-MM-DD HH:MM:SS' by replacing space with 'T'
+        let t = ds.replace(' ', 'T');
+        // If no timezone, Date.parse treats as local in most browsers
+        const start = Date.parse(t);
+        if(isNaN(start)) return;
+        const now = Date.now();
+        const secs = Math.floor((now - start)/1000);
+        el.textContent = '⏱️ ' + formatElapsed(secs);
+    });
+}
+document.addEventListener('DOMContentLoaded', function(){ updatePaletaTimers(); setInterval(updatePaletaTimers, 1000); });
+</script>
+
+<!-- Przypomnienia usunięte: funkcja remind_unconfirmed_palety zostaje, ale nie ma przycisku w UI. -->
+
+<!-- moved CSS to static/style.css -->
+<script>
+// AJAX approve/reject for dashboard wnioski_pending
+document.addEventListener('DOMContentLoaded', function(){
+    // showToast() provided by static/js/toasts.js
+
+    var forms = document.querySelectorAll('.wn-form');
+    forms.forEach(function(f){
+        f.addEventListener('submit', function(e){
+            e.preventDefault();
+            var url = f.getAttribute('action');
+            var row = f.closest('tr');
+            var btn = f.querySelector('.wn-btn'); if(btn) btn.disabled = true;
+            fetch(url, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams()})
+            .then(function(r){ try{ return r.json(); }catch(e){ return {}; } })
+            .then(function(j){
+                if(j && j.success){ if(row) row.remove(); showToast(j.message || 'Wniosek przetworzony', 'success'); }
+                else { showToast((j && j.message) ? j.message : 'Błąd', 'danger'); if(btn) btn.disabled = false; }
+            }).catch(function(err){ console.error(err); showToast('Błąd sieci', 'danger'); if(btn) btn.disabled = false; });
+        });
+    });
+});
+</script>
+
+
+        </main>
+    </div>
+
+    <script src="/static/js/toasts.js"></script>
+    <script src="/static/scripts.js"></script>
+    <script>
+        function handleLogoError(img){
+            try{
+                if(img.src.indexOf('agro_logo.png') !== -1){
+                    img.src = '/static/logo.png';
+                } else {
+                    img.onerror = null;
+                    img.src = 'https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';
+                }
+            }catch(e){
+                img.onerror = null;
+            }
+        }
+    </script>
+
+</body>
+</html>

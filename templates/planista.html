@@ -15,7 +15,7 @@
     <div class="text-warning"><strong>🔔 Laboratorium zgłosiło {{ quality_count }}</strong> zleceń dezynfekcji na {{ wybrana_data }} — sprawdź Jakość i dodaj do planów.</div>
     {% if session.get('rola') == 'planista' %}
     <div>
-        <button type="button" onclick="document.getElementById('modalJakosc').classList.remove('hidden')" class="btn-action btn-warning">Szczegóły dezynfekcji</button>
+        <button type="button" onclick="showSlideOver('<div class=\"p-10\"><h3>Funkcja dostępna na dedykowanej stronie</h3><p>Ta instalacja używa stron zamiast wyskakujących okien. Jeśli formularz istnieje, powinien otworzyć się w panelu bocznym.</p><p><button onclick=\"closeSlideOver(this)\" class=\"btn-action\">OK — zamknij</button></p></div>', { isHtml:true, backdrop:true, allowBackdropClose:false }); return false;" class="btn-action btn-warning">Szczegóły dezynfekcji</button>
     </div>
     {% endif %}
 </div>
@@ -46,7 +46,7 @@
     <div class="section-box section-box-no-pad">
         <div class="d-flex justify-between align-center p-15 p-15-bg">
         <h3 class="m-0">📋 Główny Plan: <strong>{{ wybrana_data }}</strong></h3>
-        <button type="button" id="btnDodajPlan" onclick="document.getElementById('modalDodaj').classList.remove('hidden')" class="btn-action btn-action-success">+ DODAJ PLAN</button>
+        <button type="button" id="btnDodajPlan" onclick="showSlideOver('<div class=\"p-10\"><h3>Dodawanie planu</h3><p>Użyj dedykowanej strony do dodawania planów. Alternatywnie możesz wypełnić formularz poniżej na stronie.</p><p><button onclick=\"closeSlideOver(this)\" class=\"btn-action\">OK — zamknij</button></p></div>', { isHtml:true, backdrop:true, allowBackdropClose:false }); return false;" class="btn-action btn-action-success">+ DODAJ PLAN</button>
     </div>
 
     <table class="modern-table">
@@ -127,103 +127,20 @@
     </table>
 </div>
 
-<div id="modalDodaj" class="modal-popup hidden">
-    <h3>➕ Dodaj Zlecenie</h3>
-    <form action="{{ url_for('api.dodaj_plan_zaawansowany') }}" method="POST" class="d-flex flex-column gap-10">
-        <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-        <input type="hidden" name="sekcja" value="Zasyp">
-        <label>Typ:</label>
-        <select name="typ_produkcji" class="input-sm" title="Typ produkcji" aria-label="Typ produkcji">
-            <option value="standard">Standard (25kg)</option>
-            <option value="bigbag">Big Bag</option>
-            <option value="szycie">Szycie</option>
-        </select>
-        <label>Produkt:</label>
-            <input type="text" name="produkt" required placeholder="np. Ekogroszek" class="input-sm" aria-label="Produkt">
-        <label>Ilość (kg):</label>
-            <input type="number" step="1" name="tonaz" required placeholder="np. 24000" class="input-sm" aria-label="Tonaż planu">
-        <div class="d-flex gap-10">
-            <button type="submit" class="btn-action btn-action-success flex-1">ZAPISZ</button>
-            <button type="button" onclick="document.getElementById('modalDodaj').classList.add('hidden')" class="btn-action btn-action-cancel flex-1">ANULUJ</button>
-        </div>
-    </form>
-</div>
+<!-- Modal Dodaj usunięty (mechanizm popup wyłączony) -->
 
-<div id="modalMove" class="modal-popup hidden">
-    <h3>📅 Przenieść?</h3>
-    <p id="moveProduktName" class="font-bold"></p>
-    <form action="" id="formMove" method="POST" class="d-flex flex-column gap-10">
-        <label>Data:</label>
-            <input type="date" name="nowa_data" required class="input-sm" aria-label="Nowa data">
-        <div class="d-flex gap-10">
-            <button type="submit" class="btn-action btn-action-success flex-1">PRZENIEŚ</button>
-            <button type="button" onclick="document.getElementById('modalMove').classList.add('hidden')" class="btn-action btn-action-cancel flex-1">ANULUJ</button>
-        </div>
-    </form>
-</div>
+<!-- Modal Move usunięty (mechanizm popup wyłączony) -->
 
-<script>
+    <script>
     function toggleDetails(id) { var row = document.getElementById('details-' + id); row.style.display = (row.style.display === 'none') ? 'table-row' : 'none'; }
-    function openMoveModal(id, nazwa) { document.getElementById('modalMove').style.display = 'flex'; document.getElementById('moveProduktName').innerText = nazwa; document.getElementById('formMove').action = "/przenies_zlecenie/" + id; }
+    function openMoveModal(id, nazwa) { try{ if(typeof showToast==='function') showToast('Okno przenoszenia zostało wyłączone', 'info'); else alert('Okno przenoszenia wyłączone'); }catch(e){console.log('openMoveModal disabled', e);} }
+    /* showModalDisabled removed — slide-over used as fallback instead */
 </script>
 
-<script>
-    // Fallback listener in case inline onclick is blocked; adds console logging for debugging
-    (function(){
-        try{
-            var btn = document.getElementById('btnDodajPlan');
-            var modal = document.getElementById('modalDodaj');
-            if(btn && modal){
-                btn.addEventListener('click', function(e){
-                    console.log('btnDodajPlan clicked - opening modal');
-                    modal.classList.remove('hidden');
-                    modal.style.display = 'flex';
-                });
-            } else {
-                console.log('btnDodajPlan or modalDodaj not found', !!btn, !!modal);
-            }
-        }catch(err){ console.log('error attaching btnDodajPlan listener', err); }
-    })();
-</script>
+<!-- Fallback modal-open listener removed -->
 
 
-<!-- Modal: Szczegóły zleceń jakościowych -->
-<div id="modalJakosc" class="modal-popup hidden">
-        <h3>🔬 Zlecenia zgłoszone przez laboratorium - {{ wybrana_data }}</h3>
-        {% if quality_orders and quality_orders|length > 0 %}
-        <div class="max-h-60vh">
-            <table class="small-table">
-                <thead><tr><th>ID</th><th>Produkt</th><th>Tonaż</th><th>Sekcja</th><th>Status</th><th>Akcje</th></tr></thead>
-                <tbody>
-                {% for q in quality_orders %}
-                    <tr>
-                        <td>{{ q[0] }}</td>
-                        <td>{{ q[1] }}</td>
-                        <td>{{ q[2] or '-' }}</td>
-                        <td>{{ q[3] }}</td>
-                        <td>{{ q[4] }}</td>
-                        <td>
-                            <div class="d-flex gap-6">
-                                <a href="{{ url_for('jakosc_detail', plan_id=q[0]) }}" class="btn-action btn-primary">Szczegóły</a>
-                                <form action="{{ url_for('api.jakosc_dodaj_do_planow', id=q[0]) }}" method="POST" class="inline-form">
-                                    <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-                                    <input type="hidden" name="data_powrot" value="{{ wybrana_data }}">
-                                    <button type="submit" class="btn-action btn-action-success">Dodaj do planu</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-            <div class="text-muted">Brak zgłoszeń jakościowych dla wybranej daty.</div>
-        {% endif %}
-        <div class="d-flex gap-8 mb-10">
-            <button type="button" onclick="document.getElementById('modalJakosc').classList.add('hidden')" class="btn-action btn-action-cancel">Zamknij</button>
-        </div>
-</div>
+<!-- Modal: Szczegóły zleceń jakościowych usunięty -->
 
  
 {% endblock %}

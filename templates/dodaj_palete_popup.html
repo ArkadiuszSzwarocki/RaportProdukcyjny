@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dodaj paletę</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>body{margin:0;padding:12px;font-family:sans-serif;} .box{max-width:520px;margin:8px auto;} .actions{display:flex;gap:8px;margin-top:10px}</style>
+</head>
+<body>
+  <div class="box">
+    <h3>➕ Dodaj paletę</h3>
+    <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST">
+      <div>
+        <label>Waga (kg)</label>
+        <input name="waga_palety" type="number" step="1" min="1" required class="input-sm" autofocus>
+      </div>
+      <input type="hidden" name="sekcja" value="{{ sekcja or '' }}">
+      <input type="hidden" name="typ_produkcji" value="{{ typ or 'standard' }}">
+      <div class="actions">
+        <button type="submit" class="btn btn-save">Dodaj</button>
+        <button type="button" class="btn btn-outline" onclick="window.close();">Anuluj</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>
