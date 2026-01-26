@@ -2,7 +2,7 @@
 
 {% block content %}
 
-<div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()"></div>
+<div id="modalOverlay" class="modal-overlay"></div>
 
     <div class="section-header">
     <div><h2 class="header-title">Hala Produkcyjna: <strong>{{ sekcja }}</strong></h2><p class="text-muted m-0">{{ rola|upper }} | {{ dzisiaj }}</p></div>
@@ -300,7 +300,7 @@
                                             <button type="button" onclick="openModal('confirm-delete-{{ pal[2] }}')" class="btn-icon text-danger-color" aria-label="Usuń paletę">🗑️</button>
                                         {% endif %}
                                         {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in ['lider','admin']) and pal[7] == 'do_przyjecia' %}
-                                            <form action="{{ url_for('api.potwierdz_palete', paleta_id=pal[2]) }}" method="POST" class="inline-form" style="display:inline-block; margin-left:8px;">
+                                            <form action="{{ url_for('api.potwierdz_palete', paleta_id=pal[2]) }}" method="POST" class="inline-form" style="display:inline-block; margin-inline-start:8px;">
                                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                                 <button type="submit" class="btn-action btn-save btn-small">Potwierdź</button>
                                             </form>
@@ -340,34 +340,69 @@
     {# HR, Nadgodziny i Raport Końcowy usunięte z tego widoku — przeniesione do dashboard_global.html #}
 
 <script>
-    function toggleDetails(id) { var row = document.getElementById('details-' + id); var hidden = getComputedStyle(row).display === 'none'; row.style.display = hidden ? 'table-row' : 'none'; }
-    function openModal(id) { 
-        console.log('[debug] openModal called for id=', id);
-        try { console.trace(); } catch(e){}
-        try{
-            // Telemetry: detailed trace for STOP modals
-            if (id && id.startsWith && id.startsWith('stop')){
-                try{
-                    console.log('[stop-trace] openModal for', id);
-                    console.trace('[stop-trace] call stack for openModal');
-                    var payload = {id: id, stack: (new Error()).stack || null, url: location.href};
-                    if (navigator.sendBeacon){
-                        try{ navigator.sendBeacon('/telemetry/openmodal', JSON.stringify(payload)); }catch(e){}
-                    } else {
-                        try{ fetch('/telemetry/openmodal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), keepalive:true}).catch(()=>{}); }catch(e){}
-                    }
-                }catch(e){}
-            }
-            // NOTE: suppression removed — use AJAX submit to avoid accidental overlay click interception
-        }catch(e){}
-        document.getElementById('modalOverlay').style.display = 'block';
-        document.getElementById(id).style.display = 'flex';
+    function toggleDetails(id) {
+        var row = document.getElementById('details-' + id);
+        if (!row) return;
+        var isHidden = getComputedStyle(row).display === 'none' || row.style.display === 'none';
+        row.style.display = isHidden ? 'table-row' : 'none';
     }
-    function closeAllModals() { document.getElementById('modalOverlay').style.display = 'none'; document.querySelectorAll('.modal-popup').forEach(el => el.style.display = 'none'); }
-    let idleTime = 0; document.addEventListener('mousemove', () => idleTime = 0); document.addEventListener('keypress', () => idleTime = 0);
-    setInterval(() => { idleTime++; if (idleTime >= 15 && document.getElementById('modalOverlay').style.display === 'none') { window.location.reload(); } }, 1000);
-    // Ensure all modals are hidden by default on initial load
-    try{ closeAllModals(); }catch(e){}
+    
+    // Proste funkcje modali - bez komplikacji
+    function openModal(id) { 
+        try {
+            console.info('[openModal] id=', id);
+            var modal = document.getElementById(id);
+            console.info('[openModal] modal element:', modal);
+            if (modal) {
+                modal.style.visibility = 'visible';
+                modal.style.opacity = '1';
+                modal.style.pointerEvents = 'auto';
+                // force inline z-index to ensure stacking order (works around cached CSS or specificity issues)
+                modal.style.zIndex = '13001';
+                console.info('[openModal] set inline z-index modal ->', modal.style.zIndex, 'computed:', getComputedStyle(modal).zIndex);
+            }
+            var overlay = document.getElementById('modalOverlay');
+            console.info('[openModal] overlay element:', overlay);
+            if (overlay) {
+                overlay.style.visibility = 'visible';
+                overlay.style.opacity = '1';
+                overlay.style.pointerEvents = 'auto';
+                overlay.style.zIndex = '13000';
+                console.info('[openModal] set inline z-index overlay ->', overlay.style.zIndex, 'computed:', getComputedStyle(overlay).zIndex);
+            }
+        } catch (e) { console.error('[openModal] error', e); }
+    }
+    
+    function closeAllModals() { 
+        document.querySelectorAll('.modal-popup').forEach(function(m) {
+            m.style.visibility = 'hidden';
+            m.style.opacity = '0';
+            m.style.pointerEvents = 'none';
+        });
+        var overlay = document.getElementById('modalOverlay');
+        if (overlay) {
+            overlay.style.visibility = 'hidden';
+            overlay.style.opacity = '0';
+            overlay.style.pointerEvents = 'none';
+        }
+    }
+    
+    // Idle timeout
+    let idleTime = 0;
+    document.addEventListener('mousemove', function() { idleTime = 0; });
+    document.addEventListener('keypress', function() { idleTime = 0; });
+    setInterval(function() { 
+        idleTime++;
+        var overlay = document.getElementById('modalOverlay');
+        var modalOpen = overlay && overlay.style.visibility === 'visible';
+        var anyFocused = document.activeElement && document.activeElement !== document.body && document.activeElement !== document.documentElement;
+        if (idleTime >= 15 && !modalOpen && !anyFocused) {
+            window.location.reload();
+        }
+    }, 1000);
+    
+    // Zamknij wszystko na start
+    closeAllModals();
 </script>
 
 <script>
@@ -597,7 +632,7 @@ function showToast(message, type = 'error') {
     toast.style.cssText = `
         position: fixed;
         top: 20px;
-        right: 20px;
+        inset-inline-end: 20px;
         background-color: ${type === 'error' ? '#d32f2f' : '#4caf50'};
         color: white;
         padding: 16px 24px;

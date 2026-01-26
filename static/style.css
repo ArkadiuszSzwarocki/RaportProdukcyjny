@@ -23,26 +23,33 @@ body {
     padding: 0;
     line-height: 1.6;
     font-size: 14px;
+    /* Prevent scrollbar shift when modal opens — applied only when supported */
+}
+
+@supports (scrollbar-gutter: stable) {
+    body {
+        scrollbar-gutter: stable;
+    }
 }
 
 /* --- LAYOUT --- */
 .container {
-    max-width: 1200px;
+    max-inline-size: 1200px;
     margin: 0 auto;
     padding: 20px;
 }
 
 /* --- APP LAYOUT: SIDEBAR + MAIN --- */
-.app-layout { display: flex; min-height: calc(100vh - 60px); }
+.app-layout { display: flex; min-block-size: calc(100vh - 60px); }
 .sidebar {
-    width: 220px;
+    inline-size: 220px;
     background: #ffffff;
-    border-right: 1px solid var(--border-color);
+    border-inline-end: 1px solid var(--border-color);
     padding: 20px 12px;
     box-sizing: border-box;
 }
-.sidebar-logo { font-weight: 700; color: var(--primary-color); margin-bottom: 12px; font-size: 1.1em; }
-.sidebar-nav { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.sidebar-logo { font-weight: 700; color: var(--primary-color); margin-block-end: 12px; font-size: 1.1em; }
+.sidebar-nav { display: flex; flex-direction: column; gap: 6px; margin-block-start: 6px; }
 .sidebar-nav .nav-item {
     display: block;
     padding: 10px 12px;
@@ -53,7 +60,7 @@ body {
 }
 .sidebar-nav .nav-item:hover { background: #f4f6f9; }
 .sidebar-nav .nav-item.active { background: var(--accent-color); color: white; }
-.sidebar-footer { margin-top: auto; padding-top: 12px; }
+.sidebar-footer { margin-block-start: auto; padding-block-start: 12px; }
 .main-content { flex: 1; padding: 20px; box-sizing: border-box; }
 
 /* --- TOP BAR --- */
@@ -61,13 +68,13 @@ body {
     background-color: var(--primary-color);
     color: white;
     padding: 0 20px;
-    height: 60px;
+    block-size: 60px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     box-shadow: var(--shadow-md);
     position: sticky;
-    top: 0;
+    inset-block-start: 0;
     z-index: 1000;
 }
 
@@ -105,7 +112,6 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
 }
 .btn-primary:hover, .btn-add-plan:hover, button[type="submit"]:hover {
     background-color: #2980b9 !important;
-    transform: translateY(-1px);
 }
 
 .logout-btn {
@@ -124,7 +130,7 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     border: 1px solid var(--border-color);
     border-radius: 10px;
     padding: 20px;
-    margin-bottom: 20px;
+    margin-block-end: 20px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     position: relative;
     transition: box-shadow 0.3s ease, transform 0.3s ease;
@@ -139,7 +145,7 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 12px;
-    margin-top: 12px;
+    margin-block-start: 12px;
 }
 .card {
     background: var(--bg-card);
@@ -153,7 +159,7 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     min-height: 80px;
 }
 .card h4 { margin: 0 0 6px 0; font-size: 1.05em; color: var(--primary-color); }
-.card .meta { color: var(--text-muted); font-size: 0.9em; margin-bottom: 8px; }
+.card .meta { color: var(--text-muted); font-size: 0.9em; margin-block-end: 8px; }
 .card .actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
 
 /* Make action buttons smaller and consistent inside cards */
@@ -166,9 +172,9 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
 }
 
 /* List view for users/pracownicy with avatars and role badges */
-.list-view { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.list-view { display: flex; flex-direction: column; gap: 10px; margin-block-start: 12px; }
 .list-row { display: flex; gap: 12px; align-items: center; background: var(--bg-card); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; box-shadow: var(--shadow-sm); }
-.avatar { width:44px; height:44px; border-radius:50%; background:var(--accent-color); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.05em; }
+.avatar { inline-size:44px; height:44px; border-radius:50%; background:var(--accent-color); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.05em; }
 .user-main { flex:1; display:flex; flex-direction:column; }
 .user-top { display:flex; gap:8px; align-items:center; }
 .user-name { font-weight:700; color:var(--primary-color); }
@@ -187,7 +193,7 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
 
 @media (max-width: 768px) {
     .list-row { flex-direction: row; }
-    .avatar { width:40px; height:40px; }
+    .avatar { inline-size:40px; block-size:40px; }
 }
 
 /* --- FORMS --- */
@@ -213,40 +219,40 @@ input:focus, select:focus {
 }
 
 /* --- TYPOGRAPHY --- */
-h2, h3, h4 { margin-top: 0; color: var(--primary-color); }
+h2, h3, h4 { margin-block-start: 0; color: var(--primary-color); }
 .header-title { font-size: 1.5em; font-weight: 400; margin: 0; }
 
 .section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-block-end: 20px;
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 15px;
+    padding-block-end: 15px;
     flex-wrap: wrap;
     gap: 10px;
 }
 
 /* --- TABLES --- */
-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+table { width: 100%; border-collapse: collapse; margin-block-start: 10px; }
 th {
     text-align: left;
     color: var(--text-muted);
     font-size: 0.85em;
     text-transform: uppercase;
-    border-bottom: 2px solid var(--border-color);
+    border-block-end: 2px solid var(--border-color);
     padding: 10px;
 }
-td { padding: 12px 10px; border-bottom: 1px solid var(--border-color); }
+td { padding: 12px 10px; border-block-end: 1px solid var(--border-color); }
 
 /* --- STATUS STRIPS --- */
 .status-nieoplacone { border-left: 5px solid var(--warning-color); }
-.status-zaplanowane { border-left: 5px solid var(--text-muted); }
-.status-wtoku { border-left: 5px solid var(--accent-color); background-color: #f8fbff; }
-.status-zakonczone { border-left: 5px solid var(--success-color); opacity: 0.8; background-color: #fcfcfc; }
+.status-zaplanowane { border-inline-start: 5px solid var(--text-muted); }
+.status-wtoku { border-inline-start: 5px solid var(--accent-color); background-color: #f8fbff; }
+.status-zakonczone { border-inline-start: 5px solid var(--success-color); opacity: 0.8; background-color: #fcfcfc; }
 
 /* --- FLASH MESSAGES --- */
-.flash-container { margin-top: 20px; }
+.flash-container { margin-block-start: 20px; }
 .flash-message {
     padding: 15px;
     border-radius: 4px;
@@ -289,6 +295,9 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border-color); }
     .section-box {
         overflow-x: auto; 
     }
+    .section-box-no-pad {
+        overflow-x: auto;
+    }
     .modern-table {
         min-width: 600px; /* Wymusza szerokość tabeli */
     }
@@ -321,6 +330,16 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--border-color); }
     .action-row { flex-direction: column; align-items: stretch; gap: 10px; }
     .action-row form { width: 100%; }
     .action-row button { width: 100%; justify-content: center; }
+
+    /* 9. Modalne okna na mobilach */
+    .modal-popup { 
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        max-width: 95vw;
+        width: auto;
+    }
 }
 
 /* ========== Utility & Component helpers added by full refactor ========== */
@@ -523,7 +542,28 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 .text-center { text-align: center; }
 
 /* Modal and action button helpers */
-.modal-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 8px; box-shadow: 0 5px 25px rgba(0,0,0,0.3); z-index: 1000; display: none; flex-direction: column; min-width: 300px; border: 1px solid #ddd; }
+.modal-popup { 
+    position: fixed; 
+    top: 50%; 
+    left: 50%; 
+    transform: translate(-50%, -50%); 
+    background: white; 
+    padding: 25px; 
+    border-radius: 8px; 
+    box-shadow: 0 5px 25px rgba(0,0,0,0.3); 
+    z-index: 13000; 
+    visibility: hidden;
+    opacity: 0;
+    flex-direction: column; 
+    min-width: 300px; 
+    max-width: 85vw; 
+    border: 1px solid #ddd; 
+    max-height: 85vh; 
+    overflow: visible;
+    pointer-events: none;
+    user-select: none;
+    transition: none;
+}
 .btn-toggle { background: none; border: 1px solid #ccc; border-radius: 12px; font-size: 0.75em; padding: 2px 8px; cursor: pointer; color: #555; }
 .btn-action { 
     border: none; 
@@ -531,17 +571,11 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
     padding: 10px 16px; 
     cursor: pointer; 
     font-weight: 600;
-    transition: all 0.3s ease;
     font-size: 0.9em;
-}
-.btn-action:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    pointer-events: auto;
 }
 .btn-action-success { background: var(--success-color); color: white; }
-.btn-action-success:hover { background: #229954; }
 .btn-action-cancel { background: #95a5a6; color: white; }
-.btn-action-cancel:hover { background: #7f8c8d; }
 .wn-approve, .wn-reject {
     padding: 8px 14px;
     margin: 0 4px;
@@ -558,7 +592,6 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 }
 .wn-approve:hover {
     background: #229954;
-    transform: translateY(-2px);
 }
 .wn-reject {
     background: #e74c3c;
@@ -566,10 +599,19 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 }
 .wn-reject:hover {
     background: #c0392b;
-    transform: translateY(-2px);
 }
 /* Overlay behind modals */
-.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 900; }
+.modal-overlay { 
+    position: fixed; 
+    inset: 0; 
+    background: rgba(0,0,0,0.35); 
+    z-index: 12000;
+    overflow: visible;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: none;
+}
 /* ===== Rules moved from templates (centralized) ===== */
 
 /* ustawienia_index tiles */
@@ -609,7 +651,7 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 .instruction { background: #fff3cd; border: 1px solid #ffeeba; padding: 15px; margin-bottom: 20px; border-radius: 5px; font-size: 16px; }
 .download-area { text-align: center; margin: 25px 0; display: flex; justify-content: center; gap: 20px; }
 .btn-download { display: inline-flex; align-items: center; justify-content: center; padding: 12px 25px; border-radius: 5px; text-decoration: none; color: white; font-weight: bold; font-size: 16px; transition: transform 0.2s; }
-.btn-download:hover { transform: scale(1.05); }
+.btn-download:hover { }
 .btn-excel { background-color: #27ae60; }
 .btn-pdf { background-color: #e74c3c; }
 .btn-open-mail { display: block; width: 100%; padding: 15px; background: #2980b9; color: white; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; margin-top: 20px; font-weight: bold; text-decoration: none; text-align: center; }
@@ -802,7 +844,6 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 .mb-15 { margin-bottom: 15px; }
 
 /* Additional utilities added during inline-style refactor */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 900; display:flex; align-items:center; justify-content:center; }
 .chip { display:inline-block; padding:4px 8px; border-radius:999px; background:#f1f1f1; font-weight:700; color:#333; font-size:0.85em; }
 .btn-start { background:#27ae60; color:white; border-radius:6px; padding:6px 12px; }
 .btn-stop { background:#e74c3c; color:white; border-radius:6px; padding:6px 12px; }
@@ -830,7 +871,7 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 .plan-item { padding:10px; border-radius:6px; background: white; border:1px solid #eee; display:flex; gap:10px; align-items:center; }
 .flex-column { display:flex; flex-direction:column; }
 .text-right { text-align:right; }
-.hidden { display:none !important; }
+.hidden { display: none; }
 
 /* Additional small utilities */
 .btn-warning { background: #f39c12; color: white; border-radius:6px; padding:8px 12px; }
@@ -859,9 +900,6 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 .pulse-animation { animation: pulse 2s infinite; }
 .no-underline { text-decoration: none; }
 
-
-/* Overlay used by modals */
-.modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
 
 /* Small chip used for inline labels (obsada) */
 .chip { background: #ecf0f1; padding: 3px 8px; border-radius: 12px; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; }
@@ -926,7 +964,7 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 .plan-box { margin-bottom: 20px; }
 .plan-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
 .plan-item .inline-form { display: inline-flex; gap: 6px; align-items: center; }
-.btn-stop { padding: 12px 25px; font-size: 1em; font-weight: bold; cursor: pointer; white-space: nowrap; border: none; background-color: #e74c3c; color: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.btn-stop { padding: 12px 25px; font-size: 1em; font-weight: bold; cursor: pointer; white-space: nowrap; border: none; background-color: #e74c3c; color: white; border-radius: 5px; }
 .btn-start { padding: 8px 20px; font-size: 0.9em; border-radius: 6px; background:#2ecc71; color:white; border:none; }
 .btn-delete { background:none; border:none; cursor:pointer; color:#c0392b; font-size:1.1em; }
 .btn-changeover { padding:10px 14px; border-radius:6px; background:#8e44ad; color:white; border:none; }
@@ -1001,7 +1039,7 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
     }
 
     /* When body has class sidebar-open, slide in */
-    body.sidebar-open .sidebar { left: 0; }
+    body.sidebar-open .sidebar { inset-inline-start: 0; }
 
     /* overlay appears when sidebar open */
     .sidebar-overlay {
@@ -1019,7 +1057,7 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
     body.sidebar-open { overflow: hidden; }
 
     /* ensure main content sits under top-bar and not beside sidebar */
-    .app-layout { padding-top: 0; }
+    .app-layout { padding-block-start: 0; }
 
     /* adjust sidebar internals for vertical layout */
     .sidebar-nav { flex-direction: column; }

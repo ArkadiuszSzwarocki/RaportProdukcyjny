@@ -464,14 +464,36 @@ def zmien_status_zlecenia(id):
 def usun_plan(id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT status FROM plan_produkcji WHERE id=%s", (id,))
-    res = cursor.fetchone()
-    # BLOKADA: Nie usuwamy aktywnych
-    if res and res[0] not in ['w toku', 'zakonczone']:
-        cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (id,))
-        conn.commit()
-    conn.close()
-    return redirect(bezpieczny_powrot())
+    redirect_target = bezpieczny_powrot()
+    category = None
+    message = None
+    try:
+        cursor.execute("SELECT status FROM plan_produkcji WHERE id=%s", (id,))
+        res = cursor.fetchone()
+        if not res:
+            category, message = 'warning', 'Zlecenie nie istnieje.'
+        elif res[0] in ['w toku', 'zakonczone']:
+            category, message = 'warning', 'Nie można usunąć zleczenia w toku lub już zakończonego.'
+        else:
+            cursor.execute("DELETE FROM palety_workowanie WHERE plan_id=%s", (id,))
+            cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (id,))
+            conn.commit()
+            category, message = 'success', 'Zlecenie zostało usunięte z planu.'
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        current_app.logger.exception('Failed to delete plan %s', id)
+        category, message = 'error', 'Wystąpił błąd przy usuwaniu zlecenia. Sprawdź logi.'
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    if category and message:
+        flash(message, category)
+    return redirect(redirect_target)
 
 @api_bp.route('/dodaj_plan_zaawansowany', methods=['POST'])
 @roles_required('planista', 'admin')

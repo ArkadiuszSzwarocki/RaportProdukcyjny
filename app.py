@@ -16,7 +16,7 @@ from db import get_db_connection, setup_database
 from dto.paleta import PaletaDTO
 from raporty import format_godziny
 from routes_admin import admin_bp
-from routes_api import api_bp, dodaj_plan_zaawansowany, dodaj_plan
+from routes_api import api_bp, dodaj_plan_zaawansowany, dodaj_plan, usun_plan
 from routes_planista import planista_bp
 from decorators import login_required, zarzad_required, roles_required
 
@@ -41,6 +41,12 @@ def alias_dodaj_plan_zaawansowany():
 @login_required
 def alias_dodaj_plan():
     return dodaj_plan()
+
+
+@app.route('/usun_plan/<int:id>', methods=['POST'])
+@login_required
+def alias_usun_plan(id):
+    return usun_plan(id)
 
 
 @app.route('/zglos')
@@ -1082,7 +1088,7 @@ def dur_zatwierdz_awarię(awaria_id):
         
         msg = f'✓ Awaria #{awaria_id} zmieniona na: {status}'
         if czas_stop_str:
-            msg += f' (czas_stop: {czas_stop_str})'
+            msg += ' (czas_stop: {})'.format(czas_stop_str)
         flash(msg, 'success')
         return redirect(request.referrer or '/dur/awarie')
     except Exception as e:

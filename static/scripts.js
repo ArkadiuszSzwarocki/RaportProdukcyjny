@@ -160,6 +160,43 @@
         window.addEventListener('resize', function () {
             if (window.innerWidth > 900) closeSidebar();
         });
+
+        // --- Modal management: stabilize body when modals open/close ---
+        (function() {
+            // Intercept all classList changes on modal-popup elements
+            const modals = document.querySelectorAll('.modal-popup');
+            modals.forEach(modal => {
+                const originalRemove = modal.classList.remove.bind(modal.classList);
+                const originalAdd = modal.classList.add.bind(modal.classList);
+                
+                modal.classList.remove = function(...classes) {
+                    originalRemove(...classes);
+                    updateModalState();
+                };
+                modal.classList.add = function(...classes) {
+                    originalAdd(...classes);
+                    updateModalState();
+                };
+                
+                modal.classList.toggle = function(className) {
+                    const result = Element.prototype.classList.toggle.call(this, className);
+                    updateModalState();
+                    return result;
+                };
+            });
+            
+            const updateModalState = function() {
+                const anyOpen = Array.from(modals).some(m => {
+                    const isHidden = m.classList.contains('hidden');
+                    const displayNone = getComputedStyle(m).display === 'none';
+                    return !isHidden && !displayNone;
+                });
+                document.body.classList.toggle('modal-open', anyOpen);
+            };
+            
+            // Initial state
+            updateModalState();
+        })();
     });
 
     // Auto-refresh: odśwież gdy nikt nic nie wpisuje przez określony czas
