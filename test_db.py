@@ -8,87 +8,56 @@ Uruchom ten skrypt aby sprawdzić czy połączenie z MySQL działa poprawnie
 import mysql.connector
 from mysql.connector import Error
 import pytest
+import os
+from dotenv import load_dotenv
 
-# Konfiguracja - zmień te wartości na swoje
-DB_CONFIG = {
-    'host': '192.168.0.18',      # Adres serwera MySQL
-    'port': 3307,                # Port MySQL
-    'database': 'biblioteka',    # Nazwa bazy
-    'user': 'biblioteka',        # Użytkownik
-    'password': 'Filipinka2025', # Hasło
-    'charset': 'utf8mb4'
-}
+# Ładowanie zmiennych środowiskowych z pliku .env
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
-def test_connection():
-    """Testuje połączenie z bazą danych"""
-    print("=" * 60)
-    print("  TEST POŁĄCZENIA Z BAZĄ DANYCH")
-    print("=" * 60)
-    print()
-    
-    print("Konfiguracja:")
-    print(f"  Host: {DB_CONFIG['host']}")
-    print(f"  Port: {DB_CONFIG['port']}")
-    print(f"  Baza: {DB_CONFIG['database']}")
-    print(f"  User: {DB_CONFIG['user']}")
-    print()
-    
-    conn = None
-    cursor = None
+# Maskowanie wrażliwych danych
+def masked(v):
+    if not v: return None
+    return v[:3] + '...' + v[-3:] if len(v) > 6 else '***'
+
+# Powszechnie używane nazwy zmiennych
+DATABASE_URL = os.getenv('DATABASE_URL')
+DB_HOST = os.getenv('DB_HOST')
+DB_PORT = os.getenv('DB_PORT') or os.getenv('PORT')
+DB_USER = os.getenv('DB_USER') or os.getenv('MYSQL_USER') or os.getenv('USER')
+DB_PASS = os.getenv('DB_PASS') or os.getenv('MYSQL_PASSWORD') or os.getenv('PASSWORD')
+DB_NAME = os.getenv('DB_NAME') or os.getenv('MYSQL_DB') or os.getenv('DATABASE')
+
+print("Wykryte zmienne środowiskowe:")
+print(" DATABASE_URL:", bool(DATABASE_URL))
+print(" DB_HOST:", masked(DB_HOST))
+print(" DB_PORT:", DB_PORT)
+print(" DB_USER:", masked(DB_USER))
+print(" DB_NAME:", masked(DB_NAME))
+
+# Najpierw próbuj połączenia przez DATABASE_URL (SQLAlchemy), w przeciwnym razie przez pymysql
+if DATABASE_URL:
     try:
-        print("Próba połączenia...")
-        # Ustaw krótki timeout połączenia, aby test nie czekał długo gdy serwer jest niedostępny
-        conn = mysql.connector.connect(connection_timeout=5, **DB_CONFIG)
-
-        assert conn.is_connected(), "Nie udało się nawiązać połączenia z bazą danych"
-        print("✅ SUKCES! Połączenie z bazą danych działa!")
-
-        # Pobierz informacje o serwerze
-        db_info = conn.server_info
-        print(f"Wersja MySQL: {db_info}")
-
-        # Sprawdź czy tabele istnieją
-        cursor = conn.cursor()
-        cursor.execute("SHOW TABLES")
-        tables = cursor.fetchall()
-
-        if tables:
-            print(f"\nZnalezione tabele ({len(tables)}):")
-            for table in tables:
-                cursor.execute(f"SELECT COUNT(*) FROM {table[0]}")
-                count = cursor.fetchone()[0]
-                print(f"  - {table[0]}: {count} rekordów")
-        else:
-            print("\n⚠️  Baza jest pusta - tabele zostaną utworzone przy pierwszym uruchomieniu app.py")
-
-        print()
-        print("=" * 60)
-        print("Test zakończony pomyślnie!")
-        print("Możesz uruchomić aplikację: python app.py")
-        print("=" * 60)
-        assert True
-
-    except Error as e:
-        # Jeśli serwer MySQL jest niedostępny (np. błąd 2003) => pomiń test zamiast przerywać całą suitę
-        err_no = getattr(e, 'errno', None)
-        msg = str(e)
-        if err_no == 2003 or 'Can\'t connect' in msg or 'Nie można połączyć' in msg or 'Connection refused' in msg:
-            pytest.skip(f"Pomijam test – nie można połączyć się z serwerem MySQL: {msg}")
-        pytest.fail(f"Błąd połączenia z bazą danych: {e}")
+        from sqlalchemy import create_engine, text
+        eng = create_engine(DATABASE_URL, connect_args={})
+        with eng.connect() as conn:
+            r = conn.execute(text("SELECT 1")).scalar()
+        print("Połączenie przez DATABASE_URL: OK, SELECT 1 ->", r)
+        raise SystemExit(0)
     except Exception as e:
-        pytest.fail(f"Nieoczekiwany błąd: {e}")
-    finally:
-        if cursor:
-            try:
-                cursor.close()
-            except Exception:
-                pass
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
+        print("Błąd połączenia przez DATABASE_URL:", e)
 
-if __name__ == "__main__":
-    test_connection()
-    input("\nNaciśnij Enter aby zakończyć...")
+if DB_HOST and DB_USER and DB_PASS and DB_NAME:
+    try:
+        import pymysql
+        port = int(DB_PORT) if DB_PORT else 3306
+        conn = pymysql.connect(host=DB_HOST, port=port, user=DB_USER, password=DB_PASS, database=DB_NAME, connect_timeout=5)
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            r = cur.fetchone()
+        conn.close()
+        print("Połączenie przez pymysql: OK, SELECT 1 ->", r)
+        raise SystemExit(0)
+    except Exception as e:
+        print("Błąd połączenia przez pymysql:", e)
+
+print("Nie udało się połączyć — sprawdź nazwy zmiennych w .env i czy wymagane pakiety są zainstalowane.")
