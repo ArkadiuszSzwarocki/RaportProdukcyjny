@@ -303,10 +303,7 @@
         return;
     }
 
-    function openPopup(url, name, w, h) {
-        // Use centered modal: show only form, do not auto-close, show backdrop and prevent closing by backdrop
-        try { if(typeof showSlideOver === 'function') showSlideOver(url, { backdrop: true, allowBackdropClose: false, transient: false }); else window.location.href = url; } catch(e){ console.warn('openPopup fallback', e); }
-    }
+    // openPopup removed — use `showSlideOver(...)` directly where needed
     
     // Zamknij wszystko na start
     closeAllModals();

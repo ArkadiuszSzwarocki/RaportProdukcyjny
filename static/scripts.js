@@ -435,6 +435,5 @@
     window.showSlideOver = showSlideOver;
     window.closeSlideOver = closeSlideOver;
     window.closeCenterModal = closeCenterModal;
-    window.showCenterModal = function(urlOrHtml, opts){ opts = opts || {}; opts.center = true; return showSlideOver(urlOrHtml, opts); };
 
 })();
