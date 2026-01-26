@@ -123,6 +123,7 @@
         const hamburger = document.getElementById('hamburgerBtn');
         const overlay = document.getElementById('sidebarOverlay');
         const sidebar = document.getElementById('appSidebar');
+        const navItems = sidebar ? sidebar.querySelectorAll('.nav-item') : [];
 
         function openSidebar() {
             document.body.classList.add('sidebar-open');
@@ -140,6 +141,8 @@
 
         if (hamburger) {
             hamburger.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
                 const open = document.body.classList.contains('sidebar-open');
                 if (open) closeSidebar(); else openSidebar();
             });
@@ -147,6 +150,7 @@
         if (overlay) {
             overlay.addEventListener('click', function () { closeSidebar(); });
         }
+        navItems.forEach(item => item.addEventListener('click', closeSidebar));
         // close on Esc
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') closeSidebar();

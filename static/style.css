@@ -963,7 +963,20 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
    an off-canvas panel. Clicking the overlay closes the panel.
 */
 
-.hamburger-btn { display: none; width: 44px; height: 44px; min-width: 44px; min-height: 44px; background: none; border: none; color: white; font-size: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.hamburger-btn { 
+    display: none; 
+    width: 44px; 
+    height: 44px; 
+    min-width: 44px; 
+    min-height: 44px; 
+    background: none; 
+    border: none; 
+    color: white; 
+    font-size: 26px; 
+    cursor: pointer; 
+    align-items: center; 
+    justify-content: center; 
+}
 
 /* overlay for sidebar (hidden by default) */
 .sidebar-overlay { display: none; }
