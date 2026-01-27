@@ -16,10 +16,10 @@
         <input name="waga_palety" type="number" step="1" min="1" required class="input-sm" autofocus>
       </div>
       <input type="hidden" name="sekcja" value="{{ sekcja or '' }}">
-      <input type="hidden" name="typ_produkcji" value="{{ typ or 'standard' }}">
-      <div class="actions">
-        <button type="submit" class="btn btn-save">Dodaj</button>
-        <button type="button" class="btn btn-outline" onclick="window.close();">Anuluj</button>
+      <input type="hidden" name="typ_produkcji" value="{{ typ or 'worki_zgrzewane_25' }}">
+      <div class="btn-row">
+        <button type="submit" class="btn-action btn-save">DODAJ</button>
+        <button type="button" class="btn-action btn-action-cancel" onclick="window.close();">ANULUJ</button>
       </div>
     </form>
   </div>

@@ -10,7 +10,7 @@
     <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
     <meta name="msapplication-TileColor" content="#ffffff">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_version }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/toasts.css') }}">
 </head>
 <body>
@@ -41,6 +41,10 @@
                 </a>
             {% endif %}
 
+            <a href="{{ url_for('api.obsada_page', sekcja=request.args.get('sekcja', 'Workowanie')) }}" class="btn-icon" title="Obsada" data-slide aria-label="Obsada">
+                <span class="material-icons">people</span>
+            </a>
+
             {# top users button removed per UI change request #}
 
             <span class="user-role">Zalogowany: <strong>{{ session.get('imie_nazwisko') or session.get('login') or 'N/A' }}</strong></span>
@@ -56,23 +60,43 @@
         <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
             <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
             <nav class="sidebar-nav">
-                    {% if session.get('rola') in ['produkcja','lider','admin','zarzad','pracownik'] %}
-                        {# Dashboard link for leaders/admins #}
-                        {% if session.get('rola') in ['lider','admin'] %}
-                            <a href="{{ url_for('index') }}" class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">Dashboard</a>
-                        {% endif %}
-                        <a href="{{ url_for('index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">Zasyp</a>
-                        <a href="{{ url_for('index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">Workowanie</a>
-                        <a href="{{ url_for('index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">Magazyn</a>
-                        <a href="{{ url_for('jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">Jakość</a>
-                    {% endif %}
-                <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">Wyniki</a>
-                {% if session.get('rola') in ['dur', 'admin', 'zarzad'] %}
+                {% if role_has_access('dashboard') %}
+                    <a href="{{ url_for('index') }}" class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">Dashboard</a>
+                {% endif %}
+
+                {% if role_has_access('zasyp') %}
+                    <a href="{{ url_for('index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">Zasyp</a>
+                {% endif %}
+
+                {% if role_has_access('workowanie') %}
+                    <a href="{{ url_for('index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">Workowanie</a>
+                {% endif %}
+
+                {% if role_has_access('magazyn') %}
+                    <a href="{{ url_for('index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">Magazyn</a>
+                {% endif %}
+
+                {% if role_has_access('jakosc') %}
+                    <a href="{{ url_for('jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">Jakość</a>
+                {% endif %}
+
+                {% if role_has_access('wyniki') %}
+                    <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">Wyniki</a>
+                {% endif %}
+
+                {% if role_has_access('awarie') %}
                     <a href="/dur/awarie" class="nav-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">⚠️ Awarie</a>
                 {% endif %}
-                <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">Plan</a>
-                <a href="{{ url_for('moje_godziny') }}" class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">Moje godziny</a>
-                {% if session.get('rola') == 'admin' %}
+
+                {% if role_has_access('plan') %}
+                    <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">Plan</a>
+                {% endif %}
+
+                {% if role_has_access('moje_godziny') %}
+                    <a href="{{ url_for('moje_godziny') }}" class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">Moje godziny</a>
+                {% endif %}
+
+                {% if role_has_access('ustawienia') %}
                     <a href="/admin/ustawienia" class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">Ustawienia</a>
                 {% endif %}
             </nav>
@@ -98,8 +122,8 @@
         </main>
     </div>
 
-    <script src="{{ url_for('static', filename='js/toasts.js') }}"></script>
-    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/toasts.js') }}?v={{ static_version }}"></script>
+    <script src="{{ url_for('static', filename='scripts.js') }}?v={{ static_version }}"></script>
     <script>
         function handleLogoError(img){
             try{

@@ -14,8 +14,8 @@
 <div class="plan-box d-flex justify-between align-center">
     <div class="text-warning"><strong>🔔 Laboratorium zgłosiło {{ quality_count }}</strong> zleceń dezynfekcji na {{ wybrana_data }} — sprawdź Jakość i dodaj do planów.</div>
     {% if session.get('rola') == 'planista' %}
-    <div>
-        <button type="button" onclick="showSlideOver('<div class=\"p-10\"><h3>Funkcja dostępna na dedykowanej stronie</h3><p>Ta instalacja używa stron zamiast wyskakujących okien. Jeśli formularz istnieje, powinien otworzyć się w panelu bocznym.</p><p><button onclick=\"closeSlideOver(this)\" class=\"btn-action\">OK — zamknij</button></p></div>', { isHtml:true, backdrop:true, allowBackdropClose:false }); return false;" class="btn-action btn-warning">Szczegóły dezynfekcji</button>
+        <div>
+        <button type="button" class="btn-action btn-warning" data-slide-html='<div class="p-10"><h3>Funkcja dostępna na dedykowanej stronie</h3><p>Ta instalacja używa stron zamiast wyskakujących okien. Jeśli formularz istnieje, powinien otworzyć się w panelu bocznym.</p><p><button onclick="closeSlideOver()" class="btn-action">OK — zamknij</button></p></div>'>Szczegóły dezynfekcji</button>
     </div>
     {% endif %}
 </div>
@@ -46,7 +46,7 @@
     <div class="section-box section-box-no-pad">
         <div class="d-flex justify-between align-center p-15 p-15-bg">
         <h3 class="m-0">📋 Główny Plan: <strong>{{ wybrana_data }}</strong></h3>
-        <button type="button" id="btnDodajPlan" onclick="showSlideOver('<div class=\"p-10\"><h3>Dodawanie planu</h3><p>Użyj dedykowanej strony do dodawania planów. Alternatywnie możesz wypełnić formularz poniżej na stronie.</p><p><button onclick=\"closeSlideOver(this)\" class=\"btn-action\">OK — zamknij</button></p></div>', { isHtml:true, backdrop:true, allowBackdropClose:false }); return false;" class="btn-action btn-action-success">+ DODAJ PLAN</button>
+        <a href="{{ url_for('api.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan" class="btn-action btn-action-success">+ DODAJ PLAN</a>
     </div>
 
     <table class="modern-table">

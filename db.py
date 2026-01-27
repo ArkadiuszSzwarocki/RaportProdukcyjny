@@ -1,5 +1,6 @@
 import mysql.connector
 from config import DB_CONFIG
+import os
 from werkzeug.security import generate_password_hash
 import time
 
@@ -45,7 +46,7 @@ def setup_database():
                 real_stop DATETIME,
                 tonaz_rzeczywisty FLOAT,
                 kolejnosc INT DEFAULT 0,
-                typ_produkcji VARCHAR(20) DEFAULT 'standard',
+                typ_produkcji VARCHAR(20) DEFAULT 'worki_zgrzewane_25',
                 wyjasnienie_rozbieznosci TEXT
             )
         """)
@@ -81,7 +82,7 @@ def setup_database():
         cursor.execute("SHOW COLUMNS FROM plan_produkcji LIKE 'typ_produkcji'")
         if not cursor.fetchone():
             print("⏳ Dodawanie kolumny 'typ_produkcji'...")
-            cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN typ_produkcji VARCHAR(20) DEFAULT 'standard'")
+            cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN typ_produkcji VARCHAR(20) DEFAULT 'worki_zgrzewane_25'")
 
         # Sprawdź i dodaj 'nazwa_zlecenia' do plan_produkcji (dla łatwiejszego czytania)
         cursor.execute("SHOW COLUMNS FROM plan_produkcji LIKE 'nazwa_zlecenia'")
@@ -97,6 +98,15 @@ def setup_database():
             # Zaktualizuj istniejące rekordy rozpoznane jako dezynfekcja
             try:
                 cursor.execute("UPDATE plan_produkcji SET typ_zlecenia='jakosc' WHERE LOWER(TRIM(produkt)) IN ('dezynfekcja linii','dezynfekcja')")
+            except Exception:
+                pass
+
+        # Sprawdź i dodaj 'nr_receptury' do plan_produkcji (numer receptury)
+        cursor.execute("SHOW COLUMNS FROM plan_produkcji LIKE 'nr_receptury'")
+        if not cursor.fetchone():
+            print("⏳ Dodawanie kolumny 'nr_receptury' do plan_produkcji...")
+            try:
+                cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN nr_receptury VARCHAR(64) DEFAULT ''")
             except Exception:
                 pass
 
@@ -203,7 +213,13 @@ def setup_database():
 
         cursor.execute("SELECT id FROM uzytkownicy WHERE login='admin'")
         if not cursor.fetchone():
-            cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('admin', generate_password_hash('masterkey', method='pbkdf2:sha256'), 'admin'))
+            # Do not create a hard-coded default admin password in production.
+            # Require INITIAL_ADMIN_PASSWORD environment variable to provision initial admin.
+            init_pass = os.environ.get('INITIAL_ADMIN_PASSWORD')
+            if init_pass:
+                cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('admin', generate_password_hash(init_pass, method='pbkdf2:sha256'), 'admin'))
+            else:
+                print("[SECURITY] No INITIAL_ADMIN_PASSWORD provided; skipping creation of default 'admin' account.")
 
         cursor.execute("SELECT id FROM uzytkownicy WHERE login='planista'")
         if not cursor.fetchone():

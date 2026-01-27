@@ -3,45 +3,23 @@
 {% block content %}
 <!-- modalOverlay removed (mechanizm popup wyłączony) -->
     <div class="section-header">
-    <div><h2 class="header-title">Hala Produkcyjna: <strong>{{ sekcja }}</strong></h2><p class="text-muted m-0">{{ rola|upper }} | {{ dzisiaj }}</p></div>
-    <div class="d-flex gap-10">
+    <div>
+        <h2 class="header-title">Hala Produkcyjna: <strong>{{ sekcja }}</strong></h2>
+        <p class="text-muted m-0">{{ rola|upper }} | {{ dzisiaj }}</p>
     </div>
-</div>
-
-<div class="section-box d-flex align-center justify-between">
-    <div class="d-flex align-center gap-10">
-        <strong>👥 Obsada Linii:</strong>
-        {% for o in obsada %}
-            <div class="chip">
-                {{ o[1] }}
-                {% if rola in ['lider', 'admin', 'pracownik'] %}
-                <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0">
-                    <button type="submit" class="btn-delete" aria-label="Usuń z obsady">&times;</button>
-                </form>
-                {% endif %}
-            </div>
+    <div class="d-flex align-center gap-12 header-stats">
+        {% if sekcja == 'Magazyn' %}
+            <div class="stat-inline"><span class="label">Przyjęto</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
+            <div class="stat-inline"><span class="label">Palet</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
         {% else %}
-            <span class="text-muted text-muted-italic">Brak przypisanych pracowników.</span>
-        {% endfor %}
+            <div class="stat-inline"><span class="label">Plan</span><strong class="value">{{ suma_plan|int }} kg</strong></div>
+            <div class="stat-inline"><span class="label">Wykonanie</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
+            <div class="stat-inline"><span class="label">% Realizacja</span><strong class="value">{{ (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
+        {% endif %}
     </div>
-    
-    {% if rola in ['lider', 'admin', 'pracownik'] %}
-    <form action="{{ url_for('api.dodaj_do_obsady') }}" method="POST" class="d-flex gap-5">
-        <input type="hidden" name="sekcja" value="{{ sekcja }}">
-        <select name="pracownik_id" required title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm">
-            <option value="" disabled selected>+ Dodaj osobę</option>
-            {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
-        </select>
-        <button type="submit" class="btn btn-start">OK</button>
-    </form>
-    {% endif %}
 </div>
 
 {% if sekcja == 'Magazyn' %}
-    <div class="grid-2">
-        <div class="stat-card"><span class="label">Przyjęto Netto</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
-        <div class="stat-card"><span class="label">Ilość Palet</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
-    </div>
     <div class="section-box mb-10">
         <h4 class="m-0">📦 Palety do Zatwierdzenia</h4>
         <div class="mt-10">
@@ -66,10 +44,7 @@
                                 <td class="time-display">{{ p[3] }}</td>
                                 <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</span></td>
                                 <td>
-                                    <form action="{{ url_for('api.potwierdz_palete', paleta_id=p[0]) }}" method="POST" class="confirm-paleta-form inline-form">
-                                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                                        <button type="submit" class="btn-action btn-success btn-small">Zatwierdź</button>
-                                    </form>
+                                    <a href="{{ url_for('api.potwierdz_palete_page', paleta_id=p[0]) }}" class="btn-action btn-success btn-small" data-slide>Zatwierdź</a>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -84,11 +59,8 @@
     <!-- Przycisk wysyłania przypomnień usunięty. Potwierdzanie palet odbywa się przez sekcję 'Zatwierdź' w Magazyn. -->
     {% endif %}
 {% else %}
-    <div class="grid-auto-fit">
-        <div class="stat-card"><span class="label">Plan</span><strong class="value">{{ suma_plan|int }} kg</strong></div>
-        <div class="stat-card"><span class="label">Wykonanie</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
-        <div class="stat-card"><span class="label">% Realizacja</span><strong class="value">{{ (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
-    </div>
+    {# Stat cards removed — metrics already shown in the header to avoid duplication and overlap #}
+    
 {% endif %}
 
 {% if wpisy %}
@@ -189,15 +161,15 @@
                                 {% if sekcja == 'Workowanie' %}
                                     <div class="paleta-inline-wrapper" style="display:inline-flex; align-items:center; gap:6px;">
                                             {% if p[9] == 'bigbag' %}
-                                            <a href="#" onclick="showSlideOver('{{ url_for('api.dodaj_palete_page', plan_id=p[0]) }}',{backdrop:true,allowBackdropClose:false,transient:false}); return false;" class="btn-action btn-purple">+ BIGBAG</a>
+                                            <a href="{{ url_for('api.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
                                         {% else %}
-                                            <a href="#" onclick="showSlideOver('{{ url_for('api.dodaj_palete_page', plan_id=p[0]) }}',{backdrop:true,allowBackdropClose:false,transient:false}); return false;" class="btn-action btn-purple">+ PALETA</a>
+                                            <a href="{{ url_for('api.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                                         {% endif %}
                                     </div>
                                 {% endif %}
                                 {% if sekcja == 'Zasyp' %}
-                                    <a href="#" onclick="showSlideOver('{{ url_for('api.szarza_page', plan_id=p[0]) }}',{backdrop:true,allowBackdropClose:false,transient:false}); return false;" class="btn-action btn-green">+ SZARŻA</a>
-                                    <a href="#" onclick="showSlideOver('{{ url_for('api.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}',{backdrop:true,allowBackdropClose:false,transient:false}); return false;" class="btn-action btn-stop">STOP</a>
+                                    <a href="{{ url_for('api.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
+                                    <a href="{{ url_for('api.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% else %}
                                     <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-stop">STOP</button></form>
                                 {% endif %}
@@ -210,7 +182,7 @@
                                     <div class="d-flex align-center justify-end gap-10">
                                 <span class="material-icons text-success">check_circle</span>
                                     {% if sekcja == 'Zasyp' and p[13] and not p[10] %}
-                                    <a href="#" onclick="showSlideOver('{{ url_for('api.wyjasnij_page', id=p[0]) }}',{backdrop:true,allowBackdropClose:false,transient:false}); return false;" class="btn-action btn-stop btn-small pulse-animation">⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</a>
+                                    <a href="{{ url_for('api.wyjasnij_page', id=p[0]) }}" class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</a>
                                     <!-- Wyjaśnienie modal (slide-over) -->
                                     {% endif %}
                                 {% if rola in ['lider', 'admin'] %}<form action="{{ url_for('api.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić?');"><button type="submit" class="btn-action btn-outline-warning" aria-label="Przywróć zlecenie"><span class="material-icons">replay</span></button></form>{% endif %}
@@ -234,10 +206,10 @@
                                     <td>
                                             {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
                                                 {% if pal[0] == 0 %}
-                                                    <a href="#" onclick="showSlideOver('{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}',{backdrop:true,allowBackdropClose:false,transient:false}); return false;" class="btn-action btn-warning small">⚖️ WAŻENIE</a>
+                                                    <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-warning small" data-slide>⚖️ WAŻENIE</a>
                                                 {% else %}
                                                     <strong class="text-success">{{ pal[0]|int }} kg</strong>
-                                                    <a href="#" onclick="showSlideOver('{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}',{backdrop:true,allowBackdropClose:false,transient:false}); return false;" class="btn-icon ml-5" aria-label="Edytuj wagę">✏️</a>
+                                                    <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon ml-5" aria-label="Edytuj wagę" data-slide>✏️</a>
                                                 {% endif %}
                                             <!-- Waga modal removed -->
                                         {% else %}<strong class="text-primary">{{ pal[0]|int }} kg</strong>{% endif %}
@@ -258,14 +230,11 @@
                                             {% endif %}
                                         {% endif %}
                                         {% if rola in ['lider', 'admin'] %}
-                                            <a href="#" onclick="showSlideOver('{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}',{backdrop:true,allowBackdropClose:false,transient:false}); return false;" class="btn-icon" aria-label="Edytuj paletę">✏️</a>
-                                            <a href="#" onclick="showSlideOver('{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}',{backdrop:true,allowBackdropClose:false,transient:false}); return false;" class="btn-icon text-danger-color" aria-label="Usuń paletę">🗑️</a>
+                                            <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="Edytuj paletę" data-slide>✏️</a>
+                                            <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń paletę" data-slide>🗑️</a>
                                         {% endif %}
                                         {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in ['lider','admin']) and pal[7] == 'do_przyjecia' %}
-                                            <form action="{{ url_for('api.potwierdz_palete', paleta_id=pal[2]) }}" method="POST" class="inline-form" style="display:inline-block; margin-inline-start:8px;">
-                                                <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                                                <button type="submit" class="btn-action btn-save btn-small">Potwierdź</button>
-                                            </form>
+                                            <a href="{{ url_for('api.potwierdz_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-save btn-small" data-slide style="display:inline-block; margin-inline-start:8px;">Potwierdź</a>
                                         {% endif %}
                                     <!-- editpal and confirm-delete modals removed -->
                                     </td>

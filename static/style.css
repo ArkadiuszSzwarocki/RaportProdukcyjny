@@ -587,11 +587,13 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
 }
 .slide-over {
     pointer-events: auto;
-    width: 480px;
-    max-width: 95vw;
+    width: 40vw !important;
+    min-width: 360px;
+    max-width: 960px;
     height: 100%;
     background: #ffffff;
     box-shadow: -8px 0 24px rgba(0,0,0,0.18);
+    border-left: 2px solid rgba(0,0,0,0.04);
     transform: translateX(110%);
     transition: transform 320ms cubic-bezier(.2,.9,.3,1), opacity 220ms ease;
     opacity: 0;
@@ -599,11 +601,58 @@ details summary { cursor: pointer; padding: 6px 10px; border-radius: 4px; backgr
     flex-direction: column;
 }
 .slide-over.open { transform: translateX(0); opacity: 1; }
-.slide-over .so-header { padding: 12px 14px; border-bottom: 1px solid #eee; display:flex; align-items:center; justify-content:space-between; }
-.slide-over .so-body { padding: 12px 14px; overflow:auto; flex:1 1 auto; }
-.slide-over .so-footer { padding: 10px 14px; border-top: 1px solid #eee; text-align: right; }
-.slide-over .so-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #666; }
+.slide-over .so-header { padding: 14px 16px; border-bottom: 1px solid #eee; display:flex; align-items:center; justify-content:space-between; }
+.slide-over .so-body { padding: 18px; overflow:auto; flex:1 1 auto; }
+.slide-over .so-footer { padding: 12px 16px; border-top: 1px solid #eee; text-align: right; }
+.slide-over .so-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #666; padding: 6px; }
 .slide-over-mini { width: 320px; }
+
+@media (max-width: 900px) {
+    .slide-over { width: 95vw; min-width: unset; }
+}
+
+/* Form helpers inside slide-over */
+.slide-over .form-field { margin-top: 6px; }
+.slide-over .form-field .input-sm { width: 100%; box-sizing: border-box; }
+.slide-over .btn-row { display: flex; flex-direction: column; gap: 10px; }
+.slide-over .btn-row .btn-action { width: 100%; }
+
+@media (min-width: 900px) {
+    /* On wide screens keep buttons inline but under the input */
+    .slide-over .btn-row { flex-direction: row; }
+    .slide-over .btn-row .btn-action { width: auto; }
+}
+
+/* Ensure any form action area inside slide-over sits lower and visually blends with panel */
+.slide-over .so-body form > .mt-10,
+.slide-over .so-body form .form-actions,
+.slide-over .so-body form .btn-row {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.slide-over .so-body form .btn-action {
+    /* keep primary button more visible, but slightly lower */
+    margin-top: 0;
+}
+
+/* Make cancel visually lighter so row 'melts' into panel */
+.slide-over .btn-action-cancel {
+    background: rgba(0,0,0,0.06);
+    color: #111;
+    border: none;
+}
+
+@media (max-width: 520px) {
+    .slide-over .so-body form > .mt-10,
+    .slide-over .so-body form .form-actions,
+    .slide-over .so-body form .btn-row { padding-top: 10px; margin-top: 12px; }
+}
 
 /* small helper for transient mode (floating) */
 .slide-over.transient { box-shadow: -6px 6px 18px rgba(0,0,0,0.14); border-radius: 6px 0 0 6px; top: 12px; height: auto; max-height: 80vh; right: 12px; }

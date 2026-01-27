@@ -118,6 +118,71 @@ def admin_ustawienia_pracownicy():
     conn.close()
     return render_template('ustawienia_pracownicy.html', pracownicy=pracownicy, suggested_id=suggested)
 
+
+@admin_bp.route('/admin/ustawienia/roles')
+@admin_required
+def admin_ustawienia_roles():
+    # pages and roles
+    pages = ['dashboard','ustawienia','jakosc','planista','moje_godziny','awarie','wyniki']
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT name, label FROM roles ORDER BY id ASC")
+        roles = cursor.fetchall()
+    except Exception:
+        roles = [('admin','admin'),('planista','planista'),('pracownik','pracownik'),('magazynier','magazynier'),('dur','dur'),('zarzad','zarzad'),('laboratorium','laboratorium'),('produkcja','produkcja'),('lider','lider')]
+    conn.close()
+
+    # load existing perms from file
+    import os, json
+    cfg_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'role_permissions.json')
+    perms = {}
+    try:
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            perms = json.load(f)
+    except Exception:
+        # default perms: leaders/admin full, planista sees plan & moje_godziny, dur readonly plan + awarie+wyniki, laboratorium jakosc+moje_godziny readonly plan
+        perms = {}
+        for p in pages:
+            perms[p] = {}
+            for r in roles:
+                perms[p][r[0]] = {'access': True if r[0] in ['admin','lider','zarzad'] else False, 'readonly': False}
+        # adjustments
+        perms['planista']['planista'] = {'access': True, 'readonly': False}
+        perms['moje_godziny'] = perms.get('moje_godziny', {})
+        perms['moje_godziny']['planista'] = {'access': True, 'readonly': False}
+        perms['planista']['laboratorium'] = {'access': True, 'readonly': True}
+        perms['jakosc']['laboratorium'] = {'access': True, 'readonly': False}
+        perms['planista']['dur'] = {'access': True, 'readonly': True}
+        perms['awarie']['dur'] = {'access': True, 'readonly': False}
+        perms['wyniki'] = perms.get('wyniki', {})
+        perms['wyniki']['dur'] = {'access': True, 'readonly': False}
+
+    # pass JSON to template
+    import json as _json
+    return render_template('ustawienia_roles.html', pages=pages, roles=roles, perms_json=_json.dumps(perms))
+
+
+@admin_bp.route('/admin/ustawienia/roles/save', methods=['POST'])
+@admin_required
+def admin_ustawienia_roles_save():
+    import os, json
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        data = None
+    if data is None:
+        return ('Bad request', 400)
+    cfg_dir = os.path.join(os.path.dirname(__file__), '..', 'config')
+    os.makedirs(cfg_dir, exist_ok=True)
+    cfg_path = os.path.join(cfg_dir, 'role_permissions.json')
+    try:
+        with open(cfg_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return ('OK', 200)
+    except Exception as e:
+        return (str(e), 500)
+
 @admin_bp.route('/admin/pracownik/dodaj', methods=['POST'])
 @admin_required
 def admin_dodaj_pracownika():

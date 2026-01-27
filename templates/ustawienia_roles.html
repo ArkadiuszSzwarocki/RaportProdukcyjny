@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+  <div class="section-header">
+    <h2>Ustawienia / Role i uprawnienia</h2>
+    <div><a href="/admin/ustawienia" class="btn">Powrót</a></div>
+  </div>
+
+  <p>Tu możesz zarządzać dostępem ról do stron aplikacji oraz ustawić, czy dostęp ma być tylko do odczytu.</p>
+
+  <div class="table-responsive">
+    <table class="modern-table">
+      <thead>
+        <tr>
+          <th>Strona</th>
+          {% for r in roles %}<th>{{ r[0] }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody id="permBody">
+        {% for p in pages %}
+        <tr data-page="{{ p }}">
+          <td><strong>{{ p }}</strong></td>
+          {% for r in roles %}
+          <td>
+            <label><input type="checkbox" class="perm-access" data-role="{{ r[0] }}"> Dostęp</label><br>
+            <label><input type="checkbox" class="perm-readonly" data-role="{{ r[0] }}"> Tylko odczyt</label>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:12px;">
+    <button id="btnSavePerms" class="btn btn-primary">Zapisz uprawnienia</button>
+    <span id="permStatus" style="margin-left:12px;color:green;display:none;">Zapisano.</span>
+  </div>
+
+  <script>
+  (function(){
+    const current = {{ perms_json|safe }};
+    const rows = document.querySelectorAll('#permBody tr');
+    rows.forEach(function(tr){
+      const page = tr.getAttribute('data-page');
+      {% raw %}
+      const pagePerms = current[page] || {};
+      {% endraw %}
+      tr.querySelectorAll('input.perm-access').forEach(function(ch){
+        const role = ch.getAttribute('data-role');
+        if(pagePerms[role] && pagePerms[role].access) ch.checked = true;
+      });
+      tr.querySelectorAll('input.perm-readonly').forEach(function(ch){
+        const role = ch.getAttribute('data-role');
+        if(pagePerms[role] && pagePerms[role].readonly) ch.checked = true;
+      });
+    });
+
+    document.getElementById('btnSavePerms').addEventListener('click', async function(){
+      const payload = {};
+      document.querySelectorAll('#permBody tr').forEach(function(tr){
+        const page = tr.getAttribute('data-page');
+        payload[page] = {};
+        tr.querySelectorAll('input.perm-access').forEach(function(ch){
+          const role = ch.getAttribute('data-role');
+          const readonly = tr.querySelector('input.perm-readonly[data-role="'+role+'"]').checked;
+          payload[page][role] = { access: !!ch.checked, readonly: !!readonly };
+        });
+      });
+
+      try{
+        const resp = await fetch('/admin/ustawienia/roles/save', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        if(resp.ok){ document.getElementById('permStatus').style.display='inline'; setTimeout(()=>document.getElementById('permStatus').style.display='none',2000); }
+        else alert('Błąd zapisu');
+      }catch(e){ alert('Błąd sieci'); }
+    });
+  })();
+  </script>
+
+</div>
+{% endblock %}

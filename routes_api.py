@@ -119,6 +119,27 @@ def wyjasnij_page(id):
     # Render form to submit wyjasnienie via zapisz_wyjasnienie
     return render_template('wyjasnij.html', id=id)
 
+
+@api_bp.route('/obsada_page', methods=['GET'])
+@login_required
+def obsada_page():
+    """Render small slide-over for managing `obsada` (workers on shift) for a sekcja."""
+    sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Workowanie'))
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # current obsada for today and given sekcja
+        cursor.execute("SELECT p.id, p.imie_nazwisko FROM pracownicy p JOIN obsada_zmiany o ON o.pracownik_id=p.id WHERE o.data_wpisu=%s AND o.sekcja=%s ORDER BY p.imie_nazwisko", (date.today(), sekcja))
+        obecna = cursor.fetchall()
+        # available employees
+        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko")
+        wszyscy = cursor.fetchall()
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    return render_template('obsada.html', sekcja=sekcja, obsada=obecna, pracownicy=wszyscy, rola=session.get('rola'))
+
 # ================= PALETY =================
 
 @api_bp.route('/dodaj_palete/<int:plan_id>', methods=['POST'])
@@ -134,7 +155,7 @@ def dodaj_palete(plan_id):
         waga_input = int(float(request.form.get('waga_palety', '0').replace(',', '.')))
     except Exception:
         waga_input = 0
-    typ = request.form.get('typ_produkcji', 'standard')
+    typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
     src_sekcja = request.form.get('sekcja', '')
     
     # Ensure `status` column exists (backfill default 'do_przyjecia' for new palety)
@@ -374,6 +395,27 @@ def confirm_delete_palete_page(paleta_id):
     return render_template('confirm_delete_palete.html', paleta_id=paleta_id)
 
 
+@api_bp.route('/potwierdz_palete_page/<int:paleta_id>', methods=['GET'])
+@login_required
+def potwierdz_palete_page(paleta_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    waga = None
+    try:
+        cursor.execute("SELECT waga, waga_brutto, tara FROM palety_workowanie WHERE id=%s", (paleta_id,))
+        row = cursor.fetchone()
+        if row:
+            waga = row[0]
+            # provide other values to template if needed later
+    except Exception:
+        try: current_app.logger.exception('Failed to load paleta %s for potwierdz_palete_page', paleta_id)
+        except Exception: pass
+    finally:
+        try: conn.close()
+        except Exception: pass
+    return render_template('potwierdz_palete.html', paleta_id=paleta_id, waga=waga)
+
+
 @api_bp.route('/potwierdz_palete/<int:paleta_id>', methods=['POST'])
 @login_required
 def potwierdz_palete(paleta_id):
@@ -390,6 +432,39 @@ def potwierdz_palete(paleta_id):
             conn.commit()
         except Exception:
             try: conn.rollback()
+            except Exception: pass
+
+        # Optional: allow providing weight at confirmation time.
+        try:
+            # fetch tara for brutto->netto conversion (fallback to 25 if not present)
+            cursor.execute("SELECT COALESCE(tara,25) FROM palety_workowanie WHERE id=%s", (paleta_id,))
+            trow = cursor.fetchone()
+            tara = int(trow[0]) if trow and trow[0] is not None else 25
+        except Exception:
+            tara = 25
+
+        try:
+            # prefer explicit netto 'waga_palety' if provided
+            if request.form.get('waga_palety'):
+                try:
+                    waga_input = int(float(request.form.get('waga_palety').replace(',', '.')))
+                except Exception:
+                    waga_input = None
+                if waga_input is not None:
+                    cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (waga_input, paleta_id))
+                    conn.commit()
+            # or accept brutto and compute netto
+            elif request.form.get('waga_brutto'):
+                try:
+                    brutto = int(float(request.form.get('waga_brutto').replace(',', '.')))
+                except Exception:
+                    brutto = 0
+                netto = brutto - int(tara)
+                if netto < 0: netto = 0
+                cursor.execute("UPDATE palety_workowanie SET waga_brutto=%s, waga=%s WHERE id=%s", (brutto, netto, paleta_id))
+                conn.commit()
+        except Exception:
+            try: current_app.logger.exception('Failed to set weight during potwierdz_palete for id=%s', paleta_id)
             except Exception: pass
 
         # Zapisz status przyjęcia oraz znacznik czasu i gotowy czas w sekundach
@@ -414,6 +489,34 @@ def potwierdz_palete(paleta_id):
         except Exception:
             try:
                 current_app.logger.exception('Failed to fetch potwierdz_palete result for id=%s', paleta_id)
+            except Exception:
+                pass
+        try:
+            # Update plan aggregates: ensure plan's actual tonnage reflects accepted palety
+            cursor.execute("SELECT plan_id, COALESCE(waga,0) FROM palety_workowanie WHERE id=%s", (paleta_id,))
+            r = cursor.fetchone()
+            if r:
+                plan_id = r[0]
+                netto_val = int(r[1] or 0)
+                # Recompute total for the plan
+                try:
+                    cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s) WHERE id = %s", (plan_id, plan_id))
+                except Exception:
+                    try: conn.rollback()
+                    except Exception: pass
+                # Also increment aggregate for same date/product in Magazyn section (if applicable)
+                try:
+                    cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
+                    z = cursor.fetchone()
+                    if z:
+                        cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = tonaz_rzeczywisty + %s WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'", (netto_val, z[0], z[1]))
+                except Exception:
+                    try: conn.rollback()
+                    except Exception: pass
+                conn.commit()
+        except Exception:
+            try:
+                current_app.logger.exception('Failed to update plan aggregates after potwierdz_palete %s', paleta_id)
             except Exception:
                 pass
     except Exception:
@@ -579,7 +682,7 @@ def dodaj_plan_zaawansowany():
     sekcja = request.form.get('sekcja')
     data_planu = request.form.get('data_planu')
     produkt = request.form.get('produkt')
-    typ = request.form.get('typ_produkcji', 'standard')
+    typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
     status = 'nieoplacone' if request.form.get('wymaga_oplaty') else 'zaplanowane'
     try:
         tonaz = int(float(request.form.get('tonaz')))
@@ -608,7 +711,7 @@ def dodaj_plan():
         tonaz = 0
     sekcja = request.form.get('sekcja') or request.args.get('sekcja') or 'Nieprzydzielony'
     status = 'zaplanowane'
-    typ = request.form.get('typ_produkcji', 'standard')
+    typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
@@ -618,6 +721,77 @@ def dodaj_plan():
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
+
+
+@api_bp.route('/planista/bulk', methods=['GET'])
+@roles_required('planista', 'admin')
+def planista_bulk_page():
+    # Render a larger page for planista to add multiple plans then confirm
+    wybrana_data = request.args.get('data', str(date.today()))
+    return render_template('planista_bulk.html', wybrana_data=wybrana_data)
+
+
+@api_bp.route('/dodaj_plany_batch', methods=['POST'])
+@roles_required('planista', 'admin')
+def dodaj_plany_batch():
+    # Accept JSON payload with data_planu and list of plan objects
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        data = {}
+    data_planu = data.get('data_planu') or str(date.today())
+    plans = data.get('plans') or []
+    if not plans:
+        return jsonify({'success': False, 'message': 'Brak planów w żądaniu'})
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Compute initial max kolejność
+        cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+        res = cursor.fetchone()
+        nk = (res[0] if res and res[0] else 0)
+        for idx, p in enumerate(plans, start=1):
+            produkt = (p.get('produkt') or '').strip()
+            try:
+                tonaz = int(float(p.get('tonaz') or 0))
+            except Exception:
+                tonaz = 0
+            typ = (p.get('typ_produkcji') or '').strip() or 'worki_zgrzewane_25'
+            sekcja = p.get('sekcja') or 'Zasyp'
+            nr = p.get('nr_receptury') or ''
+            # Basic validation
+            if not produkt:
+                conn.rollback()
+                conn.close()
+                return jsonify({'success': False, 'message': f'Wiersz {idx}: brak nazwy produktu'})
+            if not (isinstance(tonaz, int) and tonaz > 0):
+                conn.rollback()
+                conn.close()
+                return jsonify({'success': False, 'message': f'Wiersz {idx}: nieprawidłowy tonaż'})
+            if not typ:
+                conn.rollback()
+                conn.close()
+                return jsonify({'success': False, 'message': f'Wiersz {idx}: brak typu produkcji'})
+            nk += 1
+            cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', sekcja, nk, typ, nr))
+        conn.commit()
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        current_app.logger.exception('Failed to insert batch plans: %s', e)
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': 'Błąd podczas zapisu planów'})
+    try:
+        conn.close()
+    except Exception:
+        pass
+    return jsonify({'success': True})
 
 @api_bp.route('/przenies_zlecenie/<int:id>', methods=['POST'])
 @login_required
@@ -1203,6 +1377,13 @@ def dodaj_do_obsady():
         return redirect(bezpieczny_powrot())
     try:
         cursor.execute("INSERT INTO obsada_zmiany (data_wpisu, sekcja, pracownik_id) VALUES (%s, %s, %s)", (date.today(), sekcja, pracownik_id))
+        # Attempt to retrieve the inserted row id for AJAX clients
+        try:
+            cursor.execute("SELECT id FROM obsada_zmiany WHERE data_wpisu=%s AND sekcja=%s AND pracownik_id=%s ORDER BY id DESC LIMIT 1", (date.today(), sekcja, pracownik_id))
+            inserted_row = cursor.fetchone()
+            inserted_id = inserted_row[0] if inserted_row else None
+        except Exception:
+            inserted_id = None
         # Automatyczne zapisanie obecności przy dodaniu do obsady (jeśli brak już wpisu)
         try:
             default_hours = 8
@@ -1219,6 +1400,21 @@ def dodaj_do_obsady():
     finally:
         try: conn.close()
         except Exception: pass
+    # If called via AJAX, return JSON with inserted id so frontend can update UI without reload
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            # try to fetch worker name for convenience
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT imie_nazwisko FROM pracownicy WHERE id=%s", (pracownik_id,))
+            row = cur.fetchone()
+            name = row[0] if row else ''
+            try: conn.close()
+            except: pass
+        except Exception:
+            name = ''
+        return jsonify({'success': True, 'id': inserted_id, 'pracownik_id': pracownik_id, 'name': name})
+
     return redirect(bezpieczny_powrot())
 
 @api_bp.route('/usun_z_obsady/<int:id>', methods=['POST'])
@@ -1324,8 +1520,18 @@ def zamknij_zmiane():
 @login_required
 @roles_required('lider', 'admin')
 def zamknij_zmiane_global():
-    """Generuj raport TXT, Excel i PDF dla wszystkich sekcji"""
-    dzisiaj = date.today()
+    """Generuj raport TXT, Excel i PDF dla wszystkich sekcji.
+    Akceptuje opcjonalny parametr `data` (YYYY-MM-DD) z formularza/querystring.
+    """
+    # domyślna data to dziś, ale pozwól podać konkretną datę z formularza
+    date_str = request.values.get('data') or request.args.get('data')
+    if date_str:
+        try:
+            dzisiaj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except Exception:
+            dzisiaj = date.today()
+    else:
+        dzisiaj = date.today()
     
     print("\n" + "="*60)
     print("[ROUTE] /zamknij-zmiane-global called")
@@ -1461,6 +1667,42 @@ def zamknij_zmiane_global():
         flash(f'❌ Błąd przy generowaniu raportów: {str(e)}', 'error')
         print("="*60 + "\n")
         return redirect('/')
+
+
+@api_bp.route('/obsada-for-date')
+@login_required
+def obsada_for_date():
+    """Zwraca listę przypisanych pracowników dla podanej daty (parametr `date` YYYY-MM-DD)."""
+    date_str = request.args.get('date')
+    try:
+        if date_str:
+            qdate = datetime.strptime(date_str, '%Y-%m-%d').date()
+        else:
+            qdate = date.today()
+    except Exception:
+        qdate = date.today()
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT oz.sekcja, pw.id, pw.imie_nazwisko
+            FROM obsada_zmiany oz
+            JOIN pracownicy pw ON oz.pracownik_id = pw.id
+            WHERE oz.data_wpisu = %s
+            ORDER BY oz.sekcja, pw.imie_nazwisko
+        """, (qdate,))
+        rows = []
+        for r in cursor.fetchall():
+            rows.append({'sekcja': r[0], 'id': r[1], 'imie_nazwisko': r[2]})
+        conn.close()
+        return jsonify({'date': qdate.isoformat(), 'rows': rows})
+    except Exception as e:
+        try:
+            current_app.logger.exception('obsada_for_date error')
+        except Exception:
+            pass
+        return jsonify({'date': qdate.isoformat(), 'rows': [], 'error': str(e)}), 500
 
 
 @api_bp.route('/zapisz-raport-koncowy', methods=['POST'])

@@ -3,10 +3,12 @@
     <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST" class="mt-10">
         <input type="hidden" name="sekcja" value="Zasyp">
         <label>Waga Szarży (Netto) [kg]:</label>
-        <input type="number" step="1" name="waga_palety" value="" class="input-sm font-bold" aria-label="Waga szarży (Netto) [kg]" required>
-        <div class="mt-10">
-            <button type="submit" class="btn-action btn-primary">Dodaj szarżę</button>
-            <button type="button" onclick="closeSlideOver(this)" class="btn-action btn-outline">Anuluj</button>
+        <div class="form-field">
+            <input type="number" step="1" name="waga_palety" value="" class="input-sm font-bold" aria-label="Waga szarży (Netto) [kg]" required>
+        </div>
+        <div class="btn-row mt-10">
+            <button type="submit" class="btn-action btn-primary">DODAJ SZARŻĘ</button>
+            <button type="button" onclick="closeSlideOver()" class="btn-action btn-action-cancel">ANULUJ</button>
         </div>
     </form>
 </div>

@@ -1,11 +1,19 @@
 from functools import wraps
-from flask import session, redirect
+from flask import session, redirect, request, jsonify
 
 # 1. WYMAGANE LOGOWANIE (Dla wszystkich podstron)
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'zalogowany' not in session:
+            # If request looks like AJAX/JSON (X-Requested-With or Accepts JSON), return 401 JSON
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'unauthenticated'}), 401
             return redirect('/login')
         return f(*args, **kwargs)
     return decorated_function
@@ -15,11 +23,25 @@ def zarzad_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'zalogowany' not in session:
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'unauthenticated'}), 401
             return redirect('/login')
         
         # Uprawnienia do widoku /zarzad
-        if session.get('rola') not in ['zarzad', 'admin', 'planista', 'lider', 'laboratorium']:
-            return redirect('/')
+            if session.get('rola') not in ['zarzad', 'admin', 'planista', 'lider', 'laboratorium']:
+                try:
+                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                    accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+                except Exception:
+                    is_xhr = False; accepts_json = False
+                if is_xhr or accepts_json:
+                    return jsonify({'success': False, 'error': 'forbidden'}), 403
+                return redirect('/')
             
         return f(*args, **kwargs)
     return decorated_function
@@ -29,9 +51,23 @@ def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'zalogowany' not in session:
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'unauthenticated'}), 401
             return redirect('/login')
         
         if session.get('rola') != 'admin':
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'forbidden'}), 403
             return redirect('/')
             
         return f(*args, **kwargs)

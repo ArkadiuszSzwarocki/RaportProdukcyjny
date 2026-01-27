@@ -1,0 +1,14 @@
+{
+	"dashboard": {"admin": {"access": true, "readonly": false}, "lider": {"access": true, "readonly": false}},
+	"ustawienia": {"admin": {"access": true, "readonly": false}},
+	"jakosc": {"admin": {"access": true, "readonly": false}, "laboratorium": {"access": true, "readonly": false}},
+	"planista": {"admin": {"access": true, "readonly": false}, "planista": {"access": true, "readonly": false}},
+	"plan": {"admin": {"access": true, "readonly": false}, "lider": {"access": true, "readonly": false}, "magazynier": {"access": true, "readonly": false}, "produkcja": {"access": true, "readonly": false}},
+	"zasyp": {"admin": {"access": true, "readonly": false}, "produkcja": {"access": true, "readonly": false}, "magazynier": {"access": true, "readonly": false}, "lider": {"access": true, "readonly": false}},
+	"workowanie": {"admin": {"access": true, "readonly": false}, "produkcja": {"access": true, "readonly": false}, "magazynier": {"access": true, "readonly": false}, "lider": {"access": true, "readonly": false}},
+	"magazyn": {"admin": {"access": true, "readonly": false}, "magazynier": {"access": true, "readonly": false}, "lider": {"access": true, "readonly": false}},
+	"moje_godziny": {"admin": {"access": true, "readonly": false}},
+	"awarie": {"admin": {"access": true, "readonly": false}, "dur": {"access": true, "readonly": false}},
+	"wyniki": {"admin": {"access": true, "readonly": false}, "zarzad": {"access": true, "readonly": false}}
+}
+

@@ -10,8 +10,11 @@
     <input type="number" name="tonaz" title="Tonaż" placeholder="Tonaż" min="0" class="input-sm w-80" aria-label="Tonaż">
     <input type="date" name="data_planu" title="Data planu" value="{{ request.args.get('data') or '' }}" class="input-sm" aria-label="Data planu">
     <select name="typ_produkcji" title="Typ produkcji" aria-label="Typ produkcji" class="input-sm">
-      <option value="standard">standard</option>
-      <option value="bigbag">bigbag</option>
+      <option value="worki_zgrzewane_25">Worki zgrzewane 25kg</option>
+      <option value="worki_zgrzewane_20">Worki zgrzewane 20kg</option>
+      <option value="worki_zszywane_25">Worki zszywane 25kg</option>
+      <option value="worki_zszywane_20">Worki zszywane 20kg</option>
+      <option value="bigbag">BigBag</option>
     </select>
     <button type="submit" class="btn-action btn-primary">Utwórz zlecenie jakości</button>
   </form>

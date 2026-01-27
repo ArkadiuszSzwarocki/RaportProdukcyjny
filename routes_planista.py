@@ -7,11 +7,13 @@ from decorators import roles_required
 planista_bp = Blueprint('planista', __name__)
 
 # --- KONFIGURACJA NORM (KG NA GODZINĘ) ---
-# Tutaj możesz dostosować prędkość maszyny
+# Tutaj możesz dostosować prędkość maszyny dla różnych typów opakowań
 NORMY_KG_H = {
-    'standard': 3500,  # 3.5 tony na godzinę (Worki 25kg)
-    'bigbag': 5000,    # 5.0 ton na godzinę
-    'szycie': 2500     # 2.5 tony na godzinę
+    'worki_zgrzewane_25': 3500,  # worki zgrzewane 25 kg
+    'worki_zgrzewane_20': 3500,  # worki zgrzewane 20 kg (można dopasować)
+    'worki_zszywane_25': 2500,   # worki zszywane 25 kg
+    'worki_zszywane_20': 2500,   # worki zszywane 20 kg
+    'bigbag': 5000,              # BigBag
 }
 
 @planista_bp.route('/planista', methods=['GET', 'POST'])

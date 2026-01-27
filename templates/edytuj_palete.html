@@ -6,9 +6,9 @@
     <label>Waga (kg)</label>
     <input name="waga_palety" value="{{ waga or '' }}" required class="input-sm">
     <input type="hidden" name="sekcja" value="{{ sekcja or '' }}">
-    <div class="d-flex gap-10">
-      <button type="submit" class="btn btn-save">Zapisz</button>
-      <button type="button" class="btn btn-outline" onclick="window.close();">Anuluj</button>
+    <div class="btn-row">
+      <button type="submit" class="btn-action btn-save">ZAPISZ</button>
+      <button type="button" class="btn-action btn-action-cancel" onclick="window.close();">ANULUJ</button>
     </div>
   </form>
 </div>

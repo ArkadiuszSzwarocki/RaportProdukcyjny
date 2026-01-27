@@ -27,6 +27,77 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(api_bp, url_prefix='/api')
 app.register_blueprint(planista_bp)
 app.jinja_env.filters['format_czasu'] = format_godziny
+
+
+@app.context_processor
+def inject_static_version():
+    try:
+        # Use file modification time of static/style.css as cache-buster
+        path = os.path.join(app.root_path, 'static', 'style.css')
+        v = int(os.path.getmtime(path))
+    except Exception:
+        v = int(time.time())
+    return dict(static_version=v)
+
+
+@app.context_processor
+def inject_role_permissions():
+    import os, json
+    cfg_path = os.path.join(app.root_path, 'config', 'role_permissions.json')
+    perms = {}
+    try:
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            perms = json.load(f)
+    except Exception:
+        perms = {}
+
+    def role_has_access(page):
+        try:
+            r = (session.get('rola') or '').lower()
+            # If no permissions configured, fall back to legacy role rules
+            if not perms:
+                if page == 'dashboard':
+                    return r in ['lider', 'admin']
+                if page in ('zasyp', 'workowanie', 'magazyn'):
+                    return r in ['produkcja', 'lider', 'admin', 'zarzad', 'pracownik']
+                if page == 'jakosc':
+                    return r in ['laboratorium', 'lider', 'admin', 'zarzad', 'produkcja', 'planista']
+                if page == 'wyniki':
+                    return True
+                if page == 'awarie':
+                    return r in ['dur', 'admin', 'zarzad']
+                if page == 'plan':
+                    return r not in ['pracownik', 'magazynier']
+                if page == 'moje_godziny':
+                    return True
+                if page == 'ustawienia':
+                    return r == 'admin'
+                # unknown page key -> allow by default
+                return True
+
+            # If permissions exist but page not configured, allow by default
+            page_perms = perms.get(page)
+            if page_perms is None:
+                return True
+
+            return bool(page_perms.get(r, {}).get('access', False))
+        except Exception:
+            return False
+
+    def role_is_readonly(page):
+        try:
+            r = (session.get('rola') or '').lower()
+            if not perms:
+                # default: no readonly restrictions
+                return False
+            page_perms = perms.get(page)
+            if page_perms is None:
+                return False
+            return bool(page_perms.get(r, {}).get('readonly', False))
+        except Exception:
+            return False
+
+    return dict(role_has_access=role_has_access, role_is_readonly=role_is_readonly, role_permissions=perms)
 try:
     # Avoid running DB setup during pytest collection or when tests monkeypatch DB.
     # Pytest sets the `PYTEST_CURRENT_TEST` env var during collection/execution.
@@ -1188,7 +1259,7 @@ def jakosc_dodaj():
             tonaz = int(float(request.form.get('tonaz') or 0))
         except Exception:
             tonaz = 0
-        typ = request.form.get('typ_produkcji') or 'standard'
+        typ = request.form.get('typ_produkcji') or 'worki_zgrzewane_25'
 
         conn = get_db_connection()
         cursor = conn.cursor()

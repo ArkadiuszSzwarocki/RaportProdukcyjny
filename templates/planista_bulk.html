@@ -1,0 +1,107 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<h2>📥 Dodawanie wielu zleceń - Planista</h2>
+<form id="bulkForm" method="post" action="#">
+  <div class="bulk-controls">
+    <label>Data planu: <input type="date" id="data_planu" value="{{ wybrana_data }}"></label>
+    <label>Sekcja: 
+      <select id="sekcja_select">
+        <option>Zasyp</option>
+        <option>Workowanie</option>
+        <option>Magazyn</option>
+      </select>
+    </label>
+  </div>
+
+  <table class="modern-table" id="bulkTable">
+    <thead><tr><th>Produkt</th><th>Nr receptury</th><th>Tonaz (kg)</th><th>Typ</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="d-flex gap-10 m-10">
+    <input type="text" id="inpProdukt" placeholder="Produkt" class="input-sm">
+    <input type="text" id="inpNr" placeholder="Nr receptury" class="input-sm">
+    <input type="number" id="inpTonaz" placeholder="Tonaz" class="input-sm">
+    <select id="inpTyp" class="input-sm">
+      <option value="worki_zgrzewane_25">Worki zgrzewane 25 kg</option>
+      <option value="worki_zgrzewane_20">Worki zgrzewane 20 kg</option>
+      <option value="worki_zszywane_25">Worki zszywane 25 kg</option>
+      <option value="worki_zszywane_20">Worki zszywane 20 kg</option>
+      <option value="bigbag">BigBag</option>
+    </select>
+    <button type="button" id="btnAddRow" class="btn-action">Dodaj do listy</button>
+  </div>
+
+  <div class="d-flex gap-10 m-10">
+    <button type="button" id="btnSubmitBatch" class="btn-action btn-action-success">Zatwierdź wszystkie</button>
+    <a href="{{ url_for('planista.panel_planisty', data=wybrana_data) }}" class="btn-action">Anuluj</a>
+  </div>
+</form>
+
+<script>
+(function(){
+  const tbody = document.querySelector('#bulkTable tbody');
+  const addRow = () => {
+    const produkt = document.getElementById('inpProdukt').value.trim();
+    const nr = document.getElementById('inpNr').value.trim();
+    const tonazVal = document.getElementById('inpTonaz').value;
+    const tonaz = tonazVal === '' ? null : (parseFloat(tonazVal) || 0);
+    const typ = document.getElementById('inpTyp').value;
+    // Walidacja pól przed dodaniem do listy
+    if(!produkt){ return alert('Podaj produkt'); }
+    if(tonaz === null || tonaz <= 0){ return alert('Podaj poprawny tonaż większy od 0'); }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${produkt}</td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="btn-remove">Usuń</button></td>`;
+    tr.dataset.produkt = produkt; tr.dataset.nr = nr; tr.dataset.tonaz = tonaz; tr.dataset.typ = typ;
+    tbody.appendChild(tr);
+    document.getElementById('inpProdukt').value=''; document.getElementById('inpNr').value=''; document.getElementById('inpTonaz').value='';
+    updateSubmitState();
+  };
+  document.getElementById('btnAddRow').addEventListener('click', addRow);
+  tbody.addEventListener('click', function(e){ if(e.target.classList.contains('btn-remove')){ e.target.closest('tr').remove(); updateSubmitState(); } });
+
+  const submitBtn = document.getElementById('btnSubmitBatch');
+
+  function validateRows(rows){
+    for(let i=0;i<rows.length;i++){
+      const r = rows[i];
+      const produkt = (r.dataset.produkt||'').trim();
+      const ton = parseFloat(r.dataset.tonaz)||0;
+      const typ = (r.dataset.typ||'').trim();
+      if(!produkt) return {ok:false, message:`Wiersz ${i+1}: brak produktu`};
+      if(!typ) return {ok:false, message:`Wiersz ${i+1}: brak typu produkcji`};
+      if(!(ton>0)) return {ok:false, message:`Wiersz ${i+1}: tonaż powinien być większy niż 0`};
+    }
+    return {ok:true};
+  }
+
+  function updateSubmitState(){
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const v = validateRows(rows);
+    submitBtn.disabled = !(rows.length>0 && v.ok);
+  }
+
+  document.getElementById('btnSubmitBatch').addEventListener('click', function(){
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if(rows.length === 0) return alert('Brak dodanych zleceń');
+    const valid = validateRows(rows);
+    if(!valid.ok) return alert(valid.message);
+    const data_planu = document.getElementById('data_planu').value || '{{ wybrana_data }}';
+    const sekcja = document.getElementById('sekcja_select').value;
+    const payload = rows.map(r=>({produkt:r.dataset.produkt, nr_receptury:r.dataset.nr, tonaz:parseFloat(r.dataset.tonaz)||0, typ_produkcji:r.dataset.typ, sekcja:sekcja}));
+    fetch('{{ url_for('api.dodaj_plany_batch') }}', {
+      method: 'POST', headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+      body: JSON.stringify({data_planu:data_planu, plans: payload})
+    }).then(r=>r.json()).then(j=>{
+      if(j && j.success){
+        window.location = '{{ url_for('planista.panel_planisty') }}?data=' + encodeURIComponent(data_planu);
+      } else {
+        alert(j && j.message ? j.message : 'Błąd serwera');
+      }
+    }).catch(e=>{ console.error(e); alert('Błąd sieci'); });
+  });
+})();
+</script>
+
+{% endblock %}

@@ -1,0 +1,171 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box p-15">
+    <h3 class="m-0">👥 Obsada</h3>
+    <div class="mt-10">
+        <!-- trzy niezależne sekcje: Workowanie, Magazyn, Zasyp -->
+        <div class="obsada-sections d-flex flex-column gap-12">
+            {% set sections = ['Workowanie','Magazyn','Zasyp'] %}
+            {% for s in sections %}
+            {% if sekcja == s %}
+            <div class="obsada-section p-8" data-sekcja="{{ s }}">
+                <h4 class="m-0">{{ s }}</h4>
+                <div id="current-obsada-{{ loop.index0 }}" class="d-flex flex-column gap-10 mb-8">
+                    {% if sekcja == s and obsada %}
+                        {% for o in obsada %}
+                            <div class="chip">
+                                {{ o[1] }}
+                                {% if rola in ['lider', 'admin', 'pracownik'] %}
+                                <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0" style="display:inline-block; margin-left:6px;">
+                                    <button type="submit" class="btn-delete" aria-label="Usuń z obsady">&times;</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-muted">Brak przypisanych pracowników dla tej sekcji.</div>
+                    {% endif %}
+                </div>
+
+                {% if rola in ['lider', 'admin', 'pracownik'] %}
+                <div class="d-flex gap-5 align-center" style="margin-bottom:8px;">
+                    <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">
+                    <select id="obsada-select-{{ loop.index0 }}" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm">
+                        <option value="" disabled selected>+ Wybierz pracownika</option>
+                        {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
+                    </select>
+                    <button type="button" id="btnAddObsada-{{ loop.index0 }}" class="btn btn-start">Dodaj</button>
+                </div>
+
+                <div id="pending-list-{{ loop.index0 }}" class="mb-10"></div>
+
+                <div class="d-flex justify-between" style="margin-top:12px;">
+                    <div></div>
+                    <div class="d-flex gap-8">
+                        <button type="button" id="btnCancelObsada-{{ loop.index0 }}" class="btn-action btn-action-cancel" onclick="closeSlideOver()">Anuluj</button>
+                        <button type="button" id="btnConfirmObsada-{{ loop.index0 }}" class="btn-action btn-start">Zatwierdź</button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+    <script>
+    (function(){
+        // fabryka obsługi dla każdej sekcji
+        const sections = ["Workowanie","Magazyn","Zasyp"];
+        sections.forEach(function(name, idx){
+            const select = document.getElementById('obsada-select-'+idx);
+            const addBtn = document.getElementById('btnAddObsada-'+idx);
+            const pending = document.getElementById('pending-list-'+idx);
+            const sekcjaEl = document.getElementById('obsada-sekcja-'+idx);
+            const sekcja = sekcjaEl ? sekcjaEl.value : name;
+            const confirmBtn = document.getElementById('btnConfirmObsada-'+idx);
+            const current = document.getElementById('current-obsada-'+idx);
+
+            const toAdd = new Map();
+
+            function renderPending(){
+                if(!pending) return;
+                pending.innerHTML = '';
+                if(toAdd.size === 0){ pending.innerHTML = '<div class="text-muted">Brak dodanych osób.</div>'; return; }
+                toAdd.forEach(function(name, id){
+                    const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = name;
+                    const rem = document.createElement('button'); rem.className = 'btn-delete'; rem.type = 'button'; rem.innerHTML='&times;'; rem.style.marginLeft='6px';
+                    rem.addEventListener('click', function(){
+                        toAdd.delete(id);
+                        // restore option to select if missing
+                        try{
+                            if(select && !Array.from(select.options).some(o=>o.value==id)){
+                                const opt = document.createElement('option'); opt.value = id; opt.textContent = name; select.appendChild(opt);
+                            }
+                        }catch(e){}
+                        renderPending();
+                    });
+                    chip.appendChild(rem); pending.appendChild(chip);
+                });
+            }
+
+            if(addBtn){
+                addBtn.addEventListener('click', function(){
+                    if(!select) return;
+                    const val = select.value; const txt = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : '';
+                    if(!val) return;
+                    if(toAdd.has(val)) return;
+                    toAdd.set(val, txt);
+                    // remove selected option so it disappears from the dropdown
+                    try{ const opt = select.querySelector('option[value="'+val+'"]'); if(opt) opt.remove(); }catch(e){}
+                    renderPending();
+                    select.selectedIndex = 0;
+                });
+            }
+
+            if(confirmBtn){
+                confirmBtn.addEventListener('click', async function(){
+                    if(toAdd.size === 0){ showToast && showToast('Brak nowych pracowników do dodania','error'); return; }
+                    confirmBtn.disabled = true;
+                    try{
+                        // For each pending worker, send AJAX and update current list on success
+                        for(const [id,name] of toAdd){
+                            const fd = new URLSearchParams(); fd.append('sekcja', sekcja); fd.append('pracownik_id', id);
+                            const resp = await fetch('{{ url_for("api.dodaj_do_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} });
+                            if(!resp.ok){ const txt = await resp.text(); showToast && showToast('Błąd: '+ (txt||resp.status), 'error'); confirmBtn.disabled = false; return; }
+                            // Expect JSON with new id when AJAX
+                            let j = null;
+                            try{ j = await resp.json(); }catch(e){ j = null; }
+                            // If server returned new id and name, append to current list
+                            const newId = j && j.id ? j.id : null;
+                            const newName = j && j.name ? j.name : name;
+                            if(current){
+                                const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = newName;
+                                if(newId){
+                                    const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/usun_z_obsady/' + newId; form.className='m-0'; form.style.display='inline-block'; form.style.marginLeft='6px';
+                                    const btn = document.createElement('button'); btn.type='submit'; btn.className='btn-delete'; btn.innerHTML='&times;';
+                                    form.appendChild(btn);
+                                    chip.appendChild(form);
+                                } else {
+                                    const rem = document.createElement('button'); rem.className='btn-delete'; rem.type='button'; rem.innerHTML='&times;'; rem.style.marginLeft='6px';
+                                    rem.addEventListener('click', function(){ chip.remove(); });
+                                    chip.appendChild(rem);
+                                }
+                                current.appendChild(chip);
+                            }
+                        }
+                        showToast && showToast('Obsada zaktualizowana','success');
+                        // clear pending and re-enable
+                        toAdd.clear(); renderPending(); confirmBtn.disabled = false;
+                    }catch(e){ console.error(e); showToast && showToast('Błąd sieci','error'); confirmBtn.disabled = false; }
+                });
+            }
+
+            // deletion for existing obsada entries in this section: delegate click
+            if(current){
+                current.addEventListener('click', function(ev){
+                    const t = ev.target;
+                    if(!t.classList.contains('btn-delete')) return;
+                    const frm = t.closest('form');
+                    if(frm){
+                        ev.preventDefault();
+                        const url = frm.getAttribute('action') || window.location.href;
+                        fetch(url, { method: 'POST', credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} })
+                        .then(async function(resp){
+                            if(resp.status === 401){ window.location.href = '/login'; return; }
+                            if(!resp.ok){ const txt = await resp.text(); showToast && showToast('Błąd: '+(txt||resp.status),'error'); return; }
+                            const chip = t.closest('.chip'); if(chip) chip.remove();
+                            showToast && showToast('Usunięto pracownika','success');
+                        }).catch(function(err){ console.error('delete obsada failed', err); showToast && showToast('Błąd sieci','error'); });
+                    }
+                });
+            }
+
+            // initial render
+            renderPending();
+        });
+    })();
+    </script>
+    </div>
+</div>
+{% endblock %}
