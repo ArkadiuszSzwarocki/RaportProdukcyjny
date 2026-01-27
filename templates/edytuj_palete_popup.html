@@ -12,8 +12,8 @@
     <h3>✏️ Edytuj paletę</h3>
     <form action="{{ url_for('api.edytuj_palete', paleta_id=paleta_id) }}" method="POST">
       <div>
-        <label>Waga (kg)</label>
-        <input name="waga_palety" type="number" step="1" min="0" value="{{ waga or '' }}" required class="input-sm" autofocus>
+        <label for="waga_palety">Waga (kg)</label>
+        <input id="waga_palety" name="waga_palety" type="number" step="1" min="0" value="{{ waga or '' }}" required class="input-sm" autofocus title="Waga palety w kilogramach" placeholder="0">
       </div>
       <div class="actions">
         <button type="submit" class="btn btn-save">Zapisz</button>

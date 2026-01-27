@@ -3,8 +3,8 @@
 <div class="section-box p-20">
   <h3>✏️ Edytuj paletę</h3>
   <form action="{{ url_for('api.edytuj_palete', paleta_id=paleta_id) }}" method="POST" class="d-flex flex-column gap-10">
-    <label>Waga (kg)</label>
-    <input name="waga_palety" value="{{ waga or '' }}" required class="input-sm">
+    <label for="waga_palety">Waga (kg)</label>
+    <input id="waga_palety" name="waga_palety" value="{{ waga or '' }}" required class="input-sm" placeholder="Waga palety w kilogramach" title="Waga palety w kilogramach">
     <input type="hidden" name="sekcja" value="{{ sekcja or '' }}">
     <div class="btn-row">
       <button type="submit" class="btn-action btn-save">ZAPISZ</button>

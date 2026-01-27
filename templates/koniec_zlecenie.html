@@ -3,9 +3,9 @@
     <form action="{{ url_for('api.koniec_zlecenie', id=id) }}" method="POST" class="mt-10">
         <input type="hidden" name="sekcja" value="{{ sekcja }}">
         <label>Zużycie (kg):</label>
-        <input type="number" step="1" name="final_tonaz" value="" class="input-sm font-bold" aria-label="Zużycie (kg)">
+        <input type="number" step="1" name="final_tonaz" value="" class="input-sm font-bold" aria-label="Zużycie (kg)" title="Zużycie (kg)" placeholder="Podaj zużycie w kg">
         <label class="mt-10">Wyjaśnienie (opcjonalne):</label>
-        <textarea name="wyjasnienie" class="input-sm" rows="4"></textarea>
+        <textarea name="wyjasnienie" class="input-sm" rows="4" title="Wyjaśnienie" placeholder="Opcjonalne wyjaśnienie zakończenia"></textarea>
         <div class="mt-10">
             <button type="submit" class="btn-action btn-stop">Zapisz</button>
             <button type="button" onclick="closeSlideOver()" class="btn-action btn-outline">Anuluj</button>

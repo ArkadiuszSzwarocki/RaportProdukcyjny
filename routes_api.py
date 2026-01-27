@@ -1,4 +1,5 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify, send_file
+from utils.validation import require_field
 import logging
 import json
 from datetime import date, datetime, timedelta, time
@@ -447,7 +448,8 @@ def potwierdz_palete(paleta_id):
             # prefer explicit netto 'waga_palety' if provided
             if request.form.get('waga_palety'):
                 try:
-                    waga_input = int(float(request.form.get('waga_palety').replace(',', '.')))
+                    from utils.validation import require_field
+                    waga_input = int(float(require_field(request.form, 'waga_palety').replace(',', '.')))
                 except Exception:
                     waga_input = None
                 if waga_input is not None:
@@ -456,7 +458,8 @@ def potwierdz_palete(paleta_id):
             # or accept brutto and compute netto
             elif request.form.get('waga_brutto'):
                 try:
-                    brutto = int(float(request.form.get('waga_brutto').replace(',', '.')))
+                    from utils.validation import require_field
+                    brutto = int(float(require_field(request.form, 'waga_brutto').replace(',', '.')))
                 except Exception:
                     brutto = 0
                 netto = brutto - int(tara)
@@ -635,7 +638,9 @@ def przywroc_zlecenie(id):
 def zmien_status_zlecenia(id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE plan_produkcji SET status=%s WHERE id=%s", (request.form.get('status'), id))
+    from utils.validation import require_field
+    status = require_field(request.form, 'status')
+    cursor.execute("UPDATE plan_produkcji SET status=%s WHERE id=%s", (status, id))
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
@@ -681,11 +686,12 @@ def usun_plan(id):
 def dodaj_plan_zaawansowany():
     sekcja = request.form.get('sekcja')
     data_planu = request.form.get('data_planu')
-    produkt = request.form.get('produkt')
+    from utils.validation import require_field
+    produkt = require_field(request.form, 'produkt')
     typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
     status = 'nieoplacone' if request.form.get('wymaga_oplaty') else 'zaplanowane'
     try:
-        tonaz = int(float(request.form.get('tonaz')))
+        tonaz = int(float(require_field(request.form, 'tonaz')))
     except Exception:
         tonaz = 0
     conn = get_db_connection()
@@ -704,7 +710,8 @@ def dodaj_plan_zaawansowany():
 def dodaj_plan():
     # Backwards-compatible simple add used by small section widgets
     data_planu = request.form.get('data_planu') or request.form.get('data') or str(date.today())
-    produkt = request.form.get('produkt')
+    from utils.validation import require_field
+    produkt = require_field(request.form, 'produkt')
     try:
         tonaz = int(float(request.form.get('tonaz', 0)))
     except Exception:
@@ -878,7 +885,18 @@ def jakosc_dodaj_do_planow(id):
 def dodaj_wpis():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO dziennik_zmiany (data_wpisu, sekcja, problem, czas_start, status, kategoria) VALUES (%s, %s, %s, %s, 'roboczy', %s)", (date.today(), request.form['sekcja'], request.form.get('problem'), request.form.get('czas_start'), request.form['kategoria']))
+    try:
+        from utils.validation import require_field, optional_field
+        sekcja = require_field(request.form, 'sekcja')
+        kategoria = require_field(request.form, 'kategoria')
+        problem = optional_field(request.form, 'problem', default=None)
+        czas_start = optional_field(request.form, 'czas_start', default=None)
+    except Exception as e:
+        from flask import flash
+        flash(str(e), 'danger')
+        conn.close()
+        return redirect(bezpieczny_powrot())
+    cursor.execute("INSERT INTO dziennik_zmiany (data_wpisu, sekcja, problem, czas_start, status, kategoria) VALUES (%s, %s, %s, %s, 'roboczy', %s)", (date.today(), sekcja, problem, czas_start, kategoria))
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
@@ -1099,7 +1117,8 @@ def edytuj_godziny():
     try:
         pracownik_id = request.form.get('pracownik_id') or request.args.get('pracownik_id')
         date_str = request.form.get('date') or request.args.get('date')
-        godziny = request.form.get('godziny')
+        from utils.validation import require_field
+        godziny = require_field(request.form, 'godziny')
         if not pracownik_id or not date_str:
             return jsonify({'success': False, 'message': 'Brak parametrów'}), 400
         try:

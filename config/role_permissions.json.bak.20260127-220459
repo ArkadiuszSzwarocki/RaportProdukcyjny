@@ -1,0 +1,88 @@
+{
+  "dashboard": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "ustawienia": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "jakosc": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "planista": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": true
+    },
+    "laborant": {
+      "access": false,
+      "readonly": true
+    }
+  },
+  "moje_godziny": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "awarie": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "wyniki": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": true
+    }
+  }
+}

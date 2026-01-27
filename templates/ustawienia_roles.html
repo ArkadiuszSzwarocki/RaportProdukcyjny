@@ -2,6 +2,11 @@
 
 {% block content %}
 <div class="section-box">
+  <style>
+    .perm-actions { margin-top:12px; }
+    .perm-status { margin-left:12px; color:green; display:none; }
+    .section-actions { margin-top:12px; }
+  </style>
   <div class="section-header">
     <h2>Ustawienia / Role i uprawnienia</h2>
     <div><a href="/admin/ustawienia" class="btn">Powrót</a></div>
@@ -33,47 +38,115 @@
     </table>
   </div>
 
-  <div style="margin-top:12px;">
+  <div class="section-actions">
     <button id="btnSavePerms" class="btn btn-primary">Zapisz uprawnienia</button>
-    <span id="permStatus" style="margin-left:12px;color:green;display:none;">Zapisano.</span>
+    <span id="permStatus" class="perm-status">Zapisano.</span>
   </div>
 
+  <script id="perms-data" type="application/json">{{ perms_json|tojson }}</script>
   <script>
   (function(){
-    const current = {{ perms_json|safe }};
+    let current = {};
+    try{
+      const raw = document.getElementById('perms-data') && document.getElementById('perms-data').textContent;
+      console.log('Raw perms-data (first 300 chars):', raw.slice(0, 300));
+      current = raw ? JSON.parse(raw) : {};
+      console.log('Parsed perms:', Object.keys(current).length, 'pages');
+    }catch(e){
+      console.error('Failed to parse perms_json:', e);
+      current = {};
+    }
+    
+    // Renderuj checkboxy na podstawie config
     const rows = document.querySelectorAll('#permBody tr');
     rows.forEach(function(tr){
       const page = tr.getAttribute('data-page');
-      {% raw %}
       const pagePerms = current[page] || {};
-      {% endraw %}
-      tr.querySelectorAll('input.perm-access').forEach(function(ch){
-        const role = ch.getAttribute('data-role');
-        if(pagePerms[role] && pagePerms[role].access) ch.checked = true;
-      });
-      tr.querySelectorAll('input.perm-readonly').forEach(function(ch){
-        const role = ch.getAttribute('data-role');
-        if(pagePerms[role] && pagePerms[role].readonly) ch.checked = true;
+      
+      // Dla każdego checkboxa access/readonly — sprawdź czy rola+strona istnieje w config
+      tr.querySelectorAll('input.perm-access').forEach(function(accessCh){
+        const role = accessCh.getAttribute('data-role');
+        const rolePerms = pagePerms[role];
+        
+        // Ustaw state checkboxa
+        accessCh.checked = rolePerms && rolePerms.access ? true : false;
+        
+        // Znajdź readonly checkbox dla tej samej roli w tym wierszu
+        const readonlyCh = tr.querySelector('input.perm-readonly[data-role="' + role + '"]');
+        if(readonlyCh) {
+          readonlyCh.checked = rolePerms && rolePerms.readonly ? true : false;
+          
+          // Add listener: jeśli readonly=true, to access musi być true i disabled
+          readonlyCh.addEventListener('change', function(){
+            if(this.checked) {
+              accessCh.checked = true;
+              accessCh.disabled = true;
+            } else {
+              accessCh.disabled = false;
+            }
+          });
+          
+          // Initial state: jeśli readonly=true, wyłącz access checkbox
+          if(readonlyCh.checked) {
+            accessCh.disabled = true;
+          }
+        }
       });
     });
 
     document.getElementById('btnSavePerms').addEventListener('click', async function(){
+      // Canonical page order (must match server-side list)
+      const pageOrder = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki'];
       const payload = {};
-      document.querySelectorAll('#permBody tr').forEach(function(tr){
-        const page = tr.getAttribute('data-page');
-        payload[page] = {};
-        tr.querySelectorAll('input.perm-access').forEach(function(ch){
-          const role = ch.getAttribute('data-role');
-          const readonly = tr.querySelector('input.perm-readonly[data-role="'+role+'"]').checked;
-          payload[page][role] = { access: !!ch.checked, readonly: !!readonly };
+      
+      // Build payload in canonical page order
+      pageOrder.forEach(function(page){
+        const tr = document.querySelector('#permBody tr[data-page="' + page + '"]');
+        if(!tr) return; // page not found, skip
+        
+        const pageRoles = {};
+        
+        // Dla każdego wiersza — przejrzyj pary (access, readonly) checkbox dla tej samej roli
+        tr.querySelectorAll('input.perm-access').forEach(function(accessCh){
+          const role = accessCh.getAttribute('data-role');
+          const readonlyCh = tr.querySelector('input.perm-readonly[data-role="' + role + '"]');
+          
+          // Zapisz KAŻDĄ rolę (zaznaczoną lub nie)
+          const access = accessCh.checked;
+          const readonly = readonlyCh && readonlyCh.checked;
+          
+          // Jeśli readonly=true, automatycznie access=true (readonly bez dostępu to nonsens)
+          pageRoles[role] = { access: !!(access || readonly), readonly: !!readonly };
         });
+        
+        // Dodaj KAŻDĄ stronę do payload (nawet jeśli żadna rola nie ma dostępu)
+        payload[page] = pageRoles;
       });
 
+      console.log('Wysyłam payload (ordered):', JSON.stringify(payload).slice(0, 300));
+      console.log('Payload keys order:', Object.keys(payload));
+      
       try{
-        const resp = await fetch('/admin/ustawienia/roles/save', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-        if(resp.ok){ document.getElementById('permStatus').style.display='inline'; setTimeout(()=>document.getElementById('permStatus').style.display='none',2000); }
-        else alert('Błąd zapisu');
-      }catch(e){ alert('Błąd sieci'); }
+        const resp = await fetch('/admin/ustawienia/roles/save', { method: 'POST', headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'}, body: JSON.stringify(payload) });
+        if(resp.status === 200){
+          try{
+            const j = await resp.json();
+            document.getElementById('permStatus').textContent = 'Zapisano.' + (j && j.backup ? ' Kopia: ' + j.backup : '');
+          }catch(e){
+            document.getElementById('permStatus').textContent = 'Zapisano.';
+          }
+          document.getElementById('permStatus').style.display='inline';
+          setTimeout(function(){ location.reload(); }, 1200);
+        } else {
+          // try to extract JSON error
+          try{
+            const j = await resp.json();
+            alert('Błąd zapisu: ' + (j && j.error ? j.error : resp.status));
+          }catch(e){
+            alert('Błąd zapisu (status ' + resp.status + ')');
+          }
+        }
+      }catch(e){ alert('Błąd sieci: ' + e); }
     });
   })();
   </script>

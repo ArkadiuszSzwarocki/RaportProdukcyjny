@@ -159,7 +159,7 @@
                         {% elif p[3] == 'w toku' %}
                             <div class="d-flex gap-5 justify-end">
                                 {% if sekcja == 'Workowanie' %}
-                                    <div class="paleta-inline-wrapper" style="display:inline-flex; align-items:center; gap:6px;">
+                                    <div class="paleta-inline-wrapper paleta-inline">
                                             {% if p[9] == 'bigbag' %}
                                             <a href="{{ url_for('api.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
                                         {% else %}
@@ -234,7 +234,8 @@
                                             <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń paletę" data-slide>🗑️</a>
                                         {% endif %}
                                         {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in ['lider','admin']) and pal[7] == 'do_przyjecia' %}
-                                            <a href="{{ url_for('api.potwierdz_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-save btn-small" data-slide style="display:inline-block; margin-inline-start:8px;">Potwierdź</a>
+                                            {# Inline styles removed — use .btn-confirm-inline class in external CSS (static/style.css) #}
+                                            <a href="{{ url_for('api.potwierdz_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-save btn-small btn-confirm-inline" data-slide>Potwierdź</a>
                                         {% endif %}
                                     <!-- editpal and confirm-delete modals removed -->
                                     </td>

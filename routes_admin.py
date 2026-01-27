@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, flash
+from flask import Blueprint, render_template, request, redirect, flash, current_app, session, jsonify
 from datetime import date
 from db import get_db_connection
 from werkzeug.security import generate_password_hash
@@ -123,7 +123,7 @@ def admin_ustawienia_pracownicy():
 @admin_required
 def admin_ustawienia_roles():
     # pages and roles
-    pages = ['dashboard','ustawienia','jakosc','planista','moje_godziny','awarie','wyniki']
+    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki']
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -135,32 +135,31 @@ def admin_ustawienia_roles():
 
     # load existing perms from file
     import os, json
-    cfg_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'role_permissions.json')
+    cfg_path = os.path.join(os.path.dirname(__file__), 'config', 'role_permissions.json')
     perms = {}
     try:
         with open(cfg_path, 'r', encoding='utf-8') as f:
             perms = json.load(f)
     except Exception:
-        # default perms: leaders/admin full, planista sees plan & moje_godziny, dur readonly plan + awarie+wyniki, laboratorium jakosc+moje_godziny readonly plan
         perms = {}
-        for p in pages:
-            perms[p] = {}
-            for r in roles:
-                perms[p][r[0]] = {'access': True if r[0] in ['admin','lider','zarzad'] else False, 'readonly': False}
-        # adjustments
-        perms['planista']['planista'] = {'access': True, 'readonly': False}
-        perms['moje_godziny'] = perms.get('moje_godziny', {})
-        perms['moje_godziny']['planista'] = {'access': True, 'readonly': False}
-        perms['planista']['laboratorium'] = {'access': True, 'readonly': True}
-        perms['jakosc']['laboratorium'] = {'access': True, 'readonly': False}
-        perms['planista']['dur'] = {'access': True, 'readonly': True}
-        perms['awarie']['dur'] = {'access': True, 'readonly': False}
-        perms['wyniki'] = perms.get('wyniki', {})
-        perms['wyniki']['dur'] = {'access': True, 'readonly': False}
+    
+    # Rebuild perms in correct page order to ensure consistent rendering
+    ordered_perms = {}
+    for p in pages:
+        if p in perms:
+            ordered_perms[p] = perms[p]
+        else:
+            ordered_perms[p] = {}
+    
+    # Ensure full matrix: all pages × all roles (fill missing with access:false, readonly:false)
+    for p in pages:
+        for r in roles:
+            role_name = r[0]
+            if role_name not in ordered_perms[p]:
+                ordered_perms[p][role_name] = {'access': False, 'readonly': False}
 
     # pass JSON to template
-    import json as _json
-    return render_template('ustawienia_roles.html', pages=pages, roles=roles, perms_json=_json.dumps(perms))
+    return render_template('ustawienia_roles.html', pages=pages, roles=roles, perms_json=ordered_perms)
 
 
 @admin_bp.route('/admin/ustawienia/roles/save', methods=['POST'])
@@ -168,20 +167,117 @@ def admin_ustawienia_roles():
 def admin_ustawienia_roles_save():
     import os, json
     try:
+        current_app.logger.info('admin_ustawienia_roles_save invoked by user=%s remote=%s', session.get('login'), request.remote_addr)
         data = request.get_json(force=True)
     except Exception:
         data = None
     if data is None:
         return ('Bad request', 400)
-    cfg_dir = os.path.join(os.path.dirname(__file__), '..', 'config')
+    # Clean the payload: remove any page with empty roles dict
+    # This prevents sending {"page": {}} for pages with no roles checked
+    try:
+        cleaned_data = {}
+        for page, roles in data.items():
+            if isinstance(roles, dict) and len(roles) > 0:
+                cleaned_data[page] = roles
+        data = cleaned_data
+    except Exception:
+        pass
+    
+    # Server-side safeguard: refuse to overwrite config if payload contains
+    # no role with access=True (prevents accidental global-deny overwrites).
+    try:
+        def _payload_has_access(d):
+            if not isinstance(d, dict):
+                return False
+            for page, roles in d.items():
+                if isinstance(roles, dict):
+                    for role, perms in roles.items():
+                        if isinstance(perms, dict):
+                            try:
+                                if bool(perms.get('access')):
+                                    return True
+                            except Exception:
+                                # permissive fallback
+                                continue
+            return False
+        if not _payload_has_access(data):
+            current_app.logger.warning('Rejected roles save: payload contains no access=true entries (user=%s)', session.get('login'))
+            return (jsonify({'error': 'Payload contains no access=true entries; refusing to overwrite config.'}), 400)
+    except Exception:
+        # If our check fails for unexpected reasons, proceed cautiously and reject.
+        current_app.logger.exception('Error validating roles payload; rejecting save request')
+        return (jsonify({'error': 'Validation error'}), 400)
+    cfg_dir = os.path.join(os.path.dirname(__file__), 'config')
     os.makedirs(cfg_dir, exist_ok=True)
     cfg_path = os.path.join(cfg_dir, 'role_permissions.json')
+    
+    # Load existing config to merge with incoming data (don't overwrite!)
+    existing_config = {}
     try:
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            existing_config = json.load(f)
+    except Exception:
+        existing_config = {}
+    
+    # Merge incoming data with existing config
+    # For pages in the payload: REPLACE entire page (not merge roles!)
+    # This way if admin unchecked a role, it gets removed
+    # For pages NOT in payload: keep existing config
+    merged_config = existing_config.copy()
+    for page, roles in data.items():
+        if isinstance(roles, dict):
+            # Replace entire page with what came from UI
+            merged_config[page] = roles
+    
+    # Reorder merged_config to match pages order for consistency
+    # Define canonical page order
+    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki']
+    ordered_merged = {}
+    for p in pages:
+        if p in merged_config:
+            ordered_merged[p] = merged_config[p]
+    # Keep any pages not in canonical list (shouldn't happen but preserve them)
+    for p in merged_config:
+        if p not in ordered_merged:
+            ordered_merged[p] = merged_config[p]
+    merged_config = ordered_merged
+    
+    current_app.logger.info('Reordered config pages: %s', list(merged_config.keys()))
+    
+    # Make a timestamped backup if file exists
+    try:
+        import shutil
+        from datetime import datetime as _dt
+        bak_name = None
+        if os.path.exists(cfg_path):
+            bak_name = cfg_path + '.bak.' + _dt.now().strftime('%Y%m%d-%H%M%S')
+            try:
+                shutil.copy2(cfg_path, bak_name)
+                current_app.logger.info('Created backup of role_permissions: %s', bak_name)
+            except Exception:
+                current_app.logger.exception('Failed to create backup of role_permissions')
+
         with open(cfg_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        return ('OK', 200)
+            json.dump(merged_config, f, ensure_ascii=False, indent=2)
+        
+        # Verify written order
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            verify_order = json.load(f)
+            saved_order = list(verify_order.keys())
+            current_app.logger.info('Verified config page order after save: %s', saved_order)
+        
+        try:
+            current_app.logger.info('Role permissions saved to %s by user=%s', cfg_path, session.get('login'))
+        except Exception:
+            current_app.logger.info('Role permissions saved to %s', cfg_path)
+        return (jsonify({'ok': True, 'backup': bak_name}), 200)
     except Exception as e:
-        return (str(e), 500)
+        try:
+            current_app.logger.exception('Failed to save role_permissions to %s', cfg_path)
+        except Exception:
+            pass
+        return (jsonify({'error': str(e)}), 500)
 
 @admin_bp.route('/admin/pracownik/dodaj', methods=['POST'])
 @admin_required
@@ -205,7 +301,15 @@ def admin_dodaj_pracownika():
             flash(f"ID {eid} już istnieje.", "error")
             conn.close()
             return redirect('/admin')
-        cursor.execute("INSERT INTO pracownicy (id, imie_nazwisko, grupa) VALUES (%s, %s, %s)", (eid, request.form['imie_nazwisko'], grupa))
+        try:
+            from utils.validation import require_field
+            imie_nazwisko = require_field(request.form, 'imie_nazwisko')
+            imie_nazwisko = imie_nazwisko.strip()
+        except Exception as e:
+            flash(str(e), 'danger')
+            conn.close()
+            return redirect('/admin')
+        cursor.execute("INSERT INTO pracownicy (id, imie_nazwisko, grupa) VALUES (%s, %s, %s)", (eid, imie_nazwisko, grupa))
         conn.commit()
         new_id = eid
         # Update AUTO_INCREMENT to at least max(id)+1
@@ -219,7 +323,15 @@ def admin_dodaj_pracownika():
         except Exception:
             conn.rollback()
     else:
-        cursor.execute("INSERT INTO pracownicy (imie_nazwisko, grupa) VALUES (%s, %s)", (request.form['imie_nazwisko'], grupa))
+        try:
+            from utils.validation import require_field
+            imie_nazwisko = require_field(request.form, 'imie_nazwisko')
+            imie_nazwisko = imie_nazwisko.strip()
+        except Exception as e:
+            flash(str(e), 'danger')
+            conn.close()
+            return redirect('/admin')
+        cursor.execute("INSERT INTO pracownicy (imie_nazwisko, grupa) VALUES (%s, %s)", (imie_nazwisko, grupa))
         conn.commit()
         new_id = None
     # If new_id not set yet (standard insert), try to retrieve it
@@ -230,7 +342,7 @@ def admin_dodaj_pracownika():
             except Exception:
                 new_id = None
         if not new_id:
-            cursor.execute("SELECT id FROM pracownicy WHERE imie_nazwisko=%s ORDER BY id DESC LIMIT 1", (request.form['imie_nazwisko'],))
+            cursor.execute("SELECT id FROM pracownicy WHERE imie_nazwisko=%s ORDER BY id DESC LIMIT 1", (imie_nazwisko,))
             r = cursor.fetchone()
             new_id = int(r[0]) if r else None
 
@@ -254,7 +366,13 @@ def admin_edytuj_pracownika():
     conn = get_db_connection()
     cursor = conn.cursor()
     grupa = request.form.get('grupa', '').strip()
-    cursor.execute("UPDATE pracownicy SET imie_nazwisko=%s, grupa=%s WHERE id=%s", (request.form['imie_nazwisko'], grupa, request.form['id']))
+    imie_nazwisko = request.form.get('imie_nazwisko','').strip()
+    pid = request.form.get('id')
+    if not imie_nazwisko or not pid:
+        flash('Brak wymaganych pól.', 'danger')
+        conn.close()
+        return redirect('/admin')
+    cursor.execute("UPDATE pracownicy SET imie_nazwisko=%s, grupa=%s WHERE id=%s", (imie_nazwisko, grupa, pid))
     conn.commit()
     conn.close()
     flash("Zaktualizowano.", "success")
@@ -285,8 +403,15 @@ def admin_dodaj_konto():
         hashed = generate_password_hash(pwd, method='pbkdf2:sha256') if pwd else ''
         grupa = request.form.get('grupa','').strip()
         imie_nazwisko = request.form.get('imie_nazwisko','').strip()
-        login = request.form['login'].strip()
-        cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola, grupa) VALUES (%s, %s, %s, %s)", (login, hashed, request.form['rola'], grupa))
+        try:
+            from utils.validation import require_field, optional_field
+            login = require_field(request.form, 'login').strip()
+            rola_field = optional_field(request.form, 'rola', default='').strip()
+        except Exception as e:
+            flash(str(e), 'danger')
+            conn.close()
+            return redirect('/admin')
+        cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola, grupa) VALUES (%s, %s, %s, %s)", (login, hashed, rola_field, grupa))
         # Spróbuj automatycznie powiązać konto z rekordem pracownika jeśli istnieje dopasowanie
         try:
             # Prepare a set of search tokens from the login (strip digits, separators)

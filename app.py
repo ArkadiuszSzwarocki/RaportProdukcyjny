@@ -44,48 +44,68 @@ def inject_static_version():
 def inject_role_permissions():
     import os, json
     cfg_path = os.path.join(app.root_path, 'config', 'role_permissions.json')
-    perms = {}
-    try:
-        with open(cfg_path, 'r', encoding='utf-8') as f:
-            perms = json.load(f)
-    except Exception:
-        perms = {}
 
     def role_has_access(page):
         try:
+            # Czytaj config za każdym razem (nie cachuj!)
+            perms = {}
+            try:
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    perms = json.load(f)
+            except Exception:
+                perms = {}
+            
             r = (session.get('rola') or '').lower()
-            # If no permissions configured, fall back to legacy role rules
-            if not perms:
-                if page == 'dashboard':
-                    return r in ['lider', 'admin']
-                if page in ('zasyp', 'workowanie', 'magazyn'):
-                    return r in ['produkcja', 'lider', 'admin', 'zarzad', 'pracownik']
-                if page == 'jakosc':
-                    return r in ['laboratorium', 'lider', 'admin', 'zarzad', 'produkcja', 'planista']
-                if page == 'wyniki':
+            # Log dla debugowania
+            app.logger.debug(f'role_has_access({page}): rola={r}, session_rola={session.get("rola")}')
+            
+            # WAŻNE: jeśli config istnieje i zawiera jakieś strony, użyj TYLKO config
+            # (nie fallback na hardcoded rules)
+            if perms and len(perms) > 0:
+                # Config ma dane - sprawdź czy strona jest w config
+                page_perms = perms.get(page)
+                if page_perms is None:
+                    # Strona nie w config -> zezwól (permissive)
+                    app.logger.debug(f'  page {page} not in perms, allowing')
                     return True
-                if page == 'awarie':
-                    return r in ['dur', 'admin', 'zarzad']
-                if page == 'plan':
-                    return r not in ['pracownik', 'magazynier']
-                if page == 'moje_godziny':
-                    return True
-                if page == 'ustawienia':
-                    return r == 'admin'
-                # unknown page key -> allow by default
+                # Strona w config -> sprawdź dostęp roli
+                result = bool(page_perms.get(r, {}).get('access', False))
+                app.logger.debug(f'  page {page} access for {r}: {result}')
+                return result
+            
+            # Config pusty - użyj fallback
+            if page == 'dashboard':
+                return r in ['lider', 'admin']
+            if page in ('zasyp', 'workowanie', 'magazyn'):
+                return r in ['produkcja', 'lider', 'admin', 'zarzad', 'pracownik']
+            if page == 'jakosc':
+                return r in ['laboratorium', 'lider', 'admin', 'zarzad', 'produkcja', 'planista']
+            if page == 'wyniki':
                 return True
-
-            # If permissions exist but page not configured, allow by default
-            page_perms = perms.get(page)
-            if page_perms is None:
+            if page == 'awarie':
+                return r in ['dur', 'admin', 'zarzad']
+            if page == 'plan':
+                return r not in ['pracownik', 'magazynier']
+            if page == 'moje_godziny':
                 return True
-
-            return bool(page_perms.get(r, {}).get('access', False))
-        except Exception:
+            if page == 'ustawienia':
+                return r == 'admin'
+            # unknown page key -> allow by default
+            return True
+        except Exception as e:
+            app.logger.exception(f'role_has_access({page}) error: {e}')
             return False
 
     def role_is_readonly(page):
         try:
+            # Czytaj config za każdym razem (nie cachuj!)
+            perms = {}
+            try:
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    perms = json.load(f)
+            except Exception:
+                perms = {}
+            
             r = (session.get('rola') or '').lower()
             if not perms:
                 # default: no readonly restrictions
@@ -97,7 +117,16 @@ def inject_role_permissions():
         except Exception:
             return False
 
-    return dict(role_has_access=role_has_access, role_is_readonly=role_is_readonly, role_permissions=perms)
+    return dict(role_has_access=role_has_access, role_is_readonly=role_is_readonly)
+
+
+@app.context_processor
+def inject_app_into_templates():
+    # Some older templates expect `app` variable in Jinja context.
+    try:
+        return dict(app=app)
+    except Exception:
+        return dict()
 try:
     # Avoid running DB setup during pytest collection or when tests monkeypatch DB.
     # Pytest sets the `PYTEST_CURRENT_TEST` env var during collection/execution.
@@ -148,7 +177,16 @@ def report_issue():
 @app.route('/favicon.ico')
 def favicon():
     try:
-        return redirect(url_for('static', filename='favicon.svg'))
+        static_folder = app.static_folder or os.path.join(app.root_path, 'static')
+        for fname in ('favicon.ico', 'favicon.svg'):
+            path = os.path.join(static_folder, fname)
+            if os.path.exists(path):
+                try:
+                    from flask import send_from_directory
+                    return send_from_directory(static_folder, fname)
+                except Exception:
+                    return redirect(url_for('static', filename=fname))
+        return ('', 204)
     except Exception:
         return ('', 204)
 
@@ -157,6 +195,11 @@ def favicon():
 # respond with 204 No Content to avoid noisy 404/500 traces in logs.
 @app.route('/.well-known/appspecific/com.chrome.devtools.json')
 def _well_known_devtools():
+    return ('', 204)
+
+# Generic handler for any /.well-known probes to reduce noisy 404s
+@app.route('/.well-known/<path:subpath>')
+def _well_known_generic(subpath):
     return ('', 204)
 
 # Logging: zapisz pełne błędy do pliku logs/app.log
@@ -171,6 +214,30 @@ handler.setFormatter(formatter)
 app.logger.setLevel(logging.DEBUG)
 app.logger.addHandler(handler)
 logging.getLogger('werkzeug').addHandler(handler)
+
+# Filter noisy 404/405 errors for known probe paths to reduce log spam
+class NoiseFilter(logging.Filter):
+    def filter(self, record):
+        try:
+            msg = record.getMessage()
+        except Exception:
+            return True
+        # If it's an ERROR about Not Found / Method Not Allowed, but for benign paths,
+        # suppress it (return False => drop record).
+        if record.levelno >= logging.ERROR and (
+            ('404 Not Found' in msg or '405 Method Not Allowed' in msg)
+        ):
+            # known noisy probes or static assets
+            noisy_paths = ['/favicon.ico', '/.well-known/', '/.well-known/appspecific/', '/static/']
+            for p in noisy_paths:
+                if p in msg:
+                    return False
+        return True
+
+# Attach filter to the main file handler and werkzeug
+noise_filter = NoiseFilter()
+handler.addFilter(noise_filter)
+logging.getLogger('werkzeug').addFilter(noise_filter)
 
 # Logger dedykowany dla palet (przypomnienia)
 palety_logger = logging.getLogger('palety_logger')
@@ -400,20 +467,29 @@ def ensure_pracownik_mapping():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        # Validate required form fields via central helper
+        try:
+            from utils.validation import require_field
+            login_field = require_field(request.form, 'login')
+            password_field = require_field(request.form, 'haslo')
+        except Exception as e:
+            flash(str(e), 'danger')
+            return redirect('/login')
+
         conn = get_db_connection()
         cursor = conn.cursor()
         # Pobierz opcjonalne pole pracownik_id by mapować konto na rekord pracownika
-        cursor.execute("SELECT id, haslo, rola, COALESCE(pracownik_id, NULL) FROM uzytkownicy WHERE login = %s", (request.form['login'],))
+        cursor.execute("SELECT id, haslo, rola, COALESCE(pracownik_id, NULL) FROM uzytkownicy WHERE login = %s", (login_field,))
         row = cursor.fetchone()
         conn.close()
         if row:
             uid, hashed, rola, pracownik_id = row[0], row[1], row[2], row[3]
-            if hashed and check_password_hash(hashed, request.form['haslo']):
+            if hashed and check_password_hash(hashed, password_field):
                 session['zalogowany'] = True
                 # Normalize role to lowercase to avoid case-sensitivity issues in templates
                 session['rola'] = (rola or '').lower()
                 # Zapisz login i powiązanie pracownika w sesji (może być None)
-                session['login'] = request.form['login']
+                session['login'] = login_field
                 session['pracownik_id'] = int(pracownik_id) if pracownik_id is not None else None
                 
                 # Pobierz imię_nazwisko z tabeli pracownicy dla wyświetlenia w belce górnej
@@ -430,7 +506,7 @@ def login():
                         conn2.close()
                     except Exception:
                         pass
-                session['imie_nazwisko'] = imie_nazwisko or request.form['login']
+                session['imie_nazwisko'] = imie_nazwisko or login_field
                 # Use location.replace on client to avoid keeping login page in history
                 target = '/planista' if rola == 'planista' else '/'
                 html = f"""<!doctype html><html><head><meta charset=\"utf-8\"><title>Logowanie...</title></head><body><script>window.location.replace('{target}');</script></body></html>"""
@@ -489,8 +565,18 @@ def index():
     dostepni = [p for p in wszyscy if p[0] not in zajeci_ids]
     cursor.execute("SELECT o.id, p.imie_nazwisko FROM obsada_zmiany o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu = %s AND o.sekcja = %s", (dzisiaj, aktywna_sekcja))
     obecna_obsada = cursor.fetchall()
-    cursor.execute("SELECT d.id, p.imie_nazwisko, d.problem, TIME_FORMAT(d.czas_start, '%H:%i'), TIME_FORMAT(d.czas_stop, '%H:%i'), d.kategoria, TIMESTAMPDIFF(MINUTE, d.czas_start, d.czas_stop) FROM dziennik_zmiany d LEFT JOIN pracownicy p ON d.pracownik_id = p.id WHERE d.data_wpisu = %s AND d.sekcja = %s AND d.status='roboczy' ORDER BY d.id DESC", (dzisiaj, aktywna_sekcja))
-    wpisy = cursor.fetchall()
+    cursor.execute("SELECT d.id, p.imie_nazwisko, d.problem, d.czas_start, d.czas_stop, d.kategoria, TIMESTAMPDIFF(MINUTE, d.czas_start, d.czas_stop) FROM dziennik_zmiany d LEFT JOIN pracownicy p ON d.pracownik_id = p.id WHERE d.data_wpisu = %s AND d.sekcja = %s AND d.status='roboczy' ORDER BY d.id DESC", (dzisiaj, aktywna_sekcja))
+    wpisy = [list(r) for r in cursor.fetchall()]
+    # Format czas_start/czas_stop as HH:MM strings for templates
+    for w in wpisy:
+        try:
+            w[3] = w[3].strftime('%H:%M') if w[3] else ''
+        except Exception:
+            w[3] = str(w[3]) if w[3] else ''
+        try:
+            w[4] = w[4].strftime('%H:%M') if w[4] else ''
+        except Exception:
+            w[4] = str(w[4]) if w[4] else ''
     
     plan_dnia = []
     palety_mapa = {}
@@ -575,8 +661,18 @@ def index():
         except Exception:
             unconfirmed_palety = []
 
-    cursor.execute("SELECT id, produkt, tonaz, status, TIME_FORMAT(real_start, '%H:%i'), TIME_FORMAT(real_stop, '%H:%i'), TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci FROM plan_produkcji WHERE data_planu = %s AND sekcja = %s AND status != 'nieoplacone' ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, kolejnosc ASC, id ASC", (dzisiaj, aktywna_sekcja))
+    cursor.execute("SELECT id, produkt, tonaz, status, real_start, real_stop, TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci FROM plan_produkcji WHERE data_planu = %s AND sekcja = %s AND status != 'nieoplacone' ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, kolejnosc ASC, id ASC", (dzisiaj, aktywna_sekcja))
     plan_dnia = [list(r) for r in cursor.fetchall()]
+    # Format real_start/real_stop as HH:MM strings for templates
+    for p in plan_dnia:
+        try:
+            p[4] = p[4].strftime('%H:%M') if p[4] else ''
+        except Exception:
+            p[4] = str(p[4]) if p[4] else ''
+        try:
+            p[5] = p[5].strftime('%H:%M') if p[5] else ''
+        except Exception:
+            p[5] = str(p[5]) if p[5] else ''
     
     for p in plan_dnia:
         if p[7] is None: p[7] = 0
@@ -1079,7 +1175,7 @@ def zarzad_panel():
 
 
 @app.route('/dur/awarie')
-@roles_required('dur', 'admin', 'zarzad')
+@roles_required('admin', 'planista', 'pracownik', 'magazynier', 'dur', 'zarzad', 'laboratorium')
 def dur_awarie():
     """DUR - przegląd i zatwierdzanie awarii"""
     try:
@@ -1116,18 +1212,20 @@ def dur_awarie():
         # Mapuj pracownika do każdej awarii i pobierz komentarze
         for awaria in awarie:
             awaria['pracownik_name'] = pracownicy_map.get(awaria['pracownik_id'], 'Nieznany')
-            # Konwertuj timedelta na godziny:minuty
-            if awaria['czas_start']:
-                h, remainder = divmod(int(awaria['czas_start'].total_seconds()), 3600)
-                m = remainder // 60
-                awaria['czas_start_str'] = f"{h:02d}:{m:02d}"
+            # Formatuj czas_start / czas_stop jako HH:MM (bez błędnego zakładania timedelta)
+            if awaria.get('czas_start'):
+                try:
+                    awaria['czas_start_str'] = awaria['czas_start'].strftime('%H:%M')
+                except Exception:
+                    awaria['czas_start_str'] = str(awaria['czas_start'])
             else:
                 awaria['czas_start_str'] = '??:??'
-            
-            if awaria['czas_stop']:
-                h, remainder = divmod(int(awaria['czas_stop'].total_seconds()), 3600)
-                m = remainder // 60
-                awaria['czas_stop_str'] = f"{h:02d}:{m:02d}"
+
+            if awaria.get('czas_stop'):
+                try:
+                    awaria['czas_stop_str'] = awaria['czas_stop'].strftime('%H:%M')
+                except Exception:
+                    awaria['czas_stop_str'] = str(awaria['czas_stop'])
             else:
                 awaria['czas_stop_str'] = '??:??'
             
@@ -1232,12 +1330,22 @@ def jakosc_index():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, produkt, data_planu, sekcja, tonaz, status, TIME_FORMAT(real_start, '%H:%i'), TIME_FORMAT(real_stop, '%H:%i'), tonaz_rzeczywisty
+            SELECT id, produkt, data_planu, sekcja, tonaz, status, real_start, real_stop, tonaz_rzeczywisty
             FROM plan_produkcji
             WHERE COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc'
             ORDER BY data_planu DESC, id DESC
         """)
-        zlecenia = cursor.fetchall()
+        zlecenia = [list(r) for r in cursor.fetchall()]
+        # Format real_start/real_stop as HH:MM
+        for z in zlecenia:
+            try:
+                z[6] = z[6].strftime('%H:%M') if z[6] else ''
+            except Exception:
+                z[6] = str(z[6]) if z[6] else ''
+            try:
+                z[7] = z[7].strftime('%H:%M') if z[7] else ''
+            except Exception:
+                z[7] = str(z[7]) if z[7] else ''
         conn.close()
         return render_template('jakosc.html', zlecenia=zlecenia, rola=session.get('rola'))
     except Exception:
@@ -1461,6 +1569,13 @@ def pobierz_logi():
     if not os.path.exists(log_path):
         return ("Brak logu", 404)
     return send_file(log_path, as_attachment=True)
+
+# Accept GET gracefully for probes; redirect to index instead of 405
+@app.route('/zamknij_zmiane', methods=['GET'])
+@roles_required('lider', 'admin')
+def zamknij_zmiane_get():
+    return redirect(url_for('index'))
+
 
 @app.route('/zamknij_zmiane', methods=['POST'])
 @roles_required('lider', 'admin')

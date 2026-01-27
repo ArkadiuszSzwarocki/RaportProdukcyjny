@@ -23,7 +23,7 @@
     <input type="text" id="inpProdukt" placeholder="Produkt" class="input-sm">
     <input type="text" id="inpNr" placeholder="Nr receptury" class="input-sm">
     <input type="number" id="inpTonaz" placeholder="Tonaz" class="input-sm">
-    <select id="inpTyp" class="input-sm">
+    <select id="inpTyp" class="input-sm" aria-label="Typ produkcji" title="Typ produkcji">
       <option value="worki_zgrzewane_25">Worki zgrzewane 25 kg</option>
       <option value="worki_zgrzewane_20">Worki zgrzewane 20 kg</option>
       <option value="worki_zszywane_25">Worki zszywane 25 kg</option>
@@ -90,12 +90,12 @@
     const data_planu = document.getElementById('data_planu').value || '{{ wybrana_data }}';
     const sekcja = document.getElementById('sekcja_select').value;
     const payload = rows.map(r=>({produkt:r.dataset.produkt, nr_receptury:r.dataset.nr, tonaz:parseFloat(r.dataset.tonaz)||0, typ_produkcji:r.dataset.typ, sekcja:sekcja}));
-    fetch('{{ url_for('api.dodaj_plany_batch') }}', {
+    fetch('{{ url_for("api.dodaj_plany_batch") }}', {
       method: 'POST', headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
       body: JSON.stringify({data_planu:data_planu, plans: payload})
     }).then(r=>r.json()).then(j=>{
       if(j && j.success){
-        window.location = '{{ url_for('planista.panel_planisty') }}?data=' + encodeURIComponent(data_planu);
+        window.location = "{{ url_for('planista.panel_planisty') }}?data=" + encodeURIComponent(data_planu);
       } else {
         alert(j && j.message ? j.message : 'Błąd serwera');
       }

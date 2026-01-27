@@ -9,7 +9,7 @@
     <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST" class="form-flex">
         <input type="hidden" name="sekcja" value="{{ sekcja or 'Workowanie' }}">
         <input type="hidden" name="typ_produkcji" value="{{ typ or '' }}">
-        <div style="flex:1; max-width:360px;">
+        <div class="form-column">
             <label class="form-label">Waga Produktu (Netto) [kg]</label>
             <input name="waga_palety" type="number" min="1" required class="form-input" placeholder="np. 1000">
         </div>

@@ -17,7 +17,7 @@
                             <div class="chip">
                                 {{ o[1] }}
                                 {% if rola in ['lider', 'admin', 'pracownik'] %}
-                                <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0" style="display:inline-block; margin-left:6px;">
+                                <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0 d-inline-block ml-6">
                                     <button type="submit" class="btn-delete" aria-label="Usuń z obsady">&times;</button>
                                 </form>
                                 {% endif %}
@@ -29,7 +29,7 @@
                 </div>
 
                 {% if rola in ['lider', 'admin', 'pracownik'] %}
-                <div class="d-flex gap-5 align-center" style="margin-bottom:8px;">
+                <div class="d-flex gap-5 align-center mb-8">
                     <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">
                     <select id="obsada-select-{{ loop.index0 }}" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm">
                         <option value="" disabled selected>+ Wybierz pracownika</option>
@@ -40,7 +40,7 @@
 
                 <div id="pending-list-{{ loop.index0 }}" class="mb-10"></div>
 
-                <div class="d-flex justify-between" style="margin-top:12px;">
+                <div class="d-flex justify-between mt-12">
                     <div></div>
                     <div class="d-flex gap-8">
                         <button type="button" id="btnCancelObsada-{{ loop.index0 }}" class="btn-action btn-action-cancel" onclick="closeSlideOver()">Anuluj</button>

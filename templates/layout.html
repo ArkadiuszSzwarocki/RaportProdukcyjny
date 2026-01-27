@@ -88,7 +88,7 @@
                     <a href="/dur/awarie" class="nav-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">⚠️ Awarie</a>
                 {% endif %}
 
-                {% if role_has_access('plan') %}
+                {% if role_has_access('planista') %}
                     <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">Plan</a>
                 {% endif %}
 

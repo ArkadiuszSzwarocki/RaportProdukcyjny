@@ -1,11 +1,11 @@
-Instalacja pandas na Windows (zalecane dla świeżego środowiska)
+Instalacja `pandas` na Windows (zalecane dla świeżego środowiska)
 =========================================
 
 Jeśli tworzysz świeże środowisko na Windows, instalacja `pandas` może próbować skompilować pakiet ze źródeł (co często kończy się błędami MSVC). Poniżej są bezpieczne opcje.
 
 Opcja A — użyj Conda (najprostsze, rekomendowane)
 
-1. Zainstaluj Miniconda/Anaconda: https://docs.conda.io/en/latest/miniconda.html
+1. Zainstaluj Miniconda/Anaconda: [Miniconda/Anaconda](https://docs.conda.io/en/latest/miniconda.html)
 2. Utwórz środowisko (przykład):
 
 ```powershell

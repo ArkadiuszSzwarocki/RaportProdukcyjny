@@ -19,11 +19,13 @@ EXIT;
 ### Krok 2: Zainstaluj zależności
 
 **Sposób automatyczny (Windows):**
+
 ```cmd
 setup.bat
 ```
 
 **Sposób ręczny:**
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
@@ -142,6 +144,7 @@ Przejdź do: **http://localhost:5000**
 ## 🔧 Rozwiązywanie problemów
 
 ### Nie mogę się połączyć z bazą
+
 ```
 Błąd: mysql.connector.errors.ProgrammingError
 ```
@@ -152,6 +155,7 @@ Błąd: mysql.connector.errors.ProgrammingError
 3. Upewnij się, że baza `biblioteka` istnieje
 
 ### Błąd importu pandas
+
 ```
 ModuleNotFoundError: No module named 'pandas'
 ```

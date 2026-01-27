@@ -12,8 +12,8 @@
     <h3>➕ Dodaj paletę</h3>
     <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST">
       <div>
-        <label>Waga (kg)</label>
-        <input name="waga_palety" type="number" step="1" min="1" required class="input-sm" autofocus>
+        <label for="waga_palety">Waga (kg)</label>
+        <input id="waga_palety" name="waga_palety" type="number" step="1" min="1" required class="input-sm" autofocus placeholder="Waga palety (kg)" title="Waga palety w kilogramach">
       </div>
       <input type="hidden" name="sekcja" value="{{ sekcja or '' }}">
       <input type="hidden" name="typ_produkcji" value="{{ typ or 'worki_zgrzewane_25' }}">

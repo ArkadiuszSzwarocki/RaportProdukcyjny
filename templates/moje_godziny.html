@@ -129,6 +129,19 @@
     @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
     /* utility spacing to avoid inline styles */
     .ml-6 { margin-left: 6px; }
+    /* Legend container styles moved from inline to here */
+    .mp-legend {
+      margin-top:14px;
+      background:#fff;
+      border:1px solid #e6e6e6;
+      padding:10px 12px;
+      border-radius:6px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.03);
+      font-size:0.9em;
+    }
+      /* legend items moved from inline styles */
+      .mp-legend .mp-legend-item { margin-left:8px; display:inline-block; }
+      .mp-legend .cal-type-obecny { background:#eef; }
   </style>
     <div class="mp-cal-row">
       {# Decide which calendar to show: prefer viewed (selected) if present, otherwise owner #}
@@ -283,13 +296,13 @@
   <!-- Sekcja edycji godzin wewnątrz modalu została usunięta wraz z modalami -->
   
   <!-- Legend for calendar types (moved under calendar) -->
-  <div style="margin-top:14px; background:#fff; border:1px solid #e6e6e6; padding:10px 12px; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.03); font-size:0.9em;">
+  <div class="mp-legend">
     <strong>Legenda:</strong>
-    <span style="margin-left:8px; display:inline-block;"><span class="cal-type" style="background:#eef;">Obecny</span> — pracuje</span>
-    <span style="margin-left:8px; display:inline-block;"><span class="cal-type">U</span> — Urlop</span>
-    <span style="margin-left:8px; display:inline-block;"><span class="cal-type">WP</span> — Wyjście prywatne</span>
-    <span style="margin-left:8px; display:inline-block;"><span class="cal-type">N</span> — Nieobecny</span>
-    <span style="margin-left:8px; display:inline-block;"><span class="cal-type">OG</span> — Odbiór godzin</span>
-    <span style="margin-left:8px; display:inline-block;"><span class="cal-type">OP</span> — Opieka</span>
+    <span class="mp-legend-item"><span class="cal-type cal-type-obecny">Obecny</span> — pracuje</span>
+    <span class="mp-legend-item"><span class="cal-type">U</span> — Urlop</span>
+    <span class="mp-legend-item"><span class="cal-type">WP</span> — Wyjście prywatne</span>
+    <span class="mp-legend-item"><span class="cal-type">N</span> — Nieobecny</span>
+    <span class="mp-legend-item"><span class="cal-type">OG</span> — Odbiór godzin</span>
+    <span class="mp-legend-item"><span class="cal-type">OP</span> — Opieka</span>
   </div>
 {% endblock %}

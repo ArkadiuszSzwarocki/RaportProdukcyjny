@@ -17,7 +17,7 @@ NORMY_KG_H = {
 }
 
 @planista_bp.route('/planista', methods=['GET', 'POST'])
-@roles_required('planista', 'zarzad', 'lider', 'admin')
+@roles_required('planista', 'zarzad', 'lider', 'admin', 'laboratorium')
 def panel_planisty():
 
     conn = get_db_connection()
