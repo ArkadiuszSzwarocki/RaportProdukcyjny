@@ -170,6 +170,9 @@ def setup_database():
             except Exception:
                 pass
 
+        # Tabela historii zmian planu
+        cursor.execute("CREATE TABLE IF NOT EXISTS plan_history (id INT AUTO_INCREMENT PRIMARY KEY, plan_id INT NULL, action VARCHAR(50), changes LONGTEXT, user_login VARCHAR(100), created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+
         # 3. DODANIE DOMYŚLNYCH KONT (Jeśli brak) - zapisujemy hasła zhaszowane
         cursor.execute("SELECT id, haslo FROM uzytkownicy")
         existing = cursor.fetchall()
@@ -249,3 +252,89 @@ def setup_database():
         
     except Exception as e:
         print(f"[ERROR] BLAD KRYTYCZNY BAZY DANYCH: {e}")
+
+
+def rollover_unfinished(from_date, to_date):
+    """Przenosi niezakończone zlecenia z `from_date` na `to_date`.
+    Zlecenia przenoszone są jako nowe wiersze z datą docelową, statusem
+    'zaplanowane' (reset real_start/real_stop) i odpowiednią kolejnością.
+    Oryginały są usuwane.
+    Zwraca liczbę przeniesionych zleceń.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, sekcja, produkt, tonaz, status, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury FROM plan_produkcji WHERE data_planu=%s", (from_date,))
+        rows = cursor.fetchall()
+        moved = 0
+        moved_ids = []
+        for row in rows:
+            pid, sekcja, produkt, tonaz, status, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury = row
+            if status == 'zakonczone':
+                continue
+
+            # pobierz kolejność docelową
+            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (to_date,))
+            res = cursor.fetchone()
+            nk = (res[0] if res and res[0] else 0) + 1
+
+            cursor.execute(
+                "INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, kolejnosc, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury) VALUES (%s, %s, %s, %s, 'zaplanowane', NULL, NULL, NULL, %s, %s, %s, %s, %s)",
+                (to_date, sekcja, produkt, tonaz, nk, typ_produkcji or 'worki_zgrzewane_25', nazwa_zlecenia or '', typ_zlecenia or '', nr_receptury or '')
+            )
+            # usuń oryginał
+            cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (pid,))
+            moved += 1
+            moved_ids.append(pid)
+            try:
+                print(f"[rollover] Przeniesiono id={pid} produkt={produkt} sekcja={sekcja} tonaz={tonaz}")
+            except Exception:
+                # ensure logging doesn't break rollover
+                pass
+
+        conn.commit()
+        try:
+            if moved_ids:
+                print(f"[rollover] Podsumowanie: przeniesiono {moved} zlecen: {', '.join(str(i) for i in moved_ids)}")
+            else:
+                print("[rollover] Podsumowanie: brak zlecen do przeniesienia.")
+        except Exception:
+            pass
+        return moved
+
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        print(f"[ERROR] rollover_unfinished failed: {e}")
+        return 0
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def log_plan_history(plan_id, action, changes, user_login=None):
+    """Zapisuje wpis do tabeli `plan_history`.
+    `changes` może być stringiem (np. JSON) opisującym co się zmieniło.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO plan_history (plan_id, action, changes, user_login) VALUES (%s, %s, %s, %s)", (plan_id, action, changes, user_login))
+        conn.commit()
+        try:
+            conn.close()
+        except Exception:
+            pass
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass

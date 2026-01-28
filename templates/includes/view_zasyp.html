@@ -83,10 +83,7 @@
                     {% endif %}
                     
                     {% if rola in ['planista', 'admin', 'lider'] %}
-                    <form action="/usun_plan/{{ p[0] }}" method="POST" class="inline-form" onsubmit="return confirm('Usunąć?');">
-                        <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-                        <button type="submit" class="btn-delete" aria-label="Usuń plan">🗑</button>
-                    </form>
+                    <button type="button" class="btn-delete inline-form" aria-label="Usuń plan" onclick="if(confirm('Usunąć?')) deletePlan({{ p[0] }}, '{{ dzisiaj }}')">🗑</button>
                     {% endif %}
                 </div>
             </div>

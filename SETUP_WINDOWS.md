@@ -21,7 +21,7 @@ conda install pandas openpyxl fpdf pymupdf -c conda-forge
 
 Opcja B — użyj pip z prebuilt wheel (jeśli dostępny) lub zainstaluj kompatybilną wersję Pythona
 
-1. Jeśli używasz Pythona, dla którego nie ma gotowego wheel (np. najnowsze wydania), rozważ zainstalowanie Pythona 3.10/3.11, gdzie wheel jest dostępny.
+1. Jeśli używasz Pytona, dla którego nie ma gotowego wheel (np. najnowsze wydania), rozważ zainstalowanie Pytona 3.10/3.11, gdzie wheel jest dostępny.
 2. W wierszu poleceń spróbuj wymusić instalację binarną:
 
 ```powershell

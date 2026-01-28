@@ -46,6 +46,7 @@
       <option value="Nieobecność">Nieobecność</option>
       <option value="Urlop">Urlop</option>
       <option value="Wyjscie prywatne">Wyjscie prywatne</option>
+      <option value="Nadgodziny">Nadgodziny</option>
     </select></label>
     <label>Godziny: <input type="number" name="godziny" value="0" min="0" step="0.25" required></label>
     <label>Komentarz: <input type="text" name="komentarz"></label>
@@ -227,6 +228,7 @@ document.addEventListener('DOMContentLoaded', function(){
   var sel = document.getElementById('abs_typ_select');
   var fromLabel = document.getElementById('abs_wyjscie_label_from');
   var toLabel = document.getElementById('abs_wyjscie_label_to');
+  var koment = document.querySelector('input[name="komentarz"]');
   function update(){
     if(!sel) return;
     if(sel.value === 'Wyjscie prywatne'){
@@ -234,10 +236,16 @@ document.addEventListener('DOMContentLoaded', function(){
       toLabel.classList.remove('hidden');
       document.getElementById('abs_wyjscie_from').required = true;
       document.getElementById('abs_wyjscie_to').required = true;
+      if(koment) { koment.required = false; }
     } else {
       fromLabel.classList.add('hidden');
       toLabel.classList.add('hidden');
       try{ document.getElementById('abs_wyjscie_from').required = false; document.getElementById('abs_wyjscie_to').required = false; }catch(e){}
+      if(sel.value === 'Nadgodziny'){
+        if(koment) { koment.required = true; }
+      } else {
+        if(koment) { koment.required = false; }
+      }
     }
   }
   if(sel){ sel.addEventListener('change', update); update(); }
