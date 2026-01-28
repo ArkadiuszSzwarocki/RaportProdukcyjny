@@ -64,7 +64,7 @@
         </thead>
         <tbody>
             {% for p in plany %}
-            <tr>
+            <tr data-plan-id="{{ p[0] }}">
                 <td><strong class="text-primary">{{ p[2] }}</strong></td>
                 <td><span class="badge-sekcja">{{ p[9]|upper }}</span></td>
                 <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
@@ -90,13 +90,11 @@
                 <td>
                     <div class="d-flex gap-5 align-center">
                         {% if p[4] not in ['w toku', 'zakonczone'] %}
-                            <form action="/przesun_zlecenie/{{ p[0] }}/gora?data={{ wybrana_data }}" method="POST"><button type="submit" class="btn-icon" aria-label="Przenieś w górę">⬆</button></form>
-                            <form action="/przesun_zlecenie/{{ p[0] }}/dol?data={{ wybrana_data }}" method="POST"><button type="submit" class="btn-icon" aria-label="Przenieś w dół">⬇</button></form>
-                            <form action="/usun_plan/{{ p[0] }}" method="POST" onsubmit="return confirm('Usunąć?')">
-                                <input type="hidden" name="widok_powrotu" value="planista"><input type="hidden" name="data_powrotu" value="{{ wybrana_data }}">
-                                <button type="submit" class="btn-icon text-danger-color" aria-label="Usuń plan">✖</button>
-                            </form>
+                            <button type="button" onclick="moveUp({{ p[0] }})" class="btn-icon" aria-label="Przenieś w górę">⬆</button>
+                            <button type="button" onclick="moveDown({{ p[0] }})" class="btn-icon" aria-label="Przenieś w dół">⬇</button>
+                            <button type="button" onclick="deletePlanConfirm({{ p[0] }}, '{{ wybrana_data }}')" class="btn-icon text-danger-color" aria-label="Usuń plan">✖</button>
                             <button type="button" onclick="openMoveModal({{ p[0] }}, '{{ p[2] }}')" class="btn-icon text-primary" aria-label="Przenieś plan">📅</button>
+                            <button type="button" class="btn-icon" onclick="toggleEdit({{ p[0] }})" title="Edytuj">✎</button>
                         {% else %}
                             <span class="text-muted fs-120" title="Zablokowane">🔒</span>
                         {% endif %}
@@ -133,11 +131,120 @@
 
     <script>
     function toggleDetails(id) { var row = document.getElementById('details-' + id); row.style.display = (row.style.display === 'none') ? 'table-row' : 'none'; }
-    function openMoveModal(id, nazwa) { try{ if(typeof showToast==='function') showToast('Okno przenoszenia zostało wyłączone', 'info'); else alert('Okno przenoszenia wyłączone'); }catch(e){console.log('openMoveModal disabled', e);} }
+    function openMoveModal(id, nazwa) {
+        // show small modal inline for selecting date
+        var modal = document.getElementById('moveModal');
+        if(!modal) return alert('Brak modala');
+        modal.style.display = 'block';
+        modal.dataset.planId = id;
+        modal.querySelector('.move-title').innerText = nazwa;
+    }
     /* showModalDisabled removed — slide-over used as fallback instead */
 </script>
 
 <!-- Fallback modal-open listener removed -->
+
+<!-- Move modal (inline) -->
+<div id="moveModal" style="display:none; position:fixed; left:50%; top:40%; transform:translate(-50%,-50%); background:#fff; padding:15px; border:1px solid #ccc; z-index:2000;">
+    <h3 class="move-title">Przenieś zlecenie</h3>
+    <div style="margin:8px 0">Nowa data: <input type="date" id="move_to_date" value="{{ wybrana_data }}"></div>
+    <div class="d-flex gap-5" style="justify-content:flex-end;">
+        <button type="button" onclick="confirmMove()" class="btn-action btn-small">Przenieś</button>
+        <button type="button" onclick="document.getElementById('moveModal').style.display='none'" class="btn-action btn-small btn-cancel">Anuluj</button>
+    </div>
+</div>
+
+<script>
+function confirmMove(){
+    var modal = document.getElementById('moveModal');
+    var id = modal.dataset.planId;
+    var to_date = document.getElementById('move_to_date').value;
+    if(!id || !to_date) return alert('Brakuje danych');
+    fetch('/api/przenies_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, to_date: to_date})})
+        .then(r=>r.json()).then(j=>{
+            if(j && j.success){
+                modal.style.display='none';
+                // simple reload of page to reflect ordering and moved item
+                location.reload();
+            } else {
+                alert((j && j.message) || 'Błąd');
+            }
+        }).catch(()=>alert('Błąd sieci'));
+}
+</script>
+<script>
+function moveUp(id){
+    fetch('/api/przesun_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, kierunek:'gora', data: '{{ wybrana_data }}'})})
+        .then(r=>r.json()).then(j=>{ if(j && j.success){ location.reload(); } else { alert((j && j.message)||'Błąd'); } }).catch(()=>alert('Błąd sieci'));
+}
+function moveDown(id){
+    fetch('/api/przesun_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, kierunek:'dol', data: '{{ wybrana_data }}'})})
+        .then(r=>r.json()).then(j=>{ if(j && j.success){ location.reload(); } else { alert((j && j.message)||'Błąd'); } }).catch(()=>alert('Błąd sieci'));
+}
+function deletePlanConfirm(id, data){ if(!confirm('Usunąć?')) return; deletePlan(id, data); }
+function deletePlan(id, data){
+    fetch('/api/usun_plan_ajax/'+id, {method:'POST'}).then(r=>{
+        if(r.ok){
+            // Reload regardless of JSON payload to ensure UI reflects server state
+            location.reload();
+            return null;
+        }
+        return r.json().catch(()=>null);
+    }).then(j=>{
+        if(j && !j.success){ alert(j.message || 'Błąd'); }
+    }).catch(()=>alert('Błąd sieci'));
+}
+</script>
+<script>
+    function toggleEdit(id){
+        var tr = document.querySelector('tr[data-plan-id="'+id+'"]');
+        if(!tr) return;
+        var editRow = document.getElementById('edit-row-'+id);
+        if(editRow){
+            // toggle visibility
+            editRow.style.display = (editRow.style.display === 'none') ? 'table-row' : 'none';
+            return;
+        }
+        // create edit row after current row
+        var newTr = document.createElement('tr');
+        newTr.id = 'edit-row-' + id;
+        newTr.className = 'edit-row';
+        var cols = [];
+        cols.push('<td colspan="2">');
+        cols.push('Produkt: <input id="e_prod_'+id+'" name="produkt" value="'+(tr.children[0].innerText.trim())+'" required> ');
+        cols.push('Typ: <input id="e_sekc_'+id+'" name="sekcja" value="'+(tr.querySelector('.badge-sekcja')?tr.querySelector('.badge-sekcja').innerText:'')+'"> ');
+        cols.push('</td>');
+        cols.push('<td>Plan: <input id="e_ton_'+id+'" name="tonaz" type="number" step="0.1" value="'+(tr.children[2].innerText.replace(/[^0-9\.\,]/g,'')||0)+'"></td>');
+        cols.push('<td colspan="2">');
+        cols.push('Data: <input id="e_date_'+id+'" name="data_planu" type="date" value="{{ wybrana_data }}">');
+        cols.push('</td>');
+        cols.push('<td colspan="3">');
+        cols.push('<button type="button" onclick="submitEdit('+id+')" class="btn-action btn-small">Zapisz</button> ');
+        cols.push('<button type="button" class="btn-action btn-small btn-cancel" onclick="document.getElementById(\'edit-row-'+id+'\').style.display=\'none\'">Anuluj</button>');
+        cols.push('</td>');
+        newTr.innerHTML = cols.join('');
+        tr.parentNode.insertBefore(newTr, tr.nextSibling);
+    }
+
+    function submitEdit(id){
+        var prod = document.getElementById('e_prod_'+id).value;
+        var sek = document.getElementById('e_sekc_'+id).value;
+        var ton = document.getElementById('e_ton_'+id).value;
+        var dt = document.getElementById('e_date_'+id).value;
+        fetch('/api/edytuj_plan_ajax', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({id: id, produkt: prod, sekcja: sek, tonaz: ton, data_planu: dt})
+        }).then(r=>r.json()).then(j=>{
+            if(j && j.success){
+                // update row DOM
+                var tr = document.querySelector('tr[data-plan-id="'+id+'"]');
+                if(tr){ tr.children[0].innerText = prod; tr.querySelector('.badge-sekcja').innerText = (sek||'').toUpperCase(); tr.children[2].innerText = (parseFloat(ton)||0)+' kg'; }
+                var er = document.getElementById('edit-row-'+id); if(er) er.style.display='none';
+            } else {
+                alert((j && j.message) || 'Błąd');
+            }
+        }).catch(()=>alert('Błąd sieci'));
+    }
 
 
 <!-- Modal: Szczegóły zleceń jakościowych usunięty -->

@@ -4,7 +4,7 @@ import logging
 import json
 from datetime import date, datetime, timedelta, time
 from io import BytesIO
-from db import get_db_connection
+from db import get_db_connection, rollover_unfinished, log_plan_history
 from dto.paleta import PaletaDTO
 from decorators import login_required, roles_required
 from services.raport_service import RaportService
@@ -119,6 +119,25 @@ def szarza_page(plan_id):
 def wyjasnij_page(id):
     # Render form to submit wyjasnienie via zapisz_wyjasnienie
     return render_template('wyjasnij.html', id=id)
+
+
+@api_bp.route('/manual_rollover', methods=['POST'])
+@roles_required('lider', 'admin')
+def manual_rollover():
+    from_date = request.form.get('from_date') or request.args.get('from_date')
+    to_date = request.form.get('to_date') or request.args.get('to_date')
+    if not from_date or not to_date:
+        flash('Brakuje daty źródłowej lub docelowej', 'error')
+        return redirect(bezpieczny_powrot())
+
+    try:
+        added = rollover_unfinished(from_date, to_date)
+        flash(f'Przeniesiono {added} zleceń z {from_date} na {to_date}', 'success')
+    except Exception as e:
+        current_app.logger.exception('manual_rollover failed: %s', e)
+        flash('Błąd podczas przenoszenia zleceń', 'error')
+
+    return redirect(bezpieczny_powrot())
 
 
 @api_bp.route('/obsada_page', methods=['GET'])
@@ -850,6 +869,310 @@ def przesun_zlecenie(id, kierunek):
             
     conn.close()
     return redirect(url_for('planista.panel_planisty', data=data))
+
+
+@api_bp.route('/edytuj_plan/<int:id>', methods=['POST'])
+@roles_required('planista', 'admin')
+def edytuj_plan(id):
+    """Zapisuje edycję pól planu: produkt, tonaz, sekcja, data_planu."""
+    from utils.validation import require_field
+    produkt = request.form.get('produkt')
+    tonaz = request.form.get('tonaz')
+    sekcja = request.form.get('sekcja')
+    data_planu = request.form.get('data_planu')
+    try:
+        tonaz_val = int(float(tonaz)) if tonaz is not None and tonaz != '' else None
+    except Exception:
+        tonaz_val = None
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Sprawdź czy istnieje
+        cursor.execute("SELECT id, status FROM plan_produkcji WHERE id=%s", (id,))
+        r = cursor.fetchone()
+        if not r:
+            flash('Nie znaleziono zlecenia', 'warning')
+            return redirect(bezpieczny_powrot())
+        if r[1] in ['w toku', 'zakonczone']:
+            flash('Nie można edytować zleceń w toku lub zakończonych', 'warning')
+            return redirect(bezpieczny_powrot())
+
+        updates = []
+        params = []
+        if produkt is not None:
+            updates.append('produkt=%s'); params.append(produkt)
+        if tonaz_val is not None:
+            updates.append('tonaz=%s'); params.append(tonaz_val)
+        if sekcja:
+            updates.append('sekcja=%s'); params.append(sekcja)
+        if data_planu:
+            # jeśli zmieniamy datę, ustawimy nową kolejność na koniec dnia
+            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+            res = cursor.fetchone(); nk = (res[0] if res and res[0] else 0) + 1
+            updates.append('data_planu=%s'); params.append(data_planu)
+            updates.append('kolejnosc=%s'); params.append(nk)
+
+        if updates:
+            sql = f"UPDATE plan_produkcji SET {', '.join(updates)} WHERE id=%s"
+            params.append(id)
+            cursor.execute(sql, tuple(params))
+            conn.commit()
+            flash('Zlecenie zaktualizowane', 'success')
+    except Exception:
+        current_app.logger.exception('Failed to edit plan %s', id)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        flash('Błąd podczas zapisu zmian', 'danger')
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    return redirect(bezpieczny_powrot())
+
+
+@api_bp.route('/edytuj_plan_ajax', methods=['POST'])
+@roles_required('planista', 'admin')
+def edytuj_plan_ajax():
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        data = request.form.to_dict()
+    id = data.get('id')
+    if not id:
+        return jsonify({'success': False, 'message': 'Brak id'}), 400
+    try:
+        pid = int(id)
+    except Exception:
+        return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
+
+    produkt = data.get('produkt')
+    tonaz = data.get('tonaz')
+    sekcja = data.get('sekcja')
+    data_planu = data.get('data_planu')
+
+    try:
+        tonaz_val = int(float(tonaz)) if tonaz is not None and str(tonaz).strip() != '' else None
+    except Exception:
+        tonaz_val = None
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id, produkt, tonaz, sekcja, data_planu, status FROM plan_produkcji WHERE id=%s", (pid,))
+        before = cursor.fetchone()
+        if not before:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
+        if before[5] in ['w toku', 'zakonczone']:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Nie można edytować zleceń w toku lub zakończonych'}), 403
+
+        updates = []
+        params = []
+        changes = {}
+        if produkt is not None and produkt != before[1]:
+            updates.append('produkt=%s'); params.append(produkt); changes['produkt'] = {'before': before[1], 'after': produkt}
+        if tonaz_val is not None and tonaz_val != (before[2] or 0):
+            updates.append('tonaz=%s'); params.append(tonaz_val); changes['tonaz'] = {'before': before[2], 'after': tonaz_val}
+        if sekcja and sekcja != before[3]:
+            updates.append('sekcja=%s'); params.append(sekcja); changes['sekcja'] = {'before': before[3], 'after': sekcja}
+        if data_planu and data_planu != str(before[4]):
+            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+            res = cursor.fetchone(); nk = (res[0] if res and res[0] else 0) + 1
+            updates.append('data_planu=%s'); params.append(data_planu); updates.append('kolejnosc=%s'); params.append(nk)
+            changes['data_planu'] = {'before': str(before[4]), 'after': data_planu}
+
+        if updates:
+            sql = f"UPDATE plan_produkcji SET {', '.join(updates)} WHERE id=%s"
+            params.append(pid)
+            cursor.execute(sql, tuple(params))
+            conn.commit()
+            # log history
+            try:
+                user_login = session.get('login') or session.get('imie_nazwisko')
+            except Exception:
+                user_login = None
+            try:
+                log_plan_history(pid, 'edit', json.dumps(changes, default=str, ensure_ascii=False), user_login)
+            except Exception:
+                pass
+            conn.close()
+            return jsonify({'success': True, 'message': 'Zaktualizowano', 'changes': changes})
+        conn.close()
+        return jsonify({'success': True, 'message': 'Brak zmian'})
+    except Exception as e:
+        current_app.logger.exception('Error edytuj_plan_ajax')
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
+
+
+@api_bp.route('/przenies_zlecenie_ajax', methods=['POST'])
+@roles_required('planista', 'admin')
+def przenies_zlecenie_ajax():
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        data = request.form.to_dict()
+    id = data.get('id')
+    to_date = data.get('to_date')
+    if not id or not to_date:
+        return jsonify({'success': False, 'message': 'Brak parametrów'}), 400
+    try:
+        pid = int(id)
+    except Exception:
+        return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT status, data_planu FROM plan_produkcji WHERE id=%s", (pid,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close(); return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
+        if row[0] in ['w toku', 'zakonczone']:
+            conn.close(); return jsonify({'success': False, 'message': 'Nie można przenieść zlecenia w toku lub zakończonego'}), 403
+        old_date = row[1]
+        cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (to_date,))
+        res = cursor.fetchone(); nk = (res[0] if res and res[0] else 0) + 1
+        cursor.execute("UPDATE plan_produkcji SET data_planu=%s, kolejnosc=%s WHERE id=%s", (to_date, nk, pid))
+        conn.commit()
+        try:
+            user_login = session.get('login') or session.get('imie_nazwisko')
+        except Exception:
+            user_login = None
+        try:
+            log_plan_history(pid, 'move', json.dumps({'from': str(old_date), 'to': to_date}, ensure_ascii=False), user_login)
+        except Exception:
+            pass
+        conn.close()
+        return jsonify({'success': True, 'message': 'Przeniesiono'})
+    except Exception:
+        current_app.logger.exception('przenies_zlecenie_ajax failed')
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
+
+
+@api_bp.route('/przesun_zlecenie_ajax', methods=['POST'])
+@roles_required('planista', 'admin')
+def przesun_zlecenie_ajax():
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        data = request.form.to_dict()
+    id = data.get('id')
+    kierunek = data.get('kierunek')
+    data_date = data.get('data') or request.args.get('data') or str(date.today())
+    if not id or not kierunek:
+        return jsonify({'success': False, 'message': 'Brak parametrów'}), 400
+    try:
+        pid = int(id)
+    except Exception:
+        return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id, kolejnosc, status FROM plan_produkcji WHERE id=%s", (pid,))
+        obecne = cursor.fetchone()
+        if not obecne:
+            conn.close(); return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
+        if obecne[2] in ['w toku', 'zakonczone']:
+            conn.close(); return jsonify({'success': False, 'message': 'Nie można przenieść zlecenia w toku lub zakończonego'}), 403
+
+        oid, okol, _ = obecne
+        q = "SELECT id, kolejnosc FROM plan_produkcji WHERE data_planu=%s AND kolejnosc < %s ORDER BY kolejnosc DESC LIMIT 1" if kierunek == 'gora' else "SELECT id, kolejnosc FROM plan_produkcji WHERE data_planu=%s AND kolejnosc > %s ORDER BY kolejnosc ASC LIMIT 1"
+        cursor.execute(q, (data_date, okol))
+        sasiad = cursor.fetchone()
+        if sasiad:
+            cursor.execute("UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s", (sasiad[1], oid))
+            cursor.execute("UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s", (okol, sasiad[0]))
+            conn.commit()
+            # log history
+            try:
+                user_login = session.get('login') or session.get('imie_nazwisko')
+            except Exception:
+                user_login = None
+            try:
+                log_plan_history(pid, 'reorder', json.dumps({'direction': kierunek, 'swapped_with': sasiad[0]}, ensure_ascii=False), user_login)
+            except Exception:
+                pass
+            conn.close()
+            return jsonify({'success': True, 'message': 'Przeniesiono'})
+
+        conn.close()
+        return jsonify({'success': False, 'message': 'Brak sąsiada do zamiany'}), 400
+    except Exception:
+        current_app.logger.exception('przesun_zlecenie_ajax failed')
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
+
+
+@api_bp.route('/usun_plan_ajax/<int:id>', methods=['POST'])
+@roles_required('planista', 'admin')
+def api_usun_plan(id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT status, produkt, data_planu, tonaz FROM plan_produkcji WHERE id=%s", (id,))
+        res = cursor.fetchone()
+        if not res:
+            conn.close(); return jsonify({'success': False, 'message': 'Zlecenie nie istnieje.'}), 404
+        if res[0] in ['w toku', 'zakonczone']:
+            conn.close(); return jsonify({'success': False, 'message': 'Nie można usunąć zleczenia w toku lub już zakończonego.'}), 403
+
+        # record details for history
+        details = {'produkt': res[1], 'data_planu': str(res[2]), 'tonaz': res[3]}
+        # delete related palety and plan
+        cursor.execute("DELETE FROM palety_workowanie WHERE plan_id=%s", (id,))
+        cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (id,))
+        conn.commit()
+        try:
+            user_login = session.get('login') or session.get('imie_nazwisko')
+        except Exception:
+            user_login = None
+        try:
+            log_plan_history(id, 'delete', json.dumps(details, ensure_ascii=False), user_login)
+        except Exception:
+            pass
+        conn.close()
+        return jsonify({'success': True, 'message': 'Zlecenie zostało usunięte.'})
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        current_app.logger.exception('Failed to delete plan %s', id)
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': 'Wystąpił błąd przy usuwaniu zlecenia.'}), 500
 
 
 # ================= JAKOŚĆ -> DODAJ DO PLANÓW =================
