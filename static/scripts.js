@@ -119,6 +119,85 @@
             aktualizujWalidacje();
         }
 
+        // top-submenu clicks are handled by global delegation via data-slide
+        // New behavior: load panel pages into `#mainContent` via fetch (partial navigation)
+        try {
+            const topSub = document.querySelector('.top-submenu-inner');
+            if (topSub) {
+                topSub.addEventListener('click', function (ev) {
+                    const a = ev.target.closest && ev.target.closest('a');
+                    if (!a) return;
+                    const href = a.getAttribute('href') || '';
+                    if (!href || href.indexOf('http') === 0 || href.indexOf('javascript:') === 0) return;
+                    // Only handle internal /panel/ routes or direct api partials (obsada)
+                    if (href.indexOf('/panel/') !== 0 && href.indexOf('/api/obsada_page') !== 0) return;
+                    ev.preventDefault(); ev.stopPropagation();
+                    // fetch the page and replace main content
+                    (async function(){
+                        try {
+                            // Special-case: if user clicked a /panel/obsada link, fetch the API fragment instead
+                            let fetchUrl = href;
+                            if (href.indexOf('/panel/obsada') === 0) {
+                                // preserve sekcja query if present
+                                const u = new URL(href, window.location.origin);
+                                const sekcja = u.searchParams.get('sekcja') || 'Workowanie';
+                                fetchUrl = '/api/obsada_page?sekcja=' + encodeURIComponent(sekcja);
+                            }
+                            const resp = await fetch(fetchUrl, { credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} });
+                            if (!resp.ok) { window.location.href = href; return; }
+                            const txt = await resp.text();
+                            const tmp = document.createElement('div'); tmp.innerHTML = txt;
+                            // Try several strategies to extract only the useful fragment:
+                            // 1) #mainContent (full page)
+                            // 2) known obsada marker #current-obsada-0 -> its closest .section-box
+                            // 3) first .section-box
+                            // 4) <main>
+                            // 5) fallback to full response
+                            let newMain = tmp.querySelector('#mainContent');
+                            if (!newMain) {
+                                const obsMarker = tmp.querySelector('#current-obsada-0');
+                                if (obsMarker) {
+                                    newMain = obsMarker.closest('.section-box') || obsMarker;
+                                } else {
+                                    const section = tmp.querySelector('.section-box');
+                                    if (section) newMain = section;
+                                    else {
+                                        const mainEl = tmp.querySelector('main');
+                                        newMain = mainEl || tmp;
+                                    }
+                                }
+                            }
+                            const curMain = document.getElementById('mainContent');
+                            if (newMain && curMain) {
+                                curMain.innerHTML = newMain.innerHTML;
+                                // execute inline scripts in replaced content
+                                newMain.querySelectorAll('script').forEach(s => {
+                                    try {
+                                        if (s.src) {
+                                            const sc = document.createElement('script'); sc.src = s.src; sc.async = false; document.body.appendChild(sc);
+                                        } else {
+                                            (new Function(s.textContent))();
+                                        }
+                                    } catch (e) { console.warn('exec replaced script failed', e); }
+                                });
+                                // update history so back/forward works
+                                try { window.history.pushState({ partial: true, url: href }, '', href); } catch(e){}
+                                // dispatch event for other modules
+                                window.dispatchEvent(new CustomEvent('app:partialReload'));
+                                return;
+                            }
+                            // fallback full navigation
+                            window.location.href = href;
+                        } catch (e) { console.error('partial load failed', e); window.location.href = href; }
+                    })();
+                });
+                // handle browser back/forward to re-fetch content
+                window.addEventListener('popstate', function(ev){
+                    try { if (ev.state && ev.state.url) { fetch(ev.state.url, { credentials: 'same-origin' }).then(r=>r.text()).then(t=>{ const tmp=document.createElement('div'); tmp.innerHTML=t; const nm=tmp.querySelector('#mainContent'); const cm=document.getElementById('mainContent'); if(nm && cm) cm.innerHTML = nm.innerHTML; }); } } catch(e){}
+                });
+            }
+        } catch (e) { /* ignore */ }
+
         // --- Responsive sidebar (hamburger + overlay) ---
         const hamburger = document.getElementById('hamburgerBtn');
         const overlay = document.getElementById('sidebarOverlay');

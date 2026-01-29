@@ -1,0 +1,21 @@
+<div class="section-box">
+  <h3>📅 Ostatnie Nieobecności (30 dni)</h3>
+  {% if recent_absences and recent_absences|length > 0 %}
+  <table class="table compact">
+    <thead><tr><th>Pracownik</th><th>Typ</th><th>Data</th><th>Godziny</th><th>Komentarz</th></tr></thead>
+    <tbody>
+      {% for r in recent_absences %}
+      <tr>
+        <td>{{ r.pracownik }}</td>
+        <td>{{ r.typ }}</td>
+        <td>{{ r.data }}</td>
+        <td>{{ r.godziny or '' }}</td>
+        <td>{{ r.komentarz or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Brak wpisów z ostatnich 30 dni.</p>
+  {% endif %}
+</div>

@@ -145,20 +145,48 @@ def manual_rollover():
 def obsada_page():
     """Render small slide-over for managing `obsada` (workers on shift) for a sekcja."""
     sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Workowanie'))
+    # allow optional date parameter (YYYY-MM-DD) to view/modify obsada for other dates
+    date_str = request.args.get('date') or request.form.get('date')
+    try:
+        qdate = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+    except Exception:
+        qdate = date.today()
+
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # current obsada for today and given sekcja
-        cursor.execute("SELECT p.id, p.imie_nazwisko FROM pracownicy p JOIN obsada_zmiany o ON o.pracownik_id=p.id WHERE o.data_wpisu=%s AND o.sekcja=%s ORDER BY p.imie_nazwisko", (date.today(), sekcja))
-        obecna = cursor.fetchall()
-        # available employees
-        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko")
+        # all obsada entries for given date (grouped by sekcja)
+        cursor.execute("SELECT oz.sekcja, oz.id, p.imie_nazwisko FROM obsada_zmiany oz JOIN pracownicy p ON oz.pracownik_id = p.id WHERE oz.data_wpisu = %s ORDER BY oz.sekcja, p.imie_nazwisko", (qdate,))
+        rows = cursor.fetchall()
+        obsady_map = {}
+        for r in rows:
+            sekc, oz_id, name = r[0], r[1], r[2]
+            obsady_map.setdefault(sekc, []).append((oz_id, name))
+        # available employees: exclude those already assigned for that date (any sekcja)
+        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) ORDER BY imie_nazwisko", (qdate,))
         wszyscy = cursor.fetchall()
+        # pełna lista pracowników (dla wyboru liderów)
+        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko")
+        all_pracownicy = cursor.fetchall()
+        # pobierz liderów dla tej daty (jeśli istnieją)
+        cursor.execute("SELECT lider_psd_id, lider_agro_id FROM obsada_liderzy WHERE data_wpisu=%s", (qdate,))
+        lider_row = cursor.fetchone()
+        lider_psd_id = lider_row[0] if lider_row else None
+        lider_agro_id = lider_row[1] if lider_row else None
     finally:
         try: conn.close()
         except Exception: pass
 
-    return render_template('obsada.html', sekcja=sekcja, obsada=obecna, pracownicy=wszyscy, rola=session.get('rola'))
+    # If requested via AJAX, return only the fragment (no full layout)
+    try:
+        is_ajax = request.headers.get('X-Requested-With', '') == 'XMLHttpRequest'
+    except Exception:
+        is_ajax = False
+
+    if is_ajax:
+        return render_template('obsada_fragment.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'), qdate=qdate, lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id, all_pracownicy=all_pracownicy)
+
+    return render_template('obsada.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'), qdate=qdate, lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id, all_pracownicy=all_pracownicy)
 
 # ================= PALETY =================
 
@@ -1682,6 +1710,74 @@ def wnioski_summary():
         return jsonify({'obecnosci': obecnosci, 'typy': typy, 'wyjscia_hours': wyjscia_hours, 'urlop_biezacy': urlop_biezacy, 'urlop_zalegly': urlop_zalegly})
     except Exception:
         current_app.logger.exception('Error building summary')
+
+
+@api_bp.route('/panel/wnioski', methods=['GET'])
+@roles_required('lider', 'admin')
+def panel_wnioski():
+    """Zwraca fragment HTML z listą oczekujących wniosków (slide-over)."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, w.czas_do, w.powod, w.zlozono FROM wnioski_wolne w JOIN pracownicy p ON w.pracownik_id = p.id WHERE w.status = 'pending' ORDER BY w.zlozono DESC LIMIT 200")
+        raw = cursor.fetchall()
+        wnioski = []
+        for r in raw:
+            wnioski.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3], 'data_do': r[4], 'czas_od': r[5], 'czas_do': r[6], 'powod': r[7], 'zlozono': r[8]})
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return render_template('panels/wnioski_panel.html', wnioski=wnioski)
+    except Exception:
+        current_app.logger.exception('Failed to build wnioski panel')
+        return render_template('panels/wnioski_panel.html', wnioski=[])
+
+
+@api_bp.route('/panel/planowane', methods=['GET'])
+@login_required
+def panel_planowane():
+    """Zwraca fragment HTML z planowanymi urlopami (następne 60 dni)."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        end_date = date.today() + timedelta(days=60)
+        cursor.execute("SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, w.czas_do, w.status FROM wnioski_wolne w JOIN pracownicy p ON w.pracownik_id = p.id WHERE w.data_od <= %s AND w.data_do >= %s ORDER BY w.data_od ASC LIMIT 500", (end_date, date.today()))
+        raw = cursor.fetchall()
+        planned = []
+        for r in raw:
+            planned.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3], 'data_do': r[4], 'czas_od': r[5], 'czas_do': r[6], 'status': r[7]})
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return render_template('panels/planowane_panel.html', planned_leaves=planned)
+    except Exception:
+        current_app.logger.exception('Failed to build planned leaves panel')
+        return render_template('panels/planowane_panel.html', planned_leaves=[])
+
+
+@api_bp.route('/panel/obecnosci', methods=['GET'])
+@login_required
+def panel_obecnosci():
+    """Zwraca fragment HTML z ostatnimi nieobecnościami (ostatnie 30 dni)."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        since = date.today() - timedelta(days=30)
+        cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu BETWEEN %s AND %s ORDER BY o.data_wpisu DESC LIMIT 500", (since, date.today()))
+        raw = cursor.fetchall()
+        recent = []
+        for r in raw:
+            recent.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data': r[3], 'godziny': r[4], 'komentarz': r[5]})
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return render_template('panels/obecnosci_panel.html', recent_absences=recent)
+    except Exception:
+        current_app.logger.exception('Failed to build absences panel')
+        return render_template('panels/obecnosci_panel.html', recent_absences=[])
         try:
             conn.close()
         except Exception:
@@ -1706,6 +1802,12 @@ def dodaj_do_obsady():
     cursor = conn.cursor()
     sekcja = request.form.get('sekcja')
     pracownik_id = request.form.get('pracownik_id')
+    # allow optional date parameter to assign obsada for a specific day
+    date_str = request.form.get('date') or request.args.get('date')
+    try:
+        add_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+    except Exception:
+        add_date = date.today()
     if not sekcja or not pracownik_id:
         # brak wymaganych pól — nie powodujemy 500, a pokazujemy informację i wracamy
         try:
@@ -1718,10 +1820,10 @@ def dodaj_do_obsady():
             pass
         return redirect(bezpieczny_powrot())
     try:
-        cursor.execute("INSERT INTO obsada_zmiany (data_wpisu, sekcja, pracownik_id) VALUES (%s, %s, %s)", (date.today(), sekcja, pracownik_id))
+        cursor.execute("INSERT INTO obsada_zmiany (data_wpisu, sekcja, pracownik_id) VALUES (%s, %s, %s)", (add_date, sekcja, pracownik_id))
         # Attempt to retrieve the inserted row id for AJAX clients
         try:
-            cursor.execute("SELECT id FROM obsada_zmiany WHERE data_wpisu=%s AND sekcja=%s AND pracownik_id=%s ORDER BY id DESC LIMIT 1", (date.today(), sekcja, pracownik_id))
+            cursor.execute("SELECT id FROM obsada_zmiany WHERE data_wpisu=%s AND sekcja=%s AND pracownik_id=%s ORDER BY id DESC LIMIT 1", (add_date, sekcja, pracownik_id))
             inserted_row = cursor.fetchone()
             inserted_id = inserted_row[0] if inserted_row else None
         except Exception:
@@ -1729,10 +1831,10 @@ def dodaj_do_obsady():
         # Automatyczne zapisanie obecności przy dodaniu do obsady (jeśli brak już wpisu)
         try:
             default_hours = 8
-            cursor.execute("SELECT COUNT(1) FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s", (pracownik_id, date.today()))
+            cursor.execute("SELECT COUNT(1) FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s", (pracownik_id, add_date))
             exists = int(cursor.fetchone()[0] or 0)
             if not exists:
-                cursor.execute("INSERT INTO obecnosc (data_wpisu, pracownik_id, typ, ilosc_godzin, komentarz) VALUES (%s, %s, %s, %s, %s)", (date.today(), pracownik_id, 'Obecność', default_hours, 'Automatyczne z obsady'))
+                cursor.execute("INSERT INTO obecnosc (data_wpisu, pracownik_id, typ, ilosc_godzin, komentarz) VALUES (%s, %s, %s, %s, %s)", (add_date, pracownik_id, 'Obecność', default_hours, 'Automatyczne z obsady'))
         except Exception:
             try:
                 conn.rollback()
@@ -1759,14 +1861,63 @@ def dodaj_do_obsady():
 
     return redirect(bezpieczny_powrot())
 
+
+@api_bp.route('/zapisz_liderow_obsady', methods=['POST'])
+@login_required
+@roles_required(['lider', 'admin'])
+def zapisz_liderow_obsady():
+    date_str = request.form.get('date') or request.args.get('date')
+    try:
+        qdate = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+    except Exception:
+        qdate = date.today()
+    lider_psd = request.form.get('lider_psd') or None
+    lider_agro = request.form.get('lider_agro') or None
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # upsert leaders for that date
+        cur.execute("INSERT INTO obsada_liderzy (data_wpisu, lider_psd_id, lider_agro_id) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE lider_psd_id=VALUES(lider_psd_id), lider_agro_id=VALUES(lider_agro_id)", (qdate, lider_psd, lider_agro))
+        conn.commit()
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True})
+    return redirect(bezpieczny_powrot())
+
 @api_bp.route('/usun_z_obsady/<int:id>', methods=['POST'])
 @login_required
 def usun_z_obsady(id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM obsada_zmiany WHERE id=%s", (id,))
-    conn.commit()
-    conn.close()
+    try:
+        # pobierz informacje o usuwanym wierszu i usuń wszystkie powielone wpisy
+        cursor.execute("SELECT pracownik_id, data_wpisu, sekcja FROM obsada_zmiany WHERE id=%s", (id,))
+        row = cursor.fetchone()
+        if row:
+            pracownik_id, data_wpisu, sekcja = row[0], row[1], row[2]
+            cursor.execute("DELETE FROM obsada_zmiany WHERE pracownik_id=%s AND data_wpisu=%s AND sekcja=%s", (pracownik_id, data_wpisu, sekcja))
+            # Usuń automatyczny wpis w tabeli obecnosc utworzony przy dodaniu do obsady
+            try:
+                cursor.execute("DELETE FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s AND komentarz=%s", (pracownik_id, data_wpisu, 'Automatyczne z obsady'))
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+        else:
+            cursor.execute("DELETE FROM obsada_zmiany WHERE id=%s", (id,))
+        conn.commit()
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    # dla AJAX zwracamy JSON, dla zwykłego formularza redirect
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True})
     return redirect(bezpieczny_powrot())
 @api_bp.route('/zamknij-zmiane', methods=['GET'])
 @login_required
@@ -1929,31 +2080,43 @@ def zamknij_zmiane_global():
         print(f"[ROUTE] uwagi preview (first 200 chars): {uwagi[:200]}...")
     
     try:
-        # Pobierz imię i nazwisko lidera z bazy (używając pracownik_id)
+        # Pobierz imię i nazwisko lidera — preferuj wybór z formularza jeśli podano
         lider_name = "Nieznany"
         pracownik_id = session.get('pracownik_id')
         lider_login = session.get('login', 'nieznany')
-        
-        print(f"[ROUTE] Looking for lider: pracownik_id={pracownik_id}, login={lider_login}")
-        
-        if pracownik_id:
-            try:
-                conn_user = get_db_connection()
-                cursor_user = conn_user.cursor(dictionary=True)
-                cursor_user.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (pracownik_id,))
-                user_data = cursor_user.fetchone()
-                cursor_user.close()
-                conn_user.close()
-                if user_data and user_data.get('imie_nazwisko'):
-                    lider_name = user_data['imie_nazwisko']
-                    print(f"[ROUTE] ✓ Found lider name: {lider_name} (from pracownik_id={pracownik_id})")
-                else:
-                    print(f"[ROUTE] ⚠️ No imie_nazwisko found for pracownik_id={pracownik_id}")
-            except Exception as e:
-                print(f"[ROUTE] ✗ Error fetching lider name: {e}")
-        else:
-            print(f"[ROUTE] ⚠️ No pracownik_id in session, using login={lider_login}")
-            lider_name = lider_login
+
+        # If form provided a leader, prefer that
+        form_lider_id = request.form.get('lider_id') or request.values.get('lider_id')
+        form_lider_prowadzacy_id = request.form.get('lider_prowadzacy_id') or request.values.get('lider_prowadzacy_id')
+
+        print(f"[ROUTE] Looking for lider: session_pracownik_id={pracownik_id}, form_lider_id={form_lider_id}, login={lider_login}")
+
+        try:
+            conn_user = get_db_connection()
+            cursor_user = conn_user.cursor()
+            chosen_lider_id = form_lider_id if form_lider_id else pracownik_id
+            if chosen_lider_id:
+                cursor_user.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (chosen_lider_id,))
+                row = cursor_user.fetchone()
+                if row and row[0]:
+                    lider_name = row[0]
+                    print(f"[ROUTE] ✓ Found lider name: {lider_name} (id={chosen_lider_id})")
+            else:
+                lider_name = lider_login
+
+            # If a 'lider_prowadzacy' was provided, fetch name and append to uwagi
+            if form_lider_prowadzacy_id:
+                cursor_user.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (form_lider_prowadzacy_id,))
+                row2 = cursor_user.fetchone()
+                if row2 and row2[0]:
+                    prowadzacy_name = row2[0]
+                    uwagi = (uwagi or '') + f"\nLider prowadzący: {prowadzacy_name}\n"
+                    print(f"[ROUTE] ✓ Lider prowadzący: {prowadzacy_name} (id={form_lider_prowadzacy_id})")
+
+            cursor_user.close()
+            conn_user.close()
+        except Exception as e:
+            print(f"[ROUTE] ✗ Error fetching leader names: {e}")
         
         # Generuj raporty
         date_str = dzisiaj.strftime('%Y-%m-%d')
@@ -2142,7 +2305,7 @@ def zapisz_raport_koncowy_global():
         
         # Pobierz dane dla ALL sekcji z paletami
         wszystkie_plany = {}
-        sekcje = ['Zasyp', 'Workowanie', 'Magazyn']
+        sekcje = ['Zasyp', 'Workowanie', 'Magazyn', 'Hala Agro']
         
         for sekcja in sekcje:
             cursor.execute("""

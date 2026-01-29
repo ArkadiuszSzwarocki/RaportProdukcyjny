@@ -41,9 +41,7 @@
                 </a>
             {% endif %}
 
-            <a href="{{ url_for('api.obsada_page', sekcja=request.args.get('sekcja', 'Workowanie')) }}" class="btn-icon" title="Obsada" data-slide aria-label="Obsada">
-                <span class="material-icons">people</span>
-            </a>
+            {# Przyciski przeniesione poniżej belki, zobacz top-submenu #}
 
             {# top users button removed per UI change request #}
 
@@ -52,6 +50,20 @@
             <a href="/logout" class="logout-btn" aria-label="Wyloguj">
                 <span class="material-icons">logout</span>
             </a>
+        </div>
+    </div>
+
+    <div class="top-submenu">
+        <div class="top-submenu-inner">
+            <a class="top-tile" href="{{ url_for('api.obsada_page', sekcja='Workowanie') }}" title="Obsada">
+                <span class="material-icons">people</span>
+                <div class="tile-label">Obsada</div>
+            </a>
+            <nav class="top-menu">
+                <a class="top-menu-item" href="{{ url_for('panel_wnioski_page') }}"> <span class="material-icons">assignment_turned_in</span> Zatwierdzenie wniosków</a>
+                <a class="top-menu-item" href="{{ url_for('panel_planowane_page') }}"> <span class="material-icons">beach_access</span> Planowane urlopy</a>
+                <a class="top-menu-item" href="{{ url_for('panel_obecnosci_page') }}"> <span class="material-icons">calendar_today</span> Nieobecności</a>
+            </nav>
         </div>
     </div>
 

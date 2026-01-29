@@ -145,14 +145,25 @@
       <input type="date" id="obsadaDate" name="data" value="{{ dzisiaj }}">
       <button type="button" id="refreshObsada" class="btn-action btn-small">Odśwież</button>
     </div>
-    <div class="obsada-table-wrapper mt-10">
-      <table class="modern-table" id="obsadaTable">
-        <thead><tr><th>Sekcja</th><th>Pracownik</th></tr></thead>
-        <tbody>
-          <tr><td colspan="2" class="text-muted">Brak danych. Wybierz datę i kliknij 'Odśwież'.</td></tr>
-        </tbody>
-      </table>
+    <div class="d-flex gap-10 mt-8">
+      <label>Lider zmiany:
+        <select name="lider_id">
+          <option value="">— Wybierz lidera —</option>
+          {% for p in wszyscy_pracownicy %}
+            <option value="{{ p[0] }}" {% if session.get('pracownik_id')==p[0] %}selected{% endif %}>{{ p[1] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Lider prowadzący:
+        <select name="lider_prowadzacy_id">
+          <option value="">— Wybierz —</option>
+          {% for p in wszyscy_pracownicy %}
+            <option value="{{ p[0] }}">{{ p[1] }}</option>
+          {% endfor %}
+        </select>
+      </label>
     </div>
+    <!-- obsada table removed - handled via panel Obsada -->
     <div class="mt-10">
       <button type="submit" class="btn-action btn-success btn-end-shift btn-end-shift-large">
         🏁 Zakończ zmianę i pobierz raporty
@@ -253,53 +264,7 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 
 <script>
-// Load obsada (shift assignments) for selected date and render table
-document.addEventListener('DOMContentLoaded', function(){
-  const obsadaDate = document.getElementById('obsadaDate');
-  const obsadaTable = document.getElementById('obsadaTable');
-  const refreshBtn = document.getElementById('refreshObsada');
-
-  function isoToday(){
-    const d = new Date();
-    return d.toISOString().slice(0,10);
-  }
-
-  function renderRows(rows){
-    const tbody = obsadaTable.querySelector('tbody');
-    tbody.innerHTML = '';
-    if(!rows || rows.length === 0){
-      const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="2" class="text-muted">Brak przypisanych pracowników.</td>';
-      tbody.appendChild(tr);
-      return;
-    }
-    rows.forEach(r => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${r.sekcja}</td><td>${r.imie_nazwisko}</td>`;
-      tbody.appendChild(tr);
-    });
-  }
-
-  async function loadObsada(dateStr){
-    if(!dateStr) dateStr = isoToday();
-    try{
-      const res = await fetch(`/api/obsada-for-date?date=${encodeURIComponent(dateStr)}`, {credentials: 'same-origin'});
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      const j = await res.json();
-      renderRows(j.rows || []);
-    }catch(e){
-      console.error('loadObsada failed', e);
-      renderRows([]);
-    }
-  }
-
-  if(obsadaDate){
-    if(!obsadaDate.value) obsadaDate.value = '{{ dzisiaj }}' || isoToday();
-    loadObsada(obsadaDate.value);
-    obsadaDate.addEventListener('change', function(){ loadObsada(this.value); });
-  }
-  if(refreshBtn){ refreshBtn.addEventListener('click', function(){ if(obsadaDate) loadObsada(obsadaDate.value); }); }
-});
+// Obsada table removed from dashboard — handled by panel Obsada
 </script>
 
 {% endblock %}

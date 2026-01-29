@@ -961,6 +961,102 @@ def index():
     return render_template('dashboard_global.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, planned_leaves=planned_leaves, recent_absences=recent_absences, shift_notes=shift_notes)
 
 
+@app.route('/panel/wnioski')
+@roles_required('lider', 'admin')
+def panel_wnioski_page():
+    # pełnostronicowy widok zatwierdzeń wniosków
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, w.czas_do, w.powod, w.zlozono FROM wnioski_wolne w JOIN pracownicy p ON w.pracownik_id = p.id WHERE w.status = 'pending' ORDER BY w.zlozono DESC LIMIT 200")
+        raw = cursor.fetchall()
+        wnioski = []
+        for r in raw:
+            wnioski.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3], 'data_do': r[4], 'czas_od': r[5], 'czas_do': r[6], 'powod': r[7], 'zlozono': r[8]})
+    except Exception:
+        current_app.logger.exception('Failed loading wnioski for full page')
+        wnioski = []
+    try:
+        conn.close()
+    except Exception:
+        pass
+    return render_template('panels_full/wnioski_full.html', wnioski=wnioski)
+
+
+@app.route('/panel/planowane')
+@login_required
+def panel_planowane_page():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    planned = []
+    try:
+        end_date = date.today() + timedelta(days=60)
+        cursor.execute("SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, w.czas_do, w.status FROM wnioski_wolne w JOIN pracownicy p ON w.pracownik_id = p.id WHERE w.data_od <= %s AND w.data_do >= %s ORDER BY w.data_od ASC LIMIT 500", (end_date, date.today()))
+        raw = cursor.fetchall()
+        for r in raw:
+            planned.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3], 'data_do': r[4], 'czas_od': r[5], 'czas_do': r[6], 'status': r[7]})
+    except Exception:
+        current_app.logger.exception('Failed loading planned leaves for full page')
+    try:
+        conn.close()
+    except Exception:
+        pass
+    return render_template('panels_full/planowane_full.html', planned_leaves=planned)
+
+
+@app.route('/panel/obecnosci')
+@login_required
+def panel_obecnosci_page():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    recent = []
+    try:
+        since = date.today() - timedelta(days=30)
+        cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu BETWEEN %s AND %s ORDER BY o.data_wpisu DESC LIMIT 500", (since, date.today()))
+        raw = cursor.fetchall()
+        for r in raw:
+            recent.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data': r[3], 'godziny': r[4], 'komentarz': r[5]})
+    except Exception:
+        current_app.logger.exception('Failed loading absences for full page')
+    try:
+        conn.close()
+    except Exception:
+        pass
+    return render_template('panels_full/obecnosci_full.html', recent_absences=recent)
+
+
+@app.route('/panel/obsada')
+@login_required
+def panel_obsada_page():
+    # Render full page but embed obsada fragment server-side (avoid iframe and nested layout)
+    sekcja = request.args.get('sekcja', 'Workowanie')
+    date_str = request.args.get('date')
+    try:
+        qdate = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+    except Exception:
+        qdate = date.today()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    obsady_map = {}
+    wszyscy = []
+    try:
+        cursor.execute("SELECT oz.sekcja, p.id, p.imie_nazwisko FROM obsada_zmiany oz JOIN pracownicy p ON oz.pracownik_id = p.id WHERE oz.data_wpisu = %s ORDER BY oz.sekcja, p.imie_nazwisko", (qdate,))
+        rows = cursor.fetchall()
+        for r in rows:
+            sekc, pid, name = r[0], r[1], r[2]
+            obsady_map.setdefault(sekc, []).append((pid, name))
+        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) ORDER BY imie_nazwisko", (qdate,))
+        wszyscy = cursor.fetchall()
+    except Exception:
+        current_app.logger.exception('Failed loading obsada for panel page')
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    return render_template('panels_full/obsada_full.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'))
+
+
 @app.route('/moje_godziny')
 @login_required
 def moje_godziny():
