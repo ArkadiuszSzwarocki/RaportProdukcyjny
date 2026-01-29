@@ -32,8 +32,8 @@ app.jinja_env.filters['format_czasu'] = format_godziny
 @app.context_processor
 def inject_static_version():
     try:
-        # Use file modification time of static/style.css as cache-buster
-        path = os.path.join(app.root_path, 'static', 'style.css')
+        # Use file modification time of static/css/style.css as cache-buster
+        path = os.path.join(app.root_path, 'static', 'css', 'style.css')
         v = int(os.path.getmtime(path))
     except Exception:
         v = int(time.time())
