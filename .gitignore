@@ -57,3 +57,13 @@ instance/
 # OS
 Thumbs.db
 desktop.ini
+ 
+ # Additional entries to ignore
+ .venv/
+ venv/
+ backups/
+ raporty_temp/
+ raporty/*.pdf
+ logs/
+ oracleJdk-25/
+ *.zip
