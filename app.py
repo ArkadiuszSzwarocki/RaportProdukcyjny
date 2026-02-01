@@ -13,12 +13,14 @@ from config import SECRET_KEY
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 import db
+from db import get_db_connection
 from dto.paleta import PaletaDTO
 from raporty import format_godziny
 from routes_admin import admin_bp
 from routes_api import api_bp, dodaj_plan_zaawansowany, dodaj_plan, usun_plan
 from routes_planista import planista_bp
 from decorators import login_required, zarzad_required, roles_required
+from utils.queries import QueryHelper
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -624,18 +626,14 @@ def index():
         dzisiaj = datetime.strptime(request.args.get('data'), '%Y-%m-%d').date() if request.args.get('data') else date.today()
     except Exception:
         dzisiaj = date.today()
-    conn = get_db_connection()
-    cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM pracownicy ORDER BY imie_nazwisko")
-    wszyscy = cursor.fetchall()
-    cursor.execute("SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s", (dzisiaj,))
-    zajeci_ids = [r[0] for r in cursor.fetchall()]
+    # Use QueryHelper for database queries
+    wszyscy = QueryHelper.get_pracownicy()
+    zajeci_ids = [r[0] for r in QueryHelper.get_obsada_zmiany(dzisiaj)]
     dostepni = [p for p in wszyscy if p[0] not in zajeci_ids]
-    cursor.execute("SELECT o.id, p.imie_nazwisko FROM obsada_zmiany o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu = %s AND o.sekcja = %s", (dzisiaj, aktywna_sekcja))
-    obecna_obsada = cursor.fetchall()
-    cursor.execute("SELECT d.id, p.imie_nazwisko, d.problem, d.czas_start, d.czas_stop, d.kategoria, TIMESTAMPDIFF(MINUTE, d.czas_start, d.czas_stop) FROM dziennik_zmiany d LEFT JOIN pracownicy p ON d.pracownik_id = p.id WHERE d.data_wpisu = %s AND d.sekcja = %s AND d.status='roboczy' ORDER BY d.id DESC", (dzisiaj, aktywna_sekcja))
-    wpisy = [list(r) for r in cursor.fetchall()]
+    obecna_obsada = QueryHelper.get_obsada_zmiany(dzisiaj, aktywna_sekcja)
+    wpisy = QueryHelper.get_dziennik_zmiany(dzisiaj, aktywna_sekcja)
+    
     # Format czas_start/czas_stop as HH:MM strings for templates
     for w in wpisy:
         try:
@@ -653,19 +651,11 @@ def index():
     unconfirmed_palety = []
     suma_plan = 0
     suma_wykonanie = 0
-    cursor.execute("SELECT DISTINCT produkt FROM plan_produkcji WHERE sekcja='Zasyp' AND status IN ('w toku', 'zakonczone') AND DATE(data_planu) = %s", (dzisiaj,))
-    zasyp_rozpoczete = [r[0] for r in cursor.fetchall()]
+    zasyp_rozpoczete = QueryHelper.get_zasyp_started_produkty(dzisiaj)
     
     if aktywna_sekcja == 'Magazyn':
         # Zwracamy kolumny w porządku zgodnym z PaletaDTO.from_db_row fallback:
-        # (id, plan_id, waga, tara, waga_brutto, data_dodania, produkt, typ_produkcji)
-        cursor.execute(
-            "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
-            "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-            "WHERE DATE(pw.data_dodania) = %s AND pw.waga > 0",
-            (dzisiaj,)
-        )
-        raw_mag = cursor.fetchall()
+        raw_mag = QueryHelper.get_paletki_magazyn(dzisiaj)
         magazyn_palety = []
         for r in raw_mag:
             dto = PaletaDTO.from_db_row(r)
@@ -676,11 +666,10 @@ def index():
                 sdt = str(dt)
             # include czas_potwierdzenia_s for display if present
             magazyn_palety.append((dto.produkt, dto.waga, sdt, dto.id, dto.plan_id, dto.status, dto.czas_potwierdzenia_s))
+        
         # Pobierz niepotwierdzone palety (status != 'przyjeta'), by powiadomić magazyn jeśli nie potwierdzi w ciągu 10 minut
-        # TYLKO z sekcji Magazyn - czyli tylko palety z Workowanie!
         try:
-            cursor.execute("SELECT pw.id, pw.plan_id, p.produkt, pw.data_dodania FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id WHERE DATE(pw.data_dodania) = %s AND p.sekcja = 'Workowanie' AND pw.waga > 0 AND COALESCE(pw.status,'') NOT IN ('przyjeta', 'zamknieta')", (dzisiaj,))
-            raw = cursor.fetchall()
+            raw = QueryHelper.get_unconfirmed_paletki(dzisiaj)
             out = []
             for r in raw:
                 pid = r[0]
@@ -693,9 +682,7 @@ def index():
                     sdt = str(dt)
                 # compute sequence number of this paleta within its plan (1-based)
                 try:
-                    cursor.execute("SELECT COUNT(1) FROM palety_workowanie WHERE plan_id = %s AND id <= %s", (plan_id, pid))
-                    seq_row = cursor.fetchone()
-                    seq = int(seq_row[0]) if seq_row and seq_row[0] is not None else 1
+                    seq = QueryHelper.get_paleta_seq_number(plan_id, pid)
                 except Exception:
                     seq = None
                 # compute elapsed time since creation
@@ -730,8 +717,7 @@ def index():
         except Exception:
             unconfirmed_palety = []
 
-    cursor.execute("SELECT id, produkt, tonaz, status, real_start, real_stop, TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci FROM plan_produkcji WHERE DATE(data_planu) = %s AND sekcja = %s AND status != 'nieoplacone' ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, kolejnosc ASC, id ASC", (dzisiaj, aktywna_sekcja))
-    plan_dnia = [list(r) for r in cursor.fetchall()]
+    plan_dnia = QueryHelper.get_plan_produkcji(dzisiaj, aktywna_sekcja)
     # Format real_start/real_stop as HH:MM strings for templates
     for p in plan_dnia:
         try:
@@ -767,13 +753,7 @@ def index():
 
         if aktywna_sekcja == 'Magazyn':
             # Zapytanie zwraca kolumny w kolejności zgodnej z PaletaDTO
-            cursor.execute(
-                "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
-                "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-                "WHERE DATE(p.data_planu) = %s AND p.produkt = %s AND p.sekcja = 'Workowanie' ORDER BY pw.id DESC",
-                (dzisiaj, p[1])
-            )
-            raw_pal = cursor.fetchall()
+            raw_pal = QueryHelper.get_paletki_for_product(dzisiaj, p[1], p[9])
             palety = []
             for r in raw_pal:
                 dto = PaletaDTO.from_db_row(r)
@@ -816,13 +796,7 @@ def index():
                 palety_mapa[p[0]] = palety  # empty list
             else:
                 # For Workowanie: show paletki (operatorzy dodają paletki)
-                cursor.execute(
-                    "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
-                    "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-                    "WHERE pw.plan_id = %s ORDER BY pw.id DESC",
-                    (p[0],)
-                )
-                raw_pal = cursor.fetchall()
+                raw_pal = QueryHelper.get_paletki_for_plan(p[0])
                 palety = []
                 for r in raw_pal:
                     dto = PaletaDTO.from_db_row(r)
@@ -858,10 +832,7 @@ def index():
         alert = False
         if aktywna_sekcja == 'Zasyp':
             # typ_produkcji may be NULL in DB; use COALESCE to match empty/NULL values correctly
-            typ_param = p[9] if p[9] is not None else ''
-            cursor.execute("SELECT SUM(tonaz_rzeczywisty) FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s", (dzisiaj, p[1], typ_param))
-            res = cursor.fetchone()
-            waga_workowania = res[0] if res and res[0] else 0
+            waga_workowania = QueryHelper.get_workowanie_sum_for_product(dzisiaj, p[1], p[9])
             if p[7]:
                 diff = p[7] - waga_workowania
                 if abs(diff) > 10: alert = True # Tolerancja 10kg
@@ -879,29 +850,12 @@ def index():
         kandydaci.sort(key=lambda x: x[0])
         if kandydaci: next_workowanie_id = kandydaci[0][0]
 
-    # Spróbuj pobrać nowe kolumny `wyjscie_od/wyjscie_do`; jeśli ich nie ma w DB,
-    # złap wyjątek i wykonaj zapytanie bez nich, dokładając None jako fallback.
-    try:
-        cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.ilosc_godzin, o.komentarz, o.wyjscie_od, o.wyjscie_do FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu = %s", (dzisiaj,))
-        raporty_hr = cursor.fetchall()
-    except Exception as e:
-        try:
-            app.logger.warning('Falling back to legacy obecnosc SELECT (missing columns?): %s', e)
-        except Exception:
-            pass
-        try:
-            cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu = %s", (dzisiaj,))
-            rows = cursor.fetchall()
-            # Dołóż pola wyjscie_od/wyjscie_do jako None, żeby szablon nie zawodził
-            raporty_hr = [tuple(list(r) + [None, None]) for r in rows]
-        except Exception:
-            app.logger.exception('Failed to fetch obecnosc rows')
-            raporty_hr = []
+    # Pobierz rekordy obecności dla bieżącego dnia
+    raporty_hr = QueryHelper.get_presence_records_for_day(dzisiaj)
 
     # Przygotuj listę pracowników dostępnych do nadgodzin: wyklucz tych, którzy mają wpis w obecnosc
     try:
-        cursor.execute("SELECT pracownik_id, typ FROM obecnosc WHERE data_wpisu = %s", (dzisiaj,))
-        ob = cursor.fetchall()
+        ob = QueryHelper.get_absence_ids_for_day(dzisiaj)
         # Wszystkie osoby z wpisem w obecnosc (dowolny typ)
         ob_all_ids = set(r[0] for r in ob)
         # Osoby z nie-prywatnymi nieobecnościami (do wykluczenia z nadgodzin)
@@ -921,26 +875,13 @@ def index():
             hr_pracownicy = wszyscy
 
     # Liczba zleceń jakościowych zgłoszonych przez laboratorium (nieprodukcyjne)
-    try:
-        cursor.execute("SELECT COUNT(1) FROM plan_produkcji WHERE (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone'")
-        quality_count = int(cursor.fetchone()[0] or 0)
-    except Exception:
-        quality_count = 0
+    quality_count = QueryHelper.get_pending_quality_count()
 
     # If user is leader/admin, fetch recent pending leave requests for dashboard
     wnioski_pending = []
     try:
         if role in ['lider', 'admin']:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, w.czas_do, w.powod, w.zlozono FROM wnioski_wolne w JOIN pracownicy p ON w.pracownik_id = p.id WHERE w.status = 'pending' ORDER BY w.zlozono DESC LIMIT 50")
-            raw = cursor.fetchall()
-            for r in raw:
-                wnioski_pending.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3], 'data_do': r[4], 'czas_od': r[5], 'czas_do': r[6], 'powod': r[7], 'zlozono': r[8]})
-            try:
-                conn.close()
-            except Exception:
-                pass
+            wnioski_pending = QueryHelper.get_pending_leave_requests(limit=50)
     except Exception:
         try:
             app.logger.exception('Failed to fetch pending wnioski for dashboard')
@@ -948,45 +889,10 @@ def index():
             pass
 
     # Pobierz planowane urlopy (następne 60 dni)
-    planned_leaves = []
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        end_date = date.today() + timedelta(days=60)
-        cursor.execute("SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, w.czas_do, w.status FROM wnioski_wolne w JOIN pracownicy p ON w.pracownik_id = p.id WHERE w.data_od <= %s AND w.data_do >= %s ORDER BY w.data_od ASC LIMIT 500", (end_date, date.today()))
-        raw = cursor.fetchall()
-        for r in raw:
-            planned_leaves.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3], 'data_do': r[4], 'czas_od': r[5], 'czas_do': r[6], 'status': r[7]})
-        try:
-            conn.close()
-        except Exception:
-            pass
-    except Exception:
-        try:
-            app.logger.exception('Failed to fetch planned leaves')
-        except Exception:
-            pass
+    planned_leaves = QueryHelper.get_planned_leaves(days_ahead=60, limit=500)
 
     # Pobierz ostatnie nieobecności (ostatnie 30 dni)
-    recent_absences = []
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        since = date.today() - timedelta(days=30)
-        # Exclude regular 'Obecność' records: this panel should show absences (urlopy, nieobecności, nadgodziny etc.)
-        cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu BETWEEN %s AND %s AND LOWER(TRIM(COALESCE(o.typ,''))) NOT LIKE 'obec%' ORDER BY o.data_wpisu DESC LIMIT 500", (since, date.today()))
-        raw = cursor.fetchall()
-        for r in raw:
-            recent_absences.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data': r[3], 'godziny': r[4], 'komentarz': r[5]})
-        try:
-            conn.close()
-        except Exception:
-            pass
-    except Exception:
-        try:
-            app.logger.exception('Failed to fetch recent absences')
-        except Exception:
-            pass
+    recent_absences = QueryHelper.get_recent_absences(days_back=30, limit=500)
 
     # Wczytaj notatki zmianowe z bazy danych (fallback do pustej listy)
     shift_notes = []
