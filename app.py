@@ -939,7 +939,6 @@ def index():
         except Exception:
             pass
 
-    conn.close()
     try:
         app.logger.info('Rendering index: sekcja=%s plans=%d palety_map_keys=%d unconfirmed_palety=%d open_stop=%s shift_notes_count=%d', aktywna_sekcja, len(plan_dnia) if plan_dnia is not None else 0, len(palety_mapa.keys()) if isinstance(palety_mapa, dict) else 0, len(unconfirmed_palety) if hasattr(unconfirmed_palety, '__len__') else 0, request.args.get('open_stop'), len(shift_notes) if shift_notes else 0)
     except Exception:
