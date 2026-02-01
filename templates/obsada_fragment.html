@@ -39,19 +39,28 @@
                 </div>
                 {% endif %}
 
-                <div id="current-obsada-{{ loop.index0 }}" class="d-flex flex-column gap-10 mb-8">
+                <div id="current-obsada-{{ loop.index0 }}" class="mb-8">
                     {% set current = obsady_map.get(s, []) if obsady_map is defined else [] %}
                     {% if current %}
+                    <table class="modern-table small obsada-table">
+                        <thead><tr><th>Pracownik</th><th style="width:80px">Akcje</th></tr></thead>
+                        <tbody id="current-obsada-tbody-{{ loop.index0 }}">
                         {% for o in current %}
-                            <div class="chip">
-                                {{ o[1] }}
+                        <tr data-id="{{ o[0] }}">
+                            <td><strong>{{ o[1] }}</strong></td>
+                            <td>
                                 {% if rola in ['lider', 'admin', 'pracownik'] %}
-                                <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0 d-inline-block ml-6">
-                                    <button type="submit" class="btn-delete" aria-label="Usuń z obsady">&times;</button>
+                                <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0 d-inline-block">
+                                    <button type="submit" class="btn-delete" aria-label="Usuń z obsady">Usuń</button>
                                 </form>
                                 {% endif %}
-                            </div>
+                            </td>
+                        </tr>
                         {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                        <div class="text-muted">Brak przypisanych pracowników</div>
                     {% endif %}
                 </div>
 
@@ -91,18 +100,37 @@
                         const newId = j && j.id ? j.id : null;
                         const newName = j && j.name ? j.name : txt;
                         if(current){
-                            const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = newName;
-                            if(newId){
-                                const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/usun_z_obsady/' + newId; form.className='m-0'; form.style.display='inline-block'; form.style.marginLeft='6px';
-                                const btn = document.createElement('button'); btn.type='submit'; btn.className='btn-delete'; btn.innerHTML='&times;';
-                                form.appendChild(btn);
-                                chip.appendChild(form);
+                            // if a table body exists, append a row; otherwise fallback to previous chip behavior
+                            const tbody = document.getElementById('current-obsada-tbody-' + idx);
+                            if(tbody){
+                                const tr = document.createElement('tr');
+                                if(newId) tr.setAttribute('data-id', newId);
+                                const tdName = document.createElement('td'); tdName.innerHTML = '<strong>' + (newName||'') + '</strong>';
+                                const tdAct = document.createElement('td');
+                                if(newId){
+                                    const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/usun_z_obsady/' + newId; form.className='m-0 d-inline-block';
+                                    const btn = document.createElement('button'); btn.type='submit'; btn.className='btn-delete'; btn.textContent = 'Usuń';
+                                    form.appendChild(btn);
+                                    tdAct.appendChild(form);
+                                } else {
+                                    const rem = document.createElement('button'); rem.className='btn-delete'; rem.type='button'; rem.textContent='Usuń'; rem.addEventListener('click', function(){ tr.remove(); });
+                                    tdAct.appendChild(rem);
+                                }
+                                tr.appendChild(tdName); tr.appendChild(tdAct); tbody.appendChild(tr);
                             } else {
-                                const rem = document.createElement('button'); rem.className='btn-delete'; rem.type='button'; rem.innerHTML='&times;'; rem.style.marginLeft='6px';
-                                rem.addEventListener('click', function(){ chip.remove(); });
-                                chip.appendChild(rem);
+                                const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = newName;
+                                if(newId){
+                                    const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/usun_z_obsady/' + newId; form.className='m-0'; form.style.display='inline-block'; form.style.marginLeft='6px';
+                                    const btn = document.createElement('button'); btn.type='submit'; btn.className='btn-delete'; btn.innerHTML='&times;';
+                                    form.appendChild(btn);
+                                    chip.appendChild(form);
+                                } else {
+                                    const rem = document.createElement('button'); rem.className='btn-delete'; rem.type='button'; rem.innerHTML='&times;'; rem.style.marginLeft='6px';
+                                    rem.addEventListener('click', function(){ chip.remove(); });
+                                    chip.appendChild(rem);
+                                }
+                                current.appendChild(chip);
                             }
-                            current.appendChild(chip);
                         }
                         // remove option from select
                         try{ const opt = select.querySelector('option[value="'+val+'"]'); if(opt) opt.remove(); }catch(e){}
@@ -132,6 +160,7 @@
             }
 
             if(current){
+                // delegate delete button clicks inside the table body
                 current.addEventListener('click', function(ev){
                     const t = ev.target;
                     if(!t.classList.contains('btn-delete')) return;
@@ -143,7 +172,8 @@
                         .then(async function(resp){
                             if(resp.status === 401){ window.location.href = '/login'; return; }
                             if(!resp.ok){ const txt = await resp.text(); showToast && showToast('Błąd: '+(txt||resp.status),'error'); return; }
-                            const chip = t.closest('.chip'); if(chip) chip.remove();
+                            // remove the table row
+                            const tr = t.closest('tr'); if(tr) tr.remove();
                             showToast && showToast('Usunięto pracownika','success');
                         }).catch(function(err){ console.error('delete obsada failed', err); showToast && showToast('Błąd sieci','error'); });
                     }

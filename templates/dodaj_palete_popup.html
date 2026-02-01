@@ -3,13 +3,40 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dodaj paletę</title>
+  <title>Dodaj szarżę / paletę</title>
   <link rel="stylesheet" href="/static/css/style.css">
   <style>body{margin:0;padding:12px;font-family:sans-serif;} .box{max-width:520px;margin:8px auto;} .actions{display:flex;gap:8px;margin-top:10px}</style>
 </head>
 <body>
   <div class="box">
-    <h3>➕ Dodaj paletę</h3>
+    <h3>➕ Dodaj szarżę</h3>
+    <!-- For Zasyp: create a new Zasyp plan (szarża) via dodaj_plan -->
+    {% if sekcja == 'Zasyp' %}
+    <form action="{{ url_for('api.dodaj_plan') }}" method="POST">
+      <div>
+        <label for="tonaz">Waga szarży (kg)</label>
+        <input id="tonaz" name="tonaz" type="number" step="1" min="1" required class="input-sm" autofocus placeholder="Waga szarży (kg)" title="Waga szarży w kilogramach">
+      </div>
+      <div>
+        <label for="produkt">Produkt</label>
+        <input id="produkt" name="produkt" type="text" required class="input-sm" placeholder="Nazwa produktu" title="Nazwa produktu">
+      </div>
+      <div>
+        <label for="typ_produkcji">Typ produkcji</label>
+        <select id="typ_produkcji" name="typ_produkcji" class="input-sm">
+          <option value="worki_zgrzewane_25">Worki zgrzewane 25kg</option>
+          <option value="worki_zgrzewane_10">Worki zgrzewane 10kg</option>
+          <option value="bigbag">Big Bag</option>
+        </select>
+      </div>
+      <input type="hidden" name="sekcja" value="{{ sekcja or 'Zasyp' }}">
+      <div class="btn-row">
+        <button type="submit" class="btn-action btn-save">DODAJ SZARŻĘ</button>
+        <button type="button" class="btn-action btn-action-cancel" onclick="window.close();">ANULUJ</button>
+      </div>
+    </form>
+    {% else %}
+    <!-- For Workowanie/other: add paleta via dodaj_palete -->
     <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST">
       <div>
         <label for="waga_palety">Waga (kg)</label>
@@ -22,6 +49,7 @@
         <button type="button" class="btn-action btn-action-cancel" onclick="window.close();">ANULUJ</button>
       </div>
     </form>
+    {% endif %}
   </div>
 </body>
 </html>

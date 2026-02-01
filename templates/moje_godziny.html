@@ -1,6 +1,5 @@
 {% extends 'layout.html' %}
 {% block content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/moje_godziny.css') }}">
 <h2>Moje godziny</h2>
 {% if not mapped %}
   <div class="alert alert-warning">Twoje konto nie jest powiązane z rekordem pracownika. Skontaktuj się z administratorem.</div>

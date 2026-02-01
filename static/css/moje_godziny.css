@@ -1,3 +1,2 @@
-/* Minimal styles for moje_godziny page - placeholder to avoid 404 */
-.cal-grid td { background: #fff; }
-.modal { display: none; }
+/* Styles moved to static/css/style.css. This file is kept for backward compatibility only. */
+/* No rules here. */

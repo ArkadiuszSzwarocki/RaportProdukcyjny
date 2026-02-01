@@ -67,3 +67,6 @@ desktop.ini
  logs/
  oracleJdk-25/
  *.zip
+
+# Ignore archived tools
+tools/disabled/

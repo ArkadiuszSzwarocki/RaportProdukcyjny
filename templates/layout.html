@@ -81,6 +81,8 @@
                 {% endif %}
 
                 {% if role_has_access('workowanie') %}
+                    {# BUFOR link placed between Zasyp and Workowanie #}
+                    <a href="{{ url_for('planista.bufor_page') }}" class="nav-item {% if request.path.startswith('/bufor') %}active{% endif %}">Bufor</a>
                     <a href="{{ url_for('index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">Workowanie</a>
                 {% endif %}
 
@@ -136,6 +138,7 @@
 
     <script src="{{ url_for('static', filename='js/toasts.js') }}?v={{ static_version }}"></script>
     <script src="{{ url_for('static', filename='scripts.js') }}?v={{ static_version }}"></script>
+    <script src="{{ url_for('static', filename='quick_debug.js') }}?v={{ static_version }}"></script>
     <script>
         function handleLogoError(img){
             try{

@@ -118,3 +118,130 @@ def panel_planisty():
                            procent_czasu=procent_czasu,     # Przekazujemy % zajętości zmiany
                            quality_count=quality_count,
                            quality_orders=quality_orders)
+
+
+@planista_bp.route('/bufor', methods=['GET'])
+@roles_required('planista', 'zarzad', 'lider', 'admin', 'laboratorium')
+def bufor_page():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    wybrana_data = request.args.get('data', str(date.today()))
+    try:
+        # Exclude already closed orders from bufor view
+        cursor.execute("""
+            SELECT id, data_planu, produkt, tonaz_rzeczywisty, nazwa_zlecenia, typ_produkcji
+            FROM plan_produkcji
+                        WHERE sekcja = 'Zasyp'
+                            AND COALESCE(status, '') != 'zakonczone'
+                            AND data_planu >= DATE_SUB(%s, INTERVAL 7 DAY)
+                            AND data_planu <= %s
+        """, (wybrana_data, wybrana_data))
+        historyczne_zasypy = cursor.fetchall()
+        bufor_list = []
+        for hz in historyczne_zasypy:
+            h_id, h_data, h_produkt, h_wykonanie_zasyp, h_nazwa, h_typ = hz
+            # Ensure typ_produkcji param is '' when DB value is NULL to match COALESCE in SQL
+            typ_param = h_typ if h_typ is not None else ''
+            # Sum palety zarówno bezpośrednio przypisane do zlecenia Zasyp (plan_id = h_id),
+            # jak i te przypisane do odpowiadających zleceń Workowanie utworzonych z tego zasypu.
+            cursor.execute(
+                "SELECT SUM(waga) FROM palety_workowanie WHERE plan_id = %s OR plan_id IN ("
+                "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s)",
+                (h_id, h_data, h_produkt, typ_param)
+            )
+            res_pal = cursor.fetchone()
+            h_wykonanie_workowanie = res_pal[0] if res_pal and res_pal[0] else 0
+            pozostalo_w_silosie = (h_wykonanie_zasyp or 0) - (h_wykonanie_workowanie or 0)
+            # Nowa logika prezentacji bufora:
+            # - pokaż, jeśli w silosie zostało coś (>0)
+            # - pokaż, jeśli workowanie już wystartowało (spakowano > 0),
+            #   aby umożliwić weryfikację/rozliczenie (np. nadmiary/deficyty)
+            show_in_bufor = (pozostalo_w_silosie > 0) or (h_wykonanie_workowanie and h_wykonanie_workowanie > 0)
+            if show_in_bufor:
+                needs_reconciliation = round((h_wykonanie_workowanie or 0) - (h_wykonanie_zasyp or 0), 1) != 0
+                bufor_list.append({
+                    'id': h_id,
+                    'data': h_data,
+                    'produkt': h_produkt,
+                    'nazwa': h_nazwa,
+                    'w_silosie': round(max(pozostalo_w_silosie, 0), 1),
+                    'typ_produkcji': h_typ,
+                    'zasyp_total': h_wykonanie_zasyp,
+                    'spakowano_total': h_wykonanie_workowanie,
+                    'needs_reconciliation': needs_reconciliation,
+                    'raw_pozostalo': round(pozostalo_w_silosie, 1)
+                })
+    except Exception:
+        bufor_list = []
+    finally:
+        conn.close()
+
+    return render_template('bufor.html', bufor_list=bufor_list, wybrana_data=wybrana_data)
+
+
+@planista_bp.route('/bufor/rozlicz', methods=['POST'])
+@roles_required('planista', 'lider', 'admin')
+def bufor_rozlicz():
+    """Endpoint obsługujący rozliczenie zasypu: zapisuje `tonaz_rzeczywisty` i opcjonalnie zamyka zlecenie."""
+    from flask import request, redirect
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        plan_id = int(request.form.get('plan_id'))
+    except Exception:
+        try:
+            plan_id = int(request.json.get('plan_id'))
+        except Exception:
+            plan_id = None
+    if not plan_id:
+        conn.close()
+        return ("Brak plan_id", 400)
+
+    final = request.form.get('final_tonaz') or (request.json.get('final_tonaz') if request.json else None)
+    note = request.form.get('note') or (request.json.get('note') if request.json else None)
+    close = request.form.get('close') == '1' or (request.json.get('close') if request.json else False)
+
+    try:
+        if final is not None and final != '':
+            try:
+                val = int(float(str(final).replace(',', '.')))
+            except Exception:
+                val = None
+        else:
+            val = None
+
+        sql = "UPDATE plan_produkcji SET "
+        parts = []
+        params = []
+        if val is not None:
+            parts.append('tonaz_rzeczywisty=%s')
+            params.append(val)
+        if note:
+            parts.append('wyjasnienie_rozbieznosci=%s')
+            params.append(note)
+        if close:
+            parts.append("status='zakonczone'")
+            parts.append('real_stop=NOW()')
+
+        if parts:
+            sql += ', '.join(parts) + ' WHERE id=%s'
+            params.append(plan_id)
+            cursor.execute(sql, tuple(params))
+            conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    # If called by JS, return JSON success
+    try:
+        from flask import jsonify
+        return jsonify({'ok': True})
+    except Exception:
+        return redirect('/bufor')

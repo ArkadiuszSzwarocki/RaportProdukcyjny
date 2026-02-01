@@ -6,13 +6,18 @@
     <title>Logowanie - AgroNetzwerk</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Favicon / touch icons: prefer SVG, fallback to PNG -->
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='agro_logo.png') }}" type="image/png">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='agro_logo.png') }}">
 </head>
-<body>
+<body class="login-page">
 
 <div class="login-page-body">
 <div class="login-card">
-    <img src="https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png" alt="Logo" class="login-logo">
-    
+    <!-- Use local static logo to avoid external requests and improve availability -->
+    <img src="{{ url_for('static', filename='agro_logo.png') }}" alt="AgroNetzwerk" class="login-logo">
+
     <h2 class="header-title m-0">Zaloguj się</h2>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -37,11 +42,7 @@
         <button type="submit" class="btn-login">Wejdź</button>
     </form>
 
-</div>
-</body>
-</html>
-
-</div>
-
+    </div>
+    </div>
 </body>
 </html>

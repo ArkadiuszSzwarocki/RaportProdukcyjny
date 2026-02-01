@@ -4,14 +4,18 @@
   <table class="table compact">
     <thead><tr><th>Pracownik</th><th>Typ</th><th>Data</th><th>Godziny</th><th>Komentarz</th></tr></thead>
     <tbody>
-      {% for r in recent_absences %}
-      <tr>
-        <td>{{ r.pracownik }}</td>
-        <td>{{ r.typ }}</td>
-        <td>{{ r.data }}</td>
-        <td>{{ r.godziny or '' }}</td>
-        <td>{{ r.komentarz or '' }}</td>
-      </tr>
+      {# Group by 'data' (expects recent_absences ordered by date desc) #}
+      {% for group in recent_absences|groupby('data') %}
+      <tr class="date-row"><td colspan="5">{{ group.grouper }}</td></tr>
+        {% for r in group.list %}
+        <tr>
+          <td>{{ r.pracownik }}</td>
+          <td>{{ r.typ }}</td>
+          <td>{{ r.data }}</td>
+          <td>{{ r.godziny or '' }}</td>
+          <td>{{ r.komentarz or '' }}</td>
+        </tr>
+        {% endfor %}
       {% endfor %}
     </tbody>
   </table>

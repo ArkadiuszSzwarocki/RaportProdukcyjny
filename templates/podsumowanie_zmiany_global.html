@@ -25,17 +25,27 @@
             <h3>👥 Pracownicy na zmianie</h3>
             {% for sekcja, obsada in zmiana_data.wszystkie_obsady.items() %}
             <div class="mt-20">
-                <h4>{{ sekcja }}</h4>
-                {% if obsada %}
-                <div class="pracownicy-list">
-                    {% for p in obsada %}
-                    <span class="badge badge-info">{{ p.imie_nazwisko }} ({{ p.rola }})</span>
-                    {% endfor %}
+                    <h4>{{ sekcja }}</h4>
+                    {% if obsada %}
+                    <div class="obsada-table-wrap">
+                        <table class="modern-table small obsada-table">
+                            <thead>
+                                <tr><th>Rola</th><th>Pracownik</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for p in obsada %}
+                                <tr>
+                                    <td class="text-muted">{{ p.rola }}</td>
+                                    <td><strong>{{ p.imie_nazwisko }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">Brak przypisanych pracowników</p>
+                    {% endif %}
                 </div>
-                {% else %}
-                <p class="text-muted">Brak przypisanych pracowników</p>
-                {% endif %}
-            </div>
             {% endfor %}
         </div>
         
@@ -301,6 +311,12 @@
 .mt-30 {
     margin-top: 30px;
 }
+
+.obsada-table-wrap { margin-top: 10px; }
+.obsada-table { width: 100%; border-collapse: collapse; }
+.obsada-table th { text-align: left; background: #f4f6f8; padding: 8px; font-weight: 600; }
+.obsada-table td { padding: 8px; border-top: 1px solid #eef1f4; }
+.obsada-table tr:nth-child(odd) td { background: #fbfcfd; }
 </style>
 
 <script>

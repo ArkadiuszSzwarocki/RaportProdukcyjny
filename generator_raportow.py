@@ -92,9 +92,13 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
             hr_rows.append((row.get('pracownik', ''), row.get('typ', ''), row.get('ilosc_godzin', None)))
 
         pdf_name = generuj_pdf(data_raportu, uwagi_lidera, lider_name, prod_rows, awarie_rows, hr_rows)
+        logger.info(f"[GENERATOR] pdf_name returned: {pdf_name} (type={type(pdf_name).__name__})")
         pdf_path = os.path.join('raporty', pdf_name) if pdf_name else None
-    except Exception:
+        logger.info(f"[GENERATOR] pdf_path constructed: {pdf_path}")
+        logger.info(f"[GENERATOR] PDF generated successfully: {pdf_name}")
+    except Exception as e:
         import traceback
+        logger.error(f"[GENERATOR] PDF generation failed: {e}", exc_info=True)
         traceback.print_exc()
         pdf_path = None
 

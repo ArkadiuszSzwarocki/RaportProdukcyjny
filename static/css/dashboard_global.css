@@ -5,3 +5,30 @@
 section { margin-bottom: 1.5rem; padding: 0.5rem; border: 1px solid #eee; }
 form label { display: inline-block; margin-right: 1rem; }
 button { padding: 6px 10px; }
+
+/* Email button styling */
+.btn-send-email {
+  background-color: #17a2b8 !important;
+  color: white;
+  border: 1px solid #138496;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-send-email:hover {
+  background-color: #138496 !important;
+  box-shadow: 0 2px 8px rgba(23, 162, 184, 0.4);
+}
+
+.btn-send-email:active {
+  background-color: #0c5460 !important;
+  transform: translateY(1px);
+}
+
+.btn-end-shift-large {
+  padding: 10px 16px;
+  font-size: 14px;
+  margin-left: 8px;
+}

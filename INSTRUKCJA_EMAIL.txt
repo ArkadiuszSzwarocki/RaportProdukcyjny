@@ -1,0 +1,99 @@
+# 📧 Nowa Funkcja: Wysyłanie Raportów Mailem
+
+## Co Nowego?
+
+Po kliknięciu przycisku **"Zakończ zmianę"** pojawił się nowy przycisk:
+
+```
+📧 Wyślij raport mailem
+```
+
+Ten przycisk automatycznie otworzy Twoją pocztę (Outlook, Gmail, itp.) z przygotowanym mailem zawierającym raport produkcyjny.
+
+---
+
+## Jak Używać?
+
+### Krok 1: Zakończ zmianę
+
+Jak zwykle, kliknij przycisk **"Zakończ zmianę"** aby wygenerować raporty.
+
+### Krok 2: Wyślij mailem (NOWY)
+
+Kliku przycisk **📧 Wyślij raport mailem** obok przycisku "Zakończ zmianę".
+
+### Krok 3: Poczta się otworzy
+
+Automatycznie otworzy się Twoja poczta (Windows Mail Client) z:
+
+- ✅ **Odbiorcy**: Pre-wypełnieni (lider@example.com, szef@example.com, biuro@example.com)
+- ✅ **Temat**: "Raport produkcyjny z dnia 01.02.2026" (z dzisiejszą datą)
+- ✅ **Wiadomość**: Wstępnie sformatowana informacja o raporcie
+
+### Krok 4: Dodaj Załączniki (Opcjonalnie)
+
+Jeśli potrzebujesz wysłać raporty jako pliki:
+1. Pobierz raporty (kliknij Pobierz po "Zakończ zmianę")
+2. Dołącz pliki do wiadomości
+
+### Krok 5: Wyślij
+
+Kliknij **Wyślij** w programie pocztowym.
+
+---
+
+## Częste Pytania
+
+### P: Gdzie są adresaci?
+
+**O:** Odbiorcy są ustawieni przez administratora. Domyślnie:
+- `lider@example.com`
+- `szef@example.com`
+- `biuro@example.com`
+
+Jeśli potrzebujesz zmienić odbiorców, skontaktuj się z IT.
+
+### P: Czy mogę dodać więcej odbiorców?
+
+**O:** Tak! Pytaj administratora by dodał adresy e-mail do konfiguracji. Można to zmienić bez restartowania aplikacji.
+
+### P: Nie otwiera mi się poczta
+
+**O:** Pewnie brakuje Ci skonfigurowanego domyślnego klienta poczty w Windows. Spróbuj:
+1. Zainstaluj Outlook lub Gmail (ustawić jako domyślną pocztę)
+2. Jeśli tak nie działa, ściągnij raporty ręcznie kliknięciem "Pobierz"
+
+### P: Czy raport jest automatycznie wysyłany?
+
+**O:** Nie! System **otworzy** pocztę i przygotuje wiadomość, ale Ty musisz kliknąć **Wyślij**. To bezpieczniejsze - Ty kontrolujesz do kogo wysyła.
+
+### P: Mogę wysłać do innej osoby?
+
+**O:** Oczywiście! Otworzy się zwykłe okno poczty - możesz dodać/zmienić odbiorców tak jak w normalnym mailu.
+
+---
+
+## Co Się Zmieniło?
+
+| Element | Przed | Po |
+|---------|-------|-----|
+| Przyciski | Tylko "Zakończ zmianę" | "Zakończ zmianę" + "📧 Wyślij raport mailem" |
+| Workflow | Pobierz → Otwórz klient pocty → Utwórz mail → Dołącz pliki | Pobierz → Kliknij przycisk → Poczta się otwiera |
+| Czas | ~5 minut | ~1 minuta |
+
+---
+
+## Wsparcie Techniczne
+
+Jeśli coś nie działa:
+
+1. Sprawdź czy masz skonfigurowaną pocztę w Windows (Outlook/Gmail)
+2. Sprawdź czy jesteś zalogowany do aplikacji
+3. Otwórz Developer Tools (F12) i zobacz czy są błędy w konsoli
+4. Skontaktuj się z IT z tym screenshotem
+
+---
+
+**Data wdrożenia**: 2026-02-01
+**Status**: ✅ Testowane i działające
+

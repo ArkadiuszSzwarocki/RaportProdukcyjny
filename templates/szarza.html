@@ -1,10 +1,23 @@
 <div class="p-15">
     <h4 class="m-0 text-zarzad">📦 Nowa Szarża</h4>
-    <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST" class="mt-10">
+    <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="mt-10">
         <input type="hidden" name="sekcja" value="Zasyp">
+        <input type="hidden" name="data_planu" value="{{ today }}">
         <label>Waga Szarży (Netto) [kg]:</label>
         <div class="form-field">
-            <input type="number" step="1" name="waga_palety" value="" class="input-sm font-bold" aria-label="Waga szarży (Netto) [kg]" required>
+            <input type="number" step="1" name="tonaz" value="" class="input-sm font-bold" aria-label="Waga szarży (Netto) [kg]" required>
+        </div>
+        <label>Produkt:</label>
+        <div class="form-field">
+            <input type="text" name="produkt" value="" class="input-sm" aria-label="Produkt" required>
+        </div>
+        <label>Typ produkcji:</label>
+        <div class="form-field">
+            <select name="typ_produkcji" class="input-sm">
+                <option value="worki_zgrzewane_25">Worki zgrzewane 25kg</option>
+                <option value="worki_zgrzewane_10">Worki zgrzewane 10kg</option>
+                <option value="bigbag">Big Bag</option>
+            </select>
         </div>
         <div class="btn-row mt-10">
             <button type="submit" class="btn-action btn-primary">DODAJ SZARŻĘ</button>

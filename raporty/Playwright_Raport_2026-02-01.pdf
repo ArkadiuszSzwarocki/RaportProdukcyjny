@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Produkcyjny</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <link rel="icon" href="/static/favicon.svg" sizes="any">
+    <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css?v=1769890228">
+    <link rel="stylesheet" href="/static/css/toasts.css">
+</head>
+<body>
+
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="top-bar">
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
+            <span class="material-icons">menu</span>
+        </button>
+        <div class="d-flex align-center gap-15">
+            <img src="/static/agro_logo.png" alt="Company logo: the word agro with AGRO and MES styled difference and a simple agricultural emblema; place in the top bar header beige the page title agro; conveys a Natural, professional, trustworthy tone" class="logo-sm" onerror="handleLogoError(this)">
+            <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
+        </div>
+
+        <div class="user-info">
+            
+                <a href="/zarzad" class="btn-icon" title="Wyniki">
+                    <span class="material-icons">bar_chart</span>
+                </a>
+            
+
+            
+
+            
+                <a href="/zglos" class="btn-icon" title="Zgłoś problem">
+                    <span class="material-icons">report_problem</span>
+                </a>
+            
+
+            
+
+            
+
+            <span class="user-role">Zalogowany: <strong>Admin</strong></span>
+            
+            <a href="/logout" class="logout-btn" aria-label="Wyloguj">
+                <span class="material-icons">logout</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="top-submenu">
+        <div class="top-submenu-inner">
+            <a class="top-tile" href="/api/obsada_page?sekcja=Workowanie" title="Obsada">
+                <span class="material-icons">people</span>
+                <div class="tile-label">Obsada</div>
+            </a>
+            <nav class="top-menu">
+                <a class="top-menu-item" href="/panel/wnioski"> <span class="material-icons">assignment_turned_in</span> Zatwierdzenie wniosków</a>
+                <a class="top-menu-item" href="/panel/planowane"> <span class="material-icons">beach_access</span> Planowane urlopy</a>
+                <a class="top-menu-item" href="/panel/obecnosci"> <span class="material-icons">calendar_today</span> Nieobecności</a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="app-layout">
+        <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+        <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
+            <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
+            <nav class="sidebar-nav">
+                
+                    <a href="/" class="nav-item active">Dashboard</a>
+                
+
+                
+                    <a href="/?sekcja=Zasyp" class="nav-item ">Zasyp</a>
+                
+
+                
+                    
+                    <a href="/bufor" class="nav-item ">Bufor</a>
+                    <a href="/?sekcja=Workowanie" class="nav-item ">Workowanie</a>
+                
+
+                
+                    <a href="/?sekcja=Magazyn" class="nav-item ">Magazyn</a>
+                
+
+                
+                    <a href="/jakosc" class="nav-item ">Jakość</a>
+                
+
+                
+                    <a href="/zarzad" class="nav-item ">Wyniki</a>
+                
+
+                
+                    <a href="/dur/awarie" class="nav-item ">⚠️ Awarie</a>
+                
+
+                
+                    <a href="/planista" class="nav-item ">Plan</a>
+                
+
+                
+                    <a href="/moje_godziny" class="nav-item ">Moje godziny</a>
+                
+
+                
+                    <a href="/admin/ustawienia" class="nav-item ">Ustawienia</a>
+                
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/logout" class="btn-icon">Wyloguj</a>
+            </div>
+        </aside>
+
+        <main class="main-content" id="mainContent">
+        
+            
+                <div class="flash-container">
+                
+                    <div class="flash-message flash-warning">
+                        ❌ ReportLab nie zainstalowany. Spróbuj formatu txt.
+                    </div>
+                
+                </div>
+            
+        
+
+        
+<link rel="stylesheet" href="/static/css/dashboard_global.css">
+
+<div class="dashboard-header">
+  <h1 class="dashboard-title">Dashboard</h1>
+</div>
+
+
+<section class="section-box p-15 p-15-bg">
+  <h3 class="m-0">📦 Podgląd produkcji dziennej (Zasyp / Workowanie)</h3>
+  <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
+    <div style="flex:1 1 420px;">
+      <h4 class="m-0">Zasyp — 2026-02-01 <small class="text-muted">(4 planów)</small></h4>
+      
+      <table class="modern-table small" style="margin-top:8px;">
+        <thead><tr><th>Produkt</th><th>Plan</th><th>Wykonanie</th><th>Godz.</th><th>Status</th></tr></thead>
+        <tbody>
+        
+          <tr>
+            <td><strong class="text-primary">E2E Test Produkt</strong></td>
+            <td>100 kg</td>
+            <td>0 kg</td>
+            <td>00:11 — -</td>
+            <td>W TOKU</td>
+          </tr>
+        
+          <tr>
+            <td><strong class="text-primary">E2E Test Produkt</strong></td>
+            <td>100 kg</td>
+            <td>0 kg</td>
+            <td>- — -</td>
+            <td>ZAPLANOWANE</td>
+          </tr>
+        
+          <tr>
+            <td><strong class="text-primary">TEST Produkt</strong></td>
+            <td>100 kg</td>
+            <td>0 kg</td>
+            <td>- — -</td>
+            <td>ZAPLANOWANE</td>
+          </tr>
+        
+          <tr>
+            <td><strong class="text-primary">TEST Produkt</strong></td>
+            <td>100 kg</td>
+            <td>0 kg</td>
+            <td>- — -</td>
+            <td>ZAPLANOWANE</td>
+          </tr>
+        
+        </tbody>
+      </table>
+      
+    </div>
+
+    <div style="flex:1 1 420px;">
+      <h4 class="m-0">Workowanie — 2026-02-01 <small class="text-muted">(1 planów)</small></h4>
+      
+      <table class="modern-table small" style="margin-top:8px;">
+        <thead><tr><th>Produkt</th><th>Plan</th><th>Wykonanie</th><th>Godz.</th><th>Status</th></tr></thead>
+        <tbody>
+        
+          <tr>
+            <td><strong class="text-primary">E2E Test Produkt</strong></td>
+            <td>100 kg</td>
+            <td>2 kg</td>
+            <td>00:11 — -</td>
+            <td>W TOKU</td>
+          </tr>
+        
+        </tbody>
+      </table>
+      
+    </div>
+  </div>
+</section>
+
+
+
+
+
+<section>
+  <h2>📝 Notatki Zmiany</h2>
+  <form action="/add_shift_note" method="post" id="noteForm" class="note-form">
+    <label class="note-label" for="noteTextarea">Notatka:</label>
+    <textarea id="noteTextarea" name="note" required class="note-textarea" placeholder="Wpisz notatkę..." title="Notatka do zapisu" aria-label="Notatka"></textarea>
+    <input type="hidden" name="date" value="2026-02-01">
+    <input type="hidden" name="pracownik_id" value="1">
+    <button type="submit" class="note-save-btn">Zapisz notatkę</button>
+  </form>
+
+  <div class="notes-container">
+    <h3>📌 Zapisane Notatki</h3>
+    
+      <p class="no-notes">Brak notatek. Dodaj nową notatkę powyżej.</p>
+    
+  </div>
+</section>
+
+<!-- Przycisk Zakończ zmianę na dole - POWIĘKSZONY 4x -->
+
+<div class="end-shift-wrapper">
+  <form method="POST" action="/api/zamknij-zmiane-global" class="end-shift-form">
+    
+    <div class="mt-10">
+      <button type="submit" class="btn-action btn-success btn-end-shift btn-end-shift-large">
+        🏁 Zakończ zmianę i pobierz raporty
+      </button>
+    </div>
+  </form>
+</div>
+
+
+<script>
+document.addEventListener('click', function(e){
+  if(e.target.classList.contains('wn-approve') || e.target.classList.contains('wn-reject')){
+    const id = e.target.getAttribute('data-id');
+    const action = e.target.classList.contains('wn-approve') ? 'approve' : 'reject';
+    fetch(`/api/wnioski/${id}/${action}`, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}})
+      .then(r=>r.json()).then(j=>{
+        if(j && j.success){
+          const tr = document.querySelector(`tr[data-id="${id}"]`);
+          if(tr) tr.remove();
+        } else {
+          alert((j && j.message) || 'Błąd');
+        }
+      }).catch(()=>alert('Błąd sieci'));
+  }
+});
+</script>
+
+<script>
+// Note form submission - no auto-refresh, let flash message show
+const noteForm = document.getElementById('noteForm');
+if(noteForm){
+  noteForm.addEventListener('submit', function(e) {
+    // Just submit normally, page will refresh after redirect
+  });
+}
+
+// Obsługa edycji i usuwania notatek
+document.addEventListener('click', function(e){
+  if(e.target.classList.contains('note-delete-btn')){
+    const id = e.target.getAttribute('data-id');
+    if(confirm('Czy na pewno chcesz usunąć tę notatkę?')){
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/api/shift_note/${id}/delete`;
+      document.body.appendChild(form);
+      form.submit();
+    }
+  }
+  if(e.target.classList.contains('note-edit-btn')){
+    const id = e.target.getAttribute('data-id');
+    const noteDiv = e.target.closest('div[style*="background: #f9f9f9"]');
+    const noteText = noteDiv.querySelector('div:last-of-type').innerText;
+    const newText = prompt('Edytuj notatkę:', noteText);
+    if(newText !== null && newText.trim() !== ''){
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/api/shift_note/${id}/update`;
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'note';
+      input.value = newText;
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
+    }
+  }
+});
+</script>
+
+<script>
+// Show/hide time inputs for Wyjscie prywatne in global dashboard absence form
+document.addEventListener('DOMContentLoaded', function(){
+  var sel = document.getElementById('abs_typ_select');
+  var fromLabel = document.getElementById('abs_wyjscie_label_from');
+  var toLabel = document.getElementById('abs_wyjscie_label_to');
+  var koment = document.querySelector('input[name="komentarz"]');
+  function update(){
+    if(!sel) return;
+    if(sel.value === 'Wyjscie prywatne'){
+      fromLabel.classList.remove('hidden');
+      toLabel.classList.remove('hidden');
+      document.getElementById('abs_wyjscie_from').required = true;
+      document.getElementById('abs_wyjscie_to').required = true;
+      if(koment) { koment.required = false; }
+    } else {
+      fromLabel.classList.add('hidden');
+      toLabel.classList.add('hidden');
+      try{ document.getElementById('abs_wyjscie_from').required = false; document.getElementById('abs_wyjscie_to').required = false; }catch(e){}
+      if(sel.value === 'Nadgodziny'){
+        if(koment) { koment.required = true; }
+      } else {
+        if(koment) { koment.required = false; }
+      }
+    }
+  }
+  if(sel){ sel.addEventListener('change', update); update(); }
+});
+</script>
+
+<script>
+// Obsada table removed from dashboard — handled by panel Obsada
+</script>
+
+
+        </main>
+    </div>
+
+    <script src="/static/js/toasts.js?v=1769890228"></script>
+    <script src="/static/scripts.js?v=1769890228"></script>
+    <script src="/static/quick_debug.js?v=1769890228"></script>
+    <script>
+        function handleLogoError(img){
+            try{
+                if(img.src.indexOf('agro_logo.png') !== -1){
+                    img.src = '/static/logo.png';
+                } else {
+                    img.onerror = null;
+                    img.src = 'https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';
+                }
+            }catch(e){
+                img.onerror = null;
+            }
+        }
+    </script>
+
+</body>
+</html>

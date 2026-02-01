@@ -92,19 +92,19 @@ def roles_required(*roles, groups=None):
             print(f"[DECORATOR] Session: zalogowany={session.get('zalogowany')}, rola={session.get('rola')}, grupa={session.get('grupa')}")
             
             if 'zalogowany' not in session:
-                print(f"[DECORATOR] ✗ NOT LOGGED IN - redirecting to /login")
+                print(f"[DECORATOR] [X] NOT LOGGED IN - redirecting to /login")
                 return redirect('/login')
 
             # Admin ma zawsze dostęp
             if session.get('rola') == 'admin':
-                print(f"[DECORATOR] ✓ ADMIN - access granted")
+                print(f"[DECORATOR] [OK] ADMIN - access granted")
                 return f(*args, **kwargs)
 
             user_rola = session.get('rola')
             user_grupa = session.get('grupa')
 
             if roles and user_rola not in roles:
-                print(f"[DECORATOR] ✗ ROLE CHECK FAILED: {user_rola} not in {roles}")
+                print(f"[DECORATOR] [X] ROLE CHECK FAILED: {user_rola} not in {roles}")
                 return redirect('/')
 
             if groups and user_grupa not in groups:

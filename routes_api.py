@@ -102,16 +102,53 @@ def zapisz_wyjasnienie(id):
 @api_bp.route('/koniec_zlecenie_page/<int:id>', methods=['GET'])
 @login_required
 def koniec_zlecenie_page(id):
-    # Render a small form that posts to existing /koniec_zlecenie/<id>
+    # Render a confirmation fragment that posts to existing /koniec_zlecenie/<id>
     sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Zasyp'))
-    return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja)
+    produkt = None
+    tonaz = None
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT produkt, tonaz FROM plan_produkcji WHERE id=%s", (id,))
+        row = cursor.fetchone()
+        if row:
+            produkt, tonaz = row[0], row[1]
+    except Exception:
+        try: current_app.logger.exception('Failed to fetch plan %s for koniec_zlecenie_page', id)
+        except Exception: pass
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt, tonaz=tonaz)
+
+
+# Temporary test endpoint: return the most recent file from raporty/ as attachment
+@api_bp.route('/test-pobierz-raport', methods=['GET'])
+@login_required
+def api_test_pobierz_raport():
+    import os, glob
+    rap_dir = os.path.join(current_app.root_path, 'raporty')
+    if not os.path.isdir(rap_dir):
+        return jsonify({'error': 'raporty directory not found'}), 404
+    files = glob.glob(os.path.join(rap_dir, '*'))
+    if not files:
+        return jsonify({'error': 'no reports available'}), 404
+    latest = max(files, key=os.path.getmtime)
+    try:
+        return send_file(latest, as_attachment=True, download_name=os.path.basename(latest))
+    except Exception:
+        try: current_app.logger.exception('Failed to send report %s', latest)
+        except Exception: pass
+        return jsonify({'error': 'failed to send file'}), 500
 
 
 @api_bp.route('/szarza_page/<int:plan_id>', methods=['GET'])
 @login_required
 def szarza_page(plan_id):
     # Render a simple form to add a szarża (delegates to dodaj_palete POST)
-    return render_template('szarza.html', plan_id=plan_id)
+    # Use the popup-style template (used on Zasyp) instead of slide-over fragment
+    return render_template('dodaj_palete_popup.html', plan_id=plan_id, sekcja='Zasyp')
 
 
 @api_bp.route('/wyjasnij_page/<int:id>', methods=['GET'])
@@ -193,198 +230,85 @@ def obsada_page():
 @api_bp.route('/dodaj_palete/<int:plan_id>', methods=['POST'])
 @login_required
 def dodaj_palete(plan_id):
+    """
+    REFACTORED: Add paleta (package) to Workowanie buffer only.
+    No automatic plan creation - buffer should already exist created by dodaj_plan().
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        current_app.logger.info('API dodaj_palete called plan_id=%s form=%s remote=%s', plan_id, dict(request.form), request.remote_addr)
+        current_app.logger.info('API dodaj_palete called plan_id=%s', plan_id)
     except Exception:
         pass
+    
     try:
         waga_input = int(float(request.form.get('waga_palety', '0').replace(',', '.')))
     except Exception:
         waga_input = 0
-    typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
-    src_sekcja = request.form.get('sekcja', '')
     
-    # Ensure `status` column exists (backfill default 'do_przyjecia' for new palety)
-    try:
-        cursor.execute("ALTER TABLE palety_workowanie ADD COLUMN status VARCHAR(32) DEFAULT 'do_przyjecia'")
-        conn.commit()
-    except Exception:
-        # ignore if column already exists or ALTER not permitted
+    # Get plan details
+    cursor.execute("SELECT sekcja, data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
+    plan_row = cursor.fetchone()
+    
+    if not plan_row:
+        conn.close()
+        return ("Błąd: Plan nie znaleziony", 404)
+    
+    plan_sekcja, plan_data, plan_produkt = plan_row
+    
+    # REFACTORED: Only allow adding paleta to Workowanie (buffer)
+    # Zasyp should use dodaj_plan() to create szarże
+    if plan_sekcja != 'Workowanie':
+        conn.close()
         try:
-            conn.rollback()
+            current_app.logger.warning(f'REJECTED: Cannot add paleta to sekcja={plan_sekcja}. Use dodaj_plan() for Zasyp szarże.')
         except Exception:
             pass
-
-    # If paleta is added from Workowanie, treat it as unconfirmed by default (status='do_przyjecia').
-    # But if Workowanie provided a weight, persist it (so Magazyn can see and adjust) while still
-    # requiring explicit confirmation.
+        return ("Błąd: Paletki można dodawać tylko do Workowania (bufora). Użyj 'Dodaj szarżę' dla Zasypu.", 400)
+    
+    # Validate weight
+    if waga_input <= 0:
+        conn.close()
+        return ("Błąd: Waga musi być większa od 0", 400)
+    
+    # Add paleta to buffer (Workowanie plan)
     from datetime import datetime as _dt
     now_ts = _dt.now()
-    # track whether we fetched an existing recent row or inserted a new one
-    existing = None
-    inserted_id = None
-    try:
-        current_app.logger.info('dodaj_palete: plan_id=%s waga_input=%s src_sekcja=%s typ=%s', plan_id, waga_input, src_sekcja, typ)
-    except Exception:
-        pass
-    if typ == 'bigbag':
-        cursor.execute("INSERT INTO palety_workowanie (plan_id, waga, tara, waga_brutto, data_dodania, status) VALUES (%s, 0, %s, 0, %s, 'do_przyjecia')", (plan_id, waga_input, now_ts))
-    else:
-        # Server-side debounce: if a very recent paleta for same plan with same weight exists,
-        # avoid inserting duplicate (protect against double-clicks / slow clients).
-        try:
-            # Debounce window: 15 seconds. Use tolerance for weight comparison (±2 kg)
-            # Only debounce unconfirmed palety (status='do_przyjecia'), ignore confirmed ones
-            tolerance = 2
-            cursor.execute(
-                "SELECT id, data_dodania, COALESCE(status,'') FROM palety_workowanie WHERE plan_id=%s AND ABS(COALESCE(waga,0) - %s) <= %s AND COALESCE(tara,25)=25 AND COALESCE(waga_brutto,0)=0 AND COALESCE(status,'') = 'do_przyjecia' ORDER BY id DESC LIMIT 1",
-                (plan_id, waga_input, tolerance)
-            )
-            dup_row = cursor.fetchone()
-            dup = None
-            if dup_row:
-                dup_id, dup_ts, dup_status = dup_row[0], dup_row[1], dup_row[2]
-                # Check if within 15 second debounce window (comparing as Python datetime)
-                from datetime import datetime, timedelta
-                if isinstance(dup_ts, str):
-                    try:
-                        dup_dt = datetime.fromisoformat(dup_ts.replace('Z', '+00:00')) if 'T' in dup_ts else datetime.strptime(dup_ts, '%Y-%m-%d %H:%M:%S')
-                    except:
-                        dup_dt = None
-                else:
-                    dup_dt = dup_ts
-                
-                now_dt = datetime.fromisoformat(now_ts.isoformat()) if hasattr(now_ts, 'isoformat') else now_ts
-                if dup_dt and (now_dt - dup_dt).total_seconds() < 15:
-                    dup = (dup_id,)
-            
-            if dup:
-                try:
-                    current_app.logger.info('Skipping duplicate paleta insert for plan_id=%s waga=%s (recent id=%s)', plan_id, waga_input, dup[0])
-                except Exception:
-                    pass
-                try:
-                    cursor.execute("SELECT id, plan_id, waga, tara, waga_brutto, data_dodania, COALESCE(status,'') FROM palety_workowanie WHERE id=%s", (dup[0],))
-                    existing = cursor.fetchone()
-                except Exception:
-                    existing = None
-            else:
-                if src_sekcja == 'Workowanie':
-                    # Workowanie: MUST have weight (waga > 0) to be added as paleta
-                    if waga_input > 0:
-                        cursor.execute("INSERT INTO palety_workowanie (plan_id, waga, tara, waga_brutto, data_dodania, status) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia')", (plan_id, waga_input, now_ts))
-                        try:
-                            inserted_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
-                        except Exception:
-                            inserted_id = None
-                    else:
-                        # Reject paleta with 0 weight from Workowanie
-                        try:
-                            current_app.logger.warning('REJECTED: Cannot add paleta with 0 weight from Workowanie (plan_id=%s). Use Zasyp for batches without weight.', plan_id)
-                        except Exception:
-                            pass
-                        return ("Błąd: Paleta musi mieć wagę > 0. Użyj Zasyp do dodawania szarż bez wagi.", 400)
-                else:
-                    # Zasyp/other: MUST also have weight (waga > 0) - no 0kg batches allowed
-                    if waga_input > 0:
-                        cursor.execute("INSERT INTO palety_workowanie (plan_id, waga, tara, waga_brutto, data_dodania, status) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia')", (plan_id, waga_input, now_ts))
-                        try:
-                            inserted_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
-                        except Exception:
-                            inserted_id = None
-                    else:
-                        # Reject batch with 0 weight from Zasyp
-                        try:
-                            current_app.logger.warning('REJECTED: Cannot add batch with 0 weight from Zasyp (plan_id=%s). All items must have weight > 0.', plan_id)
-                        except Exception:
-                            pass
-                        return ("Błąd: Waga musi być > 0. Wszystkie przedmioty muszą mieć przydzieloną wagę.", 400)
-        except Exception:
-            # Fallback to original behavior on unexpected DB error
-            try:
-                if src_sekcja == 'Workowanie':
-                    cursor.execute("INSERT INTO palety_workowanie (plan_id, waga, tara, waga_brutto, data_dodania, status) VALUES (%s, 0, 25, 0, %s, 'do_przyjecia')", (plan_id, now_ts))
-                else:
-                    cursor.execute("INSERT INTO palety_workowanie (plan_id, waga, tara, waga_brutto, data_dodania, status) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia')", (plan_id, waga_input, now_ts))
-            except Exception:
-                try:
-                    current_app.logger.exception('Failed fallback insert for paleta plan_id=%s', plan_id)
-                except Exception:
-                    pass
-    # Log the resulting row for debugging. If we detected a recent duplicate, log that row;
-    # if we inserted a new row, fetch and log the new row.
-    try:
-        result_row = None
-        try:
-            if existing:
-                result_row = existing
-            elif inserted_id:
-                cursor.execute("SELECT id, plan_id, waga, tara, waga_brutto, data_dodania, COALESCE(status, '') FROM palety_workowanie WHERE id=%s", (inserted_id,))
-                result_row = cursor.fetchone()
-            else:
-                # fallback: try LAST_INSERT_ID but only as last resort
-                try:
-                    cursor.execute("SELECT id, plan_id, waga, tara, waga_brutto, data_dodania, COALESCE(status, '') FROM palety_workowanie WHERE id = LAST_INSERT_ID()")
-                    result_row = cursor.fetchone()
-                except Exception:
-                    result_row = None
-        except Exception:
-            result_row = None
-        try:
-            if result_row:
-                current_app.logger.info('Inserted/Existing paleta row: %s', result_row)
-            else:
-                current_app.logger.warning('No paleta row available to log after dodaj_palete for plan_id=%s', plan_id)
-        except Exception:
-            pass
-    except Exception:
-        try:
-            current_app.logger.exception('Unexpected error while logging paleta result')
-        except Exception:
-            pass
     
-    cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s) WHERE id = %s", (plan_id, plan_id))
-    # Only sync to Magazyn if paleta from Workowanie with weight (NOT from Zasyp!)
     try:
-        current_app.logger.info('Magazyn sync check: src_sekcja=%s waga_input=%s (only sync if Workowanie AND waga > 0)', src_sekcja, waga_input)
-    except Exception:
-        pass
-    if src_sekcja == 'Workowanie' and waga_input > 0:
+        cursor.execute(
+            "INSERT INTO palety_workowanie (plan_id, waga, tara, waga_brutto, data_dodania, status) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia')",
+            (plan_id, waga_input, now_ts)
+        )
+        paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
+        
+        # Update buffer tonaz_rzeczywisty (sum of palety weights)
+        cursor.execute(
+            "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s) WHERE id = %s",
+            (plan_id, plan_id)
+        )
+        
+        conn.commit()
         try:
-            current_app.logger.info('✓ Syncing to Magazyn: src_sekcja=%s waga=%s, proceeding with insert/update', src_sekcja, waga_input)
+            current_app.logger.info(f'✓ Added paleta to Workowanie (buffer): plan_id={plan_id}, waga={waga_input}kg')
         except Exception:
             pass
-        cursor.execute("SELECT data_planu, produkt, tonaz, typ_produkcji FROM plan_produkcji WHERE id=%s", (plan_id,))
-        z = cursor.fetchone()
-        if z:
-            cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' AND typ_produkcji=%s AND status != 'zakonczone' LIMIT 1", (z[0], z[1], z[3]))
-            istniejace = cursor.fetchone()
-            if not istniejace: 
-                try:
-                    current_app.logger.info('Inserting NEW plan to Magazyn: data_planu=%s produkt=%s', z[0], z[1])
-                except Exception:
-                    pass
-                cursor.execute("INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji) VALUES (%s, 'Magazyn', %s, %s, 'zaplanowane', 999, %s)", (z[0], z[1], z[2], z[3]))
-            else: 
-                try:
-                    current_app.logger.info('Updating existing plan in Magazyn: plan_id=%s', istniejace[0])
-                except Exception:
-                    pass
-                cursor.execute("UPDATE plan_produkcji SET tonaz=%s WHERE id=%s", (z[2], istniejace[0]))
-    else:
+        
+    except Exception as e:
         try:
-            if src_sekcja != 'Workowanie':
-                current_app.logger.info('⊘ SKIPPING Magazyn sync: src_sekcja=%s (only Workowanie should sync to Magazyn)', src_sekcja)
-            else:
-                current_app.logger.info('⊘ SKIPPING Magazyn sync: waga_input=%s <= 0 (needs weight)', waga_input)
+            current_app.logger.exception(f'Failed to add paleta: {str(e)}')
         except Exception:
             pass
-    conn.commit()
+        conn.rollback()
+        conn.close()
+        return ("Błąd: Nie udało się dodać paletki", 500)
+    
     conn.close()
-    # Nie ustawiamy parametru `open_stop` tutaj — unikamy automatycznego
-    # otwierania modalu STOP po dodaniu palety/szarży.
+    
+    # Return JSON for AJAX requests
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Paletka dodana', 'paleta_id': paleta_id}), 200
+    
     return redirect(bezpieczny_powrot())
 
 
@@ -407,7 +331,8 @@ def dodaj_palete_page(plan_id):
     finally:
         try: conn.close()
         except Exception: pass
-    return render_template('dodaj_palete.html', plan_id=plan_id, produkt=produkt, sekcja=sekcja, typ=typ)
+    # Render popup variant for adding paleta (Zasyp-friendly popup)
+    return render_template('dodaj_palete_popup.html', plan_id=plan_id, produkt=produkt, sekcja=sekcja, typ=typ)
 
 
 @api_bp.route('/edytuj_palete_page/<int:paleta_id>', methods=['GET'])
@@ -433,7 +358,8 @@ def edytuj_palete_page(paleta_id):
     finally:
         try: conn.close()
         except Exception: pass
-    return render_template('edytuj_palete.html', paleta_id=paleta_id, waga=waga, sekcja=sekcja)
+    # Render popup variant for editing paleta
+    return render_template('edytuj_palete_popup.html', paleta_id=paleta_id, waga=waga, sekcja=sekcja)
 
 
 
@@ -594,6 +520,61 @@ def telemetry_openmodal():
         except Exception:
             pass
     return ('', 204)
+
+
+@api_bp.route('/bufor', methods=['GET'])
+def api_bufor():
+    """Public API (no auth) returning bufor entries as JSON for testing.
+    Query params: data=YYYY-MM-DD (optional, defaults to today)
+    """
+    from datetime import date as _date
+    out = []
+    qdate = request.args.get('data') or str(_date.today())
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT id, data_planu, produkt, tonaz_rzeczywisty, nazwa_zlecenia, typ_produkcji
+            FROM plan_produkcji
+            WHERE sekcja = 'Zasyp'
+              AND data_planu >= DATE_SUB(%s, INTERVAL 7 DAY)
+              AND data_planu <= %s
+        """, (qdate, qdate))
+        rows = cur.fetchall()
+        for hz in rows:
+            h_id, h_data, h_produkt, h_wykonanie_zasyp, h_nazwa, h_typ = hz
+            typ_param = h_typ if h_typ is not None else ''
+            cur.execute(
+                "SELECT SUM(waga) FROM palety_workowanie WHERE plan_id = %s OR plan_id IN (SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s)",
+                (h_id, h_data, h_produkt, typ_param)
+            )
+            res_pal = cur.fetchone()
+            h_wykonanie_workowanie = res_pal[0] if res_pal and res_pal[0] else 0
+            pozostalo_w_silosie = (h_wykonanie_zasyp or 0) - (h_wykonanie_workowanie or 0)
+            needs_reconciliation = round((h_wykonanie_workowanie or 0) - (h_wykonanie_zasyp or 0), 1) != 0
+            show_in_bufor = (pozostalo_w_silosie > 0) or (h_wykonanie_workowanie and h_wykonanie_workowanie > 0)
+            if show_in_bufor:
+                out.append({
+                    'id': h_id,
+                    'data': str(h_data),
+                    'produkt': h_produkt,
+                    'nazwa': h_nazwa,
+                    'w_silosie': round(max(pozostalo_w_silosie, 0), 1),
+                    'typ_produkcji': h_typ,
+                    'zasyp_total': h_wykonanie_zasyp,
+                    'spakowano_total': h_wykonanie_workowanie,
+                    'needs_reconciliation': needs_reconciliation,
+                    'raw_pozostalo': round(pozostalo_w_silosie, 1)
+                })
+    except Exception:
+        try: conn.close()
+        except Exception: pass
+        return jsonify({'bufor': [], 'error': True}), 500
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    return jsonify({'bufor': out})
 
 @api_bp.route('/wazenie_magazyn/<int:paleta_id>', methods=['POST'])
 @login_required
@@ -772,6 +753,28 @@ def dodaj_plan():
     res = cursor.fetchone()
     nk = (res[0] if res and res[0] else 0) + 1
     cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji) VALUES (%s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ))
+    zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
+    
+    # REFACTORED: If adding a szarża (batch) to Zasyp, automatically create corresponding buffer (plan) in Workowanie
+    if sekcja == 'Zasyp' and tonaz > 0 and zasyp_plan_id:
+        try:
+            # Check if Workowanie plan already exists for this product/type
+            cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s LIMIT 1", (data_planu, produkt, typ))
+            existing_work = cursor.fetchone()
+            if not existing_work:
+                # Create buffer (Workowanie plan) with tonaz = szarża weight
+                nk_work = nk + 1
+                cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji) VALUES (%s, %s, %s, 'zaplanowane', 'Workowanie', %s, %s)", (data_planu, produkt, tonaz, nk_work, typ))
+                try:
+                    app.logger.info(f'Auto-created buffer (Workowanie plan) for szarża (Zasyp plan_id={zasyp_plan_id}) with tonaz={tonaz}')
+                except Exception:
+                    pass
+        except Exception as e:
+            try:
+                app.logger.warning(f'Failed to auto-create buffer: {str(e)}')
+            except Exception:
+                pass
+    
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
@@ -2129,31 +2132,90 @@ def zamknij_zmiane_global():
         print(f"[ROUTE] TXT: {txt_path}")
         print(f"[ROUTE] PDF: {pdf_path}")
         
-        # Stwórz ZIP z wszystkimi plikami
+        # Przenieś wygenerowane pliki z raporty_temp do raporty (jeśli są tam)
         import os
         import zipfile
+        import shutil
         from io import BytesIO
         
+        raporty_dir = 'raporty'
+        if not os.path.exists(raporty_dir):
+            os.makedirs(raporty_dir)
+        
+        # Przeniesienie Excel
+        final_xls = xls_path
+        if xls_path and os.path.exists(xls_path) and 'raporty_temp' in xls_path:
+            try:
+                final_xls = os.path.join(raporty_dir, os.path.basename(xls_path))
+                shutil.move(xls_path, final_xls)
+                print(f"[ROUTE] Moved Excel to {final_xls}")
+            except Exception as e:
+                print(f"[ROUTE] Could not move Excel: {e}")
+                final_xls = xls_path
+        
+        # Przeniesienie TXT
+        final_txt = txt_path
+        if txt_path and os.path.exists(txt_path) and 'raporty_temp' in txt_path:
+            try:
+                final_txt = os.path.join(raporty_dir, os.path.basename(txt_path))
+                shutil.move(txt_path, final_txt)
+                print(f"[ROUTE] Moved TXT to {final_txt}")
+            except Exception as e:
+                print(f"[ROUTE] Could not move TXT: {e}")
+                final_txt = txt_path
+        
+        # Stwórz ZIP z wszystkimi plikami
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             # Dodaj Excel
-            if xls_path and os.path.exists(xls_path):
-                zip_file.write(xls_path, arcname=os.path.basename(xls_path))
-                print(f"[ROUTE] ✓ Added to ZIP: {os.path.basename(xls_path)}")
+            if final_xls and os.path.exists(final_xls):
+                zip_file.write(final_xls, arcname=os.path.basename(final_xls))
+                print(f"[ROUTE] ✓ Added to ZIP: {os.path.basename(final_xls)}")
+            else:
+                print(f"[ROUTE] ✗ Excel file not found: {final_xls}")
             
             # Dodaj TXT
-            if txt_path and os.path.exists(txt_path):
-                zip_file.write(txt_path, arcname=os.path.basename(txt_path))
-                print(f"[ROUTE] ✓ Added to ZIP: {os.path.basename(txt_path)}")
+            if final_txt and os.path.exists(final_txt):
+                zip_file.write(final_txt, arcname=os.path.basename(final_txt))
+                print(f"[ROUTE] ✓ Added to ZIP: {os.path.basename(final_txt)}")
+            else:
+                print(f"[ROUTE] ✗ TXT file not found: {final_txt}")
             
             # Dodaj PDF
             if pdf_path and os.path.exists(pdf_path):
                 zip_file.write(pdf_path, arcname=os.path.basename(pdf_path))
                 print(f"[ROUTE] ✓ Added to ZIP: {os.path.basename(pdf_path)}")
+            else:
+                print(f"[ROUTE] ✗ PDF file not found: {pdf_path}")
         
         zip_buffer.seek(0)
         zip_filename = f"Raporty_{date_str}.zip"
         print(f"[ROUTE] ✓ ZIP created: {zip_filename}")
+        
+        # ================= ZAWIESZENIE ZLECEŃ PO ZAMKNIĘCIU ZMIANY =================
+        try:
+            conn_plans = get_db_connection()
+            cursor_plans = conn_plans.cursor()
+            
+            # Zawieszaj wszystkie zlecenia ze status = 'w toku' dla dzisiejszego dnia
+            suspend_query = """
+                UPDATE plan_produkcji 
+                SET status = 'wstrzymane' 
+                WHERE DATE(data_planu) = %s 
+                AND status = 'w toku'
+            """
+            date_param = dzisiaj.strftime('%Y-%m-%d')
+            cursor_plans.execute(suspend_query, (date_param,))
+            suspended_count = cursor_plans.rowcount
+            conn_plans.commit()
+            cursor_plans.close()
+            conn_plans.close()
+            
+            print(f"[ROUTE] ✓ Suspended {suspended_count} active plans for {date_param}")
+            
+        except Exception as e:
+            print(f"[ROUTE] ✗ Error suspending plans: {e}")
+        
         print("="*60 + "\n")
         
         # Zwróć ZIP do pobrania
@@ -2348,7 +2410,7 @@ def zapisz_raport_koncowy_global():
         wszystkie_obsady = {}
         for sekcja in sekcje:
             cursor.execute("""
-                SELECT DISTINCT pw.id, pw.imie_nazwisko, pw.rola
+                SELECT DISTINCT pw.id, pw.imie_nazwisko
                 FROM obsada_zmiany oz
                 JOIN pracownicy pw ON oz.pracownik_id = pw.id
                 WHERE oz.data_wpisu = %s AND oz.sekcja = %s
@@ -2360,7 +2422,7 @@ def zapisz_raport_koncowy_global():
                 obsada.append({
                     'id': row[0],
                     'imie_nazwisko': row[1],
-                    'rola': row[2]
+                    'rola': 'pracownik'  # Brak kolumny rola w obsada_zmiany
                 })
             wszystkie_obsady[sekcja] = obsada
         
@@ -2428,16 +2490,100 @@ def zapisz_raport_koncowy_global():
         flash(f"❌ Błąd: {str(e)}", 'danger')
         return redirect(url_for('index'))
 
-@api_bp.route('/pobierz-raport', methods=['POST'])
+@api_bp.route('/pobierz-raport', methods=['GET', 'POST'])
 @login_required
 @roles_required(['lider', 'admin'])
 def pobierz_raport():
-    """Pobierz wygenerowany raport (PDF, Excel, TXT)"""
+    """Pobierz wygenerowany raport (PDF, Excel, TXT)
+
+    Obsługa zarówno POST (formularz) jak i GET (querystring) —
+    frontend używa GET w kilku miejscach (window.location.href), więc
+    zaakceptujemy oba mechanizmy.
+    
+    Najpierw próbuje wygenerować raport bezpośrednio z DB (jak /api/zamknij-zmiane-global),
+    jeśli się nie powiedzie, próbuje czytać z bazy raporty_koncowe.
+    """
     try:
-        raport_format = request.form.get('format', 'email')
+        if request.method == 'POST':
+            raport_format = request.form.get('format', 'email')
+            data_param = request.form.get('data')
+        else:
+            raport_format = request.args.get('format', 'email')
+            data_param = request.args.get('data')
         
         # Pobierz ostatni raport dla dzisiaj z bazy
-        dzisiaj = date.today()
+        # Pozwól nadpisać datę przez parametr (format YYYY-MM-DD), domyślnie dzisiaj
+        if data_param:
+            try:
+                dzisiaj = datetime.strptime(data_param, '%Y-%m-%d').date()
+            except Exception:
+                dzisiaj = date.today()
+        else:
+            dzisiaj = date.today()
+        
+        # NAJPIERW: Spróbuj wygenerować raport bezpośrednio z DB
+        print(f"[POBIERZ-RAPORT] Attempting to generate report for {dzisiaj}")
+        try:
+            from generator_raportow import generuj_paczke_raportow
+            
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Pobierz uwagi lidera z ostatniego wpisu
+            cursor.execute("""
+                SELECT lider_uwagi FROM raporty_koncowe
+                WHERE data_raportu = %s
+                ORDER BY id DESC
+                LIMIT 1
+            """, (dzisiaj,))
+            result = cursor.fetchone()
+            uwagi = result[0] if result else ''
+            
+            conn.close()
+            
+            lider_name = session.get('zalogowany', 'Nieznany')
+            
+            xls_path, txt_path, pdf_path = generuj_paczke_raportow(str(dzisiaj), uwagi or '', lider_name)
+            print(f"[POBIERZ-RAPORT] Generated: xls={xls_path}, txt={txt_path}, pdf={pdf_path}")
+            
+            # Zwróć raport w zależy od formatu
+            if raport_format == 'email':
+                with open(txt_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                return content, 200, {
+                    'Content-Type': 'text/plain; charset=utf-8',
+                    'Content-Disposition': f'attachment; filename="Raport_{dzisiaj}.txt"'
+                }
+            elif raport_format == 'excel' and xls_path:
+                with open(xls_path, 'rb') as f:
+                    content = f.read()
+                return send_file(
+                    BytesIO(content),
+                    mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    as_attachment=True,
+                    download_name=f'Raport_{dzisiaj}.xlsx'
+                )
+            elif raport_format == 'pdf' and pdf_path:
+                with open(pdf_path, 'rb') as f:
+                    content = f.read()
+                return send_file(
+                    BytesIO(content),
+                    mimetype='application/pdf',
+                    as_attachment=True,
+                    download_name=f'Raport_{dzisiaj}.pdf'
+                )
+            else:
+                # Jeśli żaden format nie pasuje, zwróć TXT
+                with open(txt_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                return content, 200, {
+                    'Content-Type': 'text/plain; charset=utf-8',
+                    'Content-Disposition': f'attachment; filename="Raport_{dzisiaj}.txt"'
+                }
+        except Exception as e:
+            print(f"[POBIERZ-RAPORT] Generator failed: {e}, falling back to RaportService")
+        
+        # FALLBACK: Jeśli generator się nie powiedzie, czytaj z bazy
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -2550,3 +2696,161 @@ def pobierz_raport():
         current_app.logger.error(f"Błąd przy pobieraniu raportu: {e}")
         flash(f"❌ Błąd: {str(e)}", 'danger')
         return redirect(url_for('index'))
+
+# ================= EMAIL CONFIGURATION =================
+
+@api_bp.route('/email-config', methods=['GET'])
+@login_required
+def get_email_config():
+    """
+    Endpoint zwracający konfigurację odbiorców raportów email.
+    Przydatny dla frontenda aby dynamicznie pobierać listę odbiorców.
+    
+    Response JSON:
+    {
+        "recipients": ["osoba1@example.com", "osoba2@example.com"],
+        "subject_template": "Raport produkcyjny z dnia {date}",
+        "configured": true
+    }
+    """
+    try:
+        from config import EMAIL_RECIPIENTS
+        
+        return jsonify({
+            "recipients": EMAIL_RECIPIENTS,
+            "subject_template": "Raport produkcyjny z dnia {date}",
+            "configured": len(EMAIL_RECIPIENTS) > 0,
+            "count": len(EMAIL_RECIPIENTS)
+        }), 200
+    except Exception as e:
+        current_app.logger.error(f"[EMAIL-CONFIG] Błąd pobierania konfiguracji: {e}")
+        return jsonify({
+            "error": "Błąd pobierania konfiguracji",
+            "recipients": [],
+            "configured": False
+        }), 500
+
+
+# ================= WZNOWIENIE ZLECEŃ Z POPRZEDNIEGO DNIA =================
+
+@api_bp.route('/wznow_zlecenia_z_wczoraj', methods=['POST'])
+@login_required
+def wznow_zlecenia_z_wczoraj():
+    """
+    Endpoint wznawia wszystkie zlecenia ze statusem 'wstrzymane' 
+    z poprzedniego dnia (zmieniam status na 'w toku').
+    """
+    try:
+        print(f"[WZNOW-WCZORAJ] Starting auto-resume handler")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Poprzedni dzień
+        wczoraj = date.today() - timedelta(days=1)
+        wczoraj_str = wczoraj.strftime('%Y-%m-%d')
+        
+        print(f"[WZNOW-WCZORAJ] Querying for plans from {wczoraj_str}")
+        
+        # Wznów wszystkie zlecenia w statusie 'wstrzymane' z poprzedniego dnia
+        resume_query = """
+            UPDATE plan_produkcji 
+            SET status = 'w toku' 
+            WHERE DATE(data_planu) = %s 
+            AND status = 'wstrzymane'
+        """
+        
+        cursor.execute(resume_query, (wczoraj_str,))
+        resumed_count = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        print(f"[WZNOW-WCZORAJ] ✓ Success: Resumed {resumed_count} plans from {wczoraj_str}")
+        
+        return jsonify({
+            "success": True,
+            "resumed_count": resumed_count,
+            "message": f"Wznowiono {resumed_count} zleceń z poprzedniego dnia ({wczoraj_str})",
+            "date_resumed": wczoraj_str
+        }), 200
+        
+    except Exception as e:
+        print(f"[WZNOW-WCZORAJ] ✗ Error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": "Błąd przy wznowienia zleceń z poprzedniego dnia"
+        }), 500
+
+
+# ================= RĘCZNE WZNOWIENIE ZLECEŃ DLA SEKCJI =================
+
+@api_bp.route('/wznow_zlecenia_sekcji/<sekcja>', methods=['POST'])
+@login_required
+def wznow_zlecenia_sekcji(sekcja):
+    """
+    Endpoint ręcznego wznowienia wszystkich zleceń 'wstrzymane' 
+    z poprzedniego dnia dla wybranej sekcji.
+    """
+    try:
+        print(f"[WZNOW-SEKCJA] Starting handler for sekcja={sekcja}")
+        
+        # Walidacja sekcji
+        if sekcja not in ['Zasyp', 'Workowanie', 'Pakowanie', 'Magazyn']:
+            print(f"[WZNOW-SEKCJA] ✗ Invalid sekcja: {sekcja}")
+            return jsonify({
+                "success": False,
+                "error": f"Nieznana sekcja: {sekcja}",
+                "message": "Sekcja musi być jedną z: Zasyp, Workowanie, Pakowanie, Magazyn"
+            }), 400
+        
+        print(f"[WZNOW-SEKCJA] Sekcja valid: {sekcja}")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Poprzedni dzień
+        wczoraj = date.today() - timedelta(days=1)
+        wczoraj_str = wczoraj.strftime('%Y-%m-%d')
+        
+        print(f"[WZNOW-SEKCJA] Querying plans from {wczoraj_str} for sekcja={sekcja}")
+        
+        # Wznów wszystkie zlecenia 'wstrzymane' z poprzedniego dnia dla tej sekcji
+        resume_query = """
+            UPDATE plan_produkcji 
+            SET status = 'w toku' 
+            WHERE DATE(data_planu) = %s 
+            AND sekcja = %s 
+            AND status = 'wstrzymane'
+        """
+        
+        cursor.execute(resume_query, (wczoraj_str, sekcja))
+        resumed_count = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        print(f"[WZNOW-SEKCJA] ✓ Success: Resumed {resumed_count} plans for sekcja={sekcja} from {wczoraj_str}")
+        
+        return jsonify({
+            "success": True,
+            "resumed_count": resumed_count,
+            "sekcja": sekcja,
+            "message": f"✅ Wznowiono {resumed_count} zleceń dla {sekcja} z poprzedniego dnia ({wczoraj_str})",
+            "date_resumed": wczoraj_str
+        }), 200
+        
+    except Exception as e:
+        print(f"[WZNOW-SEKCJA] ✗ Error for sekcja={sekcja}: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": f"Błąd przy wznowienia zleceń dla {sekcja}"
+        }), 500

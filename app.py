@@ -23,6 +23,7 @@ from decorators import login_required, zarzad_required, roles_required
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 app.jinja_env.add_extension('jinja2.ext.do')
+
 app.register_blueprint(admin_bp)
 app.register_blueprint(api_bp, url_prefix='/api')
 app.register_blueprint(planista_bp)
@@ -178,7 +179,8 @@ def report_issue():
 def favicon():
     try:
         static_folder = app.static_folder or os.path.join(app.root_path, 'static')
-        for fname in ('favicon.ico', 'favicon.svg'):
+        # Try common favicon files in order. Fall back to the bundled PNG logo.
+        for fname in ('favicon.ico', 'favicon.svg', 'agro_logo.png'):
             path = os.path.join(static_folder, fname)
             if os.path.exists(path):
                 try:
@@ -394,6 +396,73 @@ def debug_modal_move():
     return ('', 204)
 
 
+# --- Test routes for slide/modal UI (development only) ---------------------------------
+@app.route('/test/slide_test')
+def slide_test():
+    return render_template('slide_test.html')
+
+
+@app.route('/_test/slide/<name>', methods=['GET'])
+def _test_slide(name):
+    # Return small HTML fragments used to demonstrate slide-over behavior
+    if name == 'form':
+        return """
+            <form action="/_test/slide/submit" method="post">
+                <div class="p-10">
+                    <label>Wartość: <input name="val"/></label>
+                    <button type="submit" class="btn">Zapisz</button>
+                </div>
+            </form>
+        """
+    if name == 'confirm':
+        return """
+            <div class="p-10">
+                <h3>Potwierdź</h3>
+                <p>Czy chcesz wykonać akcję testową?</p>
+                <form method="post" action="/_test/slide/confirm_do">
+                    <button class="btn" type="submit">Tak</button>
+                </form>
+            </div>
+        """
+    if name == 'large':
+        longp = ' '.join(['Przykładowy tekst.'] * 80)
+        return f"<div class='p-20'><h2>Duża treść testowa</h2><p>{longp}</p></div>"
+    return f"<div class='p-10'>Treść testowa: {name}</div>"
+
+
+@app.route('/_test/center/<name>', methods=['GET'])
+def _test_center(name):
+    if name == 'notice':
+        return "<div class='p-10'><h3>Powiadomienie</h3><p>To jest center modal testowy.</p></div>"
+    if name == 'form':
+        return """
+            <form action="/_test/center/submit" method="post">
+                <div class="p-10">
+                    <label>Imię: <input name="imie"/></label>
+                    <button class="btn" type="submit">Wyślij</button>
+                </div>
+            </form>
+        """
+    return f"<div class='p-10'>Center test: {name}</div>"
+
+
+@app.route('/_test/slide/submit', methods=['POST'])
+def _test_slide_submit():
+    # Simulate successful AJAX response (JSON)
+    return ('{"success": true, "message": "Zapisano (test)"}', 200, {'Content-Type': 'application/json'})
+
+
+@app.route('/_test/slide/confirm_do', methods=['POST'])
+def _test_slide_confirm_do():
+    return ('{"success": true, "message": "Potwierdzono (test)"}', 200, {'Content-Type': 'application/json'})
+
+
+@app.route('/_test/center/submit', methods=['POST'])
+def _test_center_submit():
+    return ('{"success": true, "message": "Center: wyslano (test)"}', 200, {'Content-Type': 'application/json'})
+
+
+
 @app.after_request
 def add_cache_headers(response):
     try:
@@ -584,7 +653,7 @@ def index():
     unconfirmed_palety = []
     suma_plan = 0
     suma_wykonanie = 0
-    cursor.execute("SELECT DISTINCT produkt FROM plan_produkcji WHERE sekcja='Zasyp' AND status IN ('w toku', 'zakonczone') AND data_planu = %s", (dzisiaj,))
+    cursor.execute("SELECT DISTINCT produkt FROM plan_produkcji WHERE sekcja='Zasyp' AND status IN ('w toku', 'zakonczone') AND DATE(data_planu) = %s", (dzisiaj,))
     zasyp_rozpoczete = [r[0] for r in cursor.fetchall()]
     
     if aktywna_sekcja == 'Magazyn':
@@ -661,7 +730,7 @@ def index():
         except Exception:
             unconfirmed_palety = []
 
-    cursor.execute("SELECT id, produkt, tonaz, status, real_start, real_stop, TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci FROM plan_produkcji WHERE data_planu = %s AND sekcja = %s AND status != 'nieoplacone' ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, kolejnosc ASC, id ASC", (dzisiaj, aktywna_sekcja))
+    cursor.execute("SELECT id, produkt, tonaz, status, real_start, real_stop, TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci FROM plan_produkcji WHERE DATE(data_planu) = %s AND sekcja = %s AND status != 'nieoplacone' ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, kolejnosc ASC, id ASC", (dzisiaj, aktywna_sekcja))
     plan_dnia = [list(r) for r in cursor.fetchall()]
     # Format real_start/real_stop as HH:MM strings for templates
     for p in plan_dnia:
@@ -701,7 +770,7 @@ def index():
             cursor.execute(
                 "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
                 "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-                "WHERE p.data_planu = %s AND p.produkt = %s AND p.sekcja = 'Workowanie' ORDER BY pw.id DESC",
+                "WHERE DATE(p.data_planu) = %s AND p.produkt = %s AND p.sekcja = 'Workowanie' ORDER BY pw.id DESC",
                 (dzisiaj, p[1])
             )
             raw_pal = cursor.fetchall()
@@ -736,53 +805,72 @@ def index():
             if not is_quality:
                 suma_wykonanie += waga_kg
         elif aktywna_sekcja in ('Workowanie', 'Zasyp'):
-            cursor.execute(
-                "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
-                "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-                "WHERE pw.plan_id = %s ORDER BY pw.id DESC",
-                (p[0],)
-            )
-            raw_pal = cursor.fetchall()
-            palety = []
-            for r in raw_pal:
-                dto = PaletaDTO.from_db_row(r)
-                dt = dto.data_dodania
-                try:
-                    sdt = dt.strftime('%H:%M') if hasattr(dt, 'strftime') else str(dt)
-                    sdt_full = dt.strftime('%Y-%m-%d %H:%M:%S') if hasattr(dt, 'strftime') else str(dt)
-                except Exception:
-                    sdt = str(dt)
-                    sdt_full = str(dt)
-                cps = None
-                try:
-                    if dto.czas_potwierdzenia_s is not None:
-                        secs = int(dto.czas_potwierdzenia_s)
-                        if secs >= 3600:
-                            cps = f"{secs//3600}h { (secs%3600)//60:02d }m"
-                        elif secs >= 60:
-                            cps = f"{secs//60}m { secs%60:02d }s"
-                        else:
-                            cps = f"{secs}s"
-                except Exception:
+            # ZASYP: Show szarża (plan.tonaz) - NO paletki
+            # WORKOWANIE: Show paletki for this Workowanie plan (buffer)
+            if aktywna_sekcja == 'Zasyp':
+                # For Zasyp: show plan.tonaz (szarża) - paletki are in Workowanie
+                palety = []
+                p[7] = p[2] if p[2] else 0  # Use tonaz, not tonaz_rzeczywisty
+                if not is_quality:
+                    suma_wykonanie += (p[2] if p[2] else 0)
+                palety_mapa[p[0]] = palety  # empty list
+            else:
+                # For Workowanie: show paletki (operatorzy dodają paletki)
+                cursor.execute(
+                    "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
+                    "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
+                    "WHERE pw.plan_id = %s ORDER BY pw.id DESC",
+                    (p[0],)
+                )
+                raw_pal = cursor.fetchall()
+                palety = []
+                for r in raw_pal:
+                    dto = PaletaDTO.from_db_row(r)
+                    dt = dto.data_dodania
+                    try:
+                        sdt = dt.strftime('%H:%M') if hasattr(dt, 'strftime') else str(dt)
+                        sdt_full = dt.strftime('%Y-%m-%d %H:%M:%S') if hasattr(dt, 'strftime') else str(dt)
+                    except Exception:
+                        sdt = str(dt)
+                        sdt_full = str(dt)
                     cps = None
-                palety.append((dto.waga, sdt, dto.id, dto.plan_id, dto.typ_produkcji, dto.tara, dto.waga_brutto, dto.status, cps, sdt_full))
-            palety_mapa[p[0]] = palety
-            if not is_quality:
-                suma_wykonanie += current_wykonanie
-        else:
-            if not is_quality:
-                suma_wykonanie += current_wykonanie
+                    try:
+                        if dto.czas_potwierdzenia_s is not None:
+                            secs = int(dto.czas_potwierdzenia_s)
+                            if secs >= 3600:
+                                cps = f"{secs//3600}h { (secs%3600)//60:02d }m"
+                            elif secs >= 60:
+                                cps = f"{secs//60}m { secs%60:02d }s"
+                            else:
+                                cps = f"{secs}s"
+                    except Exception:
+                        cps = None
+                    palety.append((dto.waga, sdt, dto.id, dto.plan_id, dto.typ_produkcji, dto.tara, dto.waga_brutto, dto.status, cps, sdt_full))
+                palety_mapa[p[0]] = palety
+                # Update p[7] with tonaz_rzeczywisty (sum of paletki weights)
+                waga_kg = sum(pal[0] for pal in palety)
+                p[7] = waga_kg
+                if not is_quality:
+                    suma_wykonanie += waga_kg
 
         waga_workowania = 0
         diff = 0
         alert = False
         if aktywna_sekcja == 'Zasyp':
-            cursor.execute("SELECT SUM(tonaz_rzeczywisty) FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND typ_produkcji=%s", (dzisiaj, p[1], p[9]))
+            # typ_produkcji may be NULL in DB; use COALESCE to match empty/NULL values correctly
+            typ_param = p[9] if p[9] is not None else ''
+            cursor.execute("SELECT SUM(tonaz_rzeczywisty) FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s", (dzisiaj, p[1], typ_param))
             res = cursor.fetchone()
             waga_workowania = res[0] if res and res[0] else 0
             if p[7]:
                 diff = p[7] - waga_workowania
                 if abs(diff) > 10: alert = True # Tolerancja 10kg
+            # For dashboard totals when viewing Zasyp, include executed weight from palety (szarze)
+            if not is_quality:
+                if aktywna_sekcja == 'Zasyp':
+                    suma_wykonanie += (p[7] if p[7] is not None else waga_workowania)
+                else:
+                    suma_wykonanie += waga_workowania
         p.extend([waga_workowania, diff, alert])
 
     next_workowanie_id = None
@@ -885,7 +973,8 @@ def index():
         conn = get_db_connection()
         cursor = conn.cursor()
         since = date.today() - timedelta(days=30)
-        cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu BETWEEN %s AND %s ORDER BY o.data_wpisu DESC LIMIT 500", (since, date.today()))
+        # Exclude regular 'Obecność' records: this panel should show absences (urlopy, nieobecności, nadgodziny etc.)
+        cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu BETWEEN %s AND %s AND LOWER(TRIM(COALESCE(o.typ,''))) NOT LIKE 'obec%' ORDER BY o.data_wpisu DESC LIMIT 500", (since, date.today()))
         raw = cursor.fetchall()
         for r in raw:
             recent_absences.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data': r[3], 'godziny': r[4], 'komentarz': r[5]})
@@ -950,6 +1039,48 @@ def index():
     except Exception:
         app.logger.exception('Error logging index render info')
 
+    # --- Dashboard overview: load full plans for Zasyp and Workowanie for the global dashboard ---
+    plans_zasyp = []
+    plans_workowanie = []
+    try:
+        conn2 = get_db_connection()
+        cursor2 = conn2.cursor()
+        for sek in ('Zasyp', 'Workowanie'):
+            cursor2.execute("SELECT id, produkt, tonaz, status, real_start, real_stop, TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci FROM plan_produkcji WHERE DATE(data_planu) = %s AND sekcja = %s AND status != 'nieoplacone' ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, kolejnosc ASC, id ASC", (dzisiaj, sek))
+            rows = [list(r) for r in cursor2.fetchall()]
+            # format times and ensure numeric defaults similar to main flow
+            for p in rows:
+                try:
+                    p[4] = p[4].strftime('%H:%M') if p[4] else ''
+                except Exception:
+                    p[4] = str(p[4]) if p[4] else ''
+                try:
+                    p[5] = p[5].strftime('%H:%M') if p[5] else ''
+                except Exception:
+                    p[5] = str(p[5]) if p[5] else ''
+                if p[7] is None:
+                    p[7] = 0
+            if sek == 'Zasyp':
+                app.logger.info('DEBUG: fetched raw plans_zasyp rows count=%d', len(rows) if rows else 0)
+                try:
+                    # Log a concise representation of rows for debugging UI mismatch
+                    app.logger.debug('DEBUG: plans_zasyp rows: %s', rows)
+                except Exception:
+                    app.logger.exception('Failed to log plans_zasyp rows')
+                plans_zasyp = rows
+            else:
+                plans_workowanie = rows
+        try:
+            cursor2.close()
+            conn2.close()
+        except Exception:
+            pass
+    except Exception:
+        try:
+            app.logger.exception('Failed to load plans for dashboard overview')
+        except Exception:
+            pass
+
     # If explicit sekcja query param provided, render the original production dashboard view
     # so links like ?sekcja=Zasyp / Workowanie / Magazyn behave as before.
     try:
@@ -958,7 +1089,7 @@ def index():
     except Exception:
         app.logger.exception('Failed rendering production dashboard, falling back to global')
 
-    return render_template('dashboard_global.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, planned_leaves=planned_leaves, recent_absences=recent_absences, shift_notes=shift_notes)
+    return render_template('dashboard_global.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, planned_leaves=planned_leaves, recent_absences=recent_absences, shift_notes=shift_notes, plans_zasyp=plans_zasyp, plans_workowanie=plans_workowanie)
 
 
 @app.route('/panel/wnioski')
@@ -1012,7 +1143,7 @@ def panel_obecnosci_page():
     recent = []
     try:
         since = date.today() - timedelta(days=30)
-        cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu BETWEEN %s AND %s ORDER BY o.data_wpisu DESC LIMIT 500", (since, date.today()))
+        cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu BETWEEN %s AND %s AND LOWER(TRIM(COALESCE(o.typ,''))) NOT LIKE 'obec%' ORDER BY o.data_wpisu DESC LIMIT 500", (since, date.today()))
         raw = cursor.fetchall()
         for r in raw:
             recent.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data': r[3], 'godziny': r[4], 'komentarz': r[5]})
@@ -1309,21 +1440,40 @@ def dur_awarie():
         for awaria in awarie:
             awaria['pracownik_name'] = pracownicy_map.get(awaria['pracownik_id'], 'Nieznany')
             # Formatuj czas_start / czas_stop jako HH:MM (bez błędnego zakładania timedelta)
-            if awaria.get('czas_start'):
+            def _fmt_time_field(val):
+                # Accept datetime-like or string values; return zero-padded HH:MM or HH:MM:SS
                 try:
-                    awaria['czas_start_str'] = awaria['czas_start'].strftime('%H:%M')
+                    if hasattr(val, 'strftime'):
+                        return val.strftime('%H:%M')
+                    if isinstance(val, (int, float)):
+                        # unlikely, but handle seconds-since-midnight
+                        h = int(val) // 3600
+                        m = (int(val) % 3600) // 60
+                        return f"{h:02d}:{m:02d}"
+                    s = str(val).strip()
+                    if not s:
+                        return '??:??'
+                    # Normalize common formats like H:MM:SS or HH:MM:SS or HH:MM
+                    parts = s.split(':')
+                    if len(parts) == 3:
+                        h = int(parts[0])
+                        mm = int(parts[1])
+                        ss = int(parts[2])
+                        return f"{h:02d}:{mm:02d}:{ss:02d}"
+                    if len(parts) == 2:
+                        h = int(parts[0])
+                        mm = int(parts[1])
+                        return f"{h:02d}:{mm:02d}"
+                    # fallback
+                    return s
                 except Exception:
-                    awaria['czas_start_str'] = str(awaria['czas_start'])
-            else:
-                awaria['czas_start_str'] = '??:??'
+                    try:
+                        return str(val)
+                    except Exception:
+                        return '??:??'
 
-            if awaria.get('czas_stop'):
-                try:
-                    awaria['czas_stop_str'] = awaria['czas_stop'].strftime('%H:%M')
-                except Exception:
-                    awaria['czas_stop_str'] = str(awaria['czas_stop'])
-            else:
-                awaria['czas_stop_str'] = '??:??'
+            awaria['czas_start_str'] = _fmt_time_field(awaria.get('czas_start'))
+            awaria['czas_stop_str'] = _fmt_time_field(awaria.get('czas_stop'))
             
             # Pobierz komentarze do tej awarii
             conn_kom = get_db_connection()

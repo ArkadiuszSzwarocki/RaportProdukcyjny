@@ -1,0 +1,102 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="section-header">
+    <div><h2 class="header-title">🏗️ BUFOR / SILOSY — {{ wybrana_data }}</h2><p class="text-muted">Towar z poprzednich dni dostępny do spakowania</p></div>
+    <div class="d-flex align-center gap-10">
+        <a href="/planista?data={{ wybrana_data }}" class="btn">Powrót do Planisty</a>
+    </div>
+</div>
+
+<div class="section-box">
+    <div class="card-body p-0">
+        {% if bufor_list and bufor_list|length > 0 %}
+        <table class="table modern-table mb-0">
+            <thead>
+                <tr>
+                    <th>Data Zasypu</th>
+                    <th>Produkt</th>
+                    <th>Zrobiono na Zasypie</th>
+                    <th>Spakowano</th>
+                    <th>POZOSTAŁO (DO SPAKOWANIA)</th>
+                    <th>Akcja</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in bufor_list %}
+                <tr>
+                    <td>{{ b.data }}</td>
+                    <td><strong>{{ b.produkt }}</strong> <small class="text-muted">{{ b.nazwa }}</small></td>
+                    <td>{{ b.zasyp_total }} kg</td>
+                    <td>{{ b.spakowano_total }} kg</td>
+                    <td style="font-size: 1.1em; font-weight: bold; color: #d9534f;">
+                        {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %}
+                            <span title="Nadmiar spakowany">{{ b.raw_pozostalo }} kg</span>
+                        {% else %}
+                            {{ b.w_silosie }} kg
+                        {% endif %}
+                        {% if b.needs_reconciliation %}
+                            <small class="badge badge-warning" style="margin-left:8px">Do rozliczenia</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="otworzOknoDodawaniaPalety('{{ b.id }}', '{{ b.produkt }}', '{{ b.typ_produkcji }}')">📦 Workuj ten towar</button>
+                        {% if b.needs_reconciliation %}
+                            <button class="btn btn-outline-secondary btn-sm" onclick="otworzOknoRozliczenia('{{ b.id }}')">🔧 Rozlicz</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <div class="p-15 text-muted">Brak towaru w buforze.</div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+    <!-- Rozlicz modal -->
+    <div id="rozliczModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h3>Rozlicz zasyp</h3>
+            <form id="rozliczForm">
+                <input type="hidden" name="plan_id" id="rozlicz_plan_id" />
+                <div class="form-group">
+                    <label for="final_tonaz">Tonaż rzeczywisty (kg)</label>
+                    <input type="number" step="1" name="final_tonaz" id="final_tonaz" class="form-input" />
+                </div>
+                <div class="form-group">
+                    <label for="note">Wyjaśnienie (opcjonalnie)</label>
+                    <input type="text" name="note" id="rozlicz_note" class="form-input" />
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="rozlicz_close" name="close" value="1" /> Zakończ zlecenie</label>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn" onclick="closeRozlicz()">Anuluj</button>
+                    <button type="submit" class="btn btn-primary">Zapisz</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function otworzOknoRozliczenia(planId) {
+        document.getElementById('rozlicz_plan_id').value = planId;
+        document.getElementById('final_tonaz').value = '';
+        document.getElementById('rozlicz_note').value = '';
+        document.getElementById('rozlicz_close').checked = false;
+        document.getElementById('rozliczModal').style.display = 'block';
+    }
+    function closeRozlicz(){ document.getElementById('rozliczModal').style.display = 'none'; }
+    document.getElementById('rozliczForm').addEventListener('submit', function(e){
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        fetch('/bufor/rozlicz', { method: 'POST', body: fd }).then(r=>r.json()).then(j=>{
+            if(j && j.ok){ location.reload(); } else { alert('Błąd zapisu'); }
+        }).catch(()=>{ alert('Błąd sieci'); });
+    });
+    </script>

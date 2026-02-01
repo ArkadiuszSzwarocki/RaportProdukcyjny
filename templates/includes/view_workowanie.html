@@ -98,7 +98,8 @@
                 {% endif %}
                 
                 {% if rola in ['planista', 'admin', 'lider'] %}
-                <button type="button" class="btn-delete inline-form ml-10" aria-label="Usuń plan" onclick="if(confirm('Usunąć?')) deletePlan({{ p[0] }}, '{{ dzisiaj }}')">🗑</button>
+                    <button type="button" class="btn-icon ml-5" title="Przenieś zlecenie" onclick="openMoveModalWork({{ p[0] }}, '{{ p[1] }}')">📅</button>
+                    <button type="button" class="btn-delete inline-form ml-5" aria-label="Usuń plan" onclick="if(confirm('Usunąć?')) deletePlan({{ p[0] }}, '{{ dzisiaj }}')">🗑</button>
                 {% endif %}
             </div>
         </div>
@@ -115,3 +116,40 @@
     </form>
     {% endif %}
 </div>
+
+<!-- Move modal for Workowanie -->
+<div id="moveModalWork" style="display:none; position:fixed; left:50%; top:40%; transform:translate(-50%,-50%); background:#fff; padding:15px; border:1px solid #ccc; z-index:2000;">
+    <h3 class="move-title-work">Przenieś zlecenie</h3>
+    <div style="margin:8px 0">Nowa data: <input type="date" id="move_to_date_work" value="{{ dzisiaj }}"></div>
+    <div class="d-flex gap-5" style="justify-content:flex-end;">
+        <button type="button" onclick="confirmMoveWork()" class="btn-action btn-small">Przenieś</button>
+        <button type="button" onclick="document.getElementById('moveModalWork').style.display='none'" class="btn-action btn-small btn-cancel">Anuluj</button>
+    </div>
+</div>
+
+<script>
+function openMoveModalWork(id, nazwa){
+    var modal = document.getElementById('moveModalWork');
+    if(!modal) return alert('Brak modala przeniesienia');
+    modal.style.display = 'block';
+    modal.dataset.planId = id;
+    var title = modal.querySelector('.move-title-work'); if(title) title.innerText = 'Przenieś: ' + nazwa;
+}
+
+function confirmMoveWork(){
+    var modal = document.getElementById('moveModalWork');
+    var id = modal.dataset.planId;
+    var to_date = document.getElementById('move_to_date_work').value;
+    if(!id || !to_date) return alert('Brakuje danych');
+    fetch('/api/przenies_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, to_date: to_date})})
+        .then(function(r){ return r.json().catch(function(){ return { success:false, message:'Nieprawidłowa odpowiedź serwera' }; }); })
+        .then(function(j){
+            if(j && j.success){
+                modal.style.display='none';
+                location.reload();
+            } else {
+                alert((j && j.message) || 'Błąd');
+            }
+        }).catch(function(){ alert('Błąd sieci'); });
+}
+</script>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logowanie - AgroNetzwerk</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Favicon / touch icons: prefer SVG, fallback to PNG -->
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="shortcut icon" href="/static/agro_logo.png" type="image/png">
+    <link rel="apple-touch-icon" href="/static/agro_logo.png">
+</head>
+<body class="login-page">
+
+<div class="login-page-body">
+<div class="login-card">
+    <!-- Use local static logo to avoid external requests and improve availability -->
+    <img src="/static/agro_logo.png" alt="AgroNetzwerk" class="login-logo">
+
+    <h2 class="header-title m-0">Zaloguj się</h2>
+
+    
+        
+    
+
+    <form method="POST">
+        <div class="form-group">
+            <label for="login" class="form-label">Login</label>
+            <input type="text" id="login" name="login" class="form-input" placeholder="Wpisz login" required aria-label="Login">
+        </div>
+        <div class="form-group">
+            <label for="haslo" class="form-label">Hasło</label>
+            <input type="password" id="haslo" name="haslo" class="form-input" placeholder="Wpisz hasło" required aria-label="Hasło">
+        </div>
+        <button type="submit" class="btn-login">Wejdź</button>
+    </form>
+
+    </div>
+    </div>
+</body>
+</html>

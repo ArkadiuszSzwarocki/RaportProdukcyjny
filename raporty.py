@@ -64,6 +64,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
     """Generuje plik PDF z tabelami"""
     nazwa_pdf = f"Raport_{dzisiaj}.pdf"
     sciezka = os.path.join('raporty', nazwa_pdf)
+    print(f"[RAPORTY.generuj_pdf] START: dzisiaj={dzisiaj}, sciezka={sciezka}")
     # importujemy FPDF tylko podczas generowania PDF (unikamy importu przy starcie aplikacji)
     from fpdf import FPDF
 
@@ -321,5 +322,12 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
     except Exception:
         pass
 
-    pdf.output(sciezka)
-    return nazwa_pdf
+    try:
+        pdf.output(sciezka)
+        print(f"[RAPORTY] PDF saved to: {sciezka}")
+        return nazwa_pdf
+    except Exception as e:
+        print(f"[RAPORTY] ERROR saving PDF to {sciezka}: {e}")
+        import traceback
+        traceback.print_exc()
+        return None

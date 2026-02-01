@@ -43,6 +43,8 @@
     </div>
 </div>
 
+{# BUFOR przeniesiony na osobną stronę /bufor — patrz templates/bufor.html #}
+
     <div class="section-box section-box-no-pad">
         <div class="d-flex justify-between align-center p-15 p-15-bg">
         <h3 class="m-0">📋 Główny Plan: <strong>{{ wybrana_data }}</strong></h3>
@@ -139,6 +141,42 @@
         modal.dataset.planId = id;
         modal.querySelector('.move-title').innerText = nazwa;
     }
+    
+    function otworzOknoDodawaniaPalety(planId, produkt, typ){
+        // Wczytuje stronę formularza przez AJAX i wstrzykuje do panelu bocznego (slide-over)
+        var url = '/api/dodaj_palete_page/' + encodeURIComponent(planId);
+        openSlideOver();
+        fetch(url, { credentials: 'same-origin' })
+            .then(function(resp){ if(!resp.ok) throw new Error('Nie można załadować formularza'); return resp.text(); })
+            .then(function(html){
+                var body = document.getElementById('slideOverBody');
+                if(!body) return alert('Brak panelu bocznego');
+                body.innerHTML = html;
+                // przycisky zamykające wewnątrz wstrzykniętego HTML oznaczamy atrybutem data-slide-close
+                body.querySelectorAll('[data-slide-close]').forEach(function(el){ el.addEventListener('click', closeSlideOver); });
+
+                // interceptuj formularz i wyślij AJAXem
+                var form = body.querySelector('form');
+                if(form){
+                    form.addEventListener('submit', function(e){
+                        e.preventDefault();
+                        var action = form.getAttribute('action') || ('/api/dodaj_palete/' + encodeURIComponent(planId));
+                        var method = (form.getAttribute('method') || 'POST').toUpperCase();
+                        var fd = new FormData(form);
+                        fetch(action, { method: method, body: fd, credentials: 'same-origin' })
+                            .then(function(r){
+                                if(r.ok){
+                                    closeSlideOver();
+                                    // odśwież stronę aby zaktualizować listy i bufor
+                                    location.reload();
+                                } else {
+                                    return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); });
+                                }
+                            }).catch(function(err){ alert('Błąd: ' + (err.message || err)); });
+                    });
+                }
+            }).catch(function(){ alert('Błąd ładowania formularza'); closeSlideOver(); });
+    }
     /* showModalDisabled removed — slide-over used as fallback instead */
 </script>
 
@@ -175,24 +213,22 @@ function confirmMove(){
 <script>
 function moveUp(id){
     fetch('/api/przesun_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, kierunek:'gora', data: '{{ wybrana_data }}'})})
-        .then(r=>r.json()).then(j=>{ if(j && j.success){ location.reload(); } else { alert((j && j.message)||'Błąd'); } }).catch(()=>alert('Błąd sieci'));
+        .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); }); return r.json().catch(function(){ throw new Error('Nieprawidłowa odpowiedź JSON'); }); })
+        .then(function(j){ if(j && j.success){ location.reload(); } else { alert((j && j.message)||'Błąd'); } })
+        .catch(function(err){ alert(err && err.message ? err.message : 'Błąd sieci'); });
 }
 function moveDown(id){
     fetch('/api/przesun_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, kierunek:'dol', data: '{{ wybrana_data }}'})})
-        .then(r=>r.json()).then(j=>{ if(j && j.success){ location.reload(); } else { alert((j && j.message)||'Błąd'); } }).catch(()=>alert('Błąd sieci'));
+        .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); }); return r.json().catch(function(){ throw new Error('Nieprawidłowa odpowiedź JSON'); }); })
+        .then(function(j){ if(j && j.success){ location.reload(); } else { alert((j && j.message)||'Błąd'); } })
+        .catch(function(err){ alert(err && err.message ? err.message : 'Błąd sieci'); });
 }
 function deletePlanConfirm(id, data){ if(!confirm('Usunąć?')) return; deletePlan(id, data); }
 function deletePlan(id, data){
-    fetch('/api/usun_plan_ajax/'+id, {method:'POST'}).then(r=>{
-        if(r.ok){
-            // Reload regardless of JSON payload to ensure UI reflects server state
-            location.reload();
-            return null;
-        }
-        return r.json().catch(()=>null);
-    }).then(j=>{
-        if(j && !j.success){ alert(j.message || 'Błąd'); }
-    }).catch(()=>alert('Błąd sieci'));
+    fetch('/api/usun_plan_ajax/'+id, {method:'POST'})
+        .then(function(r){ if(r.ok){ location.reload(); return null; } return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); }); })
+        .then(function(j){ if(j && !j.success){ alert(j.message || 'Błąd'); } })
+        .catch(function(){ alert('Błąd sieci'); });
 }
 </script>
 <script>
@@ -251,3 +287,31 @@ function deletePlan(id, data){
 
  
 {% endblock %}
+
+<!-- Slide-over panel for AJAX-loaded pages -->
+<div id="slideOver" class="slide-over" aria-hidden="true" style="display:none;">
+    <div class="slide-over-panel">
+        <div class="slide-over-header d-flex justify-between align-center p-10">
+            <div class="header-title">Panel boczny</div>
+            <div><button type="button" onclick="closeSlideOver()" class="btn-action btn-small">✖</button></div>
+        </div>
+        <div id="slideOverBody" class="slide-over-body p-10">Ładowanie…</div>
+    </div>
+    <div class="slide-over-backdrop" onclick="closeSlideOver()"></div>
+</div>
+
+<script>
+function openSlideOver(){
+    var so = document.getElementById('slideOver');
+    if(!so) return;
+    so.style.display = 'block';
+    setTimeout(function(){ so.classList.add('open'); so.setAttribute('aria-hidden', 'false'); }, 10);
+}
+function closeSlideOver(){
+    var so = document.getElementById('slideOver');
+    if(!so) return;
+    so.classList.remove('open');
+    so.setAttribute('aria-hidden', 'true');
+    setTimeout(function(){ so.style.display = 'none'; var body = document.getElementById('slideOverBody'); if(body) body.innerHTML=''; }, 260);
+}
+</script>
