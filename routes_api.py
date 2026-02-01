@@ -29,16 +29,19 @@ def bezpieczny_powrot():
 def start_zlecenie(id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status FROM plan_produkcji WHERE id=%s", (id,))
+    cursor.execute("SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji WHERE id=%s", (id,))
     z = cursor.fetchone()
     
     if z:
-        produkt, tonaz, sekcja, data_planu, typ, status_obecny = z
+        produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
         if status_obecny != 'w toku':
             cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
             cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
         
         if sekcja == 'Zasyp' and status_obecny == 'zaplanowane':
+            # Use actual weight from Zasyp (tonaz_rzeczywisty) if available, otherwise use planned (tonaz)
+            rzeczywisty = tonaz_rzeczywisty_zasyp if tonaz_rzeczywisty_zasyp > 0 else tonaz
+            
             cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND typ_produkcji=%s", (data_planu, produkt, typ))
             istniejace = cursor.fetchone()
             if not istniejace:
@@ -46,9 +49,9 @@ def start_zlecenie(id):
                 res = cursor.fetchone()
                 mk = res[0] if res and res[0] else 0
                 nk = mk + 1
-                cursor.execute("INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji) VALUES (%s, 'Workowanie', %s, %s, 'zaplanowane', %s, %s)", (data_planu, produkt, tonaz, nk, typ))
+                cursor.execute("INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, 'Workowanie', %s, %s, 'zaplanowane', %s, %s, %s)", (data_planu, produkt, tonaz, nk, typ, rzeczywisty))
             else:
-                cursor.execute("UPDATE plan_produkcji SET tonaz=%s WHERE id=%s", (tonaz, istniejace[0]))
+                cursor.execute("UPDATE plan_produkcji SET tonaz=%s, tonaz_rzeczywisty=%s WHERE id=%s", (tonaz, rzeczywisty, istniejace[0]))
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
