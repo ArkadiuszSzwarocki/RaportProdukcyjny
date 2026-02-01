@@ -150,8 +150,32 @@ def api_test_pobierz_raport():
 @login_required
 def szarza_page(plan_id):
     # Render a simple form to add a szarża (delegates to dodaj_palete POST)
-    # Use the popup-style template (used on Zasyp) instead of slide-over fragment
-    return render_template('dodaj_palete_popup.html', plan_id=plan_id, sekcja='Zasyp')
+    # Fetch plan details (produkt, typ) from DB - these should be pre-filled
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT produkt, typ_produkcji FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'",
+            (plan_id,)
+        )
+        plan = cursor.fetchone()
+        if not plan:
+            conn.close()
+            flash('Plan nie znaleziony', 'error')
+            return redirect('/')
+        
+        produkt, typ_produkcji = plan[0], plan[1]
+        conn.close()
+        return render_template('dodaj_palete_popup.html', 
+                             plan_id=plan_id, 
+                             sekcja='Zasyp',
+                             produkt=produkt,
+                             typ_produkcji=typ_produkcji)
+    except Exception as e:
+        conn.close()
+        current_app.logger.error(f'Error in szarza_page: {e}')
+        flash('Błąd pobierania danych planu', 'error')
+        return redirect('/')
 
 
 @api_bp.route('/wyjasnij_page/<int:id>', methods=['GET'])
@@ -765,12 +789,13 @@ def dodaj_plan():
             # Found open order - add this batch to it
             zasyp_plan_id = open_order[0]
             try:
-                app.logger.info(f'[DODAJ_PLAN] Adding szarża to OPEN order: plan_id={zasyp_plan_id}, tonaz={tonaz}, produkt={produkt}')
+                app.logger.info(f'[DODAJ_PLAN] Adding szarża to OPEN order: plan_id={zasyp_plan_id}, tonaz_rzeczywisty={tonaz}, produkt={produkt}')
             except Exception:
                 pass
-            # Increase the tonaz of the open order (accumulate batches)
+            # IMPORTANT: Increase tonaz_rzeczywisty (actual weight) NOT tonaz (plan - which is FIXED)
+            # Plan (tonaz) is fixed by planner - only actual weight (tonaz_rzeczywisty) changes when adding batches
             cursor.execute(
-                "UPDATE plan_produkcji SET tonaz = tonaz + %s WHERE id=%s",
+                "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
                 (tonaz, zasyp_plan_id)
             )
             conn.commit()
