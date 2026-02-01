@@ -210,7 +210,7 @@
                                     </div>
                                 {% endif %}
                                 {% if sekcja == 'Zasyp' %}
-                                    <a href="{{ url_for('api.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
+                                    <a href="{{ url_for('api.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" target="_blank">+ SZARŻA</a>
                                     <a href="{{ url_for('api.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% else %}
                                     <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-stop">STOP</button></form>
