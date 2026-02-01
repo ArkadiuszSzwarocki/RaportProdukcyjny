@@ -518,5 +518,54 @@ class QueryHelper:
             })
         conn.close()
         return result
+    
+    @staticmethod
+    def get_obsada_for_date(data_wpisu):
+        """Get staff assignment (obsada) for a specific date, grouped by sekcja.
+        
+        Args:
+            data_wpisu: date to query
+            
+        Returns:
+            Dict mapping sekcja -> list of (pracownik_id, imie_nazwisko) tuples
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT oz.sekcja, p.id, p.imie_nazwisko FROM obsada_zmiany oz "
+            "JOIN pracownicy p ON oz.pracownik_id = p.id "
+            "WHERE oz.data_wpisu = %s ORDER BY oz.sekcja, p.imie_nazwisko",
+            (data_wpisu,)
+        )
+        rows = cursor.fetchall()
+        obsady_map = {}
+        for r in rows:
+            sekc, pid, name = r[0], r[1], r[2]
+            obsady_map.setdefault(sekc, []).append((pid, name))
+        conn.close()
+        return obsady_map
+    
+    @staticmethod
+    def get_unassigned_pracownicy(data_wpisu):
+        """Get workers not assigned to any sekcja on a specific date.
+        
+        Args:
+            data_wpisu: date to query
+            
+        Returns:
+            List of (id, imie_nazwisko) tuples
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, imie_nazwisko FROM pracownicy "
+            "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) "
+            "ORDER BY imie_nazwisko",
+            (data_wpisu,)
+        )
+        result = cursor.fetchall()
+        conn.close()
+        return result
+
 
 
