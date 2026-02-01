@@ -748,10 +748,37 @@ def dodaj_plan():
     except Exception:
         tonaz = 0
     sekcja = request.form.get('sekcja') or request.args.get('sekcja') or 'Nieprzydzielony'
-    status = 'zaplanowane'
     typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
     conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # PRIORITY: Check if there's an OPEN order (status='w toku') for this product on Zasyp
+    # If yes, add the batch to that order instead of creating a new planned order
+    zasyp_plan_id = None
+    if sekcja == 'Zasyp' and tonaz > 0:
+        cursor.execute(
+            "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Zasyp' AND status='w toku' AND COALESCE(typ_produkcji,'')=%s LIMIT 1",
+            (data_planu, produkt, typ)
+        )
+        open_order = cursor.fetchone()
+        if open_order:
+            # Found open order - add this batch to it
+            zasyp_plan_id = open_order[0]
+            try:
+                app.logger.info(f'[DODAJ_PLAN] Adding szarża to OPEN order: plan_id={zasyp_plan_id}, tonaz={tonaz}, produkt={produkt}')
+            except Exception:
+                pass
+            # Increase the tonaz of the open order (accumulate batches)
+            cursor.execute(
+                "UPDATE plan_produkcji SET tonaz = tonaz + %s WHERE id=%s",
+                (tonaz, zasyp_plan_id)
+            )
+            conn.commit()
+            conn.close()
+            return redirect(bezpieczny_powrot())
+    
+    # No open order found - create new planned order
+    status = 'zaplanowane'
     cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
     res = cursor.fetchone()
     nk = (res[0] if res and res[0] else 0) + 1
