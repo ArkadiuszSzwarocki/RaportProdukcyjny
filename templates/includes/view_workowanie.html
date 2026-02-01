@@ -44,14 +44,14 @@
 
                 <div class="flex-1 d-flex flex-column gap-10">
                     {% if rola in ['produkcja','lider','admin','pracownik'] %}
-                    <form action="/dodaj_palete/{{ p[0] }}" method="POST" class="dashed-blue">
+                    <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" class="dashed-blue">
                         <label class="header-title">DODAJ PEŁNĄ PALETĘ</label>
                         
                         <div class="d-flex justify-center align-center gap-10">
                             <input type="number" step="1" name="waga_palety" value="1000" class="input-sm w-70" aria-label="Waga palety (kg)" onclick="this.select()" required>
                             <span class="fs-150 font-bold">kg</span>
                         </div>
-                        
+
                         <button type="submit" class="btn-add-plan w-100">+ DODAJ PALETĘ</button>
                     </form>
                     {% endif %}

@@ -152,6 +152,8 @@ def api_test_pobierz_raport():
 def szarza_page(plan_id):
     # Render a simple form to add a szarża (delegates to dodaj_palete POST)
     # Fetch plan details (produkt, typ) from DB - these should be pre-filled
+    current_app.logger.info(f'[SZARZA_PAGE] Called with plan_id={plan_id}')
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -162,19 +164,21 @@ def szarza_page(plan_id):
         plan = cursor.fetchone()
         if not plan:
             conn.close()
+            current_app.logger.warning(f'[SZARZA_PAGE] Plan {plan_id} not found')
             flash('Plan nie znaleziony', 'error')
             return redirect('/')
         
         produkt, typ_produkcji = plan[0], plan[1]
         conn.close()
+        current_app.logger.info(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}')
         return render_template('dodaj_palete_popup.html', 
                              plan_id=plan_id, 
                              sekcja='Zasyp',
                              produkt=produkt,
-                             typ_produkcji=typ_produkcji)
+                             typ=typ_produkcji)
     except Exception as e:
         conn.close()
-        current_app.logger.error(f'Error in szarza_page: {e}')
+        current_app.logger.error(f'[SZARZA_PAGE] Error in szarza_page: {e}')
         flash('Błąd pobierania danych planu', 'error')
         return redirect('/')
 
@@ -310,10 +314,10 @@ def dodaj_palete(plan_id):
         )
         paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
         
-        # Update buffer tonaz_rzeczywisty (sum of palety weights)
+        # Update buffer tonaz_rzeczywisty: subtract this paleta from buffer (buffer stores incoming from szarze)
         cursor.execute(
-            "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s) WHERE id = %s",
-            (plan_id, plan_id)
+            "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) - %s WHERE id = %s",
+            (waga_input, plan_id)
         )
         
         conn.commit()
@@ -502,9 +506,9 @@ def potwierdz_palete(paleta_id):
             if r:
                 plan_id = r[0]
                 netto_val = int(r[1] or 0)
-                # Recompute total for the plan
+                # Recompute total for the plan (exclude confirmed palety - only count unconfirmed)
                 try:
-                    cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s) WHERE id = %s", (plan_id, plan_id))
+                    cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
                 except Exception:
                     try: conn.rollback()
                     except Exception: pass
@@ -620,7 +624,8 @@ def wazenie_magazyn(paleta_id):
         netto = brutto - int(tara)
         if netto < 0: netto = 0
         cursor.execute("UPDATE palety_workowanie SET waga_brutto=%s, waga=%s WHERE id=%s", (brutto, netto, paleta_id))
-        cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s) WHERE id = %s", (plan_id, plan_id))
+        # Recompute buffer: exclude confirmed palety (only count unconfirmed 'do_przyjecia')
+        cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
         cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
         z = cursor.fetchone()
         if z: cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = tonaz_rzeczywisty + %s WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'", (netto, z[0], z[1]))
@@ -639,7 +644,8 @@ def usun_palete(id):
     if res:
         plan_id = res[0]
         cursor.execute("DELETE FROM palety_workowanie WHERE id=%s", (id,))
-        cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s) WHERE id = %s", (plan_id, plan_id))
+        # Recompute buffer: exclude confirmed palety (only count unconfirmed 'do_przyjecia')
+        cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
         conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
@@ -659,12 +665,12 @@ def edytuj_palete(paleta_id):
             waga = 0
         # Zaktualizuj wagę palety
         cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (waga, paleta_id))
-        # Zaktualizuj sumę w plan_produkcji
+        # Zaktualizuj sumę w plan_produkcji (exclude confirmed palety - only count unconfirmed 'do_przyjecia')
         cursor.execute("SELECT plan_id FROM palety_workowanie WHERE id=%s", (paleta_id,))
         res = cursor.fetchone()
         if res:
             plan_id = res[0]
-            cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s) WHERE id = %s", (plan_id, plan_id))
+            cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
         conn.commit()
     except Exception:
         current_app.logger.exception('Failed to edit paleta %s', paleta_id)
@@ -755,60 +761,182 @@ def dodaj_plan_zaawansowany():
     cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
     res = cursor.fetchone()
     nk = (res[0] if res and res[0] else 0) + 1
-    cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji) VALUES (%s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ))
+    cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ, 0))
     conn.commit()
     conn.close()
     return redirect(url_for('planista.panel_planisty', data=data_planu))
 
 
 @api_bp.route('/dodaj_plan', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider', 'produkcja', 'pracownik')
 def dodaj_plan():
     # Backwards-compatible simple add used by small section widgets
     data_planu = request.form.get('data_planu') or request.form.get('data') or str(date.today())
     from utils.validation import require_field
-    produkt = require_field(request.form, 'produkt')
+    
+    # Get all fields - allow empty produkt since it comes from hidden field
+    produkt = request.form.get('produkt', '').strip()
     try:
         tonaz = int(float(request.form.get('tonaz', 0)))
     except Exception:
         tonaz = 0
     sekcja = request.form.get('sekcja') or request.args.get('sekcja') or 'Nieprzydzielony'
     typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
+    
+    # Get plan_id if provided (from popup form)
+    try:
+        plan_id_str = request.form.get('plan_id', '').strip()
+        plan_id_provided = int(plan_id_str) if plan_id_str else 0
+    except Exception:
+        plan_id_provided = 0
+    
+    # SUPER DETAILED LOGGING
+    log_msg = f'[DODAJ_PLAN] POST received: sekcja={sekcja}, produkt={produkt}, tonaz={tonaz}, typ={typ}, plan_id={plan_id_provided}'
+    try:
+        current_app.logger.warning(log_msg)  # Use WARNING level so it shows
+    except Exception:
+        pass
+    try:
+        print(log_msg)  # Also print to console
+    except Exception:
+        pass
+    
+    # Validate required fields
+    if not produkt:
+        try:
+            current_app.logger.warning(f'[DODAJ_PLAN] MISSING produkt - redirecting')
+        except Exception:
+            pass
+        return redirect(bezpieczny_powrot())
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # PRIORITY: Check if there's an OPEN order (status='w toku') for this product on Zasyp
-    # If yes, add the batch to that order instead of creating a new planned order
     zasyp_plan_id = None
-    if sekcja == 'Zasyp' and tonaz > 0:
-        cursor.execute(
-            "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Zasyp' AND status='w toku' AND COALESCE(typ_produkcji,'')=%s LIMIT 1",
-            (data_planu, produkt, typ)
-        )
-        open_order = cursor.fetchone()
-        if open_order:
-            # Found open order - add this batch to it
-            zasyp_plan_id = open_order[0]
+    if tonaz > 0:
+        # BUFFER LOGIC: 
+        # - Szarża (Zasyp): Zwiększa tonaz_rzeczywisty PODANEGO planu Zasyp (plan_id) + zwiększa bufor Workowanie
+        # - Paleta (Workowanie): Zmniejsza bufor Workowanie
+        
+        if sekcja == 'Zasyp':
             try:
-                app.logger.info(f'[DODAJ_PLAN] Adding szarża to OPEN order: plan_id={zasyp_plan_id}, tonaz_rzeczywisty={tonaz}, produkt={produkt}')
+                current_app.logger.warning(f'[DODAJ_PLAN] Processing ZASYP szarża')
             except Exception:
                 pass
-            # IMPORTANT: Increase tonaz_rzeczywisty (actual weight) NOT tonaz (plan - which is FIXED)
-            # Plan (tonaz) is fixed by planner - only actual weight (tonaz_rzeczywisty) changes when adding batches
+            
+            # SZARŻA: If plan_id is provided, use it directly. Otherwise search for plan.
+            if plan_id_provided > 0:
+                # Use provided plan_id
+                zasyp_plan_id = plan_id_provided
+                try:
+                    current_app.logger.warning(f'[DODAJ_PLAN] Using PROVIDED plan_id={zasyp_plan_id}')
+                except Exception:
+                    pass
+            else:
+                # Find ANY Zasyp plan for this product
+                try:
+                    current_app.logger.warning(f'[DODAJ_PLAN] plan_id_provided=0, searching for Zasyp plan for produkt={produkt}')
+                except Exception:
+                    pass
+                
+                cursor.execute(
+                    "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Zasyp' AND COALESCE(typ_produkcji,'')=%s ORDER BY id DESC LIMIT 1",
+                    (data_planu, produkt, typ)
+                )
+                szarza_plan = cursor.fetchone()
+                if szarza_plan:
+                    zasyp_plan_id = szarza_plan[0]
+                    try:
+                        current_app.logger.warning(f'[DODAJ_PLAN] FOUND Zasyp plan: plan_id={zasyp_plan_id}')
+                    except Exception:
+                        pass
+            
+            if zasyp_plan_id:
+                try:
+                    current_app.logger.warning(f'[DODAJ_PLAN] ADDING szarża: plan_id={zasyp_plan_id}, tonaz={tonaz}')
+                except Exception:
+                    pass
+                
+                # Increase szarża plan's tonaz_rzeczywisty
+                cursor.execute(
+                    "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
+                    (tonaz, zasyp_plan_id)
+                )
+                try:
+                    current_app.logger.warning(f'[DODAJ_PLAN] Added szarża to plan {zasyp_plan_id}')
+                except Exception:
+                    pass
+                
+                # Also increase buffer (Workowanie) tonaz_rzeczywisty
+                cursor.execute(
+                    "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s ORDER BY id LIMIT 1",
+                    (data_planu, produkt, typ)
+                )
+                buffer_plan = cursor.fetchone()
+                if buffer_plan:
+                    buffer_id = buffer_plan[0]
+                    cursor.execute(
+                        "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
+                        (tonaz, buffer_id)
+                    )
+                    try:
+                        current_app.logger.warning(f'[DODAJ_PLAN] Increased buffer (Workowanie) plan {buffer_id}')
+                    except Exception:
+                        pass
+                
+                conn.commit()
+                conn.close()
+                try:
+                    current_app.logger.warning(f'[DODAJ_PLAN] SUCCESS: committed and returning')
+                except Exception:
+                    pass
+                return redirect(bezpieczny_powrot())
+            else:
+                # No plan found and none provided - this is error for szarża!
+                conn.close()
+                try:
+                    current_app.logger.warning(f'[DODAJ_PLAN] ERROR: No plan found for szarża. plan_id_provided={plan_id_provided}, produkt={produkt}')
+                except Exception:
+                    pass
+                flash('Nie znaleziono planu do dodania szarży', 'error')
+                return redirect(bezpieczny_powrot())
+        
+        elif sekcja == 'Workowanie':
+            # PALETA: Find BUFFER (first/oldest open plan in Workowanie) to REMOVE from it
             cursor.execute(
-                "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
-                (tonaz, zasyp_plan_id)
+                "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND status='w toku' AND COALESCE(typ_produkcji,'')=%s ORDER BY id LIMIT 1",
+                (data_planu, produkt, typ)
             )
-            conn.commit()
-            conn.close()
-            return redirect(bezpieczny_powrot())
+            buffer_plan = cursor.fetchone()
+            if buffer_plan:
+                zasyp_plan_id = buffer_plan[0]
+                try:
+                    current_app.logger.info(f'[DODAJ_PLAN] Removing paleta from buffer: plan_id={zasyp_plan_id}, tonaz={tonaz}')
+                except Exception:
+                    pass
+
+                # Insert a new paleta record
+                cursor.execute(
+                    "INSERT INTO palety_workowanie (plan_id, waga, status) VALUES (%s, %s, %s)",
+                    (zasyp_plan_id, tonaz, 'oczekuje')
+                )
+                
+                # Decrease buffer tonaz_rzeczywisty
+                cursor.execute(
+                    "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) - %s WHERE id=%s",
+                    (tonaz, zasyp_plan_id)
+                )
+                
+                conn.commit()
+                conn.close()
+                return redirect(bezpieczny_powrot())
     
     # No open order found - create new planned order
     status = 'zaplanowane'
     cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
     res = cursor.fetchone()
     nk = (res[0] if res and res[0] else 0) + 1
-    cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji) VALUES (%s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ))
+    cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ, 0))
     zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
     
     # REFACTORED: If adding a szarża (batch) to Zasyp, automatically create corresponding buffer (plan) in Workowanie
@@ -820,14 +948,14 @@ def dodaj_plan():
             if not existing_work:
                 # Create buffer (Workowanie plan) with tonaz = szarża weight
                 nk_work = nk + 1
-                cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji) VALUES (%s, %s, %s, 'zaplanowane', 'Workowanie', %s, %s)", (data_planu, produkt, tonaz, nk_work, typ))
+                cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, 'zaplanowane', 'Workowanie', %s, %s, %s)", (data_planu, produkt, tonaz, nk_work, typ, 0))
                 try:
-                    app.logger.info(f'Auto-created buffer (Workowanie plan) for szarża (Zasyp plan_id={zasyp_plan_id}) with tonaz={tonaz}')
+                    current_app.logger.info(f'Auto-created buffer (Workowanie plan) for szarża (Zasyp plan_id={zasyp_plan_id}) with tonaz={tonaz}')
                 except Exception:
                     pass
         except Exception as e:
             try:
-                app.logger.warning(f'Failed to auto-create buffer: {str(e)}')
+                current_app.logger.warning(f'Failed to auto-create buffer: {str(e)}')
             except Exception:
                 pass
     
@@ -887,7 +1015,7 @@ def dodaj_plany_batch():
                 conn.close()
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: brak typu produkcji'})
             nk += 1
-            cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', sekcja, nk, typ, nr))
+            cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', sekcja, nk, typ, nr, 0))
         conn.commit()
     except Exception as e:
         try:
@@ -1282,7 +1410,7 @@ def jakosc_dodaj_do_planow(id):
     cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
     res = cursor.fetchone()
     nk = (res[0] if res and res[0] else 0) + 1
-    cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji) VALUES (%s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk, typ))
+    cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk, typ, 0))
     conn.commit()
     conn.close()
     flash('Zlecenie dodane do planów', 'success')
@@ -2910,3 +3038,104 @@ def wznow_zlecenia_sekcji(sekcja):
             "error": str(e),
             "message": f"Błąd przy wznowienia zleceń dla {sekcja}"
         }), 500
+
+
+# ================= MAGAZYN - AJAX ENDPOINTS =================
+
+@api_bp.route('/edytuj_palete_ajax', methods=['POST'])
+@login_required
+def edytuj_palete_ajax():
+    """Edytuj wagę palet w magazynie via AJAX"""
+    try:
+        data = request.get_json() or {}
+        palete_id = data.get('id')
+        nowa_waga = data.get('waga')
+        data_powrotu = data.get('data_powrotu') or str(date.today())
+        
+        if not palete_id or nowa_waga is None:
+            return jsonify({"success": False, "message": "Brakuje id lub wagi"}), 400
+        
+        nowa_waga = float(nowa_waga)
+        if nowa_waga <= 0:
+            return jsonify({"success": False, "message": "Waga musi być większa od 0"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Pobierz plan_id i sekcję palet
+        cursor.execute("SELECT plan_id, sekcja FROM palety_workowanie WHERE id=%s", (palete_id,))
+        result = cursor.fetchone()
+        if not result:
+            cursor.close()
+            conn.close()
+            return jsonify({"success": False, "message": "Paleta nie znaleziona"}), 404
+        
+        plan_id, sekcja = result
+        
+        # Aktualizuj wagę
+        cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (nowa_waga, palete_id))
+        
+        # Przelicz buffer (tonaz_rzeczywisty) dla Workowania
+        if sekcja == 'Workowanie':
+            cursor.execute(
+                "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s",
+                (plan_id, plan_id)
+            )
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"success": True, "message": "Paleta edytowana"}), 200
+    
+    except Exception as e:
+        logger = logging.getLogger('werkzeug')
+        logger.error(f"Error in edytuj_palete_ajax: {str(e)}")
+        return jsonify({"success": False, "message": f"Błąd: {str(e)}"}), 500
+
+
+@api_bp.route('/usun_palete_ajax', methods=['POST'])
+@login_required
+def usun_palete_ajax():
+    """Usuń paletę z magazynu via AJAX"""
+    try:
+        data = request.get_json() or {}
+        palete_id = data.get('id')
+        data_powrotu = data.get('data_powrotu') or str(date.today())
+        
+        if not palete_id:
+            return jsonify({"success": False, "message": "Brakuje id palet"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Pobierz plan_id i sekcję palet
+        cursor.execute("SELECT plan_id, sekcja FROM palety_workowanie WHERE id=%s", (palete_id,))
+        result = cursor.fetchone()
+        if not result:
+            cursor.close()
+            conn.close()
+            return jsonify({"success": False, "message": "Paleta nie znaleziona"}), 404
+        
+        plan_id, sekcja = result
+        
+        # Usuń paletę
+        cursor.execute("DELETE FROM palety_workowanie WHERE id=%s", (palete_id,))
+        
+        # Przelicz buffer (tonaz_rzeczywisty) dla Workowania
+        if sekcja == 'Workowanie':
+            cursor.execute(
+                "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s",
+                (plan_id, plan_id)
+            )
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"success": True, "message": "Paleta usunięta"}), 200
+    
+    except Exception as e:
+        logger = logging.getLogger('werkzeug')
+        logger.error(f"Error in usun_palete_ajax: {str(e)}")
+        return jsonify({"success": False, "message": f"Błąd: {str(e)}"}), 500

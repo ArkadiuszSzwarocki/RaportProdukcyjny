@@ -3,13 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dodaj szarżę / paletę</title>
+  <title>{% if sekcja == 'Zasyp' %}Dodaj szarżę{% else %}Dodaj paletę{% endif %}</title>
   <link rel="stylesheet" href="/static/css/style.css">
   <style>body{margin:0;padding:12px;font-family:sans-serif;} .box{max-width:520px;margin:8px auto;} .actions{display:flex;gap:8px;margin-top:10px}</style>
 </head>
 <body>
   <div class="box">
-    <h3>➕ Dodaj szarżę</h3>
+    <h3>{% if sekcja == 'Zasyp' %}➕ Dodaj szarżę{% else %}📦 Dodaj paletę{% endif %}</h3>
+    {% if sekcja == 'Workowanie' %}
+    {# Workowanie: użyj dedykowanego endpointu dodaj_palete #}
+    <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST">
+      <div>
+        <label for="waga_palety">Waga palety (kg)</label>
+        <input id="waga_palety" name="waga_palety" type="number" step="1" min="1" required class="input-sm" autofocus placeholder="Waga palety (kg)" title="Waga palety w kilogramach">
+      </div>
+      
+      <div class="btn-row">
+        <button type="submit" class="btn-action btn-save">DODAJ PALETĘ</button>
+        <button type="button" class="btn-action btn-action-cancel" onclick="window.close();">ANULUJ</button>
+      </div>
+    </form>
+    {% else %}
+    {# Zasyp: użyj dodaj_plan dla szarży #}
     <form action="{{ url_for('api.dodaj_plan') }}" method="POST">
       <div>
         <label for="tonaz">Waga szarży (kg)</label>
@@ -18,15 +33,19 @@
       
       <!-- Produkt i typ - ukryte (brane automatycznie z systemu) -->
       <input type="hidden" name="produkt" value="{{ produkt or '' }}">
-      <input type="hidden" name="typ_produkcji" value="{{ typ_produkcji or 'worki_zgrzewane_25' }}">
+      <input type="hidden" name="typ_produkcji" value="{{ typ or 'worki_zgrzewane_25' }}">
       <input type="hidden" name="plan_id" value="{{ plan_id or '' }}">
       <input type="hidden" name="sekcja" value="Zasyp">
+      
+      <!-- DEBUG: Show plan_id value in comments -->
+      <!-- plan_id={{ plan_id }} produkt={{ produkt }} typ={{ typ }} -->
       
       <div class="btn-row">
         <button type="submit" class="btn-action btn-save">DODAJ SZARŻĘ</button>
         <button type="button" class="btn-action btn-action-cancel" onclick="window.close();">ANULUJ</button>
       </div>
     </form>
+    {% endif %}
   </div>
 </body>
 </html>

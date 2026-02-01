@@ -177,10 +177,10 @@ def setup_database():
         conn.commit()
         cursor.close()
         conn.close()
-        print("✅ Baza danych jest gotowa!")
+        print("[OK] Baza danych jest gotowa!")
         
     except Exception as e:
-        print(f"❌ Błąd podczas inicjalizacji bazy danych: {e}")
+        print(f"[ERROR] Blad podczas inicjalizacji bazy danych: {e}")
         raise
 
 

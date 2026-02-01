@@ -185,7 +185,7 @@
                 </td>
                 <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
                 <td>
-                    <strong class="{% if p[7] > 0 %}text-success{% else %}text-muted{% endif %}">{{ p[7]|int }} kg</strong>
+                    {% if p[7] and p[7]|int > 0 %}<strong class="text-success">{{ p[7]|int }} kg</strong>{% else %}<span class="text-muted">-</span>{% endif %}
                     {% if palety_mapa[p[0]] %}
                         <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
                             📦 {{ palety_mapa[p[0]]|length }} szt. ▼
@@ -202,15 +202,19 @@
                             <div class="d-flex gap-5 justify-end">
                                 {% if sekcja == 'Workowanie' %}
                                     <div class="paleta-inline-wrapper paleta-inline">
+                                            {% set buffer_id = buffer_map.get(p[1]) if buffer_map is defined else None %}
+                                            {% if not buffer_id %}
+                                                {% set buffer_id = p[0] %}
+                                            {% endif %}
                                             {% if p[9] == 'bigbag' %}
-                                            <a href="{{ url_for('api.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
+                                            <a href="{{ url_for('api.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
                                         {% else %}
-                                            <a href="{{ url_for('api.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
+                                            <a href="{{ url_for('api.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                                         {% endif %}
                                     </div>
                                 {% endif %}
                                 {% if sekcja == 'Zasyp' %}
-                                    <a href="{{ url_for('api.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" target="_blank">+ SZARŻA</a>
+                                    <a href="{{ url_for('api.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
                                     <a href="{{ url_for('api.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% else %}
                                     <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-stop">STOP</button></form>
@@ -229,6 +233,8 @@
                                     {% endif %}
                                 {% if rola in ['lider', 'admin'] %}<form action="{{ url_for('api.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić?');"><button type="submit" class="btn-action btn-outline-warning" aria-label="Przywróć zlecenie"><span class="material-icons">replay</span></button></form>{% endif %}
                             </div>
+                        {% else %}
+                            {# Status inny niż 'w toku' i 'zakonczone' - brak akcji #}
                         {% endif %}
                     {% endif %}
                 </td>
@@ -481,9 +487,9 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
-{% if sekcja == 'Zasyp' %}
+{% if sekcja in ['Zasyp', 'Workowanie', 'Magazyn'] %}
 <script>
-// Zamienia zachowanie linków z `data-slide` na Zasypie — zamiast slide-over
+// Zamienia zachowanie linków z `data-slide` na popup zamiast slide-over
 // ładuje zawartość przez fetch i pokazuje w globalnym `showQuickPopup`.
 document.addEventListener('DOMContentLoaded', function(){
     if(typeof showQuickPopup !== 'function') return;
@@ -500,7 +506,7 @@ document.addEventListener('DOMContentLoaded', function(){
         e.preventDefault();
         // Prevent other click handlers (including slide-over) from running
         if (e.stopImmediatePropagation) try { e.stopImmediatePropagation(); } catch (e) {}
-        // remove legacy slide attributes to fully disable slide-cover behavior on Zasyp
+        // remove legacy slide attributes to fully disable slide-cover behavior
         try { a.removeAttribute('data-slide'); a.removeAttribute('data-slide-html'); } catch (e) {}
         var title = a.getAttribute('title') || a.textContent.trim() || 'Szybki popup';
         fetch(href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })

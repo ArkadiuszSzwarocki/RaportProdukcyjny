@@ -295,11 +295,12 @@ def _cleanup_old_reports(folder='raporty', max_age_hours=24, interval_seconds=36
 
 
 # Start cleanup thread (daemon) to remove old report files
-try:
-    cleanup_thread = threading.Thread(target=_cleanup_old_reports, kwargs={'folder':'raporty','max_age_hours':24,'interval_seconds':3600}, daemon=True)
-    cleanup_thread.start()
-except Exception:
-    app.logger.exception('Failed to start cleanup thread')
+# DISABLED FOR DEBUGGING
+# try:
+#     cleanup_thread = threading.Thread(target=_cleanup_old_reports, kwargs={'folder':'raporty','max_age_hours':24,'interval_seconds':3600}, daemon=True)
+#     cleanup_thread.start()
+# except Exception:
+#     app.logger.exception('Failed to start cleanup thread')
 
 # Monitor niepotwierdzonych palet (waga==0). Loguje przypomnienia, by nie duplikować
 _reminded_palety = set()
@@ -354,8 +355,10 @@ def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
 
 try:
     # Testowy próg dla szybszego sprawdzenia: 1 minuta, interwał 15s
-    palety_thread = threading.Thread(target=_monitor_unconfirmed_palety, kwargs={'threshold_minutes':1,'interval_seconds':15}, daemon=True)
-    palety_thread.start()
+    # DISABLED FOR DEBUGGING
+    # palety_thread = threading.Thread(target=_monitor_unconfirmed_palety, kwargs={'threshold_minutes':1,'interval_seconds':15}, daemon=True)
+    # palety_thread.start()
+    pass
 except Exception:
     app.logger.exception('Failed to start palety monitor thread')
 
@@ -850,6 +853,22 @@ def index():
         kandydaci.sort(key=lambda x: x[0])
         if kandydaci: next_workowanie_id = kandydaci[0][0]
 
+    # Build a map product -> buffer plan id (first open Workowanie plan for that product)
+    buffer_map = {}
+    try:
+        plans_work = plans_workowanie if 'plans_workowanie' in locals() else []
+        for p in plans_work:
+            try:
+                prod = p[1]
+                status = p[3]
+                pid = p[0]
+                if status == 'w toku' and prod and prod not in buffer_map:
+                    buffer_map[prod] = pid
+            except Exception:
+                continue
+    except Exception:
+        buffer_map = {}
+
     # Pobierz rekordy obecności dla bieżącego dnia
     raporty_hr = QueryHelper.get_presence_records_for_day(dzisiaj)
 
@@ -990,11 +1009,33 @@ def index():
     # so links like ?sekcja=Zasyp / Workowanie / Magazyn behave as before.
     try:
         if 'sekcja' in request.args:
-            return render_template('dashboard.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending)
+            # For Zasyp/Workowanie sections, use the fresh plans_zasyp/plans_workowanie data
+            if aktywna_sekcja == 'Zasyp':
+                plan_data = plans_zasyp
+            elif aktywna_sekcja == 'Workowanie':
+                # Ensure palety sums are computed for Workowanie plans so 'Realizacja' shows produced palety
+                palety_mapa_work = {}
+                try:
+                    for p in plans_workowanie:
+                        raw_pal = QueryHelper.get_paletki_for_plan(p[0])
+                        palety = [r for r in raw_pal]
+                        palety_mapa_work[p[0]] = palety
+                        # sum weights (pw.waga is at index 2 in raw_pal)
+                        try:
+                            p[7] = sum([float(r[2]) for r in raw_pal]) if raw_pal else 0
+                        except Exception:
+                            p[7] = 0
+                except Exception:
+                    palety_mapa_work = {}
+                plan_data = plans_workowanie
+                palety_mapa = palety_mapa_work
+            else:
+                plan_data = plan_dnia
+            return render_template('dashboard.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_data, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, buffer_map=buffer_map)
     except Exception:
         app.logger.exception('Failed rendering production dashboard, falling back to global')
 
-    return render_template('dashboard_global.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, planned_leaves=planned_leaves, recent_absences=recent_absences, shift_notes=shift_notes, plans_zasyp=plans_zasyp, plans_workowanie=plans_workowanie)
+    return render_template('dashboard_global.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, planned_leaves=planned_leaves, recent_absences=recent_absences, shift_notes=shift_notes, plans_zasyp=plans_zasyp, plans_workowanie=plans_workowanie, buffer_map=buffer_map)
 
 
 @app.route('/panel/wnioski')
