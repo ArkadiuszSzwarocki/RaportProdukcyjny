@@ -762,6 +762,11 @@ def index():
         conn = get_db_connection()
         cursor = conn.cursor()
     
+    # Store raw datetime before formatting (needed for szarża time calculations)
+    plan_start_times = {}
+    for p in plan_dnia:
+        plan_start_times[p[0]] = p[4]  # Store raw real_start datetime
+    
     # Format real_start/real_stop as HH:MM strings for templates
     for p in plan_dnia:
         try:

@@ -82,5 +82,9 @@ tmp_*.txt
 cookies.txt
 session.sql
 
+# Backup files
+*.bak
+*.bak.*
+
 # Disabled tools only (active tools/ and tests/ should be tracked)
 tools/disabled/
