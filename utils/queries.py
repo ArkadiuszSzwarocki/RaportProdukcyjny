@@ -99,7 +99,7 @@ class QueryHelper:
             "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, "
             "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
             "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-            "WHERE pw.plan_id = %s ORDER BY pw.id DESC",
+            "WHERE pw.plan_id = %s ORDER BY pw.data_dodania ASC",
             (plan_id,)
         )
         result = cursor.fetchall()

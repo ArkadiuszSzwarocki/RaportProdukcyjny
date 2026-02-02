@@ -727,10 +727,38 @@ def index():
 
     plan_dnia = QueryHelper.get_plan_produkcji(dzisiaj, aktywna_sekcja if aktywna_sekcja != 'Dashboard' else 'Workowanie')
     
-    # Inicjalizuj conn i cursor dla Zasypu
+    # Dla Workowania: pobierz plany w toku (z Zasypu które przechodzą do Workowania)
+    if aktywna_sekcja == 'Workowanie' and not plan_dnia:
+        # Workowanie pokazuje plany Zasypu które są w toku (transferowane z Zasypu do Workowania)
+        try:
+            conn_work = get_db_connection()
+            cursor_work = conn_work.cursor()
+            cursor_work.execute(
+                "SELECT id, produkt, tonaz, status, real_start, real_stop, "
+                "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
+                "typ_produkcji, wyjasnienie_rozbieznosci "
+                "FROM plan_produkcji "
+                "WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND status IN ('w toku', 'zakonczone') "
+                "ORDER BY CASE status WHEN 'w toku' THEN 1 ELSE 2 END, kolejnosc ASC, id ASC",
+                (dzisiaj,)
+            )
+            plan_dnia = [list(r) for r in cursor_work.fetchall()]
+            cursor_work.close()
+            conn_work.close()
+        except Exception:
+            plan_dnia = []
+    
+    # Store raw datetime before formatting (needed for szarża time calculations)
+    plan_start_times = {}
+    for p in plan_dnia:
+        # If real_start is None, use data_planu as fallback
+        start_time = p[4] if p[4] else p[3]  # p[4] = real_start, p[3] = data_planu
+        plan_start_times[p[0]] = start_time
+    
+    # Inicjalizuj conn i cursor dla Zasypu i Workowania
     conn = None
     cursor = None
-    if aktywna_sekcja == 'Zasyp':
+    if aktywna_sekcja in ('Zasyp', 'Workowanie'):
         conn = get_db_connection()
         cursor = conn.cursor()
     
@@ -811,21 +839,54 @@ def index():
                 )
                 szarze = cursor.fetchall()
                 palety = []
-                for sz in szarze:
+                prev_time = plan_start_times.get(p[0])  # Start with plan's real_start
+                
+                for idx, sz in enumerate(szarze):
                     szarza_id = sz[0]
                     waga = sz[1]
                     godzina = sz[2] if sz[2] else ''
                     data_dodania = sz[3]
-                    pracownik_id = sz[4]
-                    status = sz[5] if sz[5] else 'zarejestowana'
                     
+                    # Calculate elapsed time between szarże
                     try:
-                        godzina_str = godzina.strftime('%H:%M') if hasattr(godzina, 'strftime') else str(godzina)
+                        current_time = data_dodania if isinstance(data_dodania, datetime) else datetime.fromisoformat(str(data_dodania))
                     except Exception:
-                        godzina_str = str(godzina) if godzina else ''
+                        current_time = None
                     
-                    # Format jak paleta tuple: (waga, czas, id, plan_id, typ, tara, waga_brutto, status, czas_potwierdzenia, data_pełna)
-                    palety.append((waga, godzina_str, szarza_id, p[0], p[9], 0, 0, status, '', str(data_dodania)))
+                    # Extract godzina (HH:MM) from data_dodania for display
+                    godzina_display = "-"
+                    try:
+                        if hasattr(current_time, 'strftime'):
+                            godzina_display = current_time.strftime('%H:%M')
+                        elif current_time:
+                            godzina_display = datetime.fromisoformat(str(current_time)).strftime('%H:%M')
+                    except Exception:
+                        pass
+                    
+                    elapsed_str = "-"
+                    if current_time and prev_time:
+                        try:
+                            diff = (current_time - prev_time).total_seconds() / 60  # minutes
+                            # If difference is negative or zero, show as 0m (prevents negative times)
+                            if diff < 0:
+                                elapsed_str = "0m"
+                            elif diff >= 60:
+                                hours = int(diff // 60)
+                                mins = int(diff % 60)
+                                elapsed_str = f"{hours}h {mins}m"
+                            else:
+                                elapsed_str = f"{int(diff)}m"
+                        except Exception:
+                            elapsed_str = "-"
+                    
+                    prev_time = current_time
+                    
+                    # Format display: "13:20 (20m)"
+                    time_display = f"{godzina_display} ({elapsed_str})" if elapsed_str != "-" else godzina_display
+                    
+                    # Format tuple: (waga, time_display, id, plan_id, typ, tara, waga_brutto, status, czas_potwierdzenia, data_pełna)
+                    # Put empty string for typ and status (not shown in table for Zasyp)
+                    palety.append((waga, time_display, szarza_id, p[0], '', 0, 0, '', '', str(data_dodania)))
                 
                 app.logger.info(f"[DEBUG] Zasyp plan {p[0]}: loaded {len(szarze)} szarż, formatted palety={palety}")
                 palety_mapa[p[0]] = palety
@@ -838,6 +899,9 @@ def index():
                 if raw_pal and len(raw_pal) > 0:
                     app.logger.info(f"[WORKOWANIE] First paletka raw data: {raw_pal[0]}")
                 palety = []
+                prev_time_work = plan_start_times.get(p[0])  # Start with plan's real_start
+                app.logger.info(f"[WORKOWANIE] Plan {p[0]}: plan_start_times value = {prev_time_work}, type = {type(prev_time_work)}")
+                
                 for r in raw_pal:
                     # SELECT returns: id, plan_id, waga, tara, waga_brutto, data_dodania, produkt, typ_produkcji, status, czas_potwierdzenia_s
                     # Indices:        0   1        2     3    4            5             6        7              8       9
@@ -857,7 +921,35 @@ def index():
                         sdt = ''
                         sdt_full = ''
                     
-                    # Format elapsed time
+                    # Calculate elapsed time from previous paletka
+                    try:
+                        current_time = data_dodania if isinstance(data_dodania, datetime) else datetime.fromisoformat(str(data_dodania))
+                    except Exception:
+                        current_time = None
+                    
+                    elapsed_str = "-"
+                    if current_time and prev_time_work:
+                        try:
+                            diff = (current_time - prev_time_work).total_seconds() / 60  # minutes
+                            # If difference is negative or zero, show as 0m (prevents negative times)
+                            if diff < 0:
+                                elapsed_str = "0m"
+                            elif diff >= 60:
+                                hours = int(diff // 60)
+                                mins = int(diff % 60)
+                                elapsed_str = f"{hours}h {mins}m"
+                            else:
+                                elapsed_str = f"{int(diff)}m"
+                        except Exception:
+                            elapsed_str = "-"
+                    
+                    prev_time_work = current_time
+                    
+                    # Format display: "13:20 (20m)"
+                    time_display = f"{sdt} ({elapsed_str})" if elapsed_str != "-" else sdt
+                    app.logger.info(f"[WORKOWANIE] Paletka {paleta_id}: time_display = '{time_display}' (sdt='{sdt}', elapsed_str='{elapsed_str}')")
+                    
+                    # Format elapsed time from confirmation
                     czas_potwierdzenia_s = r[9]
                     cps = None
                     try:
@@ -874,8 +966,8 @@ def index():
                     except Exception:
                         cps = ''
                     
-                    # Create tuple matching Zasyp format: (waga, godzina, id, plan_id, typ, tara, waga_brutto, status, elapsed, data_full)
-                    palety.append((waga, sdt, paleta_id, p[0], typ_produkcji, tara, waga_brutto, status, cps, sdt_full))
+                    # Create tuple matching Zasyp format: (waga, time_display, id, plan_id, typ, tara, waga_brutto, status, elapsed, data_full)
+                    palety.append((waga, time_display, paleta_id, p[0], typ_produkcji, tara, waga_brutto, status, cps, sdt_full))
                 app.logger.info(f"[WORKOWANIE] Plan {p[0]}: created {len(palety)} formatted tuples")
                 if palety and len(palety) > 0:
                     app.logger.info(f"[WORKOWANIE] First formatted tuple: {palety[0]}")
@@ -883,8 +975,9 @@ def index():
                 # Update p[7] with tonaz_rzeczywisty (sum of paletki weights)
                 waga_kg = sum(pal[0] for pal in palety)
                 p[7] = waga_kg
-                if not is_quality:
-                    suma_wykonanie += waga_kg
+                # For Workowanie, ALWAYS add to suma_wykonanie regardless of is_quality
+                # (quality checks are for plan counts, not actual execution weights)
+                suma_wykonanie += waga_kg
 
         waga_workowania = 0
         diff = 0
