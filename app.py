@@ -734,6 +734,11 @@ def index():
         conn = get_db_connection()
         cursor = conn.cursor()
     
+    # Store raw datetime before formatting (needed for szarża time calculations)
+    plan_start_times = {}
+    for p in plan_dnia:
+        plan_start_times[p[0]] = p[4]  # Store raw real_start datetime
+    
     # Format real_start/real_stop as HH:MM strings for templates
     for p in plan_dnia:
         try:
@@ -811,21 +816,51 @@ def index():
                 )
                 szarze = cursor.fetchall()
                 palety = []
-                for sz in szarze:
+                prev_time = plan_start_times.get(p[0])  # Start with plan's real_start
+                
+                for idx, sz in enumerate(szarze):
                     szarza_id = sz[0]
                     waga = sz[1]
                     godzina = sz[2] if sz[2] else ''
                     data_dodania = sz[3]
-                    pracownik_id = sz[4]
-                    status = sz[5] if sz[5] else 'zarejestowana'
                     
+                    # Calculate elapsed time between szarże
                     try:
-                        godzina_str = godzina.strftime('%H:%M') if hasattr(godzina, 'strftime') else str(godzina)
+                        current_time = data_dodania if isinstance(data_dodania, datetime) else datetime.fromisoformat(str(data_dodania))
                     except Exception:
-                        godzina_str = str(godzina) if godzina else ''
+                        current_time = None
                     
-                    # Format jak paleta tuple: (waga, czas, id, plan_id, typ, tara, waga_brutto, status, czas_potwierdzenia, data_pełna)
-                    palety.append((waga, godzina_str, szarza_id, p[0], p[9], 0, 0, status, '', str(data_dodania)))
+                    # Extract godzina (HH:MM) from data_dodania for display
+                    godzina_display = "-"
+                    try:
+                        if hasattr(current_time, 'strftime'):
+                            godzina_display = current_time.strftime('%H:%M')
+                        elif current_time:
+                            godzina_display = datetime.fromisoformat(str(current_time)).strftime('%H:%M')
+                    except Exception:
+                        pass
+                    
+                    elapsed_str = "-"
+                    if current_time and prev_time:
+                        try:
+                            diff = (current_time - prev_time).total_seconds() / 60  # minutes
+                            if diff >= 60:
+                                hours = int(diff // 60)
+                                mins = int(diff % 60)
+                                elapsed_str = f"{hours}h {mins}m"
+                            else:
+                                elapsed_str = f"{int(diff)}m"
+                        except Exception:
+                            elapsed_str = "-"
+                    
+                    prev_time = current_time
+                    
+                    # Format display: "13:20 (20m)"
+                    time_display = f"{godzina_display} ({elapsed_str})" if elapsed_str != "-" else godzina_display
+                    
+                    # Format tuple: (waga, time_display, id, plan_id, typ, tara, waga_brutto, status, czas_potwierdzenia, data_pełna)
+                    # Put empty string for typ and status (not shown in table for Zasyp)
+                    palety.append((waga, time_display, szarza_id, p[0], '', 0, 0, '', '', str(data_dodania)))
                 
                 app.logger.info(f"[DEBUG] Zasyp plan {p[0]}: loaded {len(szarze)} szarż, formatted palety={palety}")
                 palety_mapa[p[0]] = palety

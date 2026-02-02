@@ -244,51 +244,66 @@
                 <td colspan="7" class="p-0">
                     <div class="p-10">
                         <table class="modern-table small">
-                            <thead><tr><th>Nr</th><th>🕒 Godzina</th><th>Typ</th><th>Waga</th><th>⏱️ Czas</th><th>Opcje</th></tr></thead>
+                            {% if sekcja == 'Zasyp' %}
+                                <thead><tr><th>Nr</th><th>🕒 Czas od poprzedniej</th><th>Waga</th><th>Opcje</th></tr></thead>
+                            {% else %}
+                                <thead><tr><th>Nr</th><th>🕒 Godzina</th><th>Typ</th><th>Waga</th><th>⏱️ Czas</th><th>Opcje</th></tr></thead>
+                            {% endif %}
                             <tbody>
                                 {% for pal in palety_mapa[p[0]] %}
                                 <tr>
                                     <td class="text-muted font-bold">{{ loop.index }}</td>
-                                    <td class="time-display"><span>{{ pal[1] }}</span></td>
-                                    <td><span class="badge-sekcja">{{ pal[4]|upper }}</span></td>
-                                    <td>
-                                            {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
-                                                {% if pal[0] == 0 %}
-                                                    <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-warning small" data-slide>⚖️ WAŻENIE</a>
-                                                {% else %}
-                                                    <strong class="text-success">{{ pal[0]|int }} kg</strong>
-                                                    <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon ml-5" aria-label="Edytuj wagę" data-slide>✏️</a>
-                                                {% endif %}
-                                            <!-- Waga modal removed -->
-                                        {% else %}<strong class="text-primary">{{ pal[0]|int }} kg</strong>{% endif %}
-                                    </td>
-                                    <td>
-                                        <span class="paleta-elapsed duration-badge" data-start="{{ pal[9] }}"></span>
-                                    </td>
-                                    <td>
-                                        {% if pal[7] and pal[7] != '' %}
-                                            {% if pal[7] == 'do_przyjecia' %}
-                                                {% if sekcja != 'Zasyp' %}
-                                                    <span class="badge badge-warning">🔄 Do przyjęcia</span>
-                                                {% endif %}
-                                            {% elif pal[7] == 'przyjeta' %}
-                                                <span class="badge badge-success">✅ Przyjęta</span>
-                                            {% elif pal[7] == 'zamknieta' %}
-                                                <span class="badge badge-secondary">🔒 Zamknięta</span>
-                                            {% else %}
-                                                <span class="badge">{{ pal[7] }}</span>
+                                    {% if sekcja == 'Zasyp' %}
+                                        <td class="time-display"><span>{{ pal[1] }}</span></td>
+                                        <td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td>
+                                        <td>
+                                            {% if rola in ['lider', 'admin'] %}
+                                                <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="Edytuj szarzę" data-slide>✏️</a>
+                                                <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń szarzę" data-slide>🗑️</a>
                                             {% endif %}
-                                        {% endif %}
-                                        {% if rola in ['lider', 'admin'] %}
-                                            <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="Edytuj paletę" data-slide>✏️</a>
-                                            <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń paletę" data-slide>🗑️</a>
-                                        {% endif %}
-                                        {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in ['lider','admin']) and pal[7] == 'do_przyjecia' %}
-                                            {# Inline styles removed — use .btn-confirm-inline class in external CSS (static/style.css) #}
-                                            <a href="{{ url_for('api.potwierdz_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-save btn-small btn-confirm-inline" data-slide>Potwierdź</a>
-                                        {% endif %}
-                                    <!-- editpal and confirm-delete modals removed -->
-                                    </td>
+                                        </td>
+                                    {% else %}
+                                        <td class="time-display"><span>{{ pal[1] }}</span></td>
+                                        <td><span class="badge-sekcja">{{ pal[4]|upper }}</span></td>
+                                        <td>
+                                                {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
+                                                    {% if pal[0] == 0 %}
+                                                        <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-warning small" data-slide>⚖️ WAŻENIE</a>
+                                                    {% else %}
+                                                        <strong class="text-success">{{ pal[0]|int }} kg</strong>
+                                                        <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon ml-5" aria-label="Edytuj wagę" data-slide>✏️</a>
+                                                    {% endif %}
+                                                <!-- Waga modal removed -->
+                                            {% else %}<strong class="text-primary">{{ pal[0]|int }} kg</strong>{% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="paleta-elapsed duration-badge" data-start="{{ pal[9] }}"></span>
+                                        </td>
+                                        <td>
+                                            {% if pal[7] and pal[7] != '' %}
+                                                {% if pal[7] == 'do_przyjecia' %}
+                                                    {% if sekcja != 'Zasyp' %}
+                                                        <span class="badge badge-warning">🔄 Do przyjęcia</span>
+                                                    {% endif %}
+                                                {% elif pal[7] == 'przyjeta' %}
+                                                    <span class="badge badge-success">✅ Przyjęta</span>
+                                                {% elif pal[7] == 'zamknieta' %}
+                                                    <span class="badge badge-secondary">🔒 Zamknięta</span>
+                                                {% else %}
+                                                    <span class="badge">{{ pal[7] }}</span>
+                                                {% endif %}
+                                            {% endif %}
+                                            {% if rola in ['lider', 'admin'] %}
+                                                <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="Edytuj paletę" data-slide>✏️</a>
+                                                <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń paletę" data-slide>🗑️</a>
+                                            {% endif %}
+                                            {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in ['lider','admin']) and pal[7] == 'do_przyjecia' %}
+                                                {# Inline styles removed — use .btn-confirm-inline class in external CSS (static/style.css) #}
+                                                <a href="{{ url_for('api.potwierdz_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-save btn-small btn-confirm-inline" data-slide>Potwierdź</a>
+                                            {% endif %}
+                                        <!-- editpal and confirm-delete modals removed -->
+                                        </td>
+                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             </tbody>
