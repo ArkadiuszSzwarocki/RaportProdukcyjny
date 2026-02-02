@@ -188,7 +188,7 @@
                     {% if p[7] and p[7]|int > 0 %}<strong class="text-success">{{ p[7]|int }} kg</strong>{% else %}<span class="text-muted">-</span>{% endif %}
                     {% if palety_mapa[p[0]] %}
                         <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
-                            📦 {{ palety_mapa[p[0]]|length }} szt. ▼
+                            {% if sekcja == 'Zasyp' %}⏺️ {{ palety_mapa[p[0]]|length }} szt.{% else %}📦 {{ palety_mapa[p[0]]|length }} szt.{% endif %} ▼
                         </button>
                     {% endif %}
                     {# Przyciski przenoszenia do Jakość usunięte — dezynfekcja planowana przez laboratorium i zgłaszana planiście. #}

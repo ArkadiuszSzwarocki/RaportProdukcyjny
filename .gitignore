@@ -19,6 +19,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
+.ruff_cache/
 
 # Virtual Environment
 .venv/
@@ -26,6 +28,7 @@ venv/
 ENV/
 env/
 .env
+
 # IDEs
 .vscode/
 .idea/
@@ -33,6 +36,8 @@ env/
 *.swo
 *~
 .DS_Store
+Thumbs.db
+desktop.ini
 
 # Flask
 instance/
@@ -44,6 +49,7 @@ instance/
 
 # Logs
 *.log
+logs/
 
 # Database
 *.db
@@ -57,16 +63,24 @@ instance/
 # OS
 Thumbs.db
 desktop.ini
- 
- # Additional entries to ignore
- .venv/
- venv/
- backups/
- raporty_temp/
- raporty/*.pdf
- logs/
- oracleJdk-25/
- *.zip
 
-# Ignore archived tools
+# Project specific
+backups/
+raporty_temp/
+raporty/*.pdf
+raporty/*.html
+reports/
+oracleJdk-25/
+
+# Temporary files
+temp_*.html
+tmp_*.html
+temp_*.txt
+tmp_*.txt
+*.pdf
+*.zip
+cookies.txt
+session.sql
+
+# Disabled tools only (active tools/ and tests/ should be tracked)
 tools/disabled/

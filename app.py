@@ -566,6 +566,9 @@ def login():
                 session['login'] = login_field
                 session['pracownik_id'] = int(pracownik_id) if pracownik_id is not None else None
                 
+                # Log login with current process PID
+                app.logger.info(f"[LOGIN] User '{login_field}' logged in successfully (PID: {os.getpid()})")
+                
                 # Pobierz imię_nazwisko z tabeli pracownicy dla wyświetlenia w belce górnej
                 imie_nazwisko = None
                 if pracownik_id:
@@ -616,7 +619,9 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    aktywna_sekcja = request.args.get('sekcja', 'Zasyp')
+    # If no sekcja param, default to 'Dashboard' (center view for lider)
+    # If sekcja param provided, use that specific section
+    aktywna_sekcja = request.args.get('sekcja', 'Dashboard')
     # normalize role for permission checks
     role = (session.get('rola') or '').lower()
     # Debug: log if open_stop present in URL params
@@ -720,7 +725,15 @@ def index():
         except Exception:
             unconfirmed_palety = []
 
-    plan_dnia = QueryHelper.get_plan_produkcji(dzisiaj, aktywna_sekcja)
+    plan_dnia = QueryHelper.get_plan_produkcji(dzisiaj, aktywna_sekcja if aktywna_sekcja != 'Dashboard' else 'Workowanie')
+    
+    # Inicjalizuj conn i cursor dla Zasypu
+    conn = None
+    cursor = None
+    if aktywna_sekcja == 'Zasyp':
+        conn = get_db_connection()
+        cursor = conn.cursor()
+    
     # Format real_start/real_stop as HH:MM strings for templates
     for p in plan_dnia:
         try:
@@ -788,41 +801,84 @@ def index():
             if not is_quality:
                 suma_wykonanie += waga_kg
         elif aktywna_sekcja in ('Workowanie', 'Zasyp'):
-            # ZASYP: Show szarża (plan.tonaz) - NO paletki
+            # ZASYP: Show szarża (plan.tonaz) - szarże z tabeli szarze
             # WORKOWANIE: Show paletki for this Workowanie plan (buffer)
             if aktywna_sekcja == 'Zasyp':
-                # For Zasyp: show plan.tonaz (szarża) - paletki are in Workowanie
+                # For Zasyp: pobierz szarże z tabeli szarze dla tego planu
+                cursor.execute(
+                    "SELECT id, waga, godzina, data_dodania, pracownik_id, status FROM szarze WHERE plan_id=%s ORDER BY data_dodania ASC",
+                    (p[0],)
+                )
+                szarze = cursor.fetchall()
                 palety = []
-                p[7] = p[2] if p[2] else 0  # Use tonaz, not tonaz_rzeczywisty
-                if not is_quality:
-                    suma_wykonanie += (p[2] if p[2] else 0)
-                palety_mapa[p[0]] = palety  # empty list
+                for sz in szarze:
+                    szarza_id = sz[0]
+                    waga = sz[1]
+                    godzina = sz[2] if sz[2] else ''
+                    data_dodania = sz[3]
+                    pracownik_id = sz[4]
+                    status = sz[5] if sz[5] else 'zarejestowana'
+                    
+                    try:
+                        godzina_str = godzina.strftime('%H:%M') if hasattr(godzina, 'strftime') else str(godzina)
+                    except Exception:
+                        godzina_str = str(godzina) if godzina else ''
+                    
+                    # Format jak paleta tuple: (waga, czas, id, plan_id, typ, tara, waga_brutto, status, czas_potwierdzenia, data_pełna)
+                    palety.append((waga, godzina_str, szarza_id, p[0], p[9], 0, 0, status, '', str(data_dodania)))
+                
+                app.logger.info(f"[DEBUG] Zasyp plan {p[0]}: loaded {len(szarze)} szarż, formatted palety={palety}")
+                palety_mapa[p[0]] = palety
+                # Użyj tonaz_rzeczywisty z samej szarży (to suma wszystkich +SZARŻA dodanych przez operatora!)
+                p[7] = p[8] if p[8] else 0  # p[8] = tonaz_rzeczywisty z DB
             else:
                 # For Workowanie: show paletki (operatorzy dodają paletki)
                 raw_pal = QueryHelper.get_paletki_for_plan(p[0])
+                app.logger.info(f"[WORKOWANIE] Plan {p[0]}: get_paletki_for_plan returned {len(raw_pal)} paletki")
+                if raw_pal and len(raw_pal) > 0:
+                    app.logger.info(f"[WORKOWANIE] First paletka raw data: {raw_pal[0]}")
                 palety = []
                 for r in raw_pal:
-                    dto = PaletaDTO.from_db_row(r)
-                    dt = dto.data_dodania
+                    # SELECT returns: id, plan_id, waga, tara, waga_brutto, data_dodania, produkt, typ_produkcji, status, czas_potwierdzenia_s
+                    # Indices:        0   1        2     3    4            5             6        7              8       9
+                    waga = r[2]
+                    data_dodania = r[5]
+                    paleta_id = r[0]
+                    typ_produkcji = r[7]
+                    status = r[8] if r[8] else ''
+                    tara = r[3]
+                    waga_brutto = r[4]
+                    
+                    # Format time
                     try:
-                        sdt = dt.strftime('%H:%M') if hasattr(dt, 'strftime') else str(dt)
-                        sdt_full = dt.strftime('%Y-%m-%d %H:%M:%S') if hasattr(dt, 'strftime') else str(dt)
+                        sdt = data_dodania.strftime('%H:%M') if hasattr(data_dodania, 'strftime') else str(data_dodania)
+                        sdt_full = data_dodania.strftime('%Y-%m-%d %H:%M:%S') if hasattr(data_dodania, 'strftime') else str(data_dodania)
                     except Exception:
-                        sdt = str(dt)
-                        sdt_full = str(dt)
+                        sdt = ''
+                        sdt_full = ''
+                    
+                    # Format elapsed time
+                    czas_potwierdzenia_s = r[9]
                     cps = None
                     try:
-                        if dto.czas_potwierdzenia_s is not None:
-                            secs = int(dto.czas_potwierdzenia_s)
+                        if czas_potwierdzenia_s is not None:
+                            secs = int(czas_potwierdzenia_s)
                             if secs >= 3600:
-                                cps = f"{secs//3600}h { (secs%3600)//60:02d }m"
+                                cps = f"{secs//3600}h {(secs%3600)//60:02d}m"
                             elif secs >= 60:
-                                cps = f"{secs//60}m { secs%60:02d }s"
+                                cps = f"{secs//60}m {secs%60:02d}s"
                             else:
                                 cps = f"{secs}s"
+                        else:
+                            cps = ''
                     except Exception:
-                        cps = None
-                    palety.append((dto.waga, sdt, dto.id, dto.plan_id, dto.typ_produkcji, dto.tara, dto.waga_brutto, dto.status, cps, sdt_full))
+                        cps = ''
+                    
+                    # Create tuple matching Zasyp format: (waga, godzina, id, plan_id, typ, tara, waga_brutto, status, elapsed, data_full)
+                    palety.append((waga, sdt, paleta_id, p[0], typ_produkcji, tara, waga_brutto, status, cps, sdt_full))
+                app.logger.info(f"[WORKOWANIE] Plan {p[0]}: created {len(palety)} formatted tuples")
+                if palety and len(palety) > 0:
+                    app.logger.info(f"[WORKOWANIE] First formatted tuple: {palety[0]}")
                 palety_mapa[p[0]] = palety
                 # Update p[7] with tonaz_rzeczywisty (sum of paletki weights)
                 waga_kg = sum(pal[0] for pal in palety)
@@ -834,18 +890,23 @@ def index():
         diff = 0
         alert = False
         if aktywna_sekcja == 'Zasyp':
-            # typ_produkcji may be NULL in DB; use COALESCE to match empty/NULL values correctly
-            waga_workowania = QueryHelper.get_workowanie_sum_for_product(dzisiaj, p[1], p[9])
-            if p[7]:
-                diff = p[7] - waga_workowania
+            # Na Zasypie: p[7] już zawiera tonaz_rzeczywisty (akumulacja +SZARŻA)
+            # To jest WYKONANIE dla tej konkretnej szarży, nie trzeba liczyć z Workowania
+            waga_workowania = p[7]  # To już jest wykonanie
+            
+            if p[2]:  # p[2] = plan (tonaz)
+                diff = p[2] - waga_workowania
                 if abs(diff) > 10: alert = True # Tolerancja 10kg
-            # For dashboard totals when viewing Zasyp, include executed weight from palety (szarze)
+            # For dashboard totals when viewing Zasyp, use wykonanie (tonaz_rzeczywisty) z szarży
             if not is_quality:
-                if aktywna_sekcja == 'Zasyp':
-                    suma_wykonanie += (p[7] if p[7] is not None else waga_workowania)
-                else:
-                    suma_wykonanie += waga_workowania
+                suma_wykonanie += (waga_workowania if waga_workowania else 0)
         p.extend([waga_workowania, diff, alert])
+
+    # Zamknij cursor i connection na koniec pętli
+    if cursor:
+        cursor.close()
+    if conn:
+        conn.close()
 
     next_workowanie_id = None
     if aktywna_sekcja == 'Workowanie':
@@ -1008,37 +1069,89 @@ def index():
     # If explicit sekcja query param provided, render the original production dashboard view
     # so links like ?sekcja=Zasyp / Workowanie / Magazyn behave as before.
     try:
+        plan_data = plan_dnia
+        palety_mapa_local = palety_mapa
+        
         if 'sekcja' in request.args:
             # For Zasyp/Workowanie sections, use the fresh plans_zasyp/plans_workowanie data
             if aktywna_sekcja == 'Zasyp':
                 plan_data = plans_zasyp
             elif aktywna_sekcja == 'Workowanie':
                 # Ensure palety sums are computed for Workowanie plans so 'Realizacja' shows produced palety
-                palety_mapa_work = {}
+                palety_mapa_local = {}
                 try:
                     for p in plans_workowanie:
                         raw_pal = QueryHelper.get_paletki_for_plan(p[0])
-                        palety = [r for r in raw_pal]
-                        palety_mapa_work[p[0]] = palety
-                        # sum weights (pw.waga is at index 2 in raw_pal)
+                        palety = []
+                        for r in raw_pal:
+                            # SELECT returns: id, plan_id, waga, tara, waga_brutto, data_dodania, produkt, typ_produkcji, status, czas_potwierdzenia_s
+                            # Indices:        0   1        2     3    4            5             6        7              8       9
+                            waga = r[2]
+                            data_dodania = r[5]
+                            paleta_id = r[0]
+                            typ_produkcji = r[7]
+                            status = r[8] if r[8] else ''
+                            tara = r[3]
+                            waga_brutto = r[4]
+                            
+                            # Format time
+                            try:
+                                sdt = data_dodania.strftime('%H:%M') if hasattr(data_dodania, 'strftime') else str(data_dodania)
+                                sdt_full = data_dodania.strftime('%Y-%m-%d %H:%M:%S') if hasattr(data_dodania, 'strftime') else str(data_dodania)
+                            except Exception:
+                                sdt = ''
+                                sdt_full = ''
+                            
+                            # Format elapsed time
+                            czas_potwierdzenia_s = r[9]
+                            cps = None
+                            try:
+                                if czas_potwierdzenia_s is not None:
+                                    secs = int(czas_potwierdzenia_s)
+                                    if secs >= 3600:
+                                        cps = f"{secs//3600}h {(secs%3600)//60:02d}m"
+                                    elif secs >= 60:
+                                        cps = f"{secs//60}m {secs%60:02d}s"
+                                    else:
+                                        cps = f"{secs}s"
+                                else:
+                                    cps = ''
+                            except Exception:
+                                cps = ''
+                            
+                            # Create tuple matching Zasyp format
+                            palety.append((waga, sdt, paleta_id, p[0], typ_produkcji, tara, waga_brutto, status, cps, sdt_full))
+                        
+                        palety_mapa_local[p[0]] = palety
+                        # sum weights
                         try:
-                            p[7] = sum([float(r[2]) for r in raw_pal]) if raw_pal else 0
+                            p[7] = sum([float(pal[0]) for pal in palety]) if palety else 0
                         except Exception:
                             p[7] = 0
                 except Exception:
-                    palety_mapa_work = {}
+                    palety_mapa_local = {}
                 plan_data = plans_workowanie
-                palety_mapa = palety_mapa_work
-            else:
-                plan_data = plan_dnia
-            return render_template('dashboard.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_data, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, buffer_map=buffer_map)
+        
+        # Zamknij connection dla Zasypu
+        if conn:
+            conn.close()
+        
+        # If sekcja='Dashboard' (no param), render the global dashboard center (with Zasyp + Workowanie)
+        # Otherwise render the production section dashboard
+        if aktywna_sekcja == 'Dashboard':
+            return render_template('dashboard_global.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, planned_leaves=planned_leaves, recent_absences=recent_absences, shift_notes=shift_notes, plans_zasyp=plans_zasyp, plans_workowanie=plans_workowanie, buffer_map=buffer_map)
+        else:
+            return render_template('dashboard.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_data, palety_mapa=palety_mapa_local, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, buffer_map=buffer_map)
     except Exception:
+        # Zamknij connection w przypadku błędu
+        if conn:
+            conn.close()
         app.logger.exception('Failed rendering production dashboard, falling back to global')
+        # Fallback: always render dashboard_global to ensure consistent fallback
+        return render_template('dashboard_global.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, planned_leaves=planned_leaves, recent_absences=recent_absences, shift_notes=shift_notes, plans_zasyp=plans_zasyp, plans_workowanie=plans_workowanie, buffer_map=buffer_map)
 
-    return render_template('dashboard_global.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, planned_leaves=planned_leaves, recent_absences=recent_absences, shift_notes=shift_notes, plans_zasyp=plans_zasyp, plans_workowanie=plans_workowanie, buffer_map=buffer_map)
 
-
-@app.route('/panel/wnioski')
+@app.route('/panel_wnioski_page', methods=['GET'])
 @roles_required('lider', 'admin')
 def panel_wnioski_page():
     # pełnostronicowy widok zatwierdzeń wniosków

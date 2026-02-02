@@ -857,6 +857,20 @@ def dodaj_plan():
                 except Exception:
                     pass
                 
+                # Insert szarża do tabeli szarze
+                from datetime import datetime as _dt
+                now = _dt.now()
+                godzina = now.strftime('%H:%M:%S')
+                
+                pracownik_id = None
+                if 'user_id' in session:
+                    pracownik_id = session.get('user_id')
+                
+                cursor.execute(
+                    "INSERT INTO szarze (plan_id, waga, data_dodania, godzina, pracownik_id, status) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (zasyp_plan_id, tonaz, now, godzina, pracownik_id, 'zarejestowana')
+                )
+                
                 # Increase szarża plan's tonaz_rzeczywisty
                 cursor.execute(
                     "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
