@@ -400,8 +400,8 @@
 
     function closeAllModals() {
         try { if(window.__RP_DEBUG__){ console.debug('[modal-disabled] closeAllModals called'); } } catch(e){}
-        // Backwards-compat shim: route legacy modal close calls to the slide-over/center-modal
-        try { if (typeof closeSlideOver === 'function') closeSlideOver(); } catch(e){}
+        // Backwards-compat shim: route legacy modal close calls to the quick-popup/center-modal
+        try { if (typeof closeQuickPopup === 'function') closeQuickPopup(); } catch(e){}
         try { if (typeof closeCenterModal === 'function') closeCenterModal(); } catch(e){}
         return;
     }
@@ -780,4 +780,35 @@ document.addEventListener('DOMContentLoaded', function(){
         });
     });
 });
+</script>
+<!-- Quick-popup: center modal for AJAX-loaded content -->
+<div id="quickBackdrop" class="quick-backdrop" onclick="closeQuickPopup()" style="display:none;"></div>
+<div id="quickPopup" class="quick-popup" aria-hidden="true" style="display:none;">
+    <div class="qp-header d-flex justify-between align-center p-10">
+        <div class="header-title">Panel</div>
+        <div><button type="button" onclick="closeQuickPopup()" class="btn-action btn-small">✖</button></div>
+    </div>
+    <div id="quickPopupBody" class="qp-body p-10">Ładowanie…</div>
+</div>
+
+<script>
+function openQuickPopup(html){
+    var qp = document.getElementById('quickPopup');
+    var bd = document.getElementById('quickBackdrop');
+    if(!qp || !bd) return;
+    var body = document.getElementById('quickPopupBody');
+    if(body) body.innerHTML = html || '';
+    bd.style.display = 'block';
+    qp.style.display = 'block';
+    setTimeout(function(){ qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
+}
+function closeQuickPopup(){
+    var qp = document.getElementById('quickPopup');
+    var bd = document.getElementById('quickBackdrop');
+    if(!qp) return;
+    qp.classList.remove('open');
+    qp.setAttribute('aria-hidden', 'true');
+    if(bd) bd.style.display = 'none';
+    setTimeout(function(){ qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if(body) body.innerHTML=''; }, 360);
+}
 </script>

@@ -15,7 +15,7 @@
     <div class="text-warning"><strong>🔔 Laboratorium zgłosiło {{ quality_count }}</strong> zleceń dezynfekcji na {{ wybrana_data }} — sprawdź Jakość i dodaj do planów.</div>
     {% if session.get('rola') == 'planista' %}
         <div>
-        <button type="button" class="btn-action btn-warning" data-slide-html='<div class="p-10"><h3>Funkcja dostępna na dedykowanej stronie</h3><p>Ta instalacja używa stron zamiast wyskakujących okien. Jeśli formularz istnieje, powinien otworzyć się w panelu bocznym.</p><p><button onclick="closeSlideOver()" class="btn-action">OK — zamknij</button></p></div>'>Szczegóły dezynfekcji</button>
+        <button type="button" class="btn-action btn-warning">Szczegóły dezynfekcji</button>
     </div>
     {% endif %}
 </div>
@@ -143,17 +143,15 @@
     }
     
     function otworzOknoDodawaniaPalety(planId, produkt, typ){
-        // Wczytuje stronę formularza przez AJAX i wstrzykuje do panelu bocznego (slide-over)
+        // Wczytuje stronę formularza przez AJAX i wstrzykuje do quick-popup modala
         var url = '/api/dodaj_palete_page/' + encodeURIComponent(planId);
-        openSlideOver();
         fetch(url, { credentials: 'same-origin' })
             .then(function(resp){ if(!resp.ok) throw new Error('Nie można załadować formularza'); return resp.text(); })
             .then(function(html){
-                var body = document.getElementById('slideOverBody');
-                if(!body) return alert('Brak panelu bocznego');
-                body.innerHTML = html;
-                // przycisky zamykające wewnątrz wstrzykniętego HTML oznaczamy atrybutem data-slide-close
-                body.querySelectorAll('[data-slide-close]').forEach(function(el){ el.addEventListener('click', closeSlideOver); });
+                var body = document.getElementById('quickPopupBody');
+                if(!body) return alert('Brak quick-popup panelu');
+                openQuickPopup(html);
+                // NOTE: data-slide-close handling removed with slide-over component
 
                 // interceptuj formularz i wyślij AJAXem
                 var form = body.querySelector('form');
@@ -166,7 +164,7 @@
                         fetch(action, { method: method, body: fd, credentials: 'same-origin' })
                             .then(function(r){
                                 if(r.ok){
-                                    closeSlideOver();
+                                    closeQuickPopup();
                                     // odśwież stronę aby zaktualizować listy i bufor
                                     location.reload();
                                 } else {
@@ -175,7 +173,7 @@
                             }).catch(function(err){ alert('Błąd: ' + (err.message || err)); });
                     });
                 }
-            }).catch(function(){ alert('Błąd ładowania formularza'); closeSlideOver(); });
+            }).catch(function(){ alert('Błąd ładowania formularza'); closeQuickPopup(); });
     }
     /* showModalDisabled removed — slide-over used as fallback instead */
 </script>
@@ -288,30 +286,36 @@ function deletePlan(id, data){
  
 {% endblock %}
 
-<!-- Slide-over panel for AJAX-loaded pages -->
-<div id="slideOver" class="slide-over" aria-hidden="true" style="display:none;">
-    <div class="slide-over-panel">
-        <div class="slide-over-header d-flex justify-between align-center p-10">
-            <div class="header-title">Panel boczny</div>
-            <div><button type="button" onclick="closeSlideOver()" class="btn-action btn-small">✖</button></div>
-        </div>
-        <div id="slideOverBody" class="slide-over-body p-10">Ładowanie…</div>
+<!-- NOTE: Slide-over panel removed - use quick-popup center modal instead (see CSS) -->
+
+<!-- Quick-popup: center modal for AJAX-loaded content -->
+<div id="quickBackdrop" class="quick-backdrop" onclick="closeQuickPopup()" style="display:none;"></div>
+<div id="quickPopup" class="quick-popup" aria-hidden="true" style="display:none;">
+    <div class="qp-header d-flex justify-between align-center p-10">
+        <div class="header-title">Panel</div>
+        <div><button type="button" onclick="closeQuickPopup()" class="btn-action btn-small">✖</button></div>
     </div>
-    <div class="slide-over-backdrop" onclick="closeSlideOver()"></div>
+    <div id="quickPopupBody" class="qp-body p-10">Ładowanie…</div>
 </div>
 
 <script>
-function openSlideOver(){
-    var so = document.getElementById('slideOver');
-    if(!so) return;
-    so.style.display = 'block';
-    setTimeout(function(){ so.classList.add('open'); so.setAttribute('aria-hidden', 'false'); }, 10);
+function openQuickPopup(html){
+    var qp = document.getElementById('quickPopup');
+    var bd = document.getElementById('quickBackdrop');
+    if(!qp || !bd) return;
+    var body = document.getElementById('quickPopupBody');
+    if(body) body.innerHTML = html || '';
+    bd.style.display = 'block';
+    qp.style.display = 'block';
+    setTimeout(function(){ qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
 }
-function closeSlideOver(){
-    var so = document.getElementById('slideOver');
-    if(!so) return;
-    so.classList.remove('open');
-    so.setAttribute('aria-hidden', 'true');
-    setTimeout(function(){ so.style.display = 'none'; var body = document.getElementById('slideOverBody'); if(body) body.innerHTML=''; }, 260);
+function closeQuickPopup(){
+    var qp = document.getElementById('quickPopup');
+    var bd = document.getElementById('quickBackdrop');
+    if(!qp) return;
+    qp.classList.remove('open');
+    qp.setAttribute('aria-hidden', 'true');
+    if(bd) bd.style.display = 'none';
+    setTimeout(function(){ qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if(body) body.innerHTML=''; }, 360);
 }
 </script>
