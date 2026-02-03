@@ -7,7 +7,7 @@
     <div>
   <form action="{{ url_for('jakosc_dodaj') }}" method="POST" class="d-flex gap-8 align-center">
     <input type="text" name="produkt" title="Produkt" placeholder="Produkt" required class="input-sm" aria-label="Produkt">
-    <input type="number" name="tonaz" title="Tonaż" placeholder="Tonaż" min="0" class="input-sm w-80" aria-label="Tonaż">
+    <input type="number" name="tonaz" title="Waga (kg)" placeholder="Waga (kg)" min="0" class="input-sm w-80" aria-label="Waga (kg)">
     <input type="date" name="data_planu" title="Data planu" value="{{ request.args.get('data') or '' }}" class="input-sm" aria-label="Data planu">
     <select name="typ_produkcji" title="Typ produkcji" aria-label="Typ produkcji" class="input-sm">
       <option value="worki_zgrzewane_25">Worki zgrzewane 25kg</option>
@@ -28,7 +28,7 @@
       <th>Data</th>
       <th>Produkt</th>
       <th>Sekcja</th>
-      <th>Tonaż</th>
+      <th>Waga (kg)</th>
       <th>Status</th>
       <th>Real</th>
       <th>Dokumenty</th>

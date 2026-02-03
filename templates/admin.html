@@ -95,7 +95,7 @@
                 <th>Data</th>
                 <th>Sekcja</th>
                 <th>Produkt</th>
-                <th>Tonaż (Plan/Wyk)</th>
+                <th>Waga (Plan/Wyk) (kg)</th>
                 <th>Status</th>
                 <th>Lider</th>
                 <th class="text-right">Opcje</th>
@@ -110,9 +110,9 @@
                 </td>
                 <td><strong>{{ z.produkt }}</strong></td>
                 <td>
-                    {{ z.tonaz }} t 
+                    {{ z.tonaz }} kg 
                     {% if z.tonaz_rzeczywisty %}
-                    <span class="text-success">/ {{ z.tonaz_rzeczywisty }} t</span>
+                    <span class="text-success">/ {{ z.tonaz_rzeczywisty }} kg</span>
                     {% endif %}
                 </td>
                 <td>

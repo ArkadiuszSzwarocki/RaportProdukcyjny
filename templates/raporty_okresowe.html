@@ -24,7 +24,7 @@
     <div class="kpi-grid">
         <div class="kpi-card">
             <span class="kpi-label">📦 Wyprodukowano ({{ miesiac }}/{{ rok }})</span>
-            <span class="kpi-val kpi-val-green">{{ stats[1] }} ton</span>
+            <span class="kpi-val kpi-val-green">{{ stats[1] }} kg</span>
         </div>
         <div class="kpi-card">
             <span class="kpi-label">📋 Zlecenia</span>
@@ -73,7 +73,7 @@
             data: { 
                 labels: JSON.parse('{{ labels_rok | tojson | safe }}'), 
                 datasets: [{ 
-                    label: 'Produkcja (tony)', 
+                    label: 'Produkcja (kg)', 
                     data: JSON.parse('{{ data_rok | tojson | safe }}'), 
                     backgroundColor: '#1a237e' 
                 }] 

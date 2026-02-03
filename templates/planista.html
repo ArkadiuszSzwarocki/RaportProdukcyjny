@@ -248,7 +248,7 @@ function deletePlan(id, data){
         cols.push('Produkt: <input id="e_prod_'+id+'" name="produkt" value="'+(tr.children[0].innerText.trim())+'" required> ');
         cols.push('Typ: <input id="e_sekc_'+id+'" name="sekcja" value="'+(tr.querySelector('.badge-sekcja')?tr.querySelector('.badge-sekcja').innerText:'')+'"> ');
         cols.push('</td>');
-        cols.push('<td>Plan: <input id="e_ton_'+id+'" name="tonaz" type="number" step="0.1" value="'+(tr.children[2].innerText.replace(/[^0-9\.\,]/g,'')||0)+'"></td>');
+        cols.push('<td>Plan (kg): <input id="e_ton_'+id+'" name="tonaz" type="number" step="0.1" value="'+(tr.children[2].innerText.replace(/[^0-9\.\,]/g,'')||0)+'"></td>');
         cols.push('<td colspan="2">');
         cols.push('Data: <input id="e_date_'+id+'" name="data_planu" type="date" value="{{ wybrana_data }}">');
         cols.push('</td>');

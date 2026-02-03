@@ -25,8 +25,8 @@
 <div class="stat-grid">
     <div class="stat-card">
         <span class="label">Wykonanie (Gotowe)</span>
-        <div class="header-title header-lg text-primary">{{ suma_wykonanie|round(1) }} t</div>
-        <div class="small text-muted">z planu: {{ suma_plan|round(1) }} t</div>
+        <div class="header-title header-lg text-primary">{{ suma_wykonanie|round(1) }} kg</div>
+        <div class="small text-muted">z planu: {{ suma_plan|round(1) }} kg</div>
     </div>
         <div class="stat-card">
         <span class="label">Realizacja Celu</span>
@@ -98,19 +98,19 @@
             labels: {{ chart_labels|safe }},
             datasets: [
                 { 
-                    label: 'Plan (t)', 
+                    label: 'Plan (kg)', 
                     data: {{ chart_plan|safe }}, 
                     backgroundColor: '#bdc3c7', 
                     barPercentage: 0.5 
                 },
                 { 
-                    label: 'Zasyp (t)', 
+                    label: 'Zasyp (kg)', 
                     data: {{ chart_zasyp|safe }}, 
                     backgroundColor: '#3498db', // Niebieski dla Zasypu
                     barPercentage: 0.7 
                 },
                 { 
-                    label: 'Workowanie (t)', 
+                    label: 'Workowanie (kg)', 
                     data: {{ chart_work|safe }}, 
                     backgroundColor: '#8e44ad', // Fioletowy dla Workowania
                     barPercentage: 0.7 
@@ -121,7 +121,7 @@
             responsive: true, 
             maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true, title: { display: true, text: 'Tony' } }
+                y: { beginAtZero: true, title: { display: true, text: 'kg' } }
             },
             plugins: {
                 tooltip: { mode: 'index', intersect: false }

@@ -127,6 +127,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "palety_workowanie", "status", "VARCHAR(20) DEFAULT 'do_przyjecia'", "Dodawanie kolumny 'status' do palet")
     _add_column_if_missing(cursor, "palety_workowanie", "data_potwierdzenia", "DATETIME NULL", "Dodawanie kolumny 'data_potwierdzenia' do palet")
     _add_column_if_missing(cursor, "palety_workowanie", "czas_potwierdzenia_s", "INT NULL", "Dodawanie kolumny 'czas_potwierdzenia_s' do palet")
+    _add_column_if_missing(cursor, "palety_workowanie", "czas_rzeczywistego_potwierdzenia", "TIME NULL", "Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do palet")
     
     # raporty_koncowe columns
     _add_column_if_missing(cursor, "raporty_koncowe", "sekcja", "VARCHAR(50)", "Dodawanie kolumny 'sekcja' do raporty_koncowe")
@@ -174,6 +175,29 @@ def _seed_default_users(cursor):
         cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('planista', generate_password_hash('planista123', method='pbkdf2:sha256'), 'planista'))
 
 
+def _auto_confirm_existing_palety(cursor):
+    """Auto-confirm all existing palety with data_dodania and set confirmation time to +2 minutes."""
+    try:
+        # Update all palety that have data_dodania but haven't been confirmed yet
+        # Set: status='przyjeta', czas_rzeczywistego_potwierdzenia = TIME(data_dodania + 2 min), data_potwierdzenia=NOW()
+        cursor.execute("""
+            UPDATE palety_workowanie 
+            SET 
+                status = 'przyjeta',
+                czas_rzeczywistego_potwierdzenia = TIME(DATE_ADD(data_dodania, INTERVAL 2 MINUTE)),
+                data_potwierdzenia = NOW(),
+                czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW())
+            WHERE 
+                data_dodania IS NOT NULL 
+                AND (status IS NULL OR status = 'do_przyjecia' OR czas_rzeczywistego_potwierdzenia IS NULL)
+        """)
+        affected = cursor.rowcount
+        if affected > 0:
+            print(f"[OK] Auto-confirmed {affected} existing palety (set confirmation time to +2 min)")
+    except Exception as e:
+        print(f"[INFO] Auto-confirm migration skipped or already applied: {e}")
+
+
 def setup_database():
     """Main setup function - orchestrates all database initialization."""
     try:
@@ -188,6 +212,9 @@ def setup_database():
         
         # 3. Seed default users (including password migration)
         _seed_default_users(cursor)
+        
+        # 4. Auto-confirm all palety with data_dodania and set confirmation time to +2 min
+        _auto_confirm_existing_palety(cursor)
         
         conn.commit()
         cursor.close()

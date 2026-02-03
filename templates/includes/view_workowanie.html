@@ -12,8 +12,8 @@
 
             <div class="d-flex gap-10">
                 <div class="flex-1 fs-110">
-                    Plan: <strong>{{ p[2] }} t</strong> <br>
-                    Zrobiono: <strong class="text-success">{{ p[7] }} t</strong>
+                    Plan: <strong>{{ p[2]|int }} kg</strong> <br>
+                    Zrobiono: <strong class="text-success">{{ p[7]|int }} kg</strong>
                     
                     <div class="p-10 panel-white-border max-h-60vh mb-15">
                         <small class="text-muted">📦 Ostatnie palety:</small>
@@ -85,8 +85,8 @@
                 {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">OCZEKUJE</span>
                 {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">ZAMKNIĘTE</span>{% endif %}
                 
-                <span class="font-bold">{{ p[1] }}</span> ({{ p[2] }} t)
-                {% if p[3] == 'zakonczone' %} - Wyk: <strong>{{ p[7] }} t</strong>{% endif %}
+                    <span class="font-bold">{{ p[1] }}</span> ({{ p[2]|int }} kg)
+                    {% if p[3] == 'zakonczone' %} - Wyk: <strong>{{ p[7]|int }} kg</strong>{% endif %}
             </div>
             
             <div>
@@ -111,7 +111,7 @@
     <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="form-flex">
         <input type="date" name="data_planu" value="{{ dzisiaj }}" required class="w-auto" aria-label="Data planu">
         <input type="text" name="produkt" placeholder="Produkt" required class="select-flex" aria-label="Produkt">
-        <input type="number" step="0.1" name="tonaz" placeholder="Plan (t)" required class="w-70" aria-label="Tonaz">
+        <input type="number" step="0.1" name="tonaz" placeholder="Plan (kg)" required class="w-70" aria-label="Tonaz">
         <button type="submit" class="btn-add-plan">DODAJ</button>
     </form>
     {% endif %}

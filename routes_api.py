@@ -477,7 +477,9 @@ def potwierdz_palete(paleta_id):
 
         # Zapisz status przyjęcia oraz znacznik czasu i gotowy czas w sekundach
         try:
-            cursor.execute("UPDATE palety_workowanie SET status='przyjeta', data_potwierdzenia=NOW(), czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()) WHERE id=%s", (paleta_id,))
+            from datetime import datetime as _dt
+            current_time = _dt.now().time()  # Get HH:MM:SS
+            cursor.execute("UPDATE palety_workowanie SET status='przyjeta', data_potwierdzenia=NOW(), czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()), czas_rzeczywistego_potwierdzenia=%s WHERE id=%s", (current_time, paleta_id))
             conn.commit()
         except Exception:
             # Fallback: jeśli ALTER nie było wykonane, ustaw tylko status

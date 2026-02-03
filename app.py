@@ -353,14 +353,88 @@ def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
     except Exception:
         app.logger.exception('Unconfirmed palety monitor terminating unexpectedly')
 
+# Automatyczne zatwierdzanie palet po 2 minutach na magazynie
+def _auto_confirm_palety(threshold_minutes=2, interval_seconds=30):
+    """Daemon automatycznie zatwierdza palety po określonym czasie."""
+    try:
+        while True:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Pobierz palety w stanie 'do_przyjecia' starsze niż threshold_minutes
+                cursor.execute("""
+                    SELECT id, plan_id, waga, data_dodania 
+                    FROM palety_workowanie 
+                    WHERE COALESCE(status,'') = 'do_przyjecia' 
+                    AND TIMESTAMPDIFF(MINUTE, data_dodania, NOW()) >= %s
+                """, (threshold_minutes,))
+                
+                palety_to_confirm = cursor.fetchall()
+                
+                for paleta_row in palety_to_confirm:
+                    paleta_id, plan_id, waga, data_dodania = paleta_row
+                    
+                    try:
+                        # Get current time for czas_rzeczywistego_potwierdzenia
+                        from datetime import datetime as _dt
+                        current_time = _dt.now().time()  # Get HH:MM:SS
+                        
+                        # Zatwierdź paletę (analogicznie do potwierdz_palete)
+                        cursor.execute("""
+                            UPDATE palety_workowanie 
+                            SET status='przyjeta', data_potwierdzenia=NOW(), czas_potwierdzenia_s=TIMESTAMPDIFF(SECOND, data_dodania, NOW()), czas_rzeczywistego_potwierdzenia=%s
+                            WHERE id=%s
+                        """, (current_time, paleta_id))
+                        
+                        # Aktualizuj tonarz planu - odejmij z puli do_przyjecia
+                        cursor.execute("""
+                            UPDATE plan_produkcji 
+                            SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id=%s AND status != 'przyjeta') 
+                            WHERE id=%s
+                        """, (plan_id, plan_id))
+                        
+                        # Aktualizuj Magazyn jeśli istnieje plan z tym produktem
+                        cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
+                        plan_info = cursor.fetchone()
+                        if plan_info:
+                            data_planu, produkt = plan_info
+                            cursor.execute("""
+                                UPDATE plan_produkcji 
+                                SET tonaz_rzeczywisty = tonaz_rzeczywisty + %s 
+                                WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'
+                            """, (waga or 0, data_planu, produkt))
+                        
+                        conn.commit()
+                        app.logger.info(f'Auto-confirmed paleta id={paleta_id} (waga={waga} kg) after {threshold_minutes} min')
+                    
+                    except Exception:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        app.logger.exception(f'Error auto-confirming paleta id={paleta_id}')
+                
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                
+            except Exception:
+                app.logger.exception('Error in auto-confirm palety loop')
+            
+            time.sleep(interval_seconds)
+    
+    except Exception:
+        app.logger.exception('Auto-confirm palety daemon terminating unexpectedly')
+
 try:
-    # Testowy próg dla szybszego sprawdzenia: 1 minuta, interwał 15s
-    # DISABLED FOR DEBUGGING
-    # palety_thread = threading.Thread(target=_monitor_unconfirmed_palety, kwargs={'threshold_minutes':1,'interval_seconds':15}, daemon=True)
-    # palety_thread.start()
-    pass
+    # Uruchom daemon automatycznego zatwierdzania palet (2 minuty, sprawdzaj co 30 sekund)
+    palety_confirm_thread = threading.Thread(target=_auto_confirm_palety, kwargs={'threshold_minutes':2,'interval_seconds':30}, daemon=True)
+    palety_confirm_thread.start()
+    app.logger.info('[OK] Auto-confirm palety daemon started (threshold=2 min)')
 except Exception:
-    app.logger.exception('Failed to start palety monitor thread')
+    app.logger.exception('Failed to start auto-confirm palety daemon')
 
 
 
@@ -672,8 +746,33 @@ def index():
                 sdt = dt.strftime('%H:%M') if hasattr(dt, 'strftime') else str(dt)
             except Exception:
                 sdt = str(dt)
-            # include czas_potwierdzenia_s for display if present
-            magazyn_palety.append((dto.produkt, dto.waga, sdt, dto.id, dto.plan_id, dto.status, dto.czas_potwierdzenia_s))
+            # Get czas_rzeczywistego_potwierdzenia (real confirmation time in HH:MM format)
+            czas_rzeczywisty = '-'
+            try:
+                # Try to get from raw row at index 10 (NEW column with actual confirmation time)
+                if len(r) > 10 and r[10]:
+                    czas_obj = r[10]
+                    if hasattr(czas_obj, 'strftime'):
+                        czas_rzeczywisty = czas_obj.strftime('%H:%M')
+                    else:
+                        # Might be string like '08:43:21'
+                        czas_str = str(czas_obj)
+                        if ':' in czas_str:
+                            parts = czas_str.split(':')
+                            czas_rzeczywisty = f"{parts[0]}:{parts[1]}"  # HH:MM only
+                else:
+                    # Fallback: if czas_rzeczywistego_potwierdzenia is NULL, calculate it from data_dodania + 2 min
+                    if dt and hasattr(dt, 'strftime'):
+                        from datetime import timedelta
+                        czas_oblic = dt + timedelta(minutes=2)
+                        czas_rzeczywisty = czas_oblic.strftime('%H:%M')
+            except Exception:
+                pass
+            # include formatted czas_rzeczywistego_potwierdzenia for display
+            magazyn_palety.append((dto.produkt, dto.waga, sdt, dto.id, dto.plan_id, dto.status, czas_rzeczywisty))
+        
+        # Oblicz suma_wykonanie z wszystkich palet w magazynie
+        suma_wykonanie = sum(p[1] for p in magazyn_palety)
         
         # Pobierz niepotwierdzone palety (status != 'przyjeta'), by powiadomić magazyn jeśli nie potwierdzi w ciągu 10 minut
         try:
@@ -831,8 +930,7 @@ def index():
             # SUMA W KG (BEZ DZIELENIA)
             waga_kg = sum(pal[0] for pal in palety)
             p[7] = waga_kg
-            if not is_quality:
-                suma_wykonanie += waga_kg
+            # NOTE: Don't add to suma_wykonanie here - it's already calculated at line 776 from all magazyn_palety
         elif aktywna_sekcja in ('Workowanie', 'Zasyp'):
             # ZASYP: Show szarża (plan.tonaz) - szarże z tabeli szarze
             # WORKOWANIE: Show paletki for this Workowanie plan (buffer)
@@ -895,8 +993,13 @@ def index():
                 
                 app.logger.info(f"[DEBUG] Zasyp plan {p[0]}: loaded {len(szarze)} szarż, formatted palety={palety}")
                 palety_mapa[p[0]] = palety
-                # Użyj tonaz_rzeczywisty z samej szarży (to suma wszystkich +SZARŻA dodanych przez operatora!)
-                p[7] = p[8] if p[8] else 0  # p[8] = tonaz_rzeczywisty z DB
+                # Użyj sumy wagi szarż (z tabeli szarze). Jeśli brak szarż, użyj wartości z DB (p[7]).
+                try:
+                    suma_szarz = sum(sz[1] for sz in szarze) if szarze else 0
+                except Exception:
+                    suma_szarz = 0
+                # Jeśli są zarejestrowane szarże, pokaż ich sumę; w przeciwnym razie użyj tonaz_rzeczywisty z DB
+                p[7] = suma_szarz if suma_szarz > 0 else (p[7] if p[7] else 0)
             else:
                 # For Workowanie: show paletki (operatorzy dodają paletki)
                 raw_pal = QueryHelper.get_paletki_for_plan(p[0])
@@ -1150,6 +1253,21 @@ def index():
                     app.logger.debug('DEBUG: plans_zasyp rows: %s', rows)
                 except Exception:
                     app.logger.exception('Failed to log plans_zasyp rows')
+                # Fix realization (p[7]) for Zasyp plans: compute from sum of szarze
+                try:
+                    conn_szarze = get_db_connection()
+                    cursor_szarze = conn_szarze.cursor()
+                    for p in rows:
+                        plan_id = p[0]
+                        cursor_szarze.execute("SELECT SUM(waga) FROM szarze WHERE plan_id = %s", (plan_id,))
+                        result = cursor_szarze.fetchone()
+                        suma_szarz = result[0] if result and result[0] is not None else 0
+                        # Use sum of actual szarze if > 0, otherwise fallback to DB tonaz_rzeczywisty
+                        p[7] = suma_szarz if suma_szarz > 0 else (p[7] if p[7] else 0)
+                    cursor_szarze.close()
+                    conn_szarze.close()
+                except Exception:
+                    app.logger.exception('Error computing szarze sums for Zasyp dashboard')
                 plans_zasyp = rows
             else:
                 plans_workowanie = rows

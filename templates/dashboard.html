@@ -153,6 +153,36 @@
     </div>
     {% endif %}
 
+    {% if sekcja == 'Magazyn' %}
+    <!-- MAGAZYN: Wyświetl magazyn_palety (potwierdzone palety) -->
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>#</th><th>📦 Produkt</th><th>� Czas Potwierdzenia</th><th>⚖️ Waga (kg)</th><th>📊 Status</th><th class="text-right">⚙️ Akcje</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_rzeczywistego_potwierdzenia in magazyn_palety %}
+            <tr>
+                <td class="text-muted font-bold">{{ loop.index }}</td>
+                <td><strong class="text-primary">{{ produkt }}</strong></td>
+                <td class="time-display"><strong>{{ czas_rzeczywistego_potwierdzenia }}</strong></td>
+                <td><strong class="text-success">{{ waga|int }} kg</strong></td>
+                <td><span class="status-badge status-accepted">{{ status }}</span></td>
+                <td class="text-right">
+                    {% if rola in ['produkcja', 'lider', 'admin'] %}
+                        <button type="button" class="btn-icon" title="Edytuj" onclick="editPalet({{ id }}, {{ waga }})">✎</button>
+                        <button type="button" class="btn-delete inline-form" title="Usuń" onclick="if(confirm('Usunąć paletę?')) deletePalet({{ id }}, '{{ dzisiaj }}')">🗑</button>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="text-center p-30">Brak potwierdzone palet.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <!-- INNE SEKCJE: Wyświetl plan_dnia (plany produkcji) -->
     <table class="modern-table">
         <thead>
             <tr>
@@ -334,6 +364,7 @@
         {% else %}<tr><td colspan="7" class="text-center p-30">Brak danych.</td></tr>{% endfor %}
         </tbody>
     </table>
+    {% endif %}
 </div>
 
     {# HR, Nadgodziny i Raport Końcowy usunięte z tego widoku — przeniesione do dashboard_global.html #}

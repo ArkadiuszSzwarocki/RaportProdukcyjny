@@ -13,8 +13,10 @@
             <div class="d-flex justify-between gap-10">
                 <div>
                     <h1 class="header-title header-lg">{{ p[1] }}</h1>
-                    <div class="small lh-14">Plan: <strong>{{ p[2] }} ton</strong> <br>
-                        <span class="status-badge">🕒 Start: {{ p[4] }}</span>
+                    <div class="small lh-14">
+                        Plan: <strong>{{ p[2] }} kg</strong>
+                        {% if p[7] and p[7]|int > 0 %}<br>Wykonanie: <strong class="text-success">{{ p[7]|int }} kg</strong>{% endif %}
+                        <br><span class="status-badge">🕒 Start: {{ p[4] }}</span>
                     </div>
                 </div>
 
@@ -59,14 +61,14 @@
                     {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">OCZEKUJE</span>
                     {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">GOTOWE</span>{% endif %}
                     
-                    <span class="fs-110 font-bold">{{ p[1] }}</span> | Plan: {{ p[2] }} t
+                    <span class="fs-110 font-bold">{{ p[1] }}</span> | Plan: {{ p[2] }} kg
                     
                         {% if p[3] == 'zakonczone' %}
-                        <span class="text-success ml-5">✅ Wyk: <strong>{{ p[7] }} t</strong></span>
+                        <span class="text-success ml-5">✅ Wyk: <strong>{{ p[7] }} kg</strong></span>
                         {% if rola in ['lider', 'admin', 'produkcja'] %}
                             <form action="/zapisz_tonaz/{{ p[0] }}" method="POST" class="inline-form">
                                 <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
-                                <input type="number" step="0.01" name="tonaz_rzeczywisty" placeholder="Waga" aria-label="Waga rzeczywista (t)" value="{{ p[7] if p[7] else '' }}" class="input-sm w-60">
+                                <input type="number" step="0.01" name="tonaz_rzeczywisty" placeholder="Waga (kg)" aria-label="Waga rzeczywista (kg)" value="{{ p[7] if p[7] else '' }}" class="input-sm w-60">
                                 <button type="submit" class="btn-icon" title="Zapisz" aria-label="Zapisz">💾</button>
                             </form>
                         {% endif %}
@@ -105,7 +107,7 @@
     <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="form-flex">
         <input type="date" name="data_planu" value="{{ dzisiaj }}" required class="input-sm" aria-label="Data planu">
         <input type="text" name="produkt" placeholder="Produkt" required class="select-flex" aria-label="Produkt">
-        <input type="number" step="0.1" name="tonaz" placeholder="Tony" required class="input-sm w-70" aria-label="Tonaz">
+        <input type="number" step="0.1" name="tonaz" placeholder="Waga (kg)" required class="input-sm w-70" aria-label="Waga (kg)">
         <button type="submit" class="btn-add-plan">DODAJ</button>
     </form>
     {% endif %}

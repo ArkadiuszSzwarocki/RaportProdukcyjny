@@ -57,13 +57,16 @@ def panel_planisty():
         suma_minut_plan += czas_trwania_min
 
         # 2. POBIERANIE WYKONANIA
-        cursor.execute("""
-            SELECT SUM(tonaz_rzeczywisty) 
-            FROM plan_produkcji 
-            WHERE data_planu=%s AND produkt=%s AND typ_produkcji=%s AND sekcja IN ('Workowanie', 'Magazyn')
-        """, (wybrana_data, p[2], typ_prod))
-        res_wyk = cursor.fetchone()
-        wykonanie_rzeczywiste = res_wyk[0] if res_wyk and res_wyk[0] else 0
+        # Dla planów Zasyp: oblicz z szarży (rzeczywistych wpisów)
+        # Dla planów innych sekcji: pobierz z planów Workowania/Magazynu
+        plan_id = p[0]
+        cursor.execute("SELECT SUM(waga) FROM szarze WHERE plan_id = %s", (plan_id,))
+        szarze_result = cursor.fetchone()
+        wykonanie_rzeczywiste = szarze_result[0] if szarze_result and szarze_result[0] else 0
+        
+        # Fallback: jeśli nie ma szarży, użyj tonaz_rzeczywisty z bazy
+        if wykonanie_rzeczywiste == 0:
+            wykonanie_rzeczywiste = p[8] if p[8] else 0
         
         p[8] = wykonanie_rzeczywiste
         suma_wyk += wykonanie_rzeczywiste

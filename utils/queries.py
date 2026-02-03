@@ -108,14 +108,15 @@ class QueryHelper:
     
     @staticmethod
     def get_paletki_magazyn(data_planu):
-        """Get all paletki visible in Magazyn (Warehouse) for a given day."""
+        """Get all confirmed paletki in Magazyn (Warehouse) for a given day."""
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, "
-            "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
+            "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s, pw.czas_rzeczywistego_potwierdzenia "
             "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-            "WHERE DATE(pw.data_dodania) = %s AND pw.waga > 0",
+            "WHERE DATE(pw.data_dodania) = %s AND pw.waga > 0 AND COALESCE(pw.status, 'do_przyjecia') = 'przyjeta' "
+            "ORDER BY pw.id DESC",
             (data_planu,)
         )
         result = cursor.fetchall()
