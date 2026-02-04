@@ -101,9 +101,9 @@ def _add_column_if_missing(cursor, table, column, definition, description=""):
         try:
             cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
             if description:
-                print(f"⏳ {description}")
+                print(f"[MIGRATE] {description}")
         except Exception as e:
-            print(f"⚠️  Nie udało się dodać kolumny {table}.{column}: {e}")
+            print(f"[WARN] Nie udało się dodać kolumny {table}.{column}: {e}")
             pass
 
 
@@ -134,6 +134,10 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "raporty_koncowe", "lider_id", "INT", "Dodawanie kolumny 'lider_id' do raporty_koncowe")
     _add_column_if_missing(cursor, "raporty_koncowe", "summary_json", "LONGTEXT", "Dodawanie kolumny 'summary_json' do raporty_koncowe")
     _add_column_if_missing(cursor, "raporty_koncowe", "created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'created_at' do raporty_koncowe")
+    
+    # dziennik_zmiany (awarii) columns
+    _add_column_if_missing(cursor, "dziennik_zmiany", "status_zglosnienia", "VARCHAR(30) DEFAULT 'zgłoszony'", "Dodawanie kolumny 'status_zglosnienia' do dziennik_zmiany")
+    _add_column_if_missing(cursor, "dziennik_zmiany", "data_zakonczenia", "DATE NULL", "Dodawanie kolumny 'data_zakonczenia' do dziennik_zmiany")
     
     # user/employee columns
     _add_column_if_missing(cursor, "uzytkownicy", "grupa", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'grupa' do uzytkownicy")

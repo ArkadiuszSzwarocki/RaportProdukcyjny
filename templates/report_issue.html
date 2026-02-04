@@ -25,8 +25,19 @@
             <option value="Inne">Inne</option>
         </select>
 
-        <label for="czas_start">Czas wystąpienia:</label>
-        <input id="czas_start" type="time" name="czas_start" value="{{ now_time if now_time is defined else '' }}" class="input-sm" title="Czas wystąpienia" placeholder="HH:MM">
+        <label for="czas_start">Czas zgłoszenia:</label>
+        <input id="czas_start" type="time" name="czas_start" value="{{ now_time if now_time is defined else '' }}" class="input-sm" title="Czas zgłoszenia" placeholder="HH:MM">
+
+        <label for="status_zglosnienia">Status zgłoszenia:</label>
+        <select id="status_zglosnienia" name="status_zglosnienia" class="input-sm">
+            <option value="zgłoszony">🔔 Zgłoszony</option>
+            <option value="czeka_na_czesci">⚙️ Czeka na części</option>
+            <option value="zakończony">✅ Zakończony</option>
+            <option value="zamknięty">🔒 Zamknięty</option>
+        </select>
+
+        <label for="data_zakonczenia">Data zakończenia (opcjonalnie):</label>
+        <input id="data_zakonczenia" type="date" name="data_zakonczenia" class="input-sm" title="Data kiedy zostało ukończone">
 
         <label>Opis (opcjonalnie):</label>
         <textarea name="problem" rows="6" class="input-sm" placeholder="Opisz problem"></textarea>

@@ -26,6 +26,17 @@
           <label>Godzina KONIEC:</label>
               <input type="time" name="czas_stop" value="{{ wpis[7] if wpis[7] else '' }}" title="Wprowadź godzinę zakończenia" placeholder="hh:mm" aria-label="Godzina koniec">
 
+        <label for="status_zglosnienia">Status zgłoszenia:</label>
+        <select id="status_zglosnienia" name="status_zglosnienia" aria-label="Status zgłoszenia">
+            <option value="zgłoszony" {% if wpis[9] == 'zgłoszony' %}selected{% endif %}>🔔 Zgłoszony</option>
+            <option value="czeka_na_czesci" {% if wpis[9] == 'czeka_na_czesci' %}selected{% endif %}>⚙️ Czeka na części</option>
+            <option value="zakończony" {% if wpis[9] == 'zakończony' %}selected{% endif %}>✅ Zakończony</option>
+            <option value="zamknięty" {% if wpis[9] == 'zamknięty' %}selected{% endif %}>🔒 Zamknięty</option>
+        </select>
+
+        <label for="data_zakonczenia">Data zakończenia (opcjonalnie):</label>
+        <input type="date" id="data_zakonczenia" name="data_zakonczenia" value="{{ wpis[10] if wpis[10] else '' }}" title="Data kiedy zostało ukończone" aria-label="Data zakończenia">
+
         <label>Opis szczegółowy:</label>
            <textarea name="problem" rows="4" title="Wprowadź szczegółowy opis problemu" placeholder="Opisz problem...">{{ wpis[4] }}</textarea>
 

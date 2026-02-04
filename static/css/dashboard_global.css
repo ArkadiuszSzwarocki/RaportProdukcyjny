@@ -32,3 +32,111 @@ button { padding: 6px 10px; }
   font-size: 14px;
   margin-left: 8px;
 }
+
+/* Shift notes styling */
+.note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.note-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.note-textarea {
+  width: 100%;
+  min-height: 320px;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.note-save-btn {
+  align-self: flex-start;
+  padding: 10px 20px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.note-save-btn:hover {
+  background-color: #218838;
+}
+
+.note-card {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.note-card-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.note-card-content {
+  flex: 1;
+}
+
+.note-meta {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #666;
+}
+
+.note-text {
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.note-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.note-edit-btn, .note-delete-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  background: #f0f0f0;
+  transition: all 0.2s;
+}
+
+.note-edit-btn:hover {
+  background: #e8f5e9;
+}
+
+.note-delete-btn:hover {
+  background: #ffebee;
+}
+
+.no-notes {
+  text-align: center;
+  color: #999;
+  padding: 20px;
+}
+
+.notes-container {
+  margin-top: 16px;
+}

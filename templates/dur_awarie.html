@@ -10,7 +10,9 @@
     {% for awaria in awarie %}
     <div style="margin-bottom: 30px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
       <!-- NAGŁÓWEK AWARII -->
-      <div style="padding: 15px; background: {% if awaria.status == 'roboczy' %}#fff3cd{% elif awaria.status == 'zatwierdzone' %}#d4edda{% else %}#f8d7da{% endif %}; border-left: 5px solid {% if awaria.status == 'roboczy' %}#ffc107{% elif awaria.status == 'zatwierdzone' %}#28a745{% else %}#dc3545{% endif %};">
+      {% set status_color = {'zgłoszony': '#fff3cd', 'czeka_na_czesci': '#ffcccc', 'zakończony': '#d4edda', 'zamknięty': '#f5f5f5'} %}
+      {% set status_border = {'zgłoszony': '#ffc107', 'czeka_na_czesci': '#dc3545', 'zakończony': '#28a745', 'zamknięty': '#999999'} %}
+      <div style="padding: 15px; background: {{ status_color.get(awaria.status_zglosnienia, '#f0f0f0') }}; border-left: 5px solid {{ status_border.get(awaria.status_zglosnienia, '#999999') }};">
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; margin-bottom: 10px;">
           <div>
             <strong>Data:</strong> {{ awaria.data_wpisu }}<br>
@@ -22,16 +24,16 @@
           </div>
           <div>
             <strong>Start:</strong> {{ awaria.czas_start_str }}<br>
-            <strong>Stop:</strong> {{ awaria.czas_stop_str }}
+            <strong>Stop:</strong> {% if awaria.czas_stop_str and awaria.czas_stop_str != '??:??' %}{{ awaria.czas_stop_str }}{% else %}—{% endif %}
           </div>
           <div>
-            <strong>Status:</strong>
-            {% if awaria.status == 'roboczy' %}
-              <span style="padding: 4px 8px; border-radius: 4px; background: #ffc107; color: #000; font-weight: bold;">Robocze</span>
-            {% elif awaria.status == 'zatwierdzone' %}
-              <span style="padding: 4px 8px; border-radius: 4px; background: #28a745; color: white; font-weight: bold;">✓ Zatwierdzone</span>
-            {% elif awaria.status == 'odrzucone' %}
-              <span style="padding: 4px 8px; border-radius: 4px; background: #dc3545; color: white; font-weight: bold;">✗ Odrzucone</span>
+            <strong>Status zgłoszenia:</strong>
+            {% set status_map = {'zgłoszony': '🔔 Zgłoszony', 'czeka_na_czesci': '⚙️ Czeka na części', 'zakończony': '✅ Zakończony', 'zamknięty': '🔒 Zamknięty'} %}
+            {% set status_bg = {'zgłoszony': '#ffc107', 'czeka_na_czesci': '#dc3545', 'zakończony': '#28a745', 'zamknięty': '#cccccc'} %}
+            {% set status_text = {'zgłoszony': '#000', 'czeka_na_czesci': '#fff', 'zakończony': '#fff', 'zamknięty': '#666'} %}
+            <span style="padding: 6px 12px; border-radius: 4px; background: {{ status_bg.get(awaria.status_zglosnienia, '#999') }}; color: {{ status_text.get(awaria.status_zglosnienia, '#fff') }}; font-weight: bold;">{{ status_map.get(awaria.status_zglosnienia, awaria.status_zglosnienia) }}</span>
+            {% if awaria.data_zakonczenia %}
+            <br><strong>Zakończono:</strong> {{ awaria.data_zakonczenia }}
             {% endif %}
           </div>
         </div>
@@ -58,14 +60,35 @@
       
       <!-- FORMULARZ AKCJI -->
       <div style="padding: 15px; background: #f0f0f0; border-top: 1px solid #ddd;">
-        <form method="POST" action="{{ url_for('dur_zatwierdz_awarię', awaria_id=awaria.id) }}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; align-items: flex-end;">
+        <form method="POST" action="{{ url_for('dur_zatwierdz_awarię', awaria_id=awaria.id) }}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: flex-end;">
           
           <!-- Pole czasu zakończenia -->
           <div>
             <label style="display: block; font-weight: bold; margin-bottom: 5px; font-size: 12px;">
               ⏰ Czas zakończenia (opcjonalnie)
             </label>
-            <input type="time" name="czas_stop" value="{{ awaria.czas_stop_str if awaria.czas_stop_str != '??:??' else '' }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; font-size: 14px;">
+            <input type="time" name="czas_stop" value="{% if awaria.czas_stop_str and awaria.czas_stop_str != '??:??' %}{{ awaria.czas_stop_str }}{% endif %}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; font-size: 14px;">
+          </div>
+
+          <!-- Status zgłoszenia -->
+          <div>
+            <label style="display: block; font-weight: bold; margin-bottom: 5px; font-size: 12px;">
+              📋 Status zgłoszenia
+            </label>
+            <select name="status_zglosnienia" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; font-size: 14px;">
+              <option value="zgłoszony" {% if awaria.status_zglosnienia == 'zgłoszony' %}selected{% endif %}>🔔 Zgłoszony</option>
+              <option value="czeka_na_czesci" {% if awaria.status_zglosnienia == 'czeka_na_czesci' %}selected{% endif %}>⚙️ Czeka na części</option>
+              <option value="zakończony" {% if awaria.status_zglosnienia == 'zakończony' %}selected{% endif %}>✅ Zakończony</option>
+              <option value="zamknięty" {% if awaria.status_zglosnienia == 'zamknięty' %}selected{% endif %}>🔒 Zamknięty</option>
+            </select>
+          </div>
+
+          <!-- Data zakończenia -->
+          <div>
+            <label style="display: block; font-weight: bold; margin-bottom: 5px; font-size: 12px;">
+              📅 Data zakończenia (opcjonalnie)
+            </label>
+            <input type="date" name="data_zakonczenia" value="{{ awaria.data_zakonczenia if awaria.data_zakonczenia else '' }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; font-size: 14px;">
           </div>
           
           <!-- Pole komentarza -->
@@ -76,16 +99,10 @@
             <input type="text" name="komentarz" placeholder="np. Naprawa ukończona..." style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; font-size: 14px;">
           </div>
           
-          <!-- Przyciski akcji -->
-          <div style="display: flex; gap: 8px;">
-            <!-- Zatwierdź -->
-            <button type="submit" name="status" value="zatwierdzone" style="flex: 1; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s;">
-              ✓ Zatwierdź
-            </button>
-            
-            <!-- Odrzuć -->
-            <button type="submit" name="status" value="odrzucone" style="flex: 1; padding: 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s;">
-              ✗ Odrzuć
+          <!-- Przycisk zapisz -->
+          <div>
+            <button type="submit" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s;">
+              💾 Zapisz
             </button>
           </div>
         </form>

@@ -1,37 +1,40 @@
-<div class="section-box p-15">
-    <h3 class="m-0">👥 Obsada</h3>
+<div class="section-box">
+    <div class="section-header">
+        <h2>Obsada</h2>
+    </div>
+
     <div class="mt-10">
-        <div class="d-flex gap-10 align-center mb-8">
-            <label for="obsada-date">Data:</label>
-            <input type="date" id="obsada-date" value="{{ qdate.strftime('%Y-%m-%d') if qdate is defined else '' }}">
+        <div class="obsada-toolbar d-flex gap-10 align-center mb-8" style="flex-wrap: wrap;">
+            <label for="obsada-date" style="font-weight: 600;">Data:</label>
+            <input type="date" id="obsada-date" value="{{ qdate.strftime('%Y-%m-%d') if qdate is defined else '' }}" class="input-sm">
             {% if rola in ['lider','admin'] %}
-            <label for="lider_psd">Lider PSD:</label>
+            <label for="lider_psd" style="font-weight: 600; margin-left: 12px;">Lider PSD:</label>
             <select id="lider_psd" class="input-sm">
                 <option value="">- brak -</option>
                 {% for p in all_pracownicy %}
                 <option value="{{ p[0] }}" {% if lider_psd_id and lider_psd_id == p[0] %}selected{% endif %}>{{ p[1] }}</option>
                 {% endfor %}
             </select>
-            <label for="lider_agro">Lider AGRO:</label>
+            <label for="lider_agro" style="font-weight: 600; margin-left: 12px;">Lider AGRO:</label>
             <select id="lider_agro" class="input-sm">
                 <option value="">- brak -</option>
                 {% for p in all_pracownicy %}
                 <option value="{{ p[0] }}" {% if lider_agro_id and lider_agro_id == p[0] %}selected{% endif %}>{{ p[1] }}</option>
                 {% endfor %}
             </select>
-            <button type="button" id="btnSaveLiderzy" class="btn">Zapisz liderów</button>
+            <button type="button" id="btnSaveLiderzy" class="btn btn-primary">Zapisz liderów</button>
             {% endif %}
         </div>
-        <div class="obsada-sections" style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
-            {% set sections = ['Zasyp','Workowanie','Magazyn','Hala Agro'] %}
+        <div class="obsada-sections">
+            {% set sections = ['Zasyp','Workowanie','Magazyn','Hala Agro','Laboratorium','Handel'] %}
             {% for s in sections %}
-            <div class="obsada-section p-8" data-sekcja="{{ s }}">
-                <h4 class="m-0">{{ s }}</h4>
+            <div class="obsada-section" data-sekcja="{{ s }}">
+                <h4>{{ s }}</h4>
                 <!-- wybór pracownika + przycisk przeniesione na górę pod nazwą sekcji -->
                 {% if rola in ['lider', 'admin', 'pracownik'] %}
-                <div class="d-flex gap-5 align-center mb-8">
+                <div class="d-flex gap-5 align-center mb-8" style="flex-wrap: wrap;">
                     <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">
-                    <select id="obsada-select-{{ loop.index0 }}" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm">
+                    <select id="obsada-select-{{ loop.index0 }}" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm" style="flex: 1; min-width: 150px;">
                         <option value="" disabled selected>+ Wybierz pracownika</option>
                         {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
                     </select>
@@ -71,8 +74,21 @@
 
     <script>
     (function(){
-        // fabryka obsługi dla każdej sekcji
-        const sections = ["Zasyp","Workowanie","Magazyn","Hala Agro"];
+        // Dynamicznie czytaj sekcje z HTML-u zamiast hardcoding
+        const sectionEls = document.querySelectorAll('.obsada-section');
+        const sections = Array.from(sectionEls).map(el => el.getAttribute('data-sekcja'));
+        
+        // Zapobiegaj zamknięciu sidebara gdy klikniemy na selecty
+        const allSelects = document.querySelectorAll('.obsada-toolbar select, .obsada-section select');
+        allSelects.forEach(sel => {
+            sel.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+            sel.addEventListener('change', function(e) {
+                e.stopPropagation();
+            });
+        });
+        
         sections.forEach(function(name, idx){
             const select = document.getElementById('obsada-select-'+idx);
             const addBtn = document.getElementById('btnAddObsada-'+idx);

@@ -1684,7 +1684,9 @@ def dur_awarie():
                 status, 
                 czas_start, 
                 czas_stop,
-                pracownik_id
+                pracownik_id,
+                status_zglosnienia,
+                data_zakonczenia
             FROM dziennik_zmiany 
             WHERE data_wpisu >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
             ORDER BY data_wpisu DESC, czas_start DESC
@@ -1763,16 +1765,18 @@ def dur_awarie():
 @app.route('/api/dur/zatwierdz_awarię/<int:awaria_id>', methods=['POST'])
 @roles_required('dur', 'admin', 'zarzad')
 def dur_zatwierdz_awarię(awaria_id):
-    """Zatwierdź awarie - zmień status, czas_stop i dodaj komentarz"""
+    """Zatwierdź awarie - zmień status, czas_stop, status_zglosnienia, data_zakonczenia i dodaj komentarz"""
     try:
         status = request.form.get('status', 'zatwierdzone')  # zatwierdzone, odrzucone
         czas_stop_str = request.form.get('czas_stop', '').strip()  # np. "23:45:00"
         komentarz = request.form.get('komentarz', '').strip()
+        status_zglosnienia = request.form.get('status_zglosnienia', '').strip()  # zgłoszone, w_trakcie, oczekuje_na_czesci, zakonczone
+        data_zakonczenia = request.form.get('data_zakonczenia', '').strip()  # data
         
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # 1. Aktualizuj status i czas_stop
+        # 1. Aktualizuj status, czas_stop, status_zglosnienia i data_zakonczenia
         update_fields = ["status = %s"]
         update_values = [status]
         
@@ -1780,6 +1784,14 @@ def dur_zatwierdz_awarię(awaria_id):
             # Konwertuj string czasu na format MySQL TIME
             update_fields.append("czas_stop = %s")
             update_values.append(czas_stop_str)
+        
+        if status_zglosnienia:
+            update_fields.append("status_zglosnienia = %s")
+            update_values.append(status_zglosnienia)
+        
+        if data_zakonczenia:
+            update_fields.append("data_zakonczenia = %s")
+            update_values.append(data_zakonczenia)
         
         update_values.append(awaria_id)
         sql = f"UPDATE dziennik_zmiany SET {', '.join(update_fields)} WHERE id = %s"
@@ -1801,12 +1813,15 @@ def dur_zatwierdz_awarię(awaria_id):
         msg = f'✓ Awaria #{awaria_id} zmieniona na: {status}'
         if czas_stop_str:
             msg += ' (czas_stop: {})'.format(czas_stop_str)
+        if status_zglosnienia:
+            msg += ' ({})'.format(status_zglosnienia.replace('_', ' '))
         flash(msg, 'success')
         return redirect(request.referrer or '/dur/awarie')
     except Exception as e:
         app.logger.exception(f'Error in dur_zatwierdz_awarię: {e}')
         flash('⚠️ Błąd przy zatwierdzaniu awarii', 'error')
         return redirect('/dur/awarie')
+
 
 
 @app.route('/ustawienia')

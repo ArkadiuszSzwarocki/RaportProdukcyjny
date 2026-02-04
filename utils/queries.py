@@ -56,7 +56,7 @@ class QueryHelper:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT d.id, p.imie_nazwisko, d.problem, d.czas_start, d.czas_stop, d.kategoria, "
-            "TIMESTAMPDIFF(MINUTE, d.czas_start, d.czas_stop) "
+            "TIMESTAMPDIFF(MINUTE, d.czas_start, d.czas_stop), d.pracownik_id, d.sekcja, d.status_zglosnienia, d.data_zakonczenia "
             "FROM dziennik_zmiany d LEFT JOIN pracownicy p ON d.pracownik_id = p.id "
             "WHERE d.data_wpisu = %s AND d.sekcja = %s AND d.status='roboczy' "
             "ORDER BY d.id DESC",

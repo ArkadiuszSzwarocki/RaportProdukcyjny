@@ -246,8 +246,8 @@ def obsada_page():
         # available employees: exclude those already assigned for that date (any sekcja)
         cursor.execute("SELECT id, imie_nazwisko FROM pracownicy WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) ORDER BY imie_nazwisko", (qdate,))
         wszyscy = cursor.fetchall()
-        # pełna lista pracowników (dla wyboru liderów)
-        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko")
+        # pełna lista pracowników (dla wyboru liderów) - tylko liderzy
+        cursor.execute("SELECT p.id, p.imie_nazwisko FROM pracownicy p JOIN uzytkownicy u ON p.id = u.pracownik_id WHERE u.rola='lider' ORDER BY p.imie_nazwisko")
         all_pracownicy = cursor.fetchall()
         # pobierz liderów dla tej daty (jeśli istnieją)
         cursor.execute("SELECT lider_psd_id, lider_agro_id FROM obsada_liderzy WHERE data_wpisu=%s", (qdate,))
@@ -1515,12 +1515,15 @@ def dodaj_wpis():
         kategoria = require_field(request.form, 'kategoria')
         problem = optional_field(request.form, 'problem', default=None)
         czas_start = optional_field(request.form, 'czas_start', default=None)
+        status_zglosnienia = optional_field(request.form, 'status_zglosnienia', default='zgłoszony')
+        data_zakonczenia = optional_field(request.form, 'data_zakonczenia', default=None)
     except Exception as e:
         from flask import flash
         flash(str(e), 'danger')
         conn.close()
         return redirect(bezpieczny_powrot())
-    cursor.execute("INSERT INTO dziennik_zmiany (data_wpisu, sekcja, problem, czas_start, status, kategoria) VALUES (%s, %s, %s, %s, 'roboczy', %s)", (date.today(), sekcja, problem, czas_start, kategoria))
+    cursor.execute("INSERT INTO dziennik_zmiany (data_wpisu, sekcja, problem, czas_start, status, kategoria, status_zglosnienia, data_zakonczenia) VALUES (%s, %s, %s, %s, 'roboczy', %s, %s, %s)", 
+                   (date.today(), sekcja, problem, czas_start, kategoria, status_zglosnienia, data_zakonczenia))
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
@@ -1551,10 +1554,13 @@ def edytuj(id):
                 # set to current datetime — DB column accepts time/datetime
                 from datetime import datetime as _dt
                 czas_stop_val = _dt.now()
+            
+            status_zglosnienia = request.form.get('status_zglosnienia', 'zgłoszony')
+            data_zakonczenia = request.form.get('data_zakonczenia') or None
 
             cursor.execute(
-                "UPDATE dziennik_zmiany SET problem=%s, kategoria=%s, czas_start=%s, czas_stop=%s WHERE id=%s",
-                (request.form.get('problem'), request.form.get('kategoria'), czas_start_val, czas_stop_val, id)
+                "UPDATE dziennik_zmiany SET problem=%s, kategoria=%s, czas_start=%s, czas_stop=%s, status_zglosnienia=%s, data_zakonczenia=%s WHERE id=%s",
+                (request.form.get('problem'), request.form.get('kategoria'), czas_start_val, czas_stop_val, status_zglosnienia, data_zakonczenia, id)
             )
             conn.commit()
             conn.close()
@@ -3187,3 +3193,87 @@ def test_download_zip():
             "error": str(e),
             "message": f"ERROR Blad: {str(e)}"
         }), 500
+
+# ================= NOTATKI/WPISY NA DASHBOARD =================
+
+@api_bp.route('/wpisy_na_date')
+@login_required
+def wpisy_na_date():
+    """Pobierz wpisy dla wybranej daty i sekcji (AJAX)"""
+    from utils.queries import QueryHelper
+    
+    try:
+        data_str = request.args.get('data', str(date.today()))
+        sekcja = request.args.get('sekcja', 'Zasyp')
+        
+        # Parse data
+        data_obj = datetime.strptime(data_str, '%Y-%m-%d').date()
+        
+        # Get wpisy
+        wpisy = QueryHelper.get_dziennik_zmiany(data_obj, sekcja)
+        
+        # Format czas_start/czas_stop as HH:MM strings
+        for w in wpisy:
+            try:
+                w[3] = w[3].strftime('%H:%M') if w[3] else ''
+            except Exception:
+                w[3] = str(w[3]) if w[3] else ''
+            try:
+                w[4] = w[4].strftime('%H:%M') if w[4] else ''
+            except Exception:
+                w[4] = str(w[4]) if w[4] else ''
+        
+        return jsonify({
+            'success': True,
+            'wpisy': wpisy,
+            'data': data_str,
+            'sekcja': sekcja
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 400
+
+
+@api_bp.route('/shift_notes_na_date')
+@login_required
+def shift_notes_na_date():
+    """Pobierz shift notes dla wybranej daty (AJAX)"""
+    try:
+        data_str = request.args.get('data', str(date.today()))
+        
+        # Parse data
+        data_obj = datetime.strptime(data_str, '%Y-%m-%d').date()
+        
+        # Get shift notes
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        query = "SELECT id, note, author, created FROM shift_notes WHERE DATE(created) = %s ORDER BY created DESC"
+        cursor.execute(query, (data_obj,))
+        shift_notes = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # Format notes
+        formatted_notes = []
+        for n in shift_notes:
+            formatted_notes.append({
+                'id': n['id'],
+                'note': n['note'],
+                'author': n['author'],
+                'date': n['created'].strftime('%Y-%m-%d'),
+                'time': n['created'].strftime('%H:%M:%S') if n['created'] else ''
+            })
+        
+        return jsonify({
+            'success': True,
+            'notes': formatted_notes,
+            'data': data_str
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 400

@@ -63,6 +63,14 @@
 
 <section>
   <h2>📝 Notatki Zmiany</h2>
+  
+  {# Nawigacja po datach #}
+  <div class="day-nav-bar" style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+    <button class="day-nav-btn" data-direction="prev">◀</button>
+    <span id="date-display-global" style="font-weight: bold; min-width: 150px; text-align: center;">{{ dzisiaj }}</span>
+    <button class="day-nav-btn" data-direction="next">▶</button>
+  </div>
+  
   <form action="/add_shift_note" method="post" id="noteForm" class="note-form">
     <label class="note-label" for="noteTextarea">Notatka:</label>
     <textarea id="noteTextarea" name="note" required class="note-textarea" placeholder="Wpisz notatkę..." title="Notatka do zapisu" aria-label="Notatka"></textarea>
@@ -73,28 +81,30 @@
 
   <div class="notes-container">
     <h3>📌 Zapisane Notatki</h3>
-    {% if shift_notes %}
-      {% for n in shift_notes %}
-      <div class="note-card">
-        <div class="note-card-inner">
-          <div class="note-card-content">
-            <div class="note-meta">
-              <strong>📅 {{ n.date }}</strong> • <em>{{ n.author }}</em>
+    <div id="shift-notes-container">
+      {% if shift_notes %}
+        {% for n in shift_notes %}
+        <div class="note-card">
+          <div class="note-card-inner">
+            <div class="note-card-content">
+              <div class="note-meta">
+                <strong>📅 {{ n.date }}</strong> • <em>{{ n.author }}</em>
+              </div>
+              <div class="note-text">{{ n.note }}</div>
             </div>
-            <div class="note-text">{{ n.note }}</div>
+            {% if session.get('rola') in ['lider', 'admin'] and session.get('imie_nazwisko') == n.author or session.get('login') == n.author %}
+            <div class="note-actions">
+              <button class="note-edit-btn" data-id="{{ n.id }}">✏️ Edytuj</button>
+              <button class="note-delete-btn" data-id="{{ n.id }}">🗑️ Usuń</button>
+            </div>
+            {% endif %}
           </div>
-          {% if session.get('rola') in ['lider', 'admin'] and session.get('imie_nazwisko') == n.author or session.get('login') == n.author %}
-          <div class="note-actions">
-            <button class="note-edit-btn" data-id="{{ n.id }}">✏️ Edytuj</button>
-            <button class="note-delete-btn" data-id="{{ n.id }}">🗑️ Usuń</button>
-          </div>
-          {% endif %}
         </div>
-      </div>
-      {% endfor %}
-    {% else %}
-      <p class="no-notes">Brak notatek. Dodaj nową notatkę powyżej.</p>
-    {% endif %}
+        {% endfor %}
+      {% else %}
+        <p class="no-notes">Brak notatek. Dodaj nową notatkę powyżej.</p>
+      {% endif %}
+    </div>
   </div>
 </section>
 
@@ -420,6 +430,82 @@ if (endShiftForm) {
     });
   });
 }
+
+// ========== DATE-BASED SHIFT NOTES FILTERING (AJAX) ==========
+document.addEventListener('DOMContentLoaded', function() {
+  const dateDisplay = document.getElementById('date-display-global');
+  const notesContainer = document.getElementById('shift-notes-container');
+  const dayNavBtns = document.querySelectorAll('.day-nav-btn');
+  const dateInput = document.querySelector('input[name="date"]');
+  
+  if (!dateDisplay || !notesContainer || dayNavBtns.length === 0) return;
+  
+  // Initialize with current date
+  let currentDate = new Date(dateDisplay.textContent.trim());
+  
+  function updateShiftNotesForDate(dateStr) {
+    fetch(`/api/shift_notes_na_date?data=${dateStr}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) {
+          console.error('Error loading shift notes:', data.message);
+          notesContainer.innerHTML = '<div class="text-muted text-center p-10">Błąd ładowania notatek</div>';
+          return;
+        }
+        
+        // Clear existing notes
+        notesContainer.innerHTML = '';
+        
+        // Add new notes
+        if (data.notes && data.notes.length > 0) {
+          data.notes.forEach(note => {
+            const noteCard = document.createElement('div');
+            noteCard.className = 'note-card';
+            noteCard.innerHTML = `
+              <div class="note-card-inner">
+                <div class="note-card-content">
+                  <div class="note-meta">
+                    <strong>📅 ${note.date}</strong> • <em>${note.author}</em> <span class="text-muted">${note.time}</span>
+                  </div>
+                  <div class="note-text">${note.note}</div>
+                </div>
+              </div>
+            `;
+            notesContainer.appendChild(noteCard);
+          });
+        } else {
+          notesContainer.innerHTML = '<p class="no-notes">Brak notatek na wybraną datę.</p>';
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching shift notes:', error);
+        notesContainer.innerHTML = '<div class="text-muted text-center p-10">Błąd ładowania notatek</div>';
+      });
+  }
+  
+  // Add event listeners to day navigation buttons
+  dayNavBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      const direction = this.getAttribute('data-direction');
+      
+      if (direction === 'prev') {
+        currentDate.setDate(currentDate.getDate() - 1);
+      } else if (direction === 'next') {
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      const dateStr = currentDate.toISOString().split('T')[0];
+      dateDisplay.textContent = dateStr;
+      
+      // Update hidden form input
+      if (dateInput) {
+        dateInput.value = dateStr;
+      }
+      
+      updateShiftNotesForDate(dateStr);
+    });
+  });
+});
 </script>
 
 {% endblock %}

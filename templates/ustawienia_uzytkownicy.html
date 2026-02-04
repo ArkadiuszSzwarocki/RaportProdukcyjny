@@ -42,7 +42,7 @@
                 </div>
                 <div class="list-actions">
                     <details><summary class="btn">Edytuj</summary>
-                        <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
+                        <form action="/admin/konto/edytuj" method="POST" class="form-flex">
                             <input type="hidden" name="id" value="{{ k[0] }}">
                             <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login (edycja)">
                             <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">

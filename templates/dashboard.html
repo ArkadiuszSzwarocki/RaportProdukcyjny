@@ -90,13 +90,21 @@
     
 {% endif %}
 
+<!-- Dedykowany kontener na wpisy dla zmienianej daty -->
+<div id="wpisy-container" class="mb-20">
 {% if wpisy %}
-<div class="mb-20">
     {% for w in wpisy[:2] %}
         <div class="alert-warning d-flex justify-between align-center mb-5">
             <div>
                 <span>⚠️ <strong>{{ w[3] }}</strong> [{{ w[5] }}]: {{ w[2] }}</span>
-                <div class="small text-muted">od {{ w[3] }}{% if w[4] %} — do {{ w[4] }}{% endif %}</div>
+                <div class="small text-muted">
+                    od {{ w[3] }}{% if w[4] %} — do {{ w[4] }}{% endif %}
+                    {% if w[9] %}
+                    {% set status_map = {'zgłoszony': '🔔 Zgłoszony', 'czeka_na_czesci': '⚙️ Czeka na części', 'zakończony': '✅ Zakończony', 'zamknięty': '🔒 Zamknięty'} %}
+                    | Status: <strong>{{ status_map.get(w[9], w[9]) }}</strong>
+                    {% endif %}
+                    {% if w[10] %} | Zakończono: <strong>{{ w[10] }}</strong>{% endif %}
+                </div>
             </div>
 
             
@@ -111,8 +119,8 @@
             {% endif %}
         </div>
     {% endfor %}
-</div>
 {% endif %}
+</div>
 
 {% set ns = namespace(is_active=false) %}
 {% for p in plan %}{% if p[3] == 'w toku' %}{% set ns.is_active = true %}{% endif %}{% endfor %}
@@ -848,4 +856,88 @@ function closeQuickPopup(){
     if(bd) bd.style.display = 'none';
     setTimeout(function(){ qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if(body) body.innerHTML=''; }, 360);
 }
+
+// ===== NOTATKI NA DASHBOARD - ZMIANA DATY =====
+(function() {
+    const dateDisplay = document.getElementById('current-date-display');
+    const dateISO = document.getElementById('current-date-iso');
+    const dayNavButtons = document.querySelectorAll('.day-nav');
+    const wpisyContainer = document.getElementById('wpisy-container');
+    
+    if (!dateDisplay || !dateISO || !wpisyContainer) return;
+    
+    function updateWpisyForDate(dateStr) {
+        const sekcja = document.querySelector('[data-sekcja]')?.getAttribute('data-sekcja') || 'Zasyp';
+        
+        fetch(`/api/wpisy_na_date?data=${dateStr}&sekcja=${encodeURIComponent(sekcja)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error('Error loading wpisy:', data.message);
+                    wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">Błąd ładowania notatek</div>';
+                    return;
+                }
+                
+                // Clear existing wpisy
+                wpisyContainer.innerHTML = '';
+                
+                // Add new wpisy (limit to 2)
+                if (data.wpisy && data.wpisy.length > 0) {
+                    data.wpisy.slice(0, 2).forEach(w => {
+                        const statusMap = {
+                            'zgłoszony': '🔔 Zgłoszony',
+                            'czeka_na_czesci': '⚙️ Czeka na części',
+                            'zakończony': '✅ Zakończony',
+                            'zamknięty': '🔒 Zamknięty'
+                        };
+                        const statusText = w[9] ? ('| Status: <strong>' + (statusMap[w[9]] || w[9]) + '</strong>') : '';
+                        const dataText = w[10] ? (' | Zakończono: <strong>' + w[10] + '</strong>') : '';
+                        
+                        const html = `
+                            <div class="alert-warning d-flex justify-between align-center mb-5">
+                                <div>
+                                    <span>⚠️ <strong>${w[3]}</strong> [${w[5]}]: ${w[2]}</span>
+                                    <div class="small text-muted">
+                                        od ${w[3]}${w[4] ? ' — do ' + w[4] : ''}
+                                        ${statusText}
+                                        ${dataText}
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-8 align-center">
+                                    <a href="/api/edytuj?id=${w[0]}" title="Edytuj wpis" class="font-bold text-warning-dark no-underline">✎</a>
+                                    <form action="/api/usun_wpis?id=${w[0]}" method="POST" class="m-0">
+                                        <input type="hidden" name="sekcja" value="${sekcja}">
+                                        <button type="submit" class="btn-icon text-warning-dark" aria-label="Usuń wpis">✖</button>
+                                    </form>
+                                </div>
+                            </div>
+                        `;
+                        wpisyContainer.insertAdjacentHTML('beforeend', html);
+                    });
+                } else {
+                    wpisyContainer.insertAdjacentHTML('beforeend', '<div class="text-muted text-center p-10">Brak notatek dla tego dnia.</div>');
+                }
+            })
+            .catch(err => {
+                console.error('Failed to update wpisy:', err);
+                wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">Błąd ładowania notatek</div>';
+            });
+    }
+    
+    dayNavButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const offset = parseInt(this.getAttribute('data-day-offset'), 10);
+            const currentDate = new Date(dateISO.value);
+            currentDate.setDate(currentDate.getDate() + offset);
+            
+            const newDateStr = currentDate.toISOString().split('T')[0];
+            const newDateDisplay = currentDate.toLocaleDateString('pl-PL');
+            
+            dateISO.value = newDateStr;
+            dateDisplay.textContent = newDateDisplay;
+            
+            updateWpisyForDate(newDateStr);
+        });
+    });
+})();
 </script>
