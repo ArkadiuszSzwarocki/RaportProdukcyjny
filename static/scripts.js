@@ -206,6 +206,7 @@
 
         function openSidebar() {
             document.body.classList.add('sidebar-open');
+            if (overlay) overlay.classList.add('open');
             if (hamburger) hamburger.setAttribute('aria-expanded', 'true');
             // Make sidebar focusable/interactive
             try {
@@ -219,6 +220,7 @@
 
         function closeSidebar() {
             document.body.classList.remove('sidebar-open');
+            if (overlay) overlay.classList.remove('open');
             if (hamburger) hamburger.setAttribute('aria-expanded', 'false');
             // If focus is inside the sidebar, move it to the hamburger to avoid aria-hidden on a focused descendant
             try {
@@ -274,7 +276,7 @@
                 var a = e.target.closest && e.target.closest('a[href]');
                 if(a){
                     var href = a.getAttribute('href') || '';
-                    if(href.indexOf('/api/') !== -1 && (href.indexOf('_page') !== -1 || href.indexOf('dodaj') !== -1 || href.indexOf('edytuj') !== -1 || href.indexOf('confirm_delete') !== -1)){
+                    if(href.indexOf('/api/') !== -1 && (href.indexOf('_page') !== -1 || href.indexOf('dodaj') !== -1 || href.indexOf('edytuj') !== -1 || href.indexOf('confirm_delete') !== -1 || href.indexOf('przywroc') !== -1)){
                         el = a;
                     }
                 }
@@ -290,7 +292,7 @@
             if(html){ showSlideOver(html, { isHtml: true, backdrop: true, allowBackdropClose: allowBackdrop }); return; }
             if(!url || url === '#' || url.indexOf('javascript:') === 0){ showSlideOver('<div class="p-10">Brak docelowego adresu</div>', { isHtml:true }); return; }
             showSlideOver(url, { backdrop: true, allowBackdropClose: allowBackdrop, transient: false });
-        }catch(err){ /* ignore delegation errors */ }
+        }catch(err){ console.error('Click delegation error:', err); }
     }, false);
 
     // Auto-refresh: odśwież gdy nikt nic nie wpisuje przez określony czas
@@ -302,6 +304,10 @@
     // Partial reload: fetch current page and replace main content silently
     async function performPartialReload() {
         try{
+            // Save current scroll position before reloading
+            const scrollKey = 'system_scroll_pos';
+            localStorage.setItem(scrollKey, window.scrollY);
+            
             const resp = await fetch(window.location.href, { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
             if(!resp.ok) return window.location.reload();
             const txt = await resp.text();
@@ -309,30 +315,43 @@
             const newMain = tmp.querySelector('#mainContent');
             const curMain = document.getElementById('mainContent');
             if(newMain && curMain){
+                // Clear any existing event listeners by replacing entire content
                 curMain.innerHTML = newMain.innerHTML;
-                // execute inline scripts inside newMain
-                newMain.querySelectorAll('script').forEach(s => {
+                
+                // Re-initialize any inline scripts (but NOT external scripts to avoid double-loading)
+                newMain.querySelectorAll('script:not([src])').forEach(s => {
                     try{
-                        if (s.src){
-                            const sc = document.createElement('script'); sc.src = s.src; sc.async = false; document.body.appendChild(sc);
-                        } else {
-                            try{ (new Function(s.textContent))(); } catch(e){ console.warn('exec inline partial script failed', e); }
+                        if(s.textContent) {
+                            const scriptCode = s.textContent;
+                            // Execute in global scope
+                            window.eval(scriptCode);
                         }
-                    }catch(e){ console.warn('exec script fragment', e); }
+                    }catch(e){ console.warn('exec partial script failed', e); }
                 });
+                
+                // Restore scroll position after content update
+                setTimeout(()=> {
+                    const savedPos = localStorage.getItem(scrollKey);
+                    if(savedPos) {
+                        window.scrollTo(0, parseInt(savedPos));
+                        localStorage.removeItem(scrollKey);
+                    }
+                }, 50);
+                
                 // call update timer function if available
                 try{ if(typeof updatePaletaTimers === 'function') updatePaletaTimers(); }catch(e){}
-                // custom event
+                
+                // Dispatch event so other parts of app know content changed
                 try{ window.dispatchEvent(new CustomEvent('app:partialReload')); }catch(e){}
+                
+                console.info('[partialReload] Content updated successfully');
                 return;
             }
             // fallback full reload
+            console.warn('[partialReload] Could not find #mainContent, falling back to full reload');
             window.location.reload();
         }catch(e){ console.error('performPartialReload failed', e); window.location.reload(); }
     }
-
-    /* NOTE: Slide-over panel removed in favor of quick-popup center modal */
-    window.closeCenterModal = closeCenterModal;
 
     /* ================= Additional popups: toast, drawer, bottom-sheet, popover, fullscreen, wizard ================= */
 
@@ -433,10 +452,10 @@
                     const method = (innerForm.getAttribute('method') || 'POST').toUpperCase();
                     const data = new URLSearchParams(new FormData(innerForm));
                     const numericEntered = Array.from(innerForm.querySelectorAll('input, textarea')).some(i=> /\d/.test((i.value||'')));
-                    fetch(url, { method: method, body: data, credentials: 'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'} })
+                    fetch(url, { method: method, body: data, credentials: 'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}, redirect: 'manual' })
                     .then(async function(resp){
                         if(resp.status === 401){ window.location.href = '/login'; return; }
-                        if(resp.redirected && resp.url){ remove(); performPartialReload(); return; }
+                        if(resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400)){ remove(); performPartialReload(); return; }
                         if(resp.status === 204){ if(typeof showToast === 'function') showToast('OK','success'); remove(); performPartialReload(); return; }
                         const txt = await resp.text();
                         try{
@@ -460,6 +479,84 @@
     function showQuickPopup(title, html, opts){ return createQuickPopup(title, html, opts); }
     window.createQuickPopup = createQuickPopup;
     window.showQuickPopup = showQuickPopup;
+
+    // closeQuickPopup: Close currently open quick popup
+    function closeQuickPopup(){
+        try{
+            var popup = document.querySelector('.quick-popup');
+            if(popup){
+                var closeBtn = popup.querySelector('.qp-close');
+                if(closeBtn) closeBtn.click();
+            }
+        }catch(e){ console.warn('closeQuickPopup failed', e); }
+    }
+    window.closeQuickPopup = closeQuickPopup;
+    window.closeCenterModal = closeQuickPopup; // Alias for backward compatibility
+
+    // showSlideOver: Load URL or display HTML in a quick popup
+    function showSlideOver(urlOrHtml, opts){
+        opts = opts || {};
+        
+        // If HTML content is passed directly
+        if(opts.isHtml){
+            return createQuickPopup('', urlOrHtml, opts);
+        }
+        
+        // Otherwise, fetch from URL
+        var url = urlOrHtml;
+        if(!url) {
+            console.warn('[showSlideOver] No URL provided');
+            return;
+        }
+        
+        console.info('[showSlideOver] Loading:', url);
+        
+        fetch(url, { credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} })
+        .then(function(resp){
+            if(!resp.ok) throw new Error('HTTP ' + resp.status);
+            return resp.text();
+        })
+        .then(function(html){
+            console.info('[showSlideOver] Loaded content, extracting...');
+            // Extract meaningful content from the response
+            // If it's a full HTML document, try to extract just the body content
+            var content = html;
+            var popupTitle = '';
+            try{
+                var tmp = document.createElement('div');
+                tmp.innerHTML = html;
+                
+                // Try to find popup title from data-popup-title attribute
+                var titleEl = tmp.querySelector('[data-popup-title]');
+                if(titleEl) popupTitle = titleEl.getAttribute('data-popup-title') || '';
+                
+                // Try to find a meaningful fragment
+                var main = tmp.querySelector('main') || tmp.querySelector('[role="main"]') || tmp.querySelector('.container') || tmp.querySelector('.content');
+                if(main) content = main.innerHTML;
+                else if(tmp.querySelector('body')) content = tmp.querySelector('body').innerHTML;
+                else if(tmp.querySelector('div.p-15') || tmp.querySelector('div.box') || tmp.querySelector('div.p-10')) content = tmp.innerHTML;
+            }catch(e){
+                console.error('[showSlideOver] Error extracting content:', e);
+            }
+            
+            console.info('[showSlideOver] Showing popup with title:', popupTitle);
+            createQuickPopup(popupTitle, content, opts);
+        })
+        .catch(function(err){
+            console.error('[showSlideOver] fetch failed:', err);
+            createQuickPopup('Błąd', '<div class="p-10">Nie udało się załadować zawartości: ' + err.message + '</div>', opts);
+        });
+    }
+    window.showSlideOver = showSlideOver;
+
+    // Reinitialize event listeners after partial reload
+    function reinitializeAfterPartialReload(){
+        console.info('[reinit] Re-initializing after partial reload');
+        // Global click delegation is already on document, so it should work
+        // But reinit any timers or specific elements here
+    }
+    
+    window.addEventListener('app:partialReload', reinitializeAfterPartialReload);
 
     // Backwards-compatible shim for legacy templates that call `otworzOknoDodawaniaPalety(planId, produkt, typ)`
     if (typeof window.otworzOknoDodawaniaPalety !== 'function') {

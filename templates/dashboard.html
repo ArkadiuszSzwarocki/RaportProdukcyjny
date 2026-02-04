@@ -244,7 +244,7 @@
                                     <a href="{{ url_for('api.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
                                     <a href="{{ url_for('api.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% else %}
-                                    <form action="{{ url_for('api.koniec_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-stop">STOP</button></form>
+                                    <a href="{{ url_for('api.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% endif %}
                             </div>
                             <!-- Modale paleta/szarza/stop-zasyp usunięte -->
@@ -258,7 +258,7 @@
                                     <a href="{{ url_for('api.wyjasnij_page', id=p[0]) }}" class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</a>
                                     <!-- Wyjaśnienie modal (slide-over) -->
                                     {% endif %}
-                                {% if rola in ['lider', 'admin'] %}<form action="{{ url_for('api.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić?');"><button type="submit" class="btn-action btn-outline-warning" aria-label="Przywróć zlecenie"><span class="material-icons">replay</span></button></form>{% endif %}
+                                {% if rola in ['lider', 'admin'] and has_suspended_yesterday %}<a href="{{ url_for('api.przywroc_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-outline-warning" aria-label="Przywróć zlecenie" data-slide><span class="material-icons">replay</span></a>{% endif %}
                             </div>
                         {% else %}
                             {# Status inny niż 'w toku' i 'zakonczone' - brak akcji #}
@@ -288,7 +288,7 @@
                                         <td>
                                             {% if rola in ['lider', 'admin'] %}
                                                 <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="Edytuj szarzę" data-slide>✏️</a>
-                                                <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń szarzę" data-slide>🗑️</a>
+                                                <a href="{{ url_for('api.confirm_delete_szarze_page', szarza_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń szarzę" data-slide>🗑️</a>
                                             {% endif %}
                                         </td>
                                     {% elif sekcja == 'Workowanie' %}
@@ -478,7 +478,13 @@ function updatePaletaTimers(){
         el.textContent = '⏱️ ' + formatElapsed(secs);
     });
 }
-document.addEventListener('DOMContentLoaded', function(){ updatePaletaTimers(); setInterval(updatePaletaTimers, 1000); });
+function initUpdatePaletaTimers(){
+    updatePaletaTimers(); 
+    clearInterval(window._paletaTimersInterval);
+    window._paletaTimersInterval = setInterval(updatePaletaTimers, 1000);
+}
+document.addEventListener('DOMContentLoaded', initUpdatePaletaTimers);
+window.addEventListener('app:partialReload', initUpdatePaletaTimers);
 </script>
 
 <script>

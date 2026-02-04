@@ -63,6 +63,12 @@ def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows):
 def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
     """Generuje plik PDF z tabelami"""
     nazwa_pdf = f"Raport_{dzisiaj}.pdf"
+    
+    # Ensure raporty directory exists
+    import os
+    if not os.path.exists('raporty'):
+        os.makedirs('raporty')
+    
     sciezka = os.path.join('raporty', nazwa_pdf)
     print(f"[RAPORTY.generuj_pdf] START: dzisiaj={dzisiaj}, sciezka={sciezka}")
     # importujemy FPDF tylko podczas generowania PDF (unikamy importu przy starcie aplikacji)

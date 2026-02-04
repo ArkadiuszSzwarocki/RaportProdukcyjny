@@ -361,13 +361,17 @@ document.getElementById('btnSendEmailReport').addEventListener('click', function
 const endShiftForm = document.getElementById('endShiftForm');
 if (endShiftForm) {
   endShiftForm.addEventListener('submit', function(e) {
+    console.log('[SUBMIT] Form submit event fired!');
+    console.log('[SUBMIT] Form action:', this.action);
     e.preventDefault();
+    console.log('[SUBMIT] preventDefault called');
     
     // Prześlij formularz normalnie (POST do /api/zamknij_zmiane_global)
     const submitBtn = this.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     const originalText = submitBtn.textContent;
     submitBtn.textContent = '⏳ Przetwarzam...';
+    console.log('[SUBMIT] Sending fetch to:', this.action);
     
     fetch(this.action, {
       method: 'POST',
@@ -376,13 +380,31 @@ if (endShiftForm) {
       }
     })
     .then(response => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}: Błąd przy zatwierdzaniu zmiany`);
-      // Endpoint zwraca ZIP file, nie JSON - nie próbujemy parsować
-      console.log('[CLOSE-SHIFT] ✅ Żądanie zamknięcia zmiany wysłane');
-      return true;
+      console.log('[CLOSE-SHIFT] Response status:', response.status);
+      console.log('[CLOSE-SHIFT] Response type:', response.type);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Błąd przy zatwierdzaniu zmiany`);
+      }
+      
+      // Pobierz plik ZIP z response
+      return response.blob();
     })
-    .then(result => {
-      console.log('[CLOSE-SHIFT] ✅ Zmiana zakończona pomyślnie');
+    .then(blob => {
+      console.log('[CLOSE-SHIFT] Blob received, size:', blob.size, 'bytes');
+      
+      // Pobierz plik
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Raporty_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      console.log('[CLOSE-SHIFT] OK ZIP downloaded');
+      
       alert('✅ Zmiana zakończona!\n✅ Raporty pobrane!');
       
       // Poczekaj i odśwież stronę
@@ -391,8 +413,8 @@ if (endShiftForm) {
       }, 1000);
     })
     .catch(error => {
-      console.error('[CLOSE-SHIFT] ❌ Błąd:', error);
-      alert(`❌ Błąd przy zatwierdzaniu zmiany:\n\n${error.message}`);
+      console.error('[CLOSE-SHIFT] ERROR:', error);
+      alert(`ERROR Błąd przy zatwierdzaniu zmiany:\n\n${error.message}`);
       submitBtn.disabled = false;
       submitBtn.textContent = originalText;
     });

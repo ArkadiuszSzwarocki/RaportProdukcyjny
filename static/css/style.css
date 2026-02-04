@@ -95,8 +95,14 @@
     transition: opacity 0.25s ease, visibility 0.25s;
     z-index: 9998;
     display: none;
+    pointer-events: none;
 }
-#sidebarOverlay.open { opacity: 1; visibility: visible; display: block; }
+#sidebarOverlay.open { 
+    opacity: 1; 
+    visibility: visible; 
+    display: block;
+    pointer-events: auto;
+}
 
 body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;

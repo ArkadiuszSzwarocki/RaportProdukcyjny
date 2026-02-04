@@ -87,6 +87,13 @@ def roles_required(*roles, groups=None):
     def wrapper(f):
         @wraps(f)
         def decorated(*args, **kwargs):
+            import sys
+            print(f"\n[DECORATOR_ENTRY] ===============================================", file=sys.stderr)
+            print(f"[DECORATOR_ENTRY] DECORATOR roles_required called for {f.__name__}", file=sys.stderr)
+            print(f"[DECORATOR_ENTRY] Required roles: {roles}", file=sys.stderr)
+            print(f"[DECORATOR_ENTRY] Session: zalogowany={session.get('zalogowany')}, rola={session.get('rola')}, grupa={session.get('grupa')}", file=sys.stderr)
+            sys.stderr.flush()
+            
             print(f"[DECORATOR] roles_required check for {f.__name__}")
             print(f"[DECORATOR] Required roles: {roles}")
             print(f"[DECORATOR] Session: zalogowany={session.get('zalogowany')}, rola={session.get('rola')}, grupa={session.get('grupa')}")

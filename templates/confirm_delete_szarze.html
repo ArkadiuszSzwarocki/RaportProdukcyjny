@@ -1,6 +1,6 @@
-<div class="p-10" data-popup-title="🗑️ Usuń paletę?">
-    <p>Czy na pewno chcesz usunąć paletę o id <strong>{{ paleta_id }}</strong>?</p>
-    <form action="{{ url_for('api.usun_palete', id=paleta_id) }}" method="POST">
+<div class="p-10" data-popup-title="🗑️ Usuń szarżę?">
+    <p>Czy na pewno chcesz usunąć szarżę o id <strong>{{ szarza_id }}</strong>?</p>
+    <form action="{{ url_for('api.usun_szarze', id=szarza_id) }}" method="POST">
         <div style="display:flex; gap:8px;">
             <button type="submit" class="btn-action btn-danger">USUŃ</button>
             <button type="button" class="btn-action btn-action-cancel" onclick="closeQuickPopup();">ANULUJ</button>

@@ -1352,12 +1352,31 @@ def index():
         if conn:
             conn.close()
         
+        # Sprawdź czy są zlecenia 'wstrzymane' z wczoraj dla każdej sekcji
+        has_suspended_yesterday = False
+        try:
+            if aktywna_sekcja in ('Zasyp', 'Workowanie'):
+                wczoraj = (datetime.now().date() - timedelta(days=1)).strftime('%Y-%m-%d')
+                conn_check = get_db_connection()
+                cursor_check = conn_check.cursor()
+                cursor_check.execute(
+                    "SELECT COUNT(*) FROM plan_produkcji WHERE DATE(data_planu) = %s AND sekcja = %s AND status = 'wstrzymane'",
+                    (wczoraj, aktywna_sekcja)
+                )
+                result = cursor_check.fetchone()
+                has_suspended_yesterday = result[0] > 0 if result else False
+                cursor_check.close()
+                conn_check.close()
+        except Exception as e:
+            app.logger.exception('Error checking for suspended orders from yesterday: %s', str(e))
+            has_suspended_yesterday = False
+        
         # If sekcja='Dashboard' (no param), render the global dashboard center (with Zasyp + Workowanie)
         # Otherwise render the production section dashboard
         if aktywna_sekcja == 'Dashboard':
             return render_template('dashboard_global.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_dnia, palety_mapa=palety_mapa, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, planned_leaves=planned_leaves, recent_absences=recent_absences, shift_notes=shift_notes, plans_zasyp=plans_zasyp, plans_workowanie=plans_workowanie, buffer_map=buffer_map)
         else:
-            return render_template('dashboard.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_data, palety_mapa=palety_mapa_local, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, buffer_map=buffer_map)
+            return render_template('dashboard.html', sekcja=aktywna_sekcja, pracownicy=dostepni, wszyscy_pracownicy=wszyscy, hr_pracownicy=hr_pracownicy, hr_dostepni=hr_dostepni, obsada=obecna_obsada, wpisy=wpisy, plan=plan_data, palety_mapa=palety_mapa_local, magazyn_palety=magazyn_palety, unconfirmed_palety=unconfirmed_palety, suma_plan=suma_plan, suma_wykonanie=suma_wykonanie, rola=session.get('rola'), dzisiaj=dzisiaj, raporty_hr=raporty_hr, zasyp_rozpoczete=zasyp_rozpoczete, next_workowanie_id=next_workowanie_id, now_time=datetime.now().strftime('%H:%M'), quality_count=quality_count, wnioski_pending=wnioski_pending, has_suspended_yesterday=has_suspended_yesterday, buffer_map=buffer_map)
     except Exception:
         # Zamknij connection w przypadku błędu
         if conn:
@@ -1424,6 +1443,13 @@ def panel_obsada_page():
         current_app.logger.exception('Failed loading obsada for panel page')
 
     return render_template('panels_full/obsada_full.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'))
+
+
+@app.route('/test-download')
+@login_required
+def test_download():
+    """Strona testowa do pobrania raportów"""
+    return render_template('test_download.html')
 
 
 @app.route('/moje_godziny')

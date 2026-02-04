@@ -1,21 +1,18 @@
-<div class="p-15">
-    <h4 class="m-0 text-danger-color">🛑 Zatrzymaj produkcję</h4>
-    <form action="{{ url_for('api.koniec_zlecenie', id=id) }}" method="POST" class="mt-10">
+<div class="p-10" data-popup-title="🛑 Zatrzymaj produkcję">
+    <form action="{{ url_for('api.koniec_zlecenie', id=id) }}" method="POST">
         <input type="hidden" name="sekcja" value="{{ sekcja }}">
-        {# Submit final_tonaz as hidden (use existing plan tonaz as default) #}
         <input type="hidden" name="final_tonaz" value="{{ tonaz if tonaz is not none else '' }}">
 
-        <p>
+        <p style="margin:0 0 10px 0;">
             Czy zatwierdzasz wykonanie zlecenia
             <strong>{{ produkt if produkt else ('#' ~ id) }}</strong>
             z ilością
-            <strong>{{ tonaz if tonaz is not none else '—' }} kg</strong>?
+            <strong>{{ tonaz if tonaz is not none else '0' }} kg</strong>?
         </p>
 
-        <label class="mt-10">Dodaj komentarz do zlecenia (opcjonalnie):</label>
-        <textarea name="wyjasnienie" class="input-sm" rows="4" title="Komentarz" placeholder="Opcjonalny komentarz"></textarea>
+        <textarea name="wyjasnienie" class="input-sm" rows="3" title="Komentarz" placeholder="Opcjonalny komentarz" style="margin-bottom:8px;"></textarea>
 
-        <div class="mt-10">
+        <div style="display:flex; gap:8px;">
             <button type="submit" class="btn-action btn-stop">Zatwierdź</button>
             <button type="button" onclick="closeQuickPopup()" class="btn-action btn-outline">Anuluj</button>
         </div>

@@ -2,6 +2,9 @@ from flask import Blueprint, request, redirect, url_for, flash, session, render_
 from utils.validation import require_field
 import logging
 import json
+import os
+import sys
+import zipfile
 from datetime import date, datetime, timedelta, time
 from io import BytesIO
 from db import get_db_connection, rollover_unfinished, log_plan_history
@@ -86,7 +89,16 @@ def koniec_zlecenie(id):
     cursor.execute("SELECT sekcja, produkt, data_planu, tonaz FROM plan_produkcji WHERE id=%s", (id,))
     z = cursor.fetchone()
     if z and z[0] == 'Zasyp' and rzeczywista_waga > 0:
-        cursor.execute("UPDATE plan_produkcji SET tonaz=%s WHERE data_planu=%s AND produkt=%s AND tonaz=%s AND sekcja='Workowanie' AND status != 'zakonczone' LIMIT 1", (rzeczywista_waga, z[2], z[1], z[3]))
+        # Znajdź odpowiadające zlecenie Workowanie dla tego samego produktu i daty
+        cursor.execute(
+            "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND status != 'zakonczone' ORDER BY id ASC LIMIT 1",
+            (z[2], z[1])
+        )
+        workowanie_plan = cursor.fetchone()
+        if workowanie_plan:
+            workowanie_id = workowanie_plan[0]
+            # Zaktualizuj tylko to konkretne zlecenie Workowanie
+            cursor.execute("UPDATE plan_produkcji SET tonaz=%s WHERE id=%s", (rzeczywista_waga, workowanie_id))
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
@@ -109,14 +121,14 @@ def koniec_zlecenie_page(id):
     # Render a confirmation fragment that posts to existing /koniec_zlecenie/<id>
     sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Zasyp'))
     produkt = None
-    tonaz = None
+    tonaz_rzeczywisty = None
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT produkt, tonaz FROM plan_produkcji WHERE id=%s", (id,))
+        cursor.execute("SELECT produkt, tonaz_rzeczywisty FROM plan_produkcji WHERE id=%s", (id,))
         row = cursor.fetchone()
         if row:
-            produkt, tonaz = row[0], row[1]
+            produkt, tonaz_rzeczywisty = row[0], row[1]
     except Exception:
         try: current_app.logger.exception('Failed to fetch plan %s for koniec_zlecenie_page', id)
         except Exception: pass
@@ -124,7 +136,7 @@ def koniec_zlecenie_page(id):
         try: conn.close()
         except Exception: pass
 
-    return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt, tonaz=tonaz)
+    return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt, tonaz=tonaz_rzeczywisty)
 
 
 # Temporary test endpoint: return the most recent file from raporty/ as attachment
@@ -401,6 +413,12 @@ def confirm_delete_palete_page(paleta_id):
     return render_template('confirm_delete_palete.html', paleta_id=paleta_id)
 
 
+@api_bp.route('/confirm_delete_szarze_page/<int:szarza_id>', methods=['GET'])
+@login_required
+def confirm_delete_szarze_page(szarza_id):
+    return render_template('confirm_delete_szarze.html', szarza_id=szarza_id)
+
+
 @api_bp.route('/potwierdz_palete_page/<int:paleta_id>', methods=['GET'])
 @login_required
 def potwierdz_palete_page(paleta_id):
@@ -635,21 +653,52 @@ def wazenie_magazyn(paleta_id):
     conn.close()
     return redirect(bezpieczny_powrot())
 
-@api_bp.route('/usun_palete/<int:id>', methods=['POST'])
+@api_bp.route('/usun_szarze/<int:id>', methods=['POST'])
+@roles_required('lider', 'admin')
+def usun_szarze(id):
+    """Usuń szarżę (z tabeli szarze dla sekcji Zasyp)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT plan_id FROM szarze WHERE id=%s", (id,))
+        res = cursor.fetchone()
+        if res:
+            plan_id = res[0]
+            cursor.execute("DELETE FROM szarze WHERE id=%s", (id,))
+            # Recompute tonaz_rzeczywisty: suma wag z szarż
+            cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) WHERE id = %s", (plan_id, plan_id))
+            conn.commit()
+    finally:
+        conn.close()
+    
+    # Jeśli to XMLHttpRequest (z popupu przez fetch), zwróć JSON
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Szarża usunięta'}), 200
+    
+    return redirect(bezpieczny_powrot())
+
+
 @api_bp.route('/usun_palete/<int:id>', methods=['POST'])
 @roles_required('lider', 'admin')
 def usun_palete(id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT plan_id FROM palety_workowanie WHERE id=%s", (id,))
-    res = cursor.fetchone()
-    if res:
-        plan_id = res[0]
-        cursor.execute("DELETE FROM palety_workowanie WHERE id=%s", (id,))
-        # Recompute buffer: exclude confirmed palety (only count unconfirmed 'do_przyjecia')
-        cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
-        conn.commit()
-    conn.close()
+    try:
+        cursor.execute("SELECT plan_id FROM palety_workowanie WHERE id=%s", (id,))
+        res = cursor.fetchone()
+        if res:
+            plan_id = res[0]
+            cursor.execute("DELETE FROM palety_workowanie WHERE id=%s", (id,))
+            # Recompute buffer: exclude confirmed palety (only count unconfirmed 'do_przyjecia')
+            cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
+            conn.commit()
+    finally:
+        conn.close()
+    
+    # Jeśli to XMLHttpRequest (z popupu przez fetch), zwróć JSON i status redirect
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Paleta usunięta'}), 200
+    
     return redirect(bezpieczny_powrot())
 
 
@@ -682,6 +731,27 @@ def edytuj_palete(paleta_id):
     return redirect(bezpieczny_powrot())
 
 # ================= ZARZĄDZANIE (ZABEZPIECZONE) =================
+
+@api_bp.route('/przywroc_zlecenie_page/<int:id>', methods=['GET'])
+@roles_required('lider', 'admin')
+def przywroc_zlecenie_page(id):
+    # Render a confirmation popup for resuming/recovering an order
+    sekcja = request.args.get('sekcja', 'Zasyp')
+    produkt = None
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT produkt FROM plan_produkcji WHERE id=%s", (id,))
+        row = cursor.fetchone()
+        if row:
+            produkt = row[0]
+    except Exception:
+        pass
+    finally:
+        try: conn.close()
+        except Exception: pass
+    
+    return render_template('przywroc_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt)
 
 @api_bp.route('/przywroc_zlecenie/<int:id>', methods=['POST'])
 @roles_required('lider', 'admin')
@@ -2216,10 +2286,21 @@ def zamknij_zmiane():
 @login_required
 @roles_required('lider', 'admin')
 def zamknij_zmiane_global():
-    """Generuj raport TXT, Excel i PDF dla wszystkich sekcji.
-    Akceptuje opcjonalny parametr `data` (YYYY-MM-DD) z formularza/querystring.
     """
-    # domyślna data to dziś, ale pozwól podać konkretną datę z formularza
+    Endpoint to close shift and download reports as ZIP.
+    Orchestrates the report generation workflow.
+    """
+    import sys
+    from services.report_service import (
+        load_shift_notes, 
+        get_leader_name, 
+        generate_and_download_reports
+    )
+    
+    print("\n[ROUTE] ################# ROUTE HANDLER CALLED #################", file=sys.stderr)
+    sys.stderr.flush()
+    
+    # Parse date from request
     date_str = request.values.get('data') or request.args.get('data')
     if date_str:
         try:
@@ -2229,196 +2310,34 @@ def zamknij_zmiane_global():
     else:
         dzisiaj = date.today()
     
+    date_str = dzisiaj.strftime('%Y-%m-%d')
+    
     print("\n" + "="*60)
     print("[ROUTE] /zamknij-zmiane-global called")
     print(f"[ROUTE] Method: {request.method}")
-    print(f"[ROUTE] Date: {dzisiaj}")
+    print(f"[ROUTE] Date: {date_str}")
     print("="*60)
     
-    # Import generator
     try:
-        from generator_raportow import generuj_paczke_raportow
-        print("[ROUTE] ✓ Generator module imported")
-    except ImportError as e:
-        print(f"[ROUTE] ✗ Failed to import generator: {e}")
-        flash('⚠️ Błąd: Nie można załadować generatora raportów', 'error')
-        return redirect('/')
-    
-    # Pobierz notatki zmianowe (shift_notes) dla dzisiejszego dnia
-    uwagi = ""
-    try:
-        conn_notes = get_db_connection()
-        cursor_notes = conn_notes.cursor(dictionary=True)
+        # Load shift notes
+        uwagi = load_shift_notes(dzisiaj)
         
-        query_notes = "SELECT note, author, created FROM shift_notes WHERE DATE(created) = %s ORDER BY created ASC"
-        date_param = dzisiaj.strftime('%Y-%m-%d')
-        print(f"[ROUTE] Executing query with date={date_param}")
-        cursor_notes.execute(query_notes, (date_param,))
-        notes = cursor_notes.fetchall()
-        cursor_notes.close()
-        conn_notes.close()
+        # Get leader name
+        session_data = {
+            'pracownik_id': session.get('pracownik_id'),
+            'login': session.get('login', 'nieznany')
+        }
+        form_data = {
+            'lider_id': request.form.get('lider_id') or request.values.get('lider_id'),
+            'lider_prowadzacy_id': request.form.get('lider_prowadzacy_id') or request.values.get('lider_prowadzacy_id')
+        }
+        lider_name, uwagi_addition = get_leader_name(session_data, form_data)
+        uwagi = (uwagi or '') + uwagi_addition
         
-        print(f"[ROUTE] Query result - notes count: {len(notes)}")
-        if notes:
-            print(f"[ROUTE] ✓ Loaded {len(notes)} shift notes from database")
-            print(f"[ROUTE] First note: {notes[0] if notes else 'N/A'}")
-            # Formatuj notatki do uwagi
-            uwagi = "NOTATKI ZMIANOWE:\n" + "-" * 50 + "\n"
-            for i, note in enumerate(notes):
-                # Formatuj czas w Pythonie
-                created_time = note['created'].strftime('%H:%M:%S') if note['created'] else '??:??:??'
-                uwagi += f"\n[{created_time}] {note['author']}:\n{note['note']}\n"
-                print(f"[ROUTE] Note {i+1}: author={note['author']}, time={created_time}, length={len(note['note'])}")
-        else:
-            print(f"[ROUTE] ⚠️ No shift notes found for {date_param}")
-            uwagi = ""
-    except Exception as e:
-        print(f"[ROUTE] ✗ Error loading shift notes: {e}")
-        import traceback
-        traceback.print_exc()
-        uwagi = ""
-    
-    print(f"[ROUTE] final notatki zmianowe: length={len(uwagi)} chars")
-    if uwagi:
-        print(f"[ROUTE] uwagi preview (first 200 chars): {uwagi[:200]}...")
-    
-    try:
-        # Pobierz imię i nazwisko lidera — preferuj wybór z formularza jeśli podano
-        lider_name = "Nieznany"
-        pracownik_id = session.get('pracownik_id')
-        lider_login = session.get('login', 'nieznany')
-
-        # If form provided a leader, prefer that
-        form_lider_id = request.form.get('lider_id') or request.values.get('lider_id')
-        form_lider_prowadzacy_id = request.form.get('lider_prowadzacy_id') or request.values.get('lider_prowadzacy_id')
-
-        print(f"[ROUTE] Looking for lider: session_pracownik_id={pracownik_id}, form_lider_id={form_lider_id}, login={lider_login}")
-
-        try:
-            conn_user = get_db_connection()
-            cursor_user = conn_user.cursor()
-            chosen_lider_id = form_lider_id if form_lider_id else pracownik_id
-            if chosen_lider_id:
-                cursor_user.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (chosen_lider_id,))
-                row = cursor_user.fetchone()
-                if row and row[0]:
-                    lider_name = row[0]
-                    print(f"[ROUTE] ✓ Found lider name: {lider_name} (id={chosen_lider_id})")
-            else:
-                lider_name = lider_login
-
-            # If a 'lider_prowadzacy' was provided, fetch name and append to uwagi
-            if form_lider_prowadzacy_id:
-                cursor_user.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (form_lider_prowadzacy_id,))
-                row2 = cursor_user.fetchone()
-                if row2 and row2[0]:
-                    prowadzacy_name = row2[0]
-                    uwagi = (uwagi or '') + f"\nLider prowadzący: {prowadzacy_name}\n"
-                    print(f"[ROUTE] ✓ Lider prowadzący: {prowadzacy_name} (id={form_lider_prowadzacy_id})")
-
-            cursor_user.close()
-            conn_user.close()
-        except Exception as e:
-            print(f"[ROUTE] ✗ Error fetching leader names: {e}")
+        # Generate reports and create ZIP
+        zip_buffer, zip_filename = generate_and_download_reports(date_str, uwagi, lider_name)
         
-        # Generuj raporty
-        date_str = dzisiaj.strftime('%Y-%m-%d')
-        print(f"[ROUTE] Calling generator with date={date_str}, lider={lider_name}, uwagi_len={len(uwagi)}")
-        xls_path, txt_path, pdf_path = generuj_paczke_raportow(date_str, uwagi, lider_name)
-        
-        # Loguj sukces
-        print(f"[ROUTE] ✓ Reports generated successfully!")
-        print(f"[ROUTE] Excel: {xls_path}")
-        print(f"[ROUTE] TXT: {txt_path}")
-        print(f"[ROUTE] PDF: {pdf_path}")
-        
-        # Przenieś wygenerowane pliki z raporty_temp do raporty (jeśli są tam)
-        import os
-        import zipfile
-        import shutil
-        from io import BytesIO
-        
-        raporty_dir = 'raporty'
-        if not os.path.exists(raporty_dir):
-            os.makedirs(raporty_dir)
-        
-        # Przeniesienie Excel
-        final_xls = xls_path
-        if xls_path and os.path.exists(xls_path) and 'raporty_temp' in xls_path:
-            try:
-                final_xls = os.path.join(raporty_dir, os.path.basename(xls_path))
-                shutil.move(xls_path, final_xls)
-                print(f"[ROUTE] Moved Excel to {final_xls}")
-            except Exception as e:
-                print(f"[ROUTE] Could not move Excel: {e}")
-                final_xls = xls_path
-        
-        # Przeniesienie TXT
-        final_txt = txt_path
-        if txt_path and os.path.exists(txt_path) and 'raporty_temp' in txt_path:
-            try:
-                final_txt = os.path.join(raporty_dir, os.path.basename(txt_path))
-                shutil.move(txt_path, final_txt)
-                print(f"[ROUTE] Moved TXT to {final_txt}")
-            except Exception as e:
-                print(f"[ROUTE] Could not move TXT: {e}")
-                final_txt = txt_path
-        
-        # Stwórz ZIP z wszystkimi plikami
-        zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            # Dodaj Excel
-            if final_xls and os.path.exists(final_xls):
-                zip_file.write(final_xls, arcname=os.path.basename(final_xls))
-                print(f"[ROUTE] ✓ Added to ZIP: {os.path.basename(final_xls)}")
-            else:
-                print(f"[ROUTE] ✗ Excel file not found: {final_xls}")
-            
-            # Dodaj TXT
-            if final_txt and os.path.exists(final_txt):
-                zip_file.write(final_txt, arcname=os.path.basename(final_txt))
-                print(f"[ROUTE] ✓ Added to ZIP: {os.path.basename(final_txt)}")
-            else:
-                print(f"[ROUTE] ✗ TXT file not found: {final_txt}")
-            
-            # Dodaj PDF
-            if pdf_path and os.path.exists(pdf_path):
-                zip_file.write(pdf_path, arcname=os.path.basename(pdf_path))
-                print(f"[ROUTE] ✓ Added to ZIP: {os.path.basename(pdf_path)}")
-            else:
-                print(f"[ROUTE] ✗ PDF file not found: {pdf_path}")
-        
-        zip_buffer.seek(0)
-        zip_filename = f"Raporty_{date_str}.zip"
-        print(f"[ROUTE] ✓ ZIP created: {zip_filename}")
-        
-        # ================= ZAWIESZENIE ZLECEŃ PO ZAMKNIĘCIU ZMIANY =================
-        try:
-            conn_plans = get_db_connection()
-            cursor_plans = conn_plans.cursor()
-            
-            # Zawieszaj wszystkie zlecenia ze status = 'w toku' dla dzisiejszego dnia
-            suspend_query = """
-                UPDATE plan_produkcji 
-                SET status = 'wstrzymane' 
-                WHERE DATE(data_planu) = %s 
-                AND status = 'w toku'
-            """
-            date_param = dzisiaj.strftime('%Y-%m-%d')
-            cursor_plans.execute(suspend_query, (date_param,))
-            suspended_count = cursor_plans.rowcount
-            conn_plans.commit()
-            cursor_plans.close()
-            conn_plans.close()
-            
-            print(f"[ROUTE] ✓ Suspended {suspended_count} active plans for {date_param}")
-            
-        except Exception as e:
-            print(f"[ROUTE] ✗ Error suspending plans: {e}")
-        
-        print("="*60 + "\n")
-        
-        # Zwróć ZIP do pobrania
+        # Return ZIP for download
         return send_file(
             zip_buffer,
             mimetype='application/zip',
@@ -2427,11 +2346,12 @@ def zamknij_zmiane_global():
         )
         
     except Exception as e:
-        print(f"[ROUTE] ✗ Error generating reports:")
-        print(f"[ROUTE] {str(e)}")
+        print(f"[ROUTE] EXCEPTION CAUGHT IN MAIN HANDLER: {str(e)}", file=sys.stderr)
+        sys.stderr.flush()
+        print(f"[ROUTE] ERROR {str(e)}")
         import traceback
         traceback.print_exc()
-        flash(f'❌ Błąd przy generowaniu raportów: {str(e)}', 'error')
+        flash(f'ERROR Blad przy generowaniu raportow: {str(e)}', 'error')
         print("="*60 + "\n")
         return redirect('/')
 
@@ -2966,7 +2886,7 @@ def wznow_zlecenia_z_wczoraj():
         cursor.close()
         conn.close()
         
-        print(f"[WZNOW-WCZORAJ] ✓ Success: Resumed {resumed_count} plans from {wczoraj_str}")
+        print(f"[WZNOW-WCZORAJ] OK Success: Resumed {resumed_count} plans from {wczoraj_str}")
         
         return jsonify({
             "success": True,
@@ -2976,7 +2896,7 @@ def wznow_zlecenia_z_wczoraj():
         }), 200
         
     except Exception as e:
-        print(f"[WZNOW-WCZORAJ] ✗ Error: {type(e).__name__}: {str(e)}")
+        print(f"[WZNOW-WCZORAJ] ERROR Error: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         
@@ -3155,3 +3075,115 @@ def usun_palete_ajax():
         logger = logging.getLogger('werkzeug')
         logger.error(f"Error in usun_palete_ajax: {str(e)}")
         return jsonify({"success": False, "message": f"Błąd: {str(e)}"}), 500
+
+
+# ================= TEST ENDPOINTS FOR DOWNLOAD =================
+
+@api_bp.route('/test-download-page')
+@login_required
+def test_download_page():
+    """Strona testowa do pobrania raportów"""
+    return render_template('test_download.html')
+
+
+@api_bp.route('/test-generate-report')
+@login_required
+def test_generate_report():
+    """Test endpoint - Wygeneruj raport bez pobierania"""
+    try:
+        data_str = request.args.get('data') or str(date.today())
+        
+        print(f"\n[TEST-GENERATE] Starting report generation for {data_str}")
+        sys.stdout.flush()
+        
+        # Import generator
+        from generator_raportow import generuj_paczke_raportow
+        
+        # Generate reports
+        xls_path, txt_path, pdf_path = generuj_paczke_raportow(data_str, "Test raport", "Admin")
+        
+        # Check if files exist
+        xls_exists = os.path.exists(xls_path) if xls_path else False
+        txt_exists = os.path.exists(txt_path) if txt_path else False
+        pdf_exists = os.path.exists(pdf_path) if pdf_path else False
+        
+        print(f"[TEST-GENERATE] XLS: {xls_path} (exists={xls_exists})")
+        print(f"[TEST-GENERATE] TXT: {txt_path} (exists={txt_exists})")
+        print(f"[TEST-GENERATE] PDF: {pdf_path} (exists={pdf_exists})")
+        sys.stdout.flush()
+        
+        return jsonify({
+            "success": True,
+            "message": f"OK Raport wygenerowany dla {data_str}",
+            "xls": xls_path,
+            "xls_exists": xls_exists,
+            "txt": txt_path,
+            "txt_exists": txt_exists,
+            "pdf": pdf_path,
+            "pdf_exists": pdf_exists
+        }), 200
+        
+    except Exception as e:
+        print(f"[TEST-GENERATE] ERROR: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.stderr.flush()
+        
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": f"ERROR Blad: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/test-download-zip')
+@login_required
+def test_download_zip():
+    """Test endpoint - Zwróć prosty ZIP do pobrania"""
+    try:
+        data_str = request.args.get('data') or str(date.today())
+        
+        print(f"\n[TEST-ZIP] Starting ZIP creation for {data_str}")
+        sys.stdout.flush()
+        
+        # Create test ZIP with dummy file
+        zip_buffer = BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Add test file
+            test_content = f"Test raport dla daty: {data_str}\nGodzina: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            zip_file.writestr("test_raport.txt", test_content)
+            
+            # Try to add real reports if they exist
+            raporty_dir = 'raporty'
+            if os.path.exists(raporty_dir):
+                for file in os.listdir(raporty_dir):
+                    if data_str in file and file.endswith(('.xlsx', '.txt', '.pdf')):
+                        file_path = os.path.join(raporty_dir, file)
+                        zip_file.write(file_path, arcname=file)
+                        print(f"[TEST-ZIP] Added: {file}")
+                        sys.stdout.flush()
+        
+        zip_buffer.seek(0)
+        
+        print(f"[TEST-ZIP] ZIP created, size: {len(zip_buffer.getvalue())} bytes")
+        sys.stdout.flush()
+        
+        return send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f"Test_Raporty_{data_str}.zip"
+        )
+        
+    except Exception as e:
+        print(f"[TEST-ZIP] ERROR: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.stderr.flush()
+        
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": f"ERROR Blad: {str(e)}"
+        }), 500

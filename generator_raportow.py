@@ -9,17 +9,25 @@ logger = logging.getLogger(__name__)
 def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
     logger.info(f"[GENERATOR] Starting report generation for {data_raportu}")
     logger.info(f"[GENERATOR] Lider: {lider_name}, Uwagi length: {len(uwagi_lidera)}")
+    print(f"[GENERATOR] ===== REPORT GENERATION START =====")
+    print(f"[GENERATOR] Data: {data_raportu}")
+    print(f"[GENERATOR] Lider: {lider_name}")
+    print(f"[GENERATOR] Uwagi length: {len(uwagi_lidera)}")
     try:
         conn = get_db_connection()
         logger.info(f"[GENERATOR] Database connection established")
+        print(f"[GENERATOR] OK Database connection OK")
     except Exception as e:
         logger.error(f"[GENERATOR] Failed to get DB connection: {e}", exc_info=True)
+        print(f"[GENERATOR] ERROR Failed to get DB connection: {e}")
         raise
     
     # Pobieranie danych
     logger.info(f"[GENERATOR] Fetching production data for {data_raportu}")
+    print(f"[GENERATOR] Fetching production data...")
     df_plan = pd.read_sql("SELECT sekcja, produkt, tonaz, tonaz_rzeczywisty FROM plan_produkcji WHERE data_planu = %s", conn, params=(data_raportu,))
     logger.info(f"[GENERATOR] Production data: {len(df_plan)} rows")
+    print(f"[GENERATOR] OK Production data: {len(df_plan)} rows")
     
     # Awarie: spróbuj pobrać szczegółowe kolumny, ale jeśli ich nie ma w schemacie, użyj prostszego SELECT
     try:
@@ -27,10 +35,12 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
     except Exception:
         df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem FROM dziennik_zmiany WHERE data_wpisu = %s", conn, params=(data_raportu,))
     logger.info(f"[GENERATOR] Issues data: {len(df_awarie)} rows")
+    print(f"[GENERATOR] OK Issues data: {len(df_awarie)} rows")
     
     # HR / obecności
     df_hr = pd.read_sql("SELECT p.imie_nazwisko as pracownik, o.typ, o.ilosc_godzin FROM obecnosc o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu = %s", conn, params=(data_raportu,))
     logger.info(f"[GENERATOR] HR data: {len(df_hr)} rows")
+    print(f"[GENERATOR] OK HR data: {len(df_hr)} rows")
 
     folder = 'raporty_temp'
     if not os.path.exists(folder): os.makedirs(folder)
@@ -39,22 +49,28 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
     # 1. Excel
     xls_path = os.path.join(folder, f"Raport_{data_raportu}.xlsx")
     logger.info(f"[GENERATOR] Creating Excel file: {xls_path}")
+    print(f"[GENERATOR] Creating Excel: {os.path.abspath(xls_path)}")
     with pd.ExcelWriter(xls_path, engine='openpyxl') as writer:
         df_plan.to_excel(writer, sheet_name='Produkcja', index=False)
         df_awarie.to_excel(writer, sheet_name='Awarie', index=False)
         df_hr.to_excel(writer, sheet_name='HR', index=False)
-    logger.info(f"[GENERATOR] Excel file created: {os.path.exists(xls_path)}")
+    xls_exists = os.path.exists(xls_path)
+    logger.info(f"[GENERATOR] Excel file created: {xls_exists}")
+    print(f"[GENERATOR] OK Excel created: {xls_exists} | Path: {os.path.abspath(xls_path)}")
 
     # 2. Notatnik (Treść do maila)
     txt_path = os.path.join(folder, f"Do_Maila_{data_raportu}.txt")
     logger.info(f"[GENERATOR] Creating TXT file: {txt_path}")
+    print(f"[GENERATOR] Creating TXT: {os.path.abspath(txt_path)}")
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(f"RAPORT PRODUKCYJNY - {data_raportu}\n")
         f.write("="*30 + "\n\n")
         f.write(f"NOTATKI ZMIANOWE:\n{uwagi_lidera}\n\n")
         f.write(f"PRODUKCJA: {int(df_plan['tonaz_rzeczywisty'].sum())} kg\n")
         f.write(f"AWRIE/PRZESTOJE: {len(df_awarie)} wpisów.")
-    logger.info(f"[GENERATOR] TXT file created: {os.path.exists(txt_path)}")
+    txt_exists = os.path.exists(txt_path)
+    logger.info(f"[GENERATOR] TXT file created: {txt_exists}")
+    print(f"[GENERATOR] OK TXT created: {txt_exists} | Path: {os.path.abspath(txt_path)}")
 
     # 3. PDF (używamy helpera z raporty.py)
     try:
@@ -91,7 +107,16 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
         for _, row in df_hr.iterrows():
             hr_rows.append((row.get('pracownik', ''), row.get('typ', ''), row.get('ilosc_godzin', None)))
 
+        print(f"[GENERATOR] About to call generuj_pdf with data={data_raportu}, prod_rows count={len(prod_rows)}, awarie_rows count={len(awarie_rows)}, hr_rows count={len(hr_rows)}")
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
+        
         pdf_name = generuj_pdf(data_raportu, uwagi_lidera, lider_name, prod_rows, awarie_rows, hr_rows)
+        
+        print(f"[GENERATOR] generuj_pdf returned: {pdf_name}")
+        sys.stdout.flush()
+        
         logger.info(f"[GENERATOR] pdf_name returned: {pdf_name} (type={type(pdf_name).__name__})")
         pdf_path = os.path.join('raporty', pdf_name) if pdf_name else None
         logger.info(f"[GENERATOR] pdf_path constructed: {pdf_path}")
@@ -110,6 +135,11 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
 
     logger.info(f"[GENERATOR] Report generation completed for {data_raportu}")
     logger.info(f"[GENERATOR] Files: xls={xls_path}, txt={txt_path}, pdf={pdf_path}")
+    print(f"[GENERATOR] ===== REPORT GENERATION COMPLETE =====")
+    print(f"[GENERATOR] Returning: xls={xls_path}, txt={txt_path}, pdf={pdf_path}")
+    print(f"[GENERATOR] XLS exists: {os.path.exists(xls_path) if xls_path else False}")
+    print(f"[GENERATOR] TXT exists: {os.path.exists(txt_path) if txt_path else False}")
+    print(f"[GENERATOR] PDF exists: {os.path.exists(pdf_path) if pdf_path else False}")
     return xls_path, txt_path, pdf_path
 
 
