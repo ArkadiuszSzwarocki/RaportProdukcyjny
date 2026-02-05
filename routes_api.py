@@ -42,8 +42,8 @@ def start_zlecenie(id):
             cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
         
         if sekcja == 'Zasyp' and status_obecny == 'zaplanowane':
-            # When starting Zasyp order, create Workowanie plan with tonaz_rzeczywisty = 0
-            # Actual weight will be added later when batches (szarże) are added
+            # When starting Zasyp order, create Workowanie plan with status='w toku' so operator sees it immediately
+            # Buffer starts with tonaz=0 (empty) and grows LIVE when batches (szarże) are added
             cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND typ_produkcji=%s", (data_planu, produkt, typ))
             istniejace = cursor.fetchone()
             if not istniejace:
@@ -51,11 +51,11 @@ def start_zlecenie(id):
                 res = cursor.fetchone()
                 mk = res[0] if res and res[0] else 0
                 nk = mk + 1
-                # INSERT with tonaz_rzeczywisty = 0 (no actual weight yet - will be added by szarżę)
-                cursor.execute("INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, 'Workowanie', %s, %s, 'zaplanowane', %s, %s, %s)", (data_planu, produkt, tonaz, nk, typ, 0))
+                # CREATE buffer (Workowanie plan) with tonaz=0 (empty, grows LIVE) - operator sees it in "Active" immediately
+                cursor.execute("INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, tonaz_rzeczywisty, real_start) VALUES (%s, 'Workowanie', %s, %s, 'w toku', %s, %s, %s, NOW())", (data_planu, produkt, 0, nk, typ, 0))
             else:
-                # Update existing Workowanie plan: keep tonaz fixed, reset tonaz_rzeczywisty to 0
-                cursor.execute("UPDATE plan_produkcji SET tonaz=%s, tonaz_rzeczywisty=0 WHERE id=%s", (tonaz, istniejace[0]))
+                # Update existing Workowanie plan: reset tonaz and tonaz_rzeczywisty to 0, ensure status='w toku'
+                cursor.execute("UPDATE plan_produkcji SET tonaz=0, tonaz_rzeczywisty=0, status='w toku', real_start=NOW() WHERE id=%s", (istniejace[0],))
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
@@ -91,14 +91,16 @@ def koniec_zlecenie(id):
     if z and z[0] == 'Zasyp' and rzeczywista_waga > 0:
         # Znajdź odpowiadające zlecenie Workowanie dla tego samego produktu i daty
         cursor.execute(
-            "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND status != 'zakonczone' ORDER BY id ASC LIMIT 1",
+            "SELECT id, status FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND status != 'zakonczone' ORDER BY id ASC LIMIT 1",
             (z[2], z[1])
         )
         workowanie_plan = cursor.fetchone()
         if workowanie_plan:
             workowanie_id = workowanie_plan[0]
-            # Zaktualizuj tylko to konkretne zlecenie Workowanie
-            cursor.execute("UPDATE plan_produkcji SET tonaz=%s WHERE id=%s", (rzeczywista_waga, workowanie_id))
+            workowanie_status = workowanie_plan[1] if len(workowanie_plan) > 1 else 'zaplanowane'
+            # Zaktualizuj tonaz (plan do pakowania) i resetuj tonaz_rzeczywisty (pula do pakowania)
+            # Operator widzi: Plan=tonaz, Zrobiono=ile spakował (z tabeli palet)
+            cursor.execute("UPDATE plan_produkcji SET tonaz=%s, tonaz_rzeczywisty=%s, status='w toku', real_start=NOW() WHERE id=%s", (rzeczywista_waga, rzeczywista_waga, workowanie_id))
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
@@ -953,7 +955,7 @@ def dodaj_plan():
                 except Exception:
                     pass
                 
-                # Also increase buffer (Workowanie) tonaz_rzeczywisty
+                # Also increase buffer (Workowanie) tonaz AND tonaz_rzeczywisty (both plan and available amount)
                 cursor.execute(
                     "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s ORDER BY id LIMIT 1",
                     (data_planu, produkt, typ)
@@ -962,8 +964,8 @@ def dodaj_plan():
                 if buffer_plan:
                     buffer_id = buffer_plan[0]
                     cursor.execute(
-                        "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
-                        (tonaz, buffer_id)
+                        "UPDATE plan_produkcji SET tonaz = COALESCE(tonaz, 0) + %s, tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
+                        (tonaz, tonaz, buffer_id)
                     )
                     try:
                         current_app.logger.warning(f'[DODAJ_PLAN] Increased buffer (Workowanie) plan {buffer_id}')
@@ -1522,10 +1524,12 @@ def dodaj_wpis():
         flash(str(e), 'danger')
         conn.close()
         return redirect(bezpieczny_powrot())
-    cursor.execute("INSERT INTO dziennik_zmiany (data_wpisu, sekcja, problem, czas_start, status, kategoria, status_zglosnienia, data_zakonczenia) VALUES (%s, %s, %s, %s, 'roboczy', %s, %s, %s)", 
-                   (date.today(), sekcja, problem, czas_start, kategoria, status_zglosnienia, data_zakonczenia))
+    pracownik_id = session.get('pracownik_id')
+    cursor.execute("INSERT INTO dziennik_zmiany (data_wpisu, sekcja, problem, czas_start, status, kategoria, status_zglosnienia, data_zakonczenia, pracownik_id) VALUES (%s, %s, %s, %s, 'roboczy', %s, %s, %s, %s)", 
+                   (date.today(), sekcja, problem, czas_start, kategoria, status_zglosnienia, data_zakonczenia, pracownik_id))
     conn.commit()
     conn.close()
+    flash('✓ Awarię dodano pomyślnie', 'success')
     return redirect(bezpieczny_powrot())
 
 @api_bp.route('/usun_wpis/<int:id>', methods=['POST'])

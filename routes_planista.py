@@ -130,19 +130,19 @@ def bufor_page():
     cursor = conn.cursor()
     wybrana_data = request.args.get('data', str(date.today()))
     try:
-        # Exclude already closed orders from bufor view
+        # Show all orders including closed ones - bufor stays open indefinitely
         cursor.execute("""
-            SELECT id, data_planu, produkt, tonaz_rzeczywisty, nazwa_zlecenia, typ_produkcji
+            SELECT id, data_planu, produkt, tonaz_rzeczywisty, nazwa_zlecenia, typ_produkcji, status, real_start
             FROM plan_produkcji
                         WHERE sekcja = 'Zasyp'
-                            AND COALESCE(status, '') != 'zakonczone'
                             AND data_planu >= DATE_SUB(%s, INTERVAL 7 DAY)
                             AND data_planu <= %s
+                        ORDER BY COALESCE(real_start, data_planu) DESC
         """, (wybrana_data, wybrana_data))
         historyczne_zasypy = cursor.fetchall()
         bufor_list = []
         for hz in historyczne_zasypy:
-            h_id, h_data, h_produkt, h_wykonanie_zasyp, h_nazwa, h_typ = hz
+            h_id, h_data, h_produkt, h_wykonanie_zasyp, h_nazwa, h_typ, h_status, h_real_start = hz
             # Ensure typ_produkcji param is '' when DB value is NULL to match COALESCE in SQL
             typ_param = h_typ if h_typ is not None else ''
             # Sum palety zarówno bezpośrednio przypisane do zlecenia Zasyp (plan_id = h_id),
@@ -162,6 +162,7 @@ def bufor_page():
             show_in_bufor = (pozostalo_w_silosie > 0) or (h_wykonanie_workowanie and h_wykonanie_workowanie > 0)
             if show_in_bufor:
                 needs_reconciliation = round((h_wykonanie_workowanie or 0) - (h_wykonanie_zasyp or 0), 1) != 0
+                start_time = h_real_start.strftime('%H:%M') if h_real_start else 'N/A'
                 bufor_list.append({
                     'id': h_id,
                     'data': h_data,
@@ -172,7 +173,10 @@ def bufor_page():
                     'zasyp_total': h_wykonanie_zasyp,
                     'spakowano_total': h_wykonanie_workowanie,
                     'needs_reconciliation': needs_reconciliation,
-                    'raw_pozostalo': round(pozostalo_w_silosie, 1)
+                    'raw_pozostalo': round(pozostalo_w_silosie, 1),
+                    'status': h_status,
+                    'real_start': h_real_start,
+                    'start_time': start_time
                 })
     except Exception:
         bufor_list = []
@@ -248,3 +252,39 @@ def bufor_rozlicz():
         return jsonify({'ok': True})
     except Exception:
         return redirect('/bufor')
+
+
+@planista_bp.route('/bufor/archiwizuj', methods=['POST'])
+@roles_required('planista', 'lider', 'admin')
+def bufor_archiwizuj():
+    """Endpoint obsługujący archiwizację zlecenia — zmienia status na 'archiwizowany'."""
+    from flask import request, jsonify
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        try:
+            plan_id = int(request.json.get('plan_id'))
+        except Exception:
+            plan_id = None
+        
+        if not plan_id:
+            return jsonify({'ok': False, 'message': 'Brak plan_id'}), 400
+        
+        # Update status to 'archiwizowany'
+        cursor.execute(
+            "UPDATE plan_produkcji SET status=%s WHERE id=%s",
+            ('archiwizowany', plan_id)
+        )
+        conn.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return jsonify({'ok': False, 'message': str(e)}), 500
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass

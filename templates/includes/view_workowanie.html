@@ -12,7 +12,25 @@
 
             <div class="d-flex gap-10">
                 <div class="flex-1 fs-110">
-                    Plan: <strong>{{ p[2]|int }} kg</strong> <br>
+                    {% if p|length > 11 and p[11] %}
+                        {% set pula = p[11]|int %}
+                        {% if pula > 0 %}
+                            <div style="background-color: #d4edda; padding: 8px; border-radius: 4px; border-left: 4px solid #28a745;">
+                                Plan: <strong style="color: #155724;">{{ p[2]|int }} kg</strong> (do spakowania: <span style="color: #28a745; font-weight: bold;">+{{ pula }} kg</span>)
+                            </div>
+                        {% elif pula < 0 %}
+                            <div style="background-color: #f8d7da; padding: 8px; border-radius: 4px; border-left: 4px solid #dc3545;">
+                                Plan: <strong style="color: #721c24;">{{ p[2]|int }} kg</strong> (przekroczono: <span style="color: #dc3545; font-weight: bold;">{{ pula }} kg</span>)
+                            </div>
+                        {% else %}
+                            <div style="background-color: #e2e3e5; padding: 8px; border-radius: 4px; border-left: 4px solid #6c757d;">
+                                Plan: <strong>{{ p[2]|int }} kg</strong> (pula wyczerpana)
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        Plan: <strong>{{ p[2]|int }} kg</strong>
+                    {% endif %}
+                    <br>
                     Zrobiono: <strong class="text-success">{{ p[7]|int }} kg</strong>
                     
                     <div class="p-10 panel-white-border max-h-60vh mb-15">

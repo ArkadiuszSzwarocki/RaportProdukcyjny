@@ -826,9 +826,9 @@ def index():
 
     plan_dnia = QueryHelper.get_plan_produkcji(dzisiaj, aktywna_sekcja if aktywna_sekcja != 'Dashboard' else 'Workowanie')
     
-    # Dla Workowania: pobierz plany w toku (z Zasypu które przechodzą do Workowania)
+    # Dla Workowania: fallback - pobierz plany Workowania (bufor) które są zaplanowane lub w toku
     if aktywna_sekcja == 'Workowanie' and not plan_dnia:
-        # Workowanie pokazuje plany Zasypu które są w toku (transferowane z Zasypu do Workowania)
+        # Workowanie shows Workowanie plans (buffer) - NOT Zasyp!
         try:
             conn_work = get_db_connection()
             cursor_work = conn_work.cursor()
@@ -837,7 +837,7 @@ def index():
                 "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
                 "typ_produkcji, wyjasnienie_rozbieznosci "
                 "FROM plan_produkcji "
-                "WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND status IN ('w toku', 'zakonczone') "
+                "WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND status IN ('w toku', 'zaplanowane') "
                 "ORDER BY CASE status WHEN 'w toku' THEN 1 ELSE 2 END, kolejnosc ASC, id ASC",
                 (dzisiaj,)
             )
@@ -1080,9 +1080,13 @@ def index():
                 if palety and len(palety) > 0:
                     app.logger.info(f"[WORKOWANIE] First formatted tuple: {palety[0]}")
                 palety_mapa[p[0]] = palety
+                # Save original tonaz_rzeczywisty (pula) before overwriting p[7]
+                tonaz_rzeczywisty_pula = p[7]  # This is the available amount to pack
                 # Update p[7] with tonaz_rzeczywisty (sum of paletki weights)
                 waga_kg = sum(pal[0] for pal in palety)
-                p[7] = waga_kg
+                p[7] = waga_kg  # What operator packed (sum of paletki)
+                # Append pula at end for template to access
+                p.append(tonaz_rzeczywisty_pula)  # p[11] = pula do spakowania (tonaz_rzeczywisty)
                 # For Workowanie, ALWAYS add to suma_wykonanie regardless of is_quality
                 # (quality checks are for plan counts, not actual execution weights)
                 suma_wykonanie += waga_kg
