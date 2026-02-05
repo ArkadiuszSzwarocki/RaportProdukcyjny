@@ -55,7 +55,7 @@
                             <button type="submit" class="btn">Zapisz</button>
                         </form>
                     </details>
-                    <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto?');"><button type="submit" class="btn btn-danger">Usuń</button></form>
+                    <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto?');"><button type="submit" class="delete-button" aria-label="Usuń konto">🗑️</button></form>
                 </div>
             </div>
         {% else %}

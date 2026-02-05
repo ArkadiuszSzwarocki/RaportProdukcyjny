@@ -56,7 +56,6 @@
                                 <tr>
                                     <th>Nr</th>
                                     <th>📋 Produkt</th>
-                                    <th>⚖️ Waga</th>
                                     <th>🕒 Dodana</th>
                                     <th>⏱️ Czas</th>
                                     <th>✅ Akcja</th>
@@ -65,9 +64,8 @@
                             <tbody>
                         {% for p in unconfirmed_palety %}
                             <tr>
-                                <td class="text-muted font-bold">{{ p[4] if p[4] is not none else p[0] }}</td>
-                                <td><strong class="text-primary">{{ p[1] }}</strong></td>
-                                <td><strong class="text-success">{{ p[2] }}</strong></td>
+                                <td class="text-muted font-bold">{{ p[0] }}</td>
+                                <td><strong class="text-primary">{{ p[2] }}</strong></td>
                                 <td class="time-display">{{ p[3] }}</td>
                                 <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</span></td>
                                 <td>

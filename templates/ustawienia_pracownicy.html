@@ -40,7 +40,7 @@
                     <div class="user-sub">ID: {{ p[0] }}</div>
                 </div>
                 <div class="list-actions">
-                    <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" onsubmit="return confirm('Usuń pracownika?');"><button type="submit" class="btn btn-danger">Usuń</button></form>
+                    <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" onsubmit="return confirm('Usuń pracownika?');"><button type="submit" class="delete-button" aria-label="Usuń pracownika">🗑️</button></form>
                 </div>
             </div>
         {% else %}

@@ -23,7 +23,7 @@
                         <h4>{{ p[1] }}</h4>
                         <div class="meta">ID: {{ p[0] }}</div>
                             <div class="actions">
-                            <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" class="inline-block" onsubmit="return confirm('Usuń pracownika?');"><button type="submit" class="btn btn-danger">Usuń</button></form>
+                            <form action="/admin/pracownik/usun/{{ p[0] }}" method="POST" class="inline-block" onsubmit="return confirm('Usuń pracownika?');"><button type="submit" class="delete-button" aria-label="Usuń pracownika">🗑️</button></form>
                         </div>
                     </div>
                 {% else %}
@@ -74,7 +74,7 @@
                                     <button type="submit" class="btn">Zapisz</button>
                                 </form>
                             </details>
-                            <form action="/admin/konto/usun/{{ k[0] }}" method="POST" class="inline-block ml-5" onsubmit="return confirm('Usuń konto?');"><button type="submit" class="btn btn-danger">Usuń</button></form>
+                            <form action="/admin/konto/usun/{{ k[0] }}" method="POST" class="inline-block ml-5" onsubmit="return confirm('Usuń konto?');"><button type="submit" class="delete-button" aria-label="Usuń konto">🗑️</button></form>
                         </div>
                     </div>
                 {% else %}

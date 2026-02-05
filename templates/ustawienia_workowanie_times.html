@@ -1,0 +1,121 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+    <div class="section-header">
+        <h2>⚙️ Ustawienia Workowania — Czasy Przetwarzania</h2>
+        <div>
+            <a href="/admin" class="btn">← Powrót do panelu</a>
+        </div>
+    </div>
+
+    <div class="section-padding">
+        <div class="alert alert-info">
+            <strong>ℹ️ O czasach przetwarzania:</strong><br/>
+            Tutaj definiujesz ile minut trwa przetworzenie 1000 kg danego typu opakowania na sekcji Workowanie.
+            Te czasy są używane do planowania i monitorowania wydajności.
+        </div>
+
+        <form action="/admin/workowanie_times/update" method="POST" class="form-grid">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>Typ opakowania</th>
+                        <th>Opakowanie (szt kg)</th>
+                        <th width="150">Czas przetwarzania (min na 1000 kg)</th>
+                        <th>Opis</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for type_key, config in times_config.get('processing_times_minutes', {}).items() %}
+                    <tr>
+                        <td>
+                            <strong>{{ config.name }}</strong>
+                        </td>
+                        <td class="text-center">
+                            {{ config.weight_kg }} kg
+                        </td>
+                        <td class="text-center">
+                            <input 
+                                type="number" 
+                                name="{{ type_key }}_time_minutes" 
+                                value="{{ config.processing_time_minutes }}"
+                                min="1"
+                                max="120"
+                                class="input-sm text-center input-time-minutes"
+                                title="Czas przetwarzania w minutach na 1000 kg"
+                                required
+                            > min
+                        </td>
+                        <td>
+                            <input 
+                                type="text" 
+                                name="{{ type_key }}_description" 
+                                value="{{ config.description }}"
+                                placeholder="Opis (opcjonalnie)"
+                                class="input-sm input-description"
+                                title="Opis typu opakowania"
+                            >
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="mt-20">
+                <button type="submit" class="btn btn-primary">💾 Zapisz wszystkie ustawienia</button>
+            </div>
+        </form>
+
+        <div class="alert alert-secondary mt-20">
+            <strong>📋 Legenda:</strong>
+            <ul>
+                <li><strong>Big Bag:</strong> 1000 kg w {{ times_config.get('processing_times_minutes', {}).get('bigbag', {}).get('processing_time_minutes', 15) }} minut</li>
+                <li><strong>Worki zgrzewane 20/25 kg:</strong> 1000 kg w {{ times_config.get('processing_times_minutes', {}).get('worki_zgrzewane_20', {}).get('processing_time_minutes', 20) }} minut</li>
+                <li><strong>Worki zszywane 20/25 kg:</strong> 1000 kg w {{ times_config.get('processing_times_minutes', {}).get('worki_zszywane_20', {}).get('processing_time_minutes', 30) }} minut</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<style>
+.form-grid {
+    margin-top: 20px;
+}
+
+.mt-20 {
+    margin-top: 20px;
+}
+
+.alert {
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.alert-info {
+    background: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    color: #1565c0;
+}
+
+.alert-secondary {
+    background: #f5f5f5;
+    border-left: 4px solid #666;
+    color: #333;
+}
+
+.alert ul {
+    margin: 10px 0 0 20px;
+}
+
+.alert li {
+    margin: 5px 0;
+}
+
+.text-center {
+    text-align: center;
+}
+</style>
+
+{% endblock %}

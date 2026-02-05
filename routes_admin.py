@@ -544,3 +544,79 @@ def admin_usun_konto(id):
     conn.close()
     flash("Usunięto.", "info")
     return redirect('/admin')
+
+
+# ============= WORKOWANIE PROCESSING TIMES =============
+
+@admin_bp.route('/admin/workowanie_times', methods=['GET'])
+@admin_required
+def admin_workowanie_times():
+    """Wyświetl ustawienia czasów przetwarzania dla Workowania"""
+    import os, json
+    cfg_path = os.path.join(current_app.root_path, 'config', 'workowanie_processing_times.json')
+    times_config = {}
+    try:
+        if os.path.exists(cfg_path):
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                times_config = json.load(f)
+        else:
+            times_config = {"processing_times_minutes": {}}
+    except Exception as e:
+        current_app.logger.error(f'Error loading workowanie_processing_times.json: {e}')
+        times_config = {"processing_times_minutes": {}}
+    
+    return render_template('ustawienia_workowanie_times.html', times_config=times_config)
+
+
+@admin_bp.route('/admin/workowanie_times/update', methods=['POST'])
+@admin_required
+def admin_workowanie_times_update():
+    """Zaktualizuj czasy przetwarzania dla Workowania"""
+    import os, json, shutil
+    from datetime import datetime
+    cfg_path = os.path.join(current_app.root_path, 'config', 'workowanie_processing_times.json')
+    
+    try:
+        # Odczytaj aktualne ustawienia
+        times_config = {}
+        if os.path.exists(cfg_path):
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                times_config = json.load(f)
+        
+        # Utwórz backup
+        if os.path.exists(cfg_path):
+            backup_path = cfg_path + f'.backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
+            shutil.copy2(cfg_path, backup_path)
+        
+        # Zaktualizuj czasy na podstawie formularza
+        processing_times = times_config.get("processing_times_minutes", {})
+        
+        for key in processing_times.keys():
+            prefix = f"{key}_"
+            # Odczytaj wartości dla każdego typu
+            time_minutes = request.form.get(f"{prefix}time_minutes", "").strip()
+            description = request.form.get(f"{prefix}description", "").strip()
+            
+            if time_minutes:
+                try:
+                    processing_times[key]["processing_time_minutes"] = int(time_minutes)
+                except ValueError:
+                    pass
+            
+            if description:
+                processing_times[key]["description"] = description
+        
+        times_config["processing_times_minutes"] = processing_times
+        
+        # Zapisz nową konfigurację
+        with open(cfg_path, 'w', encoding='utf-8') as f:
+            json.dump(times_config, f, ensure_ascii=False, indent=2)
+        
+        current_app.logger.info('Updated workowanie_processing_times.json')
+        flash("✓ Czasy przetwarzania Workowania zostały zaktualizowane!", "success")
+    
+    except Exception as e:
+        current_app.logger.exception(f'Error updating workowanie_processing_times.json: {e}')
+        flash(f"❌ Błąd podczas zapisu: {str(e)}", "error")
+    
+    return redirect('/admin/workowanie_times')

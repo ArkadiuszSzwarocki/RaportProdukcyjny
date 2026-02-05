@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, url_for, send_file, flash
+from flask import Flask, render_template, request, redirect, session, url_for, send_file, flash, jsonify
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -260,10 +260,14 @@ def handle_unexpected_error(error):
     # Zarejestruj pełen traceback w logu i zwróć przyjazny komunikat użytkownikowi
     try:
         from flask import request
-        app.logger.exception('Unhandled exception on %s %s: %s', request.method, request.path, error)
-    except Exception:
-        app.logger.exception('Unhandled exception: %s', error)
-    return render_template('500.html') if os.path.exists(os.path.join(app.template_folder or '', '500.html')) else ("Wewnętrzny błąd serwera", 500)
+        error_msg = f"{error.__class__.__name__}: {str(error)}"
+        app.logger.exception('Unhandled exception on %s %s: %s', request.method, request.path, error_msg)
+        flash(f'❌ Błąd: {str(error)}', 'danger')
+    except Exception as e:
+        app.logger.exception('Error in error handler: %s', e)
+    # Zwróć 500 z szablonem
+    response = render_template('500.html')
+    return response, 500
 
 
 def _cleanup_old_reports(folder='raporty', max_age_hours=24, interval_seconds=3600):
@@ -353,88 +357,7 @@ def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
     except Exception:
         app.logger.exception('Unconfirmed palety monitor terminating unexpectedly')
 
-# Automatyczne zatwierdzanie palet po 2 minutach na magazynie
-def _auto_confirm_palety(threshold_minutes=2, interval_seconds=30):
-    """Daemon automatycznie zatwierdza palety po określonym czasie."""
-    try:
-        while True:
-            try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                
-                # Pobierz palety w stanie 'do_przyjecia' starsze niż threshold_minutes
-                cursor.execute("""
-                    SELECT id, plan_id, waga, data_dodania 
-                    FROM palety_workowanie 
-                    WHERE COALESCE(status,'') = 'do_przyjecia' 
-                    AND TIMESTAMPDIFF(MINUTE, data_dodania, NOW()) >= %s
-                """, (threshold_minutes,))
-                
-                palety_to_confirm = cursor.fetchall()
-                
-                for paleta_row in palety_to_confirm:
-                    paleta_id, plan_id, waga, data_dodania = paleta_row
-                    
-                    try:
-                        # Get current time for czas_rzeczywistego_potwierdzenia
-                        from datetime import datetime as _dt
-                        current_time = _dt.now().time()  # Get HH:MM:SS
-                        
-                        # Zatwierdź paletę (analogicznie do potwierdz_palete)
-                        cursor.execute("""
-                            UPDATE palety_workowanie 
-                            SET status='przyjeta', data_potwierdzenia=NOW(), czas_potwierdzenia_s=TIMESTAMPDIFF(SECOND, data_dodania, NOW()), czas_rzeczywistego_potwierdzenia=%s
-                            WHERE id=%s
-                        """, (current_time, paleta_id))
-                        
-                        # Aktualizuj tonarz planu - odejmij z puli do_przyjecia
-                        cursor.execute("""
-                            UPDATE plan_produkcji 
-                            SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id=%s AND status != 'przyjeta') 
-                            WHERE id=%s
-                        """, (plan_id, plan_id))
-                        
-                        # Aktualizuj Magazyn jeśli istnieje plan z tym produktem
-                        cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
-                        plan_info = cursor.fetchone()
-                        if plan_info:
-                            data_planu, produkt = plan_info
-                            cursor.execute("""
-                                UPDATE plan_produkcji 
-                                SET tonaz_rzeczywisty = tonaz_rzeczywisty + %s 
-                                WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'
-                            """, (waga or 0, data_planu, produkt))
-                        
-                        conn.commit()
-                        app.logger.info(f'Auto-confirmed paleta id={paleta_id} (waga={waga} kg) after {threshold_minutes} min')
-                    
-                    except Exception:
-                        try:
-                            conn.rollback()
-                        except Exception:
-                            pass
-                        app.logger.exception(f'Error auto-confirming paleta id={paleta_id}')
-                
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-                
-            except Exception:
-                app.logger.exception('Error in auto-confirm palety loop')
-            
-            time.sleep(interval_seconds)
-    
-    except Exception:
-        app.logger.exception('Auto-confirm palety daemon terminating unexpectedly')
 
-try:
-    # Uruchom daemon automatycznego zatwierdzania palet (2 minuty, sprawdzaj co 30 sekund)
-    palety_confirm_thread = threading.Thread(target=_auto_confirm_palety, kwargs={'threshold_minutes':2,'interval_seconds':30}, daemon=True)
-    palety_confirm_thread.start()
-    app.logger.info('[OK] Auto-confirm palety daemon started (threshold=2 min)')
-except Exception:
-    app.logger.exception('Failed to start auto-confirm palety daemon')
 
 
 
@@ -1399,7 +1322,7 @@ def panel_wnioski_page():
         raw_wnioski = QueryHelper.get_pending_leave_requests(limit=200)
         wnioski = raw_wnioski
     except Exception:
-        current_app.logger.exception('Failed loading wnioski for full page')
+        app.logger.exception('Failed loading wnioski for full page')
     return render_template('panels_full/wnioski_full.html', wnioski=wnioski)
 
 
@@ -1689,7 +1612,6 @@ def dur_awarie():
                 czas_start, 
                 czas_stop,
                 pracownik_id,
-                status_zglosnienia,
                 data_zakonczenia
             FROM dziennik_zmiany 
             WHERE data_wpisu >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
@@ -1756,8 +1678,23 @@ def dur_awarie():
                 ORDER BY dk.created_at DESC
             """, (awaria['id'],))
             awaria['komentarze'] = cursor_kom.fetchall()
+            app.logger.debug(f"DEBUG: Pobrano {len(awaria['komentarze'])} komentarzy dla awarii #{awaria['id']}")
             cursor_kom.close()
             conn_kom.close()
+            
+            # Pobierz historię zmian statusu
+            conn_hist = get_db_connection()
+            cursor_hist = conn_hist.cursor(dictionary=True)
+            cursor_hist.execute("""
+                SELECT dz.id, dz.stary_status, dz.nowy_status, p.imie_nazwisko, dz.data_zmiany
+                FROM dziennik_zmian_statusu dz
+                LEFT JOIN pracownicy p ON dz.zmieniony_przez = p.id
+                WHERE dz.awaria_id = %s
+                ORDER BY dz.data_zmiany DESC
+            """, (awaria['id'],))
+            awaria['historia_statusu'] = cursor_hist.fetchall()
+            cursor_hist.close()
+            conn_hist.close()
         
         return render_template('dur_awarie.html', awarie=awarie)
     except Exception as e:
@@ -1766,65 +1703,139 @@ def dur_awarie():
         return redirect('/')
 
 
-@app.route('/api/dur/zatwierdz_awarię/<int:awaria_id>', methods=['POST'])
+@app.route('/api/dur/zmien_status/<int:awaria_id>', methods=['POST'])
 @roles_required('dur', 'admin', 'zarzad')
-def dur_zatwierdz_awarię(awaria_id):
-    """Zatwierdź awarie - zmień status, czas_stop, status_zglosnienia, data_zakonczenia i dodaj komentarz"""
+def dur_zmien_status(awaria_id):
+    """Zmień status awarii i zaloguj zmianę jako komentarz"""
     try:
-        status = request.form.get('status', 'zatwierdzone')  # zatwierdzone, odrzucone
-        czas_stop_str = request.form.get('czas_stop', '').strip()  # np. "23:45:00"
-        komentarz = request.form.get('komentarz', '').strip()
-        status_zglosnienia = request.form.get('status_zglosnienia', '').strip()  # zgłoszone, w_trakcie, oczekuje_na_czesci, zakonczone
-        data_zakonczenia = request.form.get('data_zakonczenia', '').strip()  # data
+        nowy_status = request.form.get('status', '').strip()
+        if not nowy_status:
+            return jsonify({'success': False, 'message': 'Status nie może być pusty'}), 400
         
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
         
-        # 1. Aktualizuj status, czas_stop, status_zglosnienia i data_zakonczenia
-        update_fields = ["status = %s"]
-        update_values = [status]
+        # Pobierz obecny status
+        cursor.execute("SELECT status FROM dziennik_zmiany WHERE id = %s", (awaria_id,))
+        awaria = cursor.fetchone()
+        if not awaria:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Awaria nie znaleziona'}), 404
         
-        if czas_stop_str:
-            # Konwertuj string czasu na format MySQL TIME
-            update_fields.append("czas_stop = %s")
-            update_values.append(czas_stop_str)
+        stary_status = awaria.get('status')
         
-        if status_zglosnienia:
-            update_fields.append("status_zglosnienia = %s")
-            update_values.append(status_zglosnienia)
+        # Zaktualizuj status
+        cursor.execute("UPDATE dziennik_zmiany SET status = %s WHERE id = %s", (nowy_status, awaria_id))
         
-        if data_zakonczenia:
-            update_fields.append("data_zakonczenia = %s")
-            update_values.append(data_zakonczenia)
+        # Zaloguj zmianę jako komentarz
+        pracownik_id = session.get('pracownik_id')
+        status_msg = f"🔄 Status zmieniony: {stary_status} → {nowy_status} ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+        cursor.execute(
+            "INSERT INTO dur_komentarze (awaria_id, autor_id, tresc) VALUES (%s, %s, %s)",
+            (awaria_id, pracownik_id, status_msg)
+        )
         
-        update_values.append(awaria_id)
-        sql = f"UPDATE dziennik_zmiany SET {', '.join(update_fields)} WHERE id = %s"
-        cursor.execute(sql, update_values)
+        # Zaloguj również w dziennik_zmian_statusu (dla historii)
+        cursor.execute("""
+            INSERT INTO dziennik_zmian_statusu (awaria_id, stary_status, nowy_status, zmieniony_przez, data_zmiany)
+            VALUES (%s, %s, %s, %s, NOW())
+        """, (awaria_id, stary_status, nowy_status, pracownik_id))
+        
         conn.commit()
+        conn.close()
         
-        # 2. Dodaj komentarz jeśli jest wpisany
+        return jsonify({
+            'success': True, 
+            'message': f'Status zmieniony na "{nowy_status}"',
+            'old_status': stary_status,
+            'new_status': nowy_status
+        }), 200
+    except Exception as e:
+        app.logger.exception(f'Error in dur_zmien_status: {e}')
+        return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
+
+
+@app.route('/api/dur/zatwierdz_awarię/<int:awaria_id>', methods=['POST'])
+@login_required
+def dur_zatwierdz_awarię(awaria_id):
+    """Zatwierdź awarie - zmień status i dodaj komentarz"""
+    try:
+        rola = session.get('rola')
+        pracownik_id = session.get('pracownik_id')
+        app.logger.info(f"=== dur_zatwierdz_awarię START ===")
+        app.logger.info(f"  awaria_id={awaria_id}, rola={rola}, pracownik_id={pracownik_id}")
+        
+        status = request.form.get('status', '').strip()
+        komentarz = request.form.get('komentarz', '').strip()
+        
+        app.logger.info(f"  Form data: status='{status}' (len={len(status)}), komentarz='{komentarz}' (len={len(komentarz)})")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Pobierz obecny status przed zmianą
+        cursor.execute("SELECT status FROM dziennik_zmiany WHERE id = %s", (awaria_id,))
+        awaria_przed = cursor.fetchone()
+        
+        # Jeśli awaria nie istnieje - zwróć błąd
+        if not awaria_przed:
+            app.logger.warning(f"DEBUG: Awaria #{awaria_id} nie znaleziona w database")
+            return jsonify({'success': False, 'message': 'Awaria nie znaleziona'}), 404
+        
+        stary_status = awaria_przed.get('status')
+        app.logger.info(f"  stary_status='{stary_status}'")
+        
+        # Aktualizuj status
+        status_zmieniony = False
+        if status and stary_status != status:
+            app.logger.info(f"  ✓ Status się zmienił: '{stary_status}' → '{status}'")
+            cursor.execute("UPDATE dziennik_zmiany SET status = %s WHERE id = %s", (status, awaria_id))
+            conn.commit()
+            status_zmieniony = True
+            
+            # Jeśli status = 'zakończone', ustaw data_zakonczenia na dzisiaj
+            if status == 'zakończone':
+                cursor.execute("UPDATE dziennik_zmiany SET data_zakonczenia = %s WHERE id = %s", (date.today(), awaria_id))
+                conn.commit()
+        else:
+            app.logger.info(f"  ✗ Status nie zmienił się: status='{status}', stary_status='{stary_status}'")
+        
+        # Dodaj automatyczny komentarz jeśli zmienił się status
+        if status_zmieniony:
+            status_msg = f"🔄 Status: {stary_status} → {status} ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+            app.logger.info(f"DEBUG: Dodawanie auto-komentarza dla awarii #{awaria_id}: {status_msg}")
+            
+            cursor.execute(
+                "INSERT INTO dur_komentarze (awaria_id, autor_id, tresc) VALUES (%s, %s, %s)",
+                (awaria_id, pracownik_id, status_msg)
+            )
+            conn.commit()
+            app.logger.info(f"DEBUG: Auto-komentarz dodany i zacommit'owany")
+        
+        # Dodaj komentarz użytkownika jeśli jest wpisany
         if komentarz:
-            pracownik_id = session.get('pracownik_id')
+            app.logger.info(f"DEBUG: Dodawanie ręcznego komentarza dla awarii #{awaria_id}: {komentarz}")
             cursor.execute(
                 "INSERT INTO dur_komentarze (awaria_id, autor_id, tresc) VALUES (%s, %s, %s)",
                 (awaria_id, pracownik_id, komentarz)
             )
             conn.commit()
+            app.logger.info(f"DEBUG: Ręczny komentarz dodany i zacommit'owany")
         
         cursor.close()
         conn.close()
         
-        msg = f'✓ Awaria #{awaria_id} zmieniona na: {status}'
-        if czas_stop_str:
-            msg += ' (czas_stop: {})'.format(czas_stop_str)
-        if status_zglosnienia:
-            msg += ' ({})'.format(status_zglosnienia.replace('_', ' '))
-        flash(msg, 'success')
-        return redirect(request.referrer or '/dur/awarie')
+        msg = f'✓ Awaria #{awaria_id} zaktualizowana'
+        if status_zmieniony:
+            msg += f' (status: {status})'
+        if komentarz:
+            msg += ' (komentarz dodany)'
+        
+        # Zwróć JSON zamiast redirect, aby formularz mógł być AJAX
+        return jsonify({'success': True, 'message': msg}), 200
     except Exception as e:
         app.logger.exception(f'Error in dur_zatwierdz_awarię: {e}')
-        flash('⚠️ Błąd przy zatwierdzaniu awarii', 'error')
-        return redirect('/dur/awarie')
+        return jsonify({'success': False, 'message': f'⚠️ Błąd: {str(e)}'}), 500
 
 
 

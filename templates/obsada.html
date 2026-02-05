@@ -54,7 +54,7 @@
                                 {{ o[1] }}
                                 {% if rola in ['lider', 'admin', 'pracownik'] %}
                                 <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0 d-inline-block ml-6">
-                                    <button type="submit" class="btn-delete" aria-label="Usuń z obsady">&times;</button>
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
                                 </form>
                                 {% endif %}
                             </div>

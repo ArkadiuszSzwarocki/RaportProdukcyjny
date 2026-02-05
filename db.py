@@ -59,7 +59,7 @@ def _create_tables(cursor):
         )
     """)
     
-    cursor.execute("CREATE TABLE IF NOT EXISTS dziennik_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), problem TEXT, czas_start DATETIME, czas_stop DATETIME, status VARCHAR(20) DEFAULT 'roboczy', kategoria VARCHAR(50), pracownik_id INT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS dziennik_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), problem TEXT, czas_start DATETIME, czas_stop DATETIME, status VARCHAR(30) DEFAULT 'zgłoszone', kategoria VARCHAR(50), pracownik_id INT)")
     cursor.execute("CREATE TABLE IF NOT EXISTS obsada_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), pracownik_id INT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
     cursor.execute("CREATE TABLE IF NOT EXISTS obsada_liderzy (data_wpisu DATE PRIMARY KEY, lider_psd_id INT NULL, lider_agro_id INT NULL, FOREIGN KEY (lider_psd_id) REFERENCES pracownicy(id) ON DELETE SET NULL, FOREIGN KEY (lider_agro_id) REFERENCES pracownicy(id) ON DELETE SET NULL)")
     cursor.execute("CREATE TABLE IF NOT EXISTS obecnosc (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, pracownik_id INT, typ VARCHAR(50), ilosc_godzin FLOAT DEFAULT 0, komentarz TEXT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
@@ -92,6 +92,19 @@ def _create_tables(cursor):
             FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
         )
     """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dziennik_zmian_statusu (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            awaria_id INT NOT NULL,
+            stary_status VARCHAR(30),
+            nowy_status VARCHAR(30) NOT NULL,
+            zmieniony_przez INT,
+            data_zmiany DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (awaria_id) REFERENCES dziennik_zmiany(id) ON DELETE CASCADE,
+            FOREIGN KEY (zmieniony_przez) REFERENCES pracownicy(id) ON DELETE SET NULL
+        )
+    """)
 
 
 def _add_column_if_missing(cursor, table, column, definition, description=""):
@@ -114,6 +127,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji", "nazwa_zlecenia", "VARCHAR(255) DEFAULT ''", "Dodawanie kolumny 'nazwa_zlecenia'")
     _add_column_if_missing(cursor, "plan_produkcji", "typ_zlecenia", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'typ_zlecenia'")
     _add_column_if_missing(cursor, "plan_produkcji", "nr_receptury", "VARCHAR(64) DEFAULT ''", "Dodawanie kolumny 'nr_receptury'")
+    _add_column_if_missing(cursor, "plan_produkcji", "uszkodzone_worki", "INT DEFAULT 0", "Dodawanie kolumny 'uszkodzone_worki'")
     
     # Update typ_zlecenia for known quality orders
     try:
@@ -136,7 +150,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "raporty_koncowe", "created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'created_at' do raporty_koncowe")
     
     # dziennik_zmiany (awarii) columns
-    _add_column_if_missing(cursor, "dziennik_zmiany", "status_zglosnienia", "VARCHAR(30) DEFAULT 'zgłoszony'", "Dodawanie kolumny 'status_zglosnienia' do dziennik_zmiany")
+    # _add_column_if_missing(cursor, "dziennik_zmiany", "status_zglosnienia", "VARCHAR(30) DEFAULT 'zgłoszony'", "Dodawanie kolumny 'status_zglosnienia' do dziennik_zmiany")  # DEPRECATED: Using single 'status' field instead
     _add_column_if_missing(cursor, "dziennik_zmiany", "data_zakonczenia", "DATE NULL", "Dodawanie kolumny 'data_zakonczenia' do dziennik_zmiany")
     
     # user/employee columns

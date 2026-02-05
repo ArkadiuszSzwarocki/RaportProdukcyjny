@@ -33,14 +33,14 @@
                     <td><strong>{{ b.produkt }}</strong> <small class="text-muted">{{ b.nazwa }}</small></td>
                     <td>{{ b.zasyp_total }} kg</td>
                     <td>{{ b.spakowano_total }} kg</td>
-                    <td style="font-size: 1.1em; font-weight: bold; {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %}color: #d9534f;{% else %}color: #5cb85c;{% endif %}">
+                    <td class="pozostalo-cell {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %}negative{% else %}positive{% endif %}">
                         {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %}
                             <span title="Nadmiar spakowany">{{ b.raw_pozostalo }} kg</span>
                         {% else %}
                             {{ b.w_silosie }} kg
                         {% endif %}
                         {% if b.needs_reconciliation %}
-                            <small class="badge badge-warning" style="margin-left:8px">Do rozliczenia</small>
+                            <small class="badge badge-warning badge-reconciliation">Do rozliczenia</small>
                         {% endif %}
                     </td>
                     <td>

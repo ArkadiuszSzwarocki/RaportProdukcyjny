@@ -1,0 +1,45 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="page-header">
+    <h1>❌ Wewnętrzny Błąd Serwera</h1>
+</div>
+
+<div class="section-box p-30">
+    <div style="padding: 20px; background-color: #fff3cd; border-left: 4px solid #ff6b6b; border-radius: 4px; color: #333;">
+        <h3 style="margin-top: 0; color: #d63031;">Coś poszło nie tak...</h3>
+        <p>
+            Napotkaliśmy błąd podczas przetwarzania Twojego żądania. 
+            Szczegóły błędu zostały zalogowane i przekazane zespołowi technicznego.
+        </p>
+        {% if get_flashed_messages() %}
+            <div style="margin: 15px 0; padding: 10px; background-color: #ffe0e0; border-radius: 4px; color: #d63031; font-weight: bold;">
+                {% for message in get_flashed_messages() %}
+                    <p style="margin: 5px 0;">{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+        <p style="margin: 15px 0 0 0; border-top: 1px solid #ffc107; padding-top: 15px; font-size: 0.9em; color: #666;">
+            <strong>Co możesz zrobić:</strong>
+            <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                <li>Spróbuj ponownie za chwilę</li>
+                <li>Jeśli problem będzie się powtarzać, skontaktuj się z administratorem</li>
+                <li>Szczegóły błędu znajdują się w logach aplikacji</li>
+            </ul>
+        </p>
+    </div>
+
+    <div style="margin-top: 30px; display: flex; gap: 10px;">
+        <button onclick="history.back()" class="btn-action btn-info" style="padding: 10px 20px; cursor: pointer;">← Wróć</button>
+        <a href="/" class="btn-action btn-primary" style="padding: 10px 20px;">🏠 Dashboard</a>
+    </div>
+</div>
+
+<script>
+    // Wyświetl notyfikację o błędzie
+    if (typeof showToast !== 'undefined') {
+        showToast('❌ Błąd serwera - szczegóły zostały zalogowane', 'error', 8000);
+    }
+</script>
+
+{% endblock %}

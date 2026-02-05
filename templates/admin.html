@@ -7,6 +7,7 @@
     <div class="d-flex gap-10">
         <a href="/admin?tab=users" class="btn">Użytkownicy</a>
         <a href="/admin?tab=production" class="btn btn-primary">Produkcja</a>
+        <a href="/admin/workowanie_times" class="btn">⏱️ Czasy Workowania</a>
         <a href="/admin?tab=logs" class="btn">Logi Systemowe</a>
     </div>
 </div>
@@ -68,7 +69,7 @@
                         </details>
 
                         <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto {{ k[1] }}?');">
-                            <button type="submit" class="btn btn-danger">Usuń</button>
+                            <button type="submit" class="delete-button" aria-label="Usuń konto">🗑️</button>
                         </form>
                     </div>
                 </td>

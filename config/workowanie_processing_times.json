@@ -1,0 +1,34 @@
+{
+  "processing_times_minutes": {
+    "bigbag": {
+      "name": "Big Bag (1000 kg)",
+      "weight_kg": 1000,
+      "processing_time_minutes": 15,
+      "description": "Przetwarzanie big bagów - 1000 kg w 15 minut"
+    },
+    "worki_zgrzewane_20": {
+      "name": "Worki zgrzewane 20 kg (1000 kg)",
+      "weight_kg": 1000,
+      "processing_time_minutes": 20,
+      "description": "Przetwarzanie worków zgrzewanych 20 kg - 1000 kg w 20 minut"
+    },
+    "worki_zgrzewane_25": {
+      "name": "Worki zgrzewane 25 kg (1000 kg)",
+      "weight_kg": 1000,
+      "processing_time_minutes": 20,
+      "description": "Przetwarzanie worków zgrzewanych 25 kg - 1000 kg w 20 minut"
+    },
+    "worki_zszywane_20": {
+      "name": "Worki zszywane 20 kg (1000 kg)",
+      "weight_kg": 1000,
+      "processing_time_minutes": 30,
+      "description": "Przetwarzanie worków zszywanych 20 kg - 1000 kg w 30 minut"
+    },
+    "worki_zszywane_25": {
+      "name": "Worki zszywane 25 kg (1000 kg)",
+      "weight_kg": 1000,
+      "processing_time_minutes": 30,
+      "description": "Przetwarzanie worków zszywanych 25 kg - 1000 kg w 30 minut"
+    }
+  }
+}

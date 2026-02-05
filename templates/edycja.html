@@ -14,31 +14,31 @@
         
         <label for="kategoria">Rodzaj problemu:</label>
         <select id="kategoria" name="kategoria" aria-label="Rodzaj problemu">
-              <option value="Awaria" {% if wpis[8] == 'Awaria' %}selected{% endif %}>🔴 Awaria</option>
-              <option value="Postój" {% if wpis[8] == 'Postój' %}selected{% endif %}>🟠 Postój</option>
-              <option value="Mikro zatrzymanie" {% if wpis[8] == 'Mikro zatrzymanie' %}selected{% endif %}>🔵 Mikro zatrzymanie</option>
-              <option value="Usterka" {% if wpis[8] == 'Usterka' %}selected{% endif %}>🟣 Usterka</option>
+              <option value="Awaria" {% if wpis[7] == 'Awaria' %}selected{% endif %}>🔴 Awaria</option>
+              <option value="Postój" {% if wpis[7] == 'Postój' %}selected{% endif %}>🟠 Postój</option>
+              <option value="Mikro zatrzymanie" {% if wpis[7] == 'Mikro zatrzymanie' %}selected{% endif %}>🔵 Mikro zatrzymanie</option>
+              <option value="Usterka" {% if wpis[7] == 'Usterka' %}selected{% endif %}>🟣 Usterka</option>
         </select>
 
           <label>Godzina START:</label>
-              <input type="time" name="czas_start" value="{{ wpis[6] if wpis[6] else '' }}" title="Wprowadź godzinę rozpoczęcia" placeholder="hh:mm" aria-label="Godzina start">
+              <input type="time" name="czas_start" value="{{ wpis[4] if wpis[4] else '' }}" title="Wprowadź godzinę rozpoczęcia" placeholder="hh:mm" aria-label="Godzina start">
 
           <label>Godzina KONIEC:</label>
-              <input type="time" name="czas_stop" value="{{ wpis[7] if wpis[7] else '' }}" title="Wprowadź godzinę zakończenia" placeholder="hh:mm" aria-label="Godzina koniec">
+              <input type="time" name="czas_stop" value="{{ wpis[5] if wpis[5] else '' }}" title="Wprowadź godzinę zakończenia" placeholder="hh:mm" aria-label="Godzina koniec">
 
-        <label for="status_zglosnienia">Status zgłoszenia:</label>
-        <select id="status_zglosnienia" name="status_zglosnienia" aria-label="Status zgłoszenia">
-            <option value="zgłoszony" {% if wpis[9] == 'zgłoszony' %}selected{% endif %}>🔔 Zgłoszony</option>
-            <option value="czeka_na_czesci" {% if wpis[9] == 'czeka_na_czesci' %}selected{% endif %}>⚙️ Czeka na części</option>
-            <option value="zakończony" {% if wpis[9] == 'zakończony' %}selected{% endif %}>✅ Zakończony</option>
-            <option value="zamknięty" {% if wpis[9] == 'zamknięty' %}selected{% endif %}>🔒 Zamknięty</option>
+        <label for="status">Status:</label>
+        <select id="status" name="status" aria-label="Status">
+            <option value="zgłoszone" {% if wpis[6] == 'zgłoszone' %}selected{% endif %}>🔔 Zgłoszone</option>
+            <option value="czeka_na_czesci" {% if wpis[6] == 'czeka_na_czesci' %}selected{% endif %}>⚙️ Czeka na części</option>
+            <option value="w_trakcie_naprawy" {% if wpis[6] == 'w_trakcie_naprawy' %}selected{% endif %}>🔧 W trakcie naprawy</option>
+            <option value="zakończone" {% if wpis[6] == 'zakończone' %}selected{% endif %}>✅ Zakończone</option>
         </select>
 
         <label for="data_zakonczenia">Data zakończenia (opcjonalnie):</label>
         <input type="date" id="data_zakonczenia" name="data_zakonczenia" value="{{ wpis[10] if wpis[10] else '' }}" title="Data kiedy zostało ukończone" aria-label="Data zakończenia">
 
         <label>Opis szczegółowy:</label>
-           <textarea name="problem" rows="4" title="Wprowadź szczegółowy opis problemu" placeholder="Opisz problem...">{{ wpis[4] }}</textarea>
+           <textarea name="problem" rows="4" title="Wprowadź szczegółowy opis problemu" placeholder="Opisz problem...">{{ wpis[3] }}</textarea>
 
         <button type="submit" class="btn-save">💾 ZAPISZ ZMIANY</button>
         <a href="/" class="btn-cancel">Anuluj</a>

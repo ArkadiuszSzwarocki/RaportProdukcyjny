@@ -10,6 +10,25 @@
             <strong>{{ tonaz if tonaz is not none else '0' }} kg</strong>?
         </p>
 
+        {% if sekcja == 'Workowanie' %}
+        <div style="margin-bottom: 12px; padding: 10px; background: #fff3cd; border-radius: 4px; border-left: 3px solid #ffc107;">
+            <label style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px;">
+                ⚠️ Czy zgłaszasz uszkodzone worki?
+            </label>
+            <input 
+                type="number" 
+                name="uszkodzone_worki" 
+                min="0" 
+                value="0"
+                placeholder="Liczba uszkodzonych worków (wpisz 0 jeśli brak)"
+                class="input-sm"
+                style="width: 100%; margin-bottom: 8px; padding: 8px; border: 1px solid #ffc107; border-radius: 4px;"
+                title="Podaj liczbę uszkodzonych worków"
+            >
+            <small style="color: #666; display: block;">Jeśli brak uszkodzonych worków, wpisz <strong>0</strong></small>
+        </div>
+        {% endif %}
+
         <textarea name="wyjasnienie" class="input-sm" rows="3" title="Komentarz" placeholder="Opcjonalny komentarz" style="margin-bottom:8px;"></textarea>
 
         <div style="display:flex; gap:8px;">

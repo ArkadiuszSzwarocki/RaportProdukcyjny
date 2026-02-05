@@ -94,7 +94,7 @@
                         {% if p[4] not in ['w toku', 'zakonczone'] %}
                             <button type="button" onclick="moveUp({{ p[0] }})" class="btn-icon" aria-label="Przenieś w górę">⬆</button>
                             <button type="button" onclick="moveDown({{ p[0] }})" class="btn-icon" aria-label="Przenieś w dół">⬇</button>
-                            <button type="button" onclick="deletePlanConfirm({{ p[0] }}, '{{ wybrana_data }}')" class="btn-icon text-danger-color" aria-label="Usuń plan">✖</button>
+                            <button type="button" onclick="deletePlanConfirm({{ p[0] }}, '{{ wybrana_data }}')" class="delete-button" aria-label="Usuń plan">🗑️</button>
                             <button type="button" onclick="openMoveModal({{ p[0] }}, '{{ p[2] }}')" class="btn-icon text-primary" aria-label="Przenieś plan">📅</button>
                             <button type="button" class="btn-icon" onclick="toggleEdit({{ p[0] }})" title="Edytuj">✎</button>
                         {% else %}
@@ -253,11 +253,25 @@ function deletePlan(id, data){
         cols.push('Data: <input id="e_date_'+id+'" name="data_planu" type="date" value="{{ wybrana_data }}">');
         cols.push('</td>');
         cols.push('<td colspan="3">');
-        cols.push('<button type="button" onclick="submitEdit('+id+')" class="btn-action btn-small">Zapisz</button> ');
-        cols.push('<button type="button" class="btn-action btn-small btn-cancel" onclick="document.getElementById(\'edit-row-'+id+'\').style.display=\'none\'">Anuluj</button>');
+        cols.push('<button type="button" class="btn-action btn-small" id="btn-submit-'+id+'">Zapisz</button> ');
+        cols.push('<button type="button" class="btn-action btn-small btn-cancel" id="btn-cancel-'+id+'">Anuluj</button>');
         cols.push('</td>');
         newTr.innerHTML = cols.join('');
+        newTr.style.display = 'table-row';  // Jawne ustawienie display
         tr.parentNode.insertBefore(newTr, tr.nextSibling);
+        // Add event listeners to avoid inline onclick issues
+        var submitBtn = newTr.querySelector('#btn-submit-'+id);
+        if(submitBtn){
+            submitBtn.addEventListener('click', function(){
+                submitEdit(id);
+            });
+        }
+        var cancelBtn = newTr.querySelector('#btn-cancel-'+id);
+        if(cancelBtn){
+            cancelBtn.addEventListener('click', function(){
+                document.getElementById('edit-row-'+id).style.display='none';
+            });
+        }
     }
 
     function submitEdit(id){
@@ -280,13 +294,26 @@ function deletePlan(id, data){
         }).catch(()=>alert('Błąd sieci'));
     }
 
-
-<!-- Modal: Szczegóły zleceń jakościowych usunięty -->
-
- 
-{% endblock %}
-
-<!-- NOTE: Slide-over panel removed - use quick-popup center modal instead (see CSS) -->
+    function openQuickPopup(html){
+        var qp = document.getElementById('quickPopup');
+        var bd = document.getElementById('quickBackdrop');
+        if(!qp || !bd) return;
+        var body = document.getElementById('quickPopupBody');
+        if(body) body.innerHTML = html || '';
+        bd.style.display = 'block';
+        qp.style.display = 'block';
+        setTimeout(function(){ qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
+    }
+    function closeQuickPopup(){
+        var qp = document.getElementById('quickPopup');
+        var bd = document.getElementById('quickBackdrop');
+        if(!qp) return;
+        qp.classList.remove('open');
+        qp.setAttribute('aria-hidden', 'true');
+        if(bd) bd.style.display = 'none';
+        setTimeout(function(){ qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if(body) body.innerHTML=''; }, 360);
+    }
+</script>
 
 <!-- Quick-popup: center modal for AJAX-loaded content -->
 <div id="quickBackdrop" class="quick-backdrop" onclick="closeQuickPopup()" style="display:none;"></div>
@@ -298,24 +325,4 @@ function deletePlan(id, data){
     <div id="quickPopupBody" class="qp-body p-10">Ładowanie…</div>
 </div>
 
-<script>
-function openQuickPopup(html){
-    var qp = document.getElementById('quickPopup');
-    var bd = document.getElementById('quickBackdrop');
-    if(!qp || !bd) return;
-    var body = document.getElementById('quickPopupBody');
-    if(body) body.innerHTML = html || '';
-    bd.style.display = 'block';
-    qp.style.display = 'block';
-    setTimeout(function(){ qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
-}
-function closeQuickPopup(){
-    var qp = document.getElementById('quickPopup');
-    var bd = document.getElementById('quickBackdrop');
-    if(!qp) return;
-    qp.classList.remove('open');
-    qp.setAttribute('aria-hidden', 'true');
-    if(bd) bd.style.display = 'none';
-    setTimeout(function(){ qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if(body) body.innerHTML=''; }, 360);
-}
-</script>
+{% endblock %}

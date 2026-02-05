@@ -41,21 +41,8 @@ def start_zlecenie(id):
             cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
             cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
         
-        if sekcja == 'Zasyp' and status_obecny == 'zaplanowane':
-            # When starting Zasyp order, create Workowanie plan with status='w toku' so operator sees it immediately
-            # Buffer starts with tonaz=0 (empty) and grows LIVE when batches (szarże) are added
-            cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND typ_produkcji=%s", (data_planu, produkt, typ))
-            istniejace = cursor.fetchone()
-            if not istniejace:
-                cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
-                res = cursor.fetchone()
-                mk = res[0] if res and res[0] else 0
-                nk = mk + 1
-                # CREATE buffer (Workowanie plan) with tonaz=0 (empty, grows LIVE) - operator sees it in "Active" immediately
-                cursor.execute("INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, tonaz_rzeczywisty, real_start) VALUES (%s, 'Workowanie', %s, %s, 'w toku', %s, %s, %s, NOW())", (data_planu, produkt, 0, nk, typ, 0))
-            else:
-                # Update existing Workowanie plan: reset tonaz and tonaz_rzeczywisty to 0, ensure status='w toku'
-                cursor.execute("UPDATE plan_produkcji SET tonaz=0, tonaz_rzeczywisty=0, status='w toku', real_start=NOW() WHERE id=%s", (istniejace[0],))
+        # Zasyp i Workowanie działają NIEZALEŻNIE
+        # Brak automatycznego tworzenia/uruchamiania złecenia na drugiej sekcji
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
@@ -67,6 +54,8 @@ def koniec_zlecenie(id):
     cursor = conn.cursor()
     final_tonaz = request.form.get('final_tonaz')
     wyjasnienie = request.form.get('wyjasnienie')
+    uszkodzone_worki = request.form.get('uszkodzone_worki')
+    sekcja = request.form.get('sekcja')
     rzeczywista_waga = 0
     if final_tonaz:
         try:
@@ -82,25 +71,19 @@ def koniec_zlecenie(id):
     if wyjasnienie:
         sql += ", wyjasnienie_rozbieznosci=%s"
         params.append(wyjasnienie)
+    if uszkodzone_worki and sekcja == 'Workowanie':
+        try:
+            uszkodzone_count = int(uszkodzone_worki)
+            sql += ", uszkodzone_worki=%s"
+            params.append(uszkodzone_count)
+        except (ValueError, TypeError):
+            pass
     sql += " WHERE id=%s"
     params.append(id)
     cursor.execute(sql, tuple(params))
     
-    cursor.execute("SELECT sekcja, produkt, data_planu, tonaz FROM plan_produkcji WHERE id=%s", (id,))
-    z = cursor.fetchone()
-    if z and z[0] == 'Zasyp' and rzeczywista_waga > 0:
-        # Znajdź odpowiadające zlecenie Workowanie dla tego samego produktu i daty
-        cursor.execute(
-            "SELECT id, status FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND status != 'zakonczone' ORDER BY id ASC LIMIT 1",
-            (z[2], z[1])
-        )
-        workowanie_plan = cursor.fetchone()
-        if workowanie_plan:
-            workowanie_id = workowanie_plan[0]
-            workowanie_status = workowanie_plan[1] if len(workowanie_plan) > 1 else 'zaplanowane'
-            # Zaktualizuj tonaz (plan do pakowania) i resetuj tonaz_rzeczywisty (pula do pakowania)
-            # Operator widzi: Plan=tonaz, Zrobiono=ile spakował (z tabeli palet)
-            cursor.execute("UPDATE plan_produkcji SET tonaz=%s, tonaz_rzeczywisty=%s, status='w toku', real_start=NOW() WHERE id=%s", (rzeczywista_waga, rzeczywista_waga, workowanie_id))
+    # Zasyp i Workowanie działają NIEZALEŻNIE
+    # Brak automatycznego aktualizowania Workowania gdy kończy się Zasyp
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
@@ -955,22 +938,8 @@ def dodaj_plan():
                 except Exception:
                     pass
                 
-                # Also increase buffer (Workowanie) tonaz AND tonaz_rzeczywisty (both plan and available amount)
-                cursor.execute(
-                    "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s ORDER BY id LIMIT 1",
-                    (data_planu, produkt, typ)
-                )
-                buffer_plan = cursor.fetchone()
-                if buffer_plan:
-                    buffer_id = buffer_plan[0]
-                    cursor.execute(
-                        "UPDATE plan_produkcji SET tonaz = COALESCE(tonaz, 0) + %s, tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
-                        (tonaz, tonaz, buffer_id)
-                    )
-                    try:
-                        current_app.logger.warning(f'[DODAJ_PLAN] Increased buffer (Workowanie) plan {buffer_id}')
-                    except Exception:
-                        pass
+                # Zasyp i Workowanie działają NIEZALEŻNIE
+                # Brak automatycznego zwiększania bufora Workowania
                 
                 conn.commit()
                 conn.close()
@@ -1027,25 +996,8 @@ def dodaj_plan():
     cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ, 0))
     zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
     
-    # REFACTORED: If adding a szarża (batch) to Zasyp, automatically create corresponding buffer (plan) in Workowanie
-    if sekcja == 'Zasyp' and tonaz > 0 and zasyp_plan_id:
-        try:
-            # Check if Workowanie plan already exists for this product/type
-            cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s LIMIT 1", (data_planu, produkt, typ))
-            existing_work = cursor.fetchone()
-            if not existing_work:
-                # Create buffer (Workowanie plan) with tonaz = szarża weight
-                nk_work = nk + 1
-                cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, 'zaplanowane', 'Workowanie', %s, %s, %s)", (data_planu, produkt, tonaz, nk_work, typ, 0))
-                try:
-                    current_app.logger.info(f'Auto-created buffer (Workowanie plan) for szarża (Zasyp plan_id={zasyp_plan_id}) with tonaz={tonaz}')
-                except Exception:
-                    pass
-        except Exception as e:
-            try:
-                current_app.logger.warning(f'Failed to auto-create buffer: {str(e)}')
-            except Exception:
-                pass
+    # Zasyp i Workowanie działają NIEZALEŻNIE
+    # Brak automatycznego tworzenia planu Workowania
     
     conn.commit()
     conn.close()
@@ -1516,21 +1468,20 @@ def dodaj_wpis():
         sekcja = require_field(request.form, 'sekcja')
         kategoria = require_field(request.form, 'kategoria')
         problem = optional_field(request.form, 'problem', default=None)
-        czas_start = optional_field(request.form, 'czas_start', default=None)
-        status_zglosnienia = optional_field(request.form, 'status_zglosnienia', default='zgłoszony')
-        data_zakonczenia = optional_field(request.form, 'data_zakonczenia', default=None)
-    except Exception as e:
-        from flask import flash
-        flash(str(e), 'danger')
+        pracownik_id = session.get('pracownik_id')
+        # Automatyczne wartości: data i czas z bazy, status='zgłoszone' (domyślnie dla nowych)
+        # Ustawiamy status_zglosnienia=NULL aby pokazać że kolumna jest deprecated
+        cursor.execute("INSERT INTO dziennik_zmiany (data_wpisu, sekcja, problem, czas_start, status, kategoria, status_zglosnienia, pracownik_id) VALUES (%s, %s, %s, NOW(), 'zgłoszone', %s, NULL, %s)", 
+                       (date.today(), sekcja, problem, kategoria, pracownik_id))
+        conn.commit()
         conn.close()
-        return redirect(bezpieczny_powrot())
-    pracownik_id = session.get('pracownik_id')
-    cursor.execute("INSERT INTO dziennik_zmiany (data_wpisu, sekcja, problem, czas_start, status, kategoria, status_zglosnienia, data_zakonczenia, pracownik_id) VALUES (%s, %s, %s, %s, 'roboczy', %s, %s, %s, %s)", 
-                   (date.today(), sekcja, problem, czas_start, kategoria, status_zglosnienia, data_zakonczenia, pracownik_id))
-    conn.commit()
-    conn.close()
-    flash('✓ Awarię dodano pomyślnie', 'success')
-    return redirect(bezpieczny_powrot())
+        # Zwróć JSON dla AJAX
+        return jsonify({'success': True, 'message': '✓ Awarię dodano pomyślnie'}), 200
+    except Exception as e:
+        conn.close()
+        current_app.logger.error(f"Błąd przy dodawaniu wpisu: {str(e)}")
+        # Zwróć JSON z błędem dla AJAX
+        return jsonify({'success': False, 'message': f'❌ Błąd: {str(e)}'}), 400
 
 @api_bp.route('/usun_wpis/<int:id>', methods=['POST'])
 @login_required
@@ -1559,12 +1510,12 @@ def edytuj(id):
                 from datetime import datetime as _dt
                 czas_stop_val = _dt.now()
             
-            status_zglosnienia = request.form.get('status_zglosnienia', 'zgłoszony')
+            status = request.form.get('status', 'w_trakcie_naprawy')
             data_zakonczenia = request.form.get('data_zakonczenia') or None
 
             cursor.execute(
-                "UPDATE dziennik_zmiany SET problem=%s, kategoria=%s, czas_start=%s, czas_stop=%s, status_zglosnienia=%s, data_zakonczenia=%s WHERE id=%s",
-                (request.form.get('problem'), request.form.get('kategoria'), czas_start_val, czas_stop_val, status_zglosnienia, data_zakonczenia, id)
+                "UPDATE dziennik_zmiany SET problem=%s, kategoria=%s, czas_start=%s, czas_stop=%s, status=%s, data_zakonczenia=%s WHERE id=%s",
+                (request.form.get('problem'), request.form.get('kategoria'), czas_start_val, czas_stop_val, status, data_zakonczenia, id)
             )
             conn.commit()
             conn.close()
@@ -1581,7 +1532,7 @@ def edytuj(id):
 
         # Format time fields for the template (HH:MM). db may return timedelta or datetime
         wpis_display = list(wpis)
-        for ti in (6, 7):
+        for ti in (4, 5):
             try:
                 val = wpis[ti]
                 if val is None:

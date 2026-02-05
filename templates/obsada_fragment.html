@@ -54,7 +54,7 @@
                             <td>
                                 {% if rola in ['lider', 'admin', 'pracownik'] %}
                                 <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0 d-inline-block">
-                                    <button type="submit" class="btn-delete" aria-label="Usuń z obsady">Usuń</button>
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
                                 </form>
                                 {% endif %}
                             </td>
@@ -125,11 +125,11 @@
                                 const tdAct = document.createElement('td');
                                 if(newId){
                                     const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/usun_z_obsady/' + newId; form.className='m-0 d-inline-block';
-                                    const btn = document.createElement('button'); btn.type='submit'; btn.className='btn-delete'; btn.textContent = 'Usuń';
+                                    const btn = document.createElement('button'); btn.type='submit'; btn.className='delete-button'; btn.innerHTML = '🗑️';
                                     form.appendChild(btn);
                                     tdAct.appendChild(form);
                                 } else {
-                                    const rem = document.createElement('button'); rem.className='btn-delete'; rem.type='button'; rem.textContent='Usuń'; rem.addEventListener('click', function(){ tr.remove(); });
+                                    const rem = document.createElement('button'); rem.className='delete-button'; rem.type='button'; rem.innerHTML='🗑️'; rem.addEventListener('click', function(){ tr.remove(); });
                                     tdAct.appendChild(rem);
                                 }
                                 tr.appendChild(tdName); tr.appendChild(tdAct); tbody.appendChild(tr);
@@ -137,11 +137,11 @@
                                 const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = newName;
                                 if(newId){
                                     const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/usun_z_obsady/' + newId; form.className='m-0'; form.style.display='inline-block'; form.style.marginLeft='6px';
-                                    const btn = document.createElement('button'); btn.type='submit'; btn.className='btn-delete'; btn.innerHTML='&times;';
+                                    const btn = document.createElement('button'); btn.type='submit'; btn.className='delete-button'; btn.innerHTML='🗑️';
                                     form.appendChild(btn);
                                     chip.appendChild(form);
                                 } else {
-                                    const rem = document.createElement('button'); rem.className='btn-delete'; rem.type='button'; rem.innerHTML='&times;'; rem.style.marginLeft='6px';
+                                    const rem = document.createElement('button'); rem.className='delete-button'; rem.type='button'; rem.innerHTML='🗑️'; rem.style.marginLeft='6px';
                                     rem.addEventListener('click', function(){ chip.remove(); });
                                     chip.appendChild(rem);
                                 }

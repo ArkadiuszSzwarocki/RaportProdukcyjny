@@ -52,14 +52,14 @@
     if(!produkt){ return alert('Podaj produkt'); }
     if(tonaz === null || tonaz <= 0){ return alert('Podaj poprawną wagę (kg) większą od 0'); }
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${produkt}</td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="btn-remove">Usuń</button></td>`;
+    tr.innerHTML = `<td>${produkt}</td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="delete-button">🗑️</button></td>`;
     tr.dataset.produkt = produkt; tr.dataset.nr = nr; tr.dataset.tonaz = tonaz; tr.dataset.typ = typ;
     tbody.appendChild(tr);
     document.getElementById('inpProdukt').value=''; document.getElementById('inpNr').value=''; document.getElementById('inpTonaz').value='';
     updateSubmitState();
   };
   document.getElementById('btnAddRow').addEventListener('click', addRow);
-  tbody.addEventListener('click', function(e){ if(e.target.classList.contains('btn-remove')){ e.target.closest('tr').remove(); updateSubmitState(); } });
+  tbody.addEventListener('click', function(e){ if(e.target.classList.contains('delete-button')){ e.target.closest('tr').remove(); updateSubmitState(); } });
 
   const submitBtn = document.getElementById('btnSubmitBatch');
 

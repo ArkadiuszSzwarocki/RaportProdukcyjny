@@ -6,7 +6,7 @@
 </div>
 
 <div class="section-box p-20">
-    <form action="{{ url_for('api.dodaj_wpis') }}" method="POST" class="d-flex flex-column gap-15 max-width-700">
+    <form id="reportForm" class="d-flex flex-column gap-15 max-width-700">
         <label for="sekcja">Sekcja:</label>
         <select id="sekcja" name="sekcja" required class="input-sm">
             <option value="Zasyp">Zasyp</option>
@@ -25,28 +25,50 @@
             <option value="Inne">Inne</option>
         </select>
 
-        <label for="czas_start">Czas zgłoszenia:</label>
-        <input id="czas_start" type="time" name="czas_start" value="{{ now_time if now_time is defined else '' }}" class="input-sm" title="Czas zgłoszenia" placeholder="HH:MM">
-
-        <label for="status_zglosnienia">Status zgłoszenia:</label>
-        <select id="status_zglosnienia" name="status_zglosnienia" class="input-sm">
-            <option value="zgłoszony">🔔 Zgłoszony</option>
-            <option value="czeka_na_czesci">⚙️ Czeka na części</option>
-            <option value="zakończony">✅ Zakończony</option>
-            <option value="zamknięty">🔒 Zamknięty</option>
-        </select>
-
-        <label for="data_zakonczenia">Data zakończenia (opcjonalnie):</label>
-        <input id="data_zakonczenia" type="date" name="data_zakonczenia" class="input-sm" title="Data kiedy zostało ukończone">
-
         <label>Opis (opcjonalnie):</label>
         <textarea name="problem" rows="6" class="input-sm" placeholder="Opisz problem"></textarea>
 
         <div class="d-flex gap-10">
-            <button type="submit" class="btn-action btn-warning">ZGŁOŚ</button>
+            <button type="submit" class="btn-action btn-warning" id="submitBtn">ZGŁOŚ</button>
             <a href="/" class="btn-action btn-cancel">ANULUJ</a>
         </div>
     </form>
 </div>
+
+<script>
+document.getElementById('reportForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('submitBtn');
+    const originalText = submitBtn.textContent;
+    
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⏳ Wysyłanie...';
+        
+        const formData = new FormData(this);
+        const response = await fetch('{{ url_for("api.dodaj_wpis") }}', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            showToast('✓ Awarię dodano pomyślnie', 'success');
+            this.reset();
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        } else {
+            const text = await response.text();
+            showToast('❌ Błąd: ' + response.statusText, 'error');
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('❌ Błąd połączenia: ' + error.message, 'error');
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    }
+});
+</script>
 
 {% endblock %}
