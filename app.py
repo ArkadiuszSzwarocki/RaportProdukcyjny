@@ -123,6 +123,69 @@ def inject_role_permissions():
     return dict(role_has_access=role_has_access, role_is_readonly=role_is_readonly)
 
 
+# Global translation cache - nie cache'ować w context processor!
+_translations_cache = {}
+
+@app.context_processor
+def inject_translations():
+    """Injekt funkcji tłumaczenia do szablonów Jinja"""
+    import os, json
+    
+    def get_language():
+        """Pobierz preferowany język: session -> cookie -> query param -> Accept-Language -> pl"""
+        # 1. Sprawdź session
+        if 'app_language' in session:
+            return session.get('app_language')
+        
+        # 2. Sprawdź cookie
+        if 'app_language' in request.cookies:
+            return request.cookies.get('app_language')
+        
+        # 3. Sprawdź query parameter ?lang=uk
+        if 'lang' in request.args:
+            return request.args.get('lang')
+        
+        # 4. Sprawdź Accept-Language header
+        if request.headers.get('Accept-Language'):
+            lang_header = request.headers.get('Accept-Language', '').lower()
+            if 'uk' in lang_header:
+                return 'uk'
+            elif 'en' in lang_header:
+                return 'en'
+        
+        # 5. Domyślnie polski
+        return 'pl'
+    
+    def get_translation(key, default_text=''):
+        """Pobierz tłumaczenie dla danego klucza"""
+        try:
+            lang = get_language()
+            
+            # Załaduj tłumaczenia jeśli nie w globalnym cache
+            if 'translations' not in _translations_cache:
+                trans_path = os.path.join(app.root_path, 'config', 'translations.json')
+                if os.path.exists(trans_path):
+                    with open(trans_path, 'r', encoding='utf-8') as f:
+                        _translations_cache['translations'] = json.load(f)
+                else:
+                    _translations_cache['translations'] = {}
+            
+            translations = _translations_cache['translations']
+            
+            # Pobierz tekst dla wybranego języka
+            if lang in translations and key in translations[lang]:
+                return translations[lang][key]
+            elif 'pl' in translations and key in translations['pl']:
+                return translations['pl'][key]
+            else:
+                return default_text or key
+        except Exception as e:
+            app.logger.warning(f'Translation error for key {key}: {e}')
+            return default_text or key
+    
+    return dict(_=get_translation, get_translation=get_translation)
+
+
 @app.context_processor
 def inject_app_into_templates():
     # Some older templates expect `app` variable in Jinja context.
@@ -1333,7 +1396,7 @@ def panel_planowane_page():
     try:
         planned = QueryHelper.get_planned_leaves(days_ahead=60, limit=500)
     except Exception:
-        current_app.logger.exception('Failed loading planned leaves for full page')
+        app.logger.exception('Failed loading planned leaves for full page')
     return render_template('panels_full/planowane_full.html', planned_leaves=planned)
 
 
@@ -1346,7 +1409,7 @@ def panel_obecnosci_page():
         # Convert keys to match template: data_wpisu -> data, ilosc_godzin -> godziny
         recent = [{'id': r['id'], 'pracownik': r['pracownik'], 'typ': r['typ'], 'data': r['data_wpisu'], 'godziny': r['ilosc_godzin'], 'komentarz': r['komentarz']} for r in raw_recent]
     except Exception:
-        current_app.logger.exception('Failed loading absences for full page')
+        app.logger.exception('Failed loading absences for full page')
     return render_template('panels_full/obecnosci_full.html', recent_absences=recent)
 
 
@@ -1367,7 +1430,7 @@ def panel_obsada_page():
         obsady_map = QueryHelper.get_obsada_for_date(qdate)
         wszyscy = QueryHelper.get_unassigned_pracownicy(qdate)
     except Exception:
-        current_app.logger.exception('Failed loading obsada for panel page')
+        app.logger.exception('Failed loading obsada for panel page')
 
     return render_template('panels_full/obsada_full.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'))
 
