@@ -153,8 +153,8 @@
             <div class="font-bold">🔄 Wczorajsze zlecenia (zawieszonych)</div>
             <div class="small text-muted">{{ _('kliknij_wznow') }}</div>
         </div>
-        <button type="button" class="btn-action btn-info" onclick="resumeYesterdaysOrders('{{ sekcja }}');">
-            <span class="material-icons" style="margin-right: 4px;">replay</span> {{ _('wznow_zlecenia_z_wczoraj') }}
+        <button type="button" class="btn-action btn-info" data-action="resume-orders" data-sekcja="{{ sekcja }}">
+            <span class="material-icons icon-mr-small">replay</span> {{ _('wznow_zlecenia_z_wczoraj') }}
         </button>
     </div>
     {% endif %}
@@ -384,9 +384,9 @@
     }
     
     // ========== RĘCZNE WZNOWIENIE ZLECEŃ Z POPRZEDNIEGO DNIA ==========
-    function resumeYesterdaysOrders(sekcja) {
+    function resumeYesterdaysOrders(sekcja, buttonElem) {
         console.log(`[RESUME] Starting resume for sekcja=${sekcja}`);
-        const button = event.target.closest('button');
+        var button = buttonElem || (event && event.target ? event.target.closest('button') : null);
         console.log(`[RESUME] Button element: ${button ? 'found' : 'NOT FOUND'}`);
         if (!button) return;
         
@@ -825,11 +825,11 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 <!-- Quick-popup: center modal for AJAX-loaded content -->
-<div id="quickBackdrop" class="quick-backdrop" onclick="closeQuickPopup()" style="display:none;"></div>
-<div id="quickPopup" class="quick-popup" aria-hidden="true" style="display:none;">
+<div id="quickBackdrop" class="quick-backdrop" data-action="close-popup"></div>
+<div id="quickPopup" class="quick-popup" aria-hidden="true">
     <div class="qp-header d-flex justify-between align-center p-10">
         <div class="header-title">{{ _('panel') }}</div>
-        <div><button type="button" onclick="closeQuickPopup()" class="btn-action btn-small">✖</button></div>
+        <div><button type="button" class="btn-action btn-small" data-action="close-popup">✖</button></div>
     </div>
     <div id="quickPopupBody" class="qp-body p-10">{{ _('ladowanie') }}</div>
 </div>
@@ -841,7 +841,7 @@ function openQuickPopup(html){
     if(!qp || !bd) return;
     var body = document.getElementById('quickPopupBody');
     if(body) body.innerHTML = html || '';
-    bd.style.display = 'block';
+    bd.classList.add('show');
     qp.style.display = 'block';
     setTimeout(function(){ qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
 }
@@ -851,9 +851,20 @@ function closeQuickPopup(){
     if(!qp) return;
     qp.classList.remove('open');
     qp.setAttribute('aria-hidden', 'true');
-    if(bd) bd.style.display = 'none';
+    if(bd) bd.classList.remove('show');
     setTimeout(function(){ qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if(body) body.innerHTML=''; }, 360);
 }
+
+// Event delegation for close-popup action
+document.addEventListener('click', function(e){
+    if(e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'close-popup'){
+        closeQuickPopup();
+    }
+    if(e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'resume-orders'){
+        var sekcja = e.target.getAttribute('data-sekcja');
+        resumeYesterdaysOrders(sekcja, e.target);
+    }
+}, false);
 
 // ===== NOTATKI NA DASHBOARD - ZMIANA DATY =====
 (function() {

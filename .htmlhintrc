@@ -14,10 +14,5 @@
   "inline-style-disabled": true,
   "empty-tag-not-self-closed": true,
   "alt-require": false,
-  "jshint": {
-    "rules": {
-      "undef": false,
-      "unused": false
-    }
-  }
+  "jshint": false
 }

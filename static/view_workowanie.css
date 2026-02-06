@@ -66,6 +66,14 @@
     cursor: pointer;
 }
 
+.icon-mr-small {
+    margin-right: 4px;
+}
+
+.quick-backdrop.show {
+    display: block;
+}
+
 #deletedOrdersList .plan-item button {
     text-decoration: none;
     opacity: 1;

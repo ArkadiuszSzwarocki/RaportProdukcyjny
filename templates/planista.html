@@ -81,7 +81,7 @@
                 </td>
                 <td>
                     {% if palety_mapa[p[0]] %}
-                        <button type="button" onclick="toggleDetails({{ p[0] }})" class="btn-toggle">📦 {{ palety_mapa[p[0]]|length }} szt.</button>
+                        <button type="button" data-action="toggle-details" data-plan-id="{{ p[0] }}" class="btn-toggle">📦 {{ palety_mapa[p[0]]|length }} szt.</button>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
@@ -92,11 +92,11 @@
                 <td>
                     <div class="d-flex gap-5 align-center">
                         {% if p[4] not in ['w toku', 'zakonczone'] %}
-                            <button type="button" onclick="moveUp({{ p[0] }})" class="btn-icon" aria-label="Przenieś w górę">⬆</button>
-                            <button type="button" onclick="moveDown({{ p[0] }})" class="btn-icon" aria-label="Przenieś w dół">⬇</button>
-                            <button type="button" onclick="deletePlanConfirm({{ p[0] }}, '{{ wybrana_data }}')" class="delete-button" aria-label="Usuń plan">🗑️</button>
-                            <button type="button" onclick="openMoveModal({{ p[0] }}, '{{ p[2] }}')" class="btn-icon text-primary" aria-label="Przenieś plan">📅</button>
-                            <button type="button" class="btn-icon" onclick="toggleEdit({{ p[0] }})" title="{{ _('edytuj') }}">✎</button>
+                            <button type="button" data-action="move-up" data-plan-id="{{ p[0] }}" class="btn-icon" aria-label="Przenieś w górę">⬆</button>
+                            <button type="button" data-action="move-down" data-plan-id="{{ p[0] }}" class="btn-icon" aria-label="Przenieś w dół">⬇</button>
+                            <button type="button" data-action="delete-plan" data-plan-id="{{ p[0] }}" data-plan-date="{{ wybrana_data }}" class="delete-button" aria-label="Usuń plan">🗑️</button>
+                            <button type="button" data-action="open-move-modal" data-plan-id="{{ p[0] }}" data-plan-day="{{ p[2] }}" class="btn-icon text-primary" aria-label="Przenieś plan">📅</button>
+                            <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p[0] }}" title="{{ _('edytuj') }}">✎</button>
                         {% else %}
                             <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
                         {% endif %}
@@ -158,7 +158,7 @@
                             '<td><span style="color: #999;">-</span></td>' +
                             '<td><span style="color: #999;">-</span></td>' +
                             '<td><span class="status-badge" style="background: #ccc;">USUNIĘTE</span></td>' +
-                            '<td><button class="btn-action btn-small" onclick="restoreDeletedOrderPlanista(' + p.id + ')">{{ _('przywroc') }}</button></td>' +
+                            '<td><button class="btn-action btn-small restore-deleted-btn-planista" data-restore-id="' + p.id + '">{{ _('przywroc') }}</button></td>' +
                             '</tr>';
                     });
                     var table = document.createElement('table');
@@ -245,7 +245,7 @@
     <div class="move-modal-input"><label for="move_to_date">Nowa data:</label> <input type="date" id="move_to_date" value="{{ wybrana_data }}" placeholder="Wybierz datę" aria-label="Nowa data"></div>
     <div class="d-flex gap-5 move-modal-actions">
         <button type="button" onclick="confirmMove()" class="btn-action btn-small">{{ _('przenies') }}</button>
-        <button type="button" onclick="document.getElementById('moveModal').style.display='none'" class="btn-action btn-small btn-cancel">{{ _('anuluj') }}</button>
+        <button type="button" class="btn-action btn-small btn-cancel" data-action="close-move-modal">{{ _('anuluj') }}</button>
     </div>
 </div>
 
@@ -359,7 +359,7 @@ function deletePlan(id, data){
         if(!qp || !bd) return;
         var body = document.getElementById('quickPopupBody');
         if(body) body.innerHTML = html || '';
-        bd.style.display = 'block';
+        bd.classList.add('show');
         qp.style.display = 'block';
         setTimeout(function(){ qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
     }
@@ -369,17 +369,68 @@ function deletePlan(id, data){
         if(!qp) return;
         qp.classList.remove('open');
         qp.setAttribute('aria-hidden', 'true');
-        if(bd) bd.style.display = 'none';
+        if(bd) bd.classList.remove('show');
         setTimeout(function(){ qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if(body) body.innerHTML=''; }, 360);
     }
+
+    // Event delegation for planista actions
+    document.addEventListener('click', function(e){
+        var target = e.target.closest('[data-action]');
+        if(!target) return;
+        
+        var action = target.getAttribute('data-action');
+        var planId = target.getAttribute('data-plan-id');
+        
+        switch(action){
+            case 'close-popup':
+                closeQuickPopup();
+                break;
+            case 'close-move-modal':
+                var moveModal = document.getElementById('moveModal');
+                if(moveModal) moveModal.style.display = 'none';
+                break;
+            case 'toggle-details':
+                if(planId) toggleDetails(parseInt(planId));
+                break;
+            case 'move-up':
+                if(planId) moveUp(parseInt(planId));
+                break;
+            case 'move-down':
+                if(planId) moveDown(parseInt(planId));
+                break;
+            case 'delete-plan':
+                if(planId){
+                    var planDate = target.getAttribute('data-plan-date');
+                    deletePlanConfirm(parseInt(planId), planDate);
+                }
+                break;
+            case 'open-move-modal':
+                if(planId){
+                    var planDay = target.getAttribute('data-plan-day');
+                    openMoveModal(parseInt(planId), planDay);
+                }
+                break;
+            case 'toggle-edit':
+                if(planId) toggleEdit(parseInt(planId));
+                break;
+        }
+    }, false);
+    
+    // Delegate for restore deleted buttons
+    document.addEventListener('click', function(e){
+        if(e.target.classList.contains('restore-deleted-btn-planista')){
+            var id = e.target.getAttribute('data-restore-id');
+            if(id) restoreDeletedOrderPlanista(parseInt(id));
+        }
+    }, false);
 </script>
 
 <!-- Quick-popup: center modal for AJAX-loaded content -->
-<div id="quickBackdrop" class="quick-backdrop" onclick="closeQuickPopup()" style="display:none;"></div>
-<div id="quickPopup" class="quick-popup" aria-hidden="true" style="display:none;">
+<div id="quickBackdrop" class="quick-backdrop" data-action="close-popup"></div>
+<div id="quickPopup" class="quick-popup" aria-hidden="true">
     <div class="qp-header d-flex justify-between align-center p-10">
         <div class="header-title">{{ _('panel') }}</div>
-        <div><button type="button" onclick="closeQuickPopup()" class="btn-action btn-small">✖</button></div>
+        <div><button type="button" class="btn-action btn-small" data-action="close-popup">✖</button></div>
     </div>
     <div id="quickPopupBody" class="qp-body p-10">{{ _('ladowanie') }}</div>
 </div>
