@@ -25,6 +25,44 @@ def bezpieczny_powrot():
     data = request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
     return url_for('index', sekcja=sekcja, data=data)
 
+# ================= LANGUAGE SETTINGS =================
+
+@api_bp.route('/set_language', methods=['POST'])
+@login_required
+def set_language():
+    """Zmień język interfejsu aplikacji"""
+    try:
+        from flask import make_response
+        
+        data = request.get_json()
+        language = data.get('language', 'pl')
+        
+        # Walidacja języka
+        if language not in ['pl', 'uk', 'en']:
+            language = 'pl'
+        
+        session['app_language'] = language
+        session.modified = True
+        
+        # Odpowiedź z cookie
+        response = jsonify({
+            'success': True,
+            'message': f'Język zmieniony na {language}',
+            'language': language
+        })
+        # Ustaw cookie na 365 dni
+        response.set_cookie('app_language', language, max_age=365*24*60*60, path='/')
+        
+        current_app.logger.info(f'Language changed to {language} for user {session.get("login")}')
+        
+        return response
+    except Exception as e:
+        current_app.logger.error(f'Error changing language: {e}')
+        return jsonify({
+            'success': False,
+            'message': f'Błąd: {str(e)}'
+        }), 400
+
 # ================= PRODUKCJA =================
 
 @api_bp.route('/start_zlecenie/<int:id>', methods=['POST'])
