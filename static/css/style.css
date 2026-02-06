@@ -522,6 +522,38 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
 .btn-icon { background:transparent; border:none; padding:6px; cursor:pointer; }
 .btn-toggle { background:transparent; border:1px solid var(--border-color); padding:6px 10px; border-radius:6px; cursor:pointer; }
 
+/* Language selector dropdown */
+.language-selector { position: relative; display: inline-block; }
+.language-toggle { display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; }
+.language-menu { 
+    position: absolute; 
+    top: 100%; 
+    right: 0; 
+    background: var(--bg-card); 
+    border: 1px solid var(--border-color); 
+    border-radius: 6px; 
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15); 
+    z-index: 1000; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0;
+    min-width: 150px;
+}
+.language-option { 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    padding: 10px 14px; 
+    text-decoration: none; 
+    color: var(--text-main); 
+    transition: background 0.2s ease;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border-color);
+}
+.language-option:last-child { border-bottom: none; }
+.language-option:hover { background: var(--bg-hover, rgba(0,0,0,0.05)); }
+.language-option span { font-size: 18px; }
+
 .card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; margin-bottom:12px; }
 .card-header { padding:10px 12px; border-bottom:1px solid var(--border-color); font-weight:700; }
 .card-body { padding:10px; }
@@ -632,7 +664,7 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     /* Tabela responsywna - zmniejsz padding i font */
     .modern-table { font-size: 0.75em; }
     .modern-table th, .modern-table td { padding: 4px 6px; }
-    .section-box { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .section-box { overflow-x: auto; }
     /* Ukryj kolumny na ultra-mobile */
     .modern-table th:nth-child(4), .modern-table td:nth-child(4),
     .modern-table th:nth-child(6), .modern-table td:nth-child(6) {
@@ -659,7 +691,7 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     /* Tabela responsywna */
     .modern-table { font-size: 0.85em; }
     .modern-table th, .modern-table td { padding: 6px 8px; }
-    .section-box { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .section-box { overflow-x: auto; }
 }
 
 /* table date group row for obecnosci panel */
@@ -1245,7 +1277,7 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     transform: translateY(-2px);
 }
 
-/* New delete button style - modern animated button */
+/* Delete button style - bez animacji */
 .delete-button,
 .btn-delete {
     width: 40px;
@@ -1259,7 +1291,6 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     justify-content: center;
     box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.164);
     cursor: pointer;
-    transition-duration: 0.3s;
     overflow: hidden;
     position: relative;
     color: white;
@@ -1269,29 +1300,19 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
 
 .delete-button:hover,
 .btn-delete:hover {
-    width: 90px;
-    border-radius: 50px;
-    transition-duration: 0.3s;
     background-color: rgb(255, 69, 69);
-    align-items: center;
 }
 
 .delete-button::before,
 .btn-delete::before {
     display: none;
     color: white;
-    transition-duration: 0.3s;
     font-size: 13px;
 }
 
 .delete-button:hover::before,
 .btn-delete:hover::before {
-    display: block;
-    padding-right: 10px;
-    font-size: 13px;
-    opacity: 1;
-    transform: translateY(0px);
-    transition-duration: 0.3s;
+    display: none;
 }
 
 .btn-start {
