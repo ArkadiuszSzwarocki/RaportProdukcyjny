@@ -585,7 +585,17 @@
     "oblocenie_450": "Obłożenie Zmiany (450 min)",
     "opcotwórz_PRje": "Opcotwórz PRje",
     "opis_opcjonalnie_colon": "Opis (opcjonalnie):",
-    "opisz_problem_trzy": "Opisz problem..."
+    "opisz_problem_trzy": "Opisz problem...",
+    "brak_potwierdzone_palet": "Brak potwierdzone palet.",
+    "brak_zlecen_w_bazie": "Brak zleceń w bazie.",
+    "data_planu_colon": "Data planu:",
+    "data_colon": "Data:",
+    "dodaj_konto": "Dodaj konto",
+    "dodaj_palete_btn": "Dodaj paletę",
+    "start_btn": "START",
+    "stop_btn": "STOP",
+    "typy_przeglądany": "Typy — przeglądany",
+    "zakonczono_colon_final": "Zakończone:"
   },
   "uk": {
     "dashboard": "Панель управління",
@@ -1173,7 +1183,17 @@
     "oblocenie_450": "Навантаження зміни (450 хв)",
     "opcotwórz_PRje": "Відкрити PR",
     "opis_opcjonalnie_colon": "Опис (опціонально):",
-    "opisz_problem_trzy": "Опишіть проблему..."
+    "opisz_problem_trzy": "Опишіть проблему...",
+    "brak_potwierdzone_palet": "Немає затверджених паліт.",
+    "brak_zlecen_w_bazie": "Немає замовлень у базі даних.",
+    "data_planu_colon": "Дата плану:",
+    "data_colon": "Дата:",
+    "dodaj_konto": "Додати облік",
+    "dodaj_palete_btn": "Додати палету",
+    "start_btn": "ПОЧАТОК",
+    "stop_btn": "СТОП",
+    "typy_przeglądany": "Типи — переглянуто",
+    "zakonczono_colon_final": "Завершено:"
   },
   "en": {
     "dashboard": "Dashboard",
@@ -1761,6 +1781,16 @@
     "oblocenie_450": "Shift Load (450 min)",
     "opcotwórz_PRje": "Open PR",
     "opis_opcjonalnie_colon": "Description (optional):",
-    "opisz_problem_trzy": "Describe problem..."
+    "opisz_problem_trzy": "Describe problem...",
+    "brak_potwierdzone_palet": "No confirmed pallets.",
+    "brak_zlecen_w_bazie": "No orders in database.",
+    "data_planu_colon": "Plan date:",
+    "data_colon": "Date:",
+    "dodaj_konto": "Add account",
+    "dodaj_palete_btn": "Add pallet",
+    "start_btn": "START",
+    "stop_btn": "STOP",
+    "typy_przeglądany": "Types — viewed",
+    "zakonczono_colon_final": "Completed:"
   }
 }
