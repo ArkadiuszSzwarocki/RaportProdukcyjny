@@ -47,7 +47,7 @@
 
 <div class="grid-2-1 mb-30">
     <div class="section-box section-padding">
-        <h4>📈 Produkcja: Zasyp vs Workowanie</h4>
+        <h4>📈 {{ _('produkcja') }}: {{ _('zasyp') }} vs {{ _('workowanie') }}</h4>
         <div class="chart-wrapper"><canvas id="chartProduction" class="chart-canvas"></canvas></div>
     </div>
     <div class="section-box section-padding">
@@ -66,7 +66,7 @@
             <tr>
                 <th>👤 Pracownik</th>
                 {% if tryb == 'dzien' %}
-                    <th class="text-center">🏭 Zasyp</th><th class="text-center">🔧 Workowanie</th><th class="text-center">📦 Magazyn</th><th>📋 Status HR</th>
+                    <th class="text-center">🏭 {{ _('zasyp') }}</th><th class="text-center">🔧 {{ _('workowanie') }}</th><th class="text-center">📦 {{ _('magazyn') }}</th><th>📋 {{ _('status_hr') }}</th>
                 {% else %}
                     <th class="text-center">📅 Dni Pracy</th><th class="text-center">⏰ Nadgodziny</th><th class="text-center">❌ Nieobecności</th>
                 {% endif %}
@@ -104,13 +104,13 @@
                     barPercentage: 0.5 
                 },
                 { 
-                    label: 'Zasyp (kg)', 
+                    label: '{{ _('zasyp') }} (kg)', 
                     data: {{ chart_zasyp|safe }}, 
                     backgroundColor: '#3498db', // Niebieski dla Zasypu
                     barPercentage: 0.7 
                 },
                 { 
-                    label: 'Workowanie (kg)', 
+                    label: '{{ _('workowanie') }} (kg)', 
                     data: {{ chart_work|safe }}, 
                     backgroundColor: '#8e44ad', // Fioletowy dla Workowania
                     barPercentage: 0.7 

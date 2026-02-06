@@ -12,7 +12,7 @@
   <h3 class="m-0">📦 {{ _('podglad_produkcji') }}</h3>
   <div class="production-flex-container">
     <div class="production-flex-item">
-      <h4 class="m-0">Zasyp — {{ dzisiaj }} <small class="text-muted">({{ plans_zasyp|length }} planów)</small></h4>
+      <h4 class="m-0">{{ _('zasyp') }} — {{ dzisiaj }} <small class="text-muted">({{ plans_zasyp|length }} planów)</small></h4>
       {% if plans_zasyp %}
       <table class="modern-table small production-table">
         <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('plan') }}</th><th>{{ _('wykonanie') }}</th><th>{{ _('godz') }}</th><th>{{ _('status') }}</th></tr></thead>
@@ -34,7 +34,7 @@
     </div>
 
     <div class="production-flex-item">
-      <h4 class="m-0">Workowanie — {{ dzisiaj }} <small class="text-muted">({{ plans_workowanie|length }} planów)</small></h4>
+      <h4 class="m-0">{{ _('workowanie') }} — {{ dzisiaj }} <small class="text-muted">({{ plans_workowanie|length }} planów)</small></h4>
       {% if plans_workowanie %}
       <table class="modern-table small production-table-workowanie">
         <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('plan') }}</th><th>{{ _('wykonanie') }}</th><th>{{ _('godz') }}</th><th>{{ _('status') }}</th></tr></thead>

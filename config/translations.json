@@ -635,7 +635,9 @@
     "przyczyny_przestojow": "Przyczyny Przestojów",
     "statystyki_pracownikow": "Statystyki Pracowników (HR)",
     "nieobecni": "Nieobecności",
-    "awarie_usterki": "Awarie / Usterki / Nieobecności"
+    "awarie_usterki": "Awarie / Usterki / Nieobecności",
+    "sekcje": "Sekcje",
+    "status_hr": "Status HR"
   },
   "uk": {
     "dashboard": "Панель управління",
@@ -1273,7 +1275,9 @@
     "przyczyny_przestojow": "Причини простоїв",
     "statystyki_pracownikow": "Статистика працівників (HR)",
     "nieobecni": "Відсутності",
-    "awarie_usterki": "Поломки / Несправності / Відсутності"
+    "awarie_usterki": "Поломки / Несправності / Відсутності",
+    "sekcje": "Секції",
+    "status_hr": "Статус HR"
   },
   "en": {
     "dashboard": "Dashboard",
@@ -1911,6 +1915,8 @@
     "przyczyny_przestojow": "Downtime Reasons",
     "statystyki_pracownikow": "Employee Statistics (HR)",
     "nieobecni": "Absences",
-    "awarie_usterki": "Breakdowns / Failures / Absences"
+    "awarie_usterki": "Breakdowns / Failures / Absences",
+    "sekcje": "Sections",
+    "status_hr": "HR Status"
   }
 }
