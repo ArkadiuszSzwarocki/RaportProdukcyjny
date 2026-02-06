@@ -27,7 +27,7 @@ Wygenerowano w wyniku przeszukiwania 13 wyszukiwań semantycznych wszystkich pli
 | Edytuj | dashboard.html, planista.html, edytuj_palete_popup.html |
 | Email | ustawienia.html |
 | Dostęp | ustawienia_roles.html, ustawienia.html |
-| Dziś | (today) |
+| Dziś | layout.html, dashboard.html |
 | Dodaj | obsada.html, dashboard.html |
 | Godzina | planista.html, dashboard.html, ustawienia.html |
 | Gotowe | zarzad.html, wiele plików |
@@ -61,7 +61,7 @@ Wygenerowano w wyniku przeszukiwania 13 wyszukiwań semantycznych wszystkich pli
 | Operacje | layout.html |
 | Opakowanie | ustawienia_workowanie_times.html |
 | Opis | ustawienia_workowanie_times.html |
-| Oczekuje | includes/view_workowanie.html |
+| Oczekuje | include/view_workowanie.html |
 | Paleta | dashboard.html, potwierdz_palete.html, edytuj_palete_popup.html |
 | Paczka | ustawienia_workowanie_times.html |
 | Panel Planisty | planista.html |
@@ -123,7 +123,7 @@ Wygenerowano w wyniku przeszukiwania 13 wyszukiwań semantycznych wszystkich pli
 | Wznowienie | dashboard.html, dur_awarie.html |
 | Wznowiono | dur_awarie.html |
 | Wyjaśnienie | wyjasnij.html, layout.html |
-| Wykonywanie | (activity status) |
+| Wykonywanie | (status aktywności) |
 | Wyloguj | layout.html, login.html |
 | Wysłanie notatek | (action) |
 | Wysłij | (wiele plików) |

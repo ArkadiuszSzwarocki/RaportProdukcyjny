@@ -127,11 +127,70 @@
     </table>
 </div>
 
+<!-- Sekcja: Usunięte zlecenia -->
+<div id="deletedOrdersSectionPlanista" style="margin-top: 20px; padding: 15px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; display: none;">
+    <h4 class="header-title">🗑️ {{ _('usuniety') }} {{ _('zlecenia') }} (<span id="deletedCountPlanista">0</span>)</h4>
+    <div id="deletedOrdersListPlanista" style="max-height: 300px; overflow-y: auto;"></div>
+</div>
+
 <!-- Modal Dodaj usunięty (mechanizm popup wyłączony) -->
 
 <!-- Modal Move usunięty (mechanizm popup wyłączony) -->
 
     <script>
+    // Załaduj usunięte zlecenia dla widoku planisty
+    function loadDeletedOrdersPlanista(){
+        var dzisiaj = '{{ wybrana_data }}';
+        var deletedSection = document.getElementById('deletedOrdersSectionPlanista');
+        if(!deletedSection) return;
+        
+        fetch('/api/get_deleted_plans/' + dzisiaj)
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+                if(j && j.success && j.plans && j.plans.length > 0){
+                    var html = '';
+                    j.plans.forEach(function(p){
+                        html += '<tr style="opacity: 0.7; text-decoration: line-through;">' +
+                            '<td><strong style="color: #999;">' + p.produkt + '</strong></td>' +
+                            '<td><span style="color: #999;">N/A</span></td>' +
+                            '<td><strong style="color: #999;">' + p.tonaz + ' kg</strong></td>' +
+                            '<td><span style="color: #999;">-</span></td>' +
+                            '<td><span style="color: #999;">-</span></td>' +
+                            '<td><span style="color: #999;">-</span></td>' +
+                            '<td><span class="status-badge" style="background: #ccc;">USUNIĘTE</span></td>' +
+                            '<td><button class="btn-action btn-small" onclick="restoreDeletedOrderPlanista(' + p.id + ')">{{ _('przywroc') }}</button></td>' +
+                            '</tr>';
+                    });
+                    var table = document.createElement('table');
+                    table.className = 'modern-table';
+                    table.innerHTML = '<tbody>' + html + '</tbody>';
+                    document.getElementById('deletedOrdersListPlanista').innerHTML = '';
+                    document.getElementById('deletedOrdersListPlanista').appendChild(table);
+                    document.getElementById('deletedCountPlanista').innerText = j.plans.length;
+                    deletedSection.style.display = 'block';
+                }
+            })
+            .catch(function(e){ console.error('Failed to load deleted orders', e); });
+    }
+    
+    function restoreDeletedOrderPlanista(id){
+        if(!confirm('Przywrócić to zlecenie?')) return;
+        fetch('/api/przywroc_usunietego_zlecenia/' + id, {method:'POST'})
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+                if(j && j.success){
+                    alert('Zlecenie przywrócone!');
+                    location.reload();
+                } else {
+                    alert((j && j.message) || 'Błąd');
+                }
+            })
+            .catch(function(){ alert('Błąd sieci'); });
+    }
+    
+    // Załaduj przy starcie
+    loadDeletedOrdersPlanista();
+    
     function toggleDetails(id) { var row = document.getElementById('details-' + id); row.classList.toggle('hidden'); }
     function openMoveModal(id, nazwa) {
         // show small modal inline for selecting date
@@ -183,7 +242,7 @@
 <!-- Move modal (inline) -->
 <div id="moveModal" class="move-modal">
     <h3 class="move-title">{{ _('przenies_zlecenie') }}</h3>
-    <div class="move-modal-input">Nowa data: <input type="date" id="move_to_date" value="{{ wybrana_data }}"></div>
+    <div class="move-modal-input"><label for="move_to_date">Nowa data:</label> <input type="date" id="move_to_date" value="{{ wybrana_data }}" placeholder="Wybierz datę" aria-label="Nowa data"></div>
     <div class="d-flex gap-5 move-modal-actions">
         <button type="button" onclick="confirmMove()" class="btn-action btn-small">{{ _('przenies') }}</button>
         <button type="button" onclick="document.getElementById('moveModal').style.display='none'" class="btn-action btn-small btn-cancel">{{ _('anuluj') }}</button>

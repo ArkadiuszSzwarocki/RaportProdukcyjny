@@ -21,13 +21,13 @@
   </form>
 
   <hr />
-  <ul class="list-group mt-3">
-    {%- for f in files %}
-    <li class="list-group-item d-flex justify-content-between align-items-center"><span>{{ f }}</span><a href="{{ url_for('jakosc_download', plan_id=plan_id, filename=f) }}" class="btn btn-sm btn-outline-secondary">{{ _('pobierz_btn') }}</a></li>
-    {%- else %}
-    <li class="list-group-item text-muted">{{ _('brak_dokumentow') }}</li>
-    {%- endfor %}
-  </ul>
+  <div class="list-group mt-3">
+{% for f in files -%}
+    <div class="list-group-item d-flex justify-content-between align-items-center"><span>{{ f }}</span><a href="{{ url_for('jakosc_download', plan_id=plan_id, filename=f) }}" class="btn btn-sm btn-outline-secondary">{{ _('pobierz_btn') }}</a></div>
+{% else -%}
+    <div class="list-group-item text-muted">{{ _('brak_dokumentow') }}</div>
+{%- endfor %}
+  </div>
 {% else %}
   <div class="alert alert-warning">{{ _('zlecenie_nie_istnieje') }}</div>
 {% endif %}

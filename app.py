@@ -1222,7 +1222,7 @@ def index():
         conn2 = get_db_connection()
         cursor2 = conn2.cursor()
         for sek in ('Zasyp', 'Workowanie'):
-            cursor2.execute("SELECT id, produkt, tonaz, status, real_start, real_stop, TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, uszkodzone_worki FROM plan_produkcji WHERE DATE(data_planu) = %s AND sekcja = %s AND status != 'nieoplacone' ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, kolejnosc ASC, id ASC", (dzisiaj, sek))
+            cursor2.execute("SELECT id, produkt, tonaz, status, real_start, real_stop, TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, uszkodzone_worki FROM plan_produkcji WHERE DATE(data_planu) = %s AND sekcja = %s AND status != 'nieoplacone' AND is_deleted = 0 ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, kolejnosc ASC, id ASC", (dzisiaj, sek))
             rows = [list(r) for r in cursor2.fetchall()]
             # format times and ensure numeric defaults similar to main flow
             for p in rows:

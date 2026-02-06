@@ -68,7 +68,7 @@ class QueryHelper:
     
     @staticmethod
     def get_plan_produkcji(data_planu, sekcja):
-        """Get production plans (excludes 'nieoplacone') for a given day/section.
+        """Get production plans (excludes 'nieoplacone' and deleted) for a given day/section.
         
         Returns list of tuples: (id, produkt, tonaz, status, real_start, real_stop, 
                                  minutes_diff, tonaz_rzeczywisty, kolejnosc, typ_produkcji, 
@@ -81,7 +81,7 @@ class QueryHelper:
             "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
             "typ_produkcji, wyjasnienie_rozbieznosci "
             "FROM plan_produkcji "
-            "WHERE DATE(data_planu) = %s AND sekcja = %s AND status != 'nieoplacone' "
+            "WHERE DATE(data_planu) = %s AND sekcja = %s AND status != 'nieoplacone' AND is_deleted = 0 "
             "ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, "
             "kolejnosc ASC, id ASC",
             (data_planu, sekcja)

@@ -686,7 +686,11 @@
     "status_w_trakcie_naprawy": "W trakcie naprawy",
     "uszkodzone_worki": "Uszkodzonych worków",
     "uszkodzono": "Uszkodzono",
-    "ilosc_uszkodzonych": "Ilość uszkodzonych"
+    "ilosc_uszkodzonych": "Ilość uszkodzonych",
+    "zlecenia": "Zlecenia",
+    "usuniety": "Usunięty",
+    "przywroc": "Przywróć",
+    "usun": "Usuń"
   },
   "uk": {
     "dashboard": "Панель управління",
@@ -1375,7 +1379,11 @@
     "status_w_trakcie_naprawy": "Під час ремонту",
     "uszkodzone_worki": "Пошкоджених мішків",
     "uszkodzono": "Пошкоджено",
-    "ilosc_uszkodzonych": "Кількість пошкоджених"
+    "ilosc_uszkodzonych": "Кількість пошкоджених",
+    "zlecenia": "Замовлення",
+    "usuniety": "Видалено",
+    "przywroc": "Відновити",
+    "usun": "Видалити"
   },
   "en": {
     "dashboard": "Dashboard",
@@ -2064,6 +2072,10 @@
     "status_w_trakcie_naprawy": "Under repair",
     "uszkodzone_worki": "Damaged bags",
     "uszkodzono": "Damaged",
-    "ilosc_uszkodzonych": "Number of damaged"
+    "ilosc_uszkodzonych": "Number of damaged",
+    "zlecenia": "Orders",
+    "usuniety": "Deleted",
+    "przywroc": "Restore",
+    "usun": "Delete"
   }
 }

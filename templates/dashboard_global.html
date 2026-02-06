@@ -44,7 +44,7 @@
             <td><strong class="text-primary">{{ p[1] }}</strong></td>
             <td>{{ p[2]|int }} kg</td>
             <td>{{ p[7]|int }} kg</td>
-            <td><input type="number" class="uszkodzone-input" data-plan-id="{{ p[0] }}" value="{{ p[11] or 0 }}" style="width:60px;" min="0"></td>
+            <td><input type="number" class="uszkodzone-input" data-plan-id="{{ p[0] }}" value="{{ p[11] or 0 }}" min="0" placeholder="0" title="Liczba uszkodzonych worków" aria-label="Liczba uszkodzonych worków"></td>
             <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
             <td>{{ p[3]|upper }}</td>
           </tr>
@@ -450,7 +450,7 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(data => {
         if (!data.success) {
           console.error('Error loading shift notes:', data.message);
-          notesContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _('blad_ladowania') }}</div>';
+          notesContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _("blad_ladowania") }}</div>';
           return;
         }
         
@@ -475,12 +475,12 @@ document.addEventListener('DOMContentLoaded', function() {
             notesContainer.appendChild(noteCard);
           });
         } else {
-          notesContainer.innerHTML = '<p class="no-notes">{{ _('brak_notatek_wybranej_daty') }}</p>';
+          notesContainer.innerHTML = '<p class="no-notes">{{ _("brak_notatek_wybranej_daty") }}</p>';
         }
       })
       .catch(error => {
         console.error('Error fetching shift notes:', error);
-        notesContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _('blad_ladowania') }}</div>';
+        notesContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _("blad_ladowania") }}</div>';
       });
   }
   

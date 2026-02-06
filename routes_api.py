@@ -790,6 +790,47 @@ def przywroc_zlecenie(id):
     conn.close()
     return redirect(bezpieczny_powrot())
 
+@api_bp.route('/przywroc_usunietego_zlecenia/<int:id>', methods=['POST'])
+@roles_required('planista', 'admin')
+def przywroc_usunietego_zlecenia(id):
+    """Przywróć (undelete) usunięte zlecenie"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Sprawdź czy zlecenie istnieje i jest oznaczone jako usunięte
+        cursor.execute("SELECT is_deleted, produkt, status FROM plan_produkcji WHERE id=%s", (id,))
+        res = cursor.fetchone()
+        if not res:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Zlecenie nie istnieje.'}), 404
+        if not res[0]:  # is_deleted = 0, czyli nie jest usunięte
+            conn.close()
+            return jsonify({'success': False, 'message': 'To zlecenie nie jest usunięte.'}), 400
+        
+        # Przywróć: ustaw is_deleted = 0, deleted_at = NULL
+        cursor.execute("UPDATE plan_produkcji SET is_deleted=0, deleted_at=NULL WHERE id=%s", (id,))
+        conn.commit()
+        
+        try:
+            user_login = session.get('login') or session.get('imie_nazwisko')
+            log_plan_history(id, 'restore', f'Przywrócono zlecenie: {res[1]}', user_login)
+        except Exception:
+            pass
+        
+        conn.close()
+        return jsonify({'success': True, 'message': 'Zlecenie zostało przywrócone.'}), 200
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        current_app.logger.exception('Failed to restore plan %s', id)
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @api_bp.route('/zmien_status_zlecenia/<int:id>', methods=['POST'])
 @login_required
 def zmien_status_zlecenia(id):
@@ -818,8 +859,8 @@ def usun_plan(id):
         elif res[0] in ['w toku', 'zakonczone']:
             category, message = 'warning', 'Nie można usunąć zleczenia w toku lub już zakończonego.'
         else:
-            cursor.execute("DELETE FROM palety_workowanie WHERE plan_id=%s", (id,))
-            cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (id,))
+            # Soft delete: zamiast DELETE, ustaw is_deleted = 1
+            cursor.execute("UPDATE plan_produkcji SET is_deleted=1, deleted_at=NOW() WHERE id=%s", (id,))
             conn.commit()
             category, message = 'success', 'Zlecenie zostało usunięte z planu.'
     except Exception:
@@ -1460,16 +1501,16 @@ def api_usun_plan(id):
 
         # record details for history
         details = {'produkt': res[1], 'data_planu': str(res[2]), 'tonaz': res[3]}
-        # delete related palety and plan
-        cursor.execute("DELETE FROM palety_workowanie WHERE plan_id=%s", (id,))
-        cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (id,))
+        
+        # Soft delete: zamiast DELETE, ustaw is_deleted = 1
+        cursor.execute("UPDATE plan_produkcji SET is_deleted=1, deleted_at=NOW() WHERE id=%s", (id,))
         conn.commit()
         try:
             user_login = session.get('login') or session.get('imie_nazwisko')
         except Exception:
             user_login = None
         try:
-            log_plan_history(id, 'delete', json.dumps(details, ensure_ascii=False), user_login)
+            log_plan_history(id, 'soft_delete', json.dumps(details, ensure_ascii=False), user_login)
         except Exception:
             pass
         conn.close()
@@ -3347,4 +3388,38 @@ def update_uszkodzone_worki():
         return jsonify({'success': False, 'message': 'Nieprawidłowa liczba'}), 400
     except Exception as e:
         current_app.logger.exception(f'Error updating uszkodzone_worki: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_bp.route('/get_deleted_plans/<date>', methods=['GET'])
+@roles_required('planista', 'admin')
+def get_deleted_plans(date):
+    """Pobierz usunięte (soft-deleted) zlecenia na dany dzień"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT id, produkt, tonaz, status, deleted_at FROM plan_produkcji WHERE DATE(data_planu) = %s AND is_deleted = 1 ORDER BY deleted_at DESC",
+            (date,)
+        )
+        deleted_plans = cursor.fetchall()
+        conn.close()
+        
+        result = []
+        for row in deleted_plans:
+            result.append({
+                'id': row[0],
+                'produkt': row[1],
+                'tonaz': row[2],
+                'status': row[3],
+                'deleted_at': str(row[4]) if row[4] else None
+            })
+        
+        return jsonify({'success': True, 'plans': result}), 200
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        current_app.logger.exception('Failed to get deleted plans for %s', date)
         return jsonify({'success': False, 'message': str(e)}), 500

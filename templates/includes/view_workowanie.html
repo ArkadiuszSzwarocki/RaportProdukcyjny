@@ -75,11 +75,12 @@
                     {% endif %}
 
                     <div class="d-flex gap-10">
-                        <form action="/cofnij_palete/{{ p[0] }}" method="POST" onsubmit="return confirm('{{ _('cofnac_palete') }}');" class="flex-1">
+                        <form action="/cofnij_palete/{{ p[0] }}" method="POST" onsubmit="return confirm('{{ _("cofnac_palete") }}');" class="flex-1">
                             <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
                             <button type="submit" class="btn-action btn-warning">↩ {{ _('cofnij') }}</button>
-                        
-                                <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm('{{ _('zakonczyc_zlecenie') }}');" class="flex-1">
+                        </form>
+
+                        <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm('{{ _("zakonczyc_zlecenie") }}');" class="flex-1">
                             <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
                             <button type="submit" class="btn-stop" aria-label="{{ _('zakonczy') }}">■ {{ _('zakonczy') }}</button>
                         </form>
@@ -115,7 +116,7 @@
                 {% endif %}
                 
                 {% if rola in ['planista', 'admin', 'lider'] %}
-                    <button type="button" class="btn-icon ml-5" title="{{ _('przenies_zlecenie') }}" onclick="openMoveModalWork({{ p[0] }}, '{{ p[1] }}')">
+                    <button type="button" class="btn-icon ml-5" title="{{ _('przenies_zlecenie') }}" onclick="openMoveModalWork({{ p[0] }}, '{{ p[1] }}')">📦</button>
                     <button type="button" class="btn-delete inline-form ml-5" aria-label="{{ _('usun_plan') }}" onclick="if(confirm('{{ _('usunac') }}')) deletePlan({{ p[0] }}, '{{ dzisiaj }}');">🗑</button>
                 {% endif %}
             </div>
@@ -134,8 +135,16 @@
     {% endif %}
 </div>
 
+<!-- Sekcja: Usunięte zlecenia -->
+{% if rola in ['planista', 'admin'] %}
+<div id="deletedOrdersSection" class="deleted-orders-section">
+    <h4 class="header-title">🗑️ {{ _('usuniety') }} {{ _('zlecenia') }} (<span id="deletedCount">0</span>)</h4>
+    <div id="deletedOrdersList"></div>
+</div>
+{% endif %}
+
 <!-- Move modal for Workowanie -->
-<div id="moveModalWork" style="display:none; position:fixed; left:50%; top:40%; transform:translate(-50%,-50%); background:#fff; padding:15px; border:1px solid #ccc; z-index:2000;">
+<div id="moveModalWork" class="move-modal-work">
     <h3 class="move-title-work">{{ _('przenies_zlecenie') }}</h3>
     <div style="margin:8px 0">{{ _('plan') }}: <input type="date" id="move_to_date_work" value="{{ dzisiaj }}"></div>
     <div class="d-flex gap-5" style="justify-content:flex-end;">
@@ -145,6 +154,52 @@
 </div>
 
 <script>
+// Załaduj usunięte zlecenia
+function loadDeletedOrders(){
+    var dzisiaj = '{{ dzisiaj }}';
+    var deletedSection = document.getElementById('deletedOrdersSection');
+    if(!deletedSection) return;
+    
+    fetch('/api/get_deleted_plans/' + dzisiaj)
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+            if(j && j.success && j.plans && j.plans.length > 0){
+                var html = '';
+                j.plans.forEach(function(p){
+                    html += '<div class="plan-item" style="opacity: 0.7; text-decoration: line-through;">' +
+                        '<div class="flex-2">' +
+                        '<span style="color: #999;">⏰ ' + (p.deleted_at || 'N/A') + '</span><br>' +
+                        '<span class="font-bold" style="color: #999;">' + p.produkt + '</span> (' + p.tonaz + ' kg)' +
+                        '</div>' +
+                        '<div><button type="button" class="btn-action btn-small" onclick="restoreDeletedOrder(' + p.id + ')">{{ _('przywroc') }}</button></div>' +
+                        '</div>';
+                });
+                document.getElementById('deletedOrdersList').innerHTML = html;
+                document.getElementById('deletedCount').innerText = j.plans.length;
+                deletedSection.style.display = 'block';
+            }
+        })
+        .catch(function(e){ console.error('Failed to load deleted orders', e); });
+}
+
+function restoreDeletedOrder(id){
+    if(!confirm('Przywrócić to zlecenie?')) return;
+    fetch('/api/przywroc_usunietego_zlecenia/' + id, {method:'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+            if(j && j.success){
+                alert('Zlecenie przywrócone!');
+                location.reload();
+            } else {
+                alert((j && j.message) || 'Błąd');
+            }
+        })
+        .catch(function(){ alert('Błąd sieci'); });
+}
+
+// Załaduj przy starcie
+loadDeletedOrders();
+
 function openMoveModalWork(id, nazwa){
     var modal = document.getElementById('moveModalWork');
     if(!modal) return alert('Brak modala przeniesienia');

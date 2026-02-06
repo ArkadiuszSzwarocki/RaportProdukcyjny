@@ -10,12 +10,28 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <link rel="shortcut icon" href="{{ url_for('static', filename='agro_logo.png') }}" type="image/png">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='agro_logo.png') }}">
+    <style>
+        .language-selector-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+        }
+        
+        #language-selector {
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body class="login-page">
 
 <!-- Language selector -->
-<div style="position: absolute; top: 10px; right: 10px; z-index: 100;">
-    <select id="language-selector" onchange="changeLanguage(this.value)" style="padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer;">
+<div class="language-selector-container">
+    <label for="language-selector" class="sr-only">{{ _('language') }}</label>
+    <select id="language-selector" onchange="changeLanguage(this.value)" title="Select language">
         <option value="pl">Polski</option>
         <option value="uk">Українська</option>
         <option value="en">English</option>
