@@ -1,0 +1,70 @@
+/* Workowanie View Styles */
+
+.move-modal-field {
+    margin: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.move-modal-field label {
+    font-weight: 500;
+    white-space: nowrap;
+    min-width: max-content;
+}
+
+.move-modal-field input[type="date"] {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.move-modal-actions {
+    justify-content: flex-end;
+}
+
+.deleted-orders-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.deleted-orders-section .header-title {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+#deletedOrdersList .plan-item {
+    opacity: 0.7;
+    text-decoration: line-through;
+    color: #999;
+}
+
+#deletedOrdersList .plan-item span {
+    color: #999 !important;
+}
+
+#deletedOrdersList .plan-item button {
+    text-decoration: none;
+    opacity: 1;
+    color: inherit;
+}
+
+/* Planista View - Deleted Orders Section */
+.deleted-orders-section-planista {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    display: none;
+}
+
+.deleted-orders-list-planista {
+    max-height: 300px;
+    overflow-y: auto;
+}

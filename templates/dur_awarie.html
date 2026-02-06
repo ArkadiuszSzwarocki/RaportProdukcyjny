@@ -946,7 +946,13 @@
       <!-- NAGŁÓWEK AWARII -->
       {% set status_color = {'zgłoszone': '#e7f3ff', 'czeka_na_czesci': '#ffcccc', 'w_trakcie_naprawy': '#fff3cd', 'zakończone': '#d4edda'} %}
       {% set status_border = {'zgłoszone': '#0066cc', 'czeka_na_czesci': '#dc3545', 'w_trakcie_naprawy': '#ffc107', 'zakończone': '#28a745'} %}
-      <div class="awaria-header status-{{ awaria.status }}" style="padding: 15px; background-color: {{ status_color.get(awaria.status, '#f0f0f0') }}; border-left: 5px solid {{ status_border.get(awaria.status, '#999999') }}; box-sizing: border-box;">
+      <style>
+        .awaria-header-{{ loop.index }} {
+          background-color: {{ status_color.get(awaria.status, '#f0f0f0') }};
+          border-left-color: {{ status_border.get(awaria.status, '#999999') }};
+        }
+      </style>
+      <div class="awaria-header status-{{ awaria.status }} awaria-header-{{ loop.index }}" style="padding: 15px; border-left: 5px solid; box-sizing: border-box;">
 
 
         <div class="awaria-header-grid">

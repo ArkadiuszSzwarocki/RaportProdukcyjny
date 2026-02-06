@@ -80,7 +80,7 @@
                             <button type="submit" class="btn-action btn-warning">↩ {{ _('cofnij') }}</button>
                         </form>
 
-                        <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm('{{ _("zakonczyc_zlecenie") }}');" class="flex-1">
+                        <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm(&quot;{{ _('zakonczyc_zlecenie') }}&quot;);" class="flex-1">
                             <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
                             <button type="submit" class="btn-stop" aria-label="{{ _('zakonczy') }}">■ {{ _('zakonczy') }}</button>
                         </form>
@@ -137,7 +137,7 @@
 
 <!-- Sekcja: Usunięte zlecenia -->
 {% if rola in ['planista', 'admin'] %}
-<div id="deletedOrdersSection" class="deleted-orders-section">
+<div id="deletedOrdersSection" class="deleted-orders-section" style="display: none;">
     <h4 class="header-title">🗑️ {{ _('usuniety') }} {{ _('zlecenia') }} (<span id="deletedCount">0</span>)</h4>
     <div id="deletedOrdersList"></div>
 </div>
@@ -146,8 +146,11 @@
 <!-- Move modal for Workowanie -->
 <div id="moveModalWork" class="move-modal-work">
     <h3 class="move-title-work">{{ _('przenies_zlecenie') }}</h3>
-    <div style="margin:8px 0">{{ _('plan') }}: <input type="date" id="move_to_date_work" value="{{ dzisiaj }}"></div>
-    <div class="d-flex gap-5" style="justify-content:flex-end;">
+    <div class="move-modal-field">
+        <label for="move_to_date_work">{{ _('plan') }}:</label>
+        <input type="date" id="move_to_date_work" value="{{ dzisiaj }}">
+    </div>
+    <div class="move-modal-actions d-flex gap-5">
         <button type="button" onclick="confirmMoveWork()" class="btn-action btn-small">{{ _('przenies_zlecenie') }}</button>
         <button type="button" onclick="document.getElementById('moveModalWork').style.display='none'" class="btn-action btn-small btn-cancel">Anuluj</button>
     </div>
