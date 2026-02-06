@@ -1,18 +1,59 @@
 /* static/style.css - PROFESSIONAL THEME + MOBILE READY */
 
 :root {
+    /* COLOR PALETTE */
     --primary-color: #2c3e50;    /* Ciemny granat */
     --accent-color: #3498db;     /* Niebieski */
+    --accent-dark: #2980b9;      /* Ciemny niebieski (hover) */
     --success-color: #27ae60;    /* Zielony */
+    --success-dark: #229954;     /* Ciemny zielony */
+    --success-light: #58d68d;    /* Jasny zielony */
     --warning-color: #f39c12;    /* Pomarańczowy */
+    --warning-dark: #e67e22;     /* Dark orange */
     --danger-color: #c0392b;     /* Czerwony */
+    --danger-light: #e74c3c;     /* Jasny czerwony */
+    --danger-dark: #a93226;      /* Ciemny czerwony */
+    --danger-hover: #ff4545;     /* Hover red */
+    --info-color: #17a2b8;       /* Info cyan */
+    --info-dark: #138496;        /* Dark cyan */
     --bg-body: #f4f6f9;          /* Tło strony */
     --bg-card: #ffffff;          /* Tło kart */
+    --bg-hover: rgba(0,0,0,0.05); /* Hover background */
     --text-main: #333333;
     --text-muted: #7f8c8d;
     --border-color: #e0e0e0;
+    
+    /* SHADOWS */
     --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
     --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+    --shadow-lg: 0 8px 20px rgba(52, 152, 219, 0.15);
+    
+    /* SPACING - consistent rhythm */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 20px;
+    --spacing-2xl: 32px;
+    
+    /* TYPOGRAPHY */
+    --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-bold: 600;
+    --font-weight-extra-bold: 700;
+    --font-weight-ultra-bold: 800;
+    
+    /* BORDER & RADIUS */
+    --border-radius-sm: 4px;
+    --border-radius-md: 6px;
+    --border-radius-lg: 8px;
+    --border-radius-full: 20px;
+    
+    /* TRANSITIONS */
+    --transition-fast: 0.12s ease;
+    --transition-normal: 0.2s ease;
+    --transition-slow: 0.28s cubic-bezier(.2,.8,.2,1);
 }
 
 /* 
@@ -381,15 +422,15 @@ body.sidebar-open {
 .date-overview #overview-current { font-size:1.05em; color:var(--primary-color); }
 .date-overview .btn-sm { padding:6px 10px; font-weight:700; }
 
-/* --- BUTTONS --- */
+/* ─────── BUTTONS & FORMS  ─────── */
 button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     border: none;
-    border-radius: 4px;
-    padding: 8px 16px;
+    border-radius: var(--border-radius-sm);
+    padding: var(--spacing-sm) var(--spacing-lg);
     font-size: 0.9em;
-    font-weight: 600;
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all var(--transition-normal);
     text-decoration: none;
     display: inline-flex;
     align-items: center;
@@ -399,11 +440,326 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     letter-spacing: 0.5px;
 }
 
-.btn { background-color: #bdc3c7; color: #2c3e50; }
-.btn:hover { background-color: #aeb6bf; }
+.btn {
+    background-color: #bdc3c7;
+    color: #2c3e50;
+}
 
-.btn-primary, .btn-add-plan, button[type="submit"] {
-    background-color: var(--accent-color) !important;
+.btn:hover {
+    background-color: #aeb6bf;
+}
+
+/* Primary button - NO !important */
+.btn-primary, 
+.btn-add-plan, 
+button[type="submit"] {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.btn-primary:hover,
+button[type="submit"]:hover {
+    background-color: var(--accent-dark);
+    box-shadow: var(--shadow-md);
+}
+
+/* Email button - using CSS vars instead of !important */
+.btn-send-email {
+    background-color: var(--info-color);
+    color: white;
+    border: 1px solid var(--info-dark);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+    transition: all var(--transition-normal);
+    padding: var(--spacing-sm) var(--spacing-lg);
+}
+
+.btn-send-email:hover {
+    background-color: var(--info-dark);
+    box-shadow: 0 2px 8px rgba(23, 162, 184, 0.4);
+}
+
+.btn-send-email:active {
+    background-color: #0c5460;
+    transform: translateY(1px);
+}
+
+.btn-end-shift-large {
+    padding: var(--spacing-lg) var(--spacing-lg);
+    font-size: 14px;
+    margin-left: var(--spacing-sm);
+}
+
+/* Action buttons */
+.btn-sm {
+    padding: 6px 10px;
+    font-size: 0.85em;
+    border-radius: var(--border-radius-md);
+}
+
+.btn-action {
+    background: var(--accent-color);
+    color: #fff;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--border-radius-md);
+    text-decoration: none;
+    display: inline-block;
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.btn-action:hover {
+    background: var(--accent-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-action.btn-warning {
+    background: var(--warning-color);
+}
+
+.btn-action.btn-warning:hover {
+    background: var(--warning-dark);
+}
+
+.btn-action.btn-small {
+    padding: 6px 8px;
+    font-size: 0.85em;
+}
+
+.btn-action.btn-cancel {
+    background: #95a5a6;
+}
+
+.btn-action.btn-cancel:hover {
+    background: #7f8c8d;
+}
+
+.btn-action.btn-danger {
+    background: linear-gradient(135deg, var(--danger-color), var(--danger-light));
+    color: white;
+}
+
+.btn-action.btn-danger:hover {
+    background: linear-gradient(135deg, var(--danger-dark), var(--danger-color));
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+}
+
+.btn-toggle {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    padding: 6px 10px;
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.btn-toggle:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.btn-start {
+    background: linear-gradient(135deg, var(--success-color), var(--success-light));
+    color: white;
+    padding: 6px 12px;
+    font-size: 0.8em;
+    white-space: nowrap;
+    transition: all var(--transition-normal);
+}
+
+.btn-start:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(39, 174, 96, 0.3);
+}
+
+/* Delete button */
+.delete-button,
+.btn-delete {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: rgb(20, 20, 20);
+    border: none;
+    font-weight: var(--font-weight-bold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.164);
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+    color: white;
+    font-size: 0.95em;
+    padding: 0;
+    transition: all var(--transition-normal);
+}
+
+.delete-button:hover,
+.btn-delete:hover {
+    background-color: var(--danger-hover);
+}
+
+.delete-button::before,
+.btn-delete::before {
+    display: none;
+}
+
+/* ─────────────────────────────────────────────────────── */
+/* FORM & NOTE STYLES (from dashboard_global.css merged) */
+/* ─────────────────────────────────────────────────────── */
+
+.form-label {
+    display: block;
+    margin-bottom: var(--spacing-md);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-muted);
+}
+
+.form-input {
+    width: 100%;
+    padding: var(--spacing-md) var(--spacing-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    box-sizing: border-box;
+    font-size: 14px;
+    font-family: var(--font-family);
+    transition: all var(--transition-normal);
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+/* Shift notes styling */
+.note-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: #f9f9f9;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+}
+
+.note-label {
+    display: block;
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--spacing-sm);
+}
+
+.note-textarea {
+    width: 100%;
+    min-height: 320px;
+    padding: var(--spacing-md);
+    border: 1px solid #ccc;
+    border-radius: var(--border-radius-md);
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+    transition: all var(--transition-normal);
+}
+
+.note-textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.note-save-btn {
+    align-self: flex-start;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    background-color: var(--success-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    font-weight: var(--font-weight-bold);
+    transition: all var(--transition-normal);
+}
+
+.note-save-btn:hover {
+    background-color: var(--success-dark);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.note-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    background: #fff;
+    box-shadow: var(--shadow-sm);
+}
+
+.note-card-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+}
+
+.note-card-content {
+    flex: 1;
+}
+
+.note-meta {
+    margin-bottom: var(--spacing-sm);
+    font-size: 13px;
+    color: #666;
+}
+
+.note-text {
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.note-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.note-edit-btn, .note-delete-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    background: #f0f0f0;
+    transition: all var(--transition-normal);
+}
+
+.note-edit-btn:hover {
+    background: #e8f5e9;
+    color: var(--success-color);
+}
+
+.note-delete-btn:hover {
+    background: #ffebee;
+    color: var(--danger-color);
+}
+
+.no-notes {
+    text-align: center;
+    color: #999;
+    padding: var(--spacing-xl);
+}
+
+.notes-container {
+    margin-top: var(--spacing-lg);
 }
 
 /* ================= Quick popup (global) ================= */
@@ -701,77 +1057,6 @@ button, .btn, a.admin-btn, a.logout-btn, a.wyniki-btn {
     padding: 8px 10px;
     color: var(--primary-color);
 }
-
-/* ================= Quick popup (global) ================= */
-.quick-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.45);
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.18s ease, visibility 0s linear 0.18s;
-    z-index: 12000;
-}
-.quick-backdrop.show { opacity: 1; visibility: visible; transition-delay: 0s; }
-
-.quick-popup {
-    position: fixed;
-    left: 50%;
-    top: 10%;
-    transform: translateX(-50%) translateY(-8px) scale(0.98);
-    width: min(880px, calc(100% - 40px));
-    max-width: 95%;
-    background: var(--bg-card);
-    color: var(--text-main);
-    border-radius: 10px;
-    box-shadow: 0 18px 50px rgba(0,0,0,0.28);
-    z-index: 12001;
-    opacity: 0;
-    transition: transform 0.22s cubic-bezier(.2,.8,.2,1), opacity 0.16s ease;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-.quick-popup.open { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-
-.quick-popup .qp-header {
-    padding: 14px 18px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border-color);
-    background: linear-gradient(180deg, rgba(0,0,0,0.01), transparent);
-}
-.quick-popup .qp-header strong { font-size: 1.05em; font-weight: 800; color: var(--primary-color); }
-.quick-popup .qp-close {
-    background: transparent;
-    border: none;
-    font-size: 18px;
-    line-height: 1;
-    cursor: pointer;
-    color: var(--text-muted);
-    padding: 6px 8px;
-    border-radius: 6px;
-}
-.quick-popup .qp-close:hover { background: rgba(0,0,0,0.03); color: var(--text-main); }
-
-.quick-popup .qp-body {
-    padding: 18px;
-    max-height: calc(80vh - 120px);
-    overflow: auto;
-}
-
-.quick-popup .qp-body .input-sm { width: 100%; box-sizing: border-box; }
-.quick-popup .qp-body .btn-action { margin-top: 12px; }
-
-@media (max-width: 700px){
-    .quick-popup { top: 6%; width: calc(100% - 24px); border-radius: 8px; }
-    .quick-popup .qp-body { padding: 12px; }
-}
-
-/* Slight tweak so forms inside quick-popup use primary button styling */
-.quick-popup .btn-action { background: var(--accent-color); color: #fff; }
-
 
 /* ======= Additional popup styles ======= */
 .toast { background: #222; color: white; padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; opacity: 0; transform: translateY(8px); transition: all .28s; box-shadow: 0 6px 18px rgba(0,0,0,0.12); }
