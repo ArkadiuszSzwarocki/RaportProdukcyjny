@@ -157,6 +157,12 @@
 </div>
 
 <script>
+// Translation messages
+var wkMsgs = {
+    przywroc: '{{ _("przywroc") }}',
+    brakuje_danych: '{{ _("brakuje_danych") }}'
+};
+
 // Global reference to store data for modal
 var moveOrderData = {};
 
@@ -177,7 +183,7 @@ function loadDeletedOrders(){
                         '<span class="deleted-item-time">⏰ ' + (p.deleted_at || 'N/A') + '</span><br>' +
                         '<span class="font-bold deleted-item-text">' + p.produkt + '</span> (' + p.tonaz + ' kg)' +
                         '</div>' +
-                        '<div><button type="button" class="btn-action btn-small restore-deleted-btn" data-restore-id="' + p.id + '">{{ _('przywroc') }}</button></div>' +
+                        '<div><button type="button" class="btn-action btn-small restore-deleted-btn" data-restore-id="' + p.id + '">' + wkMsgs.przywroc + '</button></div>' +
                         '</div>';
                 });
                 document.getElementById('deletedOrdersList').innerHTML = html;
@@ -271,7 +277,7 @@ function confirmMoveWork(){
     var modal = document.getElementById('moveModalWork');
     var id = modal.dataset.planId;
     var to_date = document.getElementById('move_to_date_work').value;
-    if(!id || !to_date) return alert('{{ _('brakuje_danych') }}');
+    if(!id || !to_date) return alert(wkMsgs.brakuje_danych);
     fetch('/api/przenies_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, to_date: to_date})})
         .then(function(r){ return r.json().catch(function(){ return { success:false, message:'Nieprawidłowa odpowiedź serwera' }; }); })
         .then(function(j){

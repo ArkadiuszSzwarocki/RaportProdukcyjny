@@ -868,6 +868,13 @@ document.addEventListener('click', function(e){
 
 // ===== NOTATKI NA DASHBOARD - ZMIANA DATY =====
 (function() {
+    // Translation messages
+    var msgs = {
+        errorLoading: '{{ _("blad_ladowania") }}',
+        noNotes: '{{ _("brak_notatek") }}',
+        editWpis: '{{ _("edytuj_wpis") }}'
+    };
+    
     const dateDisplay = document.getElementById('current-date-display');
     const dateISO = document.getElementById('current-date-iso');
     const dayNavButtons = document.querySelectorAll('.day-nav');
@@ -883,7 +890,7 @@ document.addEventListener('click', function(e){
             .then(data => {
                 if (!data.success) {
                     console.error('Error loading wpisy:', data.message);
-                    wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _('blad_ladowania') }}</div>';
+                    wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">' + msgs.errorLoading + '</div>';
                     return;
                 }
                 
@@ -913,7 +920,7 @@ document.addEventListener('click', function(e){
                                     </div>
                                 </div>
                                 <div class="d-flex gap-8 align-center">
-                                    <a href="/api/edytuj?id=${w[0]}" title="{{ _('edytuj_wpis') }}" class="font-bold text-warning-dark no-underline">✎</a>
+                                    <a href="/api/edytuj?id=${w[0]}" title="${msgs.editWpis}" class="font-bold text-warning-dark no-underline">✎</a>
                                     <form action="/api/usun_wpis?id=${w[0]}" method="POST" class="m-0">
                                         <input type="hidden" name="sekcja" value="${sekcja}">
                                         <button type="submit" class="btn-icon text-warning-dark" aria-label="Usuń wpis">✖</button>
@@ -924,12 +931,12 @@ document.addEventListener('click', function(e){
                         wpisyContainer.insertAdjacentHTML('beforeend', html);
                     });
                 } else {
-                    wpisyContainer.insertAdjacentHTML('beforeend', '<div class="text-muted text-center p-10">{{ _('brak_notatek') }}</div>');
+                    wpisyContainer.insertAdjacentHTML('beforeend', '<div class="text-muted text-center p-10">' + msgs.noNotes + '</div>');
                 }
             })
             .catch(err => {
                 console.error('Failed to update wpisy:', err);
-                wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _('blad_ladowania') }}</div>';
+                wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">' + msgs.errorLoading + '</div>';
             });
     }
     

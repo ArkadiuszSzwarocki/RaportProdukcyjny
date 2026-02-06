@@ -138,6 +138,13 @@
 <!-- Modal Move usunięty (mechanizm popup wyłączony) -->
 
     <script>
+    // Translation messages for Planista view
+    var pnMsgs = {
+        przywroc: '{{ _("przywroc") }}',
+        zapisz: '{{ _("zapisz") }}',
+        anuluj: '{{ _("anuluj") }}'
+    };
+    
     // Załaduj usunięte zlecenia dla widoku planisty
     function loadDeletedOrdersPlanista(){
         var dzisiaj = '{{ wybrana_data }}';
@@ -158,7 +165,7 @@
                             '<td><span style="color: #999;">-</span></td>' +
                             '<td><span style="color: #999;">-</span></td>' +
                             '<td><span class="status-badge" style="background: #ccc;">USUNIĘTE</span></td>' +
-                            '<td><button class="btn-action btn-small restore-deleted-btn-planista" data-restore-id="' + p.id + '">{{ _('przywroc') }}</button></td>' +
+                            '<td><button class="btn-action btn-small restore-deleted-btn-planista" data-restore-id="' + p.id + '">' + pnMsgs.przywroc + '</button></td>' +
                             '</tr>';
                     });
                     var table = document.createElement('table');
@@ -312,8 +319,8 @@ function deletePlan(id, data){
         cols.push('Data: <input id="e_date_'+id+'" name="data_planu" type="date" value="{{ wybrana_data }}">');
         cols.push('</td>');
         cols.push('<td colspan="3">');
-        cols.push('<button type="button" class="btn-action btn-small" id="btn-submit-'+id+'">{{ _('zapisz') }}</button> ');
-        cols.push('<button type="button" class="btn-action btn-small btn-cancel" id="btn-cancel-'+id+'">{{ _('anuluj') }}</button>');
+        cols.push('<button type="button" class="btn-action btn-small" id="btn-submit-'+id+'">'+pnMsgs.zapisz+'</button> ');
+        cols.push('<button type="button" class="btn-action btn-small btn-cancel" id="btn-cancel-'+id+'">'+pnMsgs.anuluj+'</button>');
         cols.push('</td>');
         newTr.innerHTML = cols.join('');
         newTr.style.display = 'table-row';  // Jawne ustawienie display
