@@ -1,19 +1,19 @@
 <div class="p-10" {% if sekcja == 'Zasyp' %}data-popup-title="Dodajesz szarże"{% else %}data-popup-title="Dodajesz paletę"{% endif %}>
-  <h3 style="margin:0 0 8px 0">{% if sekcja == 'Zasyp' %}➕ Dodaj szarżę{% else %}📦 Dodaj paletę{% endif %}</h3>
+  <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj szarżę{% else %}📦 Dodaj paletę{% endif %}</h3>
   {% if sekcja == 'Workowanie' %}
   {# Workowanie: użyj dedykowanego endpointu dodaj_palete #}
   <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST">
-    <input id="waga_palety" name="waga_palety" type="number" step="1" min="1" required class="input-sm" autofocus placeholder="Waga palety (kg)" title="Waga palety w kilogramach" style="margin-bottom:8px;">
+    <input id="waga_palety" name="waga_palety" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="{{ _('waga_palety') }}" title="{{ _('waga_palety_kg_info') }}">
     
-    <div style="display:flex; gap:8px;">
-      <button type="submit" class="btn-action btn-save">DODAJ PALETĘ</button>
+    <div class="popup-button-group">
+      <button type="submit" class="btn-action btn-save">{{ _('dodaj_palete') }}</button>
       <button type="button" class="btn-action btn-outline" onclick="try{ document.querySelector('.quick-popup').parentNode.querySelector('.qp-close').click(); }catch(e){}">ANULUJ</button>
     </div>
   </form>
   {% else %}
   {# Zasyp: użyj dodaj_plan dla szarży #}
   <form action="{{ url_for('api.dodaj_plan') }}" method="POST">
-    <input id="tonaz" name="tonaz" type="number" step="1" min="1" required class="input-sm" autofocus placeholder="Waga szarży (kg)" title="Waga szarży w kilogramach" style="margin-bottom:8px;">
+    <input id="tonaz" name="tonaz" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="{{ _('waga_szarzy_kg') }}" title="{{ _('waga_szarzy_kg_info') }}">
     
     <!-- Produkt i typ - ukryte (brane automatycznie z systemu) -->
     <input type="hidden" name="produkt" value="{{ produkt or '' }}">
@@ -21,8 +21,8 @@
     <input type="hidden" name="plan_id" value="{{ plan_id or '' }}">
     <input type="hidden" name="sekcja" value="Zasyp">
     
-    <div style="display:flex; gap:8px;">
-      <button type="submit" class="btn-action btn-save">DODAJ SZARŻĘ</button>
+    <div class="popup-button-group">
+      <button type="submit" class="btn-action btn-save">{{ _('dodaj_szarze') }}</button>
       <button type="button" class="btn-action btn-outline" onclick="try{ document.querySelector('.quick-popup').parentNode.querySelector('.qp-close').click(); }catch(e){}">ANULUJ</button>
     </div>
   </form>

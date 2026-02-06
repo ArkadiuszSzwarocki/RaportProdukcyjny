@@ -15,12 +15,12 @@
         <table class="table modern-table mb-0">
             <thead>
                 <tr>
-                    <th>Data Zasypu</th>
-                    <th>Produkt</th>
-                    <th>Zrobiono na Zasypie</th>
-                    <th>Spakowano</th>
-                    <th>POZOSTAŁO (DO SPAKOWANIA)</th>
-                    <th>Akcja</th>
+                    <th>{{ _('data_zasypu') }}</th>
+                    <th>{{ _('produkt') }}</th>
+                    <th>{{ _('zrobiono_zasypie') }}</th>
+                    <th>{{ _('spakowano') }}</th>
+                    <th>{{ _('pozostalo_do_spakowania') }}</th>
+                    <th>{{ _('akcja') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -35,7 +35,7 @@
                     <td>{{ b.spakowano_total }} kg</td>
                     <td class="pozostalo-cell {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %}negative{% else %}positive{% endif %}">
                         {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %}
-                            <span title="Nadmiar spakowany">{{ b.raw_pozostalo }} kg</span>
+                            <span title="{{ _('nadmiar_spakowany') }}">{{ b.raw_pozostalo }} kg</span>
                         {% else %}
                             {{ b.w_silosie }} kg
                         {% endif %}
@@ -51,7 +51,7 @@
             </tbody>
         </table>
         {% else %}
-            <div class="p-15 text-muted">Brak towaru w buforze.</div>
+            <div class="p-15 text-muted">{{ _('brak_towaru_bufor') }}</div>
         {% endif %}
     </div>
 </div>

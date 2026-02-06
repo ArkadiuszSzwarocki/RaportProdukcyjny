@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edycja wpisu</title>
+    <title>{{ _('edycja_wpisu') }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="edycja-page">
@@ -12,7 +12,7 @@
     <h2>✏️ Edytuj Zgłoszenie</h2>
     <form method="POST">
         
-        <label for="kategoria">Rodzaj problemu:</label>
+        <label for="kategoria">{{ _('rodzaj_problemu') }}</label>
         <select id="kategoria" name="kategoria" aria-label="Rodzaj problemu">
               <option value="Awaria" {% if wpis[7] == 'Awaria' %}selected{% endif %}>🔴 Awaria</option>
               <option value="Postój" {% if wpis[7] == 'Postój' %}selected{% endif %}>🟠 Postój</option>
@@ -20,13 +20,13 @@
               <option value="Usterka" {% if wpis[7] == 'Usterka' %}selected{% endif %}>🟣 Usterka</option>
         </select>
 
-          <label>Godzina START:</label>
-              <input type="time" name="czas_start" value="{{ wpis[4] if wpis[4] else '' }}" title="Wprowadź godzinę rozpoczęcia" placeholder="hh:mm" aria-label="Godzina start">
+          <label>{{ _('godzina_start') }}</label>
+              <input type="time" name="czas_start" value="{{ wpis[4] if wpis[4] else '' }}" title="{{ _('wprowadz_godzine_start') }}" placeholder="{{ _('hh_mm_maly') }}" aria-label="Godzina start">
 
-          <label>Godzina KONIEC:</label>
-              <input type="time" name="czas_stop" value="{{ wpis[5] if wpis[5] else '' }}" title="Wprowadź godzinę zakończenia" placeholder="hh:mm" aria-label="Godzina koniec">
+          <label>{{ _('godzina_koniec') }}</label>
+              <input type="time" name="czas_stop" value="{{ wpis[5] if wpis[5] else '' }}" title="{{ _('wprowadz_godzine_koniec') }}" placeholder="{{ _('hh_mm_maly') }}" aria-label="Godzina koniec">
 
-        <label for="status">Status:</label>
+        <label for="status">{{ _('status_label') }}</label>
         <select id="status" name="status" aria-label="Status">
             <option value="zgłoszone" {% if wpis[6] == 'zgłoszone' %}selected{% endif %}>🔔 Zgłoszone</option>
             <option value="czeka_na_czesci" {% if wpis[6] == 'czeka_na_czesci' %}selected{% endif %}>⚙️ Czeka na części</option>
@@ -34,14 +34,14 @@
             <option value="zakończone" {% if wpis[6] == 'zakończone' %}selected{% endif %}>✅ Zakończone</option>
         </select>
 
-        <label for="data_zakonczenia">Data zakończenia (opcjonalnie):</label>
-        <input type="date" id="data_zakonczenia" name="data_zakonczenia" value="{{ wpis[10] if wpis[10] else '' }}" title="Data kiedy zostało ukończone" aria-label="Data zakończenia">
+        <label for="data_zakonczenia">{{ _('data_zakonczenia') }}</label>
+        <input type="date" id="data_zakonczenia" name="data_zakonczenia" value="{{ wpis[10] if wpis[10] else '' }}" title="{{ _('data_ukonczone') }}" aria-label="Data zakończenia">
 
-        <label>Opis szczegółowy:</label>
-           <textarea name="problem" rows="4" title="Wprowadź szczegółowy opis problemu" placeholder="Opisz problem...">{{ wpis[3] }}</textarea>
+        <label>{{ _('opis_szczegolowy') }}</label>
+           <textarea name="problem" rows="4" title="{{ _('wprowadz_opis') }}" placeholder="Opisz problem...">{{ wpis[3] }}</textarea>
 
         <button type="submit" class="btn-save">💾 ZAPISZ ZMIANY</button>
-        <a href="/" class="btn-cancel">Anuluj</a>
+        <a href="/" class="btn-cancel">{{ _('anuluj') }}</a>
     </form>
 </div>
 

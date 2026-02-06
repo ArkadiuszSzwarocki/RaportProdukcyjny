@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Raport Gotowy</title>
+    <title>{{ _('raport_gotowy') }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <!-- moved styles to static/style.css -->
 </head>
@@ -24,7 +24,7 @@
 
         <a href="{{ mailto_link | safe }}" class="btn-open-mail">📧 OTWÓRZ OUTLOOKA (Napisz maila)</a>
 
-        <a href="/login" class="btn-back">Wróć do logowania</a>
+        <a href="/login" class="btn-back">{{ _('wroc_logowanie') }}</a>
     </div>
 
     <script>

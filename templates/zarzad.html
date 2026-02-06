@@ -5,18 +5,18 @@
 <div class="section-header">
     <div><h2 class="header-title">📊 Wyniki Produkcyjne: <strong>{{ tytul }}</strong></h2></div>
     <div class="filters">
-        <a href="/zarzad?tryb=dzien&data={{ wybrana_data }}" class="btn {% if tryb=='dzien' %}btn-primary{% endif %}">Dzień</a>
-        <a href="/zarzad?tryb=miesiac&rok={{ wybrany_rok }}&miesiac={{ wybrany_miesiac }}" class="btn {% if tryb=='miesiac' %}btn-primary{% endif %}">Miesiąc</a>
-        <a href="/zarzad?tryb=rok&rok={{ wybrany_rok }}" class="btn {% if tryb=='rok' %}btn-primary{% endif %}">Rok</a>
+        <a href="/zarzad?tryb=dzien&data={{ wybrana_data }}" class="btn {% if tryb=='dzien' %}btn-primary{% endif %}">{{ _('dzien') }}</a>
+        <a href="/zarzad?tryb=miesiac&rok={{ wybrany_rok }}&miesiac={{ wybrany_miesiac }}" class="btn {% if tryb=='miesiac' %}btn-primary{% endif %}">{{ _('mies_ac') }}</a>
+        <a href="/zarzad?tryb=rok&rok={{ wybrany_rok }}" class="btn {% if tryb=='rok' %}btn-primary{% endif %}">{{ _('rok') }}</a>
         <form action="/zarzad" method="GET" class="filters-form">
             <input type="hidden" name="tryb" value="{{ tryb }}">
             {% if tryb == 'dzien' %}
                 <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="filters-input" aria-label="Wybierz datę">
             {% elif tryb == 'miesiac' %}
-                <select name="miesiac" onchange="this.form.submit()" class="filters-input" title="Miesiąc" aria-label="Miesiąc">{% for m in range(1,13) %}<option value="{{ m }}" {% if m==wybrany_miesiac %}selected{% endif %}>{{ m }}</option>{% endfor %}</select>
-                <select name="rok" onchange="this.form.submit()" class="filters-input" title="Rok" aria-label="Rok">{% for r in range(2024, 2030) %}<option value="{{ r }}" {% if r==wybrany_rok %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+                <select name="miesiac" onchange="this.form.submit()" class="filters-input" title="{{ _('mies_ac') }}" aria-label="Miesiąc">{% for m in range(1,13) %}<option value="{{ m }}" {% if m==wybrany_miesiac %}selected{% endif %}>{{ m }}</option>{% endfor %}</select>
+                <select name="rok" onchange="this.form.submit()" class="filters-input" title="{{ _('rok') }}" aria-label="Rok">{% for r in range(2024, 2030) %}<option value="{{ r }}" {% if r==wybrany_rok %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
             {% elif tryb == 'rok' %}
-                <select name="rok" onchange="this.form.submit()" class="filters-input" title="Rok" aria-label="Rok">{% for r in range(2024, 2030) %}<option value="{{ r }}" {% if r==wybrany_rok %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+                <select name="rok" onchange="this.form.submit()" class="filters-input" title="{{ _('rok') }}" aria-label="Rok">{% for r in range(2024, 2030) %}<option value="{{ r }}" {% if r==wybrany_rok %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
             {% endif %}
         </form>
     </div>
@@ -24,22 +24,22 @@
 
 <div class="stat-grid">
     <div class="stat-card">
-        <span class="label">Wykonanie (Gotowe)</span>
+        <span class="label">{{ _('wykonanie_gotowe') }}</span>
         <div class="header-title header-lg text-primary">{{ suma_wykonanie|round(1) }} kg</div>
         <div class="small text-muted">z planu: {{ suma_plan|round(1) }} kg</div>
     </div>
         <div class="stat-card">
-        <span class="label">Realizacja Celu</span>
+        <span class="label">{{ _('realizacja_celu') }}</span>
         <div class="header-title header-lg {% if procent >= 100 %}text-success{% else %}text-warning{% endif %}">{{ procent|round(1) }}%</div>
         <div class="progress"><div class="progress-bar {% if procent >= 100 %}progress-bar-success{% else %}progress-bar-success{% endif %} progress-w-{{ procent|round(0)|int }}"></div></div>
     </div>
         <div class="stat-card">
-        <span class="label">Ilość Zleceń</span>
+        <span class="label">{{ _('ilosc_zlecen') }}</span>
         <div class="header-title header-lg text-zarzad">{{ ilosc_zlecen }}</div>
-        <div class="small text-muted">Zakończonych</div>
+        <div class="small text-muted">{{ _('zakonczonych') }}</div>
     </div>
     <div class="stat-card">
-        <span class="label">Czas Awarii</span>
+        <span class="label">{{ _('czas_awarii') }}</span>
         <div class="header-title header-lg text-danger-color">{{ time_aw }} min</div>
         <div class="small text-muted">Łącznie</div>
     </div>
@@ -78,12 +78,12 @@
                 <td><strong>{{ p.name }}</strong></td>
                 {% if tryb == 'dzien' %}
                     <td class="text-center">{{ p.zasyp }}</td><td class="text-center">{{ p.workowanie }}</td><td class="text-center">{{ p.magazyn }}</td>
-                    <td>{% if p.hr == '-' %}<span class="text-muted">-</span>{% elif p.hr == 'Obecny' %}<span class="text-success font-bold">Obecny</span>{% else %}<span class="text-danger-color">{{ p.hr }}</span>{% endif %}</td>
+                    <td>{% if p.hr == '-' %}<span class="text-muted">-</span>{% elif p.hr == 'Obecny' %}<span class="text-success font-bold">{{ _('obecny') }}</span>{% else %}<span class="text-danger-color">{{ p.hr }}</span>{% endif %}</td>
                 {% else %}
                     <td class="text-center"><strong>{{ p.total }}</strong></td><td class="text-center text-success">{{ p.ot }} h</td><td class="text-center text-danger-color">{{ p.abs }} h</td>
                 {% endif %}
             </tr>
-            {% else %}<tr><td colspan="5" class="text-center p-20">Brak danych kadrowych.</td></tr>{% endfor %}
+            {% else %}<tr><td colspan="5" class="text-center p-20">{{ _('brak_danych_kadrowych') }}</td></tr>{% endfor %}
         </tbody>
     </table>
 </div>

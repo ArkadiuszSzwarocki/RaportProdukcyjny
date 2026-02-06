@@ -1,6 +1,6 @@
 {% extends 'layout.html' %}
 {% block content %}
-<h2>Moje godziny</h2>
+<h2>{{ _('moje_godziny') }}</h2>
 {% if not mapped %}
   <div class="alert alert-warning">Twoje konto nie jest powiązane z rekordem pracownika. Skontaktuj się z administratorem.</div>
 {% endif %}
@@ -8,7 +8,7 @@
 <p>Zakres: {{ d_od }} — {{ d_do }}</p>
   {% if pracownicy_list %}
     <form method="get" class="mb-3">
-      <label for="pracownik_select">Przeglądaj pracownika:</label>
+      <label for="pracownik_select">{{ _('przeglądaj_pracownika') }}</label>
       <select id="pracownik_select" name="pracownik_id" title="Wybierz pracownika do przeglądu" onchange="this.form.submit()" class="form-control pracownik-select">
         <option value="">-- wybierz --</option>
         {% for p in pracownicy_list %}
@@ -19,7 +19,7 @@
   {% endif %}
   <div class="mp-flex-row">
     <div>
-      <h4>Twoje podsumowanie</h4>
+      <h4>{{ _('twoje_podsumowanie') }}</h4>
       <ul>
         <li>Liczba zmian obecności w tym okresie: <strong id="obecnosciCount_owner">{{ owner_summary.obecnosci }}</strong></li>
         <li>Wyjścia prywatne (suma godzin): <strong id="wyjsciaHours_owner">{{ '%.2f'|format(owner_summary.wyjscia_hours) }} h</strong></li>
@@ -29,7 +29,7 @@
     </div>
     {% if viewed_summary %}
     <div>
-      <h4>Przeglądany pracownik</h4>
+      <h4>{{ _('przegladany_pracownik') }}</h4>
       <ul>
         <li>Liczba zmian obecności w tym okresie: <strong id="obecnosciCount_viewed">{{ viewed_summary.obecnosci }}</strong></li>
         <li>Wyjścia prywatne (suma godzin): <strong id="wyjsciaHours_viewed">{{ '%.2f'|format(viewed_summary.wyjscia_hours) }} h</strong></li>
@@ -39,32 +39,32 @@
     </div>
     {% endif %}
   </div>
-  <h3>Złóż wniosek o wolne</h3>
+  <h3>{{ _('zloz_wniosek_o_wolne') }}</h3>
   <form action="{{ url_for('api.submit_wniosek') }}" method="post" class="mb-3">
     <div class="row">
-      <div class="col-md-3"><label for="typ_select">Typ</label>
-        <select id="typ_select" name="typ" class="form-control" title="Wybierz typ wniosku">
-          <option>Urlop</option>
-          <option>Nieobecność</option>
-          <option>Wyjście prywatne</option>
+      <div class="col-md-3"><label for="typ_select">{{ _('typ') }}</label>
+        <select id="typ_select" name="typ" class="form-control" title="{{ _('wybierz_typ_wniosku') }}">
+          <option>{{ _('urlop') }}</option>
+          <option>{{ _('nieobecnosc') }}</option>
+          <option>{{ _('wyjscie_prywatne') }}</option>
         </select>
       </div>
-      <div class="col-md-3"><label>Od</label><input id="data_od" type="date" name="data_od" class="form-control" required title="Data od" placeholder="RRRR-MM-DD"></div>
-      <div class="col-md-3"><label>Do</label><input id="data_do" type="date" name="data_do" class="form-control" required title="Data do" placeholder="RRRR-MM-DD"></div>
-      <div class="col-md-3 d-none" id="timeColOd"><label for="czas_od">Czas od</label><input id="czas_od" type="time" name="czas_od" title="Czas od" placeholder="HH:MM" class="form-control"></div>
+      <div class="col-md-3"><label>{{ _('od') }}</label><input id="data_od" type="date" name="data_od" class="form-control" required title="{{ _('data_od') }}" placeholder="RRRR-MM-DD"></div>
+      <div class="col-md-3"><label>{{ _('do') }}</label><input id="data_do" type="date" name="data_do" class="form-control" required title="{{ _('data_do') }}" placeholder="RRRR-MM-DD"></div>
+      <div class="col-md-3 d-none" id="timeColOd"><label for="czas_od">{{ _('czas_od') }}</label><input id="czas_od" type="time" name="czas_od" title="{{ _('czas_od') }}" placeholder="{{ _('hh_mm') }}" class="form-control"></div>
     </div>
     <div class="row mt-2">
       <div class="col-md-9"></div>
-      <div class="col-md-3 align-self-end"><button type="submit" class="btn btn-primary">Złóż wniosek</button></div>
+      <div class="col-md-3 align-self-end"><button type="submit" class="btn btn-primary">{{ _('zloz_wniosek') }}</button></div>
     </div>
   </form>
 
-  <h3>Twoje wnioski</h3>
+  <h3>{{ _('twoje_wnioski') }}</h3>
   <table class="table table-sm">
     <thead>
       <tr>
-        <th>Data</th><th>Typ</th><th>Okres</th><th>Stan</th>
-        {% if session.get('rola') in ['lider','admin'] %}<th>Akcje</th>{% endif %}
+        <th>{{ _('data') }}</th><th>{{ _('typ') }}</th><th>{{ _('okres') }}</th><th>{{ _('stan') }}</th>
+        {% if session.get('rola') in ['lider','admin'] %}<th>{{ _('akcje') }}</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -77,10 +77,10 @@
         {% if session.get('rola') in ['lider','admin'] %}
           <td>
             {% if w.status != 'approved' %}
-              <button class="btn btn-sm btn-success wn-action" data-id="{{ w.id }}" data-action="approve">Zatwierdź</button>
-              <button type="button" class="btn btn-sm btn-danger wn-action ml-6" data-id="{{ w.id }}" data-action="reject">Odrzuć</button>
+              <button class="btn btn-sm btn-success wn-action" data-id="{{ w.id }}" data-action="approve">{{ _('zatwierdz') }}</button>
+              <button type="button" class="btn btn-sm btn-danger wn-action ml-6" data-id="{{ w.id }}" data-action="reject">{{ _('odrzuc') }}</button>
             {% else %}
-              <span class="badge badge-success">Zatwierdzony</span>
+              <span class="badge badge-success">{{ _('zatwierdzony') }}</span>
             {% endif %}
           </td>
         {% endif %}
@@ -88,9 +88,9 @@
     {% endfor %}
     </tbody>
   </table>
-  <h3>Suma godzin wg typu</h3>
+  <h3>{{ _('suma_godzin_wg_typu') }}</h3>
   <table class="table" id="typyTable_owner">
-    <thead><tr><th>Typ</th><th>Godziny</th></tr></thead>
+    <thead><tr><th>{{ _('typ') }}</th><th>{{ _('godziny') }}</th></tr></thead>
     <tbody>
     {% for t, h in owner_summary.typy.items() %}
       <tr data-typ="{{ t }}"><td>{{ t or '(brak)' }}</td><td class="typ-hours">{{ '%.2f'|format(h) }} h</td></tr>
@@ -100,7 +100,7 @@
   {% if viewed_summary %}
   <h4>Typy — przeglądany</h4>
   <table class="table" id="typyTable_viewed">
-    <thead><tr><th>Typ</th><th>Godziny</th></tr></thead>
+    <thead><tr><th>{{ _('typ') }}</th><th>{{ _('godziny') }}</th></tr></thead>
     <tbody>
     {% for t, h in viewed_summary.typy.items() %}
       <tr data-typ="{{ t }}"><td>{{ t or '(brak)' }}</td><td class="typ-hours">{{ '%.2f'|format(h) }} h</td></tr>
@@ -153,10 +153,10 @@
         {% set display_pid = owner_pid %}
       {% endif %}
       <div class="mp-cal-col-main">
-        <h4>Kalendarz pracownika</h4>
+        <h4>{{ _('kalendarz_pracownika') }}</h4>
         <table class="cal-grid">
           <tr>
-            <th>Pon</th><th>Wt</th><th>Śr</th><th>Czw</th><th>Pt</th><th>Sob</th><th>Nd</th>
+            <th>{{ _('pon') }}</th><th>{{ _('wt') }}</th><th>{{ _('sr') }}</th><th>{{ _('czw') }}</th><th>{{ _('pt') }}</th><th>{{ _('sob') }}</th><th>{{ _('nd') }}</th>
           </tr>
           <tr>
           {% for d in display_days %}
@@ -173,8 +173,8 @@
               <div class="cal-day">{{ d.date.day }}</div>
               <div class="cal-hours">{{ '%.2f'|format(d.hours) }} h</div>
               {% if d.typ_label %}<div class="cal-type">{{ d.typ_label }}</div>{% endif %}
-              {% if d.approved %}<div class="badge badge-success">Zatwierdzone</div>{% endif %}
-              {% if d.hr %}<div class="text-danger">HR</div>{% endif %}
+              {% if d.approved %}<div class="badge badge-success">{{ _('zatwierdzone') }}</div>{% endif %}
+              {% if d.hr %}<div class="text-danger">{{ _('hr') }}</div>{% endif %}
             </td>
             {% if wd == 6 and not loop.last %}
               </tr><tr>
@@ -297,11 +297,11 @@
   <!-- Legend for calendar types (moved under calendar) -->
   <div class="mp-legend">
     <strong>Legenda:</strong>
-    <span class="mp-legend-item"><span class="cal-type cal-type-obecny">Obecny</span> — pracuje</span>
-    <span class="mp-legend-item"><span class="cal-type">U</span> — Urlop</span>
-    <span class="mp-legend-item"><span class="cal-type">WP</span> — Wyjście prywatne</span>
-    <span class="mp-legend-item"><span class="cal-type">N</span> — Nieobecny</span>
-    <span class="mp-legend-item"><span class="cal-type">OG</span> — Odbiór godzin</span>
-    <span class="mp-legend-item"><span class="cal-type">OP</span> — Opieka</span>
+    <span class="mp-legend-item"><span class="cal-type cal-type-obecny">{{ _('obecny') }}</span> — pracuje</span>
+    <span class="mp-legend-item"><span class="cal-type">{{ _('u') }}</span> — Urlop</span>
+    <span class="mp-legend-item"><span class="cal-type">{{ _('wp') }}</span> — Wyjście prywatne</span>
+    <span class="mp-legend-item"><span class="cal-type">{{ _('n') }}</span> — Nieobecny</span>
+    <span class="mp-legend-item"><span class="cal-type">{{ _('og') }}</span> — Odbiór godzin</span>
+    <span class="mp-legend-item"><span class="cal-type">{{ _('op') }}</span> — Opieka</span>
   </div>
 {% endblock %}

@@ -7,29 +7,29 @@
 
 <div class="section-box p-20">
     <form id="reportForm" class="d-flex flex-column gap-15 max-width-700">
-        <label for="sekcja">Sekcja:</label>
+        <label for="sekcja">{{ _('sekcja_label') }}</label>
         <select id="sekcja" name="sekcja" required class="input-sm">
-            <option value="Zasyp">Zasyp</option>
-            <option value="Workowanie">Workowanie</option>
-            <option value="Magazyn">Magazyn</option>
+            <option value="Zasyp">{{ _('zasyp') }}</option>
+            <option value="Workowanie">{{ _('workowanie') }}</option>
+            <option value="Magazyn">{{ _('magazyn') }}</option>
             <option value="Inne">Inne</option>
         </select>
 
-        <label for="kategoria">Typ Zdarzenia:</label>
+        <label for="kategoria">{{ _('typ_zdarzenia') }}</label>
         <select id="kategoria" name="kategoria" required class="input-sm">
             <option value="">-- Wybierz --</option>
-            <option value="Przezbrojenie">Przezbrojenie</option>
-            <option value="Awaria">Awaria Maszyny</option>
-            <option value="Brak Surowca">Brak Surowca</option>
-            <option value="Przerwa">Przerwa</option>
+            <option value="Przezbrojenie">{{ _('przezbrojenie') }}</option>
+            <option value="Awaria">{{ _('awaria_maszyny') }}</option>
+            <option value="Brak Surowca">{{ _('brak_surowca') }}</option>
+            <option value="Przerwa">{{ _('przerwa') }}</option>
             <option value="Inne">Inne</option>
         </select>
 
         <label>Opis (opcjonalnie):</label>
-        <textarea name="problem" rows="6" class="input-sm" placeholder="Opisz problem"></textarea>
+        <textarea name="problem" rows="6" class="input-sm" placeholder="{{ _('opisz_problem') }}"></textarea>
 
         <div class="d-flex gap-10">
-            <button type="submit" class="btn-action btn-warning" id="submitBtn">ZGŁOŚ</button>
+            <button type="submit" class="btn-action btn-warning" id="submitBtn">{{ _('zglosz_btn') }}</button>
             <a href="/" class="btn-action btn-cancel">ANULUJ</a>
         </div>
     </form>

@@ -11,11 +11,11 @@
         <td>{{ w.data_od }}{% if w.data_do and w.data_do|string != w.data_od|string %} – {{ w.data_do }}{% endif %}</td>
         <td>{{ w.powod }}</td>
         <td>
-          <form action="/api/wnioski/{{ w.id }}/approve" method="post" style="display:inline;">
-            <button class="btn-small btn-success">Akceptuj</button>
+          <form action="/api/wnioski/{{ w.id }}/approve" method="post" class="form-inline">
+            <button type="submit" class="btn-small btn-success">Akceptuj</button>
           </form>
-          <form action="/api/wnioski/{{ w.id }}/reject" method="post" style="display:inline; margin-left:6px;">
-            <button class="btn-small btn-danger">Odrzuć</button>
+          <form action="/api/wnioski/{{ w.id }}/reject" method="post" class="form-inline form-inline-spacing">
+            <button type="submit" class="btn-small btn-danger">Odrzuć</button>
           </form>
         </td>
       </tr>

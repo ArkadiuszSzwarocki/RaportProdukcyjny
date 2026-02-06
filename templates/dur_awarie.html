@@ -931,19 +931,19 @@
         <div class="awaria-header-grid">
           <div>
             <strong>Data:</strong> {{ awaria.data_wpisu }}<br>
-            <strong>Sekcja:</strong> {{ awaria.sekcja }}
+            <strong>{{ _('sekcja_label') }}</strong> {{ awaria.sekcja }}
           </div>
           <div>
-            <strong>Kategoria:</strong> {{ awaria.kategoria }}<br>
-            <strong>Raportował:</strong> {{ awaria.pracownik_name }}
+            <strong>{{ _('kategoria') }}</strong> {{ awaria.kategoria }}<br>
+            <strong>{{ _('raportował') }}</strong> {{ awaria.pracownik_name }}
           </div>
           <div>
-            <strong>Start:</strong> {{ awaria.czas_start_str }}<br>
-            <strong>Stop:</strong> {% if awaria.czas_stop_str and awaria.czas_stop_str != '??:??' %}{{ awaria.czas_stop_str }}{% else %}—{% endif %}
+            <strong>{{ _('start_label') }}</strong> {{ awaria.czas_start_str }}<br>
+            <strong>{{ _('stop_label') }}</strong> {% if awaria.czas_stop_str and awaria.czas_stop_str != '??:??' %}{{ awaria.czas_stop_str }}{% else %}—{% endif %}
           </div>
           <div>
             <label class="status-label">🔧 Status:</label>
-            <select class="status-select-header" data-awaria-id="{{ awaria.id }}" title="Zmień status awarii">
+            <select class="status-select-header" data-awaria-id="{{ awaria.id }}" title="{{ _('zmien_status') }}">
               <!-- Statusy -->
               <option value="zgłoszone" {% if awaria.status == 'zgłoszone' %}selected{% endif %}>🔔 Zgłoszone</option>
               <option value="czeka_na_czesci" {% if awaria.status == 'czeka_na_czesci' %}selected{% endif %}>⚙️ Czeka na części</option>
@@ -962,7 +962,7 @@
               {% endif %}
             </small>
             {% if awaria.data_zakonczenia %}
-            <small class="status-date-message"><strong>Zakończono:</strong> {{ awaria.data_zakonczenia }}</small>
+            <small class="status-date-message"><strong>{{ _('zakonczono') }}</strong> {{ awaria.data_zakonczenia }}</small>
             {% endif %}
           </div>
         </div>
@@ -1011,7 +1011,7 @@
             </div>
             {% endfor %}
           {% else %}
-            <p class="no-comments-message">Brak komentarzy - bądź pierwszy!</p>
+            <p class="no-comments-message">{{ _('brak_komentarzy') }}</p>
           {% endif %}
         </div>
         
@@ -1036,16 +1036,16 @@
     {% endfor %}
     
     <div class="stats-section-main">
-      <p><strong>Razem awarii:</strong> {{ awarie|length }}</p>
-      <p><strong>Zgłoszone:</strong> {{ awarie|selectattr('status', 'equalto', 'zgłoszone')|list|length }}</p>
-      <p><strong>Czeka na części:</strong> {{ awarie|selectattr('status', 'equalto', 'czeka_na_czesci')|list|length }}</p>
-      <p><strong>W trakcie naprawy:</strong> {{ awarie|selectattr('status', 'equalto', 'w_trakcie_naprawy')|list|length }}</p>
+      <p><strong>{{ _('razem_awarii') }}</strong> {{ awarie|length }}</p>
+      <p><strong>{{ _('zgloszenia') }}</strong> {{ awarie|selectattr('status', 'equalto', 'zgłoszone')|list|length }}</p>
+      <p><strong>{{ _('czeka_na_czesci') }}</strong> {{ awarie|selectattr('status', 'equalto', 'czeka_na_czesci')|list|length }}</p>
+      <p><strong>{{ _('w_trakcie_naprawy') }}</strong> {{ awarie|selectattr('status', 'equalto', 'w_trakcie_naprawy')|list|length }}</p>
       <p><strong>Zakończone:</strong> {{ awarie|selectattr('status', 'equalto', 'zakończone')|list|length }}</p>
     </div>
   {% else %}
     <div class="empty-state-main">
-      <h3 class="empty-state-title-main">Brak awarii w ostatnich 30 dniach</h3>
-      <p class="empty-state-message-main">Wszystkie systemy działają bez problemów! 🎉</p>
+      <h3 class="empty-state-title-main">{{ _('brak_awarii_30_dni') }}</h3>
+      <p class="empty-state-message-main">{{ _('wszystkie_systemy_ok') }}</p>
     </div>
   {% endif %}
 </div>

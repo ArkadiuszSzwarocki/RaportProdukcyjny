@@ -1,8 +1,8 @@
 {% extends 'layout.html' %}
 {% block content %}
 <div class="section-box p-20">
-    <h2>Test okien — Slide / Modal</h2>
-    <p>Użyj poniższych przycisków, aby wywołać różne warianty okien testowych.</p>
+    <h2>{{ _('test_okien') }}</h2>
+    <p>{{ _('uzytkownik_instrukcja') }}</p>
 
     <div class="gap-10" style="display:flex;flex-wrap:wrap;">
         <a href="/_test/slide/form" data-slide class="btn">Slide: Formularz</a>
@@ -14,10 +14,10 @@
         <button class="btn" onclick="showToast('To jest toast testowy', 'success')">Pokaż toast</button>
         <button class="btn" onclick="showDrawer('<div class=\'p-10\'><h3>Drawer (right)</h3><p>Przykładowa treść.</p></div>')">Drawer (prawo)</button>
         <button class="btn" onclick="showDrawer('<div class=\'p-10\'><h3>Drawer (left)</h3></div>', {side:'left'})">Drawer (lewo)</button>
-        <button class="btn" onclick="showBottomSheet('<div class=\'p-10\'><h3>Bottom sheet</h3><p>Opcje i akcje.</p></div>')">Bottom sheet</button>
+        <button class="btn" onclick="showBottomSheet('<div class=\'p-10\'><h3>Bottom sheet</h3><p>{{ _('opcje_akcje') }}</p></div>')">Bottom sheet</button>
         <button class="btn" id="popoverBtn">Popover (przykład)</button>
         <button class="btn" id="fsBtn">Fullscreen modal</button>
-        <button class="btn" id="wizBtn">Wizard (3 kroki)</button>
+        <button class="btn" id="wizBtn">{{ _('wizard_3_kroki') }}</button>
         <button class="btn" id="quickPopupBtn">Quick popup (always works)</button>
     </div>
 
@@ -57,11 +57,11 @@
 
     function attachHandlers(){
         var p = document.getElementById('popoverBtn');
-        if(p) p.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); safeCall('showPopover', [p, '<div style="min-width:180px;"><strong>Akcje</strong><p><a href="#">Edycja</a><br><a href="#">Usuń</a></p></div>']); });
+        if(p) p.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); safeCall('showPopover', [p, '<div style="min-width:180px;"><strong>{{ _('akcje') }}</strong><p><a href="#">{{ _('edycja') }}</a><br><a href="#">{{ _('usun') }}</a></p></div>']); });
         var fs = document.getElementById('fsBtn');
         if(fs) fs.addEventListener('click', function(e){ e.preventDefault(); safeCall('showFullscreenModal', ['<div class="p-10"><h2>Fullscreen Modal</h2><p>Pełnoekranowe okno.</p></div>']); });
         var w = document.getElementById('wizBtn');
-        if(w) w.addEventListener('click', function(e){ e.preventDefault(); safeCall('showWizard', [['<h3>Krok 1</h3><p>Dane wejściowe</p>','<h3>Krok 2</h3><p>Sprawdź</p>','<h3>Krok 3</h3><p>Podsumowanie</p>']]); });
+        if(w) w.addEventListener('click', function(e){ e.preventDefault(); safeCall('showWizard', [['<h3>{{ _('krok_1') }}</h3><p>{{ _('dane_wejsciowe') }}</p>','<h3>{{ _('krok_2') }}</h3><p>{{ _('sprawdz') }}</p>','<h3>{{ _('krok_3') }}</h3><p>{{ _('podsumowanie') }}</p>']]); });
 
         // diagnostic status
         var diag = document.getElementById('diagStatus');

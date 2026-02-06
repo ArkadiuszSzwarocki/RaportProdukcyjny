@@ -1,9 +1,52 @@
-<div class="p-10" data-popup-title="🛑 Zatrzymaj produkcję">
+<style>
+    .koniec-zlecenie-form-title {
+        margin: 0 0 10px 0;
+    }
+
+    .koniec-zlecenie-warning-box {
+        margin-bottom: 12px;
+        padding: 10px;
+        background: #fff3cd;
+        border-radius: 4px;
+        border-left: 3px solid #ffc107;
+    }
+
+    .koniec-zlecenie-warning-label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    .koniec-zlecenie-warning-input {
+        width: 100%;
+        margin-bottom: 8px;
+        padding: 8px;
+        border: 1px solid #ffc107;
+        border-radius: 4px;
+    }
+
+    .koniec-zlecenie-warning-text {
+        color: #666;
+        display: block;
+    }
+
+    .koniec-zlecenie-textarea {
+        margin-bottom: 8px;
+    }
+
+    .koniec-zlecenie-button-group {
+        display: flex;
+        gap: 8px;
+    }
+</style>
+
+<div class="p-10" data-popup-title="{{ _('zatrzymaj_produkcje') }}">
     <form action="{{ url_for('api.koniec_zlecenie', id=id) }}" method="POST">
         <input type="hidden" name="sekcja" value="{{ sekcja }}">
         <input type="hidden" name="final_tonaz" value="{{ tonaz if tonaz is not none else '' }}">
 
-        <p style="margin:0 0 10px 0;">
+        <p class="koniec-zlecenie-form-title">
             Czy zatwierdzasz wykonanie zlecenia
             <strong>{{ produkt if produkt else ('#' ~ id) }}</strong>
             z ilością
@@ -11,8 +54,8 @@
         </p>
 
         {% if sekcja == 'Workowanie' %}
-        <div style="margin-bottom: 12px; padding: 10px; background: #fff3cd; border-radius: 4px; border-left: 3px solid #ffc107;">
-            <label style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px;">
+        <div class="koniec-zlecenie-warning-box">
+            <label class="koniec-zlecenie-warning-label">
                 ⚠️ Czy zgłaszasz uszkodzone worki?
             </label>
             <input 
@@ -20,20 +63,19 @@
                 name="uszkodzone_worki" 
                 min="0" 
                 value="0"
-                placeholder="Liczba uszkodzonych worków (wpisz 0 jeśli brak)"
-                class="input-sm"
-                style="width: 100%; margin-bottom: 8px; padding: 8px; border: 1px solid #ffc107; border-radius: 4px;"
+                placeholder="{{ _('liczba_uszkodzonych') }}"
+                class="input-sm koniec-zlecenie-warning-input"
                 title="Podaj liczbę uszkodzonych worków"
             >
-            <small style="color: #666; display: block;">Jeśli brak uszkodzonych worków, wpisz <strong>0</strong></small>
+            <small class="koniec-zlecenie-warning-text">Jeśli brak uszkodzonych worków, wpisz <strong>0</strong></small>
         </div>
         {% endif %}
 
-        <textarea name="wyjasnienie" class="input-sm" rows="3" title="Komentarz" placeholder="Opcjonalny komentarz" style="margin-bottom:8px;"></textarea>
+        <textarea name="wyjasnienie" class="input-sm koniec-zlecenie-textarea" rows="3" title="{{ _('komentarz') }}" placeholder="{{ _('opcjonalny_komentarz') }}"></textarea>
 
-        <div style="display:flex; gap:8px;">
-            <button type="submit" class="btn-action btn-stop">Zatwierdź</button>
-            <button type="button" onclick="closeQuickPopup()" class="btn-action btn-outline">Anuluj</button>
+        <div class="koniec-zlecenie-button-group">
+            <button type="submit" class="btn-action btn-stop">{{ _('zatwierdz') }}</button>
+            <button type="button" onclick="closeQuickPopup()" class="btn-action btn-outline">{{ _('anuluj') }}</button>
         </div>
     </form>
 </div>

@@ -3,24 +3,24 @@
     <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="mt-10">
         <input type="hidden" name="sekcja" value="Zasyp">
         <input type="hidden" name="data_planu" value="{{ today }}">
-        <label>Waga Szarży (Netto) [kg]:</label>
+        <label>{{ _('waga_szarzy') }}</label>
         <div class="form-field">
             <input type="number" step="1" name="tonaz" value="" class="input-sm font-bold" aria-label="Waga szarży (Netto) [kg]" required>
         </div>
-        <label>Produkt:</label>
+        <label>{{ _('produkt_polownik') }}</label>
         <div class="form-field">
             <input type="text" name="produkt" value="" class="input-sm" aria-label="Produkt" required>
         </div>
         <label>Typ produkcji:</label>
         <div class="form-field">
             <select name="typ_produkcji" class="input-sm">
-                <option value="worki_zgrzewane_25">Worki zgrzewane 25kg</option>
-                <option value="worki_zgrzewane_10">Worki zgrzewane 10kg</option>
-                <option value="bigbag">Big Bag</option>
+                <option value="worki_zgrzewane_25">{{ _('worki_zgrzewane_25kg') }}</option>
+                <option value="worki_zgrzewane_10">{{ _('worki_zgrzwane') }}</option>
+                <option value="bigbag">{{ _('big_bag') }}</option>
             </select>
         </div>
         <div class="btn-row mt-10">
-            <button type="submit" class="btn-action btn-primary">DODAJ SZARŻĘ</button>
+            <button type="submit" class="btn-action btn-primary">{{ _('dodaj_szarze') }}</button>
             <button type="button" onclick="closeQuickPopup()" class="btn-action btn-action-cancel">ANULUJ</button>
         </div>
     </form>

@@ -8,8 +8,8 @@
     .section-actions { margin-top:12px; }
   </style>
   <div class="section-header">
-    <h2>Ustawienia / Role i uprawnienia</h2>
-    <div><a href="/admin/ustawienia" class="btn">Powrót</a></div>
+    <h2>{{ _('ustawienia_role') }}</h2>
+    <div><a href="/admin/ustawienia" class="btn">{{ _('powrot') }}</a></div>
   </div>
 
   <p>Tu możesz zarządzać dostępem ról do stron aplikacji oraz ustawić, czy dostęp ma być tylko do odczytu.</p>
@@ -39,8 +39,8 @@
   </div>
 
   <div class="section-actions">
-    <button id="btnSavePerms" class="btn btn-primary">Zapisz uprawnienia</button>
-    <span id="permStatus" class="perm-status">Zapisano.</span>
+    <button id="btnSavePerms" class="btn btn-primary">{{ _('zapisz_uprawnienia') }}</button>
+    <span id="permStatus" class="perm-status">{{ _('zapisano_punkt') }}</span>
   </div>
 
   <script id="perms-data" type="application/json">{{ perms_json|tojson }}</script>

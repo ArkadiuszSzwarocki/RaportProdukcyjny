@@ -8,19 +8,19 @@
     </style>
 <div class="section-box">
     <div class="section-header">
-        <h2>Pracownicy</h2>
-        <div><a href="/admin/ustawienia" class="btn">Powrót</a></div>
+        <h2>{{ _('pracownicy') }}</h2>
+        <div><a href="/admin/ustawienia" class="btn">{{ _('powrot') }}</a></div>
     </div>
 
     <form action="/admin/pracownik/dodaj" method="POST" class="form-flex">
-        <input name="imie_nazwisko" placeholder="Imię i nazwisko" required class="input-sm" aria-label="Imię i nazwisko">
-            <input name="grupa" placeholder="Grupa (opcjonalnie)" class="input-sm" aria-label="Grupa (opcjonalnie)">
+        <input name="imie_nazwisko" placeholder="{{ _('imie_i_nazwisko') }}" required class="input-sm" aria-label="Imię i nazwisko">
+            <input name="grupa" placeholder="{{ _('grupa_opcjonalnie') }}" class="input-sm" aria-label="Grupa (opcjonalnie)">
         {% if suggested_id is defined %}
             <div class="muted">Sugerowane ID: {{ suggested_id }}</div>
         {% endif %}
         <label class="inline-label"><input type="checkbox" id="use_id" name="use_id" value="1" onchange="document.getElementById('explicit_id').disabled = !this.checked"> Ustaw własne ID</label>
-        <label for="explicit_id" class="inline-label">ID:</label>
-        <input type="number" id="explicit_id" name="explicit_id" min="1" value="{{ suggested_id if suggested_id is defined else 1 }}" class="input-sm id-input" placeholder="ID" title="Własne ID pracownika" aria-label="Własne ID pracownika" disabled>
+        <label for="explicit_id" class="inline-label">{{ _('id_label') }}</label>
+        <input type="number" id="explicit_id" name="explicit_id" min="1" value="{{ suggested_id if suggested_id is defined else 1 }}" class="input-sm id-input" placeholder="{{ _('id') }}" title="{{ _('wlasne_id_pracownika') }}" aria-label="Własne ID pracownika" disabled>
         <button class="btn btn-primary" type="submit">Dodaj</button>
     </form>
 
@@ -44,7 +44,7 @@
                 </div>
             </div>
         {% else %}
-            <div class="card">Brak pracowników.</div>
+            <div class="card">{{ _('brak_pracownikow') }}</div>
         {% endfor %}
     </div>
 </div>

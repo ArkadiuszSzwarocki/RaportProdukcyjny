@@ -5,7 +5,7 @@
 <div class="section-header">
     <h2 class="header-title">⚙️ Panel Administratora</h2>
     <div class="d-flex gap-10">
-        <a href="/admin?tab=users" class="btn">Użytkownicy</a>
+        <a href="/admin?tab=users" class="btn">{{ _('uzytkownicy') }}</a>
         <a href="/admin?tab=production" class="btn btn-primary">Produkcja</a>
         <a href="/admin/workowanie_times" class="btn">⏱️ Czasy Workowania</a>
         <a href="/admin?tab=logs" class="btn">Logi Systemowe</a>
@@ -18,16 +18,16 @@
 <div class="section-box">
     {% if needs_reset and needs_reset|length > 0 %}
     <div class="alert alert-warning">
-        <strong>Uwaga:</strong> następujące konta korzystają ze starszego formatu haseł i wymagają resetu: {{ needs_reset|join(', ') }}. Proszę wymusić zmianę hasła (Edytuj → ustaw nowe hasło) lub poprosić użytkowników o reset.
+        <strong>{{ _('uwaga') }}</strong> następujące konta korzystają ze starszego formatu haseł i wymagają resetu: {{ needs_reset|join(', ') }}. Proszę wymusić zmianę hasła (Edytuj → ustaw nowe hasło) lub poprosić użytkowników o reset.
     </div>
     {% endif %}
     <div class="d-flex justify-between align-center p-15 bb-1">
-        <h3>Zarządzanie użytkownikami</h3>
+        <h3>{{ _('zarzadzanie_uzytkownikami') }}</h3>
         <div class="d-flex gap-8">
             <form action="/admin/konto/dodaj" method="POST" class="form-flex align-center">
-                <input name="login" placeholder="Login" required class="input-sm" aria-label="Login użytkownika">
-                <input name="haslo" placeholder="Hasło" required class="input-sm" aria-label="Hasło użytkownika">
-                <input name="imie_nazwisko" placeholder="Imię i nazwisko (opcjonalnie)" class="input-sm" aria-label="Imię i nazwisko">
+                <input name="login" placeholder="{{ _('login') }}" required class="input-sm" aria-label="Login użytkownika">
+                <input name="haslo" placeholder="{{ _('haslo') }}" required class="input-sm" aria-label="Hasło użytkownika">
+                <input name="imie_nazwisko" placeholder="{{ _('imie_nazwisko_opt') }}" class="input-sm" aria-label="Imię i nazwisko">
                 <select name="rola" class="input-sm" aria-label="Rola użytkownika">
                     {% for r in roles %}
                         <option value="{{ r[0] }}">{{ r[1] }}</option>
@@ -41,8 +41,8 @@
     <table class="modern-table">
         <thead>
             <tr>
-                <th>Login</th>
-                <th>Rola</th>
+                <th>{{ _('login') }}</th>
+                <th>{{ _('rola') }}</th>
                 <th class="text-right">Opcotwórz PRje</th>
             </tr>
         </thead>
@@ -54,17 +54,17 @@
                 <td class="text-right">
                     <div class="d-flex justify-end gap-8 align-center">
                         <details class="inline-block">
-                            <summary class="btn">Edytuj</summary>
+                            <summary class="btn">{{ _('edytuj') }}</summary>
                             <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
                                 <input type="hidden" name="id" value="{{ k[0] }}">
                                 <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login do edycji">
-                                <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
+                                <input name="haslo" placeholder="{{ _('nowe_haslo') }}" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
                                 <select name="rola" class="input-sm" aria-label="Rola do edycji">
                                     {% for r in roles %}
                                         <option value="{{ r[0] }}" {% if k[2]==r[0] %}selected{% endif %}>{{ r[1] }}</option>
                                     {% endfor %}
                                 </select>
-                                <button type="submit" class="btn">Zapisz</button>
+                                <button type="submit" class="btn">{{ _('zapisz') }}</button>
                             </form>
                         </details>
 
@@ -75,7 +75,7 @@
                 </td>
             </tr>
         {% else %}
-            <tr><td colspan="3" class="text-center">Brak kont w bazie.</td></tr>
+            <tr><td colspan="3" class="text-center">{{ _('brak_kont_bazy') }}</td></tr>
         {% endfor %}
         </tbody>
     </table>
@@ -87,19 +87,19 @@
     <div class="section-box">
     <div class="d-flex justify-between align-center p-15 bb-1">
     <h3>Zarządzanie Produkcją (Wszystkie Sekcje)</h3>
-    <input type="text" placeholder="Szukaj zlecenia..." class="input-sm small" aria-label="Szukaj zlecenia">
+    <input type="text" placeholder="{{ _('szukaj_zlecenia') }}" class="input-sm small" aria-label="Szukaj zlecenia">
     </div>
 
     <table class="modern-table">
         <thead>
             <tr>
-                <th>Data</th>
-                <th>Sekcja</th>
-                <th>Produkt</th>
-                <th>Waga (Plan/Wyk) (kg)</th>
-                <th>Status</th>
-                <th>Lider</th>
-                <th class="text-right">Opcje</th>
+                <th>{{ _('data') }}</th>
+                <th>{{ _('sekcja') }}</th>
+                <th>{{ _('produkt') }}</th>
+                <th>{{ _('waga_plan_wyk') }}</th>
+                <th>{{ _('status') }}</th>
+                <th>{{ _('lider') }}</th>
+                <th class="text-right">{{ _('opcje') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -126,12 +126,12 @@
                 </td>
                 <td class="text-right">
                     <div class="d-flex justify-end gap-5">
-                        <a href="/admin/edycja_zlecenia/{{ z.id }}" class="btn-icon" title="Edytuj" aria-label="Edytuj zlecenie">
+                        <a href="/admin/edycja_zlecenia/{{ z.id }}" class="btn-icon" title="{{ _('edytuj') }}" aria-label="Edytuj zlecenie">
                             <span class="material-icons">edit</span>
                         </a>
                         <form action="{{ url_for('api.usun_plan', id=z.id) }}" method="POST" onsubmit="return confirm('Czy na pewno usunąć to zlecenie? Operacja jest nieodwracalna.');">
                             <input type="hidden" name="data_powrotu" value="{{ z.data_planu }}">
-                            <button type="submit" class="btn-icon btn-delete" title="Usuń" aria-label="Usuń zlecenie">
+                            <button type="submit" class="btn-icon btn-delete" title="{{ _('usun') }}" aria-label="Usuń zlecenie">
                                 <span class="material-icons">delete</span>
                             </button>
                         </form>

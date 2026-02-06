@@ -30,7 +30,7 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted">Brak danych o pracownikach</p>
+            <p class="text-muted">{{ _('brak_danych_o_pracownikach') }}</p>
             {% endif %}
         </div>
         
@@ -77,13 +77,13 @@
                     
                     <!-- Szczegóły palet -->
                     {% if plan.palety %}
-                    <tr id="plan-{{ plan.id }}-details" class="details-row" style="display: none;">
+                    <tr id="plan-{{ plan.id }}-details" class="details-row details-hidden">
                         <td colspan="6" class="p-0">
                             <div class="p-10">
                                 <table class="modern-table small">
                                     <thead>
                                         <tr>
-                                            <th>Nr</th>
+                                            <th>{{ _('nr') }}</th>
                                             <th>⚖️ Waga (kg)</th>
                                             <th>🕒 Dodana</th>
                                             <th>✅ Status</th>
@@ -116,7 +116,7 @@
                 </tbody>
             </table>
             {% else %}
-            <p class="text-muted">Brak planów produkcji na dzisiaj</p>
+            <p class="text-muted">{{ _('brak_planow_dzisiaj') }}</p>
             {% endif %}
         </div>
         
@@ -126,7 +126,7 @@
             <form id="raport-form" method="POST" action="{{ url_for('api.zapisz_raport_koncowy') }}" class="d-flex flex-column gap-15">
                 <input type="hidden" name="sekcja" value="{{ zmiana_data.sekcja }}">
                 
-                <textarea name="notatki" id="notatki" class="input-lg" placeholder="Wpisz notatki z zmiany, uwagi, problemy, osiągnięcia..." rows="6" style="font-size: 14px; padding: 12px; border-radius: 6px; border: 1px solid #ddd;"></textarea>
+                <textarea name="notatki" id="notatki" class="input-lg" placeholder="{{ _('wpisz_notatki_zmiany') }}" rows="6"></textarea>
                 
                 <!-- Opcje exportu -->
                 <div class="export-options">
@@ -146,10 +146,10 @@
                 
                 <!-- Przyciski akcji -->
                 <div class="d-flex gap-10">
-                    <button type="submit" class="btn-action btn-save flex-1" style="font-size: 16px; padding: 12px;">
+                    <button type="submit" class="btn-action btn-save flex-1 btn-submit">
                         ✅ Zakończ zmianę i Zapisz Raport
                     </button>
-                    <a href="{{ url_for('index', sekcja=zmiana_data.sekcja) }}" class="btn-action btn-cancel flex-1" style="font-size: 16px; padding: 12px; text-align: center; text-decoration: none;">
+                    <a href="{{ url_for('index', sekcja=zmiana_data.sekcja) }}" class="btn-action btn-cancel flex-1 btn-cancel-link">
                         ❌ Anuluj
                     </a>
                 </div>

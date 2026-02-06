@@ -1,10 +1,10 @@
 <form action="{{ url_for('api.potwierdz_palete', paleta_id=paleta_id) }}" method="POST">
   <div class="form-field">
-    <label for="waga_palety">Waga netto palety (kg)</label>
+    <label for="waga_palety">{{ _('waga_netto_palety') }}</label>
     <input id="waga_palety" name="waga_palety" type="number" min="0" step="1" value="" required class="input-sm">
   </div>
   <div class="btn-row">
-    <button type="submit" class="btn-action btn-success">ZATWIERDŹ</button>
+    <button type="submit" class="btn-action btn-success">{{ _('zatwierdz_btn') }}</button>
     <button type="button" class="btn-action btn-action-cancel" onclick="closeQuickPopup()">ANULUJ</button>
   </div>
 </form>

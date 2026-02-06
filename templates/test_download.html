@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Pobrania Raportów</title>
+    <title>{{ _('test_pobierz') }}</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -103,44 +103,90 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .tests-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .tests-section-divider {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .api-tests-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .instructions-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .inline-divider {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .instruction-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .api-divider {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Test Pobrania Raportów</h1>
+        <h1>{{ _('test_pobierz') }}</h1>
         
         <div>
-            <label for="data">Wybierz datę:</label>
+            <label for="data">{{ _('wybierz_date_dwuk') }}</label>
             <input type="date" id="data" class="date-input" />
         </div>
 
         <div class="button-group">
-            <button class="btn-primary" onclick="downloadDzisiejsze()">Pobierz raport z dzisiaj</button>
-            <button class="btn-secondary" onclick="downloadWybrana()">Pobierz z wybranej daty</button>
+            <button class="btn-primary" onclick="downloadDzisiejsze()">{{ _('pobierz_raport_dzisiaj') }}</button>
+            <button class="btn-secondary" onclick="downloadWybrana()">{{ _('pobierz_z_wybranej_daty') }}</button>
         </div>
 
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>Generowanie raportu...</p>
+            <p>{{ _('generowanie_raportu') }}</p>
         </div>
 
         <div class="status" id="status"></div>
 
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-            <h3>Testy API</h3>
+            <h3>{{ _('testy_api') }}</h3>
             <div class="button-group">
-                <button class="btn-secondary" onclick="testGenerateReport()">Test: Wygeneruj raport API</button>
-                <button class="btn-secondary" onclick="testDownloadZip()">Test: Pobierz ZIP z API</button>
+                <button class="btn-secondary" onclick="testGenerateReport()">{{ _('test_api_wygeneruj') }}</button>
+                <button class="btn-secondary" onclick="testDownloadZip()">{{ _('test_api_pobierz') }}</button>
             </div>
         </div>
 
         <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; font-size: 13px;">
-            <strong>Instrukcja:</strong>
+            <strong>{{ _('instrukcja') }}</strong>
             <ol>
                 <li>Wybierz datę (domyślnie dzisiaj)</li>
-                <li>Kliknij "Pobierz raport z dzisiaj" lub "Pobierz z wybranej daty"</li>
-                <li>Plik ZIP powinien się pobrać automatycznie</li>
-                <li>Jeśli się nie pobiera, sprawdź konsolę przeglądarki (F12)</li>
+                <li>{{ _('kliknij_pobierz') }}</li>
+                <li>{{ _('plik_zip_pobierz') }}</li>
+                <li>{{ _('jesli_nie_pobiera') }}</li>
             </ol>
         </div>
     </div>

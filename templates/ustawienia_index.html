@@ -3,55 +3,55 @@
 {% block content %}
 <div class="section-box">
     <div class="section-header">
-        <h2>Ustawienia</h2>
-        <div><a href="/admin" class="btn">Powrót do panelu</a></div>
+        <h2>{{ _('ustawienia') }}</h2>
+        <div><a href="/admin" class="btn">{{ _('powrot_do_panelu') }}</a></div>
     </div>
 
     <!-- styles moved to static/style.css -->
 
     <div class="hub">
         <div class="tile">
-            <h3>Użytkownicy</h3>
-            <p>Dodawaj, edytuj i usuwaj konta użytkowników oraz przypisuj role.</p>
-            <a href="/admin/ustawienia/uzytkownicy" class="btn btn-primary">Przejdź do użytkowników</a>
+            <h3>{{ _('uzytkownicy') }}</h3>
+            <p>{{ _('dodawaj_edytuj_konta') }}</p>
+            <a href="/admin/ustawienia/uzytkownicy" class="btn btn-primary">{{ _('przejdz_do_uzytkownikow') }}</a>
         </div>
         <div class="tile">
-            <h3>Pracownicy</h3>
-            <p>Zarządzaj listą pracowników używaną w systemie.</p>
-            <a href="/admin/ustawienia/pracownicy" class="btn btn-primary">Przejdź do pracowników</a>
+            <h3>{{ _('pracownicy') }}</h3>
+            <p>{{ _('zarzadzaj_pracownikami') }}</p>
+            <a href="/admin/ustawienia/pracownicy" class="btn btn-primary">{{ _('przejdz_do_pracownikow') }}</a>
         </div>
         <div class="tile">
-            <h3>Role i uprawnienia</h3>
-            <p>Skonfiguruj, które role mają dostęp do poszczególnych stron i czy są tylko do odczytu.</p>
-            <a href="/admin/ustawienia/roles" class="btn btn-primary">Zarządzaj uprawnieniami</a>
+            <h3>{{ _('role_uprawnienia') }}</h3>
+            <p>{{ _('skonfiguruj_role') }}</p>
+            <a href="/admin/ustawienia/roles" class="btn btn-primary">{{ _('zarzadzaj_uprawnieniami') }}</a>
         </div>
         <div class="tile">
-            <h3>Test Raportów</h3>
-            <p>Testuj generowanie raportów i sprawdzaj czy wszystko działa prawidłowo.</p>
-            <button type="button" class="btn btn-primary" id="btnTestRaport" style="align-self: flex-start; margin-top: auto;">Testuj raport</button>
+            <h3>{{ _('test_raportow') }}</h3>
+            <p>{{ _('testuj_generowanie') }}</p>
+            <button type="button" class="btn btn-primary" id="btnTestRaport">{{ _('testuj_raport_btn') }}</button>
         </div>
     </div>
 
-    <div class="test-report-modal" id="testReportModal" style="display: none;">
+    <div class="test-report-modal" id="testReportModal">
         <div class="test-report-backdrop" id="testReportBackdrop"></div>
         <div class="test-report-content">
             <div class="test-report-header">
-                <h3>Test Generowania Raportów</h3>
+                <h3>{{ _('test_generowania_raportow') }}</h3>
                 <button type="button" class="test-report-close" id="btnCloseTestReport">&times;</button>
             </div>
             <div class="test-report-body">
-                <div style="margin-bottom: 16px;">
-                    <label for="testReportDate" style="display: block; font-weight: 600; margin-bottom: 6px;">Wybierz datę:</label>
-                    <input type="date" id="testReportDate" class="input-sm" style="width: 100%;">
+                <div class="test-report-date-input">
+                    <label for="testReportDate">{{ _('wybierz_date_dwuk') }}</label>
+                    <input type="date" id="testReportDate" class="input-sm">
                 </div>
                 <div class="test-report-buttons">
-                    <button type="button" class="btn btn-primary" id="btnGenerateTest" style="flex: 1;">Testuj generowanie</button>
-                    <button type="button" class="btn btn-secondary" id="btnDownloadTest" style="flex: 1;">Pobierz test ZIP</button>
+                    <button type="button" class="btn btn-primary" id="btnGenerateTest">{{ _('testuj_generowanie_btn') }}</button>
+                    <button type="button" class="btn btn-secondary" id="btnDownloadTest">{{ _('pobierz_test_zip') }}</button>
                 </div>
-                <div id="testReportStatus" class="test-report-status" style="margin-top: 16px; display: none;"></div>
-                <div id="testReportLoading" class="test-report-loading" style="display: none; text-align: center; margin-top: 16px;">
-                    <div style="display: inline-block; border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
-                    <p style="color: #7f8c8d; font-size: 0.9em;">Testowanie...</p>
+                <div id="testReportStatus" class="test-report-status"></div>
+                <div id="testReportLoading" class="test-report-loading">
+                    <div class="test-report-spinner"></div>
+                    <p>{{ _('testowanie') }}</p>
                 </div>
             </div>
         </div>

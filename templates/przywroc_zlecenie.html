@@ -1,15 +1,15 @@
-<div class="p-10" data-popup-title="↩️ Wznów zlecenie">
+<div class="p-10" data-popup-title="{{ _('wznow_zlecenie') }}">
     <form action="{{ url_for('api.przywroc_zlecenie', id=id) }}" method="POST">
         <input type="hidden" name="sekcja" value="{{ sekcja }}">
 
-        <p style="margin:0 0 10px 0;">
+        <p class="popup-message">
             Czy wznowić zlecenie
             <strong>{{ produkt if produkt else ('#' ~ id) }}</strong>?
         </p>
 
-        <div style="display:flex; gap:8px;">
-            <button type="submit" class="btn-action btn-primary">Wznów</button>
-            <button type="button" onclick="closeQuickPopup()" class="btn-action btn-outline">Anuluj</button>
+        <div class="popup-actions">
+            <button type="submit" class="btn-action btn-primary">{{ _('wznow') }}</button>
+            <button type="button" onclick="closeQuickPopup()" class="btn-action btn-outline">{{ _('anuluj') }}</button>
         </div>
     </form>
 </div>

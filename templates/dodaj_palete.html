@@ -10,11 +10,11 @@
         <input type="hidden" name="sekcja" value="{{ sekcja or 'Workowanie' }}">
         <input type="hidden" name="typ_produkcji" value="{{ typ or '' }}">
         <div class="form-column">
-            <label class="form-label">Waga Produktu (Netto) [kg]</label>
-            <input name="waga_palety" type="number" min="1" required class="form-input" placeholder="np. 1000">
+            <label class="form-label">{{ _('waga_produktu') }}</label>
+            <input name="waga_palety" type="number" min="1" required class="form-input" placeholder="{{ _('np_1000') }}">
         </div>
         <div class="btn-row">
-            <button type="submit" class="btn-action btn-save">DODAJ</button>
+            <button type="submit" class="btn-action btn-save">{{ _('dodaj') }}</button>
             <a href="{{ url_for('index', sekcja=sekcja) }}" class="btn-action btn-action-cancel">ANULUJ</a>
         </div>
     </form>

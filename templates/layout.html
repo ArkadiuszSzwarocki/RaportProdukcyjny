@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Produkcyjny</title>
+    <title>{{ _('system_produkcyjny') }}</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <link rel="shortcut icon" href="{{ url_for('favicon') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" sizes="any">
@@ -28,7 +28,7 @@
 
         <div class="user-info">
             {% if session.get('rola') in ['admin', 'zarzad', 'planista', 'lider', 'dur', 'laboratorium'] %}
-                <a href="/zarzad" class="btn-icon" title="Wyniki">
+                <a href="/zarzad" class="btn-icon" title="{{ _('raport') }}">
                     <span class="material-icons">bar_chart</span>
                 </a>
             {% endif %}
@@ -36,18 +36,36 @@
             {# removed PLAN button per request #}
 
             {% if session.get('zalogowany') %}
-                <a href="{{ url_for('report_issue') }}" class="btn-icon" title="Zgłoś problem">
+                <a href="{{ url_for('report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
                     <span class="material-icons">report_problem</span>
                 </a>
             {% endif %}
+
+            <!-- Language selector dropdown -->
+            <div class="language-selector">
+                <button type="button" class="btn-icon language-toggle" title="{{ _('zmien_jezyk') }}" onclick="toggleLanguageMenu(); return false;">
+                    <span class="material-icons">language</span>
+                </button>
+                <div id="languageMenu" class="language-menu" style="display: none;">
+                    <a href="#" onclick="switchLanguage('pl'); return false;" class="language-option">
+                        <span>🇵🇱</span> Polski
+                    </a>
+                    <a href="#" onclick="switchLanguage('uk'); return false;" class="language-option">
+                        <span>🇺🇦</span> Українська
+                    </a>
+                    <a href="#" onclick="switchLanguage('en'); return false;" class="language-option">
+                        <span>🇬🇧</span> English
+                    </a>
+                </div>
+            </div>
 
             {# Przyciski przeniesione poniżej belki, zobacz top-submenu #}
 
             {# top users button removed per UI change request #}
 
-            <span class="user-role">Zalogowany: <strong>{{ session.get('imie_nazwisko') or session.get('login') or 'N/A' }}</strong></span>
+            <span class="user-role">{{ _('zalogowany') }}: <strong>{{ session.get('imie_nazwisko') or session.get('login') or 'N/A' }}</strong></span>
             
-            <a href="/logout" class="logout-btn" aria-label="Wyloguj">
+            <a href="/logout" class="logout-btn" aria-label="{{ _('logout') }}">
                 <span class="material-icons">logout</span>
             </a>
         </div>
@@ -55,14 +73,14 @@
 
     <div class="top-submenu">
         <div class="top-submenu-inner">
-            <a class="top-tile" href="{{ url_for('api.obsada_page', sekcja='Workowanie') }}" title="Obsada">
+            <a class="top-tile" href="{{ url_for('api.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}">
                 <span class="material-icons">people</span>
-                <div class="tile-label">Obsada</div>
+                <div class="tile-label">{{ _('obsada') }}</div>
             </a>
             <nav class="top-menu">
-                <a class="top-menu-item" href="{{ url_for('panel_wnioski_page') }}"> <span class="material-icons">assignment_turned_in</span> Zatwierdzenie wniosków</a>
-                <a class="top-menu-item" href="{{ url_for('panel_planowane_page') }}"> <span class="material-icons">beach_access</span> Planowane urlopy</a>
-                <a class="top-menu-item" href="{{ url_for('panel_obecnosci_page') }}"> <span class="material-icons">calendar_today</span> Nieobecności</a>
+                <a class="top-menu-item" href="{{ url_for('panel_wnioski_page') }}"> <span class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
+                <a class="top-menu-item" href="{{ url_for('panel_planowane_page') }}"> <span class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
+                <a class="top-menu-item" href="{{ url_for('panel_obecnosci_page') }}"> <span class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
             </nav>
         </div>
     </div>
@@ -73,49 +91,49 @@
             <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
             <nav class="sidebar-nav">
                 {% if role_has_access('dashboard') %}
-                    <a href="{{ url_for('index') }}" class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">Dashboard</a>
+                    <a href="{{ url_for('index') }}" class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">{{ _('dashboard') }}</a>
                 {% endif %}
 
                 {% if role_has_access('zasyp') %}
-                    <a href="{{ url_for('index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">Zasyp</a>
+                    <a href="{{ url_for('index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">{{ _('zasyp') }}</a>
                 {% endif %}
 
                 {% if role_has_access('workowanie') %}
                     {# BUFOR link placed between Zasyp and Workowanie #}
-                    <a href="{{ url_for('planista.bufor_page') }}" class="nav-item {% if request.path.startswith('/bufor') %}active{% endif %}">Bufor</a>
-                    <a href="{{ url_for('index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">Workowanie</a>
+                    <a href="{{ url_for('planista.bufor_page') }}" class="nav-item {% if request.path.startswith('/bufor') %}active{% endif %}">{{ _('bufor') }}</a>
+                    <a href="{{ url_for('index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">{{ _('workowanie') }}</a>
                 {% endif %}
 
                 {% if role_has_access('magazyn') %}
-                    <a href="{{ url_for('index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">Magazyn</a>
+                    <a href="{{ url_for('index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">{{ _('magazyn') }}</a>
                 {% endif %}
 
                 {% if role_has_access('jakosc') %}
-                    <a href="{{ url_for('jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">Jakość</a>
+                    <a href="{{ url_for('jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">{{ _('jakosc') }}</a>
                 {% endif %}
 
                 {% if role_has_access('wyniki') %}
-                    <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">Wyniki</a>
+                    <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">{{ _('wyniki') }}</a>
                 {% endif %}
 
                 {% if role_has_access('awarie') %}
-                    <a href="/dur/awarie" class="nav-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">⚠️ Awarie</a>
+                    <a href="/dur/awarie" class="nav-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">⚠️ {{ _('awarie') }}</a>
                 {% endif %}
 
                 {% if role_has_access('planista') %}
-                    <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">Plan</a>
+                    <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">{{ _('plan') }}</a>
                 {% endif %}
 
                 {% if role_has_access('moje_godziny') %}
-                    <a href="{{ url_for('moje_godziny') }}" class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">Moje godziny</a>
+                    <a href="{{ url_for('moje_godziny') }}" class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">{{ _('moje_godziny') }}</a>
                 {% endif %}
 
                 {% if role_has_access('ustawienia') %}
-                    <a href="/admin/ustawienia" class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">Ustawienia</a>
+                    <a href="/admin/ustawienia" class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">{{ _('ustawienia') }}</a>
                 {% endif %}
             </nav>
             <div class="sidebar-footer">
-                <a href="/logout" class="btn-icon">Wyloguj</a>
+                <a href="/logout" class="btn-icon">{{ _('logout') }}</a>
             </div>
         </aside>
 
@@ -151,6 +169,45 @@
             }catch(e){
                 img.onerror = null;
             }
+        }
+        
+        // Przełączanie widoczności menu języków
+        function toggleLanguageMenu(){
+            const menu = document.getElementById('languageMenu');
+            if(menu) {
+                menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+            }
+        }
+        
+        // Zamykanie menu ponad innymi klikami w dokumencie
+        document.addEventListener('click', function(event) {
+            const selector = document.querySelector('.language-selector');
+            const menu = document.getElementById('languageMenu');
+            if(selector && menu && !selector.contains(event.target)) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        // Przełączanie języka aplikacji
+        function switchLanguage(lang){
+            fetch('/api/set_language', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({language: lang})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(data.success){
+                    const langNames = {uk: 'Українску', pl: 'Polski', en: 'English'};
+                    showToast('✓ Język zmieniony na ' + (langNames[lang] || lang), 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast('❌ ' + (data.message || 'Błąd zmiany języka'), 'error');
+                }
+            })
+            .catch(err => {
+                showToast('❌ Błąd: ' + err.message, 'error');
+            });
         }
     </script>
 

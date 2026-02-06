@@ -5,14 +5,14 @@
 <div class="section-header">
     <h2 class="header-title">⚙️ Zarządzanie użytkownikami</h2>
     <div>
-        <a href="/admin" class="btn">Powrót do panelu</a>
+        <a href="/admin" class="btn">{{ _('powrot_do_panelu') }}</a>
     </div>
 </div>
 
 <div class="section-box">
     {% if needs_reset and needs_reset|length > 0 %}
     <div class="alert alert-warning">
-        <strong>Uwaga:</strong> następujące konta korzystają ze starszego formatu haseł i wymagają resetu: {{ needs_reset|join(', ') }}.
+        <strong>{{ _('uwaga') }}</strong> następujące konta korzystają ze starszego formatu haseł i wymagają resetu: {{ needs_reset|join(', ') }}.
         Możesz ustawić tymczasowe hasło lub poprosić użytkowników o zmianę.
     </div>
     {% endif %}
@@ -20,9 +20,9 @@
     <div class="p-15 bb-1">
         <h3>Dodaj nowe konto</h3>
         <form action="/admin/konto/dodaj" method="POST" class="form-flex">
-            <input name="login" placeholder="Login" required class="input-sm" aria-label="Login">
-            <input name="haslo" placeholder="Hasło" class="input-sm" aria-label="Hasło">
-            <input name="imie_nazwisko" placeholder="Imię i nazwisko (opcjonalnie)" class="input-sm" aria-label="Imię i nazwisko">
+            <input name="login" placeholder="{{ _('login') }}" required class="input-sm" aria-label="Login">
+            <input name="haslo" placeholder="{{ _('haslo') }}" class="input-sm" aria-label="Hasło">
+            <input name="imie_nazwisko" placeholder="{{ _('imie_nazwisko_opt') }}" class="input-sm" aria-label="Imię i nazwisko">
             <select name="rola" class="input-sm" aria-label="Rola">
                 {% for r in roles %}
                     <option value="{{ r[0] }}">{{ r[1] }}</option>
@@ -35,9 +35,9 @@
     <table class="modern-table">
         <thead>
             <tr>
-                <th>Login</th>
-                <th>Rola</th>
-                <th class="text-right">Akcje</th>
+                <th>{{ _('login') }}</th>
+                <th>{{ _('rola') }}</th>
+                <th class="text-right">{{ _('akcje') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -48,17 +48,17 @@
                 <td class="text-right">
                     <div class="d-flex justify-end gap-8 align-center">
                         <details class="inline-block">
-                            <summary class="btn">Edytuj</summary>
+                            <summary class="btn">{{ _('edytuj') }}</summary>
                             <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
                                 <input type="hidden" name="id" value="{{ k[0] }}">
                                 <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login do edycji">
-                                <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
+                                <input name="haslo" placeholder="{{ _('nowe_haslo') }}" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
                                 <select name="rola" class="input-sm" aria-label="Rola do edycji">
                                     {% for r in roles %}
                                         <option value="{{ r[0] }}" {% if k[2]==r[0] %}selected{% endif %}>{{ r[1] }}</option>
                                     {% endfor %}
                                 </select>
-                                <button type="submit" class="btn">Zapisz</button>
+                                <button type="submit" class="btn">{{ _('zapisz') }}</button>
                             </form>
                         </details>
 
@@ -67,7 +67,7 @@
                             <input type="hidden" name="login" value="{{ k[1] }}">
                             <input type="hidden" name="rola" value="{{ k[2] }}">
                             <input name="haslo" placeholder="Tymczasowe hasło" class="input-sm" aria-label="Tymczasowe hasło">
-                            <button type="submit" class="btn btn-warning">Ustaw tymczasowe</button>
+                            <button type="submit" class="btn btn-warning">{{ _('ustaw_tymczasowe') }}</button>
                         </form>
 
                         <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto {{ k[1] }}?');">
@@ -77,7 +77,7 @@
                 </td>
             </tr>
         {% else %}
-            <tr><td colspan="3" class="text-center">Brak kont w bazie.</td></tr>
+            <tr><td colspan="3" class="text-center">{{ _('brak_kont_bazy') }}</td></tr>
         {% endfor %}
         </tbody>
     </table>

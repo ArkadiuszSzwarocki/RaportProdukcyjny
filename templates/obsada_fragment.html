@@ -1,28 +1,28 @@
 <div class="section-box">
     <div class="section-header">
-        <h2>Obsada</h2>
+        <h2>{{ _('obsada') }}</h2>
     </div>
 
     <div class="mt-10">
-        <div class="obsada-toolbar d-flex gap-10 align-center mb-8" style="flex-wrap: wrap;">
-            <label for="obsada-date" style="font-weight: 600;">Data:</label>
+        <div class="obsada-toolbar d-flex gap-10 align-center mb-8 flex-wrap">
+            <label for="obsada-date" class="label-bold">Data:</label>
             <input type="date" id="obsada-date" value="{{ qdate.strftime('%Y-%m-%d') if qdate is defined else '' }}" class="input-sm">
             {% if rola in ['lider','admin'] %}
-            <label for="lider_psd" style="font-weight: 600; margin-left: 12px;">Lider PSD:</label>
+            <label for="lider_psd" class="label-bold label-offset">{{ _('lider_psd_label') }}</label>
             <select id="lider_psd" class="input-sm">
                 <option value="">- brak -</option>
                 {% for p in all_pracownicy %}
                 <option value="{{ p[0] }}" {% if lider_psd_id and lider_psd_id == p[0] %}selected{% endif %}>{{ p[1] }}</option>
                 {% endfor %}
             </select>
-            <label for="lider_agro" style="font-weight: 600; margin-left: 12px;">Lider AGRO:</label>
+            <label for="lider_agro" class="label-bold label-offset">{{ _('lider_agro_label') }}</label>
             <select id="lider_agro" class="input-sm">
                 <option value="">- brak -</option>
                 {% for p in all_pracownicy %}
                 <option value="{{ p[0] }}" {% if lider_agro_id and lider_agro_id == p[0] %}selected{% endif %}>{{ p[1] }}</option>
                 {% endfor %}
             </select>
-            <button type="button" id="btnSaveLiderzy" class="btn btn-primary">Zapisz liderów</button>
+            <button type="button" id="btnSaveLiderzy" class="btn btn-primary">{{ _('zapisz_liderow') }}</button>
             {% endif %}
         </div>
         <div class="obsada-sections">
@@ -32,9 +32,9 @@
                 <h4>{{ s }}</h4>
                 <!-- wybór pracownika + przycisk przeniesione na górę pod nazwą sekcji -->
                 {% if rola in ['lider', 'admin', 'pracownik'] %}
-                <div class="d-flex gap-5 align-center mb-8" style="flex-wrap: wrap;">
+                <div class="d-flex gap-5 align-center mb-8 obsada-worker-selector">
                     <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">
-                    <select id="obsada-select-{{ loop.index0 }}" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm" style="flex: 1; min-width: 150px;">
+                    <select id="obsada-select-{{ loop.index0 }}" title="{{ _('wybierz_pracownika') }}" aria-label="Wybierz pracownika" class="input-sm obsada-select">
                         <option value="" disabled selected>+ Wybierz pracownika</option>
                         {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
                     </select>
@@ -46,7 +46,7 @@
                     {% set current = obsady_map.get(s, []) if obsady_map is defined else [] %}
                     {% if current %}
                     <table class="modern-table small obsada-table">
-                        <thead><tr><th>Pracownik</th><th style="width:80px">Akcje</th></tr></thead>
+                        <thead><tr><th>{{ _('pracownik') }}</th><th class="obsada-akcje-col">{{ _('akcje') }}</th></tr></thead>
                         <tbody id="current-obsada-tbody-{{ loop.index0 }}">
                         {% for o in current %}
                         <tr data-id="{{ o[0] }}">
@@ -63,7 +63,7 @@
                         </tbody>
                     </table>
                     {% else %}
-                        <div class="text-muted">Brak przypisanych pracowników</div>
+                        <div class="text-muted">{{ _('brak_przypisanych') }}</div>
                     {% endif %}
                 </div>
 

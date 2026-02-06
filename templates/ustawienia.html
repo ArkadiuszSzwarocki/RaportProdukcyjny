@@ -3,15 +3,15 @@
 {% block content %}
 <div class="section-box">
     <div class="section-header">
-        <h2>Ustawienia / Użytkownicy i Pracownicy</h2>
-        <div><a href="/admin" class="btn">Powrót do panelu</a></div>
+        <h2>{{ _('ustawienia_uzytkownicy') }}</h2>
+        <div><a href="/admin" class="btn">{{ _('powrot_do_panelu') }}</a></div>
     </div>
 
     <div class="two-col">
         <div>
-            <h3>Pracownicy</h3>
+            <h3>{{ _('pracownicy') }}</h3>
             <form action="/admin/pracownik/dodaj" method="POST" class="form-flex">
-                <input name="imie_nazwisko" placeholder="Imię i nazwisko" required class="input-sm" aria-label="Imię i nazwisko">
+                <input name="imie_nazwisko" placeholder="{{ _('imie_i_nazwisko') }}" required class="input-sm" aria-label="Imię i nazwisko">
                 <button class="btn btn-primary" type="submit">Dodaj</button>
             </form>
 
@@ -27,17 +27,17 @@
                         </div>
                     </div>
                 {% else %}
-                    <div class="card">Brak pracowników.</div>
+                    <div class="card">{{ _('brak_pracownikow') }}</div>
                 {% endfor %}
             </div>
         </div>
 
         <div>
-            <h3>Konta użytkowników</h3>
+            <h3>{{ _('konta_uzytkownikow') }}</h3>
             <form action="/admin/konto/dodaj" method="POST" class="form-flex">
-                <input name="login" placeholder="Login" required class="input-sm" aria-label="Login">
-                <input name="haslo" placeholder="Hasło (opcjonalnie)" class="input-sm" aria-label="Hasło (opcjonalnie)">
-                <select name="rola" class="input-sm" title="Rola konta" aria-label="Rola konta">
+                <input name="login" placeholder="{{ _('login') }}" required class="input-sm" aria-label="Login">
+                <input name="haslo" placeholder="{{ _('haslo_opcjonalnie') }}" class="input-sm" aria-label="Hasło (opcjonalnie)">
+                <select name="rola" class="input-sm" title="{{ _('rola_konta') }}" aria-label="Rola konta">
                     <option value="admin">admin</option>
                     <option value="zarzad">zarzad</option>
                     <option value="lider">lider</option>
@@ -56,12 +56,12 @@
                         <h4>{{ k[1] }}</h4>
                         <div class="meta">Rola: {{ k[2] }} — ID: {{ k[0] }}</div>
                         <div class="actions">
-                            <details class="inline-block"><summary class="btn">Edytuj</summary>
+                            <details class="inline-block"><summary class="btn">{{ _('edytuj') }}</summary>
                                 <form action="/admin/konto/edytuj" method="POST" class="form-flex p-10">
                                     <input type="hidden" name="id" value="{{ k[0] }}">
                                     <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login (edycja)">
-                                    <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
-                                    <select name="rola" class="input-sm" title="Rola konta" aria-label="Rola konta">
+                                    <input name="haslo" placeholder="{{ _('nowe_haslo') }}" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
+                                    <select name="rola" class="input-sm" title="{{ _('rola_konta') }}" aria-label="Rola konta">
                                         <option value="admin" {% if k[2]=='admin' %}selected{% endif %}>admin</option>
                                         <option value="zarzad" {% if k[2]=='zarzad' %}selected{% endif %}>zarzad</option>
                                         <option value="lider" {% if k[2]=='lider' %}selected{% endif %}>lider</option>
@@ -71,14 +71,14 @@
                                         <option value="laboratorium" {% if k[2]=='laboratorium' %}selected{% endif %}>laboratorium</option>
                                         <option value="pracownik" {% if k[2]=='pracownik' %}selected{% endif %}>pracownik</option>
                                     </select>
-                                    <button type="submit" class="btn">Zapisz</button>
+                                    <button type="submit" class="btn">{{ _('zapisz') }}</button>
                                 </form>
                             </details>
                             <form action="/admin/konto/usun/{{ k[0] }}" method="POST" class="inline-block ml-5" onsubmit="return confirm('Usuń konto?');"><button type="submit" class="delete-button" aria-label="Usuń konto">🗑️</button></form>
                         </div>
                     </div>
                 {% else %}
-                    <div class="card">Brak kont.</div>
+                    <div class="card">{{ _('brak_kont') }}</div>
                 {% endfor %}
             </div>
         </div>

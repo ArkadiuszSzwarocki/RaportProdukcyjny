@@ -7,23 +7,23 @@
     <label>Data planu: <input type="date" id="data_planu" value="{{ wybrana_data }}"></label>
     <label>Sekcja: 
       <select id="sekcja_select">
-        <option>Zasyp</option>
-        <option>Workowanie</option>
-        <option>Magazyn</option>
+        <option>{{ _('zasyp') }}</option>
+        <option>{{ _('workowanie') }}</option>
+        <option>{{ _('magazyn') }}</option>
       </select>
     </label>
   </div>
 
   <table class="modern-table" id="bulkTable">
-    <thead><tr><th>Produkt</th><th>Nr receptury</th><th>Waga (kg)</th><th>Typ</th><th></th></tr></thead>
+    <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('nr_receptury') }}</th><th>{{ _('waga_kg_symbol') }}</th><th>{{ _('typ') }}</th><th></th></tr></thead>
     <tbody></tbody>
   </table>
 
   <div class="d-flex gap-10 m-10">
-    <input type="text" id="inpProdukt" placeholder="Produkt" class="input-sm">
-    <input type="text" id="inpNr" placeholder="Nr receptury" class="input-sm">
-    <input type="number" id="inpTonaz" placeholder="Waga (kg)" class="input-sm">
-    <select id="inpTyp" class="input-sm" aria-label="Typ produkcji" title="Typ produkcji">
+    <input type="text" id="inpProdukt" placeholder="{{ _('produkt') }}" class="input-sm">
+    <input type="text" id="inpNr" placeholder="{{ _('nr_receptury') }}" class="input-sm">
+    <input type="number" id="inpTonaz" placeholder="{{ _('waga_kg_symbol') }}" class="input-sm">
+    <select id="inpTyp" class="input-sm" aria-label="Typ produkcji" title="{{ _('typ_produkcji') }}">
       <option value="worki_zgrzewane_25">Worki zgrzewane 25 kg</option>
       <option value="worki_zgrzewane_20">Worki zgrzewane 20 kg</option>
       <option value="worki_zszywane_25">Worki zszywane 25 kg</option>
@@ -34,8 +34,8 @@
   </div>
 
   <div class="d-flex gap-10 m-10">
-    <button type="button" id="btnSubmitBatch" class="btn-action btn-action-success">Zatwierdź wszystkie</button>
-    <a href="{{ url_for('planista.panel_planisty', data=wybrana_data) }}" class="btn-action">Anuluj</a>
+    <button type="button" id="btnSubmitBatch" class="btn-action btn-action-success">{{ _('zatwierdz_wszystkie') }}</button>
+    <a href="{{ url_for('planista.panel_planisty', data=wybrana_data) }}" class="btn-action">{{ _('anuluj') }}</a>
   </div>
 </form>
 

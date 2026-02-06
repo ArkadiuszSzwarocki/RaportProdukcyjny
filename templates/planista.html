@@ -3,10 +3,10 @@
 {% block content %}
 
 <div class="section-header">
-    <div><h2 class="header-title">📅 Panel Planisty</h2><p class="text-muted">Zarządzanie produkcją</p></div>
+    <div><h2 class="header-title">📅 Panel Planisty</h2><p class="text-muted">{{ _('zarzadzanie_produkcja') }}</p></div>
     <form action="/planista" method="GET" class="d-flex align-center gap-10">
         <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm" aria-label="Wybierz datę">
-        <a href="/planista?data={{ wybrana_data }}" class="btn btn-primary">Odśwież</a>
+        <a href="/planista?data={{ wybrana_data }}" class="btn btn-primary">{{ _('odswiez') }}</a>
     </form>
 </div>
 
@@ -15,7 +15,7 @@
     <div class="text-warning"><strong>🔔 Laboratorium zgłosiło {{ quality_count }}</strong> zleceń dezynfekcji na {{ wybrana_data }} — sprawdź Jakość i dodaj do planów.</div>
     {% if session.get('rola') == 'planista' %}
         <div>
-        <button type="button" class="btn-action btn-warning">Szczegóły dezynfekcji</button>
+        <button type="button" class="btn-action btn-warning">{{ _('szczegoly_dezynfekcji') }}</button>
     </div>
     {% endif %}
 </div>
@@ -87,7 +87,7 @@
                 <td>
                     {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
                     {% elif p[4] == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
-                    {% else %}<span class="status-badge status-zaplanowane">ZAPLANOWANE</span>{% endif %}
+                    {% else %}<span class="status-badge status-zaplanowane">{{ _('zaplanowane_btn') }}</span>{% endif %}
                 </td>
                 <td>
                     <div class="d-flex gap-5 align-center">
@@ -96,9 +96,9 @@
                             <button type="button" onclick="moveDown({{ p[0] }})" class="btn-icon" aria-label="Przenieś w dół">⬇</button>
                             <button type="button" onclick="deletePlanConfirm({{ p[0] }}, '{{ wybrana_data }}')" class="delete-button" aria-label="Usuń plan">🗑️</button>
                             <button type="button" onclick="openMoveModal({{ p[0] }}, '{{ p[2] }}')" class="btn-icon text-primary" aria-label="Przenieś plan">📅</button>
-                            <button type="button" class="btn-icon" onclick="toggleEdit({{ p[0] }})" title="Edytuj">✎</button>
+                            <button type="button" class="btn-icon" onclick="toggleEdit({{ p[0] }})" title="{{ _('edytuj') }}">✎</button>
                         {% else %}
-                            <span class="text-muted fs-120" title="Zablokowane">🔒</span>
+                            <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
                         {% endif %}
                     </div>
                 </td>
@@ -109,7 +109,7 @@
                 <td colspan="8" class="p-0">
                     <div class="p-10">
                         <table class="modern-table small">
-                            <thead><tr><th>Nr</th><th>🕒 Godzina</th><th>📦 Netto</th><th>⚖️ Brutto</th><th>📌 Tara</th></tr></thead>
+                            <thead><tr><th>{{ _('nr') }}</th><th>🕒 Godzina</th><th>📦 Netto</th><th>⚖️ Brutto</th><th>📌 Tara</th></tr></thead>
                             <tbody>
                                 {% for pal in palety_mapa[p[0]] %}
                                 <tr>
@@ -132,7 +132,7 @@
 <!-- Modal Move usunięty (mechanizm popup wyłączony) -->
 
     <script>
-    function toggleDetails(id) { var row = document.getElementById('details-' + id); row.style.display = (row.style.display === 'none') ? 'table-row' : 'none'; }
+    function toggleDetails(id) { var row = document.getElementById('details-' + id); row.classList.toggle('hidden'); }
     function openMoveModal(id, nazwa) {
         // show small modal inline for selecting date
         var modal = document.getElementById('moveModal');
@@ -181,12 +181,12 @@
 <!-- Fallback modal-open listener removed -->
 
 <!-- Move modal (inline) -->
-<div id="moveModal" style="display:none; position:fixed; left:50%; top:40%; transform:translate(-50%,-50%); background:#fff; padding:15px; border:1px solid #ccc; z-index:2000;">
-    <h3 class="move-title">Przenieś zlecenie</h3>
-    <div style="margin:8px 0">Nowa data: <input type="date" id="move_to_date" value="{{ wybrana_data }}"></div>
-    <div class="d-flex gap-5" style="justify-content:flex-end;">
-        <button type="button" onclick="confirmMove()" class="btn-action btn-small">Przenieś</button>
-        <button type="button" onclick="document.getElementById('moveModal').style.display='none'" class="btn-action btn-small btn-cancel">Anuluj</button>
+<div id="moveModal" class="move-modal">
+    <h3 class="move-title">{{ _('przenies_zlecenie') }}</h3>
+    <div class="move-modal-input">Nowa data: <input type="date" id="move_to_date" value="{{ wybrana_data }}"></div>
+    <div class="d-flex gap-5 move-modal-actions">
+        <button type="button" onclick="confirmMove()" class="btn-action btn-small">{{ _('przenies') }}</button>
+        <button type="button" onclick="document.getElementById('moveModal').style.display='none'" class="btn-action btn-small btn-cancel">{{ _('anuluj') }}</button>
     </div>
 </div>
 
@@ -253,8 +253,8 @@ function deletePlan(id, data){
         cols.push('Data: <input id="e_date_'+id+'" name="data_planu" type="date" value="{{ wybrana_data }}">');
         cols.push('</td>');
         cols.push('<td colspan="3">');
-        cols.push('<button type="button" class="btn-action btn-small" id="btn-submit-'+id+'">Zapisz</button> ');
-        cols.push('<button type="button" class="btn-action btn-small btn-cancel" id="btn-cancel-'+id+'">Anuluj</button>');
+        cols.push('<button type="button" class="btn-action btn-small" id="btn-submit-'+id+'">{{ _('zapisz') }}</button> ');
+        cols.push('<button type="button" class="btn-action btn-small btn-cancel" id="btn-cancel-'+id+'">{{ _('anuluj') }}</button>');
         cols.push('</td>');
         newTr.innerHTML = cols.join('');
         newTr.style.display = 'table-row';  // Jawne ustawienie display
@@ -319,7 +319,7 @@ function deletePlan(id, data){
 <div id="quickBackdrop" class="quick-backdrop" onclick="closeQuickPopup()" style="display:none;"></div>
 <div id="quickPopup" class="quick-popup" aria-hidden="true" style="display:none;">
     <div class="qp-header d-flex justify-between align-center p-10">
-        <div class="header-title">Panel</div>
+        <div class="header-title">{{ _('panel') }}</div>
         <div><button type="button" onclick="closeQuickPopup()" class="btn-action btn-small">✖</button></div>
     </div>
     <div id="quickPopupBody" class="qp-body p-10">Ładowanie…</div>

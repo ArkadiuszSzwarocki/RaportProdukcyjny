@@ -30,7 +30,7 @@
                     <div class="obsada-table-wrap">
                         <table class="modern-table small obsada-table">
                             <thead>
-                                <tr><th>Rola</th><th>Pracownik</th></tr>
+                                <tr><th>{{ _('rola') }}</th><th>{{ _('pracownik') }}</th></tr>
                             </thead>
                             <tbody>
                                 {% for p in obsada %}
@@ -43,7 +43,7 @@
                         </table>
                     </div>
                     {% else %}
-                    <p class="text-muted">Brak przypisanych pracowników</p>
+                    <p class="text-muted">{{ _('brak_przypisanych') }}</p>
                     {% endif %}
                 </div>
             {% endfor %}
@@ -56,11 +56,11 @@
             <table class="modern-table">
                 <thead>
                     <tr>
-                        <th>Sekcja</th>
-                        <th>Typ</th>
-                        <th>Opis</th>
-                        <th>Czas</th>
-                        <th>Pracownik</th>
+                        <th>{{ _('sekcja') }}</th>
+                        <th>{{ _('typ') }}</th>
+                        <th>{{ _('opis') }}</th>
+                        <th>{{ _('czas') }}</th>
+                        <th>{{ _('pracownik') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -134,13 +134,13 @@
                     
                     <!-- Szczegóły palet -->
                     {% if plan.palety %}
-                    <tr id="{{ sekcja }}-plan-{{ plan.id }}-details" class="details-row" style="display: none;">
+                    <tr id="{{ sekcja }}-plan-{{ plan.id }}-details" class="details-row">
                         <td colspan="6" class="p-0">
                             <div class="p-10">
                                 <table class="modern-table small">
                                     <thead>
                                         <tr>
-                                            <th>Nr</th>
+                                            <th>{{ _('nr') }}</th>
                                             <th>⚖️ Waga (kg)</th>
                                             <th>🕒 Dodana</th>
                                             <th>✅ Status</th>
@@ -173,7 +173,7 @@
                 </tbody>
             </table>
             {% else %}
-            <p class="text-muted">Brak planów produkcji dla tej sekcji</p>
+            <p class="text-muted">{{ _('brak_planow_produkcji') }}</p>
             {% endif %}
         </div>
         {% endfor %}
@@ -183,7 +183,7 @@
             <h3>📝 Notatki Lidera</h3>
             <form id="raport-form" method="POST" action="{{ url_for('api.zapisz_raport_koncowy_global') }}" class="d-flex flex-column gap-15">
                 
-                <textarea name="notatki" id="notatki" class="input-lg" placeholder="Wpisz notatki z zmiany, uwagi, problemy, osiągnięcia..." rows="6" style="font-size: 14px; padding: 12px; border-radius: 6px; border: 1px solid #ddd;"></textarea>
+                <textarea name="notatki" id="notatki" class="input-lg textarea-notatki" placeholder="{{ _('wpisz_notatki_zmiany') }}" rows="6"></textarea>
                 
                 <!-- Opcje exportu -->
                 <div class="export-options">
@@ -203,10 +203,10 @@
                 
                 <!-- Przyciski akcji -->
                 <div class="d-flex gap-10">
-                    <button type="submit" class="btn-action btn-save flex-1" style="font-size: 16px; padding: 12px;">
+                    <button type="submit" class="btn-action btn-save flex-1 raport-btn">
                         ✅ Zakończ zmianę i Zapisz Raport
                     </button>
-                    <a href="{{ url_for('index') }}" class="btn-action btn-cancel flex-1" style="font-size: 16px; padding: 12px; text-align: center; text-decoration: none;">
+                    <a href="{{ url_for('index') }}" class="btn-action btn-cancel flex-1 raport-link">
                         ❌ Anuluj
                     </a>
                 </div>

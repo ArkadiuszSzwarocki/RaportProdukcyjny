@@ -4,18 +4,18 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_global.css') }}">
 
 <div class="dashboard-header">
-  <h1 class="dashboard-title">Dashboard</h1>
+  <h1 class="dashboard-title">{{ _('dashboard') }}</h1>
 </div>
 
 {# Full day production overview: Zasyp & Workowanie #}
 <section class="section-box p-15 p-15-bg">
   <h3 class="m-0">📦 Podgląd produkcji dziennej (Zasyp / Workowanie)</h3>
-  <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
-    <div style="flex:1 1 420px;">
+  <div class="production-flex-container">
+    <div class="production-flex-item">
       <h4 class="m-0">Zasyp — {{ dzisiaj }} <small class="text-muted">({{ plans_zasyp|length }} planów)</small></h4>
       {% if plans_zasyp %}
-      <table class="modern-table small" style="margin-top:8px;">
-        <thead><tr><th>Produkt</th><th>Plan</th><th>Wykonanie</th><th>Godz.</th><th>Status</th></tr></thead>
+      <table class="modern-table small production-table">
+        <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('plan') }}</th><th>{{ _('wykonanie') }}</th><th>{{ _('godz') }}</th><th>{{ _('status') }}</th></tr></thead>
         <tbody>
         {% for p in plans_zasyp %}
           <tr>
@@ -29,15 +29,15 @@
         </tbody>
       </table>
       {% else %}
-        <div class="text-muted p-10">Brak planów Zasyp na ten dzień.</div>
+        <div class="text-muted p-10">{{ _('brak_planow_zasyp') }}</div>
       {% endif %}
     </div>
 
-    <div style="flex:1 1 420px;">
+    <div class="production-flex-item">
       <h4 class="m-0">Workowanie — {{ dzisiaj }} <small class="text-muted">({{ plans_workowanie|length }} planów)</small></h4>
       {% if plans_workowanie %}
-      <table class="modern-table small" style="margin-top:8px;">
-        <thead><tr><th>Produkt</th><th>Plan</th><th>Wykonanie</th><th>Godz.</th><th>Status</th></tr></thead>
+      <table class="modern-table small production-table-workowanie">
+        <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('plan') }}</th><th>{{ _('wykonanie') }}</th><th>{{ _('godz') }}</th><th>{{ _('status') }}</th></tr></thead>
         <tbody>
         {% for p in plans_workowanie %}
           <tr>
@@ -51,7 +51,7 @@
         </tbody>
       </table>
       {% else %}
-        <div class="text-muted p-10">Brak planów Workowanie na ten dzień.</div>
+        <div class="text-muted p-10">{{ _('brak_planow_workowanie') }}</div>
       {% endif %}
     </div>
   </div>
@@ -65,18 +65,18 @@
   <h2>📝 Notatki Zmiany</h2>
   
   {# Nawigacja po datach #}
-  <div class="day-nav-bar" style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+  <div class="day-nav-bar">
     <button class="day-nav-btn" data-direction="prev">◀</button>
-    <span id="date-display-global" style="font-weight: bold; min-width: 150px; text-align: center;">{{ dzisiaj }}</span>
+    <span id="date-display-global">{{ dzisiaj }}</span>
     <button class="day-nav-btn" data-direction="next">▶</button>
   </div>
   
   <form action="/add_shift_note" method="post" id="noteForm" class="note-form">
-    <label class="note-label" for="noteTextarea">Notatka:</label>
-    <textarea id="noteTextarea" name="note" required class="note-textarea" placeholder="Wpisz notatkę..." title="Notatka do zapisu" aria-label="Notatka"></textarea>
+    <label class="note-label" for="noteTextarea">{{ _('notatka_label') }}</label>
+    <textarea id="noteTextarea" name="note" required class="note-textarea" placeholder="{{ _('wpisz_notatke') }}" title="{{ _('notatka_zapisu') }}" aria-label="Notatka"></textarea>
     <input type="hidden" name="date" value="{{ dzisiaj }}">
     <input type="hidden" name="pracownik_id" value="{{ session.get('pracownik_id') or '' }}">
-    <button type="submit" class="note-save-btn">Zapisz notatkę</button>
+    <button type="submit" class="note-save-btn">{{ _('zapisz_notatke') }}</button>
   </form>
 
   <div class="notes-container">
@@ -102,7 +102,7 @@
         </div>
         {% endfor %}
       {% else %}
-        <p class="no-notes">Brak notatek. Dodaj nową notatkę powyżej.</p>
+        <p class="no-notes">{{ _('brak_notatek_dodaj') }}</p>
       {% endif %}
     </div>
   </div>
@@ -449,7 +449,7 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(data => {
         if (!data.success) {
           console.error('Error loading shift notes:', data.message);
-          notesContainer.innerHTML = '<div class="text-muted text-center p-10">Błąd ładowania notatek</div>';
+          notesContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _('blad_ladowania') }}</div>';
           return;
         }
         
@@ -474,12 +474,12 @@ document.addEventListener('DOMContentLoaded', function() {
             notesContainer.appendChild(noteCard);
           });
         } else {
-          notesContainer.innerHTML = '<p class="no-notes">Brak notatek na wybraną datę.</p>';
+          notesContainer.innerHTML = '<p class="no-notes">{{ _('brak_notatek_wybranej_daty') }}</p>';
         }
       })
       .catch(error => {
         console.error('Error fetching shift notes:', error);
-        notesContainer.innerHTML = '<div class="text-muted text-center p-10">Błąd ładowania notatek</div>';
+        notesContainer.innerHTML = '<div class="text-muted text-center p-10">{{ _('blad_ladowania') }}</div>';
       });
   }
   

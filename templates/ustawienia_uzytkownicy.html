@@ -3,21 +3,21 @@
 {% block content %}
 <div class="section-box">
     <div class="section-header">
-        <h2>Użytkownicy</h2>
-        <div><a href="/admin/ustawienia" class="btn">Powrót</a></div>
+        <h2>{{ _('uzytkownicy') }}</h2>
+        <div><a href="/admin/ustawienia" class="btn">{{ _('powrot') }}</a></div>
     </div>
 
     <form action="/admin/konto/dodaj" method="POST" class="form-flex">
-        <input name="login" placeholder="Login" required class="input-sm" aria-label="Login">
-        <input name="haslo" placeholder="Hasło (opcjonalnie)" class="input-sm" aria-label="Hasło (opcjonalnie)">
-        <input name="imie_nazwisko" placeholder="Imię i nazwisko (opcjonalnie)" class="input-sm" aria-label="Imię i nazwisko">
-        <input name="grupa" placeholder="Grupa (opcjonalnie)" class="input-sm" aria-label="Grupa (opcjonalnie)">
+        <input name="login" placeholder="{{ _('login') }}" required class="input-sm" aria-label="Login">
+        <input name="haslo" placeholder="{{ _('haslo_opcjonalnie') }}" class="input-sm" aria-label="Hasło (opcjonalnie)">
+        <input name="imie_nazwisko" placeholder="{{ _('imie_nazwisko_opt') }}" class="input-sm" aria-label="Imię i nazwisko">
+        <input name="grupa" placeholder="{{ _('grupa_opcjonalnie') }}" class="input-sm" aria-label="Grupa (opcjonalnie)">
         {% if suggested_prac_id is defined %}
             <div class="muted">Sugerowane ID pracownika: {{ suggested_prac_id }}</div>
         {% endif %}
         <label class="label-inline"><input type="checkbox" id="assign_prac" name="assign_prac" value="1" onchange="document.getElementById('assign_prac_id').disabled = !this.checked" aria-controls="assign_prac_id"> Przypisz pracownika</label>
-        <input type="number" id="assign_prac_id" name="assign_prac_id" min="1" value="{{ suggested_prac_id if suggested_prac_id is defined else 1 }}" class="input-sm assign-prac-id" title="ID pracownika" placeholder="ID pracownika" aria-label="ID pracownika" disabled>
-        <select name="rola" class="input-sm" title="Rola konta" aria-label="Rola konta">
+        <input type="number" id="assign_prac_id" name="assign_prac_id" min="1" value="{{ suggested_prac_id if suggested_prac_id is defined else 1 }}" class="input-sm assign-prac-id" title="{{ _('id_pracownika') }}" placeholder="{{ _('id_pracownika') }}" aria-label="ID pracownika" disabled>
+        <select name="rola" class="input-sm" title="{{ _('rola_konta') }}" aria-label="Rola konta">
             {% for r in roles %}
                 <option value="{{ r[0] }}">{{ r[1] }}</option>
             {% endfor %}
@@ -41,25 +41,25 @@
                     <div class="user-sub">ID: {{ k[0] }}</div>
                 </div>
                 <div class="list-actions">
-                    <details><summary class="btn">Edytuj</summary>
+                    <details><summary class="btn">{{ _('edytuj') }}</summary>
                         <form action="/admin/konto/edytuj" method="POST" class="form-flex">
                             <input type="hidden" name="id" value="{{ k[0] }}">
                             <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login (edycja)">
-                            <input name="haslo" placeholder="Nowe hasło (opcjonalnie)" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
-                            <input name="grupa" placeholder="Grupa (opcjonalnie)" value="{{ k[3] if k|length > 3 else '' }}" class="input-sm" aria-label="Grupa (opcjonalnie)">
-                            <select name="rola" class="input-sm" title="Rola konta" aria-label="Rola konta">
+                            <input name="haslo" placeholder="{{ _('nowe_haslo') }}" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
+                            <input name="grupa" placeholder="{{ _('grupa_opcjonalnie') }}" value="{{ k[3] if k|length > 3 else '' }}" class="input-sm" aria-label="Grupa (opcjonalnie)">
+                            <select name="rola" class="input-sm" title="{{ _('rola_konta') }}" aria-label="Rola konta">
                                 {% for r in roles %}
                                     <option value="{{ r[0] }}" {% if k[2]==r[0] %}selected{% endif %}>{{ r[1] }}</option>
                                 {% endfor %}
                             </select>
-                            <button type="submit" class="btn">Zapisz</button>
+                            <button type="submit" class="btn">{{ _('zapisz') }}</button>
                         </form>
                     </details>
                     <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto?');"><button type="submit" class="delete-button" aria-label="Usuń konto">🗑️</button></form>
                 </div>
             </div>
         {% else %}
-            <div class="card">Brak kont.</div>
+            <div class="card">{{ _('brak_kont') }}</div>
         {% endfor %}
     </div>
 </div>

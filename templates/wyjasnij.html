@@ -1,11 +1,11 @@
 <div class="p-15">
     <h4 class="m-0 text-warning-dark">⚠️ Wyjaśnienie rozbieżności</h4>
     <form action="{{ url_for('api.zapisz_wyjasnienie', id=id) }}" method="POST" class="mt-10">
-        <label for="wyjasnienie">Wyjaśnienie:</label>
-        <textarea id="wyjasnienie" name="wyjasnienie" class="input-sm" rows="5" required title="Wyjaśnienie" placeholder="Wpisz wyjaśnienie..."></textarea>
+        <label for="wyjasnienie">{{ _('wyjasnienie_label') }}</label>
+        <textarea id="wyjasnienie" name="wyjasnienie" class="input-sm" rows="5" required title="{{ _('wyjasnienie') }}" placeholder="{{ _('wpisz_wyjasnienie') }}"></textarea>
         <div class="mt-10">
-            <button type="submit" class="btn-action btn-primary">Zapisz</button>
-            <button type="button" onclick="closeQuickPopup()" class="btn-action btn-outline">Anuluj</button>
+            <button type="submit" class="btn-action btn-primary">{{ _('zapisz') }}</button>
+            <button type="button" onclick="closeQuickPopup()" class="btn-action btn-outline">{{ _('anuluj') }}</button>
         </div>
     </form>
 </div>
