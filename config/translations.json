@@ -595,7 +595,13 @@
     "start_btn": "START",
     "stop_btn": "STOP",
     "typy_przeglądany": "Typy — przeglądany",
-    "zakonczono_colon_final": "Zakończone:"
+    "zakonczono_colon_final": "Zakończone:",
+    "bigbag_v2": "BigBag",
+    "brak_palet_czekajacych": "Brak palet oczekujących na zatwierdzenie.",
+    "brak_planu_v2": "Brak planu.",
+    "dodaj_v2": "Dodaj",
+    "plan_wagowy_v2": "Plan Wagowy",
+    "realizacja_planu_v2": "Realizacja Planu"
   },
   "uk": {
     "dashboard": "Панель управління",
@@ -1193,7 +1199,13 @@
     "start_btn": "ПОЧАТОК",
     "stop_btn": "СТОП",
     "typy_przeglądany": "Типи — переглянуто",
-    "zakonczono_colon_final": "Завершено:"
+    "zakonczono_colon_final": "Завершено:",
+    "bigbag_v2": "Біг-бег",
+    "brak_palet_czekajacych": "Немає паліт, які чекають на затвердження.",
+    "brak_planu_v2": "Немає плану.",
+    "dodaj_v2": "Додати",
+    "plan_wagowy_v2": "План зважування",
+    "realizacja_planu_v2": "Реалізація плану"
   },
   "en": {
     "dashboard": "Dashboard",
@@ -1791,6 +1803,12 @@
     "start_btn": "START",
     "stop_btn": "STOP",
     "typy_przeglądany": "Types — viewed",
-    "zakonczono_colon_final": "Completed:"
+    "zakonczono_colon_final": "Completed:",
+    "bigbag_v2": "BigBag",
+    "brak_palet_czekajacych": "No pallets awaiting approval.",
+    "brak_planu_v2": "No plan.",
+    "dodaj_v2": "Add",
+    "plan_wagowy_v2": "Weight Plan",
+    "realizacja_planu_v2": "Plan Implementation"
   }
 }
