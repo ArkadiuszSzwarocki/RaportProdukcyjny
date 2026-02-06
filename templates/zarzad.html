@@ -41,7 +41,7 @@
     <div class="stat-card">
         <span class="label">{{ _('czas_awarii') }}</span>
         <div class="header-title header-lg text-danger-color">{{ time_aw }} min</div>
-        <div class="small text-muted">Łącznie</div>
+        <div class="small text-muted">{{ _('lacznie') }}</div>
     </div>
 </div>
 
@@ -59,7 +59,7 @@
 {% if session.get('rola') in ['admin', 'zarzad', 'lider'] %}
 <div class="section-box section-box-no-pad">
     <div class="p-15 p-15-bg">
-        <h3 class="m-0 text-primary">👥 Statystyki Pracowników (HR)</h3>
+        <h3 class="m-0 text-primary">👥 {{ _('statystyki_pracownikow_hr') }}</h3>
     </div>
     <table class="modern-table">
         <thead>
@@ -68,7 +68,7 @@
                 {% if tryb == 'dzien' %}
                     <th class="text-center">🏭 {{ _('zasyp') }}</th><th class="text-center">🔧 {{ _('workowanie') }}</th><th class="text-center">📦 {{ _('magazyn') }}</th><th>📋 {{ _('status_hr') }}</th>
                 {% else %}
-                    <th class="text-center">📅 Dni Pracy</th><th class="text-center">⏰ Nadgodziny</th><th class="text-center">❌ Nieobecności</th>
+                    <th class="text-center">📅 {{ _('dni_pracy') }}</th><th class="text-center">⏰ {{ _('nadgodziny') }}</th><th class="text-center">❌ Nieobecności</th>
                 {% endif %}
             </tr>
         </thead>

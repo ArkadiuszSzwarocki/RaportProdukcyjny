@@ -1,5 +1,5 @@
 <div class="p-15">
-    <h4 class="m-0 text-warning-dark">⚠️ Wyjaśnienie rozbieżności</h4>
+    <h4 class="m-0 text-warning-dark">⚠️ {{ _('wyjasnienie_rozbieznosci') }}</h4>
     <form action="{{ url_for('api.zapisz_wyjasnienie', id=id) }}" method="POST" class="mt-10">
         <label for="wyjasnienie">{{ _('wyjasnienie_label') }}</label>
         <textarea id="wyjasnienie" name="wyjasnienie" class="input-sm" rows="5" required title="{{ _('wyjasnienie') }}" placeholder="{{ _('wpisz_wyjasnienie') }}"></textarea>

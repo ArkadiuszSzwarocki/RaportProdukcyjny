@@ -1,5 +1,5 @@
 <div class="section-box">
-  <h3>📋 Zatwierdzenia Wniosków</h3>
+  <h3>📋 {{ _('zatwierdzenia_wnioskow') }}</h3>
   {% if wnioski and wnioski|length > 0 %}
   <table class="table compact">
     <thead><tr><th>Pracownik</th><th>Typ</th><th>Okres</th><th>Powód</th><th></th></tr></thead>
@@ -23,6 +23,6 @@
     </tbody>
   </table>
   {% else %}
-  <p>Brak oczekujących wniosków lub brak uprawnień.</p>
+  <p>{{ _('brak_oczekujacych_wnioskow') }}</p>
   {% endif %}
 </div>

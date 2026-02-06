@@ -1,5 +1,5 @@
 <div class="section-box">
-  <h3>🏖️ Planowane Urlopy (Następne 60 dni)</h3>
+  <h3>🏖️ {{ _('planowane_urlopy') }}</h3>
   {% if planned_leaves and planned_leaves|length > 0 %}
   <table class="table compact">
     <thead><tr><th>Pracownik</th><th>Typ</th><th>Okres</th><th>Status</th></tr></thead>
@@ -15,6 +15,6 @@
     </tbody>
   </table>
   {% else %}
-  <p>Brak planowanych urlopów.</p>
+  <p>{{ _('brak_planowanych_urlopow') }}</p>
   {% endif %}
 </div>

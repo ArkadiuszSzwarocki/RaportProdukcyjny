@@ -1,5 +1,5 @@
 <div class="section-box">
-  <h3>📅 Ostatnie Nieobecności (30 dni)</h3>
+  <h3>📅 {{ _('ostatnie_nieobecnosci') }}</h3>
   {% if recent_absences and recent_absences|length > 0 %}
   <table class="table compact">
     <thead><tr><th>Pracownik</th><th>Typ</th><th>Data</th><th>Godziny</th><th>Komentarz</th></tr></thead>
@@ -20,6 +20,6 @@
     </tbody>
   </table>
   {% else %}
-  <p>Brak wpisów z ostatnich 30 dni.</p>
+  <p>{{ _('brak_wpisow') }}</p>
   {% endif %}
 </div>

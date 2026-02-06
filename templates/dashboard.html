@@ -9,12 +9,12 @@
         <p class="text-muted m-0">{{ rola|upper }} | {{ dzisiaj }}</p>
         {% endif %}
         <div class="day-tile" data-sekcja="{{ sekcja }}">
-            <button type="button" class="day-nav left" data-day-offset="-1" aria-label="Poprzedni dzień">◀</button>
+            <button type="button" class="day-nav left" data-day-offset="-1" aria-label="{{ _('poprzedni_dzien') }}">◀</button>
             <div class="day-center">
                 <div class="day-label">{{ _('widok_dla') }}</div>
                 <div id="current-date-display" class="day-date">{{ dzisiaj }}</div>
             </div>
-            <button type="button" class="day-nav right" data-day-offset="1" aria-label="Następny dzień">▶</button>
+            <button type="button" class="day-nav right" data-day-offset="1" aria-label="{{ _('nastepny_dzien') }}">▶</button>
             <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') }}">
         </div>
     </div>
@@ -154,7 +154,7 @@
             <div class="small text-muted">{{ _('kliknij_wznow') }}</div>
         </div>
         <button type="button" class="btn-action btn-info" onclick="resumeYesterdaysOrders('{{ sekcja }}');">
-            <span class="material-icons" style="margin-right: 4px;">replay</span> Wznów zlecenia z wczoraj
+            <span class="material-icons" style="margin-right: 4px;">replay</span> {{ _('wznow_zlecenia_z_wczoraj') }}
         </button>
     </div>
     {% endif %}
