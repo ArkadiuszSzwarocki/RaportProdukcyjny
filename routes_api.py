@@ -1034,8 +1034,19 @@ def dodaj_plan():
     cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ, 0))
     zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
     
-    # Zasyp i Workowanie działają NIEZALEŻNIE
-    # Brak automatycznego tworzenia planu Workowania
+    # NOWE: Jeśli sekcja to Zasyp, utwórz odpowiadające Workowanie automatycznie
+    if sekcja == 'Zasyp' and zasyp_plan_id:
+        try:
+            current_app.logger.info(f'[DODAJ_PLAN] Creating AUTO Workowanie for Zasyp plan_id={zasyp_plan_id}')
+        except Exception:
+            pass
+        
+        # Utwórz odpowiadające Workowanie w statusie 'w toku'
+        nk_work = nk + 1  # Kolejnosc dla Workowania
+        cursor.execute(
+            "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            (data_planu, produkt, 0, 'w toku', 'Workowanie', nk_work, typ, 0)
+        )
     
     conn.commit()
     conn.close()
@@ -1094,6 +1105,14 @@ def dodaj_plany_batch():
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: brak typu produkcji'})
             nk += 1
             cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', sekcja, nk, typ, nr, 0))
+            
+            # NOWE: Jeśli sekcja to Zasyp, utwórz odpowiadające Workowanie automatycznie
+            if sekcja == 'Zasyp':
+                nk += 1  # Zwiększ kolejnosc dla Workowania
+                cursor.execute(
+                    "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (data_planu, produkt, 0, 'w toku', 'Workowanie', nk, typ, 0)
+                )
         conn.commit()
     except Exception as e:
         try:
@@ -1489,6 +1508,16 @@ def jakosc_dodaj_do_planow(id):
     res = cursor.fetchone()
     nk = (res[0] if res and res[0] else 0) + 1
     cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk, typ, 0))
+    zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
+    
+    # NOWE: Utwórz odpowiadające Workowanie automatycznie
+    if zasyp_plan_id:
+        nk_work = nk + 1
+        cursor.execute(
+            "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            (data_planu, produkt, 0, 'w toku', 'Workowanie', nk_work, typ, 0)
+        )
+    
     conn.commit()
     conn.close()
     flash('Zlecenie dodane do planów', 'success')
