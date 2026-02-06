@@ -37,13 +37,14 @@
       <h4 class="m-0">{{ _('workowanie') }} — {{ dzisiaj }} <small class="text-muted">({{ plans_workowanie|length }} planów)</small></h4>
       {% if plans_workowanie %}
       <table class="modern-table small production-table-workowanie">
-        <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('plan') }}</th><th>{{ _('wykonanie') }}</th><th>{{ _('godz') }}</th><th>{{ _('status') }}</th></tr></thead>
+        <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('plan') }}</th><th>{{ _('wykonanie') }}</th><th>🚨 Uszkodzono</th><th>{{ _('godz') }}</th><th>{{ _('status') }}</th></tr></thead>
         <tbody>
         {% for p in plans_workowanie %}
           <tr>
             <td><strong class="text-primary">{{ p[1] }}</strong></td>
             <td>{{ p[2]|int }} kg</td>
             <td>{{ p[7]|int }} kg</td>
+            <td><input type="number" class="uszkodzone-input" data-plan-id="{{ p[0] }}" value="{{ p[11] or 0 }}" style="width:60px;" min="0"></td>
             <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
             <td>{{ p[3]|upper }}</td>
           </tr>
@@ -504,6 +505,50 @@ document.addEventListener('DOMContentLoaded', function() {
       
       updateShiftNotesForDate(dateStr);
     });
+  });
+});
+</script>
+
+<script>
+// Obsługa aktualizacji uszkodzonych worków na Workowaniu
+document.querySelectorAll('.uszkodzone-input').forEach(input => {
+  input.addEventListener('blur', function() {
+    const plan_id = this.getAttribute('data-plan-id');
+    const uszkodzone_ilosc = parseInt(this.value) || 0;
+    
+    // Wysyłaj update do API
+    fetch('/api/update_uszkodzone_worki', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        plan_id: plan_id,
+        uszkodzone_worki: uszkodzone_ilosc
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (!data.success) {
+        console.error('Błąd aktualizacji:', data.message);
+        alert('Błąd: ' + (data.message || 'Nie udało się zaktualizować'));
+      } else {
+        // Wizualny feedback
+        this.style.backgroundColor = '#d4edda';
+        setTimeout(() => { this.style.backgroundColor = ''; }, 1000);
+      }
+    })
+    .catch(error => {
+      console.error('Błąd łączności:', error);
+      alert('Błąd łączności z serwerem');
+    });
+  });
+  
+  // Enter do szybkiego zapisu
+  input.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      this.blur();
+    }
   });
 });
 </script>

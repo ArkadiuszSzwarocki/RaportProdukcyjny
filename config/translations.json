@@ -683,7 +683,10 @@
     "status_czeka_na_czesci": "Czeka na części",
     "status_zakończony": "Zakończony",
     "status_zamknięty": "Zamknięty",
-    "status_w_trakcie_naprawy": "W trakcie naprawy"
+    "status_w_trakcie_naprawy": "W trakcie naprawy",
+    "uszkodzone_worki": "Uszkodzonych worków",
+    "uszkodzono": "Uszkodzono",
+    "ilosc_uszkodzonych": "Ilość uszkodzonych"
   },
   "uk": {
     "dashboard": "Панель управління",
@@ -1369,7 +1372,10 @@
     "status_czeka_na_czesci": "Чекає частини",
     "status_zakończony": "Завершений",
     "status_zamknięty": "Закритий",
-    "status_w_trakcie_naprawy": "Під час ремонту"
+    "status_w_trakcie_naprawy": "Під час ремонту",
+    "uszkodzone_worki": "Пошкоджених мішків",
+    "uszkodzono": "Пошкоджено",
+    "ilosc_uszkodzonych": "Кількість пошкоджених"
   },
   "en": {
     "dashboard": "Dashboard",
@@ -2055,6 +2061,9 @@
     "status_czeka_na_czesci": "Waiting for parts",
     "status_zakończony": "Completed",
     "status_zamknięty": "Closed",
-    "status_w_trakcie_naprawy": "Under repair"
+    "status_w_trakcie_naprawy": "Under repair",
+    "uszkodzone_worki": "Damaged bags",
+    "uszkodzono": "Damaged",
+    "ilosc_uszkodzonych": "Number of damaged"
   }
 }

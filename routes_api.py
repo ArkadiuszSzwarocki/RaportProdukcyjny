@@ -3299,3 +3299,52 @@ def shift_notes_na_date():
             'success': False,
             'message': str(e)
         }), 400
+
+
+@api_bp.route('/update_uszkodzone_worki', methods=['POST'])
+@login_required
+def update_uszkodzone_worki():
+    """Aktualizuj ilość uszkodzonych worków dla planu Workowania"""
+    try:
+        data = request.get_json()
+        plan_id = data.get('plan_id')
+        uszkodzone_worki = int(data.get('uszkodzone_worki', 0))
+        
+        if not plan_id:
+            return jsonify({'success': False, 'message': 'Brak plan_id'}), 400
+        
+        if uszkodzone_worki < 0:
+            return jsonify({'success': False, 'message': 'Ilość nie może być ujemna'}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Aktualizuj pole uszkodzone_worki
+        cursor.execute(
+            "UPDATE plan_produkcji SET uszkodzone_worki = %s WHERE id = %s AND sekcja = 'Workowanie'",
+            (uszkodzone_worki, plan_id)
+        )
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Plan nie znaleziony'}), 404
+        
+        # Loguj zmianę
+        cursor.execute(
+            "INSERT INTO plan_history (plan_id, action, changes, user_login, created_at) VALUES (%s, %s, %s, %s, NOW())",
+            (plan_id, 'uszkodzone_worki_update', f'Uszkodzono: {uszkodzone_worki} worków', session.get('login'), )
+        )
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Zaktualizowano: {uszkodzone_worki} uszkodzonych worków',
+            'uszkodzone_worki': uszkodzone_worki
+        })
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Nieprawidłowa liczba'}), 400
+    except Exception as e:
+        current_app.logger.exception(f'Error updating uszkodzone_worki: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
