@@ -43,7 +43,7 @@
             <tr>
                 <th>{{ _('login') }}</th>
                 <th>{{ _('rola') }}</th>
-                <th class="text-right">Opcotwórz PRje</th>
+                <th class="text-right">{{ _('opcotwórz_prje') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -86,7 +86,7 @@
 
     <div class="section-box">
     <div class="d-flex justify-between align-center p-15 bb-1">
-    <h3>Zarządzanie Produkcją (Wszystkie Sekcje)</h3>
+    <h3>{{ _('zarzadzanie_produkcja') }}</h3>
     <input type="text" placeholder="{{ _('szukaj_zlecenia') }}" class="input-sm small" aria-label="Szukaj zlecenia">
     </div>
 
@@ -139,7 +139,7 @@
                 </td>
             </tr>
         {% else %}
-            <tr><td colspan="7" class="text-center">Brak zleceń w bazie.</td></tr>
+            <tr><td colspan="7" class="text-center">{{ _('brak_zlecen_bazie') }}</td></tr>
         {% endfor %}
         </tbody>
     </table>

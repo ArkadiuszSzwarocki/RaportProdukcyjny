@@ -24,7 +24,7 @@
 <div class="stat-grid">
     
     <div class="stat-card {% if suma_minut_plan > 450 %}border-danger-left{% else %}border-success-left{% endif %}">
-        <span class="label">Obłożenie Zmiany (450 min)</span>
+        <span class="label">{{ _('oblegenie_zmiany') }}</span>
         <div class="header-title header-lg">{{ suma_minut_plan }} min</div>
         <div class="small text-muted">{% if suma_minut_plan > 450 %}⚠️ Przekroczono o {{ suma_minut_plan - 450 }} min!{% else %}Zapas: {{ 450 - suma_minut_plan }} min{% endif %}</div>
         <div class="progress"><div class="progress-bar {% if suma_minut_plan > 450 %}progress-bar-danger{% else %}progress-bar-success{% endif %} progress-w-{{ [procent_czasu, 100]|min|round(0)|int }}"></div></div>
@@ -322,7 +322,7 @@ function deletePlan(id, data){
         <div class="header-title">{{ _('panel') }}</div>
         <div><button type="button" onclick="closeQuickPopup()" class="btn-action btn-small">✖</button></div>
     </div>
-    <div id="quickPopupBody" class="qp-body p-10">Ładowanie…</div>
+    <div id="quickPopupBody" class="qp-body p-10">{{ _('ladowanie') }}</div>
 </div>
 
 {% endblock %}

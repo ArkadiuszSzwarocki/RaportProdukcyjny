@@ -9,7 +9,7 @@
 </head>
 <body>
   <div class="box">
-    <h3>✏️ Edytuj paletę</h3>
+    <h3>✏️ {{ _('edytuj_palete') }}</h3>
     <form action="{{ url_for('api.edytuj_palete', paleta_id=paleta_id) }}" method="POST">
       <div>
         <label for="waga_palety">{{ _('waga_kg_symbol') }}</label>

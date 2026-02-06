@@ -1,7 +1,7 @@
 {% extends 'layout.html' %}
 
 {% block content %}
-<h2>📥 Dodawanie wielu zleceń - Planista</h2>
+<h2>📥 {{ _('dodawanie_zlecen') }}</h2>
 <form id="bulkForm" method="post" action="#">
   <div class="bulk-controls">
     <label>Data planu: <input type="date" id="data_planu" value="{{ wybrana_data }}"></label>

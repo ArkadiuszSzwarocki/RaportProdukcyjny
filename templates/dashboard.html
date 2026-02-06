@@ -76,7 +76,7 @@
                             </tbody>
                         </table>
                     {% else %}
-                        <div class="text-muted text-center p-10">Brak palet oczekujących na zatwierdzenie.</div>
+                        <div class="text-muted text-center p-10">{{ _('brak_palet_czekajacych') }}</div>
                     {% endif %}
         </div>
     </div>
@@ -313,8 +313,8 @@
                                                 {% endif %}
                                             {% endif %}
                                             {% if rola in ['lider', 'admin'] %}
-                                                <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="Edytuj paletę" data-slide>✏️</a>
-                                                <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń paletę" data-slide>🗑️</a>
+                                                <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
+                                                <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}" data-slide>🗑️</a>
                                             {% endif %}
                                         </td>
                                     {% else %}
@@ -349,8 +349,8 @@
                                                 {% endif %}
                                             {% endif %}
                                             {% if rola in ['lider', 'admin'] %}
-                                                <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="Edytuj paletę" data-slide>✏️</a>
-                                                <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń paletę" data-slide>🗑️</a>
+                                                <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
+                                                <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}" data-slide>🗑️</a>
                                             {% endif %}
                                             {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in ['lider','admin']) and pal[7] == 'do_przyjecia' %}
                                                 {# Inline styles removed — use .btn-confirm-inline class in external CSS (static/style.css) #}
@@ -831,7 +831,7 @@ document.addEventListener('DOMContentLoaded', function(){
         <div class="header-title">{{ _('panel') }}</div>
         <div><button type="button" onclick="closeQuickPopup()" class="btn-action btn-small">✖</button></div>
     </div>
-    <div id="quickPopupBody" class="qp-body p-10">Ładowanie…</div>
+    <div id="quickPopupBody" class="qp-body p-10">{{ _('ladowanie') }}</div>
 </div>
 
 <script>

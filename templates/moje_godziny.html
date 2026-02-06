@@ -2,7 +2,7 @@
 {% block content %}
 <h2>{{ _('moje_godziny') }}</h2>
 {% if not mapped %}
-  <div class="alert alert-warning">Twoje konto nie jest powiązane z rekordem pracownika. Skontaktuj się z administratorem.</div>
+  <div class="alert alert-warning">{{ _('konto_nie_powiazane') }}</div>
 {% endif %}
 
 <p>Zakres: {{ d_od }} — {{ d_do }}</p>
@@ -98,7 +98,7 @@
     </tbody>
   </table>
   {% if viewed_summary %}
-  <h4>Typy — przeglądany</h4>
+  <h4>{{ _('typy_przeglądany') }}</h4>
   <table class="table" id="typyTable_viewed">
     <thead><tr><th>{{ _('typ') }}</th><th>{{ _('godziny') }}</th></tr></thead>
     <tbody>
@@ -109,7 +109,7 @@
   </table>
   {% endif %}
 
-  <h3>Kalendarz godzin (miesiąc)</h3>
+  <h3>{{ _('kalendarz_godzin') }}</h3>
   <style>
     .cal-grid { width:100%; border-collapse: collapse; }
     .cal-grid th { text-align:center; padding:6px; background:#f7f7f7; }

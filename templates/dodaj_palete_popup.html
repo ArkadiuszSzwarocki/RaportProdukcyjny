@@ -1,5 +1,5 @@
 <div class="p-10" {% if sekcja == 'Zasyp' %}data-popup-title="Dodajesz szarże"{% else %}data-popup-title="Dodajesz paletę"{% endif %}>
-  <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj szarżę{% else %}📦 Dodaj paletę{% endif %}</h3>
+  <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj szarżę{% else %}📦 {{ _('dodaj_palete') }}{% endif %}</h3>
   {% if sekcja == 'Workowanie' %}
   {# Workowanie: użyj dedykowanego endpointu dodaj_palete #}
   <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST">
