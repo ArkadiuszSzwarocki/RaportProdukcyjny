@@ -134,8 +134,8 @@
 
     <div class="section-box p-0">
     <div class="p-15 p-15-bg">
-        <h3 class="m-0 text-primary">📋 {% if sekcja=='Magazyn' %}Rejestr Przyjęć{% else %}Kolejka Produkcyjna{% endif %}</h3>
-        <span class="badge-info">{{ sekcja|upper }}</span>
+        <h3 class="m-0 text-primary">📋 {% if sekcja=='Magazyn' %}{{ _('rejestr_przyjec') }}{% else %}{{ _('kolejka_produkcyjna') }}{% endif %}</h3>
+        <span class="badge-info">{{ _(sekcja.lower()) }}</span>
     </div>
     {% if rola == 'planista' and quality_count and quality_count > 0 %}
     <div class="alert-warning d-flex justify-between align-center mb-10">

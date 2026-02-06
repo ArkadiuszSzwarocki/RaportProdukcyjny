@@ -637,7 +637,9 @@
     "nieobecni": "Nieobecności",
     "awarie_usterki": "Awarie / Usterki / Nieobecności",
     "sekcje": "Sekcje",
-    "status_hr": "Status HR"
+    "status_hr": "Status HR",
+    "rejestr_przyjec": "Rejestr Przyjęć",
+    "wczesniejsze_zlecenia": "Wcześniejsze zlecenia"
   },
   "uk": {
     "dashboard": "Панель управління",
@@ -1277,7 +1279,9 @@
     "nieobecni": "Відсутності",
     "awarie_usterki": "Поломки / Несправності / Відсутності",
     "sekcje": "Секції",
-    "status_hr": "Статус HR"
+    "status_hr": "Статус HR",
+    "rejestr_przyjec": "Реєстр прийомів",
+    "wczesniejsze_zlecenia": "Попередні замовлення"
   },
   "en": {
     "dashboard": "Dashboard",
@@ -1917,6 +1921,8 @@
     "nieobecni": "Absences",
     "awarie_usterki": "Breakdowns / Failures / Absences",
     "sekcje": "Sections",
-    "status_hr": "HR Status"
+    "status_hr": "HR Status",
+    "rejestr_przyjec": "Reception Register",
+    "wczesniejsze_zlecenia": "Previous Orders"
   }
 }
