@@ -48,6 +48,23 @@
     color: #999 !important;
 }
 
+.deleted-item-style {
+    opacity: 0.7 !important;
+    text-decoration: line-through !important;
+}
+
+.deleted-item-time {
+    color: #999;
+}
+
+.deleted-item-text {
+    color: #999;
+}
+
+.restore-deleted-btn {
+    cursor: pointer;
+}
+
 #deletedOrdersList .plan-item button {
     text-decoration: none;
     opacity: 1;

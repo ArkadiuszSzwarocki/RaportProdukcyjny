@@ -75,12 +75,12 @@
                     {% endif %}
 
                     <div class="d-flex gap-10">
-                        <form action="/cofnij_palete/{{ p[0] }}" method="POST" onsubmit="return confirm('{{ _("cofnac_palete") }}');" class="flex-1">
+                        <form action="/cofnij_palete/{{ p[0] }}" method="POST" class="flex-1" data-confirm-msg="{{ _("cofnac_palete") }}">
                             <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
                             <button type="submit" class="btn-action btn-warning">↩ {{ _('cofnij') }}</button>
                         </form>
 
-                        <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm(&quot;{{ _('zakonczyc_zlecenie') }}&quot;);" class="flex-1">
+                        <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" class="flex-1" data-confirm-msg="{{ _('zakonczyc_zlecenie') }}">
                             <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
                             <button type="submit" class="btn-stop" aria-label="{{ _('zakonczy') }}">■ {{ _('zakonczy') }}</button>
                         </form>
@@ -116,8 +116,8 @@
                 {% endif %}
                 
                 {% if rola in ['planista', 'admin', 'lider'] %}
-                    <button type="button" class="btn-icon ml-5" title="{{ _('przenies_zlecenie') }}" onclick="openMoveModalWork({{ p[0] }}, '{{ p[1] }}')">📦</button>
-                    <button type="button" class="btn-delete inline-form ml-5" aria-label="{{ _('usun_plan') }}" onclick="if(confirm('{{ _('usunac') }}')) deletePlan({{ p[0] }}, '{{ dzisiaj }}');">🗑</button>
+                    <button type="button" class="btn-icon ml-5" title="{{ _('przenies_zlecenie') }}" data-action="move-order" data-order-id="{{ p[0] }}" data-order-name="{{ p[1] }}">📦</button>
+                    <button type="button" class="btn-delete inline-form ml-5" aria-label="{{ _('usun_plan') }}" data-action="delete-order" data-order-id="{{ p[0] }}" data-order-date="{{ dzisiaj }}" data-confirm-msg="{{ _('usunac') }}">🗑</button>
                 {% endif %}
             </div>
         </div>
@@ -157,6 +157,9 @@
 </div>
 
 <script>
+// Global reference to store data for modal
+var moveOrderData = {};
+
 // Załaduj usunięte zlecenia
 function loadDeletedOrders(){
     var dzisiaj = '{{ dzisiaj }}';
@@ -169,12 +172,12 @@ function loadDeletedOrders(){
             if(j && j.success && j.plans && j.plans.length > 0){
                 var html = '';
                 j.plans.forEach(function(p){
-                    html += '<div class="plan-item" style="opacity: 0.7; text-decoration: line-through;">' +
+                    html += '<div class="plan-item deleted-item-style">' +
                         '<div class="flex-2">' +
-                        '<span style="color: #999;">⏰ ' + (p.deleted_at || 'N/A') + '</span><br>' +
-                        '<span class="font-bold" style="color: #999;">' + p.produkt + '</span> (' + p.tonaz + ' kg)' +
+                        '<span class="deleted-item-time">⏰ ' + (p.deleted_at || 'N/A') + '</span><br>' +
+                        '<span class="font-bold deleted-item-text">' + p.produkt + '</span> (' + p.tonaz + ' kg)' +
                         '</div>' +
-                        '<div><button type="button" class="btn-action btn-small" onclick="restoreDeletedOrder(' + p.id + ')">{{ _('przywroc') }}</button></div>' +
+                        '<div><button type="button" class="btn-action btn-small restore-deleted-btn" data-restore-id="' + p.id + '">{{ _('przywroc') }}</button></div>' +
                         '</div>';
                 });
                 document.getElementById('deletedOrdersList').innerHTML = html;
@@ -200,15 +203,68 @@ function restoreDeletedOrder(id){
         .catch(function(){ alert('Błąd sieci'); });
 }
 
-// Załaduj przy starcie
-loadDeletedOrders();
+// Delete plan function (kept for compatibility)
+function deletePlan(id, data){
+    fetch('/api/usun_plan_ajax/' + id, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({data_powrotu: data})
+    })
+    .then(function(r){ return r.json().catch(function(){ return {success:false}; }); })
+    .then(function(j){
+        if(j && j.success){
+            location.reload();
+        } else {
+            alert((j && j.message) || 'Błąd usunięcia');
+        }
+    })
+    .catch(function(){ alert('Błąd sieci'); });
+}
+
+// Event delegation for forms with data-confirm-msg
+document.addEventListener('submit', function(e){
+    var form = e.target;
+    if(form.hasAttribute('data-confirm-msg')){
+        var msg = form.getAttribute('data-confirm-msg');
+        if(!confirm(msg)){
+            e.preventDefault();
+        }
+    }
+}, true);
+
+// Event delegation for action buttons
+document.addEventListener('click', function(e){
+    // Move order button
+    if(e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'move-order'){
+        var id = e.target.getAttribute('data-order-id');
+        var name = e.target.getAttribute('data-order-name');
+        openMoveModalWork(id, name);
+    }
+    
+    // Delete order button
+    if(e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'delete-order'){
+        var id = e.target.getAttribute('data-order-id');
+        var date = e.target.getAttribute('data-order-date');
+        var msg = e.target.getAttribute('data-confirm-msg');
+        if(confirm(msg)){
+            deletePlan(id, date);
+        }
+    }
+    
+    // Restore deleted order button
+    if(e.target.classList.contains('restore-deleted-btn')){
+        var id = e.target.getAttribute('data-restore-id');
+        restoreDeletedOrder(id);
+    }
+}, false);
 
 function openMoveModalWork(id, nazwa){
     var modal = document.getElementById('moveModalWork');
     if(!modal) return alert('Brak modala przeniesienia');
     modal.style.display = 'block';
     modal.dataset.planId = id;
-    var title = modal.querySelector('.move-title-work'); if(title) title.innerText = 'Przenieś: ' + nazwa;
+    var title = modal.querySelector('.move-title-work'); 
+    if(title) title.innerText = 'Przenieś: ' + nazwa;
 }
 
 function confirmMoveWork(){
@@ -227,4 +283,7 @@ function confirmMoveWork(){
             }
         }).catch(function(){ alert('Błąd sieci'); });
 }
+
+// Załaduj przy starcie
+loadDeletedOrders();
 </script>
