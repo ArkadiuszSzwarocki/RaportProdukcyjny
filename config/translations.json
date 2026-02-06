@@ -678,7 +678,12 @@
     "rola_uzytkownika": "Rola użytkownika",
     "usun_konto": "Usuń konto",
     "status_wymaga_migracji": "Status wymaga migracji - proszę wybrać nowy status z listy",
-    "wybierz_date_domyslnie_dzisiaj": "Wybierz datę (domyślnie dzisiaj)"
+    "wybierz_date_domyslnie_dzisiaj": "Wybierz datę (domyślnie dzisiaj)",
+    "status_zgloszony": "Zgłoszony",
+    "status_czeka_na_czesci": "Czeka na części",
+    "status_zakończony": "Zakończony",
+    "status_zamknięty": "Zamknięty",
+    "status_w_trakcie_naprawy": "W trakcie naprawy"
   },
   "uk": {
     "dashboard": "Панель управління",
@@ -1359,7 +1364,12 @@
     "rola_uzytkownika": "Роль користувача",
     "usun_konto": "Видалити обліковий запис",
     "status_wymaga_migracji": "Статус вимагає міграції - будь ласка, виберіть новий статус зі списку",
-    "wybierz_date_domyslnie_dzisiaj": "Виберіть дату (за замовчуванням сьогодні)"
+    "wybierz_date_domyslnie_dzisiaj": "Виберіть дату (за замовчуванням сьогодні)",
+    "status_zgloszony": "Оголошений",
+    "status_czeka_na_czesci": "Чекає частини",
+    "status_zakończony": "Завершений",
+    "status_zamknięty": "Закритий",
+    "status_w_trakcie_naprawy": "Під час ремонту"
   },
   "en": {
     "dashboard": "Dashboard",
@@ -2040,6 +2050,11 @@
     "rola_uzytkownika": "User role",
     "usun_konto": "Delete account",
     "status_wymaga_migracji": "Status requires migration - please select a new status from the list",
-    "wybierz_date_domyslnie_dzisiaj": "Select date (default today)"
+    "wybierz_date_domyslnie_dzisiaj": "Select date (default today)",
+    "status_zgloszony": "Reported",
+    "status_czeka_na_czesci": "Waiting for parts",
+    "status_zakończony": "Completed",
+    "status_zamknięty": "Closed",
+    "status_w_trakcie_naprawy": "Under repair"
   }
 }
