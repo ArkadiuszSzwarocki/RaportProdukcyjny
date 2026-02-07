@@ -327,6 +327,24 @@ def dodaj_plan():
                     (tonaz, zasyp_plan_id)
                 )
                 
+                # IMPORTANT: Increase main Workowanie plan tonaz_rzeczywisty (realizacja)
+                # Find the main Workowanie plan (not buffer) for this product/date
+                cursor.execute(
+                    "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s AND status IN ('zaplanowane', 'w toku') ORDER BY id ASC LIMIT 1",
+                    (data_planu, produkt, typ)
+                )
+                main_plan = cursor.fetchone()
+                if main_plan:
+                    main_plan_id = main_plan[0]
+                    cursor.execute(
+                        "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
+                        (tonaz, main_plan_id)
+                    )
+                    try:
+                        current_app.logger.info(f'[DODAJ_PLAN] Added paleta to main Workowanie plan {main_plan_id}, tonaz_rzeczywisty += {tonaz}')
+                    except Exception:
+                        pass
+                
                 conn.commit()
                 conn.close()
                 return redirect(bezpieczny_powrot())
