@@ -47,6 +47,13 @@ def create_app(config_secret_key=None, init_db=True):
     # Configure with secret key
     app.secret_key = config_secret_key or SECRET_KEY
     
+    # Configure session to ensure cookies are properly set
+    from datetime import timedelta
+    app.config['SESSION_COOKIE_SECURE'] = False  # Allow HTTP in development
+    app.config['SESSION_COOKIE_HTTPONLY'] = True  # Don't allow JS access
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cross-site requests
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+    
     # Set up logging and error handlers BEFORE any routes or blueprints
     setup_logging(app)
     register_error_handlers(app)

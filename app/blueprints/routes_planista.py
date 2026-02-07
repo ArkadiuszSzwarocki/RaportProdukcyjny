@@ -164,9 +164,13 @@ def panel_planisty():
 @planista_bp.route('/bufor', methods=['GET'])
 @roles_required('planista', 'zarzad', 'lider', 'admin', 'laboratorium')
 def bufor_page():
+    from flask import current_app
+    app_logger = current_app.logger
+    app_logger.info(f"[BUFOR] bufor_page() called")
     conn = get_db_connection()
     cursor = conn.cursor()
     wybrana_data = request.args.get('data', str(date.today()))
+    app_logger.info(f"[BUFOR] Starting bufor_page for date {wybrana_data}")
     try:
         # Show orders only from selected day - filtered by data_planu
         cursor.execute("""
@@ -177,7 +181,6 @@ def bufor_page():
                         ORDER BY COALESCE(real_start, data_planu) DESC
         """, (wybrana_data,))
         historyczne_zasypy = cursor.fetchall()
-        from app.services.logger import app_logger
         app_logger.info(f"Bufor query for date {wybrana_data}: found {len(historyczne_zasypy)} Zasyp orders")
         bufor_list = []
         for hz in historyczne_zasypy:
@@ -214,7 +217,8 @@ def bufor_page():
                     'real_start': h_real_start,
                     'start_time': start_time
                 })
-    except Exception:
+    except Exception as e:
+        app_logger.error(f"ERROR in bufor_page for date {wybrana_data}: {type(e).__name__}: {str(e)}", exc_info=True)
         bufor_list = []
     finally:
         conn.close()

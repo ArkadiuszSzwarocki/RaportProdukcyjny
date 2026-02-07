@@ -34,6 +34,8 @@ def login():
         if row:
             uid, hashed, rola, pracownik_id = row[0], row[1], row[2], row[3]
             if hashed and check_password_hash(hashed, password_field):
+                # Must set permanent=True to ensure session cookie is saved
+                session.permanent = True
                 session['zalogowany'] = True
                 # Normalize role to lowercase to avoid case-sensitivity issues in templates
                 session['rola'] = (rola or '').lower()
