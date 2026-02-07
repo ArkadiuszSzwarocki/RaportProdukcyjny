@@ -3,9 +3,9 @@
 {% block content %}
 <h2>📥 {{ _('dodawanie_zlecen') }}</h2>
 <form id="bulkForm" method="post" action="#">
-  <div class="bulk-controls">
-    <label>Data planu: <input type="date" id="data_planu" value="{{ wybrana_data }}"></label>
-    <label>Sekcja: 
+  <div class="d-flex gap-10 m-10">
+    <label style="flex: 0 0 auto;">Data planu: <input type="date" id="data_planu" value="{{ wybrana_data }}"></label>
+    <label style="flex: 0 0 auto;">Sekcja: 
       <select id="sekcja_select">
         <option>{{ _('zasyp') }}</option>
         <option>{{ _('workowanie') }}</option>
@@ -28,7 +28,11 @@
     <button type="button" id="btnAddRow" class="btn-action">Dodaj do listy</button>
   </div>
 
-  <table class="modern-table" id="bulkTable">
+  <div id="emptyState" style="text-align: center; padding: 40px; color: #999; font-size: 16px;">
+    Brak planów - dodaj plany używając formularza powyżej
+  </div>
+
+  <table class="modern-table" id="bulkTable" style="display: none;">
     <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('nr_receptury') }}</th><th>{{ _('waga_kg_symbol') }}</th><th>{{ _('typ') }}</th><th></th></tr></thead>
     <tbody></tbody>
   </table>
@@ -42,6 +46,20 @@
 <script>
 (function(){
   const tbody = document.querySelector('#bulkTable tbody');
+  const bulkTable = document.querySelector('#bulkTable');
+  const emptyState = document.querySelector('#emptyState');
+
+  function updateTableVisibility(){
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if(rows.length === 0){
+      bulkTable.style.display = 'none';
+      emptyState.style.display = 'block';
+    } else {
+      bulkTable.style.display = 'table';
+      emptyState.style.display = 'none';
+    }
+  }
+
   const addRow = () => {
     const produkt = document.getElementById('inpProdukt').value.trim();
     const nr = document.getElementById('inpNr').value.trim();
@@ -56,10 +74,17 @@
     tr.dataset.produkt = produkt; tr.dataset.nr = nr; tr.dataset.tonaz = tonaz; tr.dataset.typ = typ;
     tbody.appendChild(tr);
     document.getElementById('inpProdukt').value=''; document.getElementById('inpNr').value=''; document.getElementById('inpTonaz').value='';
+    updateTableVisibility();
     updateSubmitState();
   };
   document.getElementById('btnAddRow').addEventListener('click', addRow);
-  tbody.addEventListener('click', function(e){ if(e.target.classList.contains('delete-button')){ e.target.closest('tr').remove(); updateSubmitState(); } });
+  tbody.addEventListener('click', function(e){ 
+    if(e.target.classList.contains('delete-button')){ 
+      e.target.closest('tr').remove(); 
+      updateTableVisibility();
+      updateSubmitState(); 
+    } 
+  });
 
   const submitBtn = document.getElementById('btnSubmitBatch');
 
@@ -101,6 +126,9 @@
       }
     }).catch(e=>{ console.error(e); alert('Błąd sieci'); });
   });
+
+  // Initial state
+  updateTableVisibility();
 })();
 </script>
 
