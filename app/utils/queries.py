@@ -2,7 +2,7 @@
 Database query helpers - centralized SQL queries to DRY the codebase.
 All queries use parameterized statements with %s placeholders.
 """
-from db import get_db_connection
+from app.db import get_db_connection
 from datetime import date, datetime, timedelta
 
 

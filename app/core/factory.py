@@ -24,7 +24,9 @@ from app.blueprints.routes_testing import testing_bp
 from app.blueprints.routes_recovery import recovery_bp
 from app.blueprints.routes_zarzad import zarzad_bp
 from app.blueprints.routes_compat import compat_bp
+from app.blueprints.routes_main import main_bp
 from app import db
+from app.core.middleware import register_middleware
 
 
 def create_app(config_secret_key=None, init_db=True):
@@ -50,8 +52,12 @@ def create_app(config_secret_key=None, init_db=True):
     # Add Jinja2 extensions
     app.jinja_env.add_extension('jinja2.ext.do')
     
+    # Register middleware (request/response processing)
+    register_middleware(app)
+    
     # Register blueprints
     app.register_blueprint(auth_bp)
+    app.register_blueprint(main_bp)
     app.register_blueprint(quality_bp)
     app.register_blueprint(shifts_bp)
     app.register_blueprint(panels_bp)
