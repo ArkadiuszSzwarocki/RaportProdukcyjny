@@ -242,8 +242,17 @@ def dodaj_plan():
                     "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
                     (tonaz, zasyp_plan_id)
                 )
+                
+                # Get updated tonaz_rzeczywisty from Zasyp plan
+                cursor.execute(
+                    "SELECT COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji WHERE id=%s",
+                    (zasyp_plan_id,)
+                )
+                result = cursor.fetchone()
+                zasyp_tonaz_rzeczywisty = result[0] if result else 0
+                
                 try:
-                    current_app.logger.warning(f'[DODAJ_PLAN] Added szarża to plan {zasyp_plan_id}')
+                    current_app.logger.warning(f'[DODAJ_PLAN] Added szarża to plan {zasyp_plan_id}, tonaz_rzeczywisty={zasyp_tonaz_rzeczywisty}')
                 except Exception:
                     pass
                 
@@ -263,21 +272,21 @@ def dodaj_plan():
                     
                     cursor.execute(
                         "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                        (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
+                        (data_planu, produkt, zasyp_tonaz_rzeczywisty, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
                     )
                     try:
-                        current_app.logger.info(f'[DODAJ_PLAN] Created new Workowanie plan for produkt={produkt} when first szarża added')
+                        current_app.logger.info(f'[DODAJ_PLAN] Created new Workowanie plan for produkt={produkt} with tonaz={zasyp_tonaz_rzeczywisty}')
                     except Exception:
                         pass
                 else:
-                    # Reset existing Workowanie plan to 'zaplanowane' and update tonaz (keep tonaz_rzeczywisty = waga palet)
+                    # Reset existing Workowanie plan to 'zaplanowane' and update tonaz to match Zasyp tonaz_rzeczywisty
                     cursor.execute(
                         "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s "
                         "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
-                        (tonaz, data_planu, produkt, typ)
+                        (zasyp_tonaz_rzeczywisty, data_planu, produkt, typ)
                     )
                     try:
-                        current_app.logger.info(f'[DODAJ_PLAN] Reset existing Workowanie plan status to zaplanowane for produkt={produkt}')
+                        current_app.logger.info(f'[DODAJ_PLAN] Reset existing Workowanie plan with tonaz={zasyp_tonaz_rzeczywisty}')
                     except Exception:
                         pass
                 
@@ -413,7 +422,7 @@ def dodaj_plany_batch():
                 nk += 1  # Increase sequence for Workowanie
                 cursor.execute(
                     "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk, typ, 0)
+                    (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk, typ, 0)
                 )
         conn.commit()
     except Exception as e:
@@ -792,12 +801,12 @@ def jakosc_dodaj_do_planow(id):
     cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk, typ, 0))
     zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
     
-    # NEW: Create corresponding Workowanie automatically
+    # NEW: Create corresponding Workowanie automatically with tonaz from Zasyp
     if zasyp_plan_id:
         nk_work = nk + 1
         cursor.execute(
             "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (data_planu, produkt, 0, 'w toku', 'Workowanie', nk_work, typ, 0)
+            (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
         )
     
     conn.commit()
