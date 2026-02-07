@@ -39,8 +39,9 @@ def create_app(config_secret_key=None, init_db=True):
     Returns:
         Configured Flask application instance
     """
-    # Create Flask app
-    app = Flask(__name__)
+    # Create Flask app with explicit template folder path (absolute path from project root)
+    template_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'templates')
+    app = Flask(__name__, template_folder=template_folder)
     
     # Configure with secret key
     app.secret_key = config_secret_key or SECRET_KEY
