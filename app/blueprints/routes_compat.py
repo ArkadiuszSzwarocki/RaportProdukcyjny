@@ -1,11 +1,45 @@
 """Backward compatibility and utility routes for legacy support."""
 
-from flask import Blueprint, redirect, url_for, send_from_directory
+from flask import Blueprint, redirect, url_for, send_from_directory, jsonify, current_app
 from app.decorators import login_required
 from app.blueprints.routes_planning import dodaj_plan_zaawansowany, dodaj_plan, usun_plan
 import os
+from datetime import datetime
 
 compat_bp = Blueprint('compat', __name__)
+
+
+# --- Health Check Endpoint ---
+
+@compat_bp.route('/health', methods=['GET'])
+@compat_bp.route('/.health', methods=['GET'])
+def health_check():
+    """
+    Health check endpoint for container orchestration (Docker, Kubernetes).
+    Returns JSON status for load balancers and orchestration platforms.
+    """
+    try:
+        from app.db import get_db_connection
+        # Try to establish database connection
+        conn = get_db_connection()
+        if conn:
+            conn.close()
+            db_status = "healthy"
+        else:
+            db_status = "unhealthy"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+
+    health_data = {
+        "status": "ok" if db_status == "healthy" else "degraded",
+        "timestamp": datetime.now().isoformat(),
+        "service": "raportprodukcyjny",
+        "db": db_status,
+        "version": current_app.config.get("VERSION", "unknown")
+    }
+    
+    status_code = 200 if db_status == "healthy" else 503
+    return jsonify(health_data), status_code
 
 
 # --- Backward-compatible aliases for forms that post to root paths ---

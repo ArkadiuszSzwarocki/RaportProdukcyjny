@@ -1,6 +1,43 @@
+# Version control
 .git
+.gitignore
+
+# Python environments
 .venv
-__pycache__
-*.bat
-*.log
+env/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Environment files
 .env
+.env.*
+
+# IDE/Editor files
+.vscode
+.idea
+*.swp
+*.swo
+
+# Test and build artifacts
+.pytest_cache
+.coverage
+htmlcov/
+dist/
+build/
+tests/
+
+# Application specific
+*.bat
+*.log*
+raporty/
+logs/
+scripts/legacy/
+.tmp
+
+# Node modules (if applicable)
+node_modules/

@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: raportprodukcyjny
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: raportprodukcyjny
+data:
+  FLASK_ENV: "production"
+  TZ: "Europe/Warsaw"
+  DB_HOST: "mysql-service"
+  DB_PORT: "3306"
+  DB_NAME: "raportprodukcyjny"
+  PORT: "8082"
+  HOST: "0.0.0.0"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: raportprodukcyjny
+type: Opaque
+stringData:
+  SECRET_KEY: "change-me-in-production"
+  DB_USER: "raportprodukcyjny"
+  DB_PASSWORD: "change-me-password"
+  INITIAL_ADMIN_PASSWORD: "change-me-admin"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: raportprodukcyjny
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-logs-pvc
+  namespace: raportprodukcyjny
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-raporty-pvc
+  namespace: raportprodukcyjny
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
