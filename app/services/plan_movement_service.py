@@ -77,16 +77,17 @@ class PlanMovementService:
         
         Args:
             plan_id: ID of plan to shift
-            kierunek: Direction ('up'/'w_gore' or 'down'/'w_dol')
+            kierunek: Direction ('up'/'w_gore'/'gora' or 'down'/'w_dol'/'dol')
             
         Returns:
             Tuple (success: bool, message: str)
         """
         try:
-            if kierunek not in ['up', 'w_gore', 'down', 'w_dol']:
+            # Normalize kierunek - accept 'gora'/'dol' from frontend too
+            if kierunek not in ['up', 'w_gore', 'gora', 'down', 'w_dol', 'dol']:
                 return (False, f'Niepoprawny kierunek: {kierunek}')
             
-            is_up = kierunek in ['up', 'w_gore']
+            is_up = kierunek in ['up', 'w_gore', 'gora']
             
             conn = get_db_connection()
             cursor = conn.cursor()
