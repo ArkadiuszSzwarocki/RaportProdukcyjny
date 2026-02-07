@@ -312,11 +312,11 @@ def dodaj_plan():
         except Exception:
             pass
         
-        # Create corresponding Workowanie in status 'w toku'
+        # Create corresponding Workowanie in status 'zaplanowane' (do not start automatically)
         nk_work = nk + 1  # Sequence for Workowanie
         cursor.execute(
             "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (data_planu, produkt, 0, 'w toku', 'Workowanie', nk_work, typ, 0)
+            (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
         )
     
     conn.commit()
