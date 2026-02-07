@@ -23,9 +23,15 @@ from decorators import login_required, zarzad_required, roles_required
 from utils.queries import QueryHelper
 from core.contexts import register_contexts
 from core.daemon import start_daemon_threads
+from core.error_handlers import setup_logging, register_error_handlers
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+
+# Set up logging and error handlers early
+setup_logging(app)
+register_error_handlers(app)
+
 app.jinja_env.add_extension('jinja2.ext.do')
 
 app.register_blueprint(admin_bp)
@@ -114,70 +120,6 @@ def _well_known_devtools():
 @app.route('/.well-known/<path:subpath>')
 def _well_known_generic(subpath):
     return ('', 204)
-
-# Logging: zapisz pełne błędy do pliku logs/app.log
-logs_dir = os.path.join(os.path.dirname(__file__), 'logs')
-if not os.path.exists(logs_dir):
-    os.makedirs(logs_dir)
-log_path = os.path.join(logs_dir, 'app.log')
-handler = RotatingFileHandler(log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8')
-handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s %(levelname)s [pid=%(process)d]: %(message)s [in %(pathname)s:%(lineno)d]')
-handler.setFormatter(formatter)
-app.logger.setLevel(logging.DEBUG)
-app.logger.addHandler(handler)
-logging.getLogger('werkzeug').addHandler(handler)
-
-# Filter noisy 404/405 errors for known probe paths to reduce log spam
-class NoiseFilter(logging.Filter):
-    def filter(self, record):
-        try:
-            msg = record.getMessage()
-        except Exception:
-            return True
-        # If it's an ERROR about Not Found / Method Not Allowed, but for benign paths,
-        # suppress it (return False => drop record).
-        if record.levelno >= logging.ERROR and (
-            ('404 Not Found' in msg or '405 Method Not Allowed' in msg)
-        ):
-            # known noisy probes or static assets
-            noisy_paths = ['/favicon.ico', '/.well-known/', '/.well-known/appspecific/', '/static/']
-            for p in noisy_paths:
-                if p in msg:
-                    return False
-        return True
-
-# Attach filter to the main file handler and werkzeug
-noise_filter = NoiseFilter()
-handler.addFilter(noise_filter)
-logging.getLogger('werkzeug').addFilter(noise_filter)
-
-# Logger dedykowany dla palet (przypomnienia)
-palety_logger = logging.getLogger('palety_logger')
-palety_logger.setLevel(logging.INFO)
-palety_log_path = os.path.join(logs_dir, 'palety.log')
-palety_handler = RotatingFileHandler(palety_log_path, maxBytes=2 * 1024 * 1024, backupCount=3, encoding='utf-8')
-palety_handler.setLevel(logging.INFO)
-palety_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
-palety_handler.setFormatter(palety_formatter)
-if not palety_logger.handlers:
-    palety_logger.addHandler(palety_handler)
-
-
-@app.errorhandler(Exception)
-def handle_unexpected_error(error):
-    # Zarejestruj pełen traceback w logu i zwróć przyjazny komunikat użytkownikowi
-    try:
-        from flask import request
-        error_msg = f"{error.__class__.__name__}: {str(error)}"
-        app.logger.exception('Unhandled exception on %s %s: %s', request.method, request.path, error_msg)
-        flash(f'❌ Błąd: {str(error)}', 'danger')
-    except Exception as e:
-        app.logger.exception('Error in error handler: %s', e)
-    # Zwróć 500 z szablonem
-    response = render_template('500.html')
-    return response, 500
-
 
 
 @app.before_request
