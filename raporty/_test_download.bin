@@ -9,7 +9,7 @@
     <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
     <meta name="msapplication-TileColor" content="#ffffff">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css?v=1770463675">
+    <link rel="stylesheet" href="/static/css/style.css?v=1770465690">
 </head>
 <body>
 
@@ -226,10 +226,18 @@
         </main>
     </div>
 
-    <script src="/static/js/toasts.js?v=1770463675"></script>
-    <script src="/static/scripts.js?v=1770463675"></script>
-    <script src="/static/quick_debug.js?v=1770463675"></script>
+    <script src="/static/js/toasts.js?v=1770465690"></script>
+    <script src="/static/scripts.js?v=1770465690"></script>
+    <script src="/static/quick_debug.js?v=1770465690"></script>
     <script>
+        // Ensure language menu is always closed on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const menu = document.getElementById('languageMenu');
+            if(menu) {
+                menu.style.display = 'none';
+            }
+        });
+        
         function handleLogoError(img){
             try{
                 if(img.src.indexOf('agro_logo.png') !== -1){
