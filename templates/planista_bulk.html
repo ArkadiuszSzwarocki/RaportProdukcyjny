@@ -1,15 +1,40 @@
 {% extends 'layout.html' %}
 
 {% block content %}
+<style>
+  .bulk-header-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  
+  .bulk-header-controls label {
+    white-space: nowrap;
+  }
+  
+  #emptyState {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+    font-size: 16px;
+  }
+  
+  #bulkTable {
+    display: none;
+  }
+</style>
+
 <h2>📥 {{ _('dodawanie_zlecen') }}</h2>
 <form id="bulkForm" method="post" action="#">
-  <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
-    <label style="white-space: nowrap;">Data planu: <input type="date" id="data_planu" value="{{ wybrana_data }}"></label>
-    <label style="white-space: nowrap;">Sekcja: 
+  <div class="bulk-header-controls">
+    <label>Data planu: <input type="date" id="data_planu" value="{{ wybrana_data }}"></label>
+    <label>Sekcja: 
       <select id="sekcja_select">
-        <option value="Zasyp">{{ _('zasyp') }}</option>
-        <option value="Workowanie">{{ _('workowanie') }}</option>
-        <option value="Magazyn">{{ _('magazyn') }}</option>
+        <option value="Zasyp">Zasyp</option>
+        <option value="Workowanie">Workowanie</option>
+        <option value="Magazyn">Magazyn</option>
       </select>
     </label>
   </div>
@@ -28,11 +53,11 @@
     <button type="button" id="btnAddRow" class="btn-action">Dodaj do listy</button>
   </div>
 
-  <div id="emptyState" style="text-align: center; padding: 40px; color: #999; font-size: 16px;">
+  <div id="emptyState">
     Brak planów - dodaj plany używając formularza powyżej
   </div>
 
-  <table class="modern-table" id="bulkTable" style="display: none;">
+  <table class="modern-table" id="bulkTable">
     <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('nr_receptury') }}</th><th>{{ _('waga_kg_symbol') }}</th><th>{{ _('typ') }}</th><th></th></tr></thead>
     <tbody></tbody>
   </table>
