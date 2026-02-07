@@ -365,3 +365,40 @@ def get_deleted_plans(date):
         current_app.logger.exception('Failed to get deleted plans for %s', date)
         return jsonify({'success': False, 'message': str(e)}), 500
 
+
+@api_bp.route('/szarza_details/<int:plan_id>', methods=['GET'])
+@login_required
+def get_szarza_details(plan_id: int):
+    """Get szarża details (time + weight) for a specific plan.
+    
+    Returns JSON list: [{'time': 'HH:MM', 'weight': kg}, ...]
+    """
+    from app.services.dashboard_service import DashboardService
+    from datetime import date
+    
+    try:
+        dzisiaj = date.today()
+        details = DashboardService.get_szarza_details_for_plan(plan_id, dzisiaj)
+        return jsonify({'success': True, 'details': details}), 200
+    except Exception as e:
+        current_app.logger.exception('Failed to get szarża details for plan %d', plan_id)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_bp.route('/paleta_details/<int:plan_id>', methods=['GET'])
+@login_required
+def get_paleta_details(plan_id: int):
+    """Get paleta details (time + weight) for a specific plan.
+    
+    Returns JSON list: [{'time': 'HH:MM', 'weight': kg}, ...]
+    """
+    from app.services.dashboard_service import DashboardService
+    from datetime import date
+    
+    try:
+        dzisiaj = date.today()
+        details = DashboardService.get_paleta_details_for_plan(plan_id, dzisiaj)
+        return jsonify({'success': True, 'details': details}), 200
+    except Exception as e:
+        current_app.logger.exception('Failed to get paleta details for plan %d', plan_id)
+        return jsonify({'success': False, 'message': str(e)}), 500

@@ -5,29 +5,6 @@
         {% do aktywne.append(p) %}
     {% endfor %}
 
-    <!-- STATYSTYKI PALET WYKONANYCH -->
-    {% if workowanie_stats and (workowanie_stats.total > 0 or workowanie_stats.details|length > 0) %}
-    <div class="stats-box mb-20" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <h3 class="m-0 mb-10" style="font-size: 1.2em;">📦 Palety Wykonanych</h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
-            {% if workowanie_stats.details %}
-                {% for item in workowanie_stats.details %}
-                <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px; backdrop-filter: blur(10px);">
-                    <div style="font-size: 0.85em; opacity: 0.9;">{{ item.product }} <strong>{{ item.weight }} kg</strong></div>
-                    <div style="font-size: 1.8em; font-weight: bold;">{{ item.count }} szt.</div>
-                    <div style="font-size: 0.8em; opacity: 0.8;">∑ {{ item.total_waga|int }} kg</div>
-                </div>
-                {% endfor %}
-            {% endif %}
-            <div style="background: rgba(255,255,255,0.2); padding: 12px; border-radius: 6px; border: 2px solid rgba(255,255,255,0.5);">
-                <div style="font-size: 0.85em; opacity: 0.9;">RAZEM</div>
-                <div style="font-size: 2em; font-weight: bold;">{{ workowanie_stats.total }} szt.</div>
-                <div style="font-size: 0.9em; font-weight: 600;">{{ workowanie_stats.total_weight|int }} kg</div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
     {% if aktywne %}
         {% for p in aktywne %}
         <div class="plan-box">
@@ -127,7 +104,10 @@
                 {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">{{ _('zamkniete') }}</span>{% endif %}
                 
                     <span class="font-bold">{{ p[1] }}</span> ({{ p[2]|int }} kg)
-                    {% if p[3] == 'zakonczone' %} - {{ _('wyk') }}: <strong>{{ p[7]|int }} kg</strong>{% endif %}
+                    {% if p[3] == 'zakonczone' %} 
+                        - {{ _('wyk') }}: <strong>{{ p[7]|int }} kg</strong>
+                        <button type="button" class="btn-paleta-details" data-plan-id="{{ p[0] }}" style="display: inline-block; margin-left: 10px; padding: 4px 8px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em;">📦 <span class="paleta-count">0</span> palet</button>
+                    {% endif %}
             </div>
             
             <div>
@@ -260,6 +240,53 @@ function confirmMoveWork(){
         }).catch(function(){ alert('Błąd sieci'); });
 }
 
+// Paleta details toggle
+document.querySelectorAll('.btn-paleta-details').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const planId = this.getAttribute('data-plan-id');
+        const countSpan = this.querySelector('.paleta-count');
+        const nextDiv = this.parentElement.querySelector(`[data-paleta-details-${planId}]`);
+        
+        // If already showing, toggle it
+        if (nextDiv && nextDiv.style.display !== 'none') {
+            nextDiv.style.display = 'none';
+            return;
+        }
+        
+        // Fetch data from API
+        fetch(`/api/paleta_details/${planId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.details && data.details.length > 0) {
+                    countSpan.textContent = data.details.length;
+                    
+                    // Create or update details div
+                    let detailsDiv = this.parentElement.querySelector(`[data-paleta-details-${planId}]`);
+                    if (!detailsDiv) {
+                        detailsDiv = document.createElement('div');
+                        detailsDiv.setAttribute(`data-paleta-details-${planId}`, '');
+                        this.parentElement.appendChild(detailsDiv);
+                    }
+                    
+                    detailsDiv.style.marginTop = '10px';
+                    detailsDiv.style.padding = '10px';
+                    detailsDiv.style.background = '#e3f2fd';
+                    detailsDiv.style.borderLeft = '3px solid #2196F3';
+                    detailsDiv.style.borderRadius = '4px';
+                    
+                    let html = '<strong>Palety wykonane:</strong><br><small>';
+                    data.details.forEach((item, idx) => {
+                        html += `${idx + 1}. ${item.time} - ${item.weight} kg<br>`;
+                    });
+                    html += '</small>';
+                    detailsDiv.innerHTML = html;
+                    detailsDiv.style.display = 'block';
+                }
+            })
+            .catch(err => console.error('Error fetching paleta details:', err));
+    });
+});
 // Załaduj przy starcie
 loadDeletedOrders();
 </script>

@@ -495,7 +495,84 @@ class DashboardService:
         return kandydaci[0][0] if kandydaci else None
 
     @staticmethod
-    def get_zasyp_statistics(dzisiaj: date) -> Dict[str, Any]:
+    def get_szarza_details_for_plan(plan_id: int, dzisiaj: date) -> List[Dict[str, Any]]:
+        """Get szarża details (execution time + weight) for a specific plan.
+        
+        Returns list of dicts: {'time': 'HH:MM', 'weight': kg}
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                """SELECT s.data_dodania, s.tonaz, s.typ_produkcji
+                   FROM szarze s
+                   WHERE s.plan_id = %s 
+                   AND DATE(s.data_dodania) = %s
+                   AND s.status = 'zakonczena'
+                   ORDER BY s.data_dodania ASC""",
+                (plan_id, dzisiaj)
+            )
+            
+            result = []
+            for row in cursor.fetchall():
+                dt = row[0]
+                tonaz = row[1]
+                try:
+                    time_str = dt.strftime('%H:%M') if hasattr(dt, 'strftime') else str(dt)
+                except Exception:
+                    time_str = str(dt)
+                
+                result.append({
+                    'time': time_str,
+                    'weight': tonaz if tonaz else 0,
+                })
+            
+            cursor.close()
+            conn.close()
+            return result
+        except Exception:
+            return []
+
+    @staticmethod
+    def get_paleta_details_for_plan(plan_id: int, dzisiaj: date) -> List[Dict[str, Any]]:
+        """Get paleta details (execution time + weight) for a specific plan.
+        
+        Returns list of dicts: {'time': 'HH:MM', 'weight': kg}
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                """SELECT pw.data_dodania, pw.waga
+                   FROM palety_workowanie pw
+                   WHERE pw.plan_id = %s 
+                   AND DATE(pw.data_dodania) = %s
+                   AND pw.status IN ('w magazynie', 'zatwierdzona')
+                   ORDER BY pw.data_dodania ASC""",
+                (plan_id, dzisiaj)
+            )
+            
+            result = []
+            for row in cursor.fetchall():
+                dt = row[0]
+                waga = row[1]
+                try:
+                    time_str = dt.strftime('%H:%M') if hasattr(dt, 'strftime') else str(dt)
+                except Exception:
+                    time_str = str(dt)
+                
+                result.append({
+                    'time': time_str,
+                    'weight': waga if waga else 0,
+                })
+            
+            cursor.close()
+            conn.close()
+            return result
+        except Exception:
+            return []
         """Get Zasyp statistics: completed szarżas by product type.
         
         Returns:

@@ -101,10 +101,6 @@ def index() -> str:
     # Get zasyp started products
     zasyp_rozpoczete = DashboardService.get_zasyp_started_products(dzisiaj)
     
-    # Get statistics for Zasyp and Workowanie
-    zasyp_stats = DashboardService.get_zasyp_statistics(dzisiaj)
-    workowanie_stats = DashboardService.get_workowanie_statistics(dzisiaj)
-    
     # Get HR and leave data
     hr_data = DashboardService.get_hr_and_leave_data(dzisiaj, wszyscy, zajeci_ids)
     
@@ -148,8 +144,6 @@ def index() -> str:
         'shift_notes': shift_notes,
         'plans_zasyp': plans_zasyp,
         'plans_workowanie': plans_workowanie,
-        'zasyp_stats': zasyp_stats,
-        'workowanie_stats': workowanie_stats,
         'buffer_map': {},  # Placeholder for buffer_map
     }
     
