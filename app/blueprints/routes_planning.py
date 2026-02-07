@@ -815,3 +815,67 @@ def jakosc_dodaj_do_planow(id):
     return redirect(bezpieczny_powrot())
 
 
+@planning_bp.route('/zapisz_tonaz/<int:id>', methods=['POST'])
+@roles_required('lider', 'admin', 'produkcja')
+def zapisz_tonaz(id):
+    """Update tonaz_rzeczywisty for Zasyp plan and sync tonaz to Workowanie."""
+    data_powrotu = request.form.get('data_powrotu') or str(date.today())
+    
+    try:
+        tonaz_rzeczywisty = float(request.form.get('tonaz_rzeczywisty', 0))
+    except Exception:
+        tonaz_rzeczywisty = 0
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Get Zasyp plan details (data_planu, produkt, typ_produkcji)
+        cursor.execute(
+            "SELECT data_planu, produkt, COALESCE(typ_produkcji, '') FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'",
+            (id,)
+        )
+        zasyp_row = cursor.fetchone()
+        
+        if not zasyp_row:
+            conn.close()
+            flash('Plan nie znaleziony', 'error')
+            return redirect(url_for('panels.dashboard_page', data=data_powrotu))
+        
+        data_planu, produkt, typ = zasyp_row[0], zasyp_row[1], zasyp_row[2]
+        
+        # Update Zasyp plan tonaz_rzeczywisty
+        cursor.execute(
+            "UPDATE plan_produkcji SET tonaz_rzeczywisty=%s WHERE id=%s",
+            (tonaz_rzeczywisty, id)
+        )
+        
+        # Find and update corresponding Workowanie plan
+        cursor.execute(
+            "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
+            (data_planu, produkt, typ)
+        )
+        workowanie_row = cursor.fetchone()
+        
+        if workowanie_row:
+            # Update Workowanie tonaz to match Zasyp tonaz_rzeczywisty
+            cursor.execute(
+                "UPDATE plan_produkcji SET tonaz=%s WHERE id=%s",
+                (tonaz_rzeczywisty, workowanie_row[0])
+            )
+        
+        conn.commit()
+        conn.close()
+        flash('Tonąż zaaktualizowany', 'success')
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        conn.close()
+        current_app.logger.exception('Error updating tonaz: %s', e)
+        flash('Błąd przy zapisie tonażu', 'error')
+    
+    return redirect(url_for('panels.dashboard_page', data=data_powrotu))
+
+
