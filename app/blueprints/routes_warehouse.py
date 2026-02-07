@@ -284,7 +284,7 @@ def potwierdz_palete(paleta_id):
     return redirect(bezpieczny_powrot())
 
 
-@warehouse_bp.route('/bufor', methods=['GET'])
+@warehouse_bp.route('/api/bufor', methods=['GET'])
 def api_bufor():
     """Public API returning bufor entries as JSON"""
     from datetime import date as _date
