@@ -1,2 +1,0 @@
-[2026-02-04 21:23:56,723] INFO in app: [OK] Auto-confirm palety daemon started (threshold=2 min)
-[2026-02-04 21:23:56,737] INFO in app: Starting server (pid=12984) host=0.0.0.0 port=8082
