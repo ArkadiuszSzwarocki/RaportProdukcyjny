@@ -1,20 +1,58 @@
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, current_app
 from app.db import get_db_connection
 from app.dto.paleta import PaletaDTO
 from datetime import date
 from app.decorators import roles_required
+import json
+import os
 
 planista_bp = Blueprint('planista', __name__)
 
-# --- KONFIGURACJA NORM (KG NA GODZINĘ) ---
-# Tutaj możesz dostosować prędkość maszyny dla różnych typów opakowań
-NORMY_KG_H = {
-    'worki_zgrzewane_25': 3500,  # worki zgrzewane 25 kg
-    'worki_zgrzewane_20': 3500,  # worki zgrzewane 20 kg (można dopasować)
-    'worki_zszywane_25': 2500,   # worki zszywane 25 kg
-    'worki_zszywane_20': 2500,   # worki zszywane 20 kg
-    'bigbag': 5000,              # BigBag
-}
+def get_processing_times_config():
+    """Load workowanie processing times from config JSON file."""
+    try:
+        cfg_path = os.path.join(current_app.root_path, 'config', 'workowanie_processing_times.json')
+        if not os.path.exists(cfg_path):
+            # Skip if config doesn't exist - will use fallback
+            return None
+        with open(cfg_path, 'r') as f:
+            data = json.load(f)
+        return data.get('processing_times_minutes', {})
+    except Exception as e:
+        current_app.logger.error(f'Error loading processing times config: {e}')
+        return None
+
+def calculate_kg_per_hour(product_type: str) -> int:
+    """
+    Calculate kg/hour from config file.
+    Config file stores: processing_time_minutes (1000kg per X minutes)
+    We need to convert to kg/hour for calculation: (1000 / minutes) * 60 = kg/hour
+    """
+    config = get_processing_times_config()
+    
+    # Fallback hardcoded normas if config not available
+    FALLBACK_NORMY_KG_H = {
+        'worki_zgrzewane_25': 3000,  # 1000kg in 20 min = 3000kg/h
+        'worki_zgrzewane_20': 3000,  # 1000kg in 20 min = 3000kg/h
+        'worki_zszywane_25': 2000,   # 1000kg in 30 min = 2000kg/h
+        'worki_zszywane_20': 2000,   # 1000kg in 30 min = 2000kg/h
+        'bigbag': 4000,              # 1000kg in 15 min = 4000kg/h
+    }
+    
+    if config is None:
+        return FALLBACK_NORMY_KG_H.get(product_type, 3000)
+    
+    # Get config for this product type
+    product_config = config.get(product_type, {})
+    if not product_config:
+        return FALLBACK_NORMY_KG_H.get(product_type, 3000)
+    
+    minutes = product_config.get('processing_time_minutes', 20)
+    kg_per_1000 = product_config.get('weight_kg', 1000)
+    
+    # Convert: if 1000kg takes X minutes, then kg/hour = (1000 / X) * 60
+    kg_per_hour = int((kg_per_1000 / minutes) * 60) if minutes > 0 else 3000
+    return kg_per_hour
 
 @planista_bp.route('/planista', methods=['GET', 'POST'])
 @roles_required('planista', 'zarzad', 'lider', 'admin', 'laboratorium')
@@ -47,7 +85,7 @@ def panel_planisty():
         typ_prod = p[9]
         
         # 1. OBLICZANIE CZASU (Waga / Norma * 60 min)
-        norma = NORMY_KG_H.get(typ_prod, 3000) # Domyślnie 3000 jeśli nieznany typ
+        norma = calculate_kg_per_hour(typ_prod)  # Load from config JSON
         czas_trwania_min = int((waga_plan / norma) * 60)
         
         # Dodajemy obliczony czas do listy p (index 11)
