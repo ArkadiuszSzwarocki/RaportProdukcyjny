@@ -1,6 +1,7 @@
 """Main application routes: dashboard index, shift closing, reports."""
 
-from flask import Blueprint, render_template, request, redirect, url_for, session, send_file, jsonify
+from typing import Tuple, Dict, Any, Optional, Union
+from flask import Blueprint, render_template, request, redirect, url_for, session, send_file, jsonify, Response
 from datetime import date, datetime, timedelta
 import json
 import os
@@ -19,10 +20,13 @@ main_bp = Blueprint('main', __name__)
 
 
 @main_bp.route('/debug/modal-move', methods=['POST'])
-def debug_modal_move():
+def debug_modal_move() -> Tuple[str, int]:
     """Log modal-move debug data from client (AJAX).
     
     This endpoint accepts JSON payloads from the UI for debugging modal drag/drop behavior.
+    
+    Returns:
+        Tuple[str, int]: Empty response with 204 No Content status
     """
     from flask import current_app
     app = current_app
@@ -43,11 +47,14 @@ def debug_modal_move():
 
 @main_bp.route('/')
 @login_required
-def index():
+def index() -> str:
     """Main dashboard: displays production plans, palety inventory, absence/leave management.
     
     Supports sections: Dashboard, Zasyp, Workowanie, Magazyn, and others.
     Dynamically loads data based on selected sekcja and date parameters.
+    
+    Returns:
+        str: Rendered HTML template with dashboard data
     """
     from flask import current_app
     app = current_app
@@ -452,20 +459,23 @@ def index():
 
 @main_bp.route('/zamknij_zmiane', methods=['GET'])
 @roles_required('lider', 'admin')
-def zamknij_zmiane_get():
+def zamknij_zmiane_get() -> Response:
     """Redirect GET requests on shift close endpoint to index."""
     return redirect(url_for('main.index'))
 
 
 @main_bp.route('/zamknij_zmiane', methods=['POST'])
 @roles_required('lider', 'admin')
-def zamknij_zmiane():
+def zamknij_zmiane() -> Union[Response, Tuple[str, int]]:
     """Close current shift (zmiana) and generate final reports.
     
     - Closes all 'w toku' (in progress) production plans
     - Generates Excel and text reports
     - Optionally sends report via Outlook if available
     - Returns ZIP file with generated reports for download
+    
+    Returns:
+        Union[Response, Tuple[str, int]]: Redirect response or ZIP file download
     """
     from flask import current_app
     app = current_app
@@ -520,6 +530,6 @@ def zamknij_zmiane():
 
 
 @main_bp.route('/wyslij_raport_email', methods=['POST'])
-def wyslij_raport_email():
+def wyslij_raport_email() -> Response:
     """Email a generated report (placeholder for future functionality)."""
     return redirect('/')

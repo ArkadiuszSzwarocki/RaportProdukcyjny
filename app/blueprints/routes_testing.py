@@ -1,6 +1,7 @@
 """Test and development endpoints (formerly routes_api.py TEST ENDPOINTS section)."""
 
-from flask import Blueprint, request, jsonify, render_template, send_file, current_app
+from typing import Dict, Any, Tuple, Union
+from flask import Blueprint, request, jsonify, render_template, send_file, current_app, Response
 from flask import current_app as app
 from datetime import datetime, date
 from io import BytesIO
@@ -12,13 +13,13 @@ testing_bp = Blueprint('testing', __name__, url_prefix='/_test')
 
 
 @testing_bp.route('/download-page')
-def test_download_page():
+def test_download_page() -> str:
     """Strona testowa do pobrania raportów"""
     return render_template('test_download.html')
 
 
 @testing_bp.route('/generate-report')
-def test_generate_report():
+def test_generate_report() -> Tuple[Response, int]:
     """Test endpoint - Wygeneruj raport bez pobierania"""
     try:
         data_str = request.args.get('data') or str(date.today())
@@ -74,7 +75,7 @@ def test_generate_report():
 
 
 @testing_bp.route('/download-zip')
-def test_download_zip():
+def test_download_zip() -> Union[Response, Tuple[Response, int]]:
     """Test endpoint - Zwróć prosty ZIP do pobrania"""
     try:
         data_str = request.args.get('data') or str(date.today())
@@ -129,13 +130,13 @@ def test_download_zip():
 # Used to demonstrate and test slide-over and center modal behavior
 
 @testing_bp.route('/slide_test')
-def slide_test():
+def slide_test() -> str:
     """Test page demonstrating slide-over modal functionality."""
     return render_template('slide_test.html')
 
 
 @testing_bp.route('/slide/<name>', methods=['GET'])
-def _test_slide(name):
+def _test_slide(name: str) -> str:
     """Return small HTML fragments used to demonstrate slide-over behavior."""
     if name == 'form':
         return """
@@ -163,7 +164,7 @@ def _test_slide(name):
 
 
 @testing_bp.route('/center/<name>', methods=['GET'])
-def _test_center(name):
+def _test_center(name: str) -> str:
     """Return HTML fragments for center modal testing."""
     if name == 'notice':
         return "<div class='p-10'><h3>Powiadomienie</h3><p>To jest center modal testowy.</p></div>"
@@ -180,19 +181,19 @@ def _test_center(name):
 
 
 @testing_bp.route('/slide/submit', methods=['POST'])
-def _test_slide_submit():
+def _test_slide_submit() -> Tuple[str, int, Dict[str, str]]:
     """Simulate successful AJAX response for slide-over submit."""
     return ('{"success": true, "message": "Zapisano (test)"}', 200, {'Content-Type': 'application/json'})
 
 
 @testing_bp.route('/slide/confirm_do', methods=['POST'])
-def _test_slide_confirm_do():
+def _test_slide_confirm_do() -> Tuple[str, int, Dict[str, str]]:
     """Simulate successful AJAX response for slide-over confirm."""
     return ('{"success": true, "message": "Potwierdzono (test)"}', 200, {'Content-Type': 'application/json'})
 
 
 @testing_bp.route('/center/submit', methods=['POST'])
-def _test_center_submit():
+def _test_center_submit() -> Tuple[str, int, Dict[str, str]]:
     """Simulate successful AJAX response for center modal submit."""
     return ('{"success": true, "message": "Center: wyslano (test)"}', 200, {'Content-Type': 'application/json'})
 

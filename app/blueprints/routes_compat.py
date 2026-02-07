@@ -1,6 +1,7 @@
 """Backward compatibility and utility routes for legacy support."""
 
-from flask import Blueprint, redirect, url_for, send_from_directory, jsonify, current_app
+from typing import Tuple, Dict, Any, Union
+from flask import Blueprint, redirect, url_for, send_from_directory, jsonify, current_app, Response
 from app.decorators import login_required
 from app.blueprints.routes_planning import dodaj_plan_zaawansowany, dodaj_plan, usun_plan
 import os
@@ -13,10 +14,13 @@ compat_bp = Blueprint('compat', __name__)
 
 @compat_bp.route('/health', methods=['GET'])
 @compat_bp.route('/.health', methods=['GET'])
-def health_check():
+def health_check() -> Tuple[Response, int]:
     """
     Health check endpoint for container orchestration (Docker, Kubernetes).
     Returns JSON status for load balancers and orchestration platforms.
+    
+    Returns:
+        Tuple[Response, int]: JSON health status with HTTP status code
     """
     try:
         from app.db import get_db_connection
@@ -30,7 +34,7 @@ def health_check():
     except Exception as e:
         db_status = f"error: {str(e)}"
 
-    health_data = {
+    health_data: Dict[str, Any] = {
         "status": "ok" if db_status == "healthy" else "degraded",
         "timestamp": datetime.now().isoformat(),
         "service": "raportprodukcyjny",
@@ -47,21 +51,21 @@ def health_check():
 
 @compat_bp.route('/dodaj_plan_zaawansowany', methods=['POST'])
 @login_required
-def alias_dodaj_plan_zaawansowany():
+def alias_dodaj_plan_zaawansowany() -> Union[Response, str]:
     """Legacy route - forwards to routes_api.dodaj_plan_zaawansowany()"""
     return dodaj_plan_zaawansowany()
 
 
 @compat_bp.route('/dodaj_plan', methods=['POST'])
 @login_required
-def alias_dodaj_plan():
+def alias_dodaj_plan() -> Union[Response, str]:
     """Legacy route - forwards to routes_api.dodaj_plan()"""
     return dodaj_plan()
 
 
 @compat_bp.route('/usun_plan/<int:id>', methods=['POST'])
 @login_required
-def alias_usun_plan(id):
+def alias_usun_plan(id: int) -> Union[Response, str]:
     """Legacy route - forwards to routes_api.usun_plan()"""
     return usun_plan(id)
 
@@ -69,8 +73,12 @@ def alias_usun_plan(id):
 # --- Favicon and well-known routes ---
 
 @compat_bp.route('/favicon.ico')
-def favicon():
-    """Serve favicon at root to avoid 404s from browsers."""
+def favicon() -> Union[Response, Tuple[str, int]]:
+    """Serve favicon at root to avoid 404s from browsers.
+    
+    Returns:
+        Union[Response, Tuple[str, int]]: File response or empty 204 response
+    """
     try:
         from flask import current_app
         static_folder = current_app.static_folder or os.path.join(current_app.root_path, 'static')
@@ -91,12 +99,12 @@ def favicon():
 # respond with 204 No Content to avoid noisy 404/500 traces in logs.
 
 @compat_bp.route('/.well-known/appspecific/com.chrome.devtools.json')
-def _well_known_devtools():
+def _well_known_devtools() -> Tuple[str, int]:
     """Respond to Chrome devtools well-known requests."""
     return ('', 204)
 
 
 @compat_bp.route('/.well-known/<path:subpath>')
-def _well_known_generic(subpath):
+def _well_known_generic(subpath: str) -> Tuple[str, int]:
     """Generic handler for any /.well-known probes to reduce noisy 404s."""
     return ('', 204)
