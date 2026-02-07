@@ -247,17 +247,39 @@ def dodaj_plan():
                 except Exception:
                     pass
                 
-                # IMPORTANT: If corresponding Workowanie plan exists, reset it to 'zaplanowane'
-                # This ensures Workowanie is never auto-started, only appears when szarża exists
+                # IMPORTANT: Create or reset Workowanie plan when first szarża is added
+                # Check if Workowanie plan already exists for this product/date
                 cursor.execute(
-                    "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL "
-                    "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
+                    "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
                     (data_planu, produkt, typ)
                 )
-                try:
-                    current_app.logger.info(f'[DODAJ_PLAN] Reset Workowanie plan status to zaplanowane for produkt={produkt}')
-                except Exception:
-                    pass
+                workowanie_plan = cursor.fetchone()
+                
+                if not workowanie_plan:
+                    # Create new Workowanie plan when first szarża is added
+                    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja='Workowanie'", (data_planu,))
+                    res = cursor.fetchone()
+                    nk_work = (res[0] if res and res[0] else 0) + 1
+                    
+                    cursor.execute(
+                        "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                        (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
+                    )
+                    try:
+                        current_app.logger.info(f'[DODAJ_PLAN] Created new Workowanie plan for produkt={produkt} when first szarża added')
+                    except Exception:
+                        pass
+                else:
+                    # Reset existing Workowanie plan to 'zaplanowane'
+                    cursor.execute(
+                        "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL "
+                        "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
+                        (data_planu, produkt, typ)
+                    )
+                    try:
+                        current_app.logger.info(f'[DODAJ_PLAN] Reset existing Workowanie plan status to zaplanowane for produkt={produkt}')
+                    except Exception:
+                        pass
                 
                 # Zasyp and Workowanie work independently
                 # No automatic increase of buffer
@@ -317,19 +339,9 @@ def dodaj_plan():
     cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ, 0))
     zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
     
-    # NEW: If sekcja is Zasyp, create corresponding Workowanie automatically
-    if sekcja == 'Zasyp' and zasyp_plan_id:
-        try:
-            current_app.logger.info(f'[DODAJ_PLAN] Creating AUTO Workowanie for Zasyp plan_id={zasyp_plan_id}')
-        except Exception:
-            pass
-        
-        # Create corresponding Workowanie in status 'zaplanowane' (do not start automatically)
-        nk_work = nk + 1  # Sequence for Workowanie
-        cursor.execute(
-            "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
-        )
+    # NOTE: Workowanie plan is NOT created here anymore.
+    # It will be created automatically when the first szarża is added to Zasyp
+    # This ensures proper workflow: Zasyp START -> Add szarża -> Workowanie appears
     
     conn.commit()
     conn.close()
