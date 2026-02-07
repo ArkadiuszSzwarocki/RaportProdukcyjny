@@ -667,7 +667,7 @@ def przesun_zlecenie_ajax():
 
 
 @planning_bp.route('/usun_plan_ajax/<int:id>', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider')
 def api_usun_plan(id):
     """Soft delete plan via AJAX - delegated to PlanningService."""
     try:
