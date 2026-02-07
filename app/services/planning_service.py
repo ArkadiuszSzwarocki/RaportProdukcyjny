@@ -38,6 +38,13 @@ class PlanningService:
             except Exception:
                 tonaz = 0
             
+            # Normalize sekcja case - always capitalize first letter
+            if sekcja:
+                sekcja = sekcja.strip()
+                sekcja = sekcja[0].upper() + sekcja[1:].lower() if sekcja else 'Zasyp'
+            else:
+                sekcja = 'Zasyp'
+            
             # Determine initial status
             if wymaga_oplaty:
                 initial_status = 'nieoplacone'

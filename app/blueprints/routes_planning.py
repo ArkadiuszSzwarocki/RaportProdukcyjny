@@ -109,7 +109,9 @@ def dodaj_plan_zaawansowany():
     """Add plan with advanced options - delegated to PlanningService."""
     data_planu = request.form.get('data_planu')
     produkt = request.form.get('produkt')
-    sekcja = request.form.get('sekcja')
+    sekcja = (request.form.get('sekcja') or '').strip()
+    # Normalize sekcja case - always capitalize first letter
+    sekcja = (sekcja[0].upper() + sekcja[1:].lower()) if sekcja else ''
     typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
     wymaga_oplaty = bool(request.form.get('wymaga_oplaty'))
     
@@ -142,7 +144,9 @@ def dodaj_plan():
         tonaz = int(float(request.form.get('tonaz', 0)))
     except Exception:
         tonaz = 0
-    sekcja = request.form.get('sekcja') or request.args.get('sekcja') or 'Nieprzydzielony'
+    sekcja = (request.form.get('sekcja') or request.args.get('sekcja') or 'Nieprzydzielony').strip()
+    # Normalize sekcja case - always capitalize first letter
+    sekcja = sekcja[0].upper() + sekcja[1:].lower() if sekcja else 'Nieprzydzielony'
     typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
     
     # Get plan_id if provided (from popup form)
@@ -355,7 +359,9 @@ def dodaj_plany_batch():
             except Exception:
                 tonaz = 0
             typ = (p.get('typ_produkcji') or '').strip() or 'worki_zgrzewane_25'
-            sekcja = p.get('sekcja') or 'Zasyp'
+            sekcja = (p.get('sekcja') or 'Zasyp').strip()
+            # Normalize sekcja case - always capitalize first letter
+            sekcja = sekcja[0].upper() + sekcja[1:].lower() if sekcja else 'Zasyp'
             nr = p.get('nr_receptury') or ''
             # Basic validation
             if not produkt:
