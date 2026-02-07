@@ -1,11 +1,11 @@
 """Quality control routes (jakosc, DUR/awarie)."""
 
-from flask import Blueprint, render_template, request, redirect, flash, url_for, session, send_file, current_app
-from datetime import date
+from flask import Blueprint, render_template, request, redirect, flash, url_for, session, send_file, current_app, jsonify
+from datetime import date, datetime
 import os
 from werkzeug.utils import secure_filename
 
-from decorators import roles_required
+from decorators import roles_required, login_required
 from db import get_db_connection
 
 quality_bp = Blueprint('quality', __name__)
@@ -234,3 +234,139 @@ def dur_awarie():
     except Exception as e:
         current_app.logger.exception(f'Error in dur_awarie: {e}')
         return redirect('/')
+
+
+@quality_bp.route('/api/dur/zmien_status/<int:awaria_id>', methods=['POST'])
+@roles_required('dur', 'admin', 'zarzad')
+def dur_zmien_status(awaria_id):
+    """Zmień status awarii i zaloguj zmianę jako komentarz."""
+    try:
+        nowy_status = request.form.get('status', '').strip()
+        if not nowy_status:
+            return jsonify({'success': False, 'message': 'Status nie może być pusty'}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Pobierz obecny status
+        cursor.execute("SELECT status FROM dziennik_zmiany WHERE id = %s", (awaria_id,))
+        awaria = cursor.fetchone()
+        if not awaria:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Awaria nie znaleziona'}), 404
+        
+        stary_status = awaria.get('status')
+        
+        # Zaktualizuj status
+        cursor.execute("UPDATE dziennik_zmiany SET status = %s WHERE id = %s", (nowy_status, awaria_id))
+        
+        # Zaloguj zmianę jako komentarz
+        pracownik_id = session.get('pracownik_id')
+        status_msg = f"🔄 Status zmieniony: {stary_status} → {nowy_status} ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+        cursor.execute(
+            "INSERT INTO dur_komentarze (awaria_id, autor_id, tresc) VALUES (%s, %s, %s)",
+            (awaria_id, pracownik_id, status_msg)
+        )
+        
+        # Zaloguj również w dziennik_zmian_statusu (dla historii)
+        cursor.execute("""
+            INSERT INTO dziennik_zmian_statusu (awaria_id, stary_status, nowy_status, zmieniony_przez, data_zmiany)
+            VALUES (%s, %s, %s, %s, NOW())
+        """, (awaria_id, stary_status, nowy_status, pracownik_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Status zmieniony na "{nowy_status}"',
+            'old_status': stary_status,
+            'new_status': nowy_status
+        }), 200
+    except Exception as e:
+        current_app.logger.exception(f'Error in dur_zmien_status: {e}')
+        return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
+
+
+@quality_bp.route('/api/dur/zatwierdz_awarię/<int:awaria_id>', methods=['POST'])
+@login_required
+def dur_zatwierdz_awarię(awaria_id):
+    """Zatwierdź awarie - zmień status i dodaj komentarz."""
+    try:
+        rola = session.get('rola')
+        pracownik_id = session.get('pracownik_id')
+        current_app.logger.info(f"=== dur_zatwierdz_awarię START ===")
+        current_app.logger.info(f"  awaria_id={awaria_id}, rola={rola}, pracownik_id={pracownik_id}")
+        
+        status = request.form.get('status', '').strip()
+        komentarz = request.form.get('komentarz', '').strip()
+        
+        current_app.logger.info(f"  Form data: status='{status}' (len={len(status)}), komentarz='{komentarz}' (len={len(komentarz)})")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Pobierz obecny status przed zmianą
+        cursor.execute("SELECT status FROM dziennik_zmiany WHERE id = %s", (awaria_id,))
+        awaria_przed = cursor.fetchone()
+        
+        # Jeśli awaria nie istnieje - zwróć błąd
+        if not awaria_przed:
+            current_app.logger.warning(f"DEBUG: Awaria #{awaria_id} nie znaleziona w database")
+            return jsonify({'success': False, 'message': 'Awaria nie znaleziona'}), 404
+        
+        stary_status = awaria_przed.get('status')
+        current_app.logger.info(f"  stary_status='{stary_status}'")
+        
+        # Aktualizuj status
+        status_zmieniony = False
+        if status and stary_status != status:
+            current_app.logger.info(f"  ✓ Status się zmienił: '{stary_status}' → '{status}'")
+            cursor.execute("UPDATE dziennik_zmiany SET status = %s WHERE id = %s", (status, awaria_id))
+            conn.commit()
+            status_zmieniony = True
+            
+            # Jeśli status = 'zakończone', ustaw data_zakonczenia na dzisiaj
+            if status == 'zakończone':
+                cursor.execute("UPDATE dziennik_zmiany SET data_zakonczenia = %s WHERE id = %s", (date.today(), awaria_id))
+                conn.commit()
+        else:
+            current_app.logger.info(f"  ✗ Status nie zmienił się: status='{status}', stary_status='{stary_status}'")
+        
+        # Dodaj automatyczny komentarz jeśli zmienił się status
+        if status_zmieniony:
+            status_msg = f"🔄 Status: {stary_status} → {status} ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+            current_app.logger.info(f"DEBUG: Dodawanie auto-komentarza dla awarii #{awaria_id}: {status_msg}")
+            
+            cursor.execute(
+                "INSERT INTO dur_komentarze (awaria_id, autor_id, tresc) VALUES (%s, %s, %s)",
+                (awaria_id, pracownik_id, status_msg)
+            )
+            conn.commit()
+            current_app.logger.info(f"DEBUG: Auto-komentarz dodany i zacommit'owany")
+        
+        # Dodaj komentarz użytkownika jeśli jest wpisany
+        if komentarz:
+            current_app.logger.info(f"DEBUG: Dodawanie ręcznego komentarza dla awarii #{awaria_id}: {komentarz}")
+            cursor.execute(
+                "INSERT INTO dur_komentarze (awaria_id, autor_id, tresc) VALUES (%s, %s, %s)",
+                (awaria_id, pracownik_id, komentarz)
+            )
+            conn.commit()
+            current_app.logger.info(f"DEBUG: Ręczny komentarz dodany i zacommit'owany")
+        
+        cursor.close()
+        conn.close()
+        
+        msg = f'✓ Awaria #{awaria_id} zaktualizowana'
+        if status_zmieniony:
+            msg += f' (status: {status})'
+        if komentarz:
+            msg += ' (komentarz dodany)'
+        
+        # Zwróć JSON zamiast redirect, aby formularz mógł być AJAX
+        return jsonify({'success': True, 'message': msg}), 200
+    except Exception as e:
+        current_app.logger.exception(f'Error in dur_zatwierdz_awarię: {e}')
+        return jsonify({'success': False, 'message': f'⚠️ Błąd: {str(e)}'}), 500
+
