@@ -247,6 +247,18 @@ def dodaj_plan():
                 except Exception:
                     pass
                 
+                # IMPORTANT: If corresponding Workowanie plan exists, reset it to 'zaplanowane'
+                # This ensures Workowanie is never auto-started, only appears when szarża exists
+                cursor.execute(
+                    "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL "
+                    "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
+                    (data_planu, produkt, typ)
+                )
+                try:
+                    current_app.logger.info(f'[DODAJ_PLAN] Reset Workowanie plan status to zaplanowane for produkt={produkt}')
+                except Exception:
+                    pass
+                
                 # Zasyp and Workowanie work independently
                 # No automatic increase of buffer
                 
