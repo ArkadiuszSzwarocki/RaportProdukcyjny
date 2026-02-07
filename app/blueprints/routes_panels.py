@@ -10,7 +10,7 @@ from app.decorators import login_required, roles_required, zarzad_required
 
 # Import QueryHelper if available for complex queries
 try:
-    from utils.query_helper import QueryHelper
+    from app.utils.query_helper import QueryHelper
 except ImportError:
     QueryHelper = None
 

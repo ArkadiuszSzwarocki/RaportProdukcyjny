@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request
 from app.db import get_db_connection
-from dto.paleta import PaletaDTO
+from app.dto.paleta import PaletaDTO
 from datetime import date
 from app.decorators import roles_required
 

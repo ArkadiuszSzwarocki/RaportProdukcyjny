@@ -56,7 +56,7 @@ def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
         interval_seconds: How often to check for unconfirmed palety
     """
     from app.db import get_db_connection
-    from dto.paleta import PaletaDTO
+    from app.dto.paleta import PaletaDTO
     
     try:
         while True:

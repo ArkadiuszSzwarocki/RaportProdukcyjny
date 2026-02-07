@@ -125,7 +125,7 @@ def zmien_status_zlecenia(id):
     """Change plan status."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    from utils.validation import require_field
+    from app.utils.validation import require_field
     status = require_field(request.form, 'status')
     cursor.execute("UPDATE plan_produkcji SET status=%s WHERE id=%s", (status, id))
     conn.commit()
@@ -177,7 +177,7 @@ def dodaj_plan_zaawansowany():
     """Add plan with advanced options."""
     sekcja = request.form.get('sekcja')
     data_planu = request.form.get('data_planu')
-    from utils.validation import require_field
+    from app.utils.validation import require_field
     produkt = require_field(request.form, 'produkt')
     typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
     status = 'nieoplacone' if request.form.get('wymaga_oplaty') else 'zaplanowane'
@@ -201,7 +201,7 @@ def dodaj_plan_zaawansowany():
 def dodaj_plan():
     """Add a plan (legacy simple add)."""
     data_planu = request.form.get('data_planu') or request.form.get('data') or str(date.today())
-    from utils.validation import require_field
+    from app.utils.validation import require_field
     
     # Get all fields - allow empty produkt since it comes from hidden field
     produkt = request.form.get('produkt', '').strip()
@@ -524,7 +524,7 @@ def przesun_zlecenie(id, kierunek):
 @roles_required('planista', 'admin')
 def edytuj_plan(id):
     """Save plan edits: product, tonnage, section, date."""
-    from utils.validation import require_field
+    from app.utils.validation import require_field
     produkt = request.form.get('produkt')
     tonaz = request.form.get('tonaz')
     sekcja = request.form.get('sekcja')

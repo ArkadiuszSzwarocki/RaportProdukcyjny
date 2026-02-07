@@ -1,5 +1,5 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify, send_file
-from utils.validation import require_field
+from app.utils.validation import require_field
 import logging
 import json
 import os
@@ -8,7 +8,7 @@ import zipfile
 from datetime import date, datetime, timedelta, time
 from io import BytesIO
 from app.db import get_db_connection, rollover_unfinished, log_plan_history
-from dto.paleta import PaletaDTO
+from app.dto.paleta import PaletaDTO
 from app.decorators import login_required, roles_required
 from app.services.raport_service import RaportService
 
@@ -204,7 +204,7 @@ def usun_palete_ajax():
 @login_required
 def wpisy_na_date():
     """Pobierz wpisy dla wybranej daty i sekcji (AJAX)"""
-    from utils.queries import QueryHelper
+    from app.utils.queries import QueryHelper
     
     try:
         data_str = request.args.get('data', str(date.today()))

@@ -302,7 +302,7 @@ def admin_dodaj_pracownika():
             conn.close()
             return redirect('/admin')
         try:
-            from utils.validation import require_field
+            from app.utils.validation import require_field
             imie_nazwisko = require_field(request.form, 'imie_nazwisko')
             imie_nazwisko = imie_nazwisko.strip()
         except Exception as e:
@@ -324,7 +324,7 @@ def admin_dodaj_pracownika():
             conn.rollback()
     else:
         try:
-            from utils.validation import require_field
+            from app.utils.validation import require_field
             imie_nazwisko = require_field(request.form, 'imie_nazwisko')
             imie_nazwisko = imie_nazwisko.strip()
         except Exception as e:
@@ -404,7 +404,7 @@ def admin_dodaj_konto():
         grupa = request.form.get('grupa','').strip()
         imie_nazwisko = request.form.get('imie_nazwisko','').strip()
         try:
-            from utils.validation import require_field, optional_field
+            from app.utils.validation import require_field, optional_field
             login = require_field(request.form, 'login').strip()
             rola_field = optional_field(request.form, 'rola', default='').strip()
         except Exception as e:

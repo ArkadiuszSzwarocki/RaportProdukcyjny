@@ -4,7 +4,7 @@ from flask import Blueprint, request, redirect, url_for, flash, session, jsonify
 from datetime import date
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required
-from utils.validation import require_field
+from app.utils.validation import require_field
 
 schedule_bp = Blueprint('schedule', __name__)
 

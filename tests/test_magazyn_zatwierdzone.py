@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, '.')
 
 from db import get_db_connection
-from utils.queries import QueryHelper
+from app.utils.queries import QueryHelper
 from datetime import date
 
 dzisiaj = str(date.today())

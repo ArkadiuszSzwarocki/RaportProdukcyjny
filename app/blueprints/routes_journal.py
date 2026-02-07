@@ -4,7 +4,7 @@ from flask import Blueprint, request, redirect, url_for, flash, session, render_
 from datetime import date, datetime, timedelta, time
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required
-from dto.paleta import PaletaDTO
+from app.dto.paleta import PaletaDTO
 import logging
 
 journal_bp = Blueprint('journal', __name__)
@@ -16,7 +16,7 @@ def dodaj_wpis():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        from utils.validation import require_field, optional_field
+        from app.utils.validation import require_field, optional_field
         sekcja = require_field(request.form, 'sekcja')
         kategoria = require_field(request.form, 'kategoria')
         problem = optional_field(request.form, 'problem', default=None)

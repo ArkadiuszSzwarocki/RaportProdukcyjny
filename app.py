@@ -13,10 +13,10 @@ from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 from app import db
 from app.db import get_db_connection
-from dto.paleta import PaletaDTO
+from app.dto.paleta import PaletaDTO
 from app.blueprints.routes_api import dodaj_plan_zaawansowany, dodaj_plan, usun_plan
 from app.decorators import login_required, zarzad_required, roles_required
-from utils.queries import QueryHelper
+from app.utils.queries import QueryHelper
 from app.core.error_handlers import setup_logging, register_error_handlers
 from app.core.factory import create_app
 

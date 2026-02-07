@@ -7,7 +7,7 @@ import os
 
 from app.decorators import login_required
 from app.db import get_db_connection
-from utils.validation import require_field
+from app.utils.validation import require_field
 
 auth_bp = Blueprint('auth', __name__)
 

@@ -26,7 +26,7 @@ for plan_id, count, total_waga in rows:
 print(f"\nTotal paletki: {grand_total} kg")
 
 # Check co QueryHelper zwraca
-from utils.queries import QueryHelper
+from app.utils.queries import QueryHelper
 paletki = QueryHelper.get_paletki_for_plan(403)  # Plan 403
 print(f"\nQueryHelper.get_paletki_for_plan(403): {len(paletki)} rows")
 total_waga_qh = sum(r[2] for r in paletki if len(r) > 2)

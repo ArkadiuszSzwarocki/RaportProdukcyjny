@@ -2,7 +2,7 @@ from flask import Blueprint, request, redirect, url_for, flash, session, render_
 from datetime import date, datetime
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required
-from utils.validation import require_field
+from app.utils.validation import require_field
 
 warehouse_bp = Blueprint('warehouse', __name__)
 
