@@ -167,6 +167,13 @@ class DashboardService:
         
         Returns:
             Tuple of (formatted_plans, palety_mapa, suma_plan, suma_wykonanie)
+            
+        Plan array indices:
+        0: id, 1: produkt, 2: tonaz, 3: status, 4: real_start_formatted, 
+        5: real_stop_formatted, 6: czas_min, 7: tonaz_rzeczywisty, 
+        8: kolejnosc, 9: typ_produkcji, 10: wyjasnienie_rozbieznosci, 
+        11: uszkodzone_worki, 12: waga_workowania (Zasyp), 13: diff (Zasyp), 
+        14: alert (Zasyp), 15: szarza_count OR paleta_count
         """
         plan_dnia = QueryHelper.get_plan_produkcji(
             dzisiaj, 
@@ -216,7 +223,7 @@ class DashboardService:
                 p[7] = waga_kg
                 suma_wykonanie += waga_kg
             
-            # Calculate Zasyp differences
+            # Calculate Zasyp differences (indices 12, 13, 14)
             if sekcja == 'Zasyp':
                 waga_workowania = p[7]
                 diff = p[2] - waga_workowania if p[2] else 0
@@ -224,6 +231,15 @@ class DashboardService:
                 if not is_quality:
                     suma_wykonanie += waga_workowania or 0
                 p.extend([waga_workowania, diff, alert])
+                
+                # Add szarża count as index 15
+                szarza_count = DashboardService.get_szarza_count_for_plan(p[0], dzisiaj)
+                p.append(szarza_count)
+            
+            # Add paleta count for Workowanie (index 15)
+            elif sekcja == 'Workowanie':
+                paleta_count = DashboardService.get_paleta_count_for_plan(p[0], dzisiaj)
+                p.append(paleta_count)
         
         return plan_dnia, palety_mapa, suma_plan, suma_wykonanie
 
@@ -495,7 +511,54 @@ class DashboardService:
         return kandydaci[0][0] if kandydaci else None
 
     @staticmethod
-    def get_szarza_details_for_plan(plan_id: int, dzisiaj: date) -> List[Dict[str, Any]]:
+    def get_szarza_count_for_plan(plan_id: int, dzisiaj: date) -> int:
+        """Get count of confirmed szarżas for a plan."""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                """SELECT COUNT(*) 
+                   FROM szarze 
+                   WHERE plan_id = %s 
+                   AND DATE(data_dodania) = %s
+                   AND status = 'zarejestowana'""",
+                (plan_id, dzisiaj)
+            )
+            
+            result = cursor.fetchone()
+            count = result[0] if result else 0
+            
+            cursor.close()
+            conn.close()
+            return count
+        except Exception:
+            return 0
+
+    @staticmethod
+    def get_paleta_count_for_plan(plan_id: int, dzisiaj: date) -> int:
+        """Get count of confirmed palety for a plan."""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                """SELECT COUNT(*) 
+                   FROM palety_workowanie 
+                   WHERE plan_id = %s 
+                   AND DATE(data_dodania) = %s
+                   AND status IN ('w magazynie', 'zatwierdzona')""",
+                (plan_id, dzisiaj)
+            )
+            
+            result = cursor.fetchone()
+            count = result[0] if result else 0
+            
+            cursor.close()
+            conn.close()
+            return count
+        except Exception:
+            return 0
         """Get szarża details (execution time + weight) for a specific plan.
         
         Returns list of dicts: {'time': 'HH:MM', 'weight': kg}
