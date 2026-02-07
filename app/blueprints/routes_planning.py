@@ -670,8 +670,14 @@ def przesun_zlecenie_ajax():
 @roles_required('planista', 'admin', 'lider')
 def api_usun_plan(id):
     """Soft delete plan via AJAX - delegated to PlanningService."""
+    print(f'🔥 DELETE PLAN ENDPOINT CALLED - ID: {id}')
+    current_app.logger.info(f'🔥 DELETE PLAN ENDPOINT CALLED - ID: {id}')
+    
     try:
+        print(f'🔥 Sprawdzam role - session: {session}')
         success, message = PlanningService.delete_plan(id)
+        print(f'🔥 DELETE result: success={success}, message={message}')
+        current_app.logger.info(f'🔥 DELETE result: success={success}, message={message}')
         
         if success:
             # Log history if deletion was successful
@@ -689,9 +695,12 @@ def api_usun_plan(id):
             except Exception:
                 pass
         
-        return jsonify({'success': success, 'message': message}), 200 if success else 400
+        response = {'success': success, 'message': message}
+        print(f'🔥 Sending response: {response}')
+        return jsonify(response), 200 if success else 400
         
-    except Exception:
+    except Exception as e:
+        print(f'🔥 ERROR: {str(e)}')
         current_app.logger.exception(f'Error deleting plan {id} via AJAX')
         return jsonify({'success': False, 'message': 'Błąd przy usuwaniu zlecenia.'}), 500
 
