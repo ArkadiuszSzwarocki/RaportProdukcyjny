@@ -229,9 +229,16 @@
                 <td class="text-right">
                     {% if rola in ['lider', 'admin', 'pracownik'] and sekcja != 'Magazyn' %}
                         {% if p[3] == 'zaplanowane' %}
-                            {% if ns.is_active %}<button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
-                            {% else %}<form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>{% endif %}
-                            {% if rola in ['planista', 'admin', 'lider'] %}<button type="button" class="btn-delete inline-form" aria-label="Usuń plan" onclick="if(confirm('Usunąć?')) deletePlan({{ p[0] }}, '{{ dzisiaj }}')">🗑</button>{% endif %}
+                            <div class="d-flex gap-5 justify-end">
+                                {% if ns.is_active %}
+                                    <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
+                                {% else %}
+                                    <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>
+                                {% endif %}
+                                {% if rola in ['planista', 'admin', 'lider'] %}
+                                    <button type="button" class="btn-delete inline-form" aria-label="Usuń plan" onclick="if(confirm('Usunąć?')) deletePlan({{ p[0] }}, '{{ dzisiaj }}')">🗑</button>
+                                {% endif %}
+                            </div>
                         {% elif p[3] == 'w toku' %}
                             <div class="d-flex gap-5 justify-end">
                                 {% if sekcja == 'Workowanie' %}
