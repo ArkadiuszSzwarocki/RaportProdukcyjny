@@ -2,8 +2,8 @@
 
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
 from datetime import date, datetime
-from db import get_db_connection
-from decorators import login_required, roles_required
+from app.db import get_db_connection
+from app.decorators import login_required, roles_required
 import json
 
 leaves_bp = Blueprint('leaves', __name__)
@@ -1039,3 +1039,4 @@ def pobierz_raport():
         current_app.logger.error(f"Błąd przy pobieraniu raportu: {e}")
         flash(f"❌ Błąd: {str(e)}", 'danger')
         return redirect(url_for('index'))
+

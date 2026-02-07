@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request
-from db import get_db_connection
+from app.db import get_db_connection
 from dto.paleta import PaletaDTO
 from datetime import date
-from decorators import roles_required
+from app.decorators import roles_required
 
 planista_bp = Blueprint('planista', __name__)
 

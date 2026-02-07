@@ -5,8 +5,8 @@ import json
 import os
 import calendar
 
-from db import get_db_connection
-from decorators import login_required, roles_required, zarzad_required
+from app.db import get_db_connection
+from app.decorators import login_required, roles_required, zarzad_required
 
 # Import QueryHelper if available for complex queries
 try:
@@ -360,3 +360,4 @@ def pobierz_logi():
     if not os.path.exists(log_path):
         return ("Brak logu", 404)
     return send_file(log_path, as_attachment=True)
+

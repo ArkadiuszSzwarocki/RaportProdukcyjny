@@ -1,1 +1,2 @@
 """Core Flask application infrastructure."""
+

@@ -3,26 +3,26 @@
 import os
 from flask import Flask
 from scripts.raporty import format_godziny
-from config import SECRET_KEY
-from core.contexts import register_contexts
-from core.daemon import start_daemon_threads
-from core.error_handlers import setup_logging, register_error_handlers
-from routes_admin import admin_bp
-from routes_api import api_bp
-from routes_planista import planista_bp
-from routes_auth import auth_bp
-from routes_quality import quality_bp
-from routes_shifts import shifts_bp
-from routes_panels import panels_bp
-from routes_production import production_bp
-from routes_warehouse import warehouse_bp
-from routes_planning import planning_bp
-from routes_journal import journal_bp
-from routes_leaves import leaves_bp
-from routes_schedule import schedule_bp
-from routes_testing import testing_bp
-from routes_recovery import recovery_bp
-import db
+from app.config import SECRET_KEY
+from app.core.contexts import register_contexts
+from app.core.daemon import start_daemon_threads
+from app.core.error_handlers import setup_logging, register_error_handlers
+from app.blueprints.routes_admin import admin_bp
+from app.blueprints.routes_api import api_bp
+from app.blueprints.routes_planista import planista_bp
+from app.blueprints.routes_auth import auth_bp
+from app.blueprints.routes_quality import quality_bp
+from app.blueprints.routes_shifts import shifts_bp
+from app.blueprints.routes_panels import panels_bp
+from app.blueprints.routes_production import production_bp
+from app.blueprints.routes_warehouse import warehouse_bp
+from app.blueprints.routes_planning import planning_bp
+from app.blueprints.routes_journal import journal_bp
+from app.blueprints.routes_leaves import leaves_bp
+from app.blueprints.routes_schedule import schedule_bp
+from app.blueprints.routes_testing import testing_bp
+from app.blueprints.routes_recovery import recovery_bp
+from app import db
 
 
 def create_app(config_secret_key=None, init_db=True):
@@ -89,3 +89,4 @@ def create_app(config_secret_key=None, init_db=True):
                 pass
     
     return app
+

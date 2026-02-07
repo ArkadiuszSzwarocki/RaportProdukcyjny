@@ -123,3 +123,4 @@ def test_download_zip():
             "error": str(e),
             "message": f"ERROR Blad: {str(e)}"
         }), 500
+

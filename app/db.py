@@ -1,5 +1,5 @@
 import mysql.connector
-from config import DB_CONFIG
+from app.config import DB_CONFIG
 import os
 from werkzeug.security import generate_password_hash
 import time

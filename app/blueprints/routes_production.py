@@ -2,8 +2,8 @@ from flask import Blueprint, request, redirect, url_for, flash, session, render_
 import os
 import glob
 from datetime import date, datetime
-from db import get_db_connection, rollover_unfinished
-from decorators import login_required, roles_required
+from app.db import get_db_connection, rollover_unfinished
+from app.decorators import login_required, roles_required
 
 production_bp = Blueprint('production', __name__)
 
@@ -248,3 +248,4 @@ def obsada_page():
         return render_template('obsada_fragment.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'), qdate=qdate, lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id, all_pracownicy=all_pracownicy)
 
     return render_template('obsada.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'), qdate=qdate, lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id, all_pracownicy=all_pracownicy)
+

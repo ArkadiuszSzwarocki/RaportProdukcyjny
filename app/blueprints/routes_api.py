@@ -7,9 +7,9 @@ import sys
 import zipfile
 from datetime import date, datetime, timedelta, time
 from io import BytesIO
-from db import get_db_connection, rollover_unfinished, log_plan_history
+from app.db import get_db_connection, rollover_unfinished, log_plan_history
 from dto.paleta import PaletaDTO
-from decorators import login_required, roles_required
+from app.decorators import login_required, roles_required
 from services.raport_service import RaportService
 
 api_bp = Blueprint('api', __name__)
@@ -80,7 +80,7 @@ def get_email_config():
     }
     """
     try:
-        from config import EMAIL_RECIPIENTS
+        from app.config import EMAIL_RECIPIENTS
         
         return jsonify({
             "recipients": EMAIL_RECIPIENTS,

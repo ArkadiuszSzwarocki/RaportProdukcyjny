@@ -2,8 +2,8 @@
 
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
 from datetime import date, datetime
-from db import get_db_connection
-from decorators import login_required, roles_required, admin_required
+from app.db import get_db_connection
+from app.decorators import login_required, roles_required, admin_required
 import json
 
 planning_bp = Blueprint('planning', __name__)
@@ -886,3 +886,4 @@ def jakosc_dodaj_do_planow(id):
     conn.close()
     flash('Zlecenie dodane do planów', 'success')
     return redirect(bezpieczny_powrot())
+

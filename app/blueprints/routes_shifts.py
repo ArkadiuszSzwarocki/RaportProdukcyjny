@@ -4,8 +4,8 @@ from flask import Blueprint, request, redirect, flash, session, current_app
 from datetime import date
 import time
 
-from decorators import login_required, roles_required
-from db import get_db_connection
+from app.decorators import login_required, roles_required
+from app.db import get_db_connection
 
 shifts_bp = Blueprint('shifts', __name__)
 
@@ -131,3 +131,4 @@ def update_shift_note(note_id):
         except Exception:
             pass
     return redirect('/')
+

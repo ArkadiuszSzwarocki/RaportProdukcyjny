@@ -183,3 +183,4 @@ def register_contexts(app):
     app.context_processor(inject_role_permissions)
     app.context_processor(inject_translations)
     app.context_processor(inject_app_into_templates)
+

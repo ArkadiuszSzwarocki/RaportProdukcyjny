@@ -11,14 +11,14 @@ from zipfile import ZipFile
 
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
-import db
-from db import get_db_connection
+from app import db
+from app.db import get_db_connection
 from dto.paleta import PaletaDTO
-from routes_api import dodaj_plan_zaawansowany, dodaj_plan, usun_plan
-from decorators import login_required, zarzad_required, roles_required
+from app.blueprints.routes_api import dodaj_plan_zaawansowany, dodaj_plan, usun_plan
+from app.decorators import login_required, zarzad_required, roles_required
 from utils.queries import QueryHelper
-from core.error_handlers import setup_logging, register_error_handlers
-from core.factory import create_app
+from app.core.error_handlers import setup_logging, register_error_handlers
+from app.core.factory import create_app
 
 try:
     from generator_raportow import generuj_excel_zmiany, otworz_outlook_z_raportem

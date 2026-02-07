@@ -55,7 +55,7 @@ def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
         threshold_minutes: Minutes old before reminder is logged
         interval_seconds: How often to check for unconfirmed palety
     """
-    from db import get_db_connection
+    from app.db import get_db_connection
     from dto.paleta import PaletaDTO
     
     try:
@@ -145,3 +145,4 @@ def start_daemon_threads(app, cleanup_enabled=False):
         app.logger.info('Started palety monitor daemon thread')
     except Exception:
         app.logger.exception('Failed to start palety monitor thread')
+

@@ -1,7 +1,7 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
 from datetime import date, datetime
-from db import get_db_connection
-from decorators import login_required, roles_required
+from app.db import get_db_connection
+from app.decorators import login_required, roles_required
 from utils.validation import require_field
 
 warehouse_bp = Blueprint('warehouse', __name__)
@@ -438,3 +438,4 @@ def edytuj_palete(paleta_id):
         except Exception: pass
     
     return redirect(bezpieczny_powrot())
+

@@ -2,8 +2,8 @@
 
 from flask import Blueprint, request, jsonify
 from datetime import date, timedelta
-from db import get_db_connection
-from decorators import login_required
+from app.db import get_db_connection
+from app.decorators import login_required
 
 recovery_bp = Blueprint('recovery', __name__)
 
@@ -127,3 +127,4 @@ def wznow_zlecenia_sekcji(sekcja):
             "error": str(e),
             "message": f"Błąd przy wznowienia zleceń dla {sekcja}"
         }), 500
+

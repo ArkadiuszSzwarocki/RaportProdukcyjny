@@ -2,8 +2,8 @@
 
 from flask import Blueprint, request, redirect, url_for, flash, session, jsonify, current_app
 from datetime import date
-from db import get_db_connection
-from decorators import login_required, roles_required
+from app.db import get_db_connection
+from app.decorators import login_required, roles_required
 from utils.validation import require_field
 
 schedule_bp = Blueprint('schedule', __name__)
@@ -110,3 +110,4 @@ def edytuj_godziny():
         except Exception:
             pass
         return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
+

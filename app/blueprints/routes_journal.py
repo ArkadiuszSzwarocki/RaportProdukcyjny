@@ -2,8 +2,8 @@
 
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
 from datetime import date, datetime, timedelta, time
-from db import get_db_connection
-from decorators import login_required, roles_required
+from app.db import get_db_connection
+from app.decorators import login_required, roles_required
 from dto.paleta import PaletaDTO
 import logging
 
@@ -193,3 +193,4 @@ def ustawienia():
 def zapisz_tonaz_deprecated(id):
     """Deprecated endpoint for compatibility."""
     return redirect('/')
+

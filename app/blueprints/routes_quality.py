@@ -5,8 +5,8 @@ from datetime import date, datetime
 import os
 from werkzeug.utils import secure_filename
 
-from decorators import roles_required, login_required
-from db import get_db_connection
+from app.decorators import roles_required, login_required
+from app.db import get_db_connection
 
 quality_bp = Blueprint('quality', __name__)
 
@@ -369,4 +369,5 @@ def dur_zatwierdz_awarię(awaria_id):
     except Exception as e:
         current_app.logger.exception(f'Error in dur_zatwierdz_awarię: {e}')
         return jsonify({'success': False, 'message': f'⚠️ Błąd: {str(e)}'}), 500
+
 

@@ -5,8 +5,8 @@ from datetime import datetime
 from werkzeug.security import check_password_hash
 import os
 
-from decorators import login_required
-from db import get_db_connection
+from app.decorators import login_required
+from app.db import get_db_connection
 from utils.validation import require_field
 
 auth_bp = Blueprint('auth', __name__)
@@ -102,3 +102,4 @@ def report_issue():
     sekcja = request.args.get('sekcja', 'Zasyp')
     now_time = datetime.now().strftime('%H:%M')
     return render_template('report_issue.html', sekcja=sekcja, now_time=now_time)
+

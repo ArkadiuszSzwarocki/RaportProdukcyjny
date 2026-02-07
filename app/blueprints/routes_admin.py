@@ -1,9 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, flash, current_app, session, jsonify
 from datetime import date
-from db import get_db_connection
+from app.db import get_db_connection
 from werkzeug.security import generate_password_hash
 # Importujemy dekorator
-from decorators import admin_required
+from app.decorators import admin_required
 
 
 def _load_roles(cursor):
@@ -620,3 +620,4 @@ def admin_workowanie_times_update():
         flash(f"❌ Błąd podczas zapisu: {str(e)}", "error")
     
     return redirect('/admin/workowanie_times')
+
