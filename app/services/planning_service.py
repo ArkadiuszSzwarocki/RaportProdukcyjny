@@ -79,7 +79,7 @@ class PlanningService:
 
     @staticmethod
     def delete_plan(plan_id):
-        """Soft delete a plan (mark as deleted).
+        """Hard delete a plan (remove completely from database).
         
         Args:
             plan_id: ID of plan to delete
@@ -87,7 +87,7 @@ class PlanningService:
         Returns:
             Tuple (success: bool, message: str)
         """
-        print(f'\n🔥 [SERVICE-1] delete_plan({plan_id}) START')
+        print(f'\n🔥 [SERVICE-1] delete_plan({plan_id}) START - HARD DELETE')
         try:
             print(f'🔥 [SERVICE-2] Łączę się z bazą...')
             conn = get_db_connection()
@@ -95,7 +95,7 @@ class PlanningService:
             
             # Check if plan exists and its status
             print(f'🔥 [SERVICE-3] Szukam planu ID={plan_id}...')
-            cursor.execute("SELECT status, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
+            cursor.execute("SELECT status, produkt, sekcja FROM plan_produkcji WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
             print(f'🔥 [SERVICE-4] Wynik SELECT: {res}')
             
@@ -106,7 +106,8 @@ class PlanningService:
             
             status = res[0]
             produkt = res[1]
-            print(f'🔥 [SERVICE-6] Plan znaleziony: status={status}, produkt={produkt}')
+            sekcja = res[2]
+            print(f'🔥 [SERVICE-6] Plan znaleziony: status={status}, produkt={produkt}, sekcja={sekcja}')
             
             # Cannot delete if in progress or completed
             if status in ['w toku', 'zakonczone']:
@@ -114,19 +115,16 @@ class PlanningService:
                 conn.close()
                 return (False, 'Nie można usunąć zlecenia w toku lub już zakończonego.')
             
-            # Soft delete: set is_deleted=1, deleted_at=NOW()
-            print(f'🔥 [SERVICE-8] Wykonuję UPDATE...')
-            cursor.execute(
-                "UPDATE plan_produkcji SET is_deleted=1, deleted_at=NOW() WHERE id=%s",
-                (plan_id,)
-            )
-            print(f'🔥 [SERVICE-9] UPDATE zakończony, rowcount={cursor.rowcount}')
+            # Hard delete: DELETE FROM plan_produkcji
+            print(f'🔥 [SERVICE-8] Wykonuję DELETE...')
+            cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (plan_id,))
+            print(f'🔥 [SERVICE-9] DELETE zakończony, rowcount={cursor.rowcount}')
             conn.commit()
             print(f'🔥 [SERVICE-10] COMMIT wykonany')
             conn.close()
             print(f'🔥 [SERVICE-11] Połączenie zamknięte')
             
-            current_app.logger.info(f'Plan deleted: id={plan_id}, produkt={produkt}')
+            current_app.logger.info(f'Plan deleted (hard delete): id={plan_id}, produkt={produkt}, sekcja={sekcja}')
             msg = f'Zlecenie {produkt} zostało usunięte z planu.'
             print(f'🔥 [SERVICE-12] Zwracam sukces: {msg}')
             return (True, msg)

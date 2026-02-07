@@ -127,76 +127,12 @@
     </table>
 </div>
 
-<!-- Sekcja: Usunięte zlecenia -->
-<div id="deletedOrdersSectionPlanista" class="deleted-orders-section-planista">
-    <h4 class="header-title">🗑️ {{ _('usuniety') }} {{ _('zlecenia') }} (<span id="deletedCountPlanista">0</span>)</h4>
-    <div id="deletedOrdersListPlanista" class="deleted-orders-list-planista"></div>
-</div>
-
-<!-- Modal Dodaj usunięty (mechanizm popup wyłączony) -->
-
-<!-- Modal Move usunięty (mechanizm popup wyłączony) -->
-
     <script>
     // Translation messages for Planista view
     var pnMsgs = {
-        przywroc: '{{ _("przywroc") }}',
         zapisz: '{{ _("zapisz") }}',
         anuluj: '{{ _("anuluj") }}'
     };
-    
-    // Załaduj usunięte zlecenia dla widoku planisty
-    function loadDeletedOrdersPlanista(){
-        var dzisiaj = '{{ wybrana_data }}';
-        var deletedSection = document.getElementById('deletedOrdersSectionPlanista');
-        if(!deletedSection) return;
-        
-        fetch('/api/get_deleted_plans/' + dzisiaj)
-            .then(function(r){ return r.json(); })
-            .then(function(j){
-                if(j && j.success && j.plans && j.plans.length > 0){
-                    var html = '';
-                    j.plans.forEach(function(p){
-                        html += '<tr style="opacity: 0.7; text-decoration: line-through;">' +
-                            '<td><strong style="color: #999;">' + p.produkt + '</strong></td>' +
-                            '<td><span style="color: #999;">N/A</span></td>' +
-                            '<td><strong style="color: #999;">' + p.tonaz + ' kg</strong></td>' +
-                            '<td><span style="color: #999;">-</span></td>' +
-                            '<td><span style="color: #999;">-</span></td>' +
-                            '<td><span style="color: #999;">-</span></td>' +
-                            '<td><span class="status-badge" style="background: #ccc;">USUNIĘTE</span></td>' +
-                            '<td><button class="btn-action btn-small restore-deleted-btn-planista" data-restore-id="' + p.id + '">' + pnMsgs.przywroc + '</button></td>' +
-                            '</tr>';
-                    });
-                    var table = document.createElement('table');
-                    table.className = 'modern-table';
-                    table.innerHTML = '<tbody>' + html + '</tbody>';
-                    document.getElementById('deletedOrdersListPlanista').innerHTML = '';
-                    document.getElementById('deletedOrdersListPlanista').appendChild(table);
-                    document.getElementById('deletedCountPlanista').innerText = j.plans.length;
-                    deletedSection.style.display = 'block';
-                }
-            })
-            .catch(function(e){ console.error('Failed to load deleted orders', e); });
-    }
-    
-    function restoreDeletedOrderPlanista(id){
-        if(!confirm('Przywrócić to zlecenie?')) return;
-        fetch('/api/przywroc_usunietego_zlecenia/' + id, {method:'POST'})
-            .then(function(r){ return r.json(); })
-            .then(function(j){
-                if(j && j.success){
-                    alert('Zlecenie przywrócone!');
-                    location.reload();
-                } else {
-                    alert((j && j.message) || 'Błąd');
-                }
-            })
-            .catch(function(){ alert('Błąd sieci'); });
-    }
-    
-    // Załaduj przy starcie
-    loadDeletedOrdersPlanista();
     
     function toggleDetails(id) { var row = document.getElementById('details-' + id); row.classList.toggle('hidden'); }
     function openMoveModal(id, nazwa) {
@@ -450,14 +386,7 @@ function deletePlan(id, data){
                 break;
         }
     }, false);
-    
-    // Delegate for restore deleted buttons
-    document.addEventListener('click', function(e){
-        if(e.target.classList.contains('restore-deleted-btn-planista')){
-            var id = e.target.getAttribute('data-restore-id');
-            if(id) restoreDeletedOrderPlanista(parseInt(id));
-        }
-    }, false);
+
 </script>
 
 <!-- Quick-popup: center modal for AJAX-loaded content -->

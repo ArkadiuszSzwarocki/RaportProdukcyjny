@@ -116,7 +116,7 @@
                 {% endif %}
                 
                 {% if rola in ['admin', 'lider'] %}
-                    <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" class="inline-form" style="display: inline;" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                    <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" class="inline-form inline-display" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
                         <button type="submit" class="btn-action btn-outline-warning btn-small" aria-label="Wznowić zlecenie" title="Wznowić zlecenie">↻ Wznów</button>
                     </form>
                 {% endif %}
@@ -141,14 +141,6 @@
     {% endif %}
 </div>
 
-<!-- Sekcja: Usunięte zlecenia -->
-{% if rola in ['planista', 'admin'] %}
-<div id="deletedOrdersSection" class="deleted-orders-section">
-    <h4 class="header-title">🗑️ {{ _('usuniety') }} {{ _('zlecenia') }} (<span id="deletedCount">0</span>)</h4>
-    <div id="deletedOrdersList"></div>
-</div>
-{% endif %}
-
 <!-- Move modal for Workowanie -->
 <div id="moveModalWork" class="move-modal-work">
     <h3 class="move-title-work">{{ _('przenies_zlecenie') }}</h3>
@@ -165,55 +157,11 @@
 <script>
 // Translation messages
 var wkMsgs = {
-    przywroc: '{{ _("przywroc") }}',
     brakuje_danych: '{{ _("brakuje_danych") }}'
 };
 
 // Global reference to store data for modal
 var moveOrderData = {};
-
-// Załaduj usunięte zlecenia
-function loadDeletedOrders(){
-    var dzisiaj = '{{ dzisiaj }}';
-    var deletedSection = document.getElementById('deletedOrdersSection');
-    if(!deletedSection) return;
-    
-    fetch('/api/get_deleted_plans/' + dzisiaj)
-        .then(function(r){ return r.json(); })
-        .then(function(j){
-            if(j && j.success && j.plans && j.plans.length > 0){
-                var html = '';
-                j.plans.forEach(function(p){
-                    html += '<div class="plan-item deleted-item-style">' +
-                        '<div class="flex-2">' +
-                        '<span class="deleted-item-time">⏰ ' + (p.deleted_at || 'N/A') + '</span><br>' +
-                        '<span class="font-bold deleted-item-text">' + p.produkt + '</span> (' + p.tonaz + ' kg)' +
-                        '</div>' +
-                        '<div><button type="button" class="btn-action btn-small restore-deleted-btn" data-restore-id="' + p.id + '">' + wkMsgs.przywroc + '</button></div>' +
-                        '</div>';
-                });
-                document.getElementById('deletedOrdersList').innerHTML = html;
-                document.getElementById('deletedCount').innerText = j.plans.length;
-                deletedSection.style.display = 'block';
-            }
-        })
-        .catch(function(e){ console.error('Failed to load deleted orders', e); });
-}
-
-function restoreDeletedOrder(id){
-    if(!confirm('Przywrócić to zlecenie?')) return;
-    fetch('/api/przywroc_usunietego_zlecenia/' + id, {method:'POST'})
-        .then(function(r){ return r.json(); })
-        .then(function(j){
-            if(j && j.success){
-                alert('Zlecenie przywrócone!');
-                location.reload();
-            } else {
-                alert((j && j.message) || 'Błąd');
-            }
-        })
-        .catch(function(){ alert('Błąd sieci'); });
-}
 
 // Delete plan function (kept for compatibility)
 function deletePlan(id, data){
@@ -261,12 +209,6 @@ document.addEventListener('click', function(e){
         if(confirm(msg)){
             deletePlan(id, date);
         }
-    }
-    
-    // Restore deleted order button
-    if(e.target.classList.contains('restore-deleted-btn')){
-        var id = e.target.getAttribute('data-restore-id');
-        restoreDeletedOrder(id);
     }
 }, false);
 
