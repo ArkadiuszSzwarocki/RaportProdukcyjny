@@ -177,6 +177,8 @@ def bufor_page():
                         ORDER BY COALESCE(real_start, data_planu) DESC
         """, (wybrana_data,))
         historyczne_zasypy = cursor.fetchall()
+        from app.services.logger import app_logger
+        app_logger.info(f"Bufor query for date {wybrana_data}: found {len(historyczne_zasypy)} Zasyp orders")
         bufor_list = []
         for hz in historyczne_zasypy:
             h_id, h_data, h_produkt, h_wykonanie_zasyp, h_nazwa, h_typ, h_status, h_real_start = hz
@@ -192,11 +194,8 @@ def bufor_page():
             res_pal = cursor.fetchone()
             h_wykonanie_workowanie = res_pal[0] if res_pal and res_pal[0] else 0
             pozostalo_w_silosie = (h_wykonanie_zasyp or 0) - (h_wykonanie_workowanie or 0)
-            # Nowa logika prezentacji bufora:
-            # - pokaż, jeśli w silosie zostało coś (>0)
-            # - pokaż, jeśli workowanie już wystartowało (spakowano > 0),
-            #   aby umożliwić weryfikację/rozliczenie (np. nadmiary/deficyty)
-            show_in_bufor = (pozostalo_w_silosie > 0) or (h_wykonanie_workowanie and h_wykonanie_workowanie > 0)
+            # Show all Zasyp orders in bufor - they're all available until fully packaged
+            show_in_bufor = True
             if show_in_bufor:
                 needs_reconciliation = round((h_wykonanie_workowanie or 0) - (h_wykonanie_zasyp or 0), 1) != 0
                 start_time = h_real_start.strftime('%H:%M') if h_real_start else 'N/A'
