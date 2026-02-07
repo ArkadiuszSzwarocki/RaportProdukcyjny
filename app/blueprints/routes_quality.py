@@ -371,3 +371,4 @@ def dur_zatwierdz_awarię(awaria_id):
         return jsonify({'success': False, 'message': f'⚠️ Błąd: {str(e)}'}), 500
 
 
+

@@ -288,3 +288,4 @@ def bufor_archiwizuj():
             conn.close()
         except Exception:
             pass
+

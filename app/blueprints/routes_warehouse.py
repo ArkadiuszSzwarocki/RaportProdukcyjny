@@ -439,3 +439,4 @@ def edytuj_palete(paleta_id):
     
     return redirect(bezpieczny_powrot())
 
+

@@ -514,7 +514,7 @@ def zamknij_zmiane_global():
     Orchestrates the report generation workflow.
     """
     import sys
-    from services.report_service import (
+    from app.services.report_service import (
         load_shift_notes, 
         get_leader_name, 
         generate_and_download_reports
@@ -1039,4 +1039,5 @@ def pobierz_raport():
         current_app.logger.error(f"Błąd przy pobieraniu raportu: {e}")
         flash(f"❌ Błąd: {str(e)}", 'danger')
         return redirect(url_for('index'))
+
 

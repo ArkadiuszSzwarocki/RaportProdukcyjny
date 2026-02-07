@@ -128,3 +128,4 @@ def wznow_zlecenia_sekcji(sekcja):
             "message": f"Błąd przy wznowienia zleceń dla {sekcja}"
         }), 500
 
+

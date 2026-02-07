@@ -10,7 +10,7 @@ from io import BytesIO
 from datetime import datetime, timedelta, date
 import logging
 
-from db import get_db_connection
+from app.db import get_db_connection
 from generator_raportow import generuj_paczke_raportow
 
 logger = logging.getLogger(__name__)
@@ -324,3 +324,4 @@ def generate_and_download_reports(date_str, uwagi, lider_name):
         traceback.print_exc()
         print("="*60 + "\n")
         raise
+

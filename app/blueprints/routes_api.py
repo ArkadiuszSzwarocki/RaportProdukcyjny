@@ -10,7 +10,7 @@ from io import BytesIO
 from app.db import get_db_connection, rollover_unfinished, log_plan_history
 from dto.paleta import PaletaDTO
 from app.decorators import login_required, roles_required
-from services.raport_service import RaportService
+from app.services.raport_service import RaportService
 
 api_bp = Blueprint('api', __name__)
 
@@ -364,3 +364,4 @@ def get_deleted_plans(date):
             pass
         current_app.logger.exception('Failed to get deleted plans for %s', date)
         return jsonify({'success': False, 'message': str(e)}), 500
+

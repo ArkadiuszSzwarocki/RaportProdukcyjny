@@ -194,3 +194,4 @@ def zapisz_tonaz_deprecated(id):
     """Deprecated endpoint for compatibility."""
     return redirect('/')
 
+

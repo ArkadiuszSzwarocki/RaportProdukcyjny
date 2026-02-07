@@ -361,3 +361,4 @@ def pobierz_logi():
         return ("Brak logu", 404)
     return send_file(log_path, as_attachment=True)
 
+

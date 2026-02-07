@@ -132,3 +132,4 @@ def update_shift_note(note_id):
             pass
     return redirect('/')
 
+

@@ -393,3 +393,4 @@ class RaportService:
         doc.build(story)
         output.seek(0)
         return output.getvalue()
+

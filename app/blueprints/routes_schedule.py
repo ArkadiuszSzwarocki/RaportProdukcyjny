@@ -111,3 +111,4 @@ def edytuj_godziny():
             pass
         return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
 
+

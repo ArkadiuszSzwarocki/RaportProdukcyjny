@@ -2,7 +2,7 @@
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 import json
-from db import get_db_connection
+from app.db import get_db_connection
 
 def get_date_range(tryb, rok, miesiac, wybrana_data):
     """Oblicza zakres dat na podstawie wybranego trybu."""

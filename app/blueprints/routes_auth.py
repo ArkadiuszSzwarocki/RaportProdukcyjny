@@ -103,3 +103,4 @@ def report_issue():
     now_time = datetime.now().strftime('%H:%M')
     return render_template('report_issue.html', sekcja=sekcja, now_time=now_time)
 
+

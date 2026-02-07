@@ -887,3 +887,4 @@ def jakosc_dodaj_do_planow(id):
     flash('Zlecenie dodane do planów', 'success')
     return redirect(bezpieczny_powrot())
 
+
