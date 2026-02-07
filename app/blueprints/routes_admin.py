@@ -279,6 +279,59 @@ def admin_ustawienia_roles_save():
             pass
         return (jsonify({'error': str(e)}), 500)
 
+@admin_bp.route('/admin/ustawienia/roles/add', methods=['POST'])
+@admin_required
+def admin_ustawienia_roles_add():
+    """Dodaj nową rolę"""
+    import os, json
+    
+    try:
+        data = request.get_json(force=True)
+        role_name = data.get('role_name', '').strip().lower()
+        
+        if not role_name:
+            return jsonify({'success': False, 'error': 'Nazwa roli nie może być pusta'}), 400
+        
+        # Walidacja: tylko litery, liczby, podkreślnik
+        if not all(c.isalnum() or c == '_' for c in role_name):
+            return jsonify({'success': False, 'error': 'Nazwa roli może zawierać tylko litery, liczby i podkreślnik'}), 400
+        
+        cfg_path = os.path.join(current_app.root_path, 'config', 'role_permissions.json')
+        
+        # Czytaj obecną konfigurację
+        config = {}
+        if os.path.exists(cfg_path):
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+        
+        # Sprawdź czy rola już istnieje
+        for page in config.values():
+            if isinstance(page, dict) and role_name in page:
+                return jsonify({'success': False, 'error': f'Rola "{role_name}" już istnieje'}), 400
+        
+        # Dodaj nową rolę do wszystkich stron bez dostępu (domyślnie)
+        for page in config:
+            if isinstance(config[page], dict):
+                config[page][role_name] = {'access': False, 'readonly': False}
+        
+        # Stwórz backup
+        import shutil
+        from datetime import datetime as _dt
+        if os.path.exists(cfg_path):
+            bak_path = cfg_path + '.bak.' + _dt.now().strftime('%Y%m%d-%H%M%S')
+            shutil.copy2(cfg_path, bak_path)
+        
+        # Zapisz nową konfigurację
+        with open(cfg_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        current_app.logger.info('Added new role "%s" by user=%s', role_name, session.get('login'))
+        return jsonify({'success': True, 'message': f'Rola "{role_name}" została dodana'}), 200
+        
+    except Exception as e:
+        current_app.logger.exception('Error adding new role')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @admin_bp.route('/admin/pracownik/dodaj', methods=['POST'])
 @admin_required
 def admin_dodaj_pracownika():
@@ -572,7 +625,7 @@ def admin_workowanie_times():
 @admin_required
 def admin_workowanie_times_update():
     """Zaktualizuj czasy przetwarzania dla Workowania"""
-    import os, json, shutil
+    import os, json, shutil, re
     from datetime import datetime
     cfg_path = os.path.join(current_app.root_path, 'config', 'workowanie_processing_times.json')
     
@@ -591,11 +644,17 @@ def admin_workowanie_times_update():
         # Zaktualizuj czasy na podstawie formularza
         processing_times = times_config.get("processing_times_minutes", {})
         
-        for key in processing_times.keys():
+        # Zlicz istniejące nowe wpisy
+        new_entry_counter = 0
+        
+        # Przetwórz wszystkie klucze z formularza (istniejące i nowe)
+        for key in list(processing_times.keys()):
             prefix = f"{key}_"
-            # Odczytaj wartości dla każdego typu
+            # Aktualizuj istniejące wpisy
             time_minutes = request.form.get(f"{prefix}time_minutes", "").strip()
             description = request.form.get(f"{prefix}description", "").strip()
+            name = request.form.get(f"{prefix}name", "").strip()
+            weight_kg = request.form.get(f"{prefix}weight_kg", "").strip()
             
             if time_minutes:
                 try:
@@ -605,6 +664,47 @@ def admin_workowanie_times_update():
             
             if description:
                 processing_times[key]["description"] = description
+            
+            if name:
+                processing_times[key]["name"] = name
+                
+            if weight_kg:
+                try:
+                    processing_times[key]["weight_kg"] = int(weight_kg)
+                except ValueError:
+                    pass
+        
+        # Przetwórz nowe wpisy (new_N_*)
+        for field_name in request.form.keys():
+            match = re.match(r'(new_\d+)_(\w+)', field_name)
+            if match:
+                new_key = match.group(1)
+                field_type = match.group(2)
+                
+                if new_key not in processing_times:
+                    processing_times[new_key] = {
+                        "name": "",
+                        "weight_kg": 0,
+                        "processing_time_minutes": 15,
+                        "description": ""
+                    }
+                
+                value = request.form.get(field_name, "").strip()
+                
+                if field_type == 'name':
+                    processing_times[new_key]["name"] = value
+                elif field_type == 'weight_kg':
+                    try:
+                        processing_times[new_key]["weight_kg"] = int(value) if value else 0
+                    except ValueError:
+                        pass
+                elif field_type == 'time_minutes':
+                    try:
+                        processing_times[new_key]["processing_time_minutes"] = int(value) if value else 15
+                    except ValueError:
+                        pass
+                elif field_type == 'description':
+                    processing_times[new_key]["description"] = value
         
         times_config["processing_times_minutes"] = processing_times
         

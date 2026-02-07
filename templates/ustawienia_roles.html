@@ -14,6 +14,15 @@
 
   <p>Tu możesz zarządzać dostępem ról do stron aplikacji oraz ustawić, czy dostęp ma być tylko do odczytu.</p>
 
+  <div class="alert alert-info" style="margin-bottom: 20px; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; color: #1565c0;">
+    <strong>➕ Dodaj nową rolę:</strong>
+    <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center;">
+      <input type="text" id="newRoleName" placeholder="Nazwa nowej roli (np. kierownik, specjalista)" class="input-sm" style="min-width: 250px;">
+      <button type="button" id="btnAddRole" class="btn btn-primary" style="padding: 8px 16px;">+ Dodaj rolę</button>
+      <span id="addRoleStatus" style="color: green; display: none;"></span>
+    </div>
+  </div>
+
   <div class="table-responsive">
     <table class="modern-table">
       <thead>
@@ -46,6 +55,35 @@
   <script id="perms-data" type="application/json">{{ perms_json|tojson }}</script>
   <script>
   (function(){
+    // Obsługa dodawania nowej roli
+    document.getElementById('btnAddRole').addEventListener('click', async function(){
+      const roleName = document.getElementById('newRoleName').value.trim().toLowerCase();
+      if(!roleName){
+        alert('Proszę wpisać nazwę roli');
+        return;
+      }
+      
+      try{
+        const resp = await fetch('/admin/ustawienia/roles/add', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({role_name: roleName})
+        });
+        
+        const result = await resp.json();
+        if(result.success){
+          document.getElementById('addRoleStatus').textContent = '✓ Rola dodana!';
+          document.getElementById('addRoleStatus').style.display = 'inline';
+          document.getElementById('newRoleName').value = '';
+          setTimeout(() => location.reload(), 1000);
+        } else {
+          alert('Błąd: ' + (result.error || 'Nie udało się dodać roli'));
+        }
+      } catch(e){
+        alert('Błąd sieci: ' + e);
+      }
+    });
+    
     let current = {};
     try{
       const raw = document.getElementById('perms-data') && document.getElementById('perms-data').textContent;
