@@ -596,26 +596,38 @@ def edytuj_plan_ajax():
 @roles_required('planista', 'admin')
 def przenies_zlecenie_ajax():
     """Move a plan to different date via AJAX - delegated to PlanningService."""
+    print(f'\n📅 [PRZENIES-1] /api/przenies_zlecenie_ajax CALLED')
     try:
         data = request.get_json(force=True)
-    except Exception:
+        print(f'📅 [PRZENIES-2] JSON data received: {data}')
+    except Exception as e:
+        print(f'📅 [PRZENIES-3] JSON parse error: {e}')
         data = request.form.to_dict()
+        print(f'📅 [PRZENIES-4] Falling back to form data: {data}')
     
     id = data.get('id')
     to_date = data.get('to_date')
+    print(f'📅 [PRZENIES-5] id={id}, to_date={to_date}')
+    
     if not id or not to_date:
+        print(f'📅 [PRZENIES-6] Missing parameters!')
         return jsonify({'success': False, 'message': 'Brak parametrów'}), 400
     
     try:
         pid = int(id)
-    except Exception:
+        print(f'📅 [PRZENIES-7] Converted id to int: {pid}')
+    except Exception as e:
+        print(f'📅 [PRZENIES-8] ID conversion error: {e}')
         return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
 
+    print(f'📅 [PRZENIES-9] Calling PlanningService.reschedule_plan({pid}, {to_date})')
     success, message = PlanningService.reschedule_plan(pid, to_date)
+    print(f'📅 [PRZENIES-10] Result: success={success}, message={message}')
     
     if success:
         # Get old date and log history
         try:
+            print(f'📅 [PRZENIES-11] Logging history...')
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT data_planu FROM plan_produkcji WHERE id=%s", (pid,))
@@ -625,11 +637,13 @@ def przenies_zlecenie_ajax():
             if row:
                 old_date = row[0]
                 user_login = session.get('login') or session.get('imie_nazwisko')
+                print(f'📅 [PRZENIES-12] Logged: from={old_date}, to={to_date}, user={user_login}')
                 log_plan_history(pid, 'move', json.dumps({'from': str(old_date), 'to': to_date}, ensure_ascii=False), user_login)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f'📅 [PRZENIES-13] History logging error: {e}')
     
     status_code = 200 if success else 400
+    print(f'📅 [PRZENIES-14] Returning status {status_code}\n')
     return jsonify({'success': success, 'message': message}), status_code
 
 

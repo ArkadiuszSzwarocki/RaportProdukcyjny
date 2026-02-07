@@ -258,20 +258,48 @@
 
 <script>
 function confirmMove(){
+    console.log('📅 [1] confirmMove() CALLED');
     var modal = document.getElementById('moveModal');
+    console.log('📅 [2] modal:', modal);
+    if(!modal) return alert('Brak modala');
+    
     var id = modal.dataset.planId;
     var to_date = document.getElementById('move_to_date').value;
-    if(!id || !to_date) return alert('Brakuje danych');
-    fetch('/api/przenies_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, to_date: to_date})})
-        .then(r=>r.json()).then(j=>{
-            if(j && j.success){
-                modal.style.display='none';
-                // simple reload of page to reflect ordering and moved item
-                location.reload();
-            } else {
-                alert((j && j.message) || 'Błąd');
-            }
-        }).catch(()=>alert('Błąd sieci'));
+    console.log('📅 [3] id:', id, 'to_date:', to_date);
+    
+    if(!id || !to_date) {
+        console.log('📅 [4] Brakuje danych!');
+        return alert('Brakuje danych');
+    }
+    
+    console.log('📅 [5] Wysyłam fetch do /api/przenies_zlecenie_ajax');
+    var payload = {id:id, to_date: to_date};
+    console.log('📅 [6] Payload:', JSON.stringify(payload));
+    
+    fetch('/api/przenies_zlecenie_ajax', {
+        method:'POST', 
+        headers:{'Content-Type':'application/json'}, 
+        body: JSON.stringify(payload)
+    })
+    .then(function(r){
+        console.log('📅 [7] Response status:', r.status);
+        return r.json();
+    })
+    .then(function(j){
+        console.log('📅 [8] Response data:', j);
+        if(j && j.success){
+            console.log('📅 [9] SUCCESS - reloading page');
+            modal.style.display='none';
+            location.reload();
+        } else {
+            console.log('📅 [10] FAILED:', j && j.message);
+            alert((j && j.message) || 'Błąd');
+        }
+    })
+    .catch(function(err){
+        console.log('📅 [11] CATCH ERROR:', err);
+        alert('Błąd sieci: ' + (err.message || err));
+    });
 }
 </script>
 <script>

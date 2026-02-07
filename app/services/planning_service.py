@@ -1,6 +1,7 @@
 """Production planning service for managing production plans."""
 
 from datetime import date, datetime
+import traceback
 from app.db import get_db_connection
 from flask import current_app
 
@@ -399,38 +400,57 @@ class PlanningService:
         Returns:
             (success: bool, message: str)
         """
+        print(f'\n📅 [SERVICE-1] reschedule_plan({plan_id}, {nowa_data}) START')
         try:
+            print(f'📅 [SERVICE-2] Connecting to DB...')
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Validate plan exists and check status
+            print(f'📅 [SERVICE-3] Fetching plan {plan_id}...')
             cursor.execute("SELECT status FROM plan_produkcji WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
+            print(f'📅 [SERVICE-4] Result: {res}')
+            
             if not res:
+                print(f'📅 [SERVICE-5] Plan not found!')
                 return False, 'Plan nie istnieje.'
             
             status = res[0]
+            print(f'📅 [SERVICE-6] Current status: {status}')
+            
             if status in ['w toku', 'zakonczone']:
+                print(f'📅 [SERVICE-7] Plan has blocking status!')
                 return False, 'Nie można przesunąć planu w toku lub zakończonego.'
             
             # Get max sequence for target date
+            print(f'📅 [SERVICE-8] Fetching max sequence for date {nowa_data}...')
             cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (nowa_data,))
             max_seq = cursor.fetchone()
             nowa_kolejnosc = (max_seq[0] if max_seq and max_seq[0] else 0) + 1
+            print(f'📅 [SERVICE-9] New sequence: {nowa_kolejnosc}')
             
             # Update date and reset sequence
+            print(f'📅 [SERVICE-10] Executing UPDATE...')
             cursor.execute(
                 "UPDATE plan_produkcji SET data_planu=%s, kolejnosc=%s WHERE id=%s",
                 (nowa_data, nowa_kolejnosc, plan_id)
             )
+            print(f'📅 [SERVICE-11] UPDATE rowcount: {cursor.rowcount}')
             conn.commit()
+            print(f'📅 [SERVICE-12] COMMIT done')
             conn.close()
+            print(f'📅 [SERVICE-13] Connection closed - SUCCESS\n')
             return True, 'Plan przesunięty na nową datę.'
             
         except Exception as e:
+            print(f'📅 [SERVICE-14] EXCEPTION: {str(e)}')
+            print(f'📅 [SERVICE-15] Traceback: {traceback.format_exc()}')
             current_app.logger.exception(f'Error rescheduling plan {plan_id}')
             try:
                 conn.rollback()
-            except Exception:
+                print(f'📅 [SERVICE-16] ROLLBACK done')
+            except Exception as rb_err:
+                print(f'📅 [SERVICE-17] ROLLBACK error: {rb_err}')
                 pass
             return False, 'Błąd przy przesuwaniu planu.'
