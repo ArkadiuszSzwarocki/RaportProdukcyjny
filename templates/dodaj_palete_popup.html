@@ -2,7 +2,7 @@
   <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj szarżę{% else %}📦 {{ _('dodaj_palete') }}{% endif %}</h3>
   {% if sekcja == 'Workowanie' %}
   {# Workowanie: użyj dedykowanego endpointu dodaj_palete #}
-  <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST">
+  <form action="{{ url_for('warehouse.dodaj_palete', plan_id=plan_id) }}" method="POST">
     <input id="waga_palety" name="waga_palety" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="{{ _('waga_palety') }}" title="{{ _('waga_palety_kg_info') }}">
     
     <div class="popup-button-group">
@@ -12,7 +12,7 @@
   </form>
   {% else %}
   {# Zasyp: użyj dodaj_plan dla szarży #}
-  <form action="{{ url_for('api.dodaj_plan') }}" method="POST">
+  <form action="{{ url_for('planning.dodaj_plan') }}" method="POST">
     <input id="tonaz" name="tonaz" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="{{ _('waga_szarzy_kg') }}" title="{{ _('waga_szarzy_kg_info') }}">
     
     <!-- Produkt i typ - ukryte (brane automatycznie z systemu) -->

@@ -6,7 +6,7 @@
 </div>
 
 <div class="section-box">
-    <form action="{{ url_for('api.dodaj_palete', plan_id=plan_id) }}" method="POST" class="form-flex">
+    <form action="{{ url_for('warehouse.dodaj_palete', plan_id=plan_id) }}" method="POST" class="form-flex">
         <input type="hidden" name="sekcja" value="{{ sekcja or 'Workowanie' }}">
         <input type="hidden" name="typ_produkcji" value="{{ typ or '' }}">
         <div class="form-column">

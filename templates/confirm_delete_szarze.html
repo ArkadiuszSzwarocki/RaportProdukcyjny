@@ -1,6 +1,6 @@
 <div class="p-10" data-popup-title="{{ _('usun_szarze_emoji') }}">
     <p>Czy na pewno chcesz usunąć szarżę o id <strong>{{ szarza_id }}</strong>?</p>
-    <form action="{{ url_for('api.usun_szarze', id=szarza_id) }}" method="POST">
+    <form action="{{ url_for('warehouse.usun_szarze', id=szarza_id) }}" method="POST">
         <div style="display:flex; gap:8px;">
             <button type="submit" class="btn-action btn-danger">{{ _('usun_btn') }}</button>
             <button type="button" class="btn-action btn-action-cancel" onclick="closeQuickPopup();">ANULUJ</button>

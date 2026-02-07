@@ -69,7 +69,7 @@
                                 <td class="time-display">{{ p[3] }}</td>
                                 <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</span></td>
                                 <td>
-                                    <a href="{{ url_for('api.potwierdz_palete_page', paleta_id=p[0]) }}" class="btn-action btn-success btn-small" data-slide>{{ _('zatwierdz') }}</a>
+                                    <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=p[0]) }}" class="btn-action btn-success btn-small" data-slide>{{ _('zatwierdz') }}</a>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -108,8 +108,8 @@
             
             {% if rola in ['lider', 'admin'] %}
                 <div class="d-flex gap-8 align-center">
-                    <a href="{{ url_for('api.edytuj', id=w[0]) }}" title="{{ _('edytuj_wpis') }}" class="font-bold text-warning-dark no-underline">✎</a>
-                    <form action="{{ url_for('api.usun_wpis', id=w[0]) }}" method="POST" class="m-0">
+                    <a href="{{ url_for('journal.edytuj', id=w[0]) }}" title="{{ _('edytuj_wpis') }}" class="font-bold text-warning-dark no-underline">✎</a>
+                    <form action="{{ url_for('journal.usun_wpis', id=w[0]) }}" method="POST" class="m-0">
                         <input type="hidden" name="sekcja" value="{{ sekcja }}">
                         <button type="submit" class="btn-icon text-warning-dark" aria-label="Usuń wpis">✖</button>
                     </form>
@@ -230,7 +230,7 @@
                     {% if rola in ['lider', 'admin', 'pracownik'] and sekcja != 'Magazyn' %}
                         {% if p[3] == 'zaplanowane' %}
                             {% if ns.is_active %}<button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
-                            {% else %}<form action="{{ url_for('api.start_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>{% endif %}
+                            {% else %}<form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>{% endif %}
                         {% elif p[3] == 'w toku' %}
                             <div class="d-flex gap-5 justify-end">
                                 {% if sekcja == 'Workowanie' %}
@@ -240,17 +240,17 @@
                                                 {% set buffer_id = p[0] %}
                                             {% endif %}
                                             {% if p[9] == 'bigbag' %}
-                                            <a href="{{ url_for('api.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
+                                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
                                         {% else %}
-                                            <a href="{{ url_for('api.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
+                                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                                         {% endif %}
                                     </div>
                                 {% endif %}
                                 {% if sekcja == 'Zasyp' %}
-                                    <a href="{{ url_for('api.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
-                                    <a href="{{ url_for('api.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
+                                    <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
+                                    <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% else %}
-                                    <a href="{{ url_for('api.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
+                                    <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% endif %}
                             </div>
                             <!-- Modale paleta/szarza/stop-zasyp usunięte -->
@@ -261,10 +261,10 @@
                                     <div class="d-flex align-center justify-end gap-10">
                                 <span class="material-icons text-success">check_circle</span>
                                     {% if sekcja == 'Zasyp' and p[13] and not p[10] %}
-                                    <a href="{{ url_for('api.wyjasnij_page', id=p[0]) }}" class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</a>
+                                    <a href="{{ url_for('production.wyjasnij_page', id=p[0]) }}" class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</a>
                                     <!-- Wyjaśnienie modal (slide-over) -->
                                     {% endif %}
-                                {% if rola in ['lider', 'admin'] and has_suspended_yesterday %}<a href="{{ url_for('api.przywroc_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-outline-warning" aria-label="Przywróć zlecenie" data-slide><span class="material-icons">replay</span></a>{% endif %}
+                                {% if rola in ['lider', 'admin'] and has_suspended_yesterday %}<a href="{{ url_for('planning.przywroc_zlecenie', id=p[0], sekcja=sekcja) }}" class="btn-action btn-outline-warning" aria-label="Przywróć zlecenie" data-slide><span class="material-icons">replay</span></a>{% endif %}
                             </div>
                         {% else %}
                             {# Status inny niż 'w toku' i 'zakonczone' - brak akcji #}
@@ -293,8 +293,8 @@
                                         <td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td>
                                         <td>
                                             {% if rola in ['lider', 'admin'] %}
-                                                <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="Edytuj szarzę" data-slide>✏️</a>
-                                                <a href="{{ url_for('api.confirm_delete_szarze_page', szarza_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń szarzę" data-slide>🗑️</a>
+                                                <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="Edytuj szarzę" data-slide>✏️</a>
+                                                <a href="{{ url_for('warehouse.confirm_delete_szarze_page', szarza_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń szarzę" data-slide>🗑️</a>
                                             {% endif %}
                                         </td>
                                     {% elif sekcja == 'Workowanie' %}
@@ -313,8 +313,8 @@
                                                 {% endif %}
                                             {% endif %}
                                             {% if rola in ['lider', 'admin'] %}
-                                                <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
-                                                <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}" data-slide>🗑️</a>
+                                                <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
+                                                <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}" data-slide>🗑️</a>
                                             {% endif %}
                                         </td>
                                     {% else %}
@@ -323,10 +323,10 @@
                                         <td>
                                                 {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
                                                     {% if pal[0] == 0 %}
-                                                        <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-warning small" data-slide>⚖️ WAŻENIE</a>
+                                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-warning small" data-slide>⚖️ WAŻENIE</a>
                                                     {% else %}
                                                         <strong class="text-success">{{ pal[0]|int }} kg</strong>
-                                                        <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon ml-5" aria-label="Edytuj wagę" data-slide>✏️</a>
+                                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon ml-5" aria-label="Edytuj wagę" data-slide>✏️</a>
                                                     {% endif %}
                                                 <!-- Waga modal removed -->
                                             {% else %}<strong class="text-primary">{{ pal[0]|int }} kg</strong>{% endif %}
@@ -349,12 +349,12 @@
                                                 {% endif %}
                                             {% endif %}
                                             {% if rola in ['lider', 'admin'] %}
-                                                <a href="{{ url_for('api.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
-                                                <a href="{{ url_for('api.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}" data-slide>🗑️</a>
+                                                <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
+                                                <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}" data-slide>🗑️</a>
                                             {% endif %}
                                             {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in ['lider','admin']) and pal[7] == 'do_przyjecia' %}
                                                 {# Inline styles removed — use .btn-confirm-inline class in external CSS (static/style.css) #}
-                                                <a href="{{ url_for('api.potwierdz_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-save btn-small btn-confirm-inline" data-slide>{{ _('potwierdz') }}</a>
+                                                <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-save btn-small btn-confirm-inline" data-slide>{{ _('potwierdz') }}</a>
                                             {% endif %}
                                         <!-- editpal and confirm-delete modals removed -->
                                         </td>

@@ -11,7 +11,7 @@
   <div class="box">
     <h3>🗑️ {{ _('usun_palete') }}</h3>
     <p>Czy na pewno usunąć paletę <strong>{{ paleta_id }}</strong>?</p>
-    <form action="{{ url_for('api.usun_palete', id=paleta_id) }}" method="POST">
+    <form action="{{ url_for('warehouse.usun_palete', id=paleta_id) }}" method="POST">
       <div class="actions">
         <button type="submit" class="btn btn-danger">{{ _('usun') }}</button>
         <button type="button" class="btn btn-outline" onclick="window.close();">{{ _('anuluj') }}</button>

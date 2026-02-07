@@ -1,6 +1,6 @@
 <div class="p-10" data-popup-title="{{ _('usun_palete_emoji') }}">
     <p>Czy na pewno chcesz usunąć paletę o id <strong>{{ paleta_id }}</strong>?</p>
-    <form action="{{ url_for('api.usun_palete', id=paleta_id) }}" method="POST">
+    <form action="{{ url_for('warehouse.usun_palete', id=paleta_id) }}" method="POST">
         <div class="button-group">
             <button type="submit" class="btn-action btn-danger">{{ _('usun_btn') }}</button>
             <button type="button" class="btn-action btn-action-cancel" onclick="closeQuickPopup();">ANULUJ</button>
