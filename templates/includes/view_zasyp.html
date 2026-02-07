@@ -56,7 +56,7 @@
             <p class="text-muted text-muted-italic text-center">Brak planu na dziś.</p>
         {% else %}
             {% for p in plan if p[3] != 'w toku' %}
-                <div class="plan-item {% if p[3] == 'zakonczone' %}bg-zakonczone{% endif %}">
+                <div class="plan-item {% if p[3] == 'zakonczone' %}bg-zakonczone{% endif %}" data-id="{{ p[0] }}">
                 <div class="flex-2">
                     {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">OCZEKUJE</span>
                     {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">GOTOWE</span>{% endif %}

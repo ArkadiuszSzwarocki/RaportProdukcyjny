@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>system_produkcyjny</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/static/favicon.svg" sizes="any">
+    <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css?v=1770469687">
+</head>
+<body>
+
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="top-bar">
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
+            <span class="material-icons">menu</span>
+        </button>
+        <div class="d-flex align-center gap-15">
+            <img src="/static/agro_logo.png" alt="Company logo: the word agro with AGRO and MES styled difference and a simple agricultural emblema; place in the top bar header beige the page title agro; conveys a Natural, professional, trustworthy tone" class="logo-sm" onerror="handleLogoError(this)">
+            <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
+        </div>
+
+        <div class="user-info">
+            
+                <a href="/zarzad" class="btn-icon" title="raport">
+                    <span class="material-icons">bar_chart</span>
+                </a>
+            
+
+            
+
+            
+                <a href="/zglos" class="btn-icon" title="zgnlosz_problem">
+                    <span class="material-icons">report_problem</span>
+                </a>
+            
+
+            <!-- Language selector dropdown -->
+            <div class="language-selector">
+                <button type="button" class="btn-icon language-toggle" title="zmien_jezyk" onclick="toggleLanguageMenu(); return false;">
+                    <span class="material-icons">language</span>
+                </button>
+                <div id="languageMenu" class="language-menu hidden">
+                    <a href="#" onclick="switchLanguage('pl'); return false;" class="language-option">
+                        <span>🇵🇱</span> Polski
+                    </a>
+                    <a href="#" onclick="switchLanguage('uk'); return false;" class="language-option">
+                        <span>🇺🇦</span> Українська
+                    </a>
+                    <a href="#" onclick="switchLanguage('en'); return false;" class="language-option">
+                        <span>🇬🇧</span> English
+                    </a>
+                </div>
+            </div>
+
+            
+
+            
+
+            <span class="user-role">zalogowany: <strong>Admin</strong></span>
+            
+            <a href="/logout" class="logout-btn" aria-label="logout">
+                <span class="material-icons">logout</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="top-submenu">
+        <div class="top-submenu-inner">
+            <a class="top-tile" href="/obsada_page?sekcja=Workowanie" title="obsada">
+                <span class="material-icons">people</span>
+                <div class="tile-label">obsada</div>
+            </a>
+            <nav class="top-menu">
+                <a class="top-menu-item" href="/panel_wnioski_page"> <span class="material-icons">assignment_turned_in</span> zatwierdzenie_wnioskow</a>
+                <a class="top-menu-item" href="/panel/planowane"> <span class="material-icons">beach_access</span> planowane_urlopy</a>
+                <a class="top-menu-item" href="/panel/obecnosci"> <span class="material-icons">calendar_today</span> nieobecnosci</a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="app-layout">
+        <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+        <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
+            <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
+            <nav class="sidebar-nav">
+                
+                    <a href="/" class="nav-item ">dashboard</a>
+                
+
+                
+                    <a href="/?sekcja=Zasyp" class="nav-item active">zasyp</a>
+                
+
+                
+                    
+                    <a href="/bufor" class="nav-item ">bufor</a>
+                    <a href="/?sekcja=Workowanie" class="nav-item ">workowanie</a>
+                
+
+                
+                    <a href="/?sekcja=Magazyn" class="nav-item ">magazyn</a>
+                
+
+                
+                    <a href="/jakosc" class="nav-item ">jakosc</a>
+                
+
+                
+                    <a href="/zarzad" class="nav-item ">wyniki</a>
+                
+
+                
+                    <a href="/dur/awarie" class="nav-item ">⚠️ awarie</a>
+                
+
+                
+                    <a href="/planista" class="nav-item ">plan</a>
+                
+
+                
+                    <a href="/moje_godziny" class="nav-item ">moje_godziny</a>
+                
+
+                
+                    <a href="/admin/ustawienia" class="nav-item ">ustawienia</a>
+                
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/logout" class="btn-icon">logout</a>
+            </div>
+        </aside>
+
+        <main class="main-content" id="mainContent">
+        
+            
+        
+
+        
+<!-- modalOverlay removed (mechanizm popup wyłączony) -->
+    <div class="section-header">
+    <div>
+        <h2 class="header-title">hala_produkcyjna: <strong>zasyp</strong></h2>
+        
+        <div class="day-tile" data-sekcja="Zasyp">
+            <button type="button" class="day-nav left" data-day-offset="-1" aria-label="poprzedni_dzien">◀</button>
+            <div class="day-center">
+                <div class="day-label">widok_dla</div>
+                <div id="current-date-display" class="day-date">2026-02-07</div>
+            </div>
+            <button type="button" class="day-nav right" data-day-offset="1" aria-label="nastepny_dzien">▶</button>
+            <input type="hidden" id="current-date-iso" value="2026-02-07">
+        </div>
+    </div>
+    <div class="d-flex align-center gap-12 header-stats">
+        
+            <div class="stat-inline stat-plan"><span class="label">plan</span><strong class="value">14000 kg</strong></div>
+            <div class="stat-inline stat-wykonanie"><span class="label">wykonanie</span><strong class="value text-success">4150 kg</strong></div>
+            <div class="stat-inline stat-realizacja"><span class="label">% Realizacja</span><strong class="value">29%</strong></div>
+        
+    </div>
+</div>
+
+<!-- Date overview widget: shows current date and range (dzień/tydzień/miesiąc) -->
+<div class="section-box mb-10 date-overview">
+    <div class="p-10 d-flex align-center justify-between">
+        <div>
+            <div class="small text-muted">przeglad_daty</div>
+            <div><strong id="overview-current">07 Feb 2026</strong></div>
+            <div id="overview-range" class="small text-muted">-</div>
+        </div>
+        <div class="d-flex gap-8">
+            <button type="button" id="view-day" class="btn btn-sm">dzien</button>
+            <button type="button" id="view-week" class="btn btn-sm">tydzien</button>
+            <button type="button" id="view-month" class="btn btn-sm">mies_ac</button>
+        </div>
+    </div>
+</div>
+
+
+    
+    
+
+
+<!-- Dedykowany kontener na wpisy dla zmienianej daty -->
+<div id="wpisy-container" class="mb-20">
+
+</div>
+
+
+
+
+
+
+
+    <div class="section-box p-0">
+    <div class="p-15 p-15-bg">
+        <h3 class="m-0 text-primary">📋 kolejka_produkcyjna</h3>
+        <span class="badge-info">zasyp</span>
+    </div>
+    
+    
+    <!-- Sekcja: Wznowienie zleceń z poprzedniego dnia -->
+    
+    <div class="alert-info d-flex justify-between align-center mb-10" id="resume-yesterday-section">
+        <div>
+            <div class="font-bold">🔄 Wczorajsze zlecenia (zawieszonych)</div>
+            <div class="small text-muted">kliknij_wznow</div>
+        </div>
+        <button type="button" class="btn-action btn-info" data-action="resume-orders" data-sekcja="Zasyp">
+            <span class="material-icons icon-mr-small">replay</span> wznow_zlecenia_z_wczoraj
+        </button>
+    </div>
+    
+
+    
+    <!-- INNE SEKCJE: Wyświetl plan_dnia (plany produkcji) -->
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>#</th><th>📦 Produkt</th><th>📋 Plan</th><th>🕒 Czas Pracy</th><th>📊 Status</th><th>✅ Realizacja</th><th class="text-right">⚙️ Akcje</th>
+            </tr>
+        </thead>
+        <tbody>
+        
+            <tr class="row-wtoku">
+                <td class="text-muted font-bold">1</td>
+                <td>
+                    <strong class="text-primary">test</strong>
+                    <div class="small badge-sekcja">BIGBAG</div>
+                </td>
+                <td>
+                    <strong class="text-success">4000 kg</strong>
+                </td>
+                <td class="small">
+                    <div class="time-display">🟢 13:17</div>
+                    
+                    
+                </td>
+                <td><span class="status-badge status-wtoku">W TOKU</span></td>
+                <td>
+                    <strong class="text-success">4150 kg</strong>
+                    
+                    
+                </td>
+                <td class="text-right">
+                    
+                        
+                            <div class="d-flex gap-5 justify-end">
+                                
+                                
+                                    <a href="/szarza_page/460" class="btn-action btn-green" data-slide>+ SZARŻA</a>
+                                    <a href="/koniec_zlecenie_page/460?sekcja=Zasyp" class="btn-action btn-stop" data-slide>STOP</a>
+                                
+                            </div>
+                            <!-- Modale paleta/szarza/stop-zasyp usunięte -->
+                            
+                        
+                    
+                </td>
+            </tr>
+            
+        
+            <tr class="row-zaplanowane">
+                <td class="text-muted font-bold">2</td>
+                <td>
+                    <strong class="text-primary">test12</strong>
+                    <div class="small badge-sekcja">WORKI_ZSZYWANE_20</div>
+                </td>
+                <td>
+                    <strong class="text-success">6000 kg</strong>
+                </td>
+                <td class="small">
+                    
+                    
+                    
+                </td>
+                <td><span class="status-badge status-zaplanowane">ZAPLANOWANE</span></td>
+                <td>
+                    <span class="text-muted">-</span>
+                    
+                    
+                </td>
+                <td class="text-right">
+                    
+                        
+                            <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
+                            
+                            
+                            <form action="/przywroc_zlecenie/461" method="POST" class="inline-form" onsubmit="return confirm('Wznowić test12?');" style="display:inline-block;"><button type="submit" class="btn-action btn-outline-warning" title="Wznowić zlecenie">↻ Wznów</button></form>
+                            
+                        
+                    
+                </td>
+            </tr>
+            
+        
+            <tr class="row-zaplanowane">
+                <td class="text-muted font-bold">3</td>
+                <td>
+                    <strong class="text-primary">test</strong>
+                    <div class="small badge-sekcja">WORKI_ZGRZEWANE_25</div>
+                </td>
+                <td>
+                    <strong class="text-success">1000 kg</strong>
+                </td>
+                <td class="small">
+                    
+                    
+                    
+                </td>
+                <td><span class="status-badge status-zaplanowane">ZAPLANOWANE</span></td>
+                <td>
+                    <span class="text-muted">-</span>
+                    
+                    
+                </td>
+                <td class="text-right">
+                    
+                        
+                            <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
+                            
+                            
+                            <form action="/przywroc_zlecenie/462" method="POST" class="inline-form" onsubmit="return confirm('Wznowić test?');" style="display:inline-block;"><button type="submit" class="btn-action btn-outline-warning" title="Wznowić zlecenie">↻ Wznów</button></form>
+                            
+                        
+                    
+                </td>
+            </tr>
+            
+        
+            <tr class="row-zaplanowane">
+                <td class="text-muted font-bold">4</td>
+                <td>
+                    <strong class="text-primary">test</strong>
+                    <div class="small badge-sekcja">WORKI_ZSZYWANE_20</div>
+                </td>
+                <td>
+                    <strong class="text-success">1000 kg</strong>
+                </td>
+                <td class="small">
+                    
+                    
+                    
+                </td>
+                <td><span class="status-badge status-zaplanowane">ZAPLANOWANE</span></td>
+                <td>
+                    <span class="text-muted">-</span>
+                    
+                    
+                </td>
+                <td class="text-right">
+                    
+                        
+                            <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
+                            
+                            
+                            <form action="/przywroc_zlecenie/463" method="POST" class="inline-form" onsubmit="return confirm('Wznowić test?');" style="display:inline-block;"><button type="submit" class="btn-action btn-outline-warning" title="Wznowić zlecenie">↻ Wznów</button></form>
+                            
+                        
+                    
+                </td>
+            </tr>
+            
+        
+            <tr class="row-zaplanowane">
+                <td class="text-muted font-bold">5</td>
+                <td>
+                    <strong class="text-primary">test</strong>
+                    <div class="small badge-sekcja">BIGBAG</div>
+                </td>
+                <td>
+                    <strong class="text-success">1000 kg</strong>
+                </td>
+                <td class="small">
+                    
+                    
+                    
+                </td>
+                <td><span class="status-badge status-zaplanowane">ZAPLANOWANE</span></td>
+                <td>
+                    <span class="text-muted">-</span>
+                    
+                    
+                </td>
+                <td class="text-right">
+                    
+                        
+                            <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
+                            
+                            
+                            <form action="/przywroc_zlecenie/464" method="POST" class="inline-form" onsubmit="return confirm('Wznowić test?');" style="display:inline-block;"><button type="submit" class="btn-action btn-outline-warning" title="Wznowić zlecenie">↻ Wznów</button></form>
+                            
+                        
+                    
+                </td>
+            </tr>
+            
+        
+            <tr class="row-zakonczone">
+                <td class="text-muted font-bold">6</td>
+                <td>
+                    <strong class="text-primary">test</strong>
+                    <div class="small badge-sekcja">WORKI_ZGRZEWANE_20</div>
+                </td>
+                <td>
+                    <strong class="text-success">1000 kg</strong>
+                </td>
+                <td class="small">
+                    <div class="time-display">🟢 13:14</div>
+                    <div class="time-display text-danger-color">🔴 13:17</div>
+                    
+                        
+                        
+                        
+                        <div class="duration-badge">⏱️ 2m</div>
+                    
+                </td>
+                <td><span class="status-badge status-zakonczone">ZAKONCZONE</span></td>
+                <td>
+                    <span class="text-muted">-</span>
+                    
+                    
+                </td>
+                <td class="text-right">
+                    
+                        
+                                    <div class="d-flex align-center justify-end gap-10">
+                                <span class="material-icons text-success">check_circle</span>
+                                    
+                                    <a href="/wyjasnij_page/465" class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ (1000 kg)</a>
+                                    <!-- Wyjaśnienie modal (slide-over) -->
+                                    
+                                
+                            </div>
+                        
+                    
+                </td>
+            </tr>
+            
+        
+        </tbody>
+    </table>
+    
+</div>
+
+    
+
+<script>
+    function toggleDetails(id) {
+        var row = document.getElementById('details-' + id);
+        if (!row) return;
+        var isHidden = getComputedStyle(row).display === 'none' || row.style.display === 'none';
+        row.style.display = isHidden ? 'table-row' : 'none';
+    }
+    
+    // ========== RĘCZNE WZNOWIENIE ZLECEŃ Z POPRZEDNIEGO DNIA ==========
+    function resumeYesterdaysOrders(sekcja, buttonElem) {
+        console.log(`[RESUME] Starting resume for sekcja=${sekcja}`);
+        var button = buttonElem || (event && event.target ? event.target.closest('button') : null);
+        console.log(`[RESUME] Button element: ${button ? 'found' : 'NOT FOUND'}`);
+        if (!button) return;
+        
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = '⏳ Wznawiam...';
+        
+        const fetchUrl = `/api/wznow_zlecenia_sekcji/${sekcja}`;
+        console.log(`[RESUME] Sending fetch to: ${fetchUrl}`);
+        
+        fetch(fetchUrl, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            console.log(`[RESUME] Response status: ${response.status}`);
+            return response.json();
+        })
+        .then(data => {
+            console.log(`[RESUME] Response data:`, data);
+            if (data.success) {
+                console.log(`[RESUME] ✅ ${data.message}`);
+                alert(`✅ ${data.message}`);
+                // Odśwież stronę aby pokazać wznowione zlecenia
+                setTimeout(() => location.reload(), 500);
+            } else {
+                console.error(`[RESUME] ✗ Błąd: ${data.message}`);
+                alert(`❌ ${data.message}`);
+                button.disabled = false;
+                button.textContent = originalText;
+            }
+        })
+        .catch(error => {
+            console.error('[RESUME] ✗ Błąd sieci:', error);
+            alert(`❌ Błąd sieci: ${error.message}`);
+            button.disabled = false;
+            button.textContent = originalText;
+        });
+    }
+    
+    // Modale wyłączone — funkcje zastępcze blokujące popupy
+    function openModal(id) {
+        try { if(window.__RP_DEBUG__){ console.debug('[modal-disabled] openModal called, id=', id); } } catch(e){}
+        return;
+    }
+
+    function closeAllModals() {
+        try { if(window.__RP_DEBUG__){ console.debug('[modal-disabled] closeAllModals called'); } } catch(e){}
+        // Backwards-compat shim: route legacy modal close calls to the quick-popup/center-modal
+        try { if (typeof closeQuickPopup === 'function') closeQuickPopup(); } catch(e){}
+        try { if (typeof closeCenterModal === 'function') closeCenterModal(); } catch(e){}
+        return;
+    }
+
+    // openPopup removed — use `showSlideOver(...)` directly where needed
+    
+    // Zamknij wszystko na start
+    closeAllModals();
+
+    /* showModalDisabled removed — slide-over used as fallback instead */
+
+    
+</script>
+
+<script>
+// Modal movement logger: logs bounding rect before and after a small mousemove below the modal,
+// prints to console and posts JSON to server endpoint `/debug/modal-move`.
+// modal movement logger removed (modal mechanism disabled)
+</script>
+
+<script>
+// Live elapsed timers for unconfirmed palety
+function formatElapsed(secs){
+    if(secs < 0) secs = 0;
+    const h = Math.floor(secs/3600);
+    const m = Math.floor((secs%3600)/60);
+    const s = secs%60;
+    if(h>0) return h+"h "+String(m).padStart(2,'0')+"m";
+    if(m>0) return m+"m "+String(s).padStart(2,'0')+"s";
+    return s+"s";
+}
+function updatePaletaTimers(){
+    document.querySelectorAll('.paleta-elapsed').forEach(function(el){
+        const ds = el.getAttribute('data-start');
+        if(!ds) return;
+        // parse 'YYYY-MM-DD HH:MM:SS' by replacing space with 'T'
+        let t = ds.replace(' ', 'T');
+        // If no timezone, Date.parse treats as local in most browsers
+        const start = Date.parse(t);
+        if(isNaN(start)) return;
+        const now = Date.now();
+        const secs = Math.floor((now - start)/1000);
+        el.textContent = '⏱️ ' + formatElapsed(secs);
+    });
+}
+function initUpdatePaletaTimers(){
+    updatePaletaTimers(); 
+    clearInterval(window._paletaTimersInterval);
+    window._paletaTimersInterval = setInterval(updatePaletaTimers, 1000);
+}
+document.addEventListener('DOMContentLoaded', initUpdatePaletaTimers);
+window.addEventListener('app:partialReload', initUpdatePaletaTimers);
+</script>
+
+<script>
+// Day shift buttons (global): navigate with ?sekcja=...&data=YYYY-MM-DD
+document.addEventListener('DOMContentLoaded', function(){
+    // selector updated: controls are rendered in .day-tile
+    var container = document.querySelector('.day-tile');
+    if(!container) return;
+    function pad(n){ return n<10?('0'+n):n; }
+    function isoFromDate(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+    var baseIso = document.getElementById('current-date-iso') ? document.getElementById('current-date-iso').value : null;
+    var baseDate = baseIso ? new Date(baseIso+'T00:00:00') : new Date();
+    container.querySelectorAll('button[data-day-offset]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+            var offset = parseInt(btn.getAttribute('data-day-offset')||0,10);
+            var target = new Date(baseDate.getTime());
+            target.setDate(target.getDate() + offset);
+            var iso = isoFromDate(target);
+            // preserve sekcja in querystring (use data-sekcja from container)
+            var params = new URLSearchParams(window.location.search);
+            var sec = container.dataset.sekcja || params.get('sekcja');
+            if(sec) params.set('sekcja', sec);
+            else params.delete('sekcja');
+            params.set('data', iso);
+            window.location.search = params.toString();
+        });
+    });
+});
+</script>
+
+<script>
+// Date overview logic: compute day/week/month ranges based on #current-date-iso
+document.addEventListener('DOMContentLoaded', function(){
+    var isoInput = document.getElementById('current-date-iso');
+    if(!isoInput) return;
+    var baseIso = isoInput.value;
+    function parseIso(s){ return new Date((s||'') + 'T00:00:00'); }
+    function fmt(d){ try { return d.toLocaleDateString('pl-PL', { day: '2-digit', month: 'short', year: 'numeric' }); } catch(e){ return d.toISOString().slice(0,10); } }
+
+    function startOfWeek(d){ // Monday as first day
+        var dt = new Date(d.getTime());
+        var dow = dt.getDay(); // 0 Sun .. 6 Sat
+        var delta = (dow + 6) % 7; // days since Monday
+        dt.setDate(dt.getDate() - delta);
+        dt.setHours(0,0,0,0);
+        return dt;
+    }
+    function endOfWeek(d){ var s = startOfWeek(d); s.setDate(s.getDate()+6); return s; }
+    function startOfMonth(d){ var s = new Date(d.getFullYear(), d.getMonth(), 1); return s; }
+    function endOfMonth(d){ var s = new Date(d.getFullYear(), d.getMonth()+1, 0); return s; }
+
+    var currentEl = document.getElementById('overview-current');
+    var rangeEl = document.getElementById('overview-range');
+    var dayBtn = document.getElementById('view-day');
+    var weekBtn = document.getElementById('view-week');
+    var monthBtn = document.getElementById('view-month');
+
+    var currentDate = baseIso ? parseIso(baseIso) : new Date();
+    currentEl.textContent = fmt(currentDate);
+
+    function showDay(){ rangeEl.textContent = fmt(currentDate); }
+    function showWeek(){ var s = startOfWeek(currentDate); var e = endOfWeek(currentDate); rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
+    function showMonth(){ var s = startOfMonth(currentDate); var e = endOfMonth(currentDate); rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
+
+    // default to day view
+    showDay();
+
+    dayBtn && dayBtn.addEventListener('click', function(){ showDay(); });
+    weekBtn && weekBtn.addEventListener('click', function(){ showWeek(); });
+    monthBtn && monthBtn.addEventListener('click', function(){ showMonth(); });
+});
+</script>
+
+
+<script>
+// Zamienia zachowanie linków z `data-slide` na popup zamiast slide-over
+// ładuje zawartość przez fetch i pokazuje w globalnym `showQuickPopup`.
+document.addEventListener('DOMContentLoaded', function(){
+    if(typeof showQuickPopup !== 'function') return;
+
+    document.body.addEventListener('click', function(e){
+        var a = e.target.closest && e.target.closest('a[data-slide]');
+        if(!a) return;
+        var href = a.getAttribute('href');
+        if(!href) return;
+
+        // only intercept relative links (same-origin)
+        if(href.indexOf('http') === 0 && new URL(href, location.href).origin !== location.origin) return;
+
+        e.preventDefault();
+        // Prevent other click handlers (including slide-over) from running
+        if (e.stopImmediatePropagation) try { e.stopImmediatePropagation(); } catch (e) {}
+        // remove legacy slide attributes to fully disable slide-cover behavior
+        try { a.removeAttribute('data-slide'); a.removeAttribute('data-slide-html'); } catch (e) {}
+        var title = a.getAttribute('title') || a.textContent.trim() || 'Szybki popup';
+        fetch(href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(res){ return res.text(); })
+            .then(function(html){
+                try{ showQuickPopup(title, html); }catch(err){ console.error(err); alert('Błąd: nie udało się otworzyć popupu'); }
+            }).catch(function(err){ console.error('fetch popup failed', err); alert('Błąd ładowania zawartości'); });
+    }, false);
+});
+</script>
+
+
+<!-- Przypomnienia usunięte: funkcja remind_unconfirmed_palety zostaje, ale nie ma przycisku w UI. -->
+
+<!-- moved CSS to static/style.css -->
+<!-- Paleta modal removed: replaced by a separate page (dodaj_palete) -->
+<script>
+// AJAX approve/reject for dashboard wnioski_pending
+document.addEventListener('DOMContentLoaded', function(){
+    // showToast() provided by static/js/toasts.js
+
+    var forms = document.querySelectorAll('.wn-form');
+    forms.forEach(function(f){
+        f.addEventListener('submit', function(e){
+            e.preventDefault();
+            var url = f.getAttribute('action');
+            var row = f.closest('tr');
+            var btn = f.querySelector('.wn-btn'); if(btn) btn.disabled = true;
+            fetch(url, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams()})
+            .then(function(r){ try{ return r.json(); }catch(e){ return {}; } })
+            .then(function(j){
+                if(j && j.success){ if(row) row.remove(); showToast(j.message || 'Wniosek przetworzony', 'success'); }
+                else { showToast((j && j.message) ? j.message : 'Błąd', 'danger'); if(btn) btn.disabled = false; }
+            }).catch(function(err){ console.error(err); showToast('Błąd sieci', 'danger'); if(btn) btn.disabled = false; });
+        });
+    });
+});
+</script>
+
+
+        </main>
+    </div>
+
+    <script src="/static/js/toasts.js?v=1770469687"></script>
+    <script src="/static/scripts.js?v=1770469687"></script>
+    <script src="/static/quick_debug.js?v=1770469687"></script>
+    <script>
+        // Ensure language menu is always closed on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const menu = document.getElementById('languageMenu');
+            if(menu) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        function handleLogoError(img){
+            try{
+                if(img.src.indexOf('agro_logo.png') !== -1){
+                    img.src = '/static/logo.png';
+                } else {
+                    img.onerror = null;
+                    img.src = 'https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';
+                }
+            }catch(e){
+                img.onerror = null;
+            }
+        }
+        
+        // Przełączanie widoczności menu języków
+        function toggleLanguageMenu(){
+            const menu = document.getElementById('languageMenu');
+            if(menu) {
+                menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+            }
+        }
+        
+        // Zamykanie menu ponad innymi klikami w dokumencie
+        document.addEventListener('click', function(event) {
+            const selector = document.querySelector('.language-selector');
+            const menu = document.getElementById('languageMenu');
+            if(selector && menu && !selector.contains(event.target)) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        // Przełączanie języka aplikacji
+        function switchLanguage(lang){
+            fetch('/api/set_language', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({language: lang})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(data.success){
+                    const langNames = {uk: 'Українску', pl: 'Polski', en: 'English'};
+                    showToast('✓ Język zmieniony na ' + (langNames[lang] || lang), 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast('❌ ' + (data.message || 'Błąd zmiany języka'), 'error');
+                }
+            })
+            .catch(err => {
+                showToast('❌ Błąd: ' + err.message, 'error');
+            });
+        }
+    </script>
+
+</body>
+</html>

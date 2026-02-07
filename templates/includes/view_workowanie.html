@@ -98,7 +98,7 @@
         <p class="text-muted text-muted-italic">{{ _('brak_zlecen') }}</p>
     {% else %}
         {% for p in plan if p[3] != 'w toku' %}
-        <div class="plan-item {% if p[3] == 'zakonczone' %}bg-zakonczone{% endif %} {% if aktywne %}opacity-60{% endif %}">
+        <div class="plan-item {% if p[3] == 'zakonczone' %}bg-zakonczone{% endif %} {% if aktywne %}opacity-60{% endif %}" data-id="{{ p[0] }}">
             <div class="flex-2">
                 {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">{{ _('oczekuje') }}</span>
                 {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">{{ _('zamkniete') }}</span>{% endif %}
