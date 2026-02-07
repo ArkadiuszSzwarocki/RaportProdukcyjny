@@ -34,7 +34,7 @@
             {# removed PLAN button per request #}
 
             {% if session.get('zalogowany') %}
-                <a href="{{ url_for('report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
+                <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
                     <span class="material-icons">report_problem</span>
                 </a>
             {% endif %}
@@ -76,9 +76,9 @@
                 <div class="tile-label">{{ _('obsada') }}</div>
             </a>
             <nav class="top-menu">
-                <a class="top-menu-item" href="{{ url_for('panel_wnioski_page') }}"> <span class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
-                <a class="top-menu-item" href="{{ url_for('panel_planowane_page') }}"> <span class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
-                <a class="top-menu-item" href="{{ url_for('panel_obecnosci_page') }}"> <span class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
+                <a class="top-menu-item" href="{{ url_for('panels.panel_wnioski_page') }}"> <span class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
+                <a class="top-menu-item" href="{{ url_for('panels.panel_planowane_page') }}"> <span class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
+                <a class="top-menu-item" href="{{ url_for('panels.panel_obecnosci_page') }}"> <span class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
             </nav>
         </div>
     </div>
@@ -89,25 +89,25 @@
             <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
             <nav class="sidebar-nav">
                 {% if role_has_access('dashboard') %}
-                    <a href="{{ url_for('index') }}" class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">{{ _('dashboard') }}</a>
+                    <a href="{{ url_for('main.index') }}" class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">{{ _('dashboard') }}</a>
                 {% endif %}
 
                 {% if role_has_access('zasyp') %}
-                    <a href="{{ url_for('index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">{{ _('zasyp') }}</a>
+                    <a href="{{ url_for('main.index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">{{ _('zasyp') }}</a>
                 {% endif %}
 
                 {% if role_has_access('workowanie') %}
                     {# BUFOR link placed between Zasyp and Workowanie #}
                     <a href="{{ url_for('planista.bufor_page') }}" class="nav-item {% if request.path.startswith('/bufor') %}active{% endif %}">{{ _('bufor') }}</a>
-                    <a href="{{ url_for('index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">{{ _('workowanie') }}</a>
+                    <a href="{{ url_for('main.index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">{{ _('workowanie') }}</a>
                 {% endif %}
 
                 {% if role_has_access('magazyn') %}
-                    <a href="{{ url_for('index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">{{ _('magazyn') }}</a>
+                    <a href="{{ url_for('main.index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">{{ _('magazyn') }}</a>
                 {% endif %}
 
                 {% if role_has_access('jakosc') %}
-                    <a href="{{ url_for('jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">{{ _('jakosc') }}</a>
+                    <a href="{{ url_for('quality.jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">{{ _('jakosc') }}</a>
                 {% endif %}
 
                 {% if role_has_access('wyniki') %}
@@ -123,7 +123,7 @@
                 {% endif %}
 
                 {% if role_has_access('moje_godziny') %}
-                    <a href="{{ url_for('moje_godziny') }}" class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">{{ _('moje_godziny') }}</a>
+                    <a href="{{ url_for('panels.moje_godziny') }}" class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">{{ _('moje_godziny') }}</a>
                 {% endif %}
 
                 {% if role_has_access('ustawienia') %}
