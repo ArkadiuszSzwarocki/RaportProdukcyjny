@@ -9,7 +9,7 @@
     <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
     <meta name="msapplication-TileColor" content="#ffffff">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css?v=1770482415">
+    <link rel="stylesheet" href="/static/css/style.css?v=1770482786">
 </head>
 <body>
 
@@ -226,9 +226,9 @@
         </main>
     </div>
 
-    <script src="/static/js/toasts.js?v=1770482415"></script>
-    <script src="/static/scripts.js?v=1770482415"></script>
-    <script src="/static/quick_debug.js?v=1770482415"></script>
+    <script src="/static/js/toasts.js?v=1770482786"></script>
+    <script src="/static/scripts.js?v=1770482786"></script>
+    <script src="/static/quick_debug.js?v=1770482786"></script>
     <script>
         // Ensure language menu is always closed on page load
         document.addEventListener('DOMContentLoaded', function() {

@@ -66,7 +66,7 @@ def panel_planisty():
     cursor.execute("""
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci 
         FROM plan_produkcji 
-        WHERE data_planu = %s AND sekcja = 'Zasyp' AND (is_deleted IS NULL OR is_deleted = 0)
+        WHERE data_planu = %s AND LOWER(sekcja) = 'zasyp' AND (is_deleted IS NULL OR is_deleted = 0)
         ORDER BY kolejnosc
     """, (wybrana_data,))
     
