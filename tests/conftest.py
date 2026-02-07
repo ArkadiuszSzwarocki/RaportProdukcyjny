@@ -52,7 +52,7 @@ def mock_get_db_connection(mock_db_connection):
     """Mock the get_db_connection function."""
     mock_conn, mock_cursor = mock_db_connection
     with patch('app.db.get_db_connection', return_value=mock_conn):
-        yield mock_conn
+        yield mock_conn, mock_cursor
 
 
 @pytest.fixture
