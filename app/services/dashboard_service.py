@@ -225,37 +225,36 @@ class DashboardService:
                     suma_wykonanie += waga_workowania or 0
                 p.extend([waga_workowania, diff, alert])
             
-            # Add szarża/paleta count at index [15]
-            if sekcja == 'Zasyp':
-                # Count szarżę for Zasyp from database
-                try:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
+            # Add szarża/paleta count at fixed index p[15]
+            count = 0
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                if sekcja == 'Zasyp':
                     cursor.execute(
                         "SELECT COUNT(*) FROM szarze WHERE plan_id = %s AND status = 'zarejestowana'",
                         (p[0],)
                     )
-                    count = cursor.fetchone()[0] or 0
-                    cursor.close()
-                    conn.close()
-                    p.append(count)
-                except Exception:
-                    p.append(0)
-            elif sekcja == 'Workowanie':
-                # Count palety for Workowanie from database
-                try:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
+                elif sekcja == 'Workowanie':
                     cursor.execute(
                         "SELECT COUNT(*) FROM palety_workowanie WHERE plan_id = %s",
                         (p[0],)
                     )
-                    count = cursor.fetchone()[0] or 0
+                else:
+                    cursor = None
+
+                if cursor:
+                    fetched = cursor.fetchone()
+                    count = fetched[0] if fetched and fetched[0] else 0
                     cursor.close()
                     conn.close()
-                    p.append(count)
-                except Exception:
-                    p.append(0)
+            except Exception:
+                count = 0
+
+            # Ensure list has at least 16 elements so index 15 is valid
+            while len(p) <= 15:
+                p.append(None)
+            p[15] = int(count)
         
         return plan_dnia, palety_mapa, suma_plan, suma_wykonanie
 
