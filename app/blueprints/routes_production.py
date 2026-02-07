@@ -22,7 +22,7 @@ def bezpieczny_powrot():
 @production_bp.route('/start_zlecenie/<int:id>', methods=['POST'])
 @login_required
 def start_zlecenie(id):
-    """Rozpocznij wykonywanie zlecenia (zmiana statusu na 'w toko')
+    """Rozpocznij wykonywanie zlecenia (zmiana statusu na 'w toku')
     
     Workowanie może startować niezależnie - Zasyp to przygotowanie wsadu,
     Workowanie workuje z bufora. Jeśli na Zasyp jest inne zlecenie - pokaż info.

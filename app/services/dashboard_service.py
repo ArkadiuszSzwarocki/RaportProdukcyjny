@@ -229,7 +229,7 @@ class DashboardService:
 
     @staticmethod
     def _get_workowanie_fallback(dzisiaj: date) -> List:
-        """Get Workowanie plans as fallback."""
+        """Get Workowanie plans as fallback - with szarża filter."""
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -237,11 +237,18 @@ class DashboardService:
                 """SELECT id, produkt, tonaz, status, real_start, real_stop, 
                    TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, 
                    kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci 
-                   FROM plan_produkcji 
-                   WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' 
-                   AND status IN ('w toku', 'zaplanowane') 
-                   ORDER BY CASE status WHEN 'w toku' THEN 1 ELSE 2 END, 
-                   kolejnosc ASC, id ASC""",
+                   FROM plan_produkcji p
+                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' 
+                   AND p.status IN ('w toku', 'zaplanowane')
+                   AND EXISTS (
+                       SELECT 1 FROM szarze s
+                       INNER JOIN plan_produkcji pr ON s.plan_id = pr.id
+                       WHERE s.status = 'zarejestowana'
+                         AND DATE(s.data_dodania) = DATE(p.data_planu)
+                         AND pr.produkt = p.produkt
+                   )
+                   ORDER BY CASE p.status WHEN 'w toko' THEN 1 ELSE 2 END, 
+                   p.kolejnosc ASC, p.id ASC""",
                 (dzisiaj,)
             )
             plan_dnia = [list(r) for r in cursor.fetchall()]
