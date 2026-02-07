@@ -408,7 +408,7 @@ def dodaj_plany_batch():
                 nk += 1  # Increase sequence for Workowanie
                 cursor.execute(
                     "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (data_planu, produkt, 0, 'w toku', 'Workowanie', nk, typ, 0)
+                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk, typ, 0)
                 )
         conn.commit()
     except Exception as e:
