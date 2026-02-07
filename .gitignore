@@ -92,3 +92,4 @@ session.sql
 
 # Disabled tools only (active tools/ and tests/ should be tracked)
 tools/disabled/
+htmlcov/
