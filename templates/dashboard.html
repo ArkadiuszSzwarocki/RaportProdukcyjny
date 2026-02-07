@@ -231,9 +231,6 @@
                         {% if p[3] == 'zaplanowane' %}
                             {% if ns.is_active %}<button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
                             {% else %}<form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>{% endif %}
-                            {% if rola in ['admin', 'lider'] %}
-                            <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" class="inline-form" onsubmit="return confirm('Wznowić {{ p[1] }}?');" style="display:inline-block;"><button type="submit" class="btn-action btn-outline-warning" title="Wznowić zlecenie">↻ Wznów</button></form>
-                            {% endif %}
                         {% elif p[3] == 'w toku' %}
                             <div class="d-flex gap-5 justify-end">
                                 {% if sekcja == 'Workowanie' %}
@@ -267,7 +264,9 @@
                                     <a href="{{ url_for('production.wyjasnij_page', id=p[0]) }}" class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</a>
                                     <!-- Wyjaśnienie modal (slide-over) -->
                                     {% endif %}
-                                {% if rola in ['lider', 'admin'] and has_suspended_yesterday %}<a href="{{ url_for('planning.przywroc_zlecenie', id=p[0], sekcja=sekcja) }}" class="btn-action btn-outline-warning" aria-label="Przywróć zlecenie" data-slide><span class="material-icons">replay</span></a>{% endif %}
+                                {% if rola in ['lider', 'admin'] %}
+                                <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" class="inline-form" onsubmit="return confirm('Wznowić {{ p[1] }}?');"><button type="submit" class="btn-action btn-outline-warning btn-icon" title="Wznowić zlecenie"><span class="material-icons">replay</span></button></form>
+                                {% endif %}
                             </div>
                         {% else %}
                             {# Status inny niż 'w toku' i 'zakonczone' - brak akcji #}
