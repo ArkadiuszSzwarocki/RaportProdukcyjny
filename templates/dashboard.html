@@ -239,7 +239,7 @@
                                 {% else %}
                                     <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>
                                 {% endif %}
-                                {% if rola in ['planista', 'admin', 'lider'] %}
+                                {% if rola in ['planista', 'admin', 'lider'] and sekcja != 'Workowanie' %}
                                     <button type="button" class="btn-delete inline-form delete-plan-btn" aria-label="Usuń plan" data-plan-id="{{ p[0] }}" data-plan-date="{{ dzisiaj }}" data-plan-name="{{ p[1] }}">🗑</button>
                                 {% endif %}
                             </div>
@@ -257,8 +257,7 @@
                                             <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                                         {% endif %}
                                     </div>
-                                {% endif %}
-                                {% if sekcja == 'Zasyp' %}
+                                {% elif sekcja == 'Zasyp' %}
                                     <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
                                     <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% else %}
