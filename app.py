@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, redirect, session, url_for, send_file, flash, jsonify
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 import threading
 import time
@@ -9,55 +8,20 @@ from datetime import date, datetime, timedelta
 import json
 from collections import defaultdict
 
-from config import SECRET_KEY
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 import db
 from db import get_db_connection
 from dto.paleta import PaletaDTO
-from raporty import format_godziny
-from routes_admin import admin_bp
-from routes_api import api_bp, dodaj_plan_zaawansowany, dodaj_plan, usun_plan
-from routes_planista import planista_bp
+from routes_api import dodaj_plan_zaawansowany, dodaj_plan, usun_plan
 from decorators import login_required, zarzad_required, roles_required
 from utils.queries import QueryHelper
-from core.contexts import register_contexts
-from core.daemon import start_daemon_threads
 from core.error_handlers import setup_logging, register_error_handlers
+from core.factory import create_app
+from core.factory import create_app
 
-app = Flask(__name__)
-app.secret_key = SECRET_KEY
-
-# Set up logging and error handlers early
-setup_logging(app)
-register_error_handlers(app)
-
-app.jinja_env.add_extension('jinja2.ext.do')
-
-app.register_blueprint(admin_bp)
-app.register_blueprint(api_bp, url_prefix='/api')
-app.register_blueprint(planista_bp)
-app.jinja_env.filters['format_czasu'] = format_godziny
-
-# Register context processors
-register_contexts(app)
-
-# Start background daemon threads
-start_daemon_threads(app, cleanup_enabled=False)
-
-try:
-    # Avoid running DB setup during pytest collection or when tests monkeypatch DB.
-    # Pytest sets the `PYTEST_CURRENT_TEST` env var during collection/execution.
-    import os as _os
-    if 'PYTEST_CURRENT_TEST' not in _os.environ:
-        db.setup_database()
-    else:
-        app.logger.debug('Skipping setup_database() under pytest')
-except Exception:
-    try:
-        app.logger.exception('setup_database() failed or skipped')
-    except Exception:
-        pass
+# Create and configure Flask application
+app = create_app()
 
 # Ensure we always resolve DB connection at call-time so tests can monkeypatch `db.get_db_connection`
 def get_db_connection():
