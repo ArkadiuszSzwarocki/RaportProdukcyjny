@@ -1,6 +1,6 @@
 <div class="p-15">
     <h4 class="m-0 text-zarzad">📦 {{ _('nowa_sarzha') }}</h4>
-    <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="mt-10">
+    <form action="{{ url_for('planning.dodaj_plan') }}" method="POST" class="mt-10">
         <input type="hidden" name="sekcja" value="Zasyp">
         <input type="hidden" name="data_planu" value="{{ today }}">
         <label>{{ _('waga_szarzy') }}</label>

@@ -2,7 +2,7 @@
 {% block content %}
 <div class="section-box p-20">
   <h3>✏️ {{ _('edytuj_palete') }}</h3>
-  <form action="{{ url_for('api.edytuj_palete', paleta_id=paleta_id) }}" method="POST" class="d-flex flex-column gap-10">
+  <form action="{{ url_for('warehouse.edytuj_palete', paleta_id=paleta_id) }}" method="POST" class="d-flex flex-column gap-10">
     <label for="waga_palety">{{ _('waga_kg_symbol') }}</label>
     <input id="waga_palety" name="waga_palety" value="{{ waga or '' }}" required class="input-sm" placeholder="{{ _('waga_palety_kg_info') }}" title="{{ _('waga_palety_kg_info') }}">
     <input type="hidden" name="sekcja" value="{{ sekcja or '' }}">

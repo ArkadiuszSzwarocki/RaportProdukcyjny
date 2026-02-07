@@ -42,7 +42,7 @@
 </style>
 
 <div class="p-10" data-popup-title="{{ _('zatrzymaj_produkcje') }}">
-    <form action="{{ url_for('api.koniec_zlecenie', id=id) }}" method="POST">
+    <form action="{{ url_for('production.koniec_zlecenie', id=id) }}" method="POST">
         <input type="hidden" name="sekcja" value="{{ sekcja }}">
         <input type="hidden" name="final_tonaz" value="{{ tonaz if tonaz is not none else '' }}">
 

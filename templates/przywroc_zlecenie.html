@@ -1,5 +1,5 @@
 <div class="p-10" data-popup-title="{{ _('wznow_zlecenie') }}">
-    <form action="{{ url_for('api.przywroc_zlecenie', id=id) }}" method="POST">
+    <form action="{{ url_for('planning.przywroc_zlecenie', id=id) }}" method="POST">
         <input type="hidden" name="sekcja" value="{{ sekcja }}">
 
         <p class="popup-message">

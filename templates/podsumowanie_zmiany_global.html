@@ -181,7 +181,7 @@
         <!-- Notatki Lidera -->
         <div class="mt-30">
             <h3>📝 Notatki Lidera</h3>
-            <form id="raport-form" method="POST" action="{{ url_for('api.zapisz_raport_koncowy_global') }}" class="d-flex flex-column gap-15">
+            <form id="raport-form" method="POST" action="{{ url_for('leaves.zapisz_raport_koncowy_global') }}" class="d-flex flex-column gap-15">
                 
                 <textarea name="notatki" id="notatki" class="input-lg textarea-notatki" placeholder="{{ _('wpisz_notatki_zmiany') }}" rows="6"></textarea>
                 
@@ -339,7 +339,7 @@ document.getElementById('raport-form').addEventListener('submit', function(e) {
     const saveFormData = new FormData();
     saveFormData.append('notatki', notatki);
     
-    fetch('{{ url_for("api.zapisz_raport_koncowy_global") }}', {
+    fetch('{{ url_for("leaves.zapisz_raport_koncowy_global") }}', {
         method: 'POST',
         body: saveFormData
     })
@@ -354,7 +354,7 @@ document.getElementById('raport-form').addEventListener('submit', function(e) {
                         setTimeout(() => {
                             const form = document.createElement('form');
                             form.method = 'POST';
-                            form.action = '{{ url_for("api.pobierz_raport") }}';
+                            form.action = '{{ url_for("panels.pobierz_raport") }}';
                             form.innerHTML = '<input type="hidden" name="format" value="email"><input type="hidden" name="raport_id" value=""><input type="hidden" name="data" value="{{ zmiana_data.data }}">';
                             document.body.appendChild(form);
                             form.submit();
@@ -371,7 +371,7 @@ document.getElementById('raport-form').addEventListener('submit', function(e) {
                         setTimeout(() => {
                             const form = document.createElement('form');
                             form.method = 'POST';
-                            form.action = '{{ url_for("api.pobierz_raport") }}';
+                            form.action = '{{ url_for("panels.pobierz_raport") }}';
                             form.innerHTML = '<input type="hidden" name="format" value="excel"><input type="hidden" name="raport_id" value=""><input type="hidden" name="data" value="{{ zmiana_data.data }}">';
                             document.body.appendChild(form);
                             form.submit();
@@ -388,7 +388,7 @@ document.getElementById('raport-form').addEventListener('submit', function(e) {
                         setTimeout(() => {
                             const form = document.createElement('form');
                             form.method = 'POST';
-                            form.action = '{{ url_for("api.pobierz_raport") }}';
+                            form.action = '{{ url_for("panels.pobierz_raport") }}';
                             form.innerHTML = '<input type="hidden" name="format" value="pdf"><input type="hidden" name="raport_id" value=""><input type="hidden" name="data" value="{{ zmiana_data.data }}">';
                             document.body.appendChild(form);
                             form.submit();

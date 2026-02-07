@@ -123,7 +123,7 @@
         <!-- Notatki Lidera -->
         <div class="mt-30">
             <h3>📝 Notatki Lidera</h3>
-            <form id="raport-form" method="POST" action="{{ url_for('api.zapisz_raport_koncowy') }}" class="d-flex flex-column gap-15">
+            <form id="raport-form" method="POST" action="{{ url_for('leaves.zapisz_raport_koncowy') }}" class="d-flex flex-column gap-15">
                 <input type="hidden" name="sekcja" value="{{ zmiana_data.sekcja }}">
                 
                 <textarea name="notatki" id="notatki" class="input-lg" placeholder="{{ _('wpisz_notatki_zmiany') }}" rows="6"></textarea>

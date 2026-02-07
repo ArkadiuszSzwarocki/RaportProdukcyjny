@@ -90,7 +90,7 @@
     const data_planu = document.getElementById('data_planu').value || '{{ wybrana_data }}';
     const sekcja = document.getElementById('sekcja_select').value;
     const payload = rows.map(r=>({produkt:r.dataset.produkt, nr_receptury:r.dataset.nr, tonaz:parseFloat(r.dataset.tonaz)||0, typ_produkcji:r.dataset.typ, sekcja:sekcja}));
-    fetch('{{ url_for("api.dodaj_plany_batch") }}', {
+    fetch('{{ url_for("planning.dodaj_plany_batch") }}', {
       method: 'POST', headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
       body: JSON.stringify({data_planu:data_planu, plans: payload})
     }).then(r=>r.json()).then(j=>{

@@ -53,7 +53,7 @@
                             <td><strong>{{ o[1] }}</strong></td>
                             <td>
                                 {% if rola in ['lider', 'admin', 'pracownik'] %}
-                                <form action="{{ url_for('api.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0 d-inline-block">
+                                <form action="{{ url_for('leaves.usun_z_obsady', id=o[0]) }}" method="POST" class="m-0 d-inline-block">
                                     <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
                                 </form>
                                 {% endif %}
@@ -109,7 +109,7 @@
                         const fd = new URLSearchParams(); fd.append('sekcja', sekcja); fd.append('pracownik_id', val);
                         const dateEl = document.getElementById('obsada-date'); const dateVal = dateEl ? dateEl.value : '';
                         if(dateVal) fd.append('date', dateVal);
-                        const resp = await fetch('{{ url_for("api.dodaj_do_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} });
+                        const resp = await fetch('{{ url_for("leaves.dodaj_do_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} });
                         if(!resp.ok){ const txt = await resp.text(); showToast && showToast('Błąd: '+ (txt||resp.status), 'error'); addBtn.disabled = false; return; }
                         let j = null;
                         try{ j = await resp.json(); }catch(e){ j = null; }
@@ -124,7 +124,7 @@
                                 const tdName = document.createElement('td'); tdName.innerHTML = '<strong>' + (newName||'') + '</strong>';
                                 const tdAct = document.createElement('td');
                                 if(newId){
-                                    const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/usun_z_obsady/' + newId; form.className='m-0 d-inline-block';
+                                    const form = document.createElement('form'); form.method = 'POST'; form.action = '/leaves/usun_z_obsady/' + newId; form.className='m-0 d-inline-block';
                                     const btn = document.createElement('button'); btn.type='submit'; btn.className='delete-button'; btn.innerHTML = '🗑️';
                                     form.appendChild(btn);
                                     tdAct.appendChild(form);
@@ -136,7 +136,7 @@
                             } else {
                                 const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = newName;
                                 if(newId){
-                                    const form = document.createElement('form'); form.method = 'POST'; form.action = '/api/usun_z_obsady/' + newId; form.className='m-0'; form.style.display='inline-block'; form.style.marginLeft='6px';
+                                    const form = document.createElement('form'); form.method = 'POST'; form.action = '/leaves/usun_z_obsady/' + newId; form.className='m-0'; form.style.display='inline-block'; form.style.marginLeft='6px';
                                     const btn = document.createElement('button'); btn.type='submit'; btn.className='delete-button'; btn.innerHTML='🗑️';
                                     form.appendChild(btn);
                                     chip.appendChild(form);
@@ -167,7 +167,7 @@
                     saveBtn.disabled = true;
                     try{
                         const fd = new URLSearchParams(); if(dateVal) fd.append('date', dateVal); fd.append('lider_psd', lpsd); fd.append('lider_agro', lagro);
-                        const resp = await fetch('{{ url_for("api.zapisz_liderow_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} });
+                        const resp = await fetch('{{ url_for("leaves.zapisz_liderow_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} });
                         if(!resp.ok){ const txt = await resp.text(); showToast && showToast('Błąd zapisu liderów: '+(txt||resp.status),'error'); saveBtn.disabled = false; return; }
                         showToast && showToast('Zapisano liderów','success');
                     }catch(e){ console.error(e); showToast && showToast('Błąd sieci','error'); }

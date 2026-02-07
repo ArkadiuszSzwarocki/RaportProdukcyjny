@@ -46,7 +46,7 @@ document.getElementById('reportForm').addEventListener('submit', async function(
         submitBtn.textContent = '⏳ Wysyłanie...';
         
         const formData = new FormData(this);
-        const response = await fetch('{{ url_for("api.dodaj_wpis") }}', {
+        const response = await fetch('{{ url_for("journal.dodaj_wpis") }}', {
             method: 'POST',
             body: formData
         });

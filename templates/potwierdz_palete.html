@@ -1,4 +1,4 @@
-<form action="{{ url_for('api.potwierdz_palete', paleta_id=paleta_id) }}" method="POST">
+<form action="{{ url_for('warehouse.potwierdz_palete', paleta_id=paleta_id) }}" method="POST">
   <div class="form-field">
     <label for="waga_palety">{{ _('waga_netto_palety') }}</label>
     <input id="waga_palety" name="waga_palety" type="number" min="0" step="1" value="" required class="input-sm">
