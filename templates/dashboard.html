@@ -969,7 +969,14 @@ document.addEventListener('click', function(e){
 
 // Delete plan function - dostępna w global scope
 function deletePlan(id, data){
-    if(!confirm('Na pewno usunąć zlecenie?')) return;
+    console.log('🗑️ deletePlan called:', {id, data});
+    
+    if(!confirm('Na pewno usunąć zlecenie?')) {
+        console.log('❌ User cancelled delete');
+        return;
+    }
+    
+    console.log('✅ User confirmed, sending fetch to /api/usun_plan_ajax/' + id);
     
     fetch('/api/usun_plan_ajax/' + id, {
         method:'POST',
@@ -977,19 +984,25 @@ function deletePlan(id, data){
         body: JSON.stringify({data_powrotu: data})
     })
     .then(function(r){ 
-        return r.json().catch(function(){ 
+        console.log('📡 Response received:', {status: r.status, statusText: r.statusText});
+        return r.json().catch(function(e){ 
+            console.log('❌ JSON parse error:', e);
             return {success:false, message:'Błąd sieci'}; 
         }); 
     })
     .then(function(j){
+        console.log('📦 JSON parsed:', j);
         if(j && j.success){
+            console.log('✅ Success!');
             alert(j.message || 'Zlecenie usunięte');
             location.reload();
         } else {
+            console.log('❌ API error:', j && j.message);
             alert((j && j.message) || 'Błąd usunięcia');
         }
     })
     .catch(function(err){ 
+        console.log('❌ Fetch error:', err);
         alert('Błąd sieci: ' + err.message); 
     });
 }
