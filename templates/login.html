@@ -6,10 +6,11 @@
     <title>Logowanie - AgroNetzwerk</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <!-- Favicon / touch icons: prefer SVG, fallback to PNG -->
+    <!-- Favicon / touch icons: prefer SVG, fallback to ICO and PNG -->
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='agro_logo.png') }}" type="image/png">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='agro_logo.png') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <style>
         .language-selector-container {
             position: absolute;
