@@ -156,6 +156,14 @@
     <script src="{{ url_for('static', filename='scripts.js') }}?v={{ static_version }}"></script>
     <script src="{{ url_for('static', filename='quick_debug.js') }}?v={{ static_version }}"></script>
     <script>
+        // Ensure language menu is always closed on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const menu = document.getElementById('languageMenu');
+            if(menu) {
+                menu.style.display = 'none';
+            }
+        });
+        
         function handleLogoError(img){
             try{
                 if(img.src.indexOf('agro_logo.png') !== -1){
