@@ -168,15 +168,14 @@ def bufor_page():
     cursor = conn.cursor()
     wybrana_data = request.args.get('data', str(date.today()))
     try:
-        # Show all orders including closed ones - bufor stays open indefinitely
+        # Show orders only from selected day - filtered by data_planu
         cursor.execute("""
             SELECT id, data_planu, produkt, tonaz_rzeczywisty, nazwa_zlecenia, typ_produkcji, status, real_start
             FROM plan_produkcji
                         WHERE sekcja = 'Zasyp'
-                            AND data_planu >= DATE_SUB(%s, INTERVAL 7 DAY)
-                            AND data_planu <= %s
+                            AND data_planu = %s
                         ORDER BY COALESCE(real_start, data_planu) DESC
-        """, (wybrana_data, wybrana_data))
+        """, (wybrana_data,))
         historyczne_zasypy = cursor.fetchall()
         bufor_list = []
         for hz in historyczne_zasypy:
