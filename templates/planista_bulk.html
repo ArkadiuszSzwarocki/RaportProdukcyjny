@@ -14,11 +14,6 @@
     </label>
   </div>
 
-  <table class="modern-table" id="bulkTable">
-    <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('nr_receptury') }}</th><th>{{ _('waga_kg_symbol') }}</th><th>{{ _('typ') }}</th><th></th></tr></thead>
-    <tbody></tbody>
-  </table>
-
   <div class="d-flex gap-10 m-10">
     <input type="text" id="inpProdukt" placeholder="{{ _('produkt') }}" class="input-sm">
     <input type="text" id="inpNr" placeholder="{{ _('nr_receptury') }}" class="input-sm">
@@ -32,6 +27,11 @@
     </select>
     <button type="button" id="btnAddRow" class="btn-action">Dodaj do listy</button>
   </div>
+
+  <table class="modern-table" id="bulkTable">
+    <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('nr_receptury') }}</th><th>{{ _('waga_kg_symbol') }}</th><th>{{ _('typ') }}</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
 
   <div class="d-flex gap-10 m-10">
     <button type="button" id="btnSubmitBatch" class="btn-action btn-action-success">{{ _('zatwierdz_wszystkie') }}</button>
