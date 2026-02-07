@@ -167,13 +167,6 @@ class DashboardService:
         
         Returns:
             Tuple of (formatted_plans, palety_mapa, suma_plan, suma_wykonanie)
-            
-        Plan array indices:
-        0: id, 1: produkt, 2: tonaz, 3: status, 4: real_start_formatted, 
-        5: real_stop_formatted, 6: czas_min, 7: tonaz_rzeczywisty, 
-        8: kolejnosc, 9: typ_produkcji, 10: wyjasnienie_rozbieznosci, 
-        11: uszkodzone_worki, 12: waga_workowania (Zasyp), 13: diff (Zasyp), 
-        14: alert (Zasyp), 15: szarza_count OR paleta_count
         """
         plan_dnia = QueryHelper.get_plan_produkcji(
             dzisiaj, 
@@ -223,7 +216,7 @@ class DashboardService:
                 p[7] = waga_kg
                 suma_wykonanie += waga_kg
             
-            # Calculate Zasyp differences (indices 12, 13, 14)
+            # Calculate Zasyp differences
             if sekcja == 'Zasyp':
                 waga_workowania = p[7]
                 diff = p[2] - waga_workowania if p[2] else 0
@@ -231,15 +224,38 @@ class DashboardService:
                 if not is_quality:
                     suma_wykonanie += waga_workowania or 0
                 p.extend([waga_workowania, diff, alert])
-                
-                # Add szarża count as index 15
-                szarza_count = DashboardService.get_szarza_count_for_plan(p[0], dzisiaj)
-                p.append(szarza_count)
             
-            # Add paleta count for Workowanie (index 15)
+            # Add szarża/paleta count at index [15]
+            if sekcja == 'Zasyp':
+                # Count szarżę for Zasyp from database
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM szarze WHERE plan_id = %s AND status = 'zarejestowana'",
+                        (p[0],)
+                    )
+                    count = cursor.fetchone()[0] or 0
+                    cursor.close()
+                    conn.close()
+                    p.append(count)
+                except Exception:
+                    p.append(0)
             elif sekcja == 'Workowanie':
-                paleta_count = DashboardService.get_paleta_count_for_plan(p[0], dzisiaj)
-                p.append(paleta_count)
+                # Count palety for Workowanie from database
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM palety_workowanie WHERE plan_id = %s",
+                        (p[0],)
+                    )
+                    count = cursor.fetchone()[0] or 0
+                    cursor.close()
+                    conn.close()
+                    p.append(count)
+                except Exception:
+                    p.append(0)
         
         return plan_dnia, palety_mapa, suma_plan, suma_wykonanie
 
@@ -509,261 +525,3 @@ class DashboardService:
         kandydaci = [p for p in plan_dnia if p[3] == 'zaplanowane']
         kandydaci.sort(key=lambda x: x[0])
         return kandydaci[0][0] if kandydaci else None
-
-    @staticmethod
-    def get_szarza_count_for_plan(plan_id: int, dzisiaj: date) -> int:
-        """Get count of confirmed szarżas for a plan."""
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute(
-                """SELECT COUNT(*) 
-                   FROM szarze 
-                   WHERE plan_id = %s 
-                   AND DATE(data_dodania) = %s
-                   AND status = 'zarejestowana'""",
-                (plan_id, dzisiaj)
-            )
-            
-            result = cursor.fetchone()
-            count = result[0] if result else 0
-            
-            cursor.close()
-            conn.close()
-            return count
-        except Exception:
-            return 0
-
-    @staticmethod
-    def get_paleta_count_for_plan(plan_id: int, dzisiaj: date) -> int:
-        """Get count of confirmed palety for a plan."""
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute(
-                """SELECT COUNT(*) 
-                   FROM palety_workowanie 
-                   WHERE plan_id = %s 
-                   AND DATE(data_dodania) = %s
-                   AND status IN ('w magazynie', 'zatwierdzona')""",
-                (plan_id, dzisiaj)
-            )
-            
-            result = cursor.fetchone()
-            count = result[0] if result else 0
-            
-            cursor.close()
-            conn.close()
-            return count
-        except Exception:
-            return 0
-        """Get szarża details (execution time + weight) for a specific plan.
-        
-        Returns list of dicts: {'time': 'HH:MM', 'weight': kg}
-        """
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute(
-                """SELECT s.data_dodania, s.tonaz, s.typ_produkcji
-                   FROM szarze s
-                   WHERE s.plan_id = %s 
-                   AND DATE(s.data_dodania) = %s
-                   AND s.status = 'zakonczena'
-                   ORDER BY s.data_dodania ASC""",
-                (plan_id, dzisiaj)
-            )
-            
-            result = []
-            for row in cursor.fetchall():
-                dt = row[0]
-                tonaz = row[1]
-                try:
-                    time_str = dt.strftime('%H:%M') if hasattr(dt, 'strftime') else str(dt)
-                except Exception:
-                    time_str = str(dt)
-                
-                result.append({
-                    'time': time_str,
-                    'weight': tonaz if tonaz else 0,
-                })
-            
-            cursor.close()
-            conn.close()
-            return result
-        except Exception:
-            return []
-
-    @staticmethod
-    def get_paleta_details_for_plan(plan_id: int, dzisiaj: date) -> List[Dict[str, Any]]:
-        """Get paleta details (execution time + weight) for a specific plan.
-        
-        Returns list of dicts: {'time': 'HH:MM', 'weight': kg}
-        """
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute(
-                """SELECT pw.data_dodania, pw.waga
-                   FROM palety_workowanie pw
-                   WHERE pw.plan_id = %s 
-                   AND DATE(pw.data_dodania) = %s
-                   AND pw.status IN ('w magazynie', 'zatwierdzona')
-                   ORDER BY pw.data_dodania ASC""",
-                (plan_id, dzisiaj)
-            )
-            
-            result = []
-            for row in cursor.fetchall():
-                dt = row[0]
-                waga = row[1]
-                try:
-                    time_str = dt.strftime('%H:%M') if hasattr(dt, 'strftime') else str(dt)
-                except Exception:
-                    time_str = str(dt)
-                
-                result.append({
-                    'time': time_str,
-                    'weight': waga if waga else 0,
-                })
-            
-            cursor.close()
-            conn.close()
-            return result
-        except Exception:
-            return []
-        """Get Zasyp statistics: completed szarżas by product type.
-        
-        Returns:
-            Dict with:
-            - details: {product: count}
-            - total: total count of completed szarżas
-            - by_type: statistics by typ_produkcji
-        """
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            # Count completed szarżas (status='zakonczena') by product
-            cursor.execute(
-                """SELECT p.produkt, COUNT(DISTINCT s.id) as count
-                   FROM szarze s
-                   INNER JOIN plan_produkcji p ON s.plan_id = p.id
-                   WHERE DATE(s.data_dodania) = %s 
-                   AND s.status = 'zakonczena'
-                   AND p.sekcja = 'Zasyp'
-                   GROUP BY p.produkt
-                   ORDER BY count DESC""",
-                (dzisiaj,)
-            )
-            
-            product_stats = {}
-            total_count = 0
-            
-            for row in cursor.fetchall():
-                product = row[0]
-                count = row[1]
-                product_stats[product] = count
-                total_count += count
-            
-            # Get stats by typ_produkcji
-            cursor.execute(
-                """SELECT p.typ_produkcji, COUNT(DISTINCT s.id) as count
-                   FROM szarze s
-                   INNER JOIN plan_produkcji p ON s.plan_id = p.id
-                   WHERE DATE(s.data_dodania) = %s 
-                   AND s.status = 'zakonczena'
-                   AND p.sekcja = 'Zasyp'
-                   GROUP BY p.typ_produkcji
-                   ORDER BY count DESC""",
-                (dzisiaj,)
-            )
-            
-            type_stats = {}
-            for row in cursor.fetchall():
-                typ = row[0] if row[0] else 'nieokreślony'
-                count = row[1]
-                type_stats[typ] = count
-            
-            cursor.close()
-            conn.close()
-            
-            return {
-                'details': product_stats,
-                'total': total_count,
-                'by_type': type_stats,
-            }
-        except Exception as e:
-            return {
-                'details': {},
-                'total': 0,
-                'by_type': {},
-            }
-
-    @staticmethod
-    def get_workowanie_statistics(dzisiaj: date) -> Dict[str, Any]:
-        """Get Workowanie statistics: completed/confirmed palety by product and weight.
-        
-        Returns:
-            Dict with:
-            - details: list of {'product': str, 'weight': int, 'count': int}
-            - total: total count of palety
-            - total_weight: total weight in kg
-        """
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            # Count confirmed palety (status='w magazynie' or 'zatwierdzona') 
-            # grouped by product and weight
-            cursor.execute(
-                """SELECT p.produkt, pw.waga, COUNT(pw.id) as count, 
-                   COALESCE(SUM(pw.waga), 0) as total_waga
-                   FROM palety_workowanie pw
-                   INNER JOIN plan_produkcji p ON pw.plan_id = p.id
-                   WHERE DATE(pw.data_dodania) = %s 
-                   AND pw.status IN ('w magazynie', 'zatwierdzona')
-                   AND p.sekcja = 'Workowanie'
-                   GROUP BY p.produkt, pw.waga
-                   ORDER BY p.produkt ASC, pw.waga ASC""",
-                (dzisiaj,)
-            )
-            
-            details = []
-            total_count = 0
-            total_weight = 0
-            
-            for row in cursor.fetchall():
-                product = row[0]
-                weight = row[1]
-                count = row[2]
-                total_waga = row[3] if row[3] else 0
-                
-                details.append({
-                    'product': product,
-                    'weight': weight,
-                    'count': count,
-                    'total_waga': total_waga,
-                })
-                
-                total_count += count
-                total_weight += total_waga
-            
-            cursor.close()
-            conn.close()
-            
-            return {
-                'details': details,
-                'total': total_count,
-                'total_weight': total_weight,
-            }
-        except Exception as e:
-            return {
-                'details': [],
-                'total': 0,
-                'total_weight': 0,
-            }
