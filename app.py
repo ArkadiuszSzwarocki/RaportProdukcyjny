@@ -22,6 +22,7 @@ from routes_planista import planista_bp
 from decorators import login_required, zarzad_required, roles_required
 from utils.queries import QueryHelper
 from core.contexts import register_contexts
+from core.daemon import start_daemon_threads
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -34,6 +35,9 @@ app.jinja_env.filters['format_czasu'] = format_godziny
 
 # Register context processors
 register_contexts(app)
+
+# Start background daemon threads
+start_daemon_threads(app, cleanup_enabled=False)
 
 try:
     # Avoid running DB setup during pytest collection or when tests monkeypatch DB.
@@ -173,96 +177,6 @@ def handle_unexpected_error(error):
     # Zwróć 500 z szablonem
     response = render_template('500.html')
     return response, 500
-
-
-def _cleanup_old_reports(folder='raporty', max_age_hours=24, interval_seconds=3600):
-    """Wątek: usuwa pliki w `folder` starsze niż `max_age_hours` co `interval_seconds`."""
-    try:
-        while True:
-            try:
-                if os.path.exists(folder):
-                    now = time.time()
-                    max_age = max_age_hours * 3600
-                    for name in os.listdir(folder):
-                        path = os.path.join(folder, name)
-                        try:
-                            if os.path.isfile(path):
-                                mtime = os.path.getmtime(path)
-                                if now - mtime > max_age:
-                                    try:
-                                        os.remove(path)
-                                        app.logger.info('Removed old report file: %s', path)
-                                    except Exception:
-                                        app.logger.exception('Failed to remove file: %s', path)
-                        except Exception:
-                            app.logger.exception('Error checking file: %s', path)
-            except Exception:
-                app.logger.exception('Error in cleanup loop')
-            time.sleep(interval_seconds)
-    except Exception:
-        app.logger.exception('Cleanup thread terminating unexpectedly')
-
-
-# Start cleanup thread (daemon) to remove old report files
-# DISABLED FOR DEBUGGING
-# try:
-#     cleanup_thread = threading.Thread(target=_cleanup_old_reports, kwargs={'folder':'raporty','max_age_hours':24,'interval_seconds':3600}, daemon=True)
-#     cleanup_thread.start()
-# except Exception:
-#     app.logger.exception('Failed to start cleanup thread')
-
-# Monitor niepotwierdzonych palet (waga==0). Loguje przypomnienia, by nie duplikować
-_reminded_palety = set()
-
-def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
-    """Wątek sprawdzający palety bez wagi; loguje przypomnienie jeśli starsze niż threshold."""
-    try:
-        while True:
-            try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT pw.id, pw.plan_id, p.produkt, pw.data_dodania FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id WHERE pw.waga = 0 AND COALESCE(pw.status,'') <> 'przyjeta' AND TIMESTAMPDIFF(MINUTE, pw.data_dodania, NOW()) >= %s",
-                    (threshold_minutes,)
-                )
-                raw_rows = cursor.fetchall()
-                # sformatuj daty w Pythonie — rozpakuj wyniki SELECT w oczekiwanym porządku
-                rows = []
-                for r in raw_rows:
-                    try:
-                        pid, plan_id, produkt, dt = r
-                    except Exception:
-                        # Fallback: użyj DTO jeśli kursor zwrócił nietypowy format
-                        dto = PaletaDTO.from_db_row(r)
-                        pid, plan_id, produkt, dt = dto.id, dto.plan_id, dto.produkt, dto.data_dodania
-                    try:
-                        sdt = dt.strftime('%Y-%m-%d %H:%M:%S') if hasattr(dt, 'strftime') else str(dt)
-                    except Exception:
-                        sdt = str(dt)
-                    rows.append((pid, plan_id, produkt, sdt))
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-
-                for r in rows:
-                    try:
-                        pid = r[0]
-                        if pid in _reminded_palety:
-                            continue
-                        msg = f"Niepotwierdzona paleta id={r[0]}, plan_id={r[1]}, produkt={r[2]}, dodana={r[3]} - brak potwierdzenia > {threshold_minutes}min"
-                        palety_logger.warning(msg)
-                        app.logger.warning(msg)
-                        _reminded_palety.add(pid)
-                    except Exception:
-                        app.logger.exception('Error processing unconfirmed paleta row')
-            except Exception:
-                app.logger.exception('Error in unconfirmed palety monitor loop')
-            time.sleep(interval_seconds)
-    except Exception:
-        app.logger.exception('Unconfirmed palety monitor terminating unexpectedly')
-
-
 
 
 
