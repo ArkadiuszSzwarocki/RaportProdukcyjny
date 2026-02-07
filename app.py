@@ -47,14 +47,6 @@ def alias_usun_plan(id):
     return usun_plan(id)
 
 
-@app.route('/zglos')
-@login_required
-def report_issue():
-    sekcja = request.args.get('sekcja', 'Zasyp')
-    now_time = datetime.now().strftime('%H:%M')
-    return render_template('report_issue.html', sekcja=sekcja, now_time=now_time)
-
-
 # Serve favicon at root to avoid 404s from some browsers
 @app.route('/favicon.ico')
 def favicon():
@@ -259,84 +251,6 @@ def ensure_pracownik_mapping():
             app.logger.exception('Error ensuring pracownik mapping')
         except Exception:
             pass
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        # Validate required form fields via central helper
-        try:
-            from utils.validation import require_field
-            login_field = require_field(request.form, 'login')
-            password_field = require_field(request.form, 'haslo')
-        except Exception as e:
-            flash(str(e), 'danger')
-            return redirect('/login')
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Pobierz opcjonalne pole pracownik_id by mapować konto na rekord pracownika
-        cursor.execute("SELECT id, haslo, rola, COALESCE(pracownik_id, NULL) FROM uzytkownicy WHERE login = %s", (login_field,))
-        row = cursor.fetchone()
-        conn.close()
-        if row:
-            uid, hashed, rola, pracownik_id = row[0], row[1], row[2], row[3]
-            if hashed and check_password_hash(hashed, password_field):
-                session['zalogowany'] = True
-                # Normalize role to lowercase to avoid case-sensitivity issues in templates
-                session['rola'] = (rola or '').lower()
-                # Zapisz login i powiązanie pracownika w sesji (może być None)
-                session['login'] = login_field
-                session['pracownik_id'] = int(pracownik_id) if pracownik_id is not None else None
-                
-                # Log login with current process PID
-                app.logger.info(f"[LOGIN] User '{login_field}' logged in successfully (PID: {os.getpid()})")
-                
-                # Pobierz imię_nazwisko z tabeli pracownicy dla wyświetlenia w belce górnej
-                imie_nazwisko = None
-                if pracownik_id:
-                    try:
-                        conn2 = get_db_connection()
-                        cursor2 = conn2.cursor()
-                        cursor2.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (pracownik_id,))
-                        p_row = cursor2.fetchone()
-                        if p_row:
-                            imie_nazwisko = p_row[0]
-                        cursor2.close()
-                        conn2.close()
-                    except Exception:
-                        pass
-                session['imie_nazwisko'] = imie_nazwisko or login_field
-                # Use location.replace on client to avoid keeping login page in history
-                target = '/planista' if rola == 'planista' else '/'
-                html = f"""<!doctype html><html><head><meta charset=\"utf-8\"><title>Logowanie...</title></head><body><script>window.location.replace('{target}');</script></body></html>"""
-                resp = (html, 200)
-                try:
-                    from flask import make_response
-                    resp = make_response(html)
-                    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-                    resp.headers['Pragma'] = 'no-cache'
-                except Exception:
-                    pass
-                return resp
-        flash("Błędne dane!", 'danger')
-        return redirect('/login')
-    # If already logged in, don't show login form — redirect to app
-    if session.get('zalogowany'):
-        return redirect('/')
-    resp = render_template('login.html')
-    try:
-        from flask import make_response
-        r = make_response(resp)
-        r.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-        r.headers['Pragma'] = 'no-cache'
-        return r
-    except Exception:
-        return resp
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect('/login')
 
 @app.route('/')
 @login_required

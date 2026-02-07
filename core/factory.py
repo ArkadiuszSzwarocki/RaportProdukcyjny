@@ -10,6 +10,7 @@ from core.error_handlers import setup_logging, register_error_handlers
 from routes_admin import admin_bp
 from routes_api import api_bp
 from routes_planista import planista_bp
+from routes_auth import auth_bp
 import db
 
 
@@ -37,6 +38,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.jinja_env.add_extension('jinja2.ext.do')
     
     # Register blueprints
+    app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(planista_bp)
