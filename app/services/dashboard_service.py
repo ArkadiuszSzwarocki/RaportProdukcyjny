@@ -255,6 +255,26 @@ class DashboardService:
             while len(p) <= 15:
                 p.append(None)
             p[15] = int(count)
+            # Populate palety_mapa for Zasyp/Workowanie when DB has detail rows but palety_mapa wasn't filled earlier
+            try:
+                if sekcja == 'Zasyp' and p[15] and p[15] > 0 and p[0] not in palety_mapa:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT id, waga, godzina, data_dodania, pracownik_id, status FROM szarze WHERE plan_id = %s AND status = 'zarejestowana' ORDER BY data_dodania ASC",
+                        (p[0],)
+                    )
+                    rows = cursor.fetchall()
+                    cursor.close()
+                    conn.close()
+                    # map to (waga, godzina, id, UNUSED, status) to match template expectations
+                    palety_mapa[p[0]] = [(r[1], r[2], r[0], None, r[5] if len(r) > 5 else '') for r in rows]
+                elif sekcja == 'Workowanie' and p[15] and p[15] > 0 and p[0] not in palety_mapa:
+                    # Use existing query helper to fetch paletki for plan
+                    palety = QueryHelper.get_paletki_for_plan(p[0])
+                    palety_mapa[p[0]] = palety
+            except Exception:
+                pass
         
         return plan_dnia, palety_mapa, suma_plan, suma_wykonanie
 
