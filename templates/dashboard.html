@@ -967,19 +967,23 @@ document.addEventListener('click', function(e){
     });
 })();
 
-// Event listener dla DELETE buttons
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.delete-plan-btn').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const id = this.getAttribute('data-plan-id');
-            const date = this.getAttribute('data-plan-date');
-            const name = this.getAttribute('data-plan-name');
-            console.log('🗑️ DELETE button clicked:', {id, date, name});
-            deletePlan(id, date);
-        });
-    });
+// Event listener dla DELETE buttons - rejestruj NATYCHMIAST
+console.log('⚡ Rejestrowanie DELETE button listeners...');
+
+// Event delegation - Listen on document for clicks na delete buttons
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.delete-plan-btn')) {
+        e.preventDefault();
+        const btn = e.target.closest('.delete-plan-btn');
+        const id = btn.getAttribute('data-plan-id');
+        const date = btn.getAttribute('data-plan-date');
+        const name = btn.getAttribute('data-plan-name');
+        console.log('🗑️ DELETE BUTTON CLICKED:', {id, date, name});
+        deletePlan(id, date);
+    }
 });
+
+console.log('✅ DELETE button listeners registered!');
 
 // Delete plan function - dostępna w global scope
 function deletePlan(id, data){
