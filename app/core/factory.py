@@ -41,7 +41,8 @@ def create_app(config_secret_key=None, init_db=True):
     """
     # Create Flask app with explicit template folder path (absolute path from project root)
     template_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'templates')
-    app = Flask(__name__, template_folder=template_folder)
+    static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'static')
+    app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
     
     # Configure with secret key
     app.secret_key = config_secret_key or SECRET_KEY
