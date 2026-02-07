@@ -14,7 +14,7 @@ def bezpieczny_powrot():
     
     sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
     data = request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-    return url_for('index', sekcja=sekcja, data=data)
+    return url_for('main.index', sekcja=sekcja, data=data)
 
 
 @warehouse_bp.route('/dodaj_palete/<int:plan_id>', methods=['POST'])

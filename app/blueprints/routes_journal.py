@@ -44,7 +44,7 @@ def usun_wpis(id):
     cursor.execute("DELETE FROM dziennik_zmiany WHERE id=%s", (id,))
     conn.commit()
     conn.close()
-    return redirect(url_for('index'))
+    return redirect(url_for('main.index'))
 
 
 @journal_bp.route('/edytuj/<int:id>', methods=['GET', 'POST'])

@@ -490,12 +490,12 @@ def zapisz_raport_koncowy():
         conn.close()
         
         flash(f"✅ Zmiana w sekcji {sekcja} została zamknięta!", 'success')
-        return redirect(url_for('index', sekcja=sekcja, data=dzisiaj.isoformat()))
+        return redirect(url_for('main.index', sekcja=sekcja, data=dzisiaj.isoformat()))
         
     except Exception as e:
         current_app.logger.error(f"Błąd przy zamykaniu zmiany: {e}")
         flash(f"❌ Błąd: {str(e)}", 'danger')
-        return redirect(url_for('index', sekcja=sekcja))
+        return redirect(url_for('main.index', sekcja=sekcja))
 
 @leaves_bp.route('/zapisz-raport-koncowy-global', methods=['POST'])
 @login_required

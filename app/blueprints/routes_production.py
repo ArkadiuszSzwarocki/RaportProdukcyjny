@@ -16,7 +16,7 @@ def bezpieczny_powrot():
     # Try to get sekcja from query string first (URL parameters), then from form
     sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
     data = request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-    return url_for('index', sekcja=sekcja, data=data)
+    return url_for('main.index', sekcja=sekcja, data=data)
 
 
 @production_bp.route('/start_zlecenie/<int:id>', methods=['POST'])

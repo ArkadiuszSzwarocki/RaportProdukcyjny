@@ -42,7 +42,7 @@ def dodaj_obecnosc():
             conn.close()
         except Exception:
             pass
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
     # Jeśli Wyjscie prywatne — wymagamy podania zakresu czasu
     od = None
     do = None
@@ -59,7 +59,7 @@ def dodaj_obecnosc():
     )
     conn.commit()
     conn.close()
-    return redirect(url_for('index'))
+    return redirect(url_for('main.index'))
 
 
 @schedule_bp.route('/edytuj_godziny', methods=['POST'])
