@@ -23,6 +23,7 @@ from app.blueprints.routes_schedule import schedule_bp
 from app.blueprints.routes_testing import testing_bp
 from app.blueprints.routes_recovery import recovery_bp
 from app.blueprints.routes_zarzad import zarzad_bp
+from app.blueprints.routes_compat import compat_bp
 from app import db
 
 
@@ -63,6 +64,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(testing_bp)
     app.register_blueprint(recovery_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(compat_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(planista_bp)
     app.register_blueprint(zarzad_bp)

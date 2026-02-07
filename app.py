@@ -14,7 +14,6 @@ from werkzeug.utils import secure_filename
 from app import db
 from app.db import get_db_connection
 from app.dto.paleta import PaletaDTO
-from app.blueprints.routes_api import dodaj_plan_zaawansowany, dodaj_plan, usun_plan
 from app.decorators import login_required, zarzad_required, roles_required
 from app.utils.queries import QueryHelper
 from app.core.error_handlers import setup_logging, register_error_handlers
@@ -32,56 +31,6 @@ app = create_app()
 # Ensure we always resolve DB connection at call-time so tests can monkeypatch `db.get_db_connection`
 def get_db_connection():
     return db.get_db_connection()
-
-
-# Backwards-compatible aliases for forms that post to root paths (keep working without reloading pages)
-@app.route('/dodaj_plan_zaawansowany', methods=['POST'])
-@login_required
-def alias_dodaj_plan_zaawansowany():
-    return dodaj_plan_zaawansowany()
-
-
-@app.route('/dodaj_plan', methods=['POST'])
-@login_required
-def alias_dodaj_plan():
-    return dodaj_plan()
-
-
-@app.route('/usun_plan/<int:id>', methods=['POST'])
-@login_required
-def alias_usun_plan(id):
-    return usun_plan(id)
-
-
-# Serve favicon at root to avoid 404s from some browsers
-@app.route('/favicon.ico')
-def favicon():
-    try:
-        static_folder = app.static_folder or os.path.join(app.root_path, 'static')
-        # Try common favicon files in order. Fall back to the bundled PNG logo.
-        for fname in ('favicon.ico', 'favicon.svg', 'agro_logo.png'):
-            path = os.path.join(static_folder, fname)
-            if os.path.exists(path):
-                try:
-                    from flask import send_from_directory
-                    return send_from_directory(static_folder, fname)
-                except Exception:
-                    return redirect(url_for('static', filename=fname))
-        return ('', 204)
-    except Exception:
-        return ('', 204)
-
-
-# Some devtools/extensions request a well-known file which we don't serve;
-# respond with 204 No Content to avoid noisy 404/500 traces in logs.
-@app.route('/.well-known/appspecific/com.chrome.devtools.json')
-def _well_known_devtools():
-    return ('', 204)
-
-# Generic handler for any /.well-known probes to reduce noisy 404s
-@app.route('/.well-known/<path:subpath>')
-def _well_known_generic(subpath):
-    return ('', 204)
 
 
 @app.before_request
@@ -119,73 +68,6 @@ def debug_modal_move():
         except Exception:
             pass
     return ('', 204)
-
-
-# --- Test routes for slide/modal UI (development only) ---------------------------------
-@app.route('/test/slide_test')
-def slide_test():
-    return render_template('slide_test.html')
-
-
-@app.route('/_test/slide/<name>', methods=['GET'])
-def _test_slide(name):
-    # Return small HTML fragments used to demonstrate slide-over behavior
-    if name == 'form':
-        return """
-            <form action="/_test/slide/submit" method="post">
-                <div class="p-10">
-                    <label>Wartość: <input name="val"/></label>
-                    <button type="submit" class="btn">Zapisz</button>
-                </div>
-            </form>
-        """
-    if name == 'confirm':
-        return """
-            <div class="p-10">
-                <h3>Potwierdź</h3>
-                <p>Czy chcesz wykonać akcję testową?</p>
-                <form method="post" action="/_test/slide/confirm_do">
-                    <button class="btn" type="submit">Tak</button>
-                </form>
-            </div>
-        """
-    if name == 'large':
-        longp = ' '.join(['Przykładowy tekst.'] * 80)
-        return f"<div class='p-20'><h2>Duża treść testowa</h2><p>{longp}</p></div>"
-    return f"<div class='p-10'>Treść testowa: {name}</div>"
-
-
-@app.route('/_test/center/<name>', methods=['GET'])
-def _test_center(name):
-    if name == 'notice':
-        return "<div class='p-10'><h3>Powiadomienie</h3><p>To jest center modal testowy.</p></div>"
-    if name == 'form':
-        return """
-            <form action="/_test/center/submit" method="post">
-                <div class="p-10">
-                    <label>Imię: <input name="imie"/></label>
-                    <button class="btn" type="submit">Wyślij</button>
-                </div>
-            </form>
-        """
-    return f"<div class='p-10'>Center test: {name}</div>"
-
-
-@app.route('/_test/slide/submit', methods=['POST'])
-def _test_slide_submit():
-    # Simulate successful AJAX response (JSON)
-    return ('{"success": true, "message": "Zapisano (test)"}', 200, {'Content-Type': 'application/json'})
-
-
-@app.route('/_test/slide/confirm_do', methods=['POST'])
-def _test_slide_confirm_do():
-    return ('{"success": true, "message": "Potwierdzono (test)"}', 200, {'Content-Type': 'application/json'})
-
-
-@app.route('/_test/center/submit', methods=['POST'])
-def _test_center_submit():
-    return ('{"success": true, "message": "Center: wyslano (test)"}', 200, {'Content-Type': 'application/json'})
-
 
 
 @app.after_request

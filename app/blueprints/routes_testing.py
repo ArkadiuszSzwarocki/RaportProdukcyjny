@@ -8,7 +8,7 @@ import zipfile
 import os
 import sys
 
-testing_bp = Blueprint('testing', __name__, url_prefix='/test')
+testing_bp = Blueprint('testing', __name__, url_prefix='/_test')
 
 
 @testing_bp.route('/download-page')
@@ -123,5 +123,77 @@ def test_download_zip():
             "error": str(e),
             "message": f"ERROR Blad: {str(e)}"
         }), 500
+
+
+# --- Slide/Center Modal Test Routes ---
+# Used to demonstrate and test slide-over and center modal behavior
+
+@testing_bp.route('/slide_test')
+def slide_test():
+    """Test page demonstrating slide-over modal functionality."""
+    return render_template('slide_test.html')
+
+
+@testing_bp.route('/slide/<name>', methods=['GET'])
+def _test_slide(name):
+    """Return small HTML fragments used to demonstrate slide-over behavior."""
+    if name == 'form':
+        return """
+            <form action="/test/slide/submit" method="post">
+                <div class="p-10">
+                    <label>Wartość: <input name="val"/></label>
+                    <button type="submit" class="btn">Zapisz</button>
+                </div>
+            </form>
+        """
+    if name == 'confirm':
+        return """
+            <div class="p-10">
+                <h3>Potwierdź</h3>
+                <p>Czy chcesz wykonać akcję testową?</p>
+                <form method="post" action="/test/slide/confirm_do">
+                    <button class="btn" type="submit">Tak</button>
+                </form>
+            </div>
+        """
+    if name == 'large':
+        longp = ' '.join(['Przykładowy tekst.'] * 80)
+        return f"<div class='p-20'><h2>Duża treść testowa</h2><p>{longp}</p></div>"
+    return f"<div class='p-10'>Treść testowa: {name}</div>"
+
+
+@testing_bp.route('/center/<name>', methods=['GET'])
+def _test_center(name):
+    """Return HTML fragments for center modal testing."""
+    if name == 'notice':
+        return "<div class='p-10'><h3>Powiadomienie</h3><p>To jest center modal testowy.</p></div>"
+    if name == 'form':
+        return """
+            <form action="/test/center/submit" method="post">
+                <div class="p-10">
+                    <label>Imię: <input name="imie"/></label>
+                    <button class="btn" type="submit">Wyślij</button>
+                </div>
+            </form>
+        """
+    return f"<div class='p-10'>Center test: {name}</div>"
+
+
+@testing_bp.route('/slide/submit', methods=['POST'])
+def _test_slide_submit():
+    """Simulate successful AJAX response for slide-over submit."""
+    return ('{"success": true, "message": "Zapisano (test)"}', 200, {'Content-Type': 'application/json'})
+
+
+@testing_bp.route('/slide/confirm_do', methods=['POST'])
+def _test_slide_confirm_do():
+    """Simulate successful AJAX response for slide-over confirm."""
+    return ('{"success": true, "message": "Potwierdzono (test)"}', 200, {'Content-Type': 'application/json'})
+
+
+@testing_bp.route('/center/submit', methods=['POST'])
+def _test_center_submit():
+    """Simulate successful AJAX response for center modal submit."""
+    return ('{"success": true, "message": "Center: wyslano (test)"}', 200, {'Content-Type': 'application/json'})
 
 
