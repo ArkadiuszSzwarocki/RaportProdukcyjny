@@ -22,20 +22,22 @@ def bezpieczny_powrot():
 @production_bp.route('/start_zlecenie/<int:id>', methods=['POST'])
 @login_required
 def start_zlecenie(id):
-    """Rozpocznij wykonywanie zlecenia (zmiana statusu na 'w toku')
+    """Rozpocznij wykonywanie zlecenia (zmiana statusu na 'w toko')
     
-    Synchronizacja: Jeśli na Zasyp jest aktywne zlecenie, to na Workowanie
-    może być startowane TYLKO to samo zlecenie. Reszta czeka w kolejce.
+    Workowanie może startować niezależnie - Zasyp to przygotowanie wsadu,
+    Workowanie workuje z bufora. Jeśli na Zasyp jest inne zlecenie - pokaż info.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji WHERE id=%s", (id,))
     z = cursor.fetchone()
     
+    warning_info = None  # Informacja o tym co dzieje się na Zasyp
+    
     if z:
         produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
         
-        # SYNCHRONIZACJA: jeśli na Workowanie, sprawdzić czy na Zasyp jest inne aktywne zlecenie
+        # INFO ONLY (nie blokuje): jeśli na Workowanie, sprawdzić co dzieje się na Zasyp
         if sekcja == 'Workowanie':
             cursor.execute(
                 "SELECT id, produkt FROM plan_produkcji "
@@ -45,18 +47,22 @@ def start_zlecenie(id):
             active_on_zasyp = cursor.fetchone()
             
             if active_on_zasyp and active_on_zasyp[0] != id:
-                # Na Zasyp jest inne aktywne zlecenie - blokuj start
-                conn.close()
-                flash(f"⏸️ Na Zasyp trwa zlecenie: <strong>{active_on_zasyp[1]}</strong>. "
-                      f"Możesz startować tylko to zlecenie na Workowaniu. Reszta czeka w kolejce.", 
-                      'warning')
-                return redirect(bezpieczny_powrot())
+                # Inne zlecenie aktywne na Zasyp - informuj ale nie blokuj
+                warning_info = {
+                    'message': f"Na Zasyp trwa zlecenie: <strong>{active_on_zasyp[1]}</strong>",
+                    'zasyp_order_id': active_on_zasyp[0],
+                    'zasyp_order_name': active_on_zasyp[1]
+                }
         
-        # Jeśli jeszcze nie w toku - rozpocznij
+        # Zawsze wykonaj START - Workowanie pracuje niezależnie z bufora
         if status_obecny != 'w toku':
             cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
             cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
             flash(f"✅ Uruchomiono: <strong>{produkt}</strong>", 'success')
+            
+            # Jeśli jest warning info - dodaj do flash message
+            if warning_info:
+                flash(f"ℹ️ {warning_info['message']}", 'info')
         
     conn.commit()
     conn.close()
