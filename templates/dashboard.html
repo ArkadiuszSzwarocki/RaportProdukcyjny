@@ -231,6 +231,7 @@
                         {% if p[3] == 'zaplanowane' %}
                             {% if ns.is_active %}<button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
                             {% else %}<form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>{% endif %}
+                            {% if rola in ['planista', 'admin', 'lider'] %}<button type="button" class="btn-delete inline-form" aria-label="Usuń plan" onclick="if(confirm('Usunąć?')) deletePlan({{ p[0] }}, '{{ dzisiaj }}')">🗑</button>{% endif %}
                         {% elif p[3] == 'w toku' %}
                             <div class="d-flex gap-5 justify-end">
                                 {% if sekcja == 'Workowanie' %}
@@ -958,4 +959,33 @@ document.addEventListener('click', function(e){
         });
     });
 })();
+</script>
+
+<!-- Delete plan function for dashboard -->
+<script>
+function deletePlan(id, data){
+    if(!confirm('Na pewno usunąć zlecenie?')) return;
+    
+    fetch('/api/usun_plan_ajax/' + id, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({data_powrotu: data})
+    })
+    .then(function(r){ 
+        return r.json().catch(function(){ 
+            return {success:false, message:'Błąd sieci'}; 
+        }); 
+    })
+    .then(function(j){
+        if(j && j.success){
+            alert(j.message || 'Zlecenie usunięte');
+            location.reload();
+        } else {
+            alert((j && j.message) || 'Błąd usunięcia');
+        }
+    })
+    .catch(function(err){ 
+        alert('Błąd sieci: ' + err.message); 
+    });
+}
 </script>
