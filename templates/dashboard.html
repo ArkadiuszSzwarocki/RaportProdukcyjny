@@ -197,7 +197,7 @@
         </thead>
         <tbody>
         {% for p in plan %}
-            <tr class="row-{{ p[3]|replace(' ', '') }}">
+            <tr class="row-{{ p[3]|replace(' ', '') }}" data-id="{{ p[0] }}">
                 <td class="text-muted font-bold">{{ loop.index }}</td>
                 <td>
                     <strong class="text-primary">{{ p[1] }}</strong>
