@@ -108,7 +108,7 @@
             </div>
             
             <div>
-                {% if p[3] == 'zaplanowane' %}
+                {% if p[3] == 'zaplanowane' and p[7] > 0 %}
                     <form action="/start_zlecenia/{{ p[0] }}" method="POST">
                         <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
                         <button type="submit" class="btn-start btn-small" aria-label="{{ _('start') }}">▶ {{ _('start') }}</button>
