@@ -70,22 +70,47 @@ class QueryHelper:
     def get_plan_produkcji(data_planu, sekcja):
         """Get production plans (excludes 'nieoplacone' and deleted) for a given day/section.
         
+        For Workowanie: only shows plans where szarża (buffer) exists with status='zarejestowana'
+        
         Returns list of tuples: (id, produkt, tonaz, status, real_start, real_stop, 
                                  minutes_diff, tonaz_rzeczywisty, kolejnosc, typ_produkcji, 
                                  wyjasnienie_rozbieznosci)
         """
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, produkt, tonaz, status, real_start, real_stop, "
-            "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
-            "typ_produkcji, wyjasnienie_rozbieznosci "
-            "FROM plan_produkcji "
-            "WHERE DATE(data_planu) = %s AND LOWER(sekcja) = LOWER(%s) AND status != 'nieoplacone' AND is_deleted = 0 "
-            "ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, "
-            "kolejnosc ASC, id ASC",
-            (data_planu, sekcja)
-        )
+        
+        # For Workowanie: filter plans that have szarża (buffer) registered for this day
+        if sekcja.lower() == 'workowanie':
+            cursor.execute(
+                "SELECT id, produkt, tonaz, status, real_start, real_stop, "
+                "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
+                "typ_produkcji, wyjasnienie_rozbieznosci "
+                "FROM plan_produkcji p "
+                "WHERE DATE(p.data_planu) = %s AND LOWER(p.sekcja) = LOWER(%s) AND p.status != 'nieoplacone' AND p.is_deleted = 0 "
+                "  AND EXISTS ( "
+                "    SELECT 1 FROM szarze s "
+                "    INNER JOIN plan_produkcji pr ON s.plan_id = pr.id "
+                "    WHERE s.status = 'zarejestowana' "
+                "      AND DATE(s.data_dodania) = DATE(p.data_planu) "
+                "      AND pr.produkt = p.produkt "
+                "  ) "
+                "ORDER BY CASE p.status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, "
+                "p.kolejnosc ASC, p.id ASC",
+                (data_planu, sekcja)
+            )
+        else:
+            # For other sections: show all plans (no szarża filter)
+            cursor.execute(
+                "SELECT id, produkt, tonaz, status, real_start, real_stop, "
+                "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
+                "typ_produkcji, wyjasnienie_rozbieznosci "
+                "FROM plan_produkcji "
+                "WHERE DATE(data_planu) = %s AND LOWER(sekcja) = LOWER(%s) AND status != 'nieoplacone' AND is_deleted = 0 "
+                "ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, "
+                "kolejnosc ASC, id ASC",
+                (data_planu, sekcja)
+            )
+        
         result = [list(r) for r in cursor.fetchall()]
         conn.close()
         return result
