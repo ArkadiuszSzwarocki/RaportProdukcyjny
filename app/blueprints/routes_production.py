@@ -34,9 +34,8 @@ def start_zlecenie(id):
     
     if z:
         produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
-        current_app.logger.info(f"start_zlecenie({id}): prod={produkt}, sekcja='{sekcja}', status={status_obecny}")
         
-        # SYNCHRONIZACJA (zawsze sprawdzane): jeśli na Workowanie, sprawdzić czy na Zasyp jest inne aktywne zlecenie
+        # SYNCHRONIZACJA: jeśli na Workowanie, sprawdzić czy na Zasyp jest inne aktywne zlecenie
         if sekcja == 'Workowanie':
             cursor.execute(
                 "SELECT id, produkt FROM plan_produkcji "
@@ -44,11 +43,9 @@ def start_zlecenie(id):
                 (data_planu,)
             )
             active_on_zasyp = cursor.fetchone()
-            current_app.logger.info(f"  Workowanie sync-check: active_on_zasyp={active_on_zasyp}, id={id}")
             
             if active_on_zasyp and active_on_zasyp[0] != id:
                 # Na Zasyp jest inne aktywne zlecenie - blokuj start
-                current_app.logger.warning(f"  BLOCKED: Different plan active on Zasyp: {active_on_zasyp[1]} (ID {active_on_zasyp[0]})")
                 conn.close()
                 flash(f"⏸️ Na Zasyp trwa zlecenie: <strong>{active_on_zasyp[1]}</strong>. "
                       f"Możesz startować tylko to zlecenie na Workowaniu. Reszta czeka w kolejce.", 
@@ -59,10 +56,7 @@ def start_zlecenie(id):
         if status_obecny != 'w toku':
             cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
             cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
-            current_app.logger.info(f"  Started: {id}")
             flash(f"✅ Uruchomiono: <strong>{produkt}</strong>", 'success')
-        else:
-            current_app.logger.info(f"  Already running: {id}")
         
     conn.commit()
     conn.close()
