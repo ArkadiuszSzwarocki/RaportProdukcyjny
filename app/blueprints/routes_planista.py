@@ -111,7 +111,7 @@ def panel_planisty():
 
         # 3. POBIERANIE PALET
         cursor.execute("""
-            SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, pp.produkt, pp.typ_produkcji
+            SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, pp.produkt, pp.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s
             FROM palety_workowanie pw
             JOIN plan_produkcji pp ON pw.plan_id = pp.id
             WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.typ_produkcji = %s AND pp.sekcja = 'Workowanie'

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>system_produkcyjny</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/static/favicon.svg" sizes="any">
+    <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css?v=1770463675">
+</head>
+<body>
+
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="top-bar">
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
+            <span class="material-icons">menu</span>
+        </button>
+        <div class="d-flex align-center gap-15">
+            <img src="/static/agro_logo.png" alt="Company logo: the word agro with AGRO and MES styled difference and a simple agricultural emblema; place in the top bar header beige the page title agro; conveys a Natural, professional, trustworthy tone" class="logo-sm" onerror="handleLogoError(this)">
+            <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
+        </div>
+
+        <div class="user-info">
+            
+
+            
+
+            
+
+            <!-- Language selector dropdown -->
+            <div class="language-selector">
+                <button type="button" class="btn-icon language-toggle" title="zmien_jezyk" onclick="toggleLanguageMenu(); return false;">
+                    <span class="material-icons">language</span>
+                </button>
+                <div id="languageMenu" class="language-menu hidden">
+                    <a href="#" onclick="switchLanguage('pl'); return false;" class="language-option">
+                        <span>🇵🇱</span> Polski
+                    </a>
+                    <a href="#" onclick="switchLanguage('uk'); return false;" class="language-option">
+                        <span>🇺🇦</span> Українська
+                    </a>
+                    <a href="#" onclick="switchLanguage('en'); return false;" class="language-option">
+                        <span>🇬🇧</span> English
+                    </a>
+                </div>
+            </div>
+
+            
+
+            
+
+            <span class="user-role">zalogowany: <strong>N/A</strong></span>
+            
+            <a href="/logout" class="logout-btn" aria-label="logout">
+                <span class="material-icons">logout</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="top-submenu">
+        <div class="top-submenu-inner">
+            <a class="top-tile" href="/obsada_page?sekcja=Workowanie" title="obsada">
+                <span class="material-icons">people</span>
+                <div class="tile-label">obsada</div>
+            </a>
+            <nav class="top-menu">
+                <a class="top-menu-item" href="/panel_wnioski_page"> <span class="material-icons">assignment_turned_in</span> zatwierdzenie_wnioskow</a>
+                <a class="top-menu-item" href="/panel/planowane"> <span class="material-icons">beach_access</span> planowane_urlopy</a>
+                <a class="top-menu-item" href="/panel/obecnosci"> <span class="material-icons">calendar_today</span> nieobecnosci</a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="app-layout">
+        <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+        <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
+            <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
+            <nav class="sidebar-nav">
+                
+
+                
+
+                
+
+                
+
+                
+
+                
+                    <a href="/zarzad" class="nav-item ">wyniki</a>
+                
+
+                
+
+                
+                    <a href="/planista" class="nav-item ">plan</a>
+                
+
+                
+                    <a href="/moje_godziny" class="nav-item ">moje_godziny</a>
+                
+
+                
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/logout" class="btn-icon">logout</a>
+            </div>
+        </aside>
+
+        <main class="main-content" id="mainContent">
+        
+            
+                <div class="flash-container">
+                
+                    <div class="flash-message flash-danger">
+                        ❌ Błąd: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+                    </div>
+                
+                </div>
+            
+        
+
+        
+<style>
+    .error-box {
+        padding: 20px;
+        background-color: #fff3cd;
+        border-left: 4px solid #ff6b6b;
+        border-radius: 4px;
+        color: #333;
+    }
+
+    .error-box h3 {
+        margin-top: 0;
+        color: #d63031;
+    }
+
+    .error-messages {
+        margin: 15px 0;
+        padding: 10px;
+        background-color: #ffe0e0;
+        border-radius: 4px;
+        color: #d63031;
+        font-weight: bold;
+    }
+
+    .error-messages p {
+        margin: 5px 0;
+    }
+
+    .error-actions {
+        margin: 15px 0 0 0;
+        border-top: 1px solid #ffc107;
+        padding-top: 15px;
+        font-size: 0.9em;
+        color: #666;
+    }
+
+    .error-actions ul {
+        margin: 10px 0 0 0;
+        padding-left: 20px;
+    }
+
+    .button-group {
+        margin-top: 30px;
+        display: flex;
+        gap: 10px;
+    }
+
+    .button-group button,
+    .button-group a {
+        padding: 10px 20px;
+    }
+
+    .button-group button {
+        cursor: pointer;
+    }
+</style>
+
+<div class="page-header">
+    <h1>❌ wewnetrzny_blad</h1>
+</div>
+
+<div class="section-box p-30">
+    <div class="error-box">
+        <h3>cos_poszlo_nie_tak</h3>
+        <p>
+            napotkalismy_blad 
+            Szczegóły błędu zostały zalogowane i przekazane zespołowi technicznego.
+        </p>
+        
+            <div class="error-messages">
+                
+                    <p>❌ Błąd: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.</p>
+                
+            </div>
+        
+        <p class="error-actions">
+            <strong>co_mozesz_zrobic</strong>
+            <ul>
+                <li>sprobuj_ponownie</li>
+                <li>skontaktuj_sie_z_admin</li>
+                <li>szczegoly_blędu</li>
+            </ul>
+        </p>
+    </div>
+
+    <div class="button-group">
+        <button onclick="history.back()" class="btn-action btn-info">← wroc</button>
+        <a href="/" class="btn-action btn-primary">🏠 Dashboard</a>
+    </div>
+</div>
+
+<script>
+    // Wyświetl notyfikację o błędzie
+    if (typeof showToast !== 'undefined') {
+        showToast('❌ Błąd serwera - szczegóły zostały zalogowane', 'error', 8000);
+    }
+</script>
+
+
+        </main>
+    </div>
+
+    <script src="/static/js/toasts.js?v=1770463675"></script>
+    <script src="/static/scripts.js?v=1770463675"></script>
+    <script src="/static/quick_debug.js?v=1770463675"></script>
+    <script>
+        function handleLogoError(img){
+            try{
+                if(img.src.indexOf('agro_logo.png') !== -1){
+                    img.src = '/static/logo.png';
+                } else {
+                    img.onerror = null;
+                    img.src = 'https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';
+                }
+            }catch(e){
+                img.onerror = null;
+            }
+        }
+        
+        // Przełączanie widoczności menu języków
+        function toggleLanguageMenu(){
+            const menu = document.getElementById('languageMenu');
+            if(menu) {
+                menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+            }
+        }
+        
+        // Zamykanie menu ponad innymi klikami w dokumencie
+        document.addEventListener('click', function(event) {
+            const selector = document.querySelector('.language-selector');
+            const menu = document.getElementById('languageMenu');
+            if(selector && menu && !selector.contains(event.target)) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        // Przełączanie języka aplikacji
+        function switchLanguage(lang){
+            fetch('/api/set_language', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({language: lang})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(data.success){
+                    const langNames = {uk: 'Українску', pl: 'Polski', en: 'English'};
+                    showToast('✓ Język zmieniony na ' + (langNames[lang] || lang), 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast('❌ ' + (data.message || 'Błąd zmiany języka'), 'error');
+                }
+            })
+            .catch(err => {
+                showToast('❌ Błąd: ' + err.message, 'error');
+            });
+        }
+    </script>
+
+</body>
+</html>
