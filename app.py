@@ -21,6 +21,7 @@ from routes_api import api_bp, dodaj_plan_zaawansowany, dodaj_plan, usun_plan
 from routes_planista import planista_bp
 from decorators import login_required, zarzad_required, roles_required
 from utils.queries import QueryHelper
+from core.contexts import register_contexts
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -31,168 +32,9 @@ app.register_blueprint(api_bp, url_prefix='/api')
 app.register_blueprint(planista_bp)
 app.jinja_env.filters['format_czasu'] = format_godziny
 
+# Register context processors
+register_contexts(app)
 
-@app.context_processor
-def inject_static_version():
-    try:
-        # Use file modification time of static/css/style.css as cache-buster
-        path = os.path.join(app.root_path, 'static', 'css', 'style.css')
-        v = int(os.path.getmtime(path))
-    except Exception:
-        v = int(time.time())
-    return dict(static_version=v)
-
-
-@app.context_processor
-def inject_role_permissions():
-    import os, json
-    cfg_path = os.path.join(app.root_path, 'config', 'role_permissions.json')
-
-    def role_has_access(page):
-        try:
-            # Czytaj config za każdym razem (nie cachuj!)
-            perms = {}
-            try:
-                with open(cfg_path, 'r', encoding='utf-8') as f:
-                    perms = json.load(f)
-            except Exception:
-                perms = {}
-            
-            r = (session.get('rola') or '').lower()
-            # Log dla debugowania
-            app.logger.debug(f'role_has_access({page}): rola={r}, session_rola={session.get("rola")}')
-            
-            # WAŻNE: jeśli config istnieje i zawiera jakieś strony, użyj TYLKO config
-            # (nie fallback na hardcoded rules)
-            if perms and len(perms) > 0:
-                # Config ma dane - sprawdź czy strona jest w config
-                page_perms = perms.get(page)
-                if page_perms is None:
-                    # Strona nie w config -> zezwól (permissive)
-                    app.logger.debug(f'  page {page} not in perms, allowing')
-                    return True
-                # Strona w config -> sprawdź dostęp roli
-                result = bool(page_perms.get(r, {}).get('access', False))
-                app.logger.debug(f'  page {page} access for {r}: {result}')
-                return result
-            
-            # Config pusty - użyj fallback
-            if page == 'dashboard':
-                return r in ['lider', 'admin']
-            if page in ('zasyp', 'workowanie', 'magazyn'):
-                return r in ['produkcja', 'lider', 'admin', 'zarzad', 'pracownik']
-            if page == 'jakosc':
-                return r in ['laboratorium', 'lider', 'admin', 'zarzad', 'produkcja', 'planista']
-            if page == 'wyniki':
-                return True
-            if page == 'awarie':
-                return r in ['dur', 'admin', 'zarzad']
-            if page == 'plan':
-                return r not in ['pracownik', 'magazynier']
-            if page == 'moje_godziny':
-                return True
-            if page == 'ustawienia':
-                return r == 'admin'
-            # unknown page key -> allow by default
-            return True
-        except Exception as e:
-            app.logger.exception(f'role_has_access({page}) error: {e}')
-            return False
-
-    def role_is_readonly(page):
-        try:
-            # Czytaj config za każdym razem (nie cachuj!)
-            perms = {}
-            try:
-                with open(cfg_path, 'r', encoding='utf-8') as f:
-                    perms = json.load(f)
-            except Exception:
-                perms = {}
-            
-            r = (session.get('rola') or '').lower()
-            if not perms:
-                # default: no readonly restrictions
-                return False
-            page_perms = perms.get(page)
-            if page_perms is None:
-                return False
-            return bool(page_perms.get(r, {}).get('readonly', False))
-        except Exception:
-            return False
-
-    return dict(role_has_access=role_has_access, role_is_readonly=role_is_readonly)
-
-
-# Global translation cache - nie cache'ować w context processor!
-_translations_cache = {}
-
-@app.context_processor
-def inject_translations():
-    """Injekt funkcji tłumaczenia do szablonów Jinja"""
-    import os, json
-    
-    def get_language():
-        """Pobierz preferowany język: session -> cookie -> query param -> Accept-Language -> pl"""
-        # 1. Sprawdź session
-        if 'app_language' in session:
-            return session.get('app_language')
-        
-        # 2. Sprawdź cookie
-        if 'app_language' in request.cookies:
-            return request.cookies.get('app_language')
-        
-        # 3. Sprawdź query parameter ?lang=uk
-        if 'lang' in request.args:
-            return request.args.get('lang')
-        
-        # 4. Sprawdź Accept-Language header
-        if request.headers.get('Accept-Language'):
-            lang_header = request.headers.get('Accept-Language', '').lower()
-            if 'uk' in lang_header:
-                return 'uk'
-            elif 'en' in lang_header:
-                return 'en'
-        
-        # 5. Domyślnie polski
-        return 'pl'
-    
-    def get_translation(key, default_text=''):
-        """Pobierz tłumaczenie dla danego klucza"""
-        try:
-            lang = get_language()
-            
-            # Załaduj tłumaczenia jeśli nie w globalnym cache
-            if 'translations' not in _translations_cache:
-                trans_path = os.path.join(app.root_path, 'config', 'translations.json')
-                if os.path.exists(trans_path):
-                    with open(trans_path, 'r', encoding='utf-8') as f:
-                        _translations_cache['translations'] = json.load(f)
-                else:
-                    _translations_cache['translations'] = {}
-            
-            translations = _translations_cache['translations']
-            
-            # Pobierz tekst dla wybranego języka
-            if lang in translations and key in translations[lang]:
-                return translations[lang][key]
-            elif 'pl' in translations and key in translations['pl']:
-                return translations['pl'][key]
-            else:
-                return default_text or key
-        except Exception as e:
-            app.logger.warning(f'Translation error for key {key}: {e}')
-            return default_text or key
-    
-    return dict(_=get_translation, get_translation=get_translation)
-
-
-@app.context_processor
-def inject_app_into_templates():
-    # Some older templates expect `app` variable in Jinja context.
-    try:
-        return dict(app=app)
-    except Exception:
-        return dict()
 try:
     # Avoid running DB setup during pytest collection or when tests monkeypatch DB.
     # Pytest sets the `PYTEST_CURRENT_TEST` env var during collection/execution.
