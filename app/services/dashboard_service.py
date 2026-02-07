@@ -493,3 +493,137 @@ class DashboardService:
         kandydaci = [p for p in plan_dnia if p[3] == 'zaplanowane']
         kandydaci.sort(key=lambda x: x[0])
         return kandydaci[0][0] if kandydaci else None
+
+    @staticmethod
+    def get_zasyp_statistics(dzisiaj: date) -> Dict[str, Any]:
+        """Get Zasyp statistics: completed szarżas by product type.
+        
+        Returns:
+            Dict with:
+            - details: {product: count}
+            - total: total count of completed szarżas
+            - by_type: statistics by typ_produkcji
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Count completed szarżas (status='zakonczena') by product
+            cursor.execute(
+                """SELECT p.produkt, COUNT(DISTINCT s.id) as count
+                   FROM szarze s
+                   INNER JOIN plan_produkcji p ON s.plan_id = p.id
+                   WHERE DATE(s.data_dodania) = %s 
+                   AND s.status = 'zakonczena'
+                   AND p.sekcja = 'Zasyp'
+                   GROUP BY p.produkt
+                   ORDER BY count DESC""",
+                (dzisiaj,)
+            )
+            
+            product_stats = {}
+            total_count = 0
+            
+            for row in cursor.fetchall():
+                product = row[0]
+                count = row[1]
+                product_stats[product] = count
+                total_count += count
+            
+            # Get stats by typ_produkcji
+            cursor.execute(
+                """SELECT p.typ_produkcji, COUNT(DISTINCT s.id) as count
+                   FROM szarze s
+                   INNER JOIN plan_produkcji p ON s.plan_id = p.id
+                   WHERE DATE(s.data_dodania) = %s 
+                   AND s.status = 'zakonczena'
+                   AND p.sekcja = 'Zasyp'
+                   GROUP BY p.typ_produkcji
+                   ORDER BY count DESC""",
+                (dzisiaj,)
+            )
+            
+            type_stats = {}
+            for row in cursor.fetchall():
+                typ = row[0] if row[0] else 'nieokreślony'
+                count = row[1]
+                type_stats[typ] = count
+            
+            cursor.close()
+            conn.close()
+            
+            return {
+                'details': product_stats,
+                'total': total_count,
+                'by_type': type_stats,
+            }
+        except Exception as e:
+            return {
+                'details': {},
+                'total': 0,
+                'by_type': {},
+            }
+
+    @staticmethod
+    def get_workowanie_statistics(dzisiaj: date) -> Dict[str, Any]:
+        """Get Workowanie statistics: completed/confirmed palety by product and weight.
+        
+        Returns:
+            Dict with:
+            - details: list of {'product': str, 'weight': int, 'count': int}
+            - total: total count of palety
+            - total_weight: total weight in kg
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Count confirmed palety (status='w magazynie' or 'zatwierdzona') 
+            # grouped by product and weight
+            cursor.execute(
+                """SELECT p.produkt, pw.waga, COUNT(pw.id) as count, 
+                   COALESCE(SUM(pw.waga), 0) as total_waga
+                   FROM palety_workowanie pw
+                   INNER JOIN plan_produkcji p ON pw.plan_id = p.id
+                   WHERE DATE(pw.data_dodania) = %s 
+                   AND pw.status IN ('w magazynie', 'zatwierdzona')
+                   AND p.sekcja = 'Workowanie'
+                   GROUP BY p.produkt, pw.waga
+                   ORDER BY p.produkt ASC, pw.waga ASC""",
+                (dzisiaj,)
+            )
+            
+            details = []
+            total_count = 0
+            total_weight = 0
+            
+            for row in cursor.fetchall():
+                product = row[0]
+                weight = row[1]
+                count = row[2]
+                total_waga = row[3] if row[3] else 0
+                
+                details.append({
+                    'product': product,
+                    'weight': weight,
+                    'count': count,
+                    'total_waga': total_waga,
+                })
+                
+                total_count += count
+                total_weight += total_waga
+            
+            cursor.close()
+            conn.close()
+            
+            return {
+                'details': details,
+                'total': total_count,
+                'total_weight': total_weight,
+            }
+        except Exception as e:
+            return {
+                'details': [],
+                'total': 0,
+                'total_weight': 0,
+            }

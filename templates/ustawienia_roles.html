@@ -186,6 +186,35 @@
         }
       }catch(e){ alert('Błąd sieci: ' + e); }
     });
+
+    // Handle adding new role
+    document.getElementById('btnAddRole').addEventListener('click', async function(){
+      const roleName = document.getElementById('newRoleName').value.trim();
+      if (!roleName) {
+        alert('Proszę wpisać nazwę roli!');
+        return;
+      }
+
+      try {
+        const resp = await fetch('/admin/ustawienia/roles/add', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+          body: JSON.stringify({role_name: roleName})
+        });
+
+        const result = await resp.json();
+        if (resp.status === 200 && result.success) {
+          document.getElementById('addRoleStatus').textContent = '✓ ' + result.message;
+          document.getElementById('addRoleStatus').style.display = 'inline';
+          document.getElementById('newRoleName').value = '';
+          setTimeout(function() { location.reload(); }, 1500);
+        } else {
+          alert('Błąd: ' + (result.error || 'Nie udało się dodać roli'));
+        }
+      } catch(e) {
+        alert('Błąd sieci: ' + e.message);
+      }
+    });
   })();
   </script>
 

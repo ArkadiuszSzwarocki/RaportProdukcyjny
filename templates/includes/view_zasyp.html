@@ -1,9 +1,29 @@
 <div class="plan-box">
-
     {% set aktywne = [] %}
     {% for p in plan if p[3] == 'w toku' %}
         {% do aktywne.append(p) %}
     {% endfor %}
+
+    <!-- STATYSTYKI SZARŻ WYKONANYCH -->
+    {% if zasyp_stats and (zasyp_stats.total > 0 or zasyp_stats.details|length > 0) %}
+    <div class="stats-box mb-20" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <h3 class="m-0 mb-10" style="font-size: 1.2em;">📊 Szarżas Wykonanych</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            {% if zasyp_stats.details %}
+                {% for product, count in zasyp_stats.details.items() %}
+                <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 0.85em; opacity: 0.9;">{{ product }}</div>
+                    <div style="font-size: 1.8em; font-weight: bold;">{{ count }} szt.</div>
+                </div>
+                {% endfor %}
+            {% endif %}
+            <div style="background: rgba(255,255,255,0.2); padding: 12px; border-radius: 6px; border: 2px solid rgba(255,255,255,0.5);">
+                <div style="font-size: 0.85em; opacity: 0.9;">RAZEM</div>
+                <div style="font-size: 2em; font-weight: bold;">{{ zasyp_stats.total }} szt.</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     {% if aktywne %}
         <div class="plan-box">

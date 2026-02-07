@@ -5,6 +5,29 @@
         {% do aktywne.append(p) %}
     {% endfor %}
 
+    <!-- STATYSTYKI PALET WYKONANYCH -->
+    {% if workowanie_stats and (workowanie_stats.total > 0 or workowanie_stats.details|length > 0) %}
+    <div class="stats-box mb-20" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <h3 class="m-0 mb-10" style="font-size: 1.2em;">📦 Palety Wykonanych</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+            {% if workowanie_stats.details %}
+                {% for item in workowanie_stats.details %}
+                <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px; backdrop-filter: blur(10px);">
+                    <div style="font-size: 0.85em; opacity: 0.9;">{{ item.product }} <strong>{{ item.weight }} kg</strong></div>
+                    <div style="font-size: 1.8em; font-weight: bold;">{{ item.count }} szt.</div>
+                    <div style="font-size: 0.8em; opacity: 0.8;">∑ {{ item.total_waga|int }} kg</div>
+                </div>
+                {% endfor %}
+            {% endif %}
+            <div style="background: rgba(255,255,255,0.2); padding: 12px; border-radius: 6px; border: 2px solid rgba(255,255,255,0.5);">
+                <div style="font-size: 0.85em; opacity: 0.9;">RAZEM</div>
+                <div style="font-size: 2em; font-weight: bold;">{{ workowanie_stats.total }} szt.</div>
+                <div style="font-size: 0.9em; font-weight: 600;">{{ workowanie_stats.total_weight|int }} kg</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     {% if aktywne %}
         {% for p in aktywne %}
         <div class="plan-box">

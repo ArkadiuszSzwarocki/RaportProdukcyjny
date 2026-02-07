@@ -135,12 +135,14 @@ def admin_ustawienia_roles():
 
     # load existing perms from file
     import os, json
-    cfg_path = os.path.join(os.path.dirname(__file__), 'config', 'role_permissions.json')
+    cfg_path = os.path.join(current_app.root_path, '..', 'config', 'role_permissions.json')
+    cfg_path = os.path.abspath(cfg_path)
     perms = {}
     try:
         with open(cfg_path, 'r', encoding='utf-8') as f:
             perms = json.load(f)
-    except Exception:
+    except Exception as e:
+        current_app.logger.error('Error loading role_permissions.json from %s: %s', cfg_path, str(e))
         perms = {}
     
     # Rebuild perms in correct page order to ensure consistent rendering
@@ -208,7 +210,8 @@ def admin_ustawienia_roles_save():
         # If our check fails for unexpected reasons, proceed cautiously and reject.
         current_app.logger.exception('Error validating roles payload; rejecting save request')
         return (jsonify({'error': 'Validation error'}), 400)
-    cfg_dir = os.path.join(os.path.dirname(__file__), 'config')
+    cfg_dir = os.path.join(current_app.root_path, '..', 'config')
+    cfg_dir = os.path.abspath(cfg_dir)
     os.makedirs(cfg_dir, exist_ok=True)
     cfg_path = os.path.join(cfg_dir, 'role_permissions.json')
     
