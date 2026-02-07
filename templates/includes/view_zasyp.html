@@ -83,8 +83,12 @@
                             <button type="submit" class="btn-start">▶ START</button>
                         </form>
                     {% endif %}
-                    
-                    {% if rola in ['planista', 'admin', 'lider'] %}
+                    {% if rola in ['admin', 'lider'] %}
+                        <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" class="inline-form" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                            <button type="submit" class="btn-action btn-outline-warning" aria-label="Wznowić zlecenie" title="Wznowić zlecenie">↻ Wznów</button>
+                        </form>
+                    {% endif %}
+                                        {% if rola in ['planista', 'admin', 'lider'] %}
                     <button type="button" class="btn-delete inline-form" aria-label="Usuń plan" onclick="if(confirm('Usunąć?')) deletePlan({{ p[0] }}, '{{ dzisiaj }}')">🗑</button>
                     {% endif %}
                 </div>

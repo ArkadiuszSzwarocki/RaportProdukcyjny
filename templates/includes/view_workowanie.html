@@ -115,6 +115,12 @@
                     </form>
                 {% endif %}
                 
+                {% if rola in ['admin', 'lider'] %}
+                    <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" class="inline-form" style="display: inline;" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                        <button type="submit" class="btn-action btn-outline-warning btn-small" aria-label="Wznowić zlecenie" title="Wznowić zlecenie">↻ Wznów</button>
+                    </form>
+                {% endif %}
+                
                 {% if rola in ['planista', 'admin', 'lider'] %}
                     <button type="button" class="btn-icon ml-5" title="{{ _('przenies_zlecenie') }}" data-action="move-order" data-order-id="{{ p[0] }}" data-order-name="{{ p[1] }}">📦</button>
                     <button type="button" class="btn-delete inline-form ml-5" aria-label="{{ _('usun_plan') }}" data-action="delete-order" data-order-id="{{ p[0] }}" data-order-date="{{ dzisiaj }}" data-confirm-msg="{{ _('usunac') }}">🗑</button>
