@@ -5,7 +5,7 @@
     <div class="section-header">
         <h2>⚙️ Ustawienia Workowania — Czasy Przetwarzania</h2>
         <div>
-            <a href="/admin" class="btn">← Powrót do panelu</a>
+            <a href="/admin/ustawienia" class="btn">← Powrót do ustawień</a>
         </div>
     </div>
 
@@ -16,7 +16,7 @@
             Te czasy są używane do planowania i monitorowania wydajności.
         </div>
 
-        <form action="/admin/workowanie_times/update" method="POST" class="form-grid">
+        <form action="/admin/ustawienia/workowanie_times/update" method="POST" class="form-grid">
             <table class="modern-table">
                 <thead>
                     <tr>
@@ -24,16 +24,32 @@
                         <th>Opakowanie (szt kg)</th>
                         <th width="150">Czas przetwarzania (min na 1000 kg)</th>
                         <th>{{ _('opis') }}</th>
+                        <th width="60" class="text-center">{{ _('akcje') }}</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="timings-table-body">
                     {% for type_key, config in times_config.get('processing_times_minutes', {}).items() %}
-                    <tr>
+                    <tr data-type-key="{{ type_key }}">
                         <td>
-                            <strong>{{ config.name }}</strong>
+                            <input 
+                                type="text" 
+                                name="{{ type_key }}_name" 
+                                value="{{ config.name }}"
+                                placeholder="Typ opakowania"
+                                class="input-sm input-name"
+                                required
+                            >
                         </td>
                         <td class="text-center">
-                            {{ config.weight_kg }} kg
+                            <input 
+                                type="number" 
+                                name="{{ type_key }}_weight_kg" 
+                                value="{{ config.weight_kg }}"
+                                min="1"
+                                max="10000"
+                                class="input-sm text-center input-weight"
+                                placeholder="0"
+                            > kg
                         </td>
                         <td class="text-center">
                             <input 
@@ -52,17 +68,21 @@
                                 type="text" 
                                 name="{{ type_key }}_description" 
                                 value="{{ config.description }}"
-                                placeholder="{{ _('opis_opcjonalnie') }}"
+                                placeholder="Opis (np. opakowanie, producent)"
                                 class="input-sm input-description"
                                 title="{{ _('opis_opakowania') }}"
                             >
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn-icon btn-delete-timing" title="Usuń">🗑️</button>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
 
-            <div class="mt-20">
+            <div class="mt-20 d-flex gap-10">
+                <button type="button" class="btn btn-secondary" id="btnAddTiming">+ Dodaj nowy czas</button>
                 <button type="submit" class="btn btn-primary">💾 Zapisz wszystkie ustawienia</button>
             </div>
         </form>
@@ -85,6 +105,14 @@
 
 .mt-20 {
     margin-top: 20px;
+}
+
+.d-flex {
+    display: flex;
+}
+
+.gap-10 {
+    gap: 10px;
 }
 
 .alert {
@@ -116,6 +144,121 @@
 .text-center {
     text-align: center;
 }
+
+.input-sm {
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.95em;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2em;
+    padding: 4px;
+}
+
+.btn-icon:hover {
+    opacity: 0.7;
+}
+
+.btn-secondary {
+    background: #95a5a6;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background: #7f8c8d;
+}
 </style>
+
+<script>
+(function() {
+    const tbody = document.getElementById('timings-table-body');
+    const btnAdd = document.getElementById('btnAddTiming');
+    let rowCounter = Math.max(
+        ...Array.from(tbody.querySelectorAll('tr')).map(row => {
+            const text = row.getAttribute('data-type-key');
+            return parseInt(text?.replace(/\D/g, '')) || 0;
+        })
+    ) + 1;
+
+    function createNewRow() {
+        const newKey = 'new_' + rowCounter++;
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-type-key', newKey);
+        tr.innerHTML = `
+            <td>
+                <input 
+                    type="text" 
+                    name="${newKey}_name" 
+                    value=""
+                    placeholder="Typ opakowania"
+                    class="input-sm input-name"
+                    required
+                >
+            </td>
+            <td class="text-center">
+                <input 
+                    type="number" 
+                    name="${newKey}_weight_kg" 
+                    value="0"
+                    min="1"
+                    max="10000"
+                    class="input-sm text-center input-weight"
+                    placeholder="0"
+                > kg
+            </td>
+            <td class="text-center">
+                <input 
+                    type="number" 
+                    name="${newKey}_time_minutes" 
+                    value="15"
+                    min="1"
+                    max="120"
+                    class="input-sm text-center input-time-minutes"
+                    title="Czas przetwarzania w minutach na 1000 kg"
+                    required
+                > min
+            </td>
+            <td>
+                <input 
+                    type="text" 
+                    name="${newKey}_description" 
+                    value=""
+                    placeholder="Opis (np. opakowanie, producent)"
+                    class="input-sm input-description"
+                >
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn-icon btn-delete-timing" title="Usuń">🗑️</button>
+            </td>
+        `;
+        tr.querySelector('.btn-delete-timing').addEventListener('click', function(e) {
+            e.preventDefault();
+            tr.remove();
+        });
+        return tr;
+    }
+
+    btnAdd.addEventListener('click', function(e) {
+        e.preventDefault();
+        tbody.appendChild(createNewRow());
+    });
+
+    tbody.querySelectorAll('.btn-delete-timing').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            btn.closest('tr').remove();
+        });
+    });
+})();
+</script>
 
 {% endblock %}

@@ -548,7 +548,7 @@ def admin_usun_konto(id):
 
 # ============= WORKOWANIE PROCESSING TIMES =============
 
-@admin_bp.route('/admin/workowanie_times', methods=['GET'])
+@admin_bp.route('/admin/ustawienia/workowanie_times', methods=['GET'])
 @admin_required
 def admin_workowanie_times():
     """Wyświetl ustawienia czasów przetwarzania dla Workowania"""
@@ -568,7 +568,7 @@ def admin_workowanie_times():
     return render_template('ustawienia_workowanie_times.html', times_config=times_config)
 
 
-@admin_bp.route('/admin/workowanie_times/update', methods=['POST'])
+@admin_bp.route('/admin/ustawienia/workowanie_times/update', methods=['POST'])
 @admin_required
 def admin_workowanie_times_update():
     """Zaktualizuj czasy przetwarzania dla Workowania"""
@@ -619,6 +619,6 @@ def admin_workowanie_times_update():
         current_app.logger.exception(f'Error updating workowanie_processing_times.json: {e}')
         flash(f"❌ Błąd podczas zapisu: {str(e)}", "error")
     
-    return redirect('/admin/workowanie_times')
+    return redirect('/admin/ustawienia/workowanie_times')
 
 

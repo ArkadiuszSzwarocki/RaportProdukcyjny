@@ -127,8 +127,7 @@
                 {% endif %}
 
                 {% if role_has_access('ustawienia') %}
-                    <a href="/admin/ustawienia" class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">⚙️ <span class="text-capitalize">{{ _('ustawienia') }}</span></a>
-                {% endif %}
+                    <a href="/admin/ustawienia" class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">⚙️ <span class="text-capitalize">{{ _('ustawienia') }}</span></a>                    <a href=\"/admin/ustawienia/roles\" class=\"nav-item {% if request.path.startswith('/admin/ustawienia/roles') %}active{% endif %}\">👥 <span class=\"text-capitalize\">Role i uprawnienia</span></a>                {% endif %}
             </nav>
             <div class="sidebar-footer">
                 <a href="/logout" class="btn-icon">{{ _('logout') }}</a>
