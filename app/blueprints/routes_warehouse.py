@@ -65,7 +65,7 @@ def dodaj_palete(plan_id):
         paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
         
         cursor.execute(
-            "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) - %s WHERE id = %s",
+            "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id = %s",
             (waga_input, plan_id)
         )
         
