@@ -88,9 +88,6 @@
                             <button type="submit" class="btn-action btn-outline-warning" aria-label="Wznowić zlecenie" title="Wznowić zlecenie">↻ Wznów</button>
                         </form>
                     {% endif %}
-                                        {% if rola in ['planista', 'admin', 'lider'] %}
-                    <button type="button" class="btn-delete inline-form" aria-label="Usuń plan" onclick="if(confirm('Usunąć?')) deletePlan({{ p[0] }}, '{{ dzisiaj }}')">🗑</button>
-                    {% endif %}
                 </div>
             </div>
             {% endfor %}

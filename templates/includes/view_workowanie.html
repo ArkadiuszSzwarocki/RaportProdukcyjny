@@ -123,7 +123,6 @@
                 
                 {% if rola in ['planista', 'admin', 'lider'] %}
                     <button type="button" class="btn-icon ml-5" title="{{ _('przenies_zlecenie') }}" data-action="move-order" data-order-id="{{ p[0] }}" data-order-name="{{ p[1] }}">📦</button>
-                    <button type="button" class="btn-delete inline-form ml-5" aria-label="{{ _('usun_plan') }}" data-action="delete-order" data-order-id="{{ p[0] }}" data-order-date="{{ dzisiaj }}" data-confirm-msg="{{ _('usunac') }}">🗑</button>
                 {% endif %}
             </div>
         </div>
