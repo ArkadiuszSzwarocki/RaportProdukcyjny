@@ -5,7 +5,7 @@
 
 {% if rola in ['laboratorium', 'lider', 'zarzad', 'admin'] %}
     <div>
-  <form action="{{ url_for('jakosc_dodaj') }}" method="POST" class="d-flex gap-8 align-center">
+  <form action="{{ url_for('quality.jakosc_dodaj') }}" method="POST" class="d-flex gap-8 align-center">
     <input type="text" name="produkt" title="{{ _('produkt') }}" placeholder="{{ _('produkt') }}" required class="input-sm" aria-label="Produkt">
     <input type="number" name="tonaz" title="{{ _('waga_kg_symbol') }}" placeholder="{{ _('waga_kg_symbol') }}" min="0" class="input-sm w-80" aria-label="Waga (kg)">
     <input type="date" name="data_planu" title="{{ _('data_planu') }}" value="{{ request.args.get('data') or '' }}" class="input-sm" aria-label="Data planu">

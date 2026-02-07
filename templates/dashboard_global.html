@@ -112,7 +112,7 @@
 <!-- Przycisk Zakończ zmianę na dole - POWIĘKSZONY 4x -->
 {% if session.get('rola') in ['lider', 'admin'] %}
 <div class="end-shift-wrapper">
-  <form method="POST" action="{{ url_for('api.zamknij_zmiane_global') }}" class="end-shift-form" id="endShiftForm">
+  <form method="POST" action="{{ url_for('leaves.zamknij_zmiane_global') }}" class="end-shift-form" id="endShiftForm">
     {# Obsada and leader selectors removed from dashboard — use dedicated Obsada panel #}
     <div class="mt-10">
       <button type="submit" class="btn-action btn-success btn-end-shift btn-end-shift-large">
