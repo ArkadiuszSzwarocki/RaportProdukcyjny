@@ -416,21 +416,43 @@ class DashboardService:
             conn = get_db_connection()
             cursor = conn.cursor()
             
-            for sek in ('Zasyp', 'Workowanie'):
-                cursor.execute(
-                    """SELECT id, produkt, tonaz, status, real_start, real_stop, 
-                       TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, 
-                       kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, uszkodzone_worki 
-                       FROM plan_produkcji 
-                       WHERE DATE(data_planu) = %s AND sekcja = %s AND status != 'nieoplacone' 
-                       AND is_deleted = 0 
-                       ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 
-                       ELSE 3 END, kolejnosc ASC, id ASC""",
-                    (dzisiaj, sek)
-                )
-                rows = [list(r) for r in cursor.fetchall()]
-                
-                # Format times
+            # Zasyp: fetch all plans
+            cursor.execute(
+                """SELECT id, produkt, tonaz, status, real_start, real_stop, 
+                   TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, 
+                   kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, uszkodzone_worki 
+                   FROM plan_produkcji 
+                   WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND status != 'nieoplacone' 
+                   AND is_deleted = 0 
+                   ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 
+                   ELSE 3 END, kolejnosc ASC, id ASC""",
+                (dzisiaj,)
+            )
+            plans_zasyp = [list(r) for r in cursor.fetchall()]
+            
+            # Workowanie: fetch ONLY plans that have szarża (buffer) with status='zarejestowana'
+            cursor.execute(
+                """SELECT id, produkt, tonaz, status, real_start, real_stop, 
+                   TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, 
+                   kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, uszkodzone_worki 
+                   FROM plan_produkcji p
+                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' AND p.status != 'nieoplacone' 
+                   AND p.is_deleted = 0
+                   AND EXISTS (
+                       SELECT 1 FROM szarze s
+                       INNER JOIN plan_produkcji pr ON s.plan_id = pr.id
+                       WHERE s.status = 'zarejestowana'
+                         AND DATE(s.data_dodania) = DATE(p.data_planu)
+                         AND pr.produkt = p.produkt
+                   )
+                   ORDER BY CASE p.status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 
+                   ELSE 3 END, p.kolejnosc ASC, p.id ASC""",
+                (dzisiaj,)
+            )
+            plans_workowanie = [list(r) for r in cursor.fetchall()]
+            
+            # Format times for all plans
+            for rows in [plans_zasyp, plans_workowanie]:
                 for p in rows:
                     try:
                         p[4] = p[4].strftime('%H:%M') if p[4] else ''
@@ -442,11 +464,6 @@ class DashboardService:
                         p[5] = str(p[5]) if p[5] else ''
                     if p[7] is None:
                         p[7] = 0
-                
-                if sek == 'Zasyp':
-                    plans_zasyp = rows
-                else:
-                    plans_workowanie = rows
             
             cursor.close()
             conn.close()
