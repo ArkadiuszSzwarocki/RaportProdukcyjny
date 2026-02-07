@@ -223,6 +223,10 @@
                         <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
                             {% if sekcja == 'Zasyp' %}⏺️ {{ palety_mapa[p[0]]|length }} szt.{% else %}📦 {{ palety_mapa[p[0]]|length }} szt.{% endif %} ▼
                         </button>
+                    {% elif p|length > 15 and p[15] %}
+                        <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
+                            {% if sekcja == 'Zasyp' %}⏺️ {{ p[15] }} szarż{% else %}📦 {{ p[15] }} palet{% endif %} ▼
+                        </button>
                     {% endif %}
                     {# Przyciski przenoszenia do Jakość usunięte — dezynfekcja planowana przez laboratorium i zgłaszana planiście. #}
                 </td>
