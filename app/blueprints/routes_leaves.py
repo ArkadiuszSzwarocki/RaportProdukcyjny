@@ -1,360 +1,186 @@
 """Leave request routes (formerly in routes_api.py WNIOSKI O WOLNE section)."""
 
-from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
-from datetime import date, datetime
+from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify, send_file
+from datetime import date, datetime, timedelta
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required
+from app.services.leave_request_service import LeaveRequestService
+from app.services.attendance_service import AttendanceService
+from io import BytesIO
 import json
 
 leaves_bp = Blueprint('leaves', __name__)
+
+def bezpieczny_powrot():
+    """Return to appropriate view based on user role and context."""
+    if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
+        data = request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+        return url_for('planista.panel_planisty', data=data)
+    sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
+    data = request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+    return url_for('index', sekcja=sekcja, data=data)
 
 # =============== WNIOSKI O WOLNE ================
 @leaves_bp.route('/wnioski/submit', methods=['POST'])
 @login_required
 def submit_wniosek():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    pid = session.get('pracownik_id') or request.form.get('pracownik_id')
-    if not pid:
-        try:
-            flash('Brak przypisanego pracownika do konta. Skontaktuj się z administratorem.', 'warning')
-        except Exception:
-            pass
+    """Submit leave request - delegated to LeaveRequestService."""
+    pracownik_id = session.get('pracownik_id') or request.form.get('pracownik_id')
+    if not pracownik_id:
+        flash('Brak przypisanego pracownika do konta.', 'warning')
         return redirect(bezpieczny_powrot())
-
+    
     typ = request.form.get('typ') or 'Urlop'
-    data_od = request.form.get('data_od')
-    data_do = request.form.get('data_do')
+    data_od_str = request.form.get('data_od')
+    data_do_str = request.form.get('data_do')
     czas_od = request.form.get('czas_od') or None
     czas_do = request.form.get('czas_do') or None
     powod = request.form.get('powod') or ''
-
-    # Jeśli to Wyjście prywatne — akceptujemy również pojedynczy dzień (data_do może być pusta)
-    if typ and typ.lower().startswith('wyj'):
-        if not data_od:
-            try:
-                flash('Podaj datę wniosku.', 'warning')
-            except Exception:
-                pass
-            return redirect(bezpieczny_powrot())
-        # jeśli brak data_do, ustawiamy na tę samą datę (pojedynczy dzień z godzinami)
-        if not data_do:
-            data_do = data_od
-    else:
-        if not data_od or not data_do:
-            try:
-                flash('Podaj zakres dat wniosku.', 'warning')
-            except Exception:
-                pass
-            return redirect(bezpieczny_powrot())
-
-    cursor.execute("INSERT INTO wnioski_wolne (pracownik_id, typ, data_od, data_do, czas_od, czas_do, powod) VALUES (%s, %s, %s, %s, %s, %s, %s)", (pid, typ, data_od, data_do, czas_od, czas_do, powod))
-    conn.commit()
-    conn.close()
+    
     try:
-        flash('Wniosek złożony pomyślnie.', 'success')
+        data_od = datetime.strptime(data_od_str, '%Y-%m-%d').date() if data_od_str else None
+        data_do = datetime.strptime(data_do_str, '%Y-%m-%d').date() if data_do_str else None
     except Exception:
-        pass
+        flash('Nieprawidłowy format daty.', 'warning')
+        return redirect(bezpieczny_powrot())
+    
+    success, message, _ = LeaveRequestService.submit_leave_request(
+        pracownik_id=int(pracownik_id),
+        typ=typ,
+        data_od=data_od,
+        data_do=data_do,
+        czas_od=czas_od,
+        czas_do=czas_do,
+        powod=powod
+    )
+    
+    flash(message, 'success' if success else 'warning')
     return redirect(url_for('moje_godziny'))
 
 
 @leaves_bp.route('/wnioski/<int:wid>/approve', methods=['POST'])
 @roles_required('lider', 'admin')
 def approve_wniosek(wid):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    lider_pid = session.get('pracownik_id')
-    cursor.execute("UPDATE wnioski_wolne SET status='approved', decyzja_dnia=NOW(), lider_id=%s WHERE id=%s", (lider_pid, wid))
-    conn.commit()
-    # After approving, increment employee's leave counters by number of days in the request
-    try:
-        cursor.execute("SELECT pracownik_id, data_od, data_do, typ FROM wnioski_wolne WHERE id=%s", (wid,))
-        r = cursor.fetchone()
-        if r:
-            pid = int(r[0])
-            data_od = r[1]
-            data_do = r[2]
-            typ = (r[3] or '').lower()
-            # compute inclusive days
-            try:
-                days = (data_do - data_od).days + 1 if (data_od and data_do) else 0
-            except Exception:
-                days = 0
-            if days > 0:
-                # Ensure columns exist (best-effort)
-                try:
-                    cursor.execute("ALTER TABLE pracownicy ADD COLUMN IF NOT EXISTS urlop_biezacy INT DEFAULT 0")
-                    cursor.execute("ALTER TABLE pracownicy ADD COLUMN IF NOT EXISTS urlop_zalegly INT DEFAULT 0")
-                except Exception:
-                    # some MySQL versions may not support IF NOT EXISTS; ignore errors
-                    try:
-                        cursor.execute("ALTER TABLE pracownicy ADD COLUMN urlop_biezacy INT DEFAULT 0")
-                        cursor.execute("ALTER TABLE pracownicy ADD COLUMN urlop_zalegly INT DEFAULT 0")
-                    except Exception:
-                        pass
-                # Decide which counter to increment — default to current-year ('urlop_biezacy')
-                if 'zaleg' in typ:
-                    cursor.execute("UPDATE pracownicy SET urlop_zalegly = COALESCE(urlop_zalegly,0) + %s WHERE id=%s", (days, pid))
-                else:
-                    cursor.execute("UPDATE pracownicy SET urlop_biezacy = COALESCE(urlop_biezacy,0) + %s WHERE id=%s", (days, pid))
-                conn.commit()
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-    conn.close()
-    try:
-        flash('Wniosek zatwierdzony.', 'success')
-    except Exception:
-        pass
-    # If this is an AJAX request, return JSON instead of redirect
+    """Approve leave request - delegated to LeaveRequestService."""
+    lider_id = session.get('pracownik_id')
+    success, message = LeaveRequestService.approve_leave_request(wid, lider_id)
+    
+    flash(message, 'success' if success else 'warning')
+    
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept', '').find('application/json') != -1:
-        return jsonify({'success': True, 'message': 'Wniosek zatwierdzony.'})
+        return jsonify({'success': success, 'message': message})
     return redirect(bezpieczny_powrot())
 
 
 @leaves_bp.route('/wnioski/<int:wid>/reject', methods=['POST'])
 @roles_required('lider', 'admin')
 def reject_wniosek(wid):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    lider_pid = session.get('pracownik_id')
-    cursor.execute("UPDATE wnioski_wolne SET status='rejected', decyzja_dnia=NOW(), lider_id=%s WHERE id=%s", (lider_pid, wid))
-    conn.commit()
-    conn.close()
-    try:
-        flash('Wniosek odrzucony.', 'info')
-    except Exception:
-        pass
-    # If this is an AJAX request, return JSON instead of redirect
+    """Reject leave request - delegated to LeaveRequestService."""
+    lider_id = session.get('pracownik_id')
+    success, message = LeaveRequestService.reject_leave_request(wid, lider_id)
+    
+    flash(message, 'info' if success else 'warning')
+    
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept', '').find('application/json') != -1:
-        return jsonify({'success': True, 'message': 'Wniosek odrzucony.'})
+        return jsonify({'success': success, 'message': message})
     return redirect(bezpieczny_powrot())
 
 
 @leaves_bp.route('/wnioski/day', methods=['GET'])
 @roles_required('lider', 'admin')
 def wnioski_for_day():
-    """Zwraca JSON listę wniosków dla danego pracownika i daty (YYYY-MM-DD)."""
+    """Get leave requests for specific employee and date - delegated to LeaveRequestService."""
     pracownik_id = request.args.get('pracownik_id')
     date_str = request.args.get('date')
-    try:
-        if not pracownik_id or not date_str:
-            return jsonify({'error': 'missing parameters'}), 400
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, typ, data_od, data_do, czas_od, czas_do, powod, status, zlozono FROM wnioski_wolne WHERE pracownik_id=%s AND data_od <= %s AND data_do >= %s ORDER BY zlozono DESC", (pracownik_id, date_str, date_str))
-        rows = cursor.fetchall()
-        conn.close()
-        items = []
-        for r in rows:
-            items.append({'id': r[0], 'typ': r[1], 'data_od': str(r[2]), 'data_do': str(r[3]), 'czas_od': str(r[4]) if r[4] else None, 'czas_do': str(r[5]) if r[5] else None, 'powod': r[6], 'status': r[7], 'zlozono': str(r[8])})
-        return jsonify({'wnioski': items})
-    except Exception:
-        current_app.logger.exception('Error fetching wnioski for day')
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return jsonify({'error': 'server error'}), 500
+    
+    if not pracownik_id or not date_str:
+        return jsonify({'error': 'missing parameters'}), 400
+    
+    result = LeaveRequestService.get_requests_for_day(int(pracownik_id), date_str)
+    
+    if 'error' in result:
+        return jsonify(result), 500
+    return jsonify(result)
 
 
 @leaves_bp.route('/wnioski/summary', methods=['GET'])
 @login_required
 def wnioski_summary():
-    """Zwraca JSON z podsumowaniem godzin dla pracownika (obecnosci, wyjscia_hours, typy)"""
+    """Get leave summary and hours summary for employee - delegated to LeaveRequestService."""
+    pracownik_id = request.args.get('pracownik_id') or session.get('pracownik_id')
+    
+    if not pracownik_id:
+        return jsonify({'error': 'missing pracownik_id'}), 400
+    
     try:
-        pracownik_id = request.args.get('pracownik_id') or session.get('pracownik_id')
-        if not pracownik_id:
-            return jsonify({'error': 'missing pracownik_id'}), 400
-        try:
-            pid = int(pracownik_id)
-        except Exception:
-            return jsonify({'error': 'invalid pracownik_id'}), 400
-
-        # zakres: obecny miesiąc
-        from datetime import datetime, date
-        teraz = datetime.now()
-        d_od = date(teraz.year, teraz.month, 1)
-        d_do = date(teraz.year, teraz.month, teraz.day)
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(1) FROM obsada_zmiany WHERE pracownik_id=%s AND data_wpisu BETWEEN %s AND %s", (pid, d_od, d_do))
-        obecnosci = int(cursor.fetchone()[0] or 0)
-
-        cursor.execute("SELECT COALESCE(typ, ''), COALESCE(SUM(ilosc_godzin),0) FROM obecnosc WHERE pracownik_id=%s AND data_wpisu BETWEEN %s AND %s GROUP BY typ", (pid, d_od, d_do))
-        typy = {r[0]: float(r[1] or 0) for r in cursor.fetchall()}
-
-        try:
-            cursor.execute("SELECT COALESCE(SUM(TIME_TO_SEC(wyjscie_do)-TIME_TO_SEC(wyjscie_od))/3600,0) FROM obecnosc WHERE pracownik_id=%s AND typ='Wyjscie prywatne' AND data_wpisu BETWEEN %s AND %s", (pid, d_od, d_do))
-            wyjscia_hours = float(cursor.fetchone()[0] or 0)
-        except Exception:
-            wyjscia_hours = 0.0
-
-        # also include leave counters from pracownicy (if available)
-        try:
-            cursor.execute("SELECT COALESCE(urlop_biezacy,0), COALESCE(urlop_zalegly,0) FROM pracownicy WHERE id=%s", (pid,))
-            rr = cursor.fetchone()
-            urlop_biezacy = int(rr[0] or 0) if rr else 0
-            urlop_zalegly = int(rr[1] or 0) if rr else 0
-        except Exception:
-            urlop_biezacy = 0
-            urlop_zalegly = 0
-        conn.close()
-        return jsonify({'obecnosci': obecnosci, 'typy': typy, 'wyjscia_hours': wyjscia_hours, 'urlop_biezacy': urlop_biezacy, 'urlop_zalegly': urlop_zalegly})
+        pracownik_id = int(pracownik_id)
     except Exception:
-        current_app.logger.exception('Error building summary')
+        return jsonify({'error': 'invalid pracownik_id'}), 400
+    
+    result = LeaveRequestService.get_summary_for_employee(pracownik_id)
+    
+    if 'error' in result:
+        return jsonify(result), 500
+    return jsonify(result)
 
 
 @leaves_bp.route('/panel/wnioski', methods=['GET'])
 @roles_required('lider', 'admin')
 def panel_wnioski():
-    """Zwraca fragment HTML z listą oczekujących wniosków (slide-over)."""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, w.czas_do, w.powod, w.zlozono FROM wnioski_wolne w JOIN pracownicy p ON w.pracownik_id = p.id WHERE w.status = 'pending' ORDER BY w.zlozono DESC LIMIT 200")
-        raw = cursor.fetchall()
-        wnioski = []
-        for r in raw:
-            wnioski.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3], 'data_do': r[4], 'czas_od': r[5], 'czas_do': r[6], 'powod': r[7], 'zlozono': r[8]})
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return render_template('panels/wnioski_panel.html', wnioski=wnioski)
-    except Exception:
-        current_app.logger.exception('Failed to build wnioski panel')
-        return render_template('panels/wnioski_panel.html', wnioski=[])
+    """Get pending leave requests panel - delegated to AttendanceService."""
+    return AttendanceService.get_pending_requests_panel()
 
 
 @leaves_bp.route('/panel/planowane', methods=['GET'])
 @login_required
 def panel_planowane():
-    """Zwraca fragment HTML z planowanymi urlopami (następne 60 dni)."""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        end_date = date.today() + timedelta(days=60)
-        cursor.execute("SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, w.czas_do, w.status FROM wnioski_wolne w JOIN pracownicy p ON w.pracownik_id = p.id WHERE w.data_od <= %s AND w.data_do >= %s ORDER BY w.data_od ASC LIMIT 500", (end_date, date.today()))
-        raw = cursor.fetchall()
-        planned = []
-        for r in raw:
-            planned.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3], 'data_do': r[4], 'czas_od': r[5], 'czas_do': r[6], 'status': r[7]})
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return render_template('panels/planowane_panel.html', planned_leaves=planned)
-    except Exception:
-        current_app.logger.exception('Failed to build planned leaves panel')
-        return render_template('panels/planowane_panel.html', planned_leaves=[])
+    """Get planned leaves panel for next 60 days - delegated to AttendanceService."""
+    return AttendanceService.get_planned_leaves_panel()
 
 
 @leaves_bp.route('/panel/obecnosci', methods=['GET'])
 @login_required
 def panel_obecnosci():
-    """Zwraca fragment HTML z ostatnimi nieobecnościami (ostatnie 30 dni)."""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        since = date.today() - timedelta(days=30)
-        cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu BETWEEN %s AND %s ORDER BY o.data_wpisu DESC LIMIT 500", (since, date.today()))
-        raw = cursor.fetchall()
-        recent = []
-        for r in raw:
-            recent.append({'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data': r[3], 'godziny': r[4], 'komentarz': r[5]})
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return render_template('panels/obecnosci_panel.html', recent_absences=recent)
-    except Exception:
-        current_app.logger.exception('Failed to build absences panel')
-        return render_template('panels/obecnosci_panel.html', recent_absences=[])
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return jsonify({'error': 'server error'}), 500
+    """Get recent absences panel for last 30 days - delegated to AttendanceService."""
+    return AttendanceService.get_recent_absences_panel()
 
 
 @leaves_bp.route('/usun_obecnosc/<int:id>', methods=['POST'])
 @login_required
 def usun_obecnosc(id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM obecnosc WHERE id=%s", (id,))
-    conn.commit()
-    conn.close()
+    """Delete absence record - delegated to AttendanceService."""
+    success = AttendanceService.delete_absence_record(id)
+    
+    if not success:
+        flash('Błąd przy usuwaniu wpisu.', 'warning')
+    else:
+        flash('Wpis usunięty.', 'success')
+    
     return redirect(bezpieczny_powrot())
+
 
 @leaves_bp.route('/dodaj_do_obsady', methods=['POST'])
 @login_required
 def dodaj_do_obsady():
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    """Add employee to schedule - delegated to AttendanceService."""
     sekcja = request.form.get('sekcja')
     pracownik_id = request.form.get('pracownik_id')
-    # allow optional date parameter to assign obsada for a specific day
     date_str = request.form.get('date') or request.args.get('date')
-    try:
-        add_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
-    except Exception:
-        add_date = date.today()
+    
     if not sekcja or not pracownik_id:
-        # brak wymaganych pól — nie powodujemy 500, a pokazujemy informację i wracamy
-        try:
-            flash('Brak wybranego pracownika lub sekcji przy dodawaniu do obsady.', 'warning')
-        except Exception:
-            pass
-        try:
-            conn.close()
-        except Exception:
-            pass
+        flash('Brak wybranego pracownika lub sekcji.', 'warning')
         return redirect(bezpieczny_powrot())
-    try:
-        cursor.execute("INSERT INTO obsada_zmiany (data_wpisu, sekcja, pracownik_id) VALUES (%s, %s, %s)", (add_date, sekcja, pracownik_id))
-        # Attempt to retrieve the inserted row id for AJAX clients
-        try:
-            cursor.execute("SELECT id FROM obsada_zmiany WHERE data_wpisu=%s AND sekcja=%s AND pracownik_id=%s ORDER BY id DESC LIMIT 1", (add_date, sekcja, pracownik_id))
-            inserted_row = cursor.fetchone()
-            inserted_id = inserted_row[0] if inserted_row else None
-        except Exception:
-            inserted_id = None
-        # Automatyczne zapisanie obecności przy dodaniu do obsady (jeśli brak już wpisu)
-        try:
-            default_hours = 8
-            cursor.execute("SELECT COUNT(1) FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s", (pracownik_id, add_date))
-            exists = int(cursor.fetchone()[0] or 0)
-            if not exists:
-                cursor.execute("INSERT INTO obecnosc (data_wpisu, pracownik_id, typ, ilosc_godzin, komentarz) VALUES (%s, %s, %s, %s, %s)", (add_date, pracownik_id, 'Obecność', default_hours, 'Automatyczne z obsady'))
-        except Exception:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-        conn.commit()
-    finally:
-        try: conn.close()
-        except Exception: pass
-    # If called via AJAX, return JSON with inserted id so frontend can update UI without reload
+    
+    success, inserted_id, employee_name = AttendanceService.add_to_schedule(sekcja, int(pracownik_id), date_str)
+    
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        try:
-            # try to fetch worker name for convenience
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute("SELECT imie_nazwisko FROM pracownicy WHERE id=%s", (pracownik_id,))
-            row = cur.fetchone()
-            name = row[0] if row else ''
-            try: conn.close()
-            except: pass
-        except Exception:
-            name = ''
-        return jsonify({'success': True, 'id': inserted_id, 'pracownik_id': pracownik_id, 'name': name})
-
+        return jsonify({'success': success, 'id': inserted_id, 'pracownik_id': pracownik_id, 'name': employee_name})
+    
+    if success:
+        flash(f'Pracownik {employee_name} dodany do obsady.', 'success')
+    else:
+        flash('Błąd przy dodawaniu do obsady.', 'warning')
+    
     return redirect(bezpieczny_powrot())
 
 
@@ -362,58 +188,38 @@ def dodaj_do_obsady():
 @login_required
 @roles_required(['lider', 'admin'])
 def zapisz_liderow_obsady():
+    """Save shift leaders - delegated to AttendanceService."""
     date_str = request.form.get('date') or request.args.get('date')
-    try:
-        qdate = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
-    except Exception:
-        qdate = date.today()
     lider_psd = request.form.get('lider_psd') or None
     lider_agro = request.form.get('lider_agro') or None
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        # upsert leaders for that date
-        cur.execute("INSERT INTO obsada_liderzy (data_wpisu, lider_psd_id, lider_agro_id) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE lider_psd_id=VALUES(lider_psd_id), lider_agro_id=VALUES(lider_agro_id)", (qdate, lider_psd, lider_agro))
-        conn.commit()
-    finally:
-        try: conn.close()
-        except Exception: pass
-
+    
+    success = AttendanceService.save_shift_leaders(date_str, lider_psd, lider_agro)
+    
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({'success': True})
+        return jsonify({'success': success})
+    
+    if success:
+        flash('Liderzy zmianki zapisani.', 'success')
+    else:
+        flash('Błąd przy zapisywaniu liderów.', 'warning')
+    
     return redirect(bezpieczny_powrot())
+
 
 @leaves_bp.route('/usun_z_obsady/<int:id>', methods=['POST'])
 @login_required
 def usun_z_obsady(id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        # pobierz informacje o usuwanym wierszu i usuń wszystkie powielone wpisy
-        cursor.execute("SELECT pracownik_id, data_wpisu, sekcja FROM obsada_zmiany WHERE id=%s", (id,))
-        row = cursor.fetchone()
-        if row:
-            pracownik_id, data_wpisu, sekcja = row[0], row[1], row[2]
-            cursor.execute("DELETE FROM obsada_zmiany WHERE pracownik_id=%s AND data_wpisu=%s AND sekcja=%s", (pracownik_id, data_wpisu, sekcja))
-            # Usuń automatyczny wpis w tabeli obecnosc utworzony przy dodaniu do obsady
-            try:
-                cursor.execute("DELETE FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s AND komentarz=%s", (pracownik_id, data_wpisu, 'Automatyczne z obsady'))
-            except Exception:
-                try:
-                    conn.rollback()
-                except Exception:
-                    pass
-        else:
-            cursor.execute("DELETE FROM obsada_zmiany WHERE id=%s", (id,))
-        conn.commit()
-    finally:
-        try: conn.close()
-        except Exception: pass
-
-    # dla AJAX zwracamy JSON, dla zwykłego formularza redirect
+    """Remove employee from schedule - delegated to AttendanceService."""
+    success = AttendanceService.remove_from_schedule(id)
+    
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({'success': True})
+        return jsonify({'success': success})
+    
+    if success:
+        flash('Pracownik usunięty z obsady.', 'success')
+    else:
+        flash('Błąd przy usuwaniu z obsady.', 'warning')
+    
     return redirect(bezpieczny_powrot())
 @leaves_bp.route('/zamknij-zmiane', methods=['GET'])
 @login_required
@@ -582,16 +388,14 @@ def zamknij_zmiane_global():
 @leaves_bp.route('/obsada-for-date')
 @login_required
 def obsada_for_date():
-    """Zwraca listę przypisanych pracowników dla podanej daty (parametr `date` YYYY-MM-DD)."""
+    """Get schedule (obsada) for specified date."""
     date_str = request.args.get('date')
+    
     try:
-        if date_str:
-            qdate = datetime.strptime(date_str, '%Y-%m-%d').date()
-        else:
-            qdate = date.today()
+        qdate = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
     except Exception:
         qdate = date.today()
-
+    
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -602,16 +406,11 @@ def obsada_for_date():
             WHERE oz.data_wpisu = %s
             ORDER BY oz.sekcja, pw.imie_nazwisko
         """, (qdate,))
-        rows = []
-        for r in cursor.fetchall():
-            rows.append({'sekcja': r[0], 'id': r[1], 'imie_nazwisko': r[2]})
+        rows = [{'sekcja': r[0], 'id': r[1], 'imie_nazwisko': r[2]} for r in cursor.fetchall()]
         conn.close()
         return jsonify({'date': qdate.isoformat(), 'rows': rows})
     except Exception as e:
-        try:
-            current_app.logger.exception('obsada_for_date error')
-        except Exception:
-            pass
+        current_app.logger.exception('obsada_for_date error')
         return jsonify({'date': qdate.isoformat(), 'rows': [], 'error': str(e)}), 500
 
 
@@ -867,7 +666,7 @@ def pobierz_raport():
         # NAJPIERW: Spróbuj wygenerować raport bezpośrednio z DB
         print(f"[POBIERZ-RAPORT] Attempting to generate report for {dzisiaj}")
         try:
-            from generator_raportow import generuj_paczke_raportow
+            from app.generator_raportow import generuj_paczke_raportow
             
             conn = get_db_connection()
             cursor = conn.cursor()
