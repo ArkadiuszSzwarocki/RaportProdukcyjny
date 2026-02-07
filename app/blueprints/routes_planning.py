@@ -670,37 +670,52 @@ def przesun_zlecenie_ajax():
 @roles_required('planista', 'admin', 'lider')
 def api_usun_plan(id):
     """Soft delete plan via AJAX - delegated to PlanningService."""
-    print(f'🔥 DELETE PLAN ENDPOINT CALLED - ID: {id}')
+    import traceback
+    print(f'\n🔥 [1] DELETE PLAN ENDPOINT CALLED - ID: {id}')
+    print(f'🔥 [2] Request method: {request.method}')
+    print(f'🔥 [3] Session login: {session.get("login")}')
+    print(f'🔥 [4] Session roles: {session.get("role")}')
+    print(f'🔥 [5] User info: {session.get("imie_nazwisko")}')
     current_app.logger.info(f'🔥 DELETE PLAN ENDPOINT CALLED - ID: {id}')
     
     try:
-        print(f'🔥 Sprawdzam role - session: {session}')
+        print(f'🔥 [6] Wywołuję PlanningService.delete_plan({id})...')
         success, message = PlanningService.delete_plan(id)
-        print(f'🔥 DELETE result: success={success}, message={message}')
+        print(f'🔥 [7] DELETE result: success={success}, message={message}')
         current_app.logger.info(f'🔥 DELETE result: success={success}, message={message}')
         
         if success:
+            print(f'🔥 [8] Usunięcie udane - logowanie do historii...')
             # Log history if deletion was successful
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
+                print(f'🔥 [9] Szukam danych planu z bazy...')
                 cursor.execute("SELECT produkt, data_planu, tonaz FROM plan_produkcji WHERE id=%s", (id,))
                 res = cursor.fetchone()
+                print(f'🔥 [10] Wynik query: {res}')
                 conn.close()
                 
                 if res:
                     details = {'produkt': res[0], 'data_planu': str(res[1]), 'tonaz': res[2]}
                     user_login = session.get('login') or session.get('imie_nazwisko')
+                    print(f'🔥 [11] Logowanie historii: user={user_login}, details={details}')
                     log_plan_history(id, 'soft_delete', json.dumps(details, ensure_ascii=False), user_login)
-            except Exception:
-                pass
+                    print(f'🔥 [12] Historia zalogowana')
+            except Exception as hist_err:
+                print(f'🔥 [13] BŁĄD przy logowaniu historii: {str(hist_err)}')
+                traceback.print_exc()
+        else:
+            print(f'🔥 [14] Usunięcie NIE POWIODŁO SIĘ')
         
         response = {'success': success, 'message': message}
-        print(f'🔥 Sending response: {response}')
+        print(f'🔥 [15] Wysyłam response: {response}')
+        print(f'🔥 [16] Status code: {200 if success else 400}\n')
         return jsonify(response), 200 if success else 400
         
     except Exception as e:
-        print(f'🔥 ERROR: {str(e)}')
+        print(f'🔥 [17] EXCEPTION: {str(e)}')
+        print(f'🔥 [18] Traceback: {traceback.format_exc()}')
         current_app.logger.exception(f'Error deleting plan {id} via AJAX')
         return jsonify({'success': False, 'message': 'Błąd przy usuwaniu zlecenia.'}), 500
 

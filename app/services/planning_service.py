@@ -79,42 +79,60 @@ class PlanningService:
         Returns:
             Tuple (success: bool, message: str)
         """
+        print(f'\n🔥 [SERVICE-1] delete_plan({plan_id}) START')
         try:
+            print(f'🔥 [SERVICE-2] Łączę się z bazą...')
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Check if plan exists and its status
+            print(f'🔥 [SERVICE-3] Szukam planu ID={plan_id}...')
             cursor.execute("SELECT status, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
+            print(f'🔥 [SERVICE-4] Wynik SELECT: {res}')
             
             if not res:
+                print(f'🔥 [SERVICE-5] Plan nie znaleziony!')
                 conn.close()
                 return (False, 'Zlecenie nie istnieje.')
             
             status = res[0]
             produkt = res[1]
+            print(f'🔥 [SERVICE-6] Plan znaleziony: status={status}, produkt={produkt}')
             
             # Cannot delete if in progress or completed
             if status in ['w toku', 'zakonczone']:
+                print(f'🔥 [SERVICE-7] Plan ma status zabroniony do usunięcia: {status}')
                 conn.close()
                 return (False, 'Nie można usunąć zlecenia w toku lub już zakończonego.')
             
             # Soft delete: set is_deleted=1, deleted_at=NOW()
+            print(f'🔥 [SERVICE-8] Wykonuję UPDATE...')
             cursor.execute(
                 "UPDATE plan_produkcji SET is_deleted=1, deleted_at=NOW() WHERE id=%s",
                 (plan_id,)
             )
+            print(f'🔥 [SERVICE-9] UPDATE zakończony, rowcount={cursor.rowcount}')
             conn.commit()
+            print(f'🔥 [SERVICE-10] COMMIT wykonany')
             conn.close()
+            print(f'🔥 [SERVICE-11] Połączenie zamknięte')
             
             current_app.logger.info(f'Plan deleted: id={plan_id}, produkt={produkt}')
-            return (True, f'Zlecenie {produkt} zostało usunięte z planu.')
+            msg = f'Zlecenie {produkt} zostało usunięte z planu.'
+            print(f'🔥 [SERVICE-12] Zwracam sukces: {msg}')
+            return (True, msg)
             
         except Exception as e:
+            print(f'🔥 [SERVICE-13] EXCEPTION: {str(e)}')
+            print(f'🔥 [SERVICE-14] Exception type: {type(e).__name__}')
+            import traceback
+            print(f'🔥 [SERVICE-15] Traceback: {traceback.format_exc()}')
             try:
                 conn.rollback()
-            except Exception:
-                pass
+                print(f'🔥 [SERVICE-16] ROLLBACK wykonany')
+            except Exception as rb_err:
+                print(f'🔥 [SERVICE-17] Błąd rollback: {rb_err}')
             current_app.logger.exception(f'Error deleting plan {plan_id}')
             return (False, f'Błąd przy usuwaniu: {str(e)}')
 

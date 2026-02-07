@@ -968,59 +968,74 @@ document.addEventListener('click', function(e){
 })();
 
 // Event listener dla DELETE buttons - rejestruj NATYCHMIAST
-console.log('⚡ Rejestrowanie DELETE button listeners...');
+console.log('⚡ [1] Rejestrowanie DELETE button listeners...');
+var deleteButtonCount = document.querySelectorAll('.delete-plan-btn').length;
+console.log('⚡ [2] Znaleziono buttonów:', deleteButtonCount);
 
 // Event delegation - Listen on document for clicks na delete buttons
 document.addEventListener('click', function(e) {
-    if (e.target.closest('.delete-plan-btn')) {
+    console.log('⚡ [3] CLICK EVENT FIRED - target:', e.target, 'classList:', e.target.className);
+    var closestBtn = e.target.closest('.delete-plan-btn');
+    console.log('⚡ [4] closest(.delete-plan-btn) result:', closestBtn);
+    
+    if (closestBtn) {
         e.preventDefault();
-        const btn = e.target.closest('.delete-plan-btn');
+        const btn = closestBtn;
         const id = btn.getAttribute('data-plan-id');
         const date = btn.getAttribute('data-plan-date');
         const name = btn.getAttribute('data-plan-name');
-        console.log('🗑️ DELETE BUTTON CLICKED:', {id, date, name});
+        console.log('🗑️ [5] DELETE BUTTON CLICKED - ID:', id, 'DATE:', date, 'NAME:', name);
         deletePlan(id, date);
     }
 });
 
-console.log('✅ DELETE button listeners registered!');
+console.log('✅ [6] DELETE button listeners registered! Total buttons:', deleteButtonCount);
 
 // Delete plan function - dostępna w global scope
 function deletePlan(id, data){
-    console.log('🗑️ deletePlan called:', {id, data});
+    console.log('🗑️ [7] deletePlan() CALLED - id:', id, 'data:', data);
     
     if(!confirm('Na pewno usunąć zlecenie?')) {
-        console.log('❌ User cancelled delete');
+        console.log('❌ [8] User cancelled delete');
         return;
     }
     
-    console.log('✅ User confirmed, sending fetch to /api/usun_plan_ajax/' + id);
+    console.log('✅ [9] User confirmed, preparing fetch...');
+    const url = '/api/usun_plan_ajax/' + id;
+    console.log('📡 [10] Fetch URL:', url);
+    console.log('📦 [11] Fetch body:', JSON.stringify({data_powrotu: data}));
     
-    fetch('/api/usun_plan_ajax/' + id, {
+    fetch(url, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({data_powrotu: data})
     })
     .then(function(r){ 
-        console.log('📡 Response received:', {status: r.status, statusText: r.statusText});
-        return r.json().catch(function(e){ 
-            console.log('❌ JSON parse error:', e);
-            return {success:false, message:'Błąd sieci'}; 
-        }); 
+        console.log('📡 [12] Response status:', r.status, 'statusText:', r.statusText);
+        console.log('📡 [13] Response headers OK - Content-Type:', r.headers.get('content-type'));
+        return r.text().then(function(text) {
+            console.log('📡 [14] Raw response text:', text);
+            try {
+                return JSON.parse(text);
+            } catch(e) {
+                console.log('❌ [15] JSON parse error:', e, 'text was:', text);
+                return {success:false, message:'Błąd parsowania JSON: ' + e.message}; 
+            }
+        });
     })
-    .then(function(j){
-        console.log('📦 JSON parsed:', j);
+    .then(function(j) {
+        console.log('✅ [16] Parsed response data:', j);
         if(j && j.success){
-            console.log('✅ Success!');
+            console.log('✅ [17] Delete SUCCESS!');
             alert(j.message || 'Zlecenie usunięte');
             location.reload();
         } else {
-            console.log('❌ API error:', j && j.message);
+            console.log('❌ [18] API error:', j && j.message);
             alert((j && j.message) || 'Błąd usunięcia');
         }
     })
     .catch(function(err){ 
-        console.log('❌ Fetch error:', err);
+        console.log('❌ [19] Fetch error:', err, 'stack:', err.stack);
         alert('Błąd sieci: ' + err.message); 
     });
 }
