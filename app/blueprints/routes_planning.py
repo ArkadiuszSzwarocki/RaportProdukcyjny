@@ -263,18 +263,18 @@ def dodaj_plan():
                     
                     cursor.execute(
                         "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                        (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, typ, tonaz)
+                        (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
                     )
                     try:
                         current_app.logger.info(f'[DODAJ_PLAN] Created new Workowanie plan for produkt={produkt} when first szarża added')
                     except Exception:
                         pass
                 else:
-                    # Reset existing Workowanie plan to 'zaplanowane' and update tonaz/tonaz_rzeczywisty
+                    # Reset existing Workowanie plan to 'zaplanowane' and update tonaz (keep tonaz_rzeczywisty = waga palet)
                     cursor.execute(
-                        "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s, tonaz_rzeczywisty=%s "
+                        "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s "
                         "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
-                        (tonaz, tonaz, data_planu, produkt, typ)
+                        (tonaz, data_planu, produkt, typ)
                     )
                     try:
                         current_app.logger.info(f'[DODAJ_PLAN] Reset existing Workowanie plan status to zaplanowane for produkt={produkt}')
