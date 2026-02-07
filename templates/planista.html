@@ -94,7 +94,6 @@
                         {% if p[4] not in ['w toku', 'zakonczone'] %}
                             <button type="button" data-action="move-up" data-plan-id="{{ p[0] }}" class="btn-icon" aria-label="Przenieś w górę">⬆</button>
                             <button type="button" data-action="move-down" data-plan-id="{{ p[0] }}" class="btn-icon" aria-label="Przenieś w dół">⬇</button>
-                            <button type="button" data-action="delete-plan" data-plan-id="{{ p[0] }}" data-plan-date="{{ wybrana_data }}" class="delete-button" aria-label="Usuń plan">🗑️</button>
                             <button type="button" data-action="open-move-modal" data-plan-id="{{ p[0] }}" data-plan-day="{{ p[2] }}" class="btn-icon text-primary" aria-label="Przenieś plan">📅</button>
                             <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p[0] }}" title="{{ _('edytuj') }}">✎</button>
                         {% else %}
