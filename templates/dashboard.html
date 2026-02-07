@@ -236,7 +236,7 @@
                                     <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>
                                 {% endif %}
                                 {% if rola in ['planista', 'admin', 'lider'] %}
-                                    <button type="button" class="btn-delete inline-form" aria-label="Usuń plan" onclick="if(confirm('Usunąć?')) deletePlan({{ p[0] }}, '{{ dzisiaj }}')">🗑</button>
+                                    <button type="button" class="btn-delete inline-form delete-plan-btn" aria-label="Usuń plan" data-plan-id="{{ p[0] }}" data-plan-date="{{ dzisiaj }}" data-plan-name="{{ p[1] }}">🗑</button>
                                 {% endif %}
                             </div>
                         {% elif p[3] == 'w toku' %}
@@ -966,6 +966,20 @@ document.addEventListener('click', function(e){
         });
     });
 })();
+
+// Event listener dla DELETE buttons
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.delete-plan-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const id = this.getAttribute('data-plan-id');
+            const date = this.getAttribute('data-plan-date');
+            const name = this.getAttribute('data-plan-name');
+            console.log('🗑️ DELETE button clicked:', {id, date, name});
+            deletePlan(id, date);
+        });
+    });
+});
 
 // Delete plan function - dostępna w global scope
 function deletePlan(id, data){
