@@ -6,14 +6,8 @@ from datetime import date, datetime, timedelta
 import json
 import os
 from app.decorators import login_required, roles_required
-from app.db import get_db_connection
 from app.services.dashboard_service import DashboardService
-
-try:
-    from generator_raportow import generuj_excel_zmiany, otworz_outlook_z_raportem
-except (ImportError, ModuleNotFoundError):
-    generuj_excel_zmiany = None
-    otworz_outlook_z_raportem = None
+from app.services.report_generation_service import ReportGenerationService
 
 main_bp = Blueprint('main', __name__)
 
@@ -187,51 +181,16 @@ def zamknij_zmiane() -> Union[Response, Tuple[str, int]]:
     from flask import current_app
     app = current_app
     
-    if generuj_excel_zmiany is None or otworz_outlook_z_raportem is None:
-        return redirect('/')
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    # Get leader notes/comments from form
+    uwagi_lidera = request.form.get('uwagi_lidera', '')
     
-    # 1. Close all in-progress orders
-    cursor.execute("UPDATE plan_produkcji SET status='zakonczone', real_stop=NOW() WHERE status='w toku'")
-    uwagi = request.form.get('uwagi_lidera', '')
-    cursor.execute("INSERT INTO raporty_koncowe (data_raportu, lider_uwagi) VALUES (%s, %s)", (date.today(), uwagi))
-    conn.commit()
-    conn.close()
+    # Use service to perform shift closing and report generation
+    zip_path, mime_type = ReportGenerationService.close_shift_and_generate_reports(uwagi_lidera)
     
-    # 2. Generate reports (Excel + text)
-    try:
-        xls_path, txt_path, pdf_path = generuj_excel_zmiany(date.today())
-    except Exception:
-        xls_path = None
-        txt_path = None
-        pdf_path = None
-
-    # 3. Try opening Outlook (if available)
-    try:
-        if xls_path:
-            otworz_outlook_z_raportem(xls_path, uwagi)
-    except Exception:
-        app.logger.exception('Outlook open failed')
-
-    # 4. Return ZIP file if generated
-    if xls_path or txt_path or pdf_path:
-        from zipfile import ZipFile
-        zip_name = f"Raport_{date.today()}.zip"
-        zip_path = os.path.join('raporty', zip_name)
-        try:
-            with ZipFile(zip_path, 'w') as z:
-                if xls_path and os.path.exists(xls_path):
-                    z.write(xls_path, arcname=os.path.basename(xls_path))
-                if txt_path and os.path.exists(txt_path):
-                    z.write(txt_path, arcname=os.path.basename(txt_path))
-                if pdf_path and os.path.exists(pdf_path):
-                    z.write(pdf_path, arcname=os.path.basename(pdf_path))
-            return send_file(zip_path, as_attachment=True)
-        except Exception:
-            app.logger.exception('Failed to create/send zip')
-
+    # Return ZIP file if successfully generated
+    if zip_path:
+        return send_file(zip_path, as_attachment=True, mimetype=mime_type)
+    
     # Fallback: redirect to login if nothing to download
     return redirect('/login')
 
