@@ -219,11 +219,11 @@
                 <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
                 <td>
                     {% if p[7] and p[7]|int > 0 %}<strong class="text-success">{{ p[7]|int }} kg</strong>{% else %}<span class="text-muted">-</span>{% endif %}
-                    {% if palety_mapa[p[0]] %}
+                    {% if palety_mapa[p[0]] and palety_mapa[p[0]]|length > 0 %}
                         <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
                             {% if sekcja == 'Zasyp' %}⏺️ {{ palety_mapa[p[0]]|length }} szt.{% else %}📦 {{ palety_mapa[p[0]]|length }} szt.{% endif %} ▼
                         </button>
-                    {% elif p|length > 15 and p[15] %}
+                    {% elif p|length > 15 and p[15] and p[15]|int > 0 %}
                         <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
                             {% if sekcja == 'Zasyp' %}⏺️ {{ p[15] }} szarż{% else %}📦 {{ p[15] }} palet{% endif %} ▼
                         </button>
