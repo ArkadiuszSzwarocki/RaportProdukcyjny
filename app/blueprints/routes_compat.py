@@ -83,7 +83,7 @@ def favicon() -> Union[Response, Tuple[str, int]]:
         from flask import current_app
         static_folder = current_app.static_folder or os.path.join(current_app.root_path, 'static')
         # Try common favicon files in order. Fall back to the bundled PNG logo.
-        for fname in ('favicon.ico', 'favicon.svg', 'agro_logo.png'):
+        for fname in ('favicon.ico', 'favicon.ico', 'agro_logo.png'):
             path = os.path.join(static_folder, fname)
             if os.path.exists(path):
                 try:
