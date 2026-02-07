@@ -929,6 +929,7 @@ button[type="submit"]:hover {
 .text-muted { color: var(--text-muted); }
 .text-danger-color { color: var(--danger-color); }
 .text-primary { color: var(--accent-color); }
+.text-capitalize { text-transform: capitalize; }
 .small { font-size:0.85em; }
 
 .progress { background:#eee; height:10px; border-radius:6px; overflow:hidden; }

@@ -89,45 +89,45 @@
             <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
             <nav class="sidebar-nav">
                 {% if role_has_access('dashboard') %}
-                    <a href="{{ url_for('main.index') }}" class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">{{ _('dashboard') }}</a>
+                    <a href="{{ url_for('main.index') }}" class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">📊 <span class="text-capitalize">{{ _('dashboard') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('zasyp') %}
-                    <a href="{{ url_for('main.index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">{{ _('zasyp') }}</a>
+                    <a href="{{ url_for('main.index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">📥 <span class="text-capitalize">{{ _('zasyp') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('workowanie') %}
                     {# BUFOR link placed between Zasyp and Workowanie #}
-                    <a href="{{ url_for('planista.bufor_page') }}" class="nav-item {% if request.path.startswith('/bufor') %}active{% endif %}">{{ _('bufor') }}</a>
-                    <a href="{{ url_for('main.index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">{{ _('workowanie') }}</a>
+                    <a href="{{ url_for('planista.bufor_page') }}" class="nav-item {% if request.path.startswith('/bufor') %}active{% endif %}">🗂️ <span class="text-capitalize">{{ _('bufor') }}</span></a>
+                    <a href="{{ url_for('main.index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">⚙️ <span class="text-capitalize">{{ _('workowanie') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('magazyn') %}
-                    <a href="{{ url_for('main.index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">{{ _('magazyn') }}</a>
+                    <a href="{{ url_for('main.index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">📦 <span class="text-capitalize">{{ _('magazyn') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('jakosc') %}
-                    <a href="{{ url_for('quality.jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">{{ _('jakosc') }}</a>
+                    <a href="{{ url_for('quality.jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">✅ <span class="text-capitalize">{{ _('jakosc') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('wyniki') %}
-                    <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">{{ _('wyniki') }}</a>
+                    <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">📊 <span class="text-capitalize">{{ _('wyniki') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('awarie') %}
-                    <a href="/dur/awarie" class="nav-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">⚠️ {{ _('awarie') }}</a>
+                    <a href="/dur/awarie" class="nav-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">⚠️ <span class="text-capitalize">{{ _('awarie') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('planista') %}
-                    <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">{{ _('plan') }}</a>
+                    <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">📋 <span class="text-capitalize">{{ _('plan') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('moje_godziny') %}
-                    <a href="{{ url_for('panels.moje_godziny') }}" class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">{{ _('moje_godziny') }}</a>
+                    <a href="{{ url_for('panels.moje_godziny') }}" class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">🕐 <span class="text-capitalize">{{ _('moje_godziny') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('ustawienia') %}
-                    <a href="/admin/ustawienia" class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">{{ _('ustawienia') }}</a>
+                    <a href="/admin/ustawienia" class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">⚙️ <span class="text-capitalize">{{ _('ustawienia') }}</span></a>
                 {% endif %}
             </nav>
             <div class="sidebar-footer">
