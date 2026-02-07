@@ -16,6 +16,7 @@ from routes_shifts import shifts_bp
 from routes_panels import panels_bp
 from routes_production import production_bp
 from routes_warehouse import warehouse_bp
+from routes_planning import planning_bp
 import db
 
 
@@ -49,6 +50,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(panels_bp)
     app.register_blueprint(production_bp)
     app.register_blueprint(warehouse_bp)
+    app.register_blueprint(planning_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(planista_bp)
