@@ -302,48 +302,35 @@ def dodaj_plan():
                 return redirect(bezpieczny_powrot())
         
         elif sekcja == 'Workowanie':
-            # PALETA: Find BUFFER (first/oldest open plan in Workowanie) to REMOVE from it
+            # PALETA: Find main Workowanie plan by data_planu, produkt, typ_produkcji
+            # This is the plan that needs tonaz_rzeczywisty updated
             cursor.execute(
-                "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND status='w toku' AND COALESCE(typ_produkcji,'')=%s ORDER BY id LIMIT 1",
-                (data_planu, produkt, typ)
+                "SELECT id, typ_produkcji FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND status IN ('zaplanowane', 'w toku') ORDER BY id ASC LIMIT 1",
+                (data_planu, produkt)
             )
-            buffer_plan = cursor.fetchone()
-            if buffer_plan:
-                zasyp_plan_id = buffer_plan[0]
+            main_plan = cursor.fetchone()
+            if main_plan:
+                main_plan_id, actual_typ = main_plan[0], main_plan[1]
                 try:
-                    current_app.logger.info(f'[DODAJ_PLAN] Removing paleta from buffer: plan_id={zasyp_plan_id}, tonaz={tonaz}')
+                    current_app.logger.info(f'[DODAJ_PLAN] Adding paleta to Workowanie main plan {main_plan_id}, tonaz={tonaz}')
                 except Exception:
                     pass
 
-                # Insert a new paleta record
+                # Insert a new paleta record directly to main Workowanie plan
                 cursor.execute(
                     "INSERT INTO palety_workowanie (plan_id, waga, status) VALUES (%s, %s, %s)",
-                    (zasyp_plan_id, tonaz, 'oczekuje')
+                    (main_plan_id, tonaz, 'oczekuje')
                 )
                 
-                # Decrease buffer tonaz_rzeczywisty
+                # IMPORTANT: Increase main Workowanie plan tonaz_rzeczywisty (realizacja = sum of palety weights)
                 cursor.execute(
-                    "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) - %s WHERE id=%s",
-                    (tonaz, zasyp_plan_id)
+                    "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
+                    (tonaz, main_plan_id)
                 )
-                
-                # IMPORTANT: Increase main Workowanie plan tonaz_rzeczywisty (realizacja)
-                # Find the main Workowanie plan (not buffer) for this product/date
-                cursor.execute(
-                    "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s AND status IN ('zaplanowane', 'w toku') ORDER BY id ASC LIMIT 1",
-                    (data_planu, produkt, typ)
-                )
-                main_plan = cursor.fetchone()
-                if main_plan:
-                    main_plan_id = main_plan[0]
-                    cursor.execute(
-                        "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
-                        (tonaz, main_plan_id)
-                    )
-                    try:
-                        current_app.logger.info(f'[DODAJ_PLAN] Added paleta to main Workowanie plan {main_plan_id}, tonaz_rzeczywisty += {tonaz}')
-                    except Exception:
-                        pass
+                try:
+                    current_app.logger.info(f'[DODAJ_PLAN] Updated Workowanie plan {main_plan_id}, tonaz_rzeczywisty += {tonaz}')
+                except Exception:
+                    pass
                 
                 conn.commit()
                 conn.close()
