@@ -11,6 +11,7 @@ from routes_admin import admin_bp
 from routes_api import api_bp
 from routes_planista import planista_bp
 from routes_auth import auth_bp
+from routes_quality import quality_bp
 import db
 
 
@@ -39,6 +40,7 @@ def create_app(config_secret_key=None, init_db=True):
     
     # Register blueprints
     app.register_blueprint(auth_bp)
+    app.register_blueprint(quality_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(planista_bp)
