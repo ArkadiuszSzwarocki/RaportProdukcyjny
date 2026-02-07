@@ -966,10 +966,8 @@ document.addEventListener('click', function(e){
         });
     });
 })();
-</script>
 
-<!-- Delete plan function for dashboard -->
-<script>
+// Delete plan function - dostępna w global scope
 function deletePlan(id, data){
     if(!confirm('Na pewno usunąć zlecenie?')) return;
     
