@@ -6,8 +6,10 @@ from app.db import get_db_connection
 from app.decorators import login_required, roles_required
 from app.services.leave_request_service import LeaveRequestService
 from app.services.attendance_service import AttendanceService
+from app.services.raport_service import RaportService
 from io import BytesIO
 import json
+import sys
 
 leaves_bp = Blueprint('leaves', __name__)
 

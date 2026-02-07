@@ -4,6 +4,8 @@ from flask import Blueprint, request, redirect, url_for, flash, session, render_
 from datetime import date, datetime
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required, admin_required
+from app.services.planning_service import PlanningService
+from app.services.plan_movement_service import PlanMovementService
 import json
 
 planning_bp = Blueprint('planning', __name__)
@@ -64,135 +66,66 @@ def przywroc_zlecenie_page(id):
 @planning_bp.route('/przywroc_zlecenie/<int:id>', methods=['POST'])
 @roles_required('lider', 'admin')
 def przywroc_zlecenie(id):
-    """Resume a paused plan."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT sekcja FROM plan_produkcji WHERE id=%s", (id,))
-    res = cursor.fetchone()
-    if res:
-        cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (res[0],))
-        cursor.execute("UPDATE plan_produkcji SET status='w toku', real_stop=NULL WHERE id=%s", (id,))
-        conn.commit()
-    conn.close()
+    """Resume a paused plan - delegated to PlanningService."""
+    success, message = PlanningService.resume_plan(id)
+    flash(message, 'success' if success else 'warning')
     return redirect(bezpieczny_powrot())
 
 
 @planning_bp.route('/przywroc_usunietego_zlecenia/<int:id>', methods=['POST'])
 @roles_required('planista', 'admin')
 def przywroc_usunietego_zlecenia(id):
-    """Restore (undelete) a deleted plan."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        # Check if plan exists and is marked as deleted
-        cursor.execute("SELECT is_deleted, produkt, status FROM plan_produkcji WHERE id=%s", (id,))
-        res = cursor.fetchone()
-        if not res:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Zlecenie nie istnieje.'}), 404
-        if not res[0]:  # is_deleted = 0, meaning not deleted
-            conn.close()
-            return jsonify({'success': False, 'message': 'To zlecenie nie jest usunięte.'}), 400
-        
-        # Restore: set is_deleted = 0, deleted_at = NULL
-        cursor.execute("UPDATE plan_produkcji SET is_deleted=0, deleted_at=NULL WHERE id=%s", (id,))
-        conn.commit()
-        
-        try:
-            user_login = session.get('login') or session.get('imie_nazwisko')
-            log_plan_history(id, 'restore', f'Przywrócono zlecenie: {res[1]}', user_login)
-        except Exception:
-            pass
-        
-        conn.close()
-        return jsonify({'success': True, 'message': 'Zlecenie zostało przywrócone.'}), 200
-    except Exception as e:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        current_app.logger.exception('Failed to restore plan %s', id)
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return jsonify({'success': False, 'message': str(e)}), 500
+    """Restore (undelete) a deleted plan - delegated to PlanningService."""
+    success, message = PlanningService.restore_plan(id)
+    return jsonify({'success': success, 'message': message}), 200 if success else 500
 
 
 @planning_bp.route('/zmien_status_zlecenia/<int:id>', methods=['POST'])
 @login_required
 def zmien_status_zlecenia(id):
-    """Change plan status."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    from app.utils.validation import require_field
-    status = require_field(request.form, 'status')
-    cursor.execute("UPDATE plan_produkcji SET status=%s WHERE id=%s", (status, id))
-    conn.commit()
-    conn.close()
+    """Change plan status - delegated to PlanningService."""
+    status = request.form.get('status')
+    if not status:
+        flash('Status jest wymagany.', 'warning')
+        return redirect(bezpieczny_powrot())
+    
+    success, message = PlanningService.change_status(id, status)
+    flash(message, 'success' if success else 'warning')
     return redirect(bezpieczny_powrot())
 
 
 @planning_bp.route('/usun_plan/<int:id>', methods=['POST'])
 @login_required
 def usun_plan(id):
-    """Soft delete a plan."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    redirect_target = bezpieczny_powrot()
-    category = None
-    message = None
-    try:
-        cursor.execute("SELECT status FROM plan_produkcji WHERE id=%s", (id,))
-        res = cursor.fetchone()
-        if not res:
-            category, message = 'warning', 'Zlecenie nie istnieje.'
-        elif res[0] in ['w toku', 'zakonczone']:
-            category, message = 'warning', 'Nie można usunąć zleczenia w toku lub już zakończonego.'
-        else:
-            # Soft delete: instead of DELETE, set is_deleted = 1
-            cursor.execute("UPDATE plan_produkcji SET is_deleted=1, deleted_at=NOW() WHERE id=%s", (id,))
-            conn.commit()
-            category, message = 'success', 'Zlecenie zostało usunięte z planu.'
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        current_app.logger.exception('Failed to delete plan %s', id)
-        category, message = 'error', 'Wystąpił błąd przy usuwaniu zlecenia. Sprawdź logi.'
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-    if category and message:
-        flash(message, category)
-    return redirect(redirect_target)
+    """Soft delete a plan - delegated to PlanningService."""
+    success, message = PlanningService.delete_plan(id)
+    flash(message, 'success' if success else 'warning')
+    return redirect(bezpieczny_powrot())
 
 
 @planning_bp.route('/dodaj_plan_zaawansowany', methods=['POST'])
 @roles_required('planista', 'admin')
 def dodaj_plan_zaawansowany():
-    """Add plan with advanced options."""
-    sekcja = request.form.get('sekcja')
+    """Add plan with advanced options - delegated to PlanningService."""
     data_planu = request.form.get('data_planu')
-    from app.utils.validation import require_field
-    produkt = require_field(request.form, 'produkt')
+    produkt = request.form.get('produkt')
+    sekcja = request.form.get('sekcja')
     typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
-    status = 'nieoplacone' if request.form.get('wymaga_oplaty') else 'zaplanowane'
+    wymaga_oplaty = bool(request.form.get('wymaga_oplaty'))
+    
     try:
-        tonaz = int(float(require_field(request.form, 'tonaz')))
+        tonaz = int(float(request.form.get('tonaz', 0)))
     except Exception:
         tonaz = 0
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
-    res = cursor.fetchone()
-    nk = (res[0] if res and res[0] else 0) + 1
-    cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ, 0))
-    conn.commit()
-    conn.close()
+    
+    success, message, plan_id = PlanningService.create_plan(
+        data_planu, produkt, tonaz, sekcja, typ, 
+        status='zaplanowane', wymaga_oplaty=wymaga_oplaty
+    )
+    
+    if not success:
+        flash(message, 'warning')
+    
     return redirect(url_for('planista.panel_planisty', data=data_planu))
 
 
@@ -469,24 +402,14 @@ def dodaj_plany_batch():
 @planning_bp.route('/przenies_zlecenie/<int:id>', methods=['POST'])
 @login_required
 def przenies_zlecenie(id):
-    """Move a plan to a different date."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # BLOCK: Check status before changing date
-    cursor.execute("SELECT status FROM plan_produkcji WHERE id=%s", (id,))
-    res = cursor.fetchone()
-    if res and res[0] in ['w toku', 'zakonczone']:
-        conn.close()
+    """Move a plan to a different date - delegated to PlanningService."""
+    nowa_data = request.form.get('nowa_data')
+    if not nowa_data:
+        flash('Nowa data jest wymagana.', 'warning')
         return redirect(bezpieczny_powrot())
-
-    nd = request.form.get('nowa_data')
-    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (nd,))
-    res = cursor.fetchone()
-    nk = (res[0] if res and res[0] else 0) + 1
-    cursor.execute("UPDATE plan_produkcji SET data_planu=%s, kolejnosc=%s WHERE id=%s", (nd, nk, id))
-    conn.commit()
-    conn.close()
+    
+    success, message = PlanningService.reschedule_plan(id, nowa_data)
+    flash(message, 'success' if success else 'warning')
     return redirect(bezpieczny_powrot())
 
 
@@ -497,26 +420,11 @@ def przenies_zlecenie(id):
 @planning_bp.route('/przesun_zlecenie/<int:id>/<kierunek>', methods=['POST'])
 @roles_required('planista', 'admin')
 def przesun_zlecenie(id, kierunek):
-    """Move a plan up or down in the sequence."""
+    """Move a plan up or down in the sequence - delegated to PlanMovementService."""
     data = request.args.get('data', str(date.today()))
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # BLOCK: Check status before moving
-    cursor.execute("SELECT id, kolejnosc, status FROM plan_produkcji WHERE id=%s", (id,))
-    obecne = cursor.fetchone()
-    
-    if obecne and obecne[2] not in ['w toku', 'zakonczone']:
-        oid, okol, _ = obecne
-        q = "SELECT id, kolejnosc FROM plan_produkcji WHERE data_planu=%s AND kolejnosc < %s ORDER BY kolejnosc DESC LIMIT 1" if kierunek == 'gora' else "SELECT id, kolejnosc FROM plan_produkcji WHERE data_planu=%s AND kolejnosc > %s ORDER BY kolejnosc ASC LIMIT 1"
-        cursor.execute(q, (data, okol))
-        sasiad = cursor.fetchone()
-        if sasiad:
-            cursor.execute("UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s", (sasiad[1], oid))
-            cursor.execute("UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s", (okol, sasiad[0]))
-            conn.commit()
-            
-    conn.close()
+    success, message = PlanMovementService.shift_plan_order(id, kierunek)
+    if not success:
+        flash(message, 'warning')
     return redirect(url_for('planista.panel_planisty', data=data))
 
 
@@ -687,168 +595,105 @@ def edytuj_plan_ajax():
 @planning_bp.route('/przenies_zlecenie_ajax', methods=['POST'])
 @roles_required('planista', 'admin')
 def przenies_zlecenie_ajax():
-    """Move a plan to different date via AJAX."""
+    """Move a plan to different date via AJAX - delegated to PlanningService."""
     try:
         data = request.get_json(force=True)
     except Exception:
         data = request.form.to_dict()
+    
     id = data.get('id')
     to_date = data.get('to_date')
     if not id or not to_date:
         return jsonify({'success': False, 'message': 'Brak parametrów'}), 400
+    
     try:
         pid = int(id)
     except Exception:
         return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT status, data_planu FROM plan_produkcji WHERE id=%s", (pid,))
-        row = cursor.fetchone()
-        if not row:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
-        if row[0] in ['w toku', 'zakonczone']:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Nie można przenieść zlecenia w toku lub zakończonego'}), 403
-        old_date = row[1]
-        cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (to_date,))
-        res = cursor.fetchone()
-        nk = (res[0] if res and res[0] else 0) + 1
-        cursor.execute("UPDATE plan_produkcji SET data_planu=%s, kolejnosc=%s WHERE id=%s", (to_date, nk, pid))
-        conn.commit()
+    success, message = PlanningService.reschedule_plan(pid, to_date)
+    
+    if success:
+        # Get old date and log history
         try:
-            user_login = session.get('login') or session.get('imie_nazwisko')
-        except Exception:
-            user_login = None
-        try:
-            log_plan_history(pid, 'move', json.dumps({'from': str(old_date), 'to': to_date}, ensure_ascii=False), user_login)
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT data_planu FROM plan_produkcji WHERE id=%s", (pid,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                old_date = row[0]
+                user_login = session.get('login') or session.get('imie_nazwisko')
+                log_plan_history(pid, 'move', json.dumps({'from': str(old_date), 'to': to_date}, ensure_ascii=False), user_login)
         except Exception:
             pass
-        conn.close()
-        return jsonify({'success': True, 'message': 'Przeniesiono'})
-    except Exception:
-        current_app.logger.exception('przenies_zlecenie_ajax failed')
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
+    
+    status_code = 200 if success else 400
+    return jsonify({'success': success, 'message': message}), status_code
 
 
 @planning_bp.route('/przesun_zlecenie_ajax', methods=['POST'])
 @roles_required('planista', 'admin')
 def przesun_zlecenie_ajax():
-    """Move a plan up/down in sequence via AJAX."""
+    """Move a plan up/down in sequence via AJAX - delegated to PlanMovementService."""
     try:
         data = request.get_json(force=True)
     except Exception:
         data = request.form.to_dict()
+    
     id = data.get('id')
     kierunek = data.get('kierunek')
-    data_date = data.get('data') or request.args.get('data') or str(date.today())
     if not id or not kierunek:
         return jsonify({'success': False, 'message': 'Brak parametrów'}), 400
+    
     try:
         pid = int(id)
     except Exception:
         return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT id, kolejnosc, status FROM plan_produkcji WHERE id=%s", (pid,))
-        obecne = cursor.fetchone()
-        if not obecne:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
-        if obecne[2] in ['w toku', 'zakonczone']:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Nie można przenieść zlecenia w toku lub zakończonego'}), 403
-
-        oid, okol, _ = obecne
-        q = "SELECT id, kolejnosc FROM plan_produkcji WHERE data_planu=%s AND kolejnosc < %s ORDER BY kolejnosc DESC LIMIT 1" if kierunek == 'gora' else "SELECT id, kolejnosc FROM plan_produkcji WHERE data_planu=%s AND kolejnosc > %s ORDER BY kolejnosc ASC LIMIT 1"
-        cursor.execute(q, (data_date, okol))
-        sasiad = cursor.fetchone()
-        if sasiad:
-            cursor.execute("UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s", (sasiad[1], oid))
-            cursor.execute("UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s", (okol, sasiad[0]))
-            conn.commit()
-            # log history
-            try:
-                user_login = session.get('login') or session.get('imie_nazwisko')
-            except Exception:
-                user_login = None
-            try:
-                log_plan_history(pid, 'reorder', json.dumps({'direction': kierunek, 'swapped_with': sasiad[0]}, ensure_ascii=False), user_login)
-            except Exception:
-                pass
-            conn.close()
-            return jsonify({'success': True, 'message': 'Przeniesiono'})
-
-        conn.close()
-        return jsonify({'success': False, 'message': 'Brak sąsiada do zamiany'}), 400
-    except Exception:
-        current_app.logger.exception('przesun_zlecenie_ajax failed')
+    success, message = PlanMovementService.shift_plan_order(pid, kierunek)
+    
+    if success:
+        # Log history
         try:
-            conn.rollback()
+            user_login = session.get('login') or session.get('imie_nazwisko')
+            log_plan_history(pid, 'reorder', json.dumps({'direction': kierunek}, ensure_ascii=False), user_login)
         except Exception:
             pass
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
+    
+    status_code = 200 if success else 400
+    return jsonify({'success': success, 'message': message}), status_code
 
 
 @planning_bp.route('/usun_plan_ajax/<int:id>', methods=['POST'])
 @roles_required('planista', 'admin')
 def api_usun_plan(id):
-    """Soft delete plan via AJAX."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    """Soft delete plan via AJAX - delegated to PlanningService."""
     try:
-        cursor.execute("SELECT status, produkt, data_planu, tonaz FROM plan_produkcji WHERE id=%s", (id,))
-        res = cursor.fetchone()
-        if not res:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Zlecenie nie istnieje.'}), 404
-        if res[0] in ['w toku', 'zakonczone']:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Nie można usunąć zleczenia w toku lub już zakończonego.'}), 403
-
-        # record details for history
-        details = {'produkt': res[1], 'data_planu': str(res[2]), 'tonaz': res[3]}
+        success, message = PlanningService.delete_plan(id)
         
-        # Soft delete: instead of DELETE, set is_deleted = 1
-        cursor.execute("UPDATE plan_produkcji SET is_deleted=1, deleted_at=NOW() WHERE id=%s", (id,))
-        conn.commit()
-        try:
-            user_login = session.get('login') or session.get('imie_nazwisko')
-        except Exception:
-            user_login = None
-        try:
-            log_plan_history(id, 'soft_delete', json.dumps(details, ensure_ascii=False), user_login)
-        except Exception:
-            pass
-        conn.close()
-        return jsonify({'success': True, 'message': 'Zlecenie zostało usunięte.'})
+        if success:
+            # Log history if deletion was successful
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT produkt, data_planu, tonaz FROM plan_produkcji WHERE id=%s", (id,))
+                res = cursor.fetchone()
+                conn.close()
+                
+                if res:
+                    details = {'produkt': res[0], 'data_planu': str(res[1]), 'tonaz': res[2]}
+                    user_login = session.get('login') or session.get('imie_nazwisko')
+                    log_plan_history(id, 'soft_delete', json.dumps(details, ensure_ascii=False), user_login)
+            except Exception:
+                pass
+        
+        return jsonify({'success': success, 'message': message}), 200 if success else 400
+        
     except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        current_app.logger.exception('Failed to delete plan %s', id)
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return jsonify({'success': False, 'message': 'Wystąpił błąd przy usuwaniu zlecenia.'}), 500
+        current_app.logger.exception(f'Error deleting plan {id} via AJAX')
+        return jsonify({'success': False, 'message': 'Błąd przy usuwaniu zlecenia.'}), 500
 
 
 # ================= JAKOŚĆ -> DODAJ DO PLANÓW =================

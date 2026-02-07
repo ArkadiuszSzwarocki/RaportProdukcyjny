@@ -100,7 +100,7 @@ class ReportGenerationService:
         """
         # Import report generators (may not be available in test/dev environment)
         try:
-            from generator_raportow import generuj_excel_zmiany
+            from generator_raportow import generuj_excel_zmiany  # type: ignore
         except (ImportError, ModuleNotFoundError):
             return None, None, None
         
@@ -170,7 +170,7 @@ class ReportGenerationService:
             return
         
         try:
-            from generator_raportow import otworz_outlook_z_raportem
+            from generator_raportow import otworz_outlook_z_raportem  # type: ignore
             otworz_outlook_z_raportem(xls_path, uwagi_lidera)
         except (ImportError, ModuleNotFoundError):
             # Outlook functionality not available

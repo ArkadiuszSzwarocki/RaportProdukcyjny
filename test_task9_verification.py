@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Verify Task #9 completion - panels and DUR routes extraction"""
 
-from core.factory import create_app
 import sys
+from core.factory import create_app
 
 # Create app without DB init
 try:
