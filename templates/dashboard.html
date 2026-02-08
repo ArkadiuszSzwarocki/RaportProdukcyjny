@@ -258,11 +258,10 @@
                             <div class="d-flex gap-5 justify-end">
                                 {% if sekcja == 'Workowanie' %}
                                     <div class="paleta-inline-wrapper paleta-inline">
-                                            {% set buffer_id = macros.scalar_first(buffer_map.get(p[1]) if buffer_map is defined else None, p[0]) %}
                                             {% if p[9] == 'bigbag' %}
-                                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
+                                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
                                         {% else %}
-                                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
+                                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                                         {% endif %}
                                     </div>
                                     <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>

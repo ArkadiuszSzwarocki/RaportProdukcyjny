@@ -54,12 +54,54 @@ def start_zlecenie(id):
                     'zasyp_order_name': active_on_zasyp[1]
                 }
         
+        # Dodatkowa logika kolejki dla Workowanie:
+        # Tylko produkt, który miał NAJWCZEŚNIEJ zakończone Zasyp tego dnia, może być uruchomiony jako pierwszy.
+        if sekcja == 'Workowanie':
+                # Allow planners/admins to bypass queue restriction
+                role = session.get('rola', '')
+                if role in ('planista', 'admin'):
+                    current_app.logger.debug(f'[KOLEJKA] bypass for role={role} plan_id={id} produkt={produkt}')
+                else:
+                    try:
+                        # Log context for debugging
+                        current_app.logger.debug(f'[KOLEJKA] start_zlecenie called id={id} produkt="{produkt}" data_planu={data_planu} role={role}')
+                        cursor.execute(
+                            "SELECT id, produkt, real_stop FROM plan_produkcji WHERE sekcja='Zasyp' AND status='zakonczone' AND DATE(data_planu)=%s AND real_stop IS NOT NULL ORDER BY real_stop ASC",
+                            (data_planu,)
+                        )
+                        all_closed = cursor.fetchall()
+                        current_app.logger.debug(f'[KOLEJKA] closed_zasyp_count={len(all_closed)}')
+                        for ac in all_closed:
+                            try:
+                                current_app.logger.debug(f'[KOLEJKA] closed: id={ac[0]} produkt="{ac[1]}" real_stop={ac[2]}')
+                            except Exception:
+                                current_app.logger.debug(f'[KOLEJKA] closed (raw): {ac}')
+                        earliest = all_closed[0] if all_closed else None
+                    except Exception as e:
+                        current_app.logger.exception('[KOLEJKA] failed to query closed Zasyp: %s', e)
+                        earliest = None
+                    if earliest:
+                        earliest_product = earliest[1]
+                        # Normalize product names for robust comparison
+                        try:
+                            prod_norm = (produkt or '').strip().lower()
+                            earliest_norm = (earliest_product or '').strip().lower()
+                        except Exception:
+                            prod_norm = produkt
+                            earliest_norm = earliest_product
+                        current_app.logger.debug(f'[KOLEJKA] produkt="{produkt}" earliest_from_zasyp="{earliest_product}" normalized: "{prod_norm}" vs "{earliest_norm}"')
+                        if prod_norm != earliest_norm:
+                            # Nie zezwalamy na uruchomienie innego produktu niż ten najwcześniej zakończony na Zasyp
+                            flash(f"❌ Kolejkowanie Workowanie: aktualnie otwarty powinien być produkt zakończony najwcześniej na Zasyp: <strong>{earliest_product}</strong>. Najpierw zakończ ten produkt na Zasyp.", 'error')
+                            conn.close()
+                            return redirect(bezpieczny_powrot())
+
         # Zawsze wykonaj START - Workowanie pracuje niezależnie z bufora
         if status_obecny != 'w toku':
             cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
             cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
             flash(f"✅ Uruchomiono: <strong>{produkt}</strong>", 'success')
-            
+
             # Jeśli jest warning info - dodaj do flash message
             if warning_info:
                 flash(f"ℹ️ {warning_info['message']}", 'info')

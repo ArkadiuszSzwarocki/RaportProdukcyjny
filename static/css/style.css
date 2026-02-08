@@ -305,15 +305,15 @@ body.sidebar-open {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: var(--accent-color);
-    color: white;
+    background: white;
+    color: var(--primary-color);
     padding: 10px 14px;
     border-radius: 8px;
     box-shadow: var(--shadow-sm);
     text-decoration: none;
     min-width: 120px;
 }
-.top-tile .material-icons { font-size: 20px; }
+.top-tile .material-icons { font-size: 20px; color: var(--accent-color); }
 .tile-label { font-weight: 700; }
 .top-menu { display: flex; gap: 8px; align-items: center; }
 .top-menu-item {
@@ -330,6 +330,25 @@ body.sidebar-open {
 }
 .top-menu-item .material-icons { font-size: 18px; color: var(--accent-color); }
 .top-menu-item:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+
+/* Active state for top menu items */
+.top-menu-item.active {
+    background: var(--accent-color);
+    color: white;
+    border-color: transparent;
+}
+.top-menu-item.active .material-icons {
+    color: white;
+}
+
+/* When top-tile is considered active (obsada), emphasise it slightly */
+.top-tile.active {
+    background: var(--accent-color);
+    color: white;
+    box-shadow: var(--shadow-lg);
+    border-color: transparent;
+}
+.top-tile.active .material-icons { color: white; }
 
 @media (max-width: 900px) {
     .top-submenu-inner { overflow-x: auto; padding: 6px 0; }

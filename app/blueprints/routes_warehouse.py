@@ -284,6 +284,44 @@ def potwierdz_palete(paleta_id):
     return redirect(bezpieczny_powrot())
 
 
+# DEBUG: no-auth route to reproduce template rendering issues (do not expose in production)
+@warehouse_bp.route('/debug/noauth/dodaj_palete_page/<int:plan_id>', methods=['GET'])
+def dodaj_palete_page_noauth(plan_id):
+    """Debug helper: render `dodaj_palete_popup.html` without login decorator.
+    Use to reproduce TemplateNotFound or rendering errors in a controlled way.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    produkt = None
+    sekcja = None
+    typ = None
+    try:
+        cursor.execute("SELECT produkt, sekcja, typ_produkcji FROM plan_produkcji WHERE id=%s", (plan_id,))
+        row = cursor.fetchone()
+        if row:
+            produkt, sekcja, typ = row[0], row[1], row[2]
+    except Exception:
+        try:
+            current_app.logger.exception('Failed to fetch plan %s for debug dodaj_palete_page', plan_id)
+        except Exception:
+            pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    try:
+        return render_template('dodaj_palete_popup.html', plan_id=plan_id, produkt=produkt, sekcja=sekcja, typ=typ)
+    except Exception as e:
+        try:
+            current_app.logger.exception('Debug render_template failed for plan %s: %s', plan_id, e)
+        except Exception:
+            pass
+        # Return the error detail to caller for quick debugging (safe in local dev)
+        return (f'Debug render error: {type(e).__name__}: {str(e)}', 500)
+
+
 @warehouse_bp.route('/api/bufor', methods=['GET'])
 def api_bufor():
     """Public API returning bufor entries as JSON"""
@@ -293,20 +331,27 @@ def api_bufor():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        # Get Zasypy that have corresponding Workowanie 'w toku'
         cur.execute("""
-            SELECT id, data_planu, produkt, tonaz_rzeczywisty, nazwa_zlecenia, typ_produkcji
-            FROM plan_produkcji
-            WHERE sekcja = 'Zasyp'
-              AND data_planu >= DATE_SUB(%s, INTERVAL 7 DAY)
-              AND data_planu <= %s
+            SELECT z.id, z.data_planu, z.produkt, z.tonaz_rzeczywisty, z.nazwa_zlecenia, z.typ_produkcji
+            FROM plan_produkcji z
+            INNER JOIN plan_produkcji w ON z.produkt = w.produkt AND z.data_planu = w.data_planu
+            WHERE z.sekcja = 'Zasyp'
+              AND w.sekcja = 'Workowanie'
+              AND w.status = 'w toku'
+              AND z.data_planu >= DATE_SUB(%s, INTERVAL 7 DAY)
+              AND z.data_planu <= %s
         """, (qdate, qdate))
         rows = cur.fetchall()
         for hz in rows:
             h_id, h_data, h_produkt, h_wykonanie_zasyp, h_nazwa, h_typ = hz
             typ_param = h_typ if h_typ is not None else ''
+            # Sum palety from all Workowanie for this product on this day
             cur.execute(
-                "SELECT SUM(waga) FROM palety_workowanie WHERE plan_id = %s OR plan_id IN (SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s)",
-                (h_id, h_data, h_produkt, typ_param)
+                "SELECT SUM(pw.waga) FROM palety_workowanie pw "
+                "INNER JOIN plan_produkcji w ON pw.plan_id = w.id "
+                "WHERE w.data_planu=%s AND w.produkt=%s AND w.sekcja='Workowanie' AND COALESCE(w.typ_produkcji,'')=%s",
+                (h_data, h_produkt, typ_param)
             )
             res_pal = cur.fetchone()
             h_wykonanie_workowanie = res_pal[0] if res_pal and res_pal[0] else 0

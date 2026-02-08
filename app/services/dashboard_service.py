@@ -269,10 +269,23 @@ class DashboardService:
                     conn.close()
                     # map to (waga, godzina, id, UNUSED, status) to match template expectations
                     palety_mapa[p[0]] = [(r[1], r[2], r[0], None, r[5] if len(r) > 5 else '') for r in rows]
-                elif sekcja == 'Workowanie' and p[15] and p[15] > 0 and p[0] not in palety_mapa:
+                    # Calculate sum of szarża weights for Realizacja column p[7]
+                    suma_szarzy = sum(r[1] for r in rows)
+                    p[7] = suma_szarzy
+                    if not is_quality:
+                        suma_wykonanie += suma_szarzy
+                elif sekcja == 'Workowanie' and p[0] not in palety_mapa:
                     # Use existing query helper to fetch paletki for plan
                     palety = QueryHelper.get_paletki_for_plan(p[0])
-                    palety_mapa[p[0]] = palety
+                    if palety:
+                        # Map to (waga, czas, id, UNUSED, status) to match template expectations
+                        # get_paletki_for_plan returns: (id, plan_id, waga, tara, waga_brutto, data_dodania, produkt, typ_produkcji, status, czas_potwierdzenia_s)
+                        palety_mapa[p[0]] = [(r[2], r[5], r[0], None, r[8]) for r in palety]
+                        # Calculate sum of pallet weights for Realizacja column p[7]
+                        suma_palet = sum(r[2] for r in palety)
+                        p[7] = suma_palet
+                        if not is_quality:
+                            suma_wykonanie += suma_palet
             except Exception:
                 pass
         

@@ -71,14 +71,14 @@
 
     <div class="top-submenu">
         <div class="top-submenu-inner">
-            <a class="top-tile" href="{{ url_for('production.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}">
+            <a class="top-tile {% if request.endpoint in ['production.obsada_page','panels.panel_obsada_page'] or request.args.get('sekcja')=='Workowanie' %}active{% endif %}" href="{{ url_for('production.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}">
                 <span class="material-icons">people</span>
                 <div class="tile-label">{{ _('obsada') }}</div>
             </a>
             <nav class="top-menu">
-                <a class="top-menu-item" href="{{ url_for('panels.panel_wnioski_page') }}"> <span class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
-                <a class="top-menu-item" href="{{ url_for('panels.panel_planowane_page') }}"> <span class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
-                <a class="top-menu-item" href="{{ url_for('panels.panel_obecnosci_page') }}"> <span class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_wnioski_page' %}active{% endif %}" href="{{ url_for('panels.panel_wnioski_page') }}"> <span class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_planowane_page' %}active{% endif %}" href="{{ url_for('panels.panel_planowane_page') }}"> <span class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_obecnosci_page' %}active{% endif %}" href="{{ url_for('panels.panel_obecnosci_page') }}"> <span class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
             </nav>
         </div>
     </div>

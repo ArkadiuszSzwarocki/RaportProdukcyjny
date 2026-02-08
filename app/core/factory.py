@@ -43,6 +43,18 @@ def create_app(config_secret_key=None, init_db=True):
     template_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'templates')
     static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'static')
     app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
+    # Debug: log template folder and available templates to help diagnose TemplateNotFound
+    try:
+        import glob
+        app.logger.debug('Flask template_folder=%s', template_folder)
+        templates_list = glob.glob(os.path.join(template_folder, '**', '*.html'), recursive=True)
+        for t in templates_list:
+            app.logger.debug('Template file: %s', t)
+    except Exception:
+        try:
+            app.logger.exception('Failed to enumerate templates')
+        except Exception:
+            pass
     
     # Configure with secret key
     app.secret_key = config_secret_key or SECRET_KEY
@@ -57,6 +69,19 @@ def create_app(config_secret_key=None, init_db=True):
     # Set up logging and error handlers BEFORE any routes or blueprints
     setup_logging(app)
     register_error_handlers(app)
+
+    # After logging is configured, emit debug entries about templates for diagnostics
+    try:
+        import glob
+        app.logger.debug('Flask template_folder=%s', template_folder)
+        templates_list = glob.glob(os.path.join(template_folder, '**', '*.html'), recursive=True)
+        for t in templates_list:
+            app.logger.debug('Template file: %s', t)
+    except Exception:
+        try:
+            app.logger.exception('Failed to enumerate templates')
+        except Exception:
+            pass
     
     # Add Jinja2 extensions
     app.jinja_env.add_extension('jinja2.ext.do')
