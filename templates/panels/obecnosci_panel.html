@@ -1,0 +1,43 @@
+{% macro fmt_date(d) -%}
+  {%- if d is none -%}
+    -
+  {%- else -%}
+    {{ d.strftime('%Y-%m-%d') if d.__class__.__name__ == 'date' else d }}
+  {%- endif -%}
+{%- endmacro %}
+
+<div class="panel panel-obecnosci">
+  <h3>Ostatnie wpisy obecności / nieobecności (30 dni)</h3>
+  {% if recent_absences and recent_absences|length > 0 %}
+    <table class="table table-small">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Pracownik</th>
+          <th>Typ</th>
+          <th>Godziny</th>
+          <th>Komentarz</th>
+          <th>Akcje</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recent_absences %}
+          <tr>
+            <td>{{ fmt_date(r.data) }}</td>
+            <td>{{ r.pracownik }}</td>
+            <td>{{ r.typ }}</td>
+            <td>{{ r.godziny }}</td>
+            <td>{{ r.komentarz }}</td>
+            <td>
+              <form method="post" action="{{ url_for('leaves.usun_obecnosc', id=r.id) }}" style="display:inline">
+                <button class="btn btn-link btn-sm" type="submit">Usuń</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Brak wpisów za ostatnie 30 dni.</p>
+  {% endif %}
+</div>
