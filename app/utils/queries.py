@@ -124,7 +124,7 @@ class QueryHelper:
                 "SELECT p.id, p.produkt, p.tonaz, "
                 "p.status, p.real_start, p.real_stop, "
                 "TIMESTAMPDIFF(MINUTE, p.real_start, p.real_stop), p.tonaz_rzeczywisty, p.kolejnosc, "
-                "p.typ_produkcji, p.wyjasnienie_rozbieznosci "
+                "p.typ_produkcji, p.wyjasnienie_rozbieznosci, COALESCE(p.uszkodzone_worki, 0) "
                 "FROM plan_produkcji p "
                 "WHERE DATE(p.data_planu) = %s AND LOWER(p.sekcja) = LOWER(%s) AND p.status != 'nieoplacone' AND p.is_deleted = 0 "
                 "  AND EXISTS ( "
@@ -142,10 +142,11 @@ class QueryHelper:
             # For other sections: show all plans (no szarża filter)
             # Plan (p[2]) = tonaz (plan value)
             # Realizacja (p[7]) = tonaz_rzeczywisty (actual realized)
+            # p[11] = uszkodzone_worki (damaged bags)
             cursor.execute(
                 "SELECT id, produkt, tonaz, status, real_start, real_stop, "
                 "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
-                "typ_produkcji, wyjasnienie_rozbieznosci "
+                "typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0) "
                 "FROM plan_produkcji "
                 "WHERE DATE(data_planu) = %s AND LOWER(sekcja) = LOWER(%s) AND status != 'nieoplacone' AND is_deleted = 0 "
                 "ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, "
