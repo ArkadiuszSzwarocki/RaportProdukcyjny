@@ -16,10 +16,10 @@ leaves_bp = Blueprint('leaves', __name__)
 def bezpieczny_powrot():
     """Return to appropriate view based on user role and context."""
     if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
-        data = request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+        data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
         return url_for('planista.panel_planisty', data=data)
     sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
-    data = request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+    data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
     return url_for('index', sekcja=sekcja, data=data)
 
 # =============== WNIOSKI O WOLNE ================

@@ -63,10 +63,11 @@ def panel_planisty():
 
     wybrana_data = request.args.get('data', str(date.today()))
 
+    # Include both Zasyp and Czyszczenie entries so planner sees cleaning slots
     cursor.execute("""
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci 
         FROM plan_produkcji 
-        WHERE data_planu = %s AND LOWER(sekcja) = 'zasyp'
+        WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
         ORDER BY kolejnosc
     """, (wybrana_data,))
     
@@ -83,31 +84,36 @@ def panel_planisty():
     for p in plany_list:
         waga_plan = p[3] if p[3] else 0
         typ_prod = p[9]
-        
+
         # 1. OBLICZANIE CZASU (Waga / Norma * 60 min)
-        norma = calculate_kg_per_hour(typ_prod)  # Load from config JSON
-        czas_trwania_min = int((waga_plan / norma) * 60)
-        
+        norma = calculate_kg_per_hour(typ_prod) if typ_prod else calculate_kg_per_hour('bigbag')
+        czas_trwania_min = int((waga_plan / norma) * 60) if norma > 0 else 0
+
         # Dodajemy obliczony czas do listy p (index 11)
-        p.append(czas_trwania_min) 
-        
-        suma_plan += waga_plan
-        suma_minut_plan += czas_trwania_min
+        p.append(czas_trwania_min)
+
+        # Jeśli to nie jest wpis "Czyszczenie", wliczamy do planu wydajnościowego
+        sekcja = (p[1] or '').lower()
+        if sekcja != 'czyszczenie':
+            suma_plan += waga_plan
+            suma_minut_plan += czas_trwania_min
 
         # 2. POBIERANIE WYKONANIA
         # Dla planów Zasyp: oblicz z szarży (rzeczywistych wpisów)
         # Dla planów innych sekcji: pobierz z planów Workowania/Magazynu
+        # For cleaning entries there are no szarze; skip calculation of wykonanie
         plan_id = p[0]
-        cursor.execute("SELECT SUM(waga) FROM szarze WHERE plan_id = %s", (plan_id,))
-        szarze_result = cursor.fetchone()
-        wykonanie_rzeczywiste = szarze_result[0] if szarze_result and szarze_result[0] else 0
-        
-        # Fallback: jeśli nie ma szarży, użyj tonaz_rzeczywisty z bazy
-        if wykonanie_rzeczywiste == 0:
-            wykonanie_rzeczywiste = p[8] if p[8] else 0
-        
-        p[8] = wykonanie_rzeczywiste
-        suma_wyk += wykonanie_rzeczywiste
+        sekcja = (p[1] or '').lower()
+        wykonanie_rzeczywiste = 0
+        if sekcja != 'czyszczenie':
+            cursor.execute("SELECT SUM(waga) FROM szarze WHERE plan_id = %s", (plan_id,))
+            szarze_result = cursor.fetchone()
+            wykonanie_rzeczywiste = szarze_result[0] if szarze_result and szarze_result[0] else 0
+            # Fallback: jeśli nie ma szarży, użyj tonaz_rzeczywisty z bazy
+            if wykonanie_rzeczywiste == 0:
+                wykonanie_rzeczywiste = p[8] if p[8] else 0
+            p[8] = wykonanie_rzeczywiste
+            suma_wyk += wykonanie_rzeczywiste
 
         # 3. POBIERANIE PALET
         cursor.execute("""
@@ -159,6 +165,52 @@ def panel_planisty():
                            procent_czasu=procent_czasu,     # Przekazujemy % zajętości zmiany
                            quality_count=quality_count,
                            quality_orders=quality_orders)
+
+
+@planista_bp.route('/planista/add_czyszczenie', methods=['POST'])
+@roles_required('planista', 'zarzad', 'lider', 'admin')
+def add_czyszczenie():
+    """Dodaj wpis "Czyszczenie" do plan_produkcji na konkretną datę i pozycję (kolejnosc)."""
+    from flask import request, redirect, url_for, current_app
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        data_planu = request.form.get('data_planu') or (request.json.get('data_planu') if request.json else None)
+        tonaz = request.form.get('tonaz') or (request.json.get('tonaz') if request.json else None)
+        kolejnosc = request.form.get('kolejnosc') or (request.json.get('kolejnosc') if request.json else None)
+        try:
+            tonaz_val = float(str(tonaz).replace(',', '.')) if tonaz is not None and tonaz != '' else 0
+        except Exception:
+            tonaz_val = 0
+        try:
+            kolejnosc_val = int(kolejnosc) if kolejnosc is not None and kolejnosc != '' else None
+        except Exception:
+            kolejnosc_val = None
+
+        if not data_planu:
+            return ("data_planu required", 400)
+
+        # If kolejnosc specified, shift existing entries to make room
+        if kolejnosc_val is not None:
+            cursor.execute("UPDATE plan_produkcji SET kolejnosc = kolejnosc + 1 WHERE data_planu = %s AND kolejnosc >= %s", (data_planu, kolejnosc_val))
+
+        insert_sql = ("INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_zlecenia) "
+                      "VALUES (%s, %s, %s, %s, %s, %s, %s)")
+        cursor.execute(insert_sql, (data_planu, 'Czyszczenie', 'Czyszczenie', tonaz_val, 'zaplanowane', kolejnosc_val or 9999, 'jakosc'))
+        conn.commit()
+        return redirect(url_for('planista.panel_planisty', data=data_planu))
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        current_app.logger.exception('Error adding czyszczenie: %s', e)
+        return (str(e), 500)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @planista_bp.route('/bufor', methods=['GET'])

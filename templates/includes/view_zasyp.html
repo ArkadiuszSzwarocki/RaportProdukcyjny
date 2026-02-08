@@ -22,7 +22,7 @@
 
                 <div class="text-right">
                     <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm('Czy na pewno ZAKOŃCZYĆ to zlecenie?');">
-                        <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                        <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                         <button type="submit" class="btn-stop">■ ZAKOŃCZ ZLECENIE</button>
                     </form>
                 </div>
@@ -64,15 +64,15 @@
                     <span class="fs-110 font-bold">{{ p[1] }}</span> | Plan: {{ p[2] }} kg
                     
                         {% if p[3] == 'zakonczone' %}
-                        <span class="text-success ml-5">✅ Wyk: <strong>{{ p[7] }} kg</strong>
-                        {% if p|length > 15 and p[15] %}<span style="display: inline-block; margin-left: 8px; background: #4CAF50; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">⏺️ {{ p[15] }} szarż</span>{% endif %}
-                        </span>
-                        {% elif p[3] == 'zaplanowane' %}
-                        <!-- For planned orders, also show szarža count if available -->
-                        {% if p|length > 15 and p[15] %}<span style="display: inline-block; margin-left: 8px; background: #4CAF50; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">⏺️ {{ p[15] }} szarż</span>{% endif %}
+                        <span class="text-success ml-5">✅ Wyk: <strong>{{ p[7] }} kg</strong></span>
+                        {% if p|length > 15 and p[15] %}
+                            <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
+                                ⏺️ {{ p[15] }} szarż ▼
+                            </button>
+                        {% endif %}
                         {% if rola in ['lider', 'admin', 'produkcja'] %}
                             <form action="/zapisz_tonaz/{{ p[0] }}" method="POST" class="inline-form">
-                                <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                                <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                                 <input type="number" step="0.01" name="tonaz_rzeczywisty" placeholder="Waga (kg)" aria-label="Waga rzeczywista (kg)" value="{{ p[7] if p[7] else '' }}" class="input-sm w-60">
                                 <button type="submit" class="btn-icon" title="Zapisz" aria-label="Zapisz">💾</button>
                             </form>
@@ -84,7 +84,7 @@
                 <div>
                     {% if p[3] == 'zaplanowane' and rola != 'planista' %}
                         <form action="/start_zlecenie/{{ p[0] }}" method="POST" class="inline-form">
-                            <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                            <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                             <button type="submit" class="btn-start">▶ START</button>
                         </form>
                     {% endif %}
@@ -101,9 +101,46 @@
         </div>
     {% if aktywne %}</details>{% endif %}
 
+    <!-- Szczegóły szarż (ukryty wiersz) -->
+    {% if plan and palety_mapa %}
+        {% for p in plan if p[3] != 'w toku' and palety_mapa[p[0]] %}
+        <div id="details-{{ p[0] }}" class="details-row">
+            <table class="modern-table small modern-table-full-width">
+                <thead>
+                    <tr>
+                        <th>{{ _('nr') }}</th>
+                        <th>🕒 Godzina</th>
+                        <th>Typ</th>
+                        <th>{{ _('waga') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pal in palety_mapa[p[0]] %}
+                    <tr>
+                        <td class="text-muted font-bold">{{ loop.index }}</td>
+                        <td class="time-display"><span>{{ pal[1] }}</span></td>
+                        <td><span class="badge-sekcja">{{ pal[4]|upper }}</span></td>
+                        <td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+<script>
+    function toggleDetails(id) {
+        var row = document.getElementById('details-' + id);
+        if (!row) return;
+        var isHidden = row.style.display === 'none';
+        row.style.display = isHidden ? 'block' : 'none';
+    }
+</script>
+
     {% if plan and rola != 'planista' and not aktywne %}
         <form action="/start_przejscie" method="POST" onsubmit="return confirm('Rozpocząć PRZEJŚCIE?');">
-            <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+            <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
             <button type="submit" class="btn-changeover">🔁 ZACZNIJ PRZEJŚCIE</button>
         </form>
     {% endif %}

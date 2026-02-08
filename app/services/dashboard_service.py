@@ -298,7 +298,7 @@ class DashboardService:
                          AND DATE(s.data_dodania) = DATE(p.data_planu)
                          AND pr.produkt = p.produkt
                    )
-                   ORDER BY CASE p.status WHEN 'w toko' THEN 1 ELSE 2 END, 
+                   ORDER BY CASE p.status WHEN 'w toku' THEN 1 ELSE 2 END, 
                    p.kolejnosc ASC, p.id ASC""",
                 (dzisiaj,)
             )
@@ -373,6 +373,133 @@ class DashboardService:
             ))
         
         return palety
+
+    @staticmethod
+    def any_plan_in_progress(dzisiaj: date) -> bool:
+        """Return True if any production plan for the given date has status 'w toku'."""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM plan_produkcji WHERE DATE(data_planu) = %s AND status = 'w toku'", (dzisiaj,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            return bool(row and row[0])
+        except Exception:
+            return False
+
+    @staticmethod
+    def get_active_products(dzisiaj: date) -> List[str]:
+        """Return list of product names that have a plan with status 'w toku' for the date."""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT produkt FROM plan_produkcji WHERE DATE(data_planu) = %s AND status = 'w toku'", (dzisiaj,))
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            return [r[0] for r in rows if r and r[0]]
+        except Exception:
+            return []
+
+    @staticmethod
+    def get_buffer_queue(dzisiaj: date) -> Dict[str, List[int]]:
+        """Build a buffer queue mapping product -> ordered list of Zasyp plan ids.
+
+        Order is by status (w toku first), then kolejnosc, then id to reproduce UI ordering.
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            # Include completed Zasyp plans too and order by completion/ start time
+            cursor.execute(
+                """SELECT id, produkt, COALESCE(p.real_stop, p.real_start, p.kolejnosc, p.id) as ord
+                   FROM plan_produkcji p
+                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp' AND p.is_deleted = 0
+                   AND p.status IN ('w toku', 'zaplanowane', 'zakonczone')
+                   ORDER BY ord ASC, p.kolejnosc ASC, p.id ASC""",
+                (dzisiaj,)
+            )
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            queue: Dict[str, List[int]] = {}
+            for r in rows:
+                if not r or len(r) < 2:
+                    continue
+                pid = r[0]
+                prod = r[1]
+                if prod not in queue:
+                    queue[prod] = []
+                queue[prod].append(pid)
+            return queue
+        except Exception:
+            return {}
+
+    @staticmethod
+    def get_first_workowanie_map(dzisiaj: date) -> Dict[str, int]:
+        """Return a map product -> first Workowanie plan id (by status then kolejnosc).
+
+        This determines which Workowanie plan should be started first per product.
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """SELECT id, produkt FROM plan_produkcji p
+                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' AND p.is_deleted = 0
+                   AND p.status IN ('w toku', 'zaplanowane')
+                   ORDER BY CASE p.status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, p.kolejnosc ASC, p.id ASC""",
+                (dzisiaj,)
+            )
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            first_map: Dict[str, int] = {}
+            for r in rows:
+                if not r or len(r) < 2:
+                    continue
+                pid = r[0]
+                prod = r[1]
+                if prod not in first_map:
+                    first_map[prod] = pid
+            return first_map
+        except Exception:
+            return {}
+
+    @staticmethod
+    def get_zasyp_product_order(dzisiaj: date) -> Dict[str, int]:
+        """Return a numbering (1-based) for products according to Zasyp execution order.
+
+        Orders all Zasyp plans for the day by completion/start time and assigns the first
+        occurrence of each product an incremental position.
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """SELECT produkt, COALESCE(p.real_stop, p.real_start, p.kolejnosc, p.id) as ord
+                   FROM plan_produkcji p
+                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp' AND p.is_deleted = 0
+                   AND p.status IN ('w toku', 'zaplanowane', 'zakonczone')
+                   ORDER BY ord ASC, p.kolejnosc ASC, p.id ASC""",
+                (dzisiaj,)
+            )
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            order_map: Dict[str, int] = {}
+            pos = 1
+            for r in rows:
+                if not r or len(r) < 1:
+                    continue
+                prod = r[0]
+                if prod not in order_map:
+                    order_map[prod] = pos
+                    pos += 1
+            return order_map
+        except Exception:
+            return {}
 
     @staticmethod
     def get_hr_and_leave_data(dzisiaj: date, wszyscy: List, zajeci_ids: set) -> Dict[str, Any]:

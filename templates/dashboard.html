@@ -1,4 +1,5 @@
 {% extends "layout.html" %}
+{% import "_macros.html" as macros %}
 
 {% block content %}
 <!-- modalOverlay removed (mechanizm popup wyłączony) -->
@@ -234,10 +235,20 @@
                     {% if rola in ['lider', 'admin', 'pracownik'] and sekcja != 'Magazyn' %}
                         {% if p[3] == 'zaplanowane' %}
                             <div class="d-flex gap-5 justify-end">
-                                {% if ns.is_active %}
-                                    <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
+                                {% set product_active = (active_products is defined and active_products and p[1] in active_products) %}
+                                {% if sekcja == 'Workowanie' %}
+                                    {% set allowed = (allowed_work_start_ids is defined and (p[0] in allowed_work_start_ids)) %}
+                                    {% if allowed and not product_active %}
+                                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>
+                                    {% else %}
+                                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
+                                    {% endif %}
                                 {% else %}
-                                    <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>
+                                    {% if product_active %}
+                                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
+                                    {% else %}
+                                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>
+                                    {% endif %}
                                 {% endif %}
                                 {% if rola in ['planista', 'admin', 'lider'] and sekcja not in ['Workowanie', 'Zasyp'] %}
                                     <button type="button" class="btn-delete inline-form delete-plan-btn" aria-label="Usuń plan" data-plan-id="{{ p[0] }}" data-plan-date="{{ dzisiaj }}" data-plan-name="{{ p[1] }}">🗑</button>
@@ -247,18 +258,17 @@
                             <div class="d-flex gap-5 justify-end">
                                 {% if sekcja == 'Workowanie' %}
                                     <div class="paleta-inline-wrapper paleta-inline">
-                                            {% set buffer_id = buffer_map.get(p[1]) if buffer_map is defined else None %}
-                                            {% if not buffer_id %}
-                                                {% set buffer_id = p[0] %}
-                                            {% endif %}
+                                            {% set buffer_id = macros.scalar_first(buffer_map.get(p[1]) if buffer_map is defined else None, p[0]) %}
                                             {% if p[9] == 'bigbag' %}
                                             <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
                                         {% else %}
                                             <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=buffer_id) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                                         {% endif %}
                                     </div>
+                                    <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% elif sekcja == 'Zasyp' %}
                                     <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
+                                    <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% else %}
                                     <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% endif %}
@@ -269,11 +279,10 @@
                             {% endif %}
                         {% elif p[3] == 'zakonczone' %}
                                     <div class="d-flex align-center justify-end gap-10">
-                                <span class="material-icons text-success">check_circle</span>
-                                    {% if sekcja == 'Zasyp' and p[13] and not p[10] %}
-                                    <a href="{{ url_for('production.wyjasnij_page', id=p[0]) }}" class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</a>
-                                    <!-- Wyjaśnienie modal (slide-over) -->
-                                    {% endif %}
+                                            {% if sekcja == 'Zasyp' and p[13] and not p[10] %}
+                                            <a href="{{ url_for('production.wyjasnij_page', id=p[0]) }}" class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</a>
+                                            <!-- Wyjaśnienie modal (slide-over) -->
+                                            {% endif %}
                                 {% if rola in ['lider', 'admin'] %}
                                 <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" class="inline-form" onsubmit="return confirm('Wznowić {{ p[1] }}?');"><button type="submit" class="btn-action btn-outline-warning btn-icon" title="Wznowić zlecenie"><span class="material-icons">replay</span></button></form>
                                 {% endif %}
@@ -1005,12 +1014,12 @@ function deletePlan(id, data){
     console.log('✅ [9] User confirmed, preparing fetch...');
     const url = '/api/usun_plan_ajax/' + id;
     console.log('📡 [10] Fetch URL:', url);
-    console.log('📦 [11] Fetch body:', JSON.stringify({data_powrotu: data}));
+    console.log('📦 [11] Fetch body:', JSON.stringify({data_planu: data}));
     
     fetch(url, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({data_powrotu: data})
+        body: JSON.stringify({data_planu: data})
     })
     .then(function(r){ 
         console.log('📡 [12] Response status:', r.status, 'statusText:', r.statusText);

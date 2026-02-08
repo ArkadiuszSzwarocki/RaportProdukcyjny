@@ -547,10 +547,29 @@ button[type="submit"]:hover {
 }
 
 .btn-icon {
-    background: transparent;
+    background: rgba(0,0,0,0.00);
     border: none;
     padding: 6px;
     cursor: pointer;
+    color: var(--primary-color);
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.14s ease, transform 0.08s ease;
+}
+.btn-icon:hover {
+    background: rgba(0,0,0,0.03);
+    transform: translateY(-2px);
+}
+
+/* Keep top-bar icons white for contrast on dark header */
+.top-bar .btn-icon {
+    color: white;
+    background: rgba(255,255,255,0.03);
+}
+.top-bar .btn-icon:hover {
+    background: rgba(255,255,255,0.08);
 }
 
 .btn-toggle {

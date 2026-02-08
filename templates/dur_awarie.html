@@ -1133,7 +1133,7 @@ document.querySelectorAll('.add-comment-form').forEach(form => {
       const formData = new FormData();
       formData.append('komentarz', komentarz);
       
-      const endpoint = `{{ url_for('dur_zatwierdz_awarię', awaria_id=0) }}`.replace('/0', '/' + awaria_id);
+      const endpoint = `{{ url_for('quality.dur_zatwierdz_awarię', awaria_id=0) }}`.replace('/0', '/' + awaria_id);
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -1175,7 +1175,7 @@ document.querySelectorAll('.status-select-header').forEach(select => {
       const formData = new FormData();
       formData.append('status', nowy_status);
       
-      const endpoint = `{{ url_for('dur_zatwierdz_awarię', awaria_id=0) }}`.replace('/0', '/' + awaria_id);
+      const endpoint = `{{ url_for('quality.dur_zatwierdz_awarię', awaria_id=0) }}`.replace('/0', '/' + awaria_id);
       
       const response = await fetch(endpoint, {
         method: 'POST',

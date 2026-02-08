@@ -87,6 +87,8 @@
             </div>
         </form>
 
+        {% set has_times = times_config.get('processing_times_minutes') and times_config.get('processing_times_minutes')|length > 0 %}
+        {% if not has_times %}
         <div class="alert alert-secondary mt-20">
             <strong>📋 Legenda:</strong>
             <ul>
@@ -95,6 +97,7 @@
                 <li><strong>Worki zszywane 20/25 kg:</strong> 1000 kg w {{ times_config.get('processing_times_minutes', {}).get('worki_zszywane_20', {}).get('processing_time_minutes', 30) }} minut</li>
             </ul>
         </div>
+        {% endif %}
     </div>
 </div>
 
@@ -247,15 +250,29 @@
         return tr;
     }
 
-    btnAdd.addEventListener('click', function(e) {
+        btnAdd.addEventListener('click', function(e) {
         e.preventDefault();
         tbody.appendChild(createNewRow());
     });
 
+    // Przy usuwaniu istniejących wierszy oznaczamy je do usunięcia
     tbody.querySelectorAll('.btn-delete-timing').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
-            btn.closest('tr').remove();
+            const tr = btn.closest('tr');
+            const key = tr.getAttribute('data-type-key') || '';
+            if (key.startsWith('new_')) {
+                // dla nowych, po prostu usuń z DOM
+                tr.remove();
+            } else {
+                // dla istniejących oznacz pole do usunięcia i ukryj wiersz
+                let hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = key + '_deleted';
+                hidden.value = '1';
+                tr.appendChild(hidden);
+                tr.style.display = 'none';
+            }
         });
     });
 })();

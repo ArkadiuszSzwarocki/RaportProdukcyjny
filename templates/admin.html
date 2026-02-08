@@ -130,7 +130,7 @@
                             <span class="material-icons">edit</span>
                         </a>
                         <form action="{{ url_for('planning.usun_plan', id=z.id) }}" method="POST" onsubmit="return confirm('Czy na pewno usunąć to zlecenie? Operacja jest nieodwracalna.');">
-                            <input type="hidden" name="data_powrotu" value="{{ z.data_planu }}">
+                            <input type="hidden" name="data_planu" value="{{ z.data_planu }}">
                             <button type="submit" class="btn-icon btn-delete" title="{{ _('usun') }}" aria-label="Usuń zlecenie">
                                 <span class="material-icons">delete</span>
                             </button>

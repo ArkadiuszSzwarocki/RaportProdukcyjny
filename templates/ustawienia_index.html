@@ -37,7 +37,7 @@
         </div>
     </div>
 
-    <div class="test-report-modal" id="testReportModal" style="display: none;">
+    <div class="test-report-modal" id="testReportModal">
         <div class="test-report-backdrop" id="testReportBackdrop"></div>
         <div class="test-report-content">
             <div class="test-report-header">
@@ -64,10 +64,11 @@
 
     <style>
         .test-report-modal {
-            position: fixed;
-            inset: 0;
-            z-index: 12050;
-        }
+                position: fixed;
+                inset: 0;
+                z-index: 12050;
+                display: none; /* domyślnie zamknięte */
+            }
 
         .test-report-backdrop {
             position: absolute;
@@ -223,6 +224,9 @@
             btnOpen.addEventListener('click', showModal);
             btnClose.addEventListener('click', closeModal);
             backdrop.addEventListener('click', closeModal);
+
+            // Upewnij się, że modal jest zamknięty przy wejściu na stronę
+            closeModal();
 
             btnGenerate.addEventListener('click', async function() {
                 const date = dateInput.value;

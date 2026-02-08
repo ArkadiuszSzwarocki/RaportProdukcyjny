@@ -129,8 +129,8 @@
                     if (!a) return;
                     const href = a.getAttribute('href') || '';
                     if (!href || href.indexOf('http') === 0 || href.indexOf('javascript:') === 0) return;
-                    // Only handle internal /panel/ routes or direct api partials (obsada)
-                    if (href.indexOf('/panel/') !== 0 && href.indexOf('/api/obsada_page') !== 0) return;
+                    // Only handle internal /panel/ routes or obsada partials
+                    if (href.indexOf('/panel/') !== 0 && href.indexOf('/obsada_page') !== 0) return;
                     ev.preventDefault(); ev.stopPropagation();
                     // fetch the page and replace main content
                     (async function(){
@@ -141,7 +141,7 @@
                                 // preserve sekcja query if present
                                 const u = new URL(href, window.location.origin);
                                 const sekcja = u.searchParams.get('sekcja') || 'Workowanie';
-                                fetchUrl = '/api/obsada_page?sekcja=' + encodeURIComponent(sekcja);
+                                fetchUrl = '/obsada_page?sekcja=' + encodeURIComponent(sekcja);
                             }
                             const resp = await fetch(fetchUrl, { credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} });
                             if (!resp.ok) { window.location.href = href; return; }

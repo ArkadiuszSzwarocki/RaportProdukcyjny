@@ -1,10 +1,21 @@
 import os
+from pathlib import Path
 
 # Opóźnione importy ciężkich zależności (pandas, fpdf)
 
-# Upewniamy się, że folder istnieje
-if not os.path.exists('raporty'):
-    os.makedirs('raporty')
+# Upewniamy się, że folder istnieje (relatywnie do katalogu repo)
+base_dir = Path(__file__).resolve().parent.parent
+RAPORTY_PATH = str(base_dir / 'raporty')
+try:
+    Path(RAPORTY_PATH).mkdir(parents=True, exist_ok=True)
+except PermissionError:
+    # Nie przerywamy importu aplikacji z powodu braku uprawnień do utworzenia katalogu.
+    # Logowanie jest bezpieczne jeśli moduł logging jest dostępny.
+    try:
+        import logging
+        logging.getLogger(__name__).warning("Nie udało się utworzyć katalogu 'raporty' (brak uprawnień)")
+    except Exception:
+        pass
 
 def format_godziny(wartosc):
     """Pomocnik do formatowania czasu"""
@@ -49,7 +60,7 @@ def polskie_znaki_pdf(text):
 def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows):
     """Generuje plik Excel i zwraca jego nazwę"""
     nazwa_excel = f"Raport_{dzisiaj}.xlsx"
-    sciezka = os.path.join('raporty', nazwa_excel)
+    sciezka = os.path.join(RAPORTY_PATH, nazwa_excel)
     # importujemy pandas tylko podczas generowania excela (unikamy ciężkiego importu przy starcie aplikacji)
     import pandas as pd
 
@@ -64,12 +75,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
     """Generuje plik PDF z tabelami"""
     nazwa_pdf = f"Raport_{dzisiaj}.pdf"
     
-    # Ensure raporty directory exists
-    import os
-    if not os.path.exists('raporty'):
-        os.makedirs('raporty')
-    
-    sciezka = os.path.join('raporty', nazwa_pdf)
+    sciezka = os.path.join(RAPORTY_PATH, nazwa_pdf)
     print(f"[RAPORTY.generuj_pdf] START: dzisiaj={dzisiaj}, sciezka={sciezka}")
     # importujemy FPDF tylko podczas generowania PDF (unikamy importu przy starcie aplikacji)
     from fpdf import FPDF

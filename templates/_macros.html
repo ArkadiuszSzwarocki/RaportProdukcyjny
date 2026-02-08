@@ -1,0 +1,11 @@
+{% macro scalar_first(raw, default=None) -%}
+{%- if raw is none -%}
+    {{ default }}
+{%- elif raw is string -%}
+    {{ raw }}
+{%- elif raw is sequence -%}
+    {{ raw[0] if raw|length > 0 else default }}
+{%- else -%}
+    {{ raw }}
+{%- endif -%}
+{%- endmacro %}

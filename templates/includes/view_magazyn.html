@@ -60,7 +60,7 @@ function editPalet(id, waga){
         fetch('/api/edytuj_palete_ajax', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id: id, waga: newWaga, data_powrotu: '{{ dzisiaj }}'})
+            body: JSON.stringify({id: id, waga: newWaga, data_planu: '{{ dzisiaj }}'})
         })
         .then(r => r.json())
         .then(j => {
@@ -78,7 +78,7 @@ function deletePalet(id, data){
     fetch('/api/usun_palete_ajax', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({id: id, data_powrotu: data})
+        body: JSON.stringify({id: id, data_planu: data})
     })
     .then(r => r.json())
     .then(j => {

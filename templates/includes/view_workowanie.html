@@ -76,12 +76,12 @@
 
                     <div class="d-flex gap-10">
                         <form action="/cofnij_palete/{{ p[0] }}" method="POST" class="flex-1" data-confirm-msg="{{ _("cofnac_palete") }}">
-                            <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                            <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                             <button type="submit" class="btn-action btn-warning">↩ {{ _('cofnij') }}</button>
                         </form>
 
                         <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" class="flex-1" data-confirm-msg="{{ _('zakonczyc_zlecenie') }}">
-                            <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                            <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                             <button type="submit" class="btn-stop" aria-label="{{ _('zakonczy') }}">■ {{ _('zakonczy') }}</button>
                         </form>
                     </div>
@@ -104,19 +104,19 @@
                 {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">{{ _('zamkniete') }}</span>{% endif %}
                 
                     <span class="font-bold">{{ p[1] }}</span> ({{ p[2]|int }} kg)
-                    {% if p[3] == 'zakonczone' %} 
-                        - {{ _('wyk') }}: <strong>{{ p[7]|int }} kg</strong>
-                        {% if p|length > 15 and p[15] %}<span style="display: inline-block; margin-left: 10px; padding: 4px 8px; background: #2196F3; color: white; border-radius: 4px; font-size: 0.9em;">📦 {{ p[15] }} palet</span>{% endif %}
-                    {% elif p[3] == 'zaplanowane' %}
-                    <!-- For planned orders, also show paleta count if available -->
-                        {% if p|length > 15 and p[15] %}<span style="display: inline-block; margin-left: 10px; padding: 4px 8px; background: #2196F3; color: white; border-radius: 4px; font-size: 0.9em;">📦 {{ p[15] }} palet</span>{% endif %}
+                {% if p[3] == 'zakonczone' %} - {{ _('wyk') }}: <strong>{{ p[7]|int }} kg</strong>
+                    {% if p|length > 15 and p[15] %}
+                    <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
+                        📦 {{ p[15] }} palet ▼
+                    </button>
                     {% endif %}
+                {% endif %}
             </div>
             
             <div>
                 {% if p[3] == 'zaplanowane' %}
                     <form action="/start_zlecenia/{{ p[0] }}" method="POST">
-                        <input type="hidden" name="data_powrotu" value="{{ dzisiaj }}">
+                        <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                         <button type="submit" class="btn-start btn-small" {% if p[7] <= 0 %}disabled{% endif %} aria-label="{{ _('start') }}">▶ {{ _('start') }}</button>
                     </form>
                 {% endif %}
@@ -134,6 +134,55 @@
         </div>
         {% endfor %}
     {% endif %}
+    
+    <!-- Szczegóły palet (ukryty wiersz) -->
+    {% if plan and palety_mapa %}
+        {% for p in plan if p[3] != 'w toku' and palety_mapa[p[0]] %}
+        <div id="details-{{ p[0] }}" class="details-row details-row-hidden">
+            <table class="modern-table small">
+                <thead>
+                    <tr>
+                        <th>{{ _('nr') }}</th>
+                        <th>🕒 {{ _('czas') }}</th>
+                        <th>👤 Status</th>
+                        <th>⚖️ {{ _('waga') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pal in palety_mapa[p[0]] %}
+                    <tr>
+                        <td class="text-muted font-bold">{{ loop.index }}</td>
+                        <td class="time-display"><span>{{ pal[1] }}</span></td>
+                        <td>
+                            {% if pal[7] and pal[7] != '' %}
+                                {% if pal[7] == 'do_przyjecia' %}
+                                    <span class="badge badge-warning">🔄 Do przyjęcia</span>
+                                {% elif pal[7] == 'przyjeta' %}
+                                    <span class="badge badge-success">✅ Przyjęta</span>
+                                {% elif pal[7] == 'zamknieta' %}
+                                    <span class="badge badge-secondary">🔒 Zamknięta</span>
+                                {% else %}
+                                    <span class="badge">{{ pal[7] }}</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    {% endif %}
+    
+<script>
+    function toggleDetails(id) {
+        var row = document.getElementById('details-' + id);
+        if (!row) return;
+        var isHidden = row.style.display === 'none';
+        row.style.display = isHidden ? 'block' : 'none';
+    }
+</script>
     
     {% if rola in ['planista', 'admin', 'lider'] %}
     <hr class="custom-hr">
@@ -173,7 +222,7 @@ function deletePlan(id, data){
     fetch('/api/usun_plan_ajax/' + id, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({data_powrotu: data})
+        body: JSON.stringify({data_planu: data})
     })
     .then(function(r){ return r.json().catch(function(){ return {success:false}; }); })
     .then(function(j){

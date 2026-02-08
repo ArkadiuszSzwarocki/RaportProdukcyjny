@@ -609,16 +609,29 @@ def admin_usun_konto(id):
 def admin_workowanie_times():
     """Wyświetl ustawienia czasów przetwarzania dla Workowania"""
     import os, json
-    cfg_path = os.path.join(current_app.root_path, 'config', 'workowanie_processing_times.json')
+    # Try multiple likely locations for the config file to be robust across deployments
+    possible_paths = []
+    possible_paths.append(os.path.join(current_app.root_path, 'config', 'workowanie_processing_times.json'))
+    # project root may be one level up from current_app.root_path depending on packaging
+    possible_paths.append(os.path.join(os.path.dirname(current_app.root_path), 'config', 'workowanie_processing_times.json'))
+    # fallback to repository root (two levels up from app package)
+    possible_paths.append(os.path.join(os.path.dirname(os.path.dirname(current_app.root_path)), 'config', 'workowanie_processing_times.json'))
+
     times_config = {}
-    try:
-        if os.path.exists(cfg_path):
-            with open(cfg_path, 'r', encoding='utf-8') as f:
-                times_config = json.load(f)
-        else:
-            times_config = {"processing_times_minutes": {}}
-    except Exception as e:
-        current_app.logger.error(f'Error loading workowanie_processing_times.json: {e}')
+    loaded = False
+    for cfg_path in possible_paths:
+        try:
+            if os.path.exists(cfg_path):
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    times_config = json.load(f)
+                    loaded = True
+                    current_app.logger.info(f'Loaded workowanie_processing_times.json from {cfg_path}')
+                    break
+        except Exception as e:
+            current_app.logger.debug(f'Failed to read {cfg_path}: {e}')
+
+    if not loaded:
+        current_app.logger.error('workowanie_processing_times.json not found in any expected location; using empty defaults')
         times_config = {"processing_times_minutes": {}}
     
     return render_template('ustawienia_workowanie_times.html', times_config=times_config)
@@ -630,19 +643,44 @@ def admin_workowanie_times_update():
     """Zaktualizuj czasy przetwarzania dla Workowania"""
     import os, json, shutil, re
     from datetime import datetime
-    cfg_path = os.path.join(current_app.root_path, 'config', 'workowanie_processing_times.json')
-    
+    # Use same multi-path lookup as admin_workowanie_times to find existing config location
+    possible_paths = []
+    possible_paths.append(os.path.join(current_app.root_path, 'config', 'workowanie_processing_times.json'))
+    possible_paths.append(os.path.join(os.path.dirname(current_app.root_path), 'config', 'workowanie_processing_times.json'))
+    possible_paths.append(os.path.join(os.path.dirname(os.path.dirname(current_app.root_path)), 'config', 'workowanie_processing_times.json'))
+
+    cfg_path = None
+    for p in possible_paths:
+        try:
+            if os.path.exists(p):
+                cfg_path = p
+                break
+        except Exception:
+            continue
+
+    # If not found, choose fallback location in repository-level config (one level up from package)
+    if not cfg_path:
+        fallback_dir = os.path.abspath(os.path.join(os.path.dirname(current_app.root_path), 'config'))
+        # if that doesn't exist, try two levels up
+        if not os.path.isdir(fallback_dir):
+            fallback_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(current_app.root_path)), 'config'))
+        os.makedirs(fallback_dir, exist_ok=True)
+        cfg_path = os.path.join(fallback_dir, 'workowanie_processing_times.json')
+
     try:
         # Odczytaj aktualne ustawienia
         times_config = {}
         if os.path.exists(cfg_path):
             with open(cfg_path, 'r', encoding='utf-8') as f:
                 times_config = json.load(f)
-        
+
         # Utwórz backup
         if os.path.exists(cfg_path):
             backup_path = cfg_path + f'.backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
-            shutil.copy2(cfg_path, backup_path)
+            try:
+                shutil.copy2(cfg_path, backup_path)
+            except Exception:
+                current_app.logger.debug('Could not create backup of %s', cfg_path)
         
         # Zaktualizuj czasy na podstawie formularza
         processing_times = times_config.get("processing_times_minutes", {})
@@ -676,6 +714,15 @@ def admin_workowanie_times_update():
                     processing_times[key]["weight_kg"] = int(weight_kg)
                 except ValueError:
                     pass
+
+        # Obsługa usuwania: jeśli formularz zawiera pole <key>_deleted == '1', usuń ten wpis
+        for key in list(processing_times.keys()):
+            try:
+                if request.form.get(f"{key}_deleted") == '1':
+                    processing_times.pop(key, None)
+            except Exception:
+                # w razie problemu z kluczem, pomiń
+                continue
         
         # Przetwórz nowe wpisy (new_N_*)
         for field_name in request.form.keys():

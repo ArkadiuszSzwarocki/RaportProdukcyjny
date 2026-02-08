@@ -9,11 +9,11 @@ warehouse_bp = Blueprint('warehouse', __name__)
 def bezpieczny_powrot():
     """Default return path: planner view or dashboard"""
     if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
-        data = request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+        data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
         return url_for('planista.panel_planisty', data=data)
     
     sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
-    data = request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+    data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
     return url_for('main.index', sekcja=sekcja, data=data)
 
 

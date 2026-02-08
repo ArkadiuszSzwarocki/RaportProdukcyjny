@@ -100,6 +100,16 @@ def usun_plan(id):
     """Soft delete a plan - delegated to PlanningService."""
     success, message = PlanningService.delete_plan(id)
     flash(message, 'success' if success else 'warning')
+    # Redirect back to planista view preserving selected date when available
+    # Accept multiple possible field names coming from different templates
+    data_planu = (
+        request.form.get('data_planu')
+        or request.form.get('data_powrotu')
+        or request.args.get('data')
+        or request.args.get('data_powrotu')
+    )
+    if data_planu:
+        return redirect(url_for('planista.panel_planisty', data=data_planu))
     return redirect(bezpieczny_powrot())
 
 
@@ -242,17 +252,8 @@ def dodaj_plan():
                     "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
                     (tonaz, zasyp_plan_id)
                 )
-                
-                # Get updated tonaz_rzeczywisty from Zasyp plan
-                cursor.execute(
-                    "SELECT COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji WHERE id=%s",
-                    (zasyp_plan_id,)
-                )
-                result = cursor.fetchone()
-                zasyp_tonaz_rzeczywisty = result[0] if result else 0
-                
                 try:
-                    current_app.logger.warning(f'[DODAJ_PLAN] Added szarża to plan {zasyp_plan_id}, tonaz_rzeczywisty={zasyp_tonaz_rzeczywisty}')
+                    current_app.logger.warning(f'[DODAJ_PLAN] Added szarża to plan {zasyp_plan_id}')
                 except Exception:
                     pass
                 
@@ -272,21 +273,21 @@ def dodaj_plan():
                     
                     cursor.execute(
                         "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                        (data_planu, produkt, zasyp_tonaz_rzeczywisty, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
+                        (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
                     )
                     try:
-                        current_app.logger.info(f'[DODAJ_PLAN] Created new Workowanie plan for produkt={produkt} with tonaz={zasyp_tonaz_rzeczywisty}')
+                        current_app.logger.info(f'[DODAJ_PLAN] Created new Workowanie plan for produkt={produkt} when first szarża added')
                     except Exception:
                         pass
                 else:
-                    # Reset existing Workowanie plan to 'zaplanowane' and update tonaz to match Zasyp tonaz_rzeczywisty
+                    # Reset existing Workowanie plan to 'zaplanowane' and update tonaz (keep tonaz_rzeczywisty = waga palet)
                     cursor.execute(
                         "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s "
                         "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
-                        (zasyp_tonaz_rzeczywisty, data_planu, produkt, typ)
+                        (tonaz, data_planu, produkt, typ)
                     )
                     try:
-                        current_app.logger.info(f'[DODAJ_PLAN] Reset existing Workowanie plan with tonaz={zasyp_tonaz_rzeczywisty}')
+                        current_app.logger.info(f'[DODAJ_PLAN] Reset existing Workowanie plan status to zaplanowane for produkt={produkt}')
                     except Exception:
                         pass
                 
@@ -422,7 +423,7 @@ def dodaj_plany_batch():
                 nk += 1  # Increase sequence for Workowanie
                 cursor.execute(
                     "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk, typ, 0)
+                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk, typ, 0)
                 )
         conn.commit()
     except Exception as e:
@@ -801,81 +802,17 @@ def jakosc_dodaj_do_planow(id):
     cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk, typ, 0))
     zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
     
-    # NEW: Create corresponding Workowanie automatically with tonaz from Zasyp
+    # NEW: Create corresponding Workowanie automatically
     if zasyp_plan_id:
         nk_work = nk + 1
         cursor.execute(
             "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
+            (data_planu, produkt, 0, 'w toku', 'Workowanie', nk_work, typ, 0)
         )
     
     conn.commit()
     conn.close()
     flash('Zlecenie dodane do planów', 'success')
     return redirect(bezpieczny_powrot())
-
-
-@planning_bp.route('/zapisz_tonaz/<int:id>', methods=['POST'])
-@roles_required('lider', 'admin', 'produkcja')
-def zapisz_tonaz(id):
-    """Update tonaz_rzeczywisty for Zasyp plan and sync tonaz to Workowanie."""
-    data_powrotu = request.form.get('data_powrotu') or str(date.today())
-    
-    try:
-        tonaz_rzeczywisty = float(request.form.get('tonaz_rzeczywisty', 0))
-    except Exception:
-        tonaz_rzeczywisty = 0
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        # Get Zasyp plan details (data_planu, produkt, typ_produkcji)
-        cursor.execute(
-            "SELECT data_planu, produkt, COALESCE(typ_produkcji, '') FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'",
-            (id,)
-        )
-        zasyp_row = cursor.fetchone()
-        
-        if not zasyp_row:
-            conn.close()
-            flash('Plan nie znaleziony', 'error')
-            return redirect(url_for('panels.dashboard_page', data=data_powrotu))
-        
-        data_planu, produkt, typ = zasyp_row[0], zasyp_row[1], zasyp_row[2]
-        
-        # Update Zasyp plan tonaz_rzeczywisty
-        cursor.execute(
-            "UPDATE plan_produkcji SET tonaz_rzeczywisty=%s WHERE id=%s",
-            (tonaz_rzeczywisty, id)
-        )
-        
-        # Find and update corresponding Workowanie plan
-        cursor.execute(
-            "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
-            (data_planu, produkt, typ)
-        )
-        workowanie_row = cursor.fetchone()
-        
-        if workowanie_row:
-            # Update Workowanie tonaz to match Zasyp tonaz_rzeczywisty
-            cursor.execute(
-                "UPDATE plan_produkcji SET tonaz=%s WHERE id=%s",
-                (tonaz_rzeczywisty, workowanie_row[0])
-            )
-        
-        conn.commit()
-        conn.close()
-        flash('Tonąż zaaktualizowany', 'success')
-    except Exception as e:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        conn.close()
-        current_app.logger.exception('Error updating tonaz: %s', e)
-        flash('Błąd przy zapisie tonażu', 'error')
-    
-    return redirect(url_for('panels.dashboard_page', data=data_powrotu))
 
 

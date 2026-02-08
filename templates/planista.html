@@ -47,9 +47,19 @@
 
     <div class="section-box section-box-no-pad">
         <div class="d-flex justify-between align-center p-15 p-15-bg">
-        <h3 class="m-0">📋 Główny Plan: <strong>{{ wybrana_data }}</strong></h3>
-        <a href="{{ url_for('planning.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan" class="btn-action btn-action-success">+ DODAJ PLAN</a>
-    </div>
+            <h3 class="m-0">📋 Główny Plan: <strong>{{ wybrana_data }}</strong></h3>
+            <div class="d-flex gap-10 align-center">
+                <a href="{{ url_for('planning.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan" class="btn-action btn-action-success">+ DODAJ PLAN</a>
+                <!-- Quick add cleaning form -->
+                <form action="/planista/add_czyszczenie" method="POST" class="d-flex align-center gap-5" style="align-items:center;">
+                    <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
+                    <label class="small text-muted">Czyszczenie:</label>
+                    <input type="number" name="tonaz" min="0" step="1" placeholder="kg" class="input-sm" style="width:80px;">
+                    <input type="number" name="kolejnosc" min="1" step="1" placeholder="poz." class="input-sm" style="width:80px;">
+                    <button type="submit" class="btn-action btn-small btn-warning">Dodaj</button>
+                </form>
+            </div>
+        </div>
 
     <table class="modern-table">
         <thead>
@@ -74,7 +84,7 @@
                     <span class="duration-badge">{{ p[11] }} min</span>
                 </td>
                 <td>
-                    {% if p[8] > 0 %}
+                    {% if (p[8]|default(0, true)) > 0 %}
                         <strong class="text-success">{{ p[8]|int }} kg</strong>
                         {% if p[10] %}<br><span class="small text-danger-color">⚠️ {{ p[10] }}</span>{% endif %}
                     {% else %}<span class="text-muted">-</span>{% endif %}
@@ -96,6 +106,10 @@
                             <button type="button" data-action="move-down" data-plan-id="{{ p[0] }}" class="btn-icon" aria-label="Przenieś w dół">⬇</button>
                             <button type="button" data-action="open-move-modal" data-plan-id="{{ p[0] }}" data-plan-day="{{ p[2] }}" class="btn-icon text-primary" aria-label="Przenieś plan">📅</button>
                             <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p[0] }}" title="{{ _('edytuj') }}">✎</button>
+                            <form action="{{ url_for('planning.usun_plan', id=p[0]) }}" method="POST" class="inline-form" onsubmit="return confirm('Usunąć zlecenie?');">
+                                <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
+                                <button type="submit" class="btn-icon text-danger" title="{{ _('usun_plan') }}">🗑️</button>
+                            </form>
                         {% else %}
                             <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
                         {% endif %}

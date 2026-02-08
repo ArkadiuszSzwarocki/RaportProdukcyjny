@@ -115,6 +115,27 @@ def index() -> str:
     
     # Get next Workowanie ID
     next_workowanie_id = DashboardService.get_next_workowanie_id(plan_dnia)
+
+    # Global flag: is any plan in progress today (affects Start button availability across sections)
+    global_active = DashboardService.any_plan_in_progress(dzisiaj)
+    # Products that have an active 'w toku' plan (used to selectively disable START for matching products)
+    active_products = DashboardService.get_active_products(dzisiaj)
+    # Buffer queue: mapping product -> ordered list of Zasyp plan ids (first = next to be processed)
+    buffer_queue = DashboardService.get_buffer_queue(dzisiaj)
+    # Map product -> first Workowanie plan id (ordered by status/kolejnosc)
+    work_first_map = DashboardService.get_first_workowanie_map(dzisiaj)
+    # Number products by Zasyp execution order and determine allowed Workowanie starts
+    zasyp_product_order = DashboardService.get_zasyp_product_order(dzisiaj)
+    allowed_work_start_ids = set()
+    try:
+        orders = {prod: zasyp_product_order.get(prod, 999999) for prod in work_first_map.keys()}
+        if orders:
+            min_order = min(orders.values())
+            for prod, ordv in orders.items():
+                if ordv == min_order and prod in work_first_map:
+                    allowed_work_start_ids.add(work_first_map[prod])
+    except Exception:
+        allowed_work_start_ids = set()
     
     # Build template context
     context = {
@@ -144,17 +165,28 @@ def index() -> str:
         'shift_notes': shift_notes,
         'plans_zasyp': plans_zasyp,
         'plans_workowanie': plans_workowanie,
-        'buffer_map': {},  # Placeholder for buffer_map
+        'buffer_map': buffer_queue,
+        'global_active': global_active,
+        'active_products': active_products,
+        'work_first_map': work_first_map,
+        'zasyp_product_order': zasyp_product_order,
+        'allowed_work_start_ids': allowed_work_start_ids,
     }
     
     # Render appropriate template
     try:
         if aktywna_sekcja == 'Dashboard':
+            app.logger.info('index(): rendering dashboard_global.html for sekcja=%s', aktywna_sekcja)
             return render_template('dashboard_global.html', **context)
         else:
+            app.logger.info('index(): rendering dashboard.html for sekcja=%s', aktywna_sekcja)
             return render_template('dashboard.html', **context)
-    except Exception:
-        # Fallback to global dashboard on error
+    except Exception as e:
+        # Log exception and fallback to global dashboard on error
+        try:
+            app.logger.exception('index(): render failed for sekcja=%s, falling back to dashboard_global: %s', aktywna_sekcja, e)
+        except Exception:
+            pass
         return render_template('dashboard_global.html', **context)
 
 
