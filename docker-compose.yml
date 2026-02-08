@@ -46,7 +46,7 @@ services:
       - "${PORT:-8082}:8082"
     volumes:
       - ./logs:/app/logs
-      - raporty_data:/app/raporty
+      - ./raporty:/app/raporty
       - ./config:/app/config
     depends_on:
       db:
@@ -64,8 +64,7 @@ services:
 volumes:
   db_data:
     driver: local
-  raporty_data:
-    driver: local
+  # raporty_data removed in favor of host bind-mount ./raporty
 
 networks:
   raportprodukcyjny_net:
