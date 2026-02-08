@@ -5,7 +5,7 @@ RUN pip install --user --no-cache-dir -r requirements.txt
 
 FROM python:3.11-slim
 WORKDIR /app
-RUN useradd -m -u 1000 appuser
+RUN groupadd -r appgroup || true && useradd -m -u 1000 -g appgroup appuser
 
 # Copy Python dependencies from builder
 COPY --from=builder /root/.local /home/appuser/.local
