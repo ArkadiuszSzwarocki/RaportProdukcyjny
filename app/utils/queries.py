@@ -62,7 +62,44 @@ class QueryHelper:
             "ORDER BY d.id DESC",
             (data_wpisu, sekcja)
         )
-        result = [list(r) for r in cursor.fetchall()]
+        rows = cursor.fetchall()
+        result = [list(r) for r in rows]
+
+        # For Workowanie: override plan value (p[2]) with corresponding Zasyp.tonaz_rzeczywisty
+        # and override realisation (p[7]) with current bufor.spakowano for the product/date.
+        try:
+            if sekcja.lower() == 'workowanie' and result:
+                for p in result:
+                    try:
+                        prod = p[1]
+                        # Get tonaz_rzeczywisty from the first matching Zasyp for that product/date
+                        cursor.execute(
+                            "SELECT COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji "
+                            "WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND produkt = %s "
+                            "ORDER BY COALESCE(real_stop, real_start, id) ASC LIMIT 1",
+                            (data_planu, prod)
+                        )
+                        zasyp_row = cursor.fetchone()
+                        if zasyp_row and zasyp_row[0] is not None:
+                            p[2] = zasyp_row[0]
+
+                        # Get spakowano value from bufor (take MAX to avoid double-counting duplicates)
+                        cursor.execute(
+                            "SELECT COALESCE(MAX(spakowano), 0) FROM bufor WHERE data_planu = %s AND produkt = %s AND status = 'aktywny'",
+                            (data_planu, prod)
+                        )
+                        buf_row = cursor.fetchone()
+                        if buf_row and buf_row[0] is not None:
+                            # Ensure list has p[7] position
+                            while len(p) <= 7:
+                                p.append(None)
+                            p[7] = buf_row[0]
+                    except Exception:
+                        # ignore per-plan errors
+                        continue
+        except Exception:
+            pass
+
         conn.close()
         return result
     

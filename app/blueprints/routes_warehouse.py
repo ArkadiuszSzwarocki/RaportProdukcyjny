@@ -324,62 +324,135 @@ def dodaj_palete_page_noauth(plan_id):
 
 @warehouse_bp.route('/api/bufor', methods=['GET'])
 def api_bufor():
-    """Public API returning bufor entries as JSON"""
+    """Public API returning bufor entries as JSON (czyta z tabeli bufor z systemem kolejkowania)"""
     from datetime import date as _date
+    from app.db import refresh_bufor_queue
+    
     out = []
     qdate = request.args.get('data') or str(_date.today())
-    conn = get_db_connection()
-    cur = conn.cursor()
+    
     try:
-        # Get Zasypy that have corresponding Workowanie 'w toku'
+        # Odśwież bufor przed zwróceniem danych
+        refresh_bufor_queue()
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Pobierz wszystkie wpisy z bufora dla danego dnia, posortowane po kolejce
         cur.execute("""
-            SELECT z.id, z.data_planu, z.produkt, z.tonaz_rzeczywisty, z.nazwa_zlecenia, z.typ_produkcji
-            FROM plan_produkcji z
-            INNER JOIN plan_produkcji w ON z.produkt = w.produkt AND z.data_planu = w.data_planu
-            WHERE z.sekcja = 'Zasyp'
-              AND w.sekcja = 'Workowanie'
-              AND w.status = 'w toku'
-              AND z.data_planu >= DATE_SUB(%s, INTERVAL 7 DAY)
-              AND z.data_planu <= %s
-        """, (qdate, qdate))
+            SELECT id, zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, 
+                   tonaz_rzeczywisty, spakowano, kolejka
+            FROM bufor
+            WHERE data_planu = %s AND status = 'aktywny'
+            ORDER BY kolejka ASC
+        """, (qdate,))
+        
         rows = cur.fetchall()
-        for hz in rows:
-            h_id, h_data, h_produkt, h_wykonanie_zasyp, h_nazwa, h_typ = hz
-            typ_param = h_typ if h_typ is not None else ''
-            # Sum palety from all Workowanie for this product on this day
-            cur.execute(
-                "SELECT SUM(pw.waga) FROM palety_workowanie pw "
-                "INNER JOIN plan_produkcji w ON pw.plan_id = w.id "
-                "WHERE w.data_planu=%s AND w.produkt=%s AND w.sekcja='Workowanie' AND COALESCE(w.typ_produkcji,'')=%s",
-                (h_data, h_produkt, typ_param)
-            )
-            res_pal = cur.fetchone()
-            h_wykonanie_workowanie = res_pal[0] if res_pal and res_pal[0] else 0
-            pozostalo_w_silosie = (h_wykonanie_zasyp or 0) - (h_wykonanie_workowanie or 0)
-            needs_reconciliation = round((h_wykonanie_workowanie or 0) - (h_wykonanie_zasyp or 0), 1) != 0
-            show_in_bufor = (pozostalo_w_silosie > 0) or (h_wykonanie_workowanie and h_wykonanie_workowanie > 0)
+        
+        for row in rows:
+            buf_id, z_id, z_data, z_produkt, z_nazwa, z_typ, z_tonaz, z_spakowano, z_kolejka = row
+            
+            pozostalo_w_silosie = max(z_tonaz - z_spakowano, 0)
+            needs_reconciliation = round((z_spakowano or 0) - (z_tonaz or 0), 1) != 0
+            show_in_bufor = (pozostalo_w_silosie > 0) or (z_spakowano and z_spakowano > 0)
+            
             if show_in_bufor:
                 out.append({
-                    'id': h_id,
-                    'data': str(h_data),
-                    'produkt': h_produkt,
-                    'nazwa': h_nazwa,
+                    'id': z_id,
+                    'data': str(z_data),
+                    'produkt': z_produkt,
+                    'nazwa': z_nazwa,
                     'w_silosie': round(max(pozostalo_w_silosie, 0), 1),
-                    'typ_produkcji': h_typ,
-                    'zasyp_total': h_wykonanie_zasyp,
-                    'spakowano_total': h_wykonanie_workowanie,
+                    'typ_produkcji': z_typ,
+                    'zasyp_total': z_tonaz,
+                    'spakowano_total': z_spakowano,
+                    'kolejka': z_kolejka,
                     'needs_reconciliation': needs_reconciliation,
                     'raw_pozostalo': round(pozostalo_w_silosie, 1)
                 })
-    except Exception:
-        try: conn.close()
-        except Exception: pass
-        return jsonify({'bufor': [], 'error': True}), 500
-    finally:
-        try: conn.close()
-        except Exception: pass
+        
+        conn.close()
+        
+    except Exception as e:
+        try: 
+            import traceback
+            print(f"[ERROR] api_bufor: {e}")
+            traceback.print_exc()
+            conn.close()
+        except Exception: 
+            pass
+        return jsonify({'bufor': [], 'error': True, 'message': str(e)}), 500
 
     return jsonify({'bufor': out})
+
+
+@warehouse_bp.route('/api/start_from_queue/<int:kolejka>', methods=['POST'])
+@login_required
+def start_from_queue(kolejka):
+    """Startu zlecenie z bufora po numerze kolejki"""
+    from datetime import datetime as _datetime
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Pobierz wpis z bufora po kolejce
+        cur.execute("""
+            SELECT b.zasyp_id, b.data_planu, b.produkt, b.kolejka,
+                   w.id as workowanie_id
+            FROM bufor b
+            LEFT JOIN plan_produkcji w ON w.produkt = b.produkt 
+                AND w.data_planu = b.data_planu 
+                AND w.sekcja = 'Workowanie'
+            WHERE b.kolejka = %s AND b.status = 'aktywny'
+            LIMIT 1
+        """, (kolejka,))
+        
+        row = cur.fetchone()
+        
+        if not row:
+            return jsonify({'success': False, 'message': f'Nie znaleziono wpisu w bufore z kolejką {kolejka}'}), 404
+        
+        zasyp_id, data_planu, produkt, buf_kolejka, workowanie_id = row
+        
+        if not workowanie_id:
+            return jsonify({'success': False, 'message': f'Brak odpowiadającego Workowania dla {produkt} na dzień {data_planu}'}), 400
+        
+        # Zaktualizuj status Workowania na 'w toku' i ustaw real_start
+        cur.execute("""
+            UPDATE plan_produkcji 
+            SET status = 'w toku', real_start = %s
+            WHERE id = %s AND sekcja = 'Workowanie'
+        """, (_datetime.now(), workowanie_id))
+        
+        # Oznacz ten wpis bufora jako 'startowany'
+        cur.execute("""
+            UPDATE bufor 
+            SET status = 'startowany'
+            WHERE kolejka = %s AND status = 'aktywny'
+        """, (kolejka,))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Uruchomiono zlecenie {produkt} (kolejka {buf_kolejka})',
+            'workowanie_id': workowanie_id,
+            'produkt': produkt,
+            'kolejka': buf_kolejka
+        }), 200
+    
+    except Exception as e:
+        conn.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    
+    finally:
+        try: cur.close()
+        except Exception: pass
+        try: conn.close()
+        except Exception: pass
 
 
 @warehouse_bp.route('/wazenie_magazyn/<int:paleta_id>', methods=['POST'])

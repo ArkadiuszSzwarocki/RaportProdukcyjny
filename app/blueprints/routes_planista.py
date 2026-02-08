@@ -65,7 +65,7 @@ def panel_planisty():
 
     # Include both Zasyp and Czyszczenie entries so planner sees cleaning slots
     cursor.execute("""
-        SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci 
+        SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
         FROM plan_produkcji 
         WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
         ORDER BY kolejnosc
@@ -217,64 +217,68 @@ def add_czyszczenie():
 @roles_required('planista', 'zarzad', 'lider', 'admin', 'laboratorium')
 def bufor_page():
     from flask import current_app
+    from app.db import refresh_bufor_queue
+    
     app_logger = current_app.logger
     app_logger.info(f"[BUFOR] bufor_page() called")
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    
     wybrana_data = request.args.get('data', str(date.today()))
     app_logger.info(f"[BUFOR] Starting bufor_page for date {wybrana_data}")
+    
+    bufor_list = []
+    
     try:
-        # Show orders only from selected day - filtered by data_planu
+        # Odśwież bufor - dodaj nowe zpecenia które się pojawiły
+        refresh_bufor_queue()
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Czytaj z nowej tabeli bufor - posortowane po kolejce
         cursor.execute("""
-            SELECT id, data_planu, produkt, tonaz_rzeczywisty, nazwa_zlecenia, typ_produkcji, status, real_start
-            FROM plan_produkcji
-                        WHERE sekcja = 'Zasyp'
-                            AND data_planu = %s
-                        ORDER BY COALESCE(real_start, data_planu) DESC
+            SELECT b.id, b.zasyp_id, b.data_planu, b.produkt, b.nazwa_zlecenia, 
+                   b.typ_produkcji, b.tonaz_rzeczywisty, b.spakowano, b.kolejka,
+                   z.real_start, z.status
+            FROM bufor b
+            LEFT JOIN plan_produkcji z ON z.id = b.zasyp_id
+            WHERE b.data_planu = %s AND b.status = 'aktywny'
+            ORDER BY b.kolejka ASC
         """, (wybrana_data,))
-        historyczne_zasypy = cursor.fetchall()
-        app_logger.info(f"Bufor query for date {wybrana_data}: found {len(historyczne_zasypy)} Zasyp orders")
-        bufor_list = []
-        for hz in historyczne_zasypy:
-            h_id, h_data, h_produkt, h_wykonanie_zasyp, h_nazwa, h_typ, h_status, h_real_start = hz
-            # Ensure typ_produkcji param is '' when DB value is NULL to match COALESCE in SQL
-            typ_param = h_typ if h_typ is not None else ''
-            # Sum palety zarówno bezpośrednio przypisane do zlecenia Zasyp (plan_id = h_id),
-            # jak i te przypisane do odpowiadających zleceń Workowanie utworzonych z tego zasypu.
-            cursor.execute(
-                "SELECT SUM(waga) FROM palety_workowanie WHERE plan_id = %s OR plan_id IN ("
-                "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s)",
-                (h_id, h_data, h_produkt, typ_param)
-            )
-            res_pal = cursor.fetchone()
-            h_wykonanie_workowanie = res_pal[0] if res_pal and res_pal[0] else 0
-            pozostalo_w_silosie = (h_wykonanie_zasyp or 0) - (h_wykonanie_workowanie or 0)
-            # Show all Zasyp orders in bufor - they're all available until fully packaged
-            show_in_bufor = True
-            if show_in_bufor:
-                needs_reconciliation = round((h_wykonanie_workowanie or 0) - (h_wykonanie_zasyp or 0), 1) != 0
-                start_time = h_real_start.strftime('%H:%M') if h_real_start else 'N/A'
-                bufor_list.append({
-                    'id': h_id,
-                    'data': h_data,
-                    'produkt': h_produkt,
-                    'nazwa': h_nazwa,
-                    'w_silosie': round(max(pozostalo_w_silosie, 0), 1),
-                    'typ_produkcji': h_typ,
-                    'zasyp_total': h_wykonanie_zasyp,
-                    'spakowano_total': h_wykonanie_workowanie,
-                    'needs_reconciliation': needs_reconciliation,
-                    'raw_pozostalo': round(pozostalo_w_silosie, 1),
-                    'status': h_status,
-                    'real_start': h_real_start,
-                    'start_time': start_time
-                })
+        
+        rows = cursor.fetchall()
+        app_logger.info(f"[BUFOR] Loaded {len(rows)} active bufor entries for date {wybrana_data}")
+        
+        for row in rows:
+            (buf_id, z_id, z_data, z_produkt, z_nazwa, z_typ, z_tonaz, z_spakowano, 
+             z_kolejka, z_real_start, z_status) = row
+            
+            pozostalo_w_silosie = (z_tonaz or 0) - (z_spakowano or 0)
+            needs_reconciliation = round((z_spakowano or 0) - (z_tonaz or 0), 1) != 0
+            start_time = z_real_start.strftime('%H:%M') if z_real_start else 'N/A'
+            
+            bufor_list.append({
+                'id': z_id,
+                'data': str(z_data),
+                'produkt': z_produkt,
+                'nazwa': z_nazwa or '',
+                'w_silosie': round(max(pozostalo_w_silosie, 0), 1),
+                'typ_produkcji': z_typ or '',
+                'zasyp_total': z_tonaz or 0,
+                'spakowano_total': z_spakowano or 0,
+                'kolejka': z_kolejka,
+                'needs_reconciliation': needs_reconciliation,
+                'raw_pozostalo': round(pozostalo_w_silosie, 1),
+                'status': z_status or 'zaplanowane',
+                'real_start': z_real_start,
+                'start_time': start_time
+            })
+        
+        conn.close()
+        
     except Exception as e:
         app_logger.error(f"ERROR in bufor_page for date {wybrana_data}: {type(e).__name__}: {str(e)}", exc_info=True)
         bufor_list = []
-    finally:
-        conn.close()
-
+    
     return render_template('bufor.html', bufor_list=bufor_list, wybrana_data=wybrana_data)
 
 

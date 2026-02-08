@@ -150,6 +150,17 @@ def koniec_zlecenie(id):
     # Zasyp i Workowanie działają NIEZALEŻNIE
     # Brak automatycznego aktualizowania Workowania gdy kończy się Zasyp
     conn.commit()
+    
+    # WAŻNE: Odśwież bufor teraz, żeby kolejka się przesuniała
+    try:
+        from app.db import refresh_bufor_queue
+        refresh_bufor_queue(conn)
+    except Exception as e:
+        try:
+            current_app.logger.warning(f'Failed to refresh bufor after koniec_zlecenie: {e}')
+        except Exception:
+            pass
+    
     conn.close()
     return redirect(bezpieczny_powrot())
 

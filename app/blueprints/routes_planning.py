@@ -637,6 +637,61 @@ def edytuj_plan_ajax():
         return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
 
 
+@planning_bp.route('/api/update_uszkodzone_worki', methods=['POST'])
+@roles_required('planista', 'admin', 'produkcja')
+def update_uszkodzone_worki():
+    """Update uszkodzone_worki field via AJAX."""
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        data = request.form.to_dict()
+    
+    plan_id = data.get('id')
+    uszkodzone_worki = data.get('uszkodzone_worki', 0)
+    
+    if not plan_id:
+        return jsonify({'success': False, 'message': 'Brak id planu'}), 400
+    
+    try:
+        plan_id_int = int(plan_id)
+        uszk_val = int(uszkodzone_worki) if uszkodzone_worki else 0
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': 'Nieprawidłowe wartości'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Sprawdź czy plan istnieje
+        cursor.execute("SELECT id, uszkodzone_worki FROM plan_produkcji WHERE id=%s", (plan_id_int,))
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Plan nie znaleziony'}), 404
+        
+        # Zaktualizuj pole
+        cursor.execute("UPDATE plan_produkcji SET uszkodzone_worki=%s WHERE id=%s", (uszk_val, plan_id_int))
+        conn.commit()
+        
+        current_app.logger.info(f"[USZKODZONE-WORKI] Plan {plan_id_int}: uszkodzone_worki={uszk_val}")
+        
+        conn.close()
+        return jsonify({'success': True, 'message': 'Zaktualizowano liczę uszkodzonych worków'})
+    
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        
+        current_app.logger.exception(f"[USZKODZONE-WORKI-ERROR] {str(e)}")
+        return jsonify({'success': False, 'message': 'Błąd aktualizacji'}), 500
+
+
 @planning_bp.route('/przenies_zlecenie_ajax', methods=['POST'])
 @roles_required('planista', 'admin')
 def przenies_zlecenie_ajax():

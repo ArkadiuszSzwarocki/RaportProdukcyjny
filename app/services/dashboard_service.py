@@ -403,11 +403,17 @@ class DashboardService:
 
     @staticmethod
     def get_active_products(dzisiaj: date) -> List[str]:
-        """Return list of product names that have a plan with status 'w toku' for the date."""
+        """Return list of product names that have a plan with status 'w toku' for Workowanie/Magazyn (not Zasyp).
+        
+        This prevents blocking Workowanie START when Zasyp is running for same product.
+        """
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT produkt FROM plan_produkcji WHERE DATE(data_planu) = %s AND status = 'w toku'", (dzisiaj,))
+            cursor.execute(
+                "SELECT produkt FROM plan_produkcji WHERE DATE(data_planu) = %s AND status = 'w toku' AND sekcja IN ('Workowanie', 'Magazyn')", 
+                (dzisiaj,)
+            )
             rows = cursor.fetchall()
             cursor.close()
             conn.close()

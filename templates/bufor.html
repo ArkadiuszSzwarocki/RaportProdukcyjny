@@ -15,6 +15,7 @@
         <table class="table modern-table mb-0">
             <thead>
                 <tr>
+                    <th style="width: 80px;">{{ _('kolejka') }}</th>
                     <th>{{ _('data_zasypu') }}</th>
                     <th>{{ _('produkt') }}</th>
                     <th>{{ _('zrobiono_zasypie') }}</th>
@@ -26,6 +27,9 @@
             <tbody>
                 {% for b in bufor_list %}
                 <tr {% if b.status == 'zakonczone' %}style="opacity: 0.5; background-color: #f5f5f5;"{% endif %}>
+                    <td>
+                        <span class="badge badge-primary" style="font-size: 18px; padding: 8px 12px;">{{ b.kolejka }}</span>
+                    </td>
                     <td>
                         {{ b.data }}
                         <br><small class="text-muted">{{ b.start_time }}</small>
@@ -44,6 +48,7 @@
                         {% endif %}
                     </td>
                     <td>
+                        <button class="btn btn-success btn-sm" onclick="startujZlecenie({{ b.kolejka }}, '{{ b.produkt }}@')">▶️ Startuj</button>
                         <button class="btn btn-outline-danger btn-sm" onclick="archiwizujZlecenie('{{ b.id }}')">📁 Archiwizuj</button>
                     </td>
                 </tr>
@@ -59,6 +64,25 @@
 {% endblock %}
 
 <script>
+function startujZlecenie(kolejka, produkt) {
+    if (!confirm(`Czy na pewno chcesz uruchomić zlecenie ${produkt.replace('@', '')} (kolejka ${kolejka}) na Workowaniu?`)) {
+        return;
+    }
+    fetch(`/api/start_from_queue/${kolejka}`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    }).then(r => r.json()).then(j => {
+        if (j && j.success) { 
+            alert(`✅ ${j.message}`);
+            location.reload(); 
+        } else { 
+            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się uruchomić')); 
+        }
+    }).catch(e => { 
+        alert('❌ Błąd sieci: ' + e.message); 
+    });
+}
+
 function archiwizujZlecenie(planId) {
     if (!confirm('Czy na pewno chcesz zarchiwizować to zlecenie?')) {
         return;

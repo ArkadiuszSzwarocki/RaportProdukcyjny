@@ -8,6 +8,7 @@ import os
 from app.decorators import login_required, roles_required
 from app.services.dashboard_service import DashboardService
 from app.services.report_generation_service import ReportGenerationService
+from app.db import get_db_connection
 
 main_bp = Blueprint('main', __name__)
 
@@ -126,15 +127,50 @@ def index() -> str:
     work_first_map = DashboardService.get_first_workowanie_map(dzisiaj)
     # Number products by Zasyp execution order and determine allowed Workowanie starts
     zasyp_product_order = DashboardService.get_zasyp_product_order(dzisiaj)
+    
+    # Nowa logika: START aktywny tylko dla Workowania z MINIMUM kolejka w buforze
     allowed_work_start_ids = set()
     try:
-        orders = {prod: zasyp_product_order.get(prod, 999999) for prod in work_first_map.keys()}
-        if orders:
-            min_order = min(orders.values())
-            for prod, ordv in orders.items():
-                if ordv == min_order and prod in work_first_map:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Krok 1: Znajdź GLOBALNE minimum kolejka w buforze
+        cursor.execute("""
+            SELECT MIN(kolejka) as global_min_queue
+            FROM bufor 
+            WHERE DATE(data_planu) = %s AND status = 'aktywny'
+        """, (dzisiaj,))
+        
+        result = cursor.fetchone()
+        global_min_queue = result[0] if result and result[0] is not None else None
+        
+        app.logger.info(f"[DEBUG-START] GLOBAL MIN kolejka w buforze: {global_min_queue}")
+        
+        if global_min_queue is not None:
+            # Krok 2: Pobierz wszystkie produkty z tym minimum
+            cursor.execute("""
+                SELECT DISTINCT produkt
+                FROM bufor 
+                WHERE DATE(data_planu) = %s AND status = 'aktywny' AND kolejka = %s
+            """, (dzisiaj, global_min_queue))
+            
+            products_with_min_queue = [row[0] for row in cursor.fetchall()]
+            app.logger.info(f"[DEBUG-START] Produkty z kolejka={global_min_queue}: {products_with_min_queue}")
+            
+            # Krok 3: Dla tych produktów, aktywuj START jeśli mają Workowanie
+            for prod in products_with_min_queue:
+                if prod in work_first_map:
                     allowed_work_start_ids.add(work_first_map[prod])
-    except Exception:
+                    app.logger.info(f"[DEBUG-START] Aktywny START dla {prod} (id={work_first_map[prod]}, kolejka={global_min_queue})")
+        
+        cursor.close()
+        conn.close()
+        
+        app.logger.info(f"[DEBUG-START] Final allowed_work_start_ids: {allowed_work_start_ids}")
+    except Exception as e:
+        import traceback
+        app.logger.error(f"[ERROR-START] Błąd: {e}")
+        app.logger.error(traceback.format_exc())
         allowed_work_start_ids = set()
     
     # Build template context

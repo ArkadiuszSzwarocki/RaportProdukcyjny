@@ -70,7 +70,8 @@
                 <th>⏱️ Estymacja</th>
                 <th>✅ Wykonanie</th>
                 <th>📚 Palety</th>
-                <th>📊 Status</th>
+                <th>� Uszkodzone Worki</th>
+                <th>�📊 Status</th>
                 <th class="text-right">⚙️ Akcje</th>
             </tr>
         </thead>
@@ -93,6 +94,9 @@
                     {% if palety_mapa[p[0]] %}
                         <button type="button" data-action="toggle-details" data-plan-id="{{ p[0] }}" class="btn-toggle">📦 {{ palety_mapa[p[0]]|length }} szt.</button>
                     {% else %}<span class="text-muted">-</span>{% endif %}
+                </td>
+                <td>
+                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p[0] }}" value="{{ p[12]|default(0, true)|int }}" min="0" max="999999" style="width: 80px;" title="Liczba uszkodzonych worków" />
                 </td>
                 <td>
                     {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
@@ -356,6 +360,34 @@ function deletePlan(id, data){
         if(bd) bd.classList.remove('show');
         setTimeout(function(){ qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if(body) body.innerHTML=''; }, 360);
     }
+
+    // Handle uszkodzone_worki input changes (auto-save via AJAX)
+    document.addEventListener('change', function(e){
+        if(e.target.classList.contains('uszkodzone-worki-input')){
+            var planId = parseInt(e.target.getAttribute('data-plan-id'));
+            var value = parseInt(e.target.value) || 0;
+            
+            fetch('/api/update_uszkodzone_worki', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: planId, uszkodzone_worki: value})
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+                if(j && j.success){
+                    e.target.style.borderColor = '#4CAF50';
+                    setTimeout(function(){ e.target.style.borderColor = ''; }, 1000);
+                } else {
+                    alert((j && j.message) || 'Błąd aktualizacji');
+                    e.target.value = e.target.getAttribute('data-original-value') || 0;
+                }
+            })
+            .catch(function(err){ 
+                alert('Błąd sieci');
+                console.error(err);
+            });
+        }
+    }, false);
 
     // Event delegation for planista actions
     document.addEventListener('click', function(e){
