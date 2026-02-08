@@ -46,7 +46,7 @@ services:
       - "${PORT:-8082}:8082"
     volumes:
       - ./logs:/app/logs
-      - ./raporty:/app/raporty
+      - raporty_data:/app/raporty
       - ./config:/app/config
     depends_on:
       db:
@@ -63,6 +63,8 @@ services:
 
 volumes:
   db_data:
+    driver: local
+  raporty_data:
     driver: local
 
 networks:

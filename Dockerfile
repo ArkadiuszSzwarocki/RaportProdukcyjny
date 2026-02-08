@@ -23,6 +23,12 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD python -c "import requests; requests.get('http://localhost:8082', timeout=5)" || exit 1
 
 EXPOSE 8082
+# Ensure raporty directory exists and is writable by appuser
+# Create folder and set ownership/permissions at build time so runtime user can write
+RUN mkdir -p /app/raporty \
+    && chown -R appuser:appuser /app \
+    && chmod -R 755 /app
+
 USER appuser
 
 CMD ["python", "app.py"]
