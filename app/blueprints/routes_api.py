@@ -27,15 +27,18 @@ def bezpieczny_powrot():
 
 # ================= LANGUAGE SETTINGS =================
 
-@api_bp.route('/set_language', methods=['POST'])
+@api_bp.route('/set_language', methods=['GET', 'POST'])
 @login_required
 def set_language():
     """Zmień język interfejsu aplikacji"""
     try:
         from flask import make_response
         
-        data = request.get_json()
-        language = data.get('language', 'pl')
+        if request.method == 'GET':
+            language = request.args.get('language', 'pl')
+        else:
+            data = request.get_json() or {}
+            language = data.get('language', 'pl')
         
         # Walidacja języka
         if language not in ['pl', 'uk', 'en']:
@@ -44,12 +47,14 @@ def set_language():
         session['app_language'] = language
         session.modified = True
         
-        # Odpowiedź z cookie
-        response = jsonify({
-            'success': True,
-            'message': f'Język zmieniony na {language}',
-            'language': language
-        })
+        if request.method == 'GET':
+            response = redirect(request.referrer or url_for('main.index'))
+        else:
+            response = jsonify({
+                'success': True,
+                'message': f'Język zmieniony na {language}',
+                'language': language
+            })
         # Ustaw cookie na 365 dni
         response.set_cookie('app_language', language, max_age=365*24*60*60, path='/')
         

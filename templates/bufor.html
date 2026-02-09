@@ -15,7 +15,7 @@
         <table class="table modern-table mb-0">
             <thead>
                 <tr>
-                    <th style="width: 80px;">{{ _('kolejka') }}</th>
+                    <th class="th-kolejka">{{ _('kolejka') }}</th>
                     <th>{{ _('data_zasypu') }}</th>
                     <th>{{ _('produkt') }}</th>
                     <th>{{ _('zrobiono_zasypie') }}</th>
@@ -26,9 +26,9 @@
             </thead>
             <tbody>
                 {% for b in bufor_list %}
-                <tr {% if b.status == 'zakonczone' %}style="opacity: 0.5; background-color: #f5f5f5;"{% endif %}>
+                <tr{% if b.status == 'zakonczone' %} class="bufor-row-finished"{% endif %}>
                     <td>
-                        <span class="badge badge-primary" style="font-size: 18px; padding: 8px 12px;">{{ b.kolejka }}</span>
+                        <span class="badge badge-primary bufor-kolejka-badge">{{ b.kolejka }}</span>
                     </td>
                     <td>
                         {{ b.data }}
@@ -48,8 +48,11 @@
                         {% endif %}
                     </td>
                     <td>
-                        <button class="btn btn-success btn-sm" onclick="startujZlecenie({{ b.kolejka }}, '{{ b.produkt }}@')">▶️ Startuj</button>
-                        <button class="btn btn-outline-danger btn-sm" onclick="archiwizujZlecenie('{{ b.id }}')">📁 Archiwizuj</button>
+                        <button class="btn btn-success btn-sm js-start-order"
+                                data-kolejka="{{ b.kolejka }}"
+                                data-produkt="{{ b.produkt }}@">▶️ Startuj</button>
+                        <button class="btn btn-outline-danger btn-sm js-archive-order"
+                                data-plan-id="{{ b.id }}">📁 Archiwizuj</button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -64,6 +67,23 @@
 {% endblock %}
 
 <script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.js-start-order').forEach((button) => {
+        button.addEventListener('click', () => {
+            startujZlecenie(button.dataset.kolejka, button.dataset.produkt || '');
+        });
+    });
+
+    document.querySelectorAll('.js-archive-order').forEach((button) => {
+        button.addEventListener('click', () => {
+            const planId = button.dataset.planId;
+            if (planId) {
+                archiwizujZlecenie(planId);
+            }
+        });
+    });
+});
+
 function startujZlecenie(kolejka, produkt) {
     if (!confirm(`Czy na pewno chcesz uruchomić zlecenie ${produkt.replace('@', '')} (kolejka ${kolejka}) na Workowaniu?`)) {
         return;

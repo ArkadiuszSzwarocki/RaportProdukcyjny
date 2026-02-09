@@ -892,6 +892,16 @@ button[type="submit"]:hover {
 .modern-table thead th { background: transparent; text-align:left; font-weight:700; font-size:0.95em; }
 .modern-table .small { font-size:0.85em; }
 
+.bufor-row-finished {
+    opacity: 0.5;
+    background-color: #f5f5f5;
+}
+
+.bufor-kolejka-badge {
+    font-size: 18px;
+    padding: 8px 12px;
+}
+
 .table-responsive {
     width: 100%;
     overflow-x: auto;

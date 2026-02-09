@@ -1,20 +1,19 @@
 <div class="panel panel--wnioski">
   {% if wnioski is defined %}
     {% if wnioski %}
-      <ul class="list-unstyled">
-        {% for w in wnioski %}
+      <ul class="list-unstyled">{% for w in wnioski %}
           <li class="wniosek-item">
             <strong>{{ w.pracownik or w.user }}</strong>
             — {{ w.typ or w.type or w.nazwa }} ({{ w.data or w.date }})
             <div class="wniosek-actions">
               {% if w.id %}
-                <form method="post" action="{{ url_for('admin.zatwierdz_wniosek') }}" style="display:inline">
+                <form method="post" action="{{ url_for('admin.zatwierdz_wniosek') }}" class="wniosek-form">
                   <input type="hidden" name="id" value="{{ w.id }}">
-                  <button class="btn btn-sm btn-success">Zatwierdź</button>
+                  <button type="submit" class="btn btn-sm btn-success">Zatwierdź</button>
                 </form>
-                <form method="post" action="{{ url_for('admin.odrzuc_wniosek') }}" style="display:inline">
+                <form method="post" action="{{ url_for('admin.odrzuc_wniosek') }}" class="wniosek-form">
                   <input type="hidden" name="id" value="{{ w.id }}">
-                  <button class="btn btn-sm btn-danger">Odrzuć</button>
+                  <button type="submit" class="btn btn-sm btn-danger">Odrzuć</button>
                 </form>
               {% endif %}
             </div>

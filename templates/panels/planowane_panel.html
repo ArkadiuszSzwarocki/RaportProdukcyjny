@@ -15,7 +15,7 @@
               {% if p.id %}
                 <form method="post" action="{{ url_for('admin.zatwierdz_plan') }}">
                   <input type="hidden" name="id" value="{{ p.id }}">
-                  <button class="btn btn-sm btn-success">Zatwierdź</button>
+                  <button type="submit" class="btn btn-sm btn-success">Zatwierdź</button>
                 </form>
               {% endif %}
             </td>

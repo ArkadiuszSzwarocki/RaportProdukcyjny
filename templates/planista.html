@@ -54,11 +54,11 @@
             <div class="d-flex gap-10 align-center">
                 <a href="{{ url_for('planning.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan" class="btn-action btn-action-success">+ DODAJ PLAN</a>
                 <!-- Quick add cleaning form -->
-                <form action="/planista/add_czyszczenie" method="POST" class="d-flex align-center gap-5" style="align-items:center;">
+                <form action="/planista/add_czyszczenie" method="POST" class="d-flex align-center gap-5 czyszczenie-form">
                     <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
                     <label class="small text-muted">Czyszczenie:</label>
-                    <input type="number" name="tonaz" min="0" step="1" placeholder="kg" class="input-sm" style="width:80px;">
-                    <input type="number" name="kolejnosc" min="1" step="1" placeholder="poz." class="input-sm" style="width:80px;">
+                    <input type="number" name="tonaz" min="0" step="1" placeholder="kg" class="input-sm input-width-80">
+                    <input type="number" name="kolejnosc" min="1" step="1" placeholder="poz." class="input-sm input-width-80">
                     <button type="submit" class="btn-action btn-small btn-warning">Dodaj</button>
                 </form>
             </div>
@@ -99,7 +99,7 @@
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
-                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p[0] }}" value="{{ p[11]|default(0, true)|int }}" min="0" max="999999" style="width: 80px;" title="Liczba uszkodzonych worków" />
+                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p[0] }}" value="{{ p[11]|default(0, true)|int }}" min="0" max="999999" title="Liczba uszkodzonych worków" />
                 </td>
                 <td>
                     {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
@@ -569,6 +569,19 @@ if (typeof Sortable !== 'undefined') {
 .sortable-tbody tr:hover {
     background: #f9f9f9;
     transition: background 0.2s;
+}
+
+/* Quick add cleaning form */
+.czyszczenie-form {
+    align-items: center;
+}
+
+.input-width-80 {
+    width: 80px;
+}
+
+.uszkodzone-worki-input {
+    width: 80px;
 }
 </style>
 

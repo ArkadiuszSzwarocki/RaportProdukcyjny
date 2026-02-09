@@ -4,7 +4,7 @@
     <h2>{{ _('test_okien') }}</h2>
     <p>{{ _('uzytkownik_instrukcja') }}</p>
 
-    <div class="gap-10" style="display:flex;flex-wrap:wrap;">
+    <div class="gap-10 flex-wrap-container">
         <a href="/_test/slide/form" data-slide class="btn">Slide: Formularz</a>
         <a href="/_test/slide/confirm" data-slide class="btn">Slide: Potwierdzenie</a>
         <button class="btn" onclick="showSlideOver('/_test/center/notice', {center:true});">Center modal: Powiadomienie</button>
@@ -14,7 +14,7 @@
         <button class="btn" onclick="showToast('To jest toast testowy', 'success')">Pokaż toast</button>
         <button class="btn" onclick="showDrawer('<div class=\'p-10\'><h3>Drawer (right)</h3><p>Przykładowa treść.</p></div>')">Drawer (prawo)</button>
         <button class="btn" onclick="showDrawer('<div class=\'p-10\'><h3>Drawer (left)</h3></div>', {side:'left'})">Drawer (lewo)</button>
-        <button class="btn" onclick="showBottomSheet('<div class=\'p-10\'><h3>Bottom sheet</h3><p>{{ _('opcje_akcje') }}</p></div>')">Bottom sheet</button>
+        <button class="btn" id="bottomSheetBtn">Bottom sheet</button>
         <button class="btn" id="popoverBtn">Popover (przykład)</button>
         <button class="btn" id="fsBtn">Fullscreen modal</button>
         <button class="btn" id="wizBtn">{{ _('wizard_3_kroki') }}</button>
@@ -57,11 +57,13 @@
 
     function attachHandlers(){
         var p = document.getElementById('popoverBtn');
-        if(p) p.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); safeCall('showPopover', [p, '<div style="min-width:180px;"><strong>{{ _('akcje') }}</strong><p><a href="#">{{ _('edycja') }}</a><br><a href="#">{{ _('usun') }}</a></p></div>']); });
+        if(p) p.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); safeCall('showPopover', [p, '<div style="min-width:180px;"><strong>{{ _("akcje") }}</strong><p><a href="#">{{ _("edycja") }}</a><br><a href="#">{{ _("usun") }}</a></p></div>']); });
+        var bs = document.getElementById('bottomSheetBtn');
+        if(bs) bs.addEventListener('click', function(e){ e.preventDefault(); safeCall('showBottomSheet', ["<div class=\"p-10\"><h3>Bottom sheet</h3><p>{{ _('opcje_akcje') }}</p></div>"]); });
         var fs = document.getElementById('fsBtn');
         if(fs) fs.addEventListener('click', function(e){ e.preventDefault(); safeCall('showFullscreenModal', ['<div class="p-10"><h2>Fullscreen Modal</h2><p>Pełnoekranowe okno.</p></div>']); });
         var w = document.getElementById('wizBtn');
-        if(w) w.addEventListener('click', function(e){ e.preventDefault(); safeCall('showWizard', [['<h3>{{ _('krok_1') }}</h3><p>{{ _('dane_wejsciowe') }}</p>','<h3>{{ _('krok_2') }}</h3><p>{{ _('sprawdz') }}</p>','<h3>{{ _('krok_3') }}</h3><p>{{ _('podsumowanie') }}</p>']]); });
+        if(w) w.addEventListener('click', function(e){ e.preventDefault(); safeCall('showWizard', [["<h3>{{ _('krok_1') }}</h3><p>{{ _('dane_wejsciowe') }}</p>","<h3>{{ _('krok_2') }}</h3><p>{{ _('sprawdz') }}</p>","<h3>{{ _('krok_3') }}</h3><p>{{ _('podsumowanie') }}</p>"]]); });
 
         // diagnostic status
         var diag = document.getElementById('diagStatus');

@@ -45,13 +45,13 @@
                     <span class="material-icons">language</span>
                 </button>
                 <div id="languageMenu" class="language-menu hidden">
-                    <a href="#" onclick="switchLanguage('pl'); return false;" class="language-option">
+                    <a href="/api/set_language?language=pl" class="language-option">
                         <span>🇵🇱</span> Polski
                     </a>
-                    <a href="#" onclick="switchLanguage('uk'); return false;" class="language-option">
+                    <a href="/api/set_language?language=uk" class="language-option">
                         <span>🇺🇦</span> Українська
                     </a>
-                    <a href="#" onclick="switchLanguage('en'); return false;" class="language-option">
+                    <a href="/api/set_language?language=en" class="language-option">
                         <span>🇬🇧</span> English
                     </a>
                 </div>
@@ -196,23 +196,48 @@
         
         // Przełączanie języka aplikacji
         function switchLanguage(lang){
+            const setLangCookie = function() {
+                try {
+                    const maxAge = 365 * 24 * 60 * 60;
+                    document.cookie = 'app_language=' + encodeURIComponent(lang) + '; path=/; max-age=' + maxAge;
+                } catch (e) {
+                    /* ignore */
+                }
+            };
+
             fetch('/api/set_language', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
                 body: JSON.stringify({language: lang})
             })
-            .then(r => r.json())
-            .then(data => {
-                if(data.success){
-                    const langNames = {uk: 'Українску', pl: 'Polski', en: 'English'};
-                    showToast('✓ Język zmieniony na ' + (langNames[lang] || lang), 'success');
-                    setTimeout(() => location.reload(), 500);
-                } else {
-                    showToast('❌ ' + (data.message || 'Błąd zmiany języka'), 'error');
+            .then(r => {
+                if (!r.ok) {
+                    throw new Error('HTTP ' + r.status);
                 }
+                return r.json();
+            })
+            .then(data => {
+                if (data && data.success) {
+                    const langNames = {uk: 'Ukrainski', pl: 'Polski', en: 'English'};
+                    if (typeof showToast === 'function') {
+                        showToast('✓ Jezyk zmieniony na ' + (langNames[lang] || lang), 'success');
+                    }
+                    setTimeout(() => location.reload(), 300);
+                    return;
+                }
+                throw new Error((data && data.message) || 'Blad zmiany jezyka');
             })
             .catch(err => {
-                showToast('❌ Błąd: ' + err.message, 'error');
+                setLangCookie();
+                if (typeof showToast === 'function') {
+                    showToast('✓ Jezyk zmieniony (cookie). ' + (err && err.message ? err.message : ''), 'warning');
+                }
+                setTimeout(() => location.reload(), 300);
             });
         }
     </script>
