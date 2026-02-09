@@ -15,13 +15,14 @@
       <h4 class="m-0">{{ _('zasyp') }} — {{ dzisiaj }} <small class="text-muted">({{ plans_zasyp|length }} planów)</small></h4>
       {% if plans_zasyp %}
       <table class="modern-table small production-table">
-        <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('plan') }}</th><th>{{ _('wykonanie') }}</th><th>{{ _('godz') }}</th><th>{{ _('status') }}</th></tr></thead>
+        <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('plan') }}</th><th>{{ _('wykonanie') }}</th><th>🚨 Uszkodzone</th><th>{{ _('godz') }}</th><th>{{ _('status') }}</th></tr></thead>
         <tbody>
         {% for p in plans_zasyp %}
           <tr>
             <td><strong class="text-primary">{{ p[1] }}</strong></td>
             <td>{{ p[2]|int }} kg</td>
             <td>{{ p[7]|int }} kg</td>
+            <td><input type="number" class="uszkodzone-input" data-plan-id="{{ p[0] }}" value="{{ p[11]|default(0, true)|int }}" min="0" placeholder="0" title="Liczba uszkodzonych worków" aria-label="Liczba uszkodzonych worków"></td>
             <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
             <td>{{ p[3]|upper }}</td>
           </tr>
@@ -44,7 +45,7 @@
             <td><strong class="text-primary">{{ p[1] }}</strong></td>
             <td>{{ p[2]|int }} kg</td>
             <td>{{ p[7]|int }} kg</td>
-            <td><input type="number" class="uszkodzone-input" data-plan-id="{{ p[0] }}" value="{{ p[11] or 0 }}" min="0" placeholder="0" title="Liczba uszkodzonych worków" aria-label="Liczba uszkodzonych worków"></td>
+            <td><input type="number" class="uszkodzone-input" data-plan-id="{{ p[0] }}" value="{{ p[11]|default(0, true)|int }}" min="0" placeholder="0" title="Liczba uszkodzonych worków" aria-label="Liczba uszkodzonych worków"></td>
             <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
             <td>{{ p[3]|upper }}</td>
           </tr>

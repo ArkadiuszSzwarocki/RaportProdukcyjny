@@ -271,22 +271,9 @@ def refresh_bufor_queue(conn=None):
         """)
         deleted = cursor.rowcount
         
-        # WAŻNE: Renumeruj kolejki po DELETE żeby były Sequential (1,2,3,4...)
-        # Pobierz wszystkie wpisy i re-assign kolejka od 1
-        if deleted > 0:
-            cursor.execute("""
-                SELECT id, data_planu FROM bufor 
-                WHERE status = 'aktywny' AND DATE(data_planu) = CURDATE()
-                ORDER BY data_planu ASC, id ASC
-            """)
-            bufor_entries = cursor.fetchall()
-            for idx, (buf_id, buf_date) in enumerate(bufor_entries, start=1):
-                cursor.execute("""
-                    UPDATE bufor SET kolejka = %s WHERE id = %s
-                """, (idx, buf_id))
-        
         # 2. Pobierz wszystkie Zasypy które powinny być w buforze
         # Warunki: wszystkie Zasypy (w toku, zakonczone) które mają odpowiadające Workowanie w statusie 'w toku' lub 'zaplanowane'
+        # WAŻNE: Sortuj po real_start (czas rzeczywistego startu) aby kolejka bufor odzwierciedlała rzeczywistą kolejność startu
         cursor.execute("""
             SELECT z.id, z.data_planu, z.produkt, z.nazwa_zlecenia, z.typ_produkcji, 
                    z.tonaz_rzeczywisty, z.status
@@ -299,7 +286,8 @@ def refresh_bufor_queue(conn=None):
               AND z.data_planu >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
               AND z.data_planu <= CURDATE()
               AND z.tonaz_rzeczywisty > 0
-            ORDER BY z.status ASC, z.data_planu ASC, z.id ASC
+            ORDER BY z.data_planu DESC, CASE WHEN z.real_start IS NOT NULL THEN 0 ELSE 1 END ASC, 
+                     z.real_start ASC, z.id ASC
         """)
         
         zasypy_do_bufora = cursor.fetchall()
@@ -342,6 +330,21 @@ def refresh_bufor_queue(conn=None):
                       z_tonaz, spakowano, next_kolejka))
                 
                 added += 1
+        
+        # WAŻNE: ZAWSZE Renumeruj kolejki żeby były Sequential (1,2,3,4...)
+        # Po DELETE i po dodaniu nowych wpisów - renumeric: dzisiejsze najpierw (DESC), potem po real_start
+        cursor.execute("""
+            SELECT b.id, b.data_planu FROM bufor b
+            LEFT JOIN plan_produkcji z ON z.id = b.zasyp_id
+            WHERE b.status = 'aktywny'
+            ORDER BY b.data_planu DESC, CASE WHEN z.real_start IS NOT NULL THEN 0 ELSE 1 END ASC, 
+                     z.real_start ASC, b.id ASC
+        """)
+        bufor_entries = cursor.fetchall()
+        for idx, (buf_id, buf_date) in enumerate(bufor_entries, start=1):
+            cursor.execute("""
+                UPDATE bufor SET kolejka = %s WHERE id = %s
+            """, (idx, buf_id))
         
         # 4. Aktualizuj pola spakowano dla istniejących wpisów w buforze
         cursor.execute("""

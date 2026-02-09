@@ -243,6 +243,14 @@
                                     {% else %}
                                         <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
                                     {% endif %}
+                                {% elif sekcja == 'Zasyp' %}
+                                    <!-- On Zasyp: block START if ANY plan is already 'w toku', OR if this product is active -->
+                                    {% set zasyp_blocked = (zasyp_has_active is defined and zasyp_has_active) or product_active %}
+                                    {% if zasyp_blocked %}
+                                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
+                                    {% else %}
+                                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>
+                                    {% endif %}
                                 {% else %}
                                     {% if product_active %}
                                         <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>

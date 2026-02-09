@@ -348,7 +348,7 @@ def dodaj_plan():
     
     # No open order found - create new planned order
     status = 'zaplanowane'
-    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja=%s", (data_planu, sekcja))
     res = cursor.fetchone()
     nk = (res[0] if res and res[0] else 0) + 1
     cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ, 0))
@@ -387,10 +387,20 @@ def dodaj_plany_batch():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Compute initial max sequence
-        cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
-        res = cursor.fetchone()
-        nk = (res[0] if res and res[0] else 0)
+        # Compute initial max sequence FOR EACH SECTION
+        # Build a map: sekcja -> max_kolejnosc
+        cursor.execute("""
+            SELECT sekcja, MAX(kolejnosc) as max_seq
+            FROM plan_produkcji 
+            WHERE data_planu=%s
+            GROUP BY sekcja
+        """, (data_planu,))
+        
+        max_seq_map = {}
+        for row in cursor.fetchall():
+            sekcja, max_seq = row
+            max_seq_map[sekcja] = (max_seq if max_seq else 0)
+        
         for idx, p in enumerate(plans, start=1):
             produkt = (p.get('produkt') or '').strip()
             try:
@@ -415,15 +425,22 @@ def dodaj_plany_batch():
                 conn.rollback()
                 conn.close()
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: brak typu produkcji'})
-            nk += 1
-            cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', sekcja, nk, typ, nr, 0))
+            
+            # Increment kolejnosc for this specific sekcja
+            nk_zasyp = max_seq_map.get('Zasyp', 0) + 1
+            max_seq_map['Zasyp'] = nk_zasyp
+            
+            cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', sekcja, nk_zasyp, typ, nr, 0))
             
             # NEW: If sekcja is Zasyp, create corresponding Workowanie automatically
             if sekcja == 'Zasyp':
-                nk += 1  # Increase sequence for Workowanie
+                # Increment kolejnosc for Workowanie specifically
+                nk_work = max_seq_map.get('Workowanie', 0) + 1
+                max_seq_map['Workowanie'] = nk_work
+                
                 cursor.execute(
                     "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk, typ, 0)
+                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
                 )
         conn.commit()
     except Exception as e:
@@ -490,8 +507,8 @@ def edytuj_plan(id):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Check if exists
-        cursor.execute("SELECT id, status FROM plan_produkcji WHERE id=%s", (id,))
+        # Check if exists and get current sekcja
+        cursor.execute("SELECT id, status, sekcja FROM plan_produkcji WHERE id=%s", (id,))
         r = cursor.fetchone()
         if not r:
             flash('Nie znaleziono zlecenia', 'warning')
@@ -499,6 +516,8 @@ def edytuj_plan(id):
         if r[1] in ['w toku', 'zakonczone']:
             flash('Nie można edytować zleceń w toku lub zakończonych', 'warning')
             return redirect(bezpieczny_powrot())
+        
+        current_sekcja = r[2]  # Get current section
 
         updates = []
         params = []
@@ -511,9 +530,10 @@ def edytuj_plan(id):
         if sekcja:
             updates.append('sekcja=%s')
             params.append(sekcja)
+            current_sekcja = sekcja  # Update sekcja if changing it
         if data_planu:
-            # if changing date, set new sequence at end of day
-            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+            # if changing date, set new sequence at end of day FOR THIS SEKCJA
+            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja=%s", (data_planu, current_sekcja))
             res = cursor.fetchone()
             nk = (res[0] if res and res[0] else 0) + 1
             updates.append('data_planu=%s')
@@ -584,6 +604,8 @@ def edytuj_plan_ajax():
         updates = []
         params = []
         changes = {}
+        current_sekcja = before[3]  # Get current sekcja
+        
         if produkt is not None and produkt != before[1]:
             updates.append('produkt=%s')
             params.append(produkt)
@@ -596,8 +618,10 @@ def edytuj_plan_ajax():
             updates.append('sekcja=%s')
             params.append(sekcja)
             changes['sekcja'] = {'before': before[3], 'after': sekcja}
+            current_sekcja = sekcja  # Update sekcja if changing it
         if data_planu and data_planu != str(before[4]):
-            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+            # Get max sequence FOR THIS SEKCJA on the new date
+            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja=%s", (data_planu, current_sekcja))
             res = cursor.fetchone()
             nk = (res[0] if res and res[0] else 0) + 1
             updates.append('data_planu=%s')
@@ -850,16 +874,21 @@ def jakosc_dodaj_do_planow(id):
 
     produkt, tonaz, typ = row[0], row[1] or 0, row[2] if len(row) > 2 else None
     data_planu = request.form.get('data_planu') or request.form.get('data_powrot') or str(date.today())
-    # Calculate new sequence
-    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+    
+    # Calculate new sequences FOR EACH SEKCJA
+    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja='Zasyp'", (data_planu,))
     res = cursor.fetchone()
     nk = (res[0] if res and res[0] else 0) + 1
+    
     cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk, typ, 0))
     zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
     
     # NEW: Create corresponding Workowanie automatically
     if zasyp_plan_id:
-        nk_work = nk + 1
+        cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja='Workowanie'", (data_planu,))
+        res_work = cursor.fetchone()
+        nk_work = (res_work[0] if res_work and res_work[0] else 0) + 1
+        
         cursor.execute(
             "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (data_planu, produkt, 0, 'w toku', 'Workowanie', nk_work, typ, 0)
@@ -871,3 +900,57 @@ def jakosc_dodaj_do_planow(id):
     return redirect(bezpieczny_powrot())
 
 
+@planning_bp.route('/api/reorder_plans_bulk', methods=['POST'])
+@roles_required('planista', 'admin')
+def reorder_plans_bulk():
+    """Reorder plans via drag-and-drop - only zaplanowane plans."""
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        data = request.form.to_dict()
+    
+    plan_ids = data.get('plan_ids', [])
+    data_planu = data.get('data')
+    
+    if not plan_ids or not isinstance(plan_ids, list) or len(plan_ids) == 0:
+        return jsonify({'success': False, 'message': 'Brak plan_ids'}), 400
+    if not data_planu:
+        return jsonify({'success': False, 'message': 'Brak data'}), 400
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if ANY plan is w toku or zakonczone - if so, reject
+        for pid in plan_ids:
+            cursor.execute(
+                "SELECT status FROM plan_produkcji WHERE id=%s AND DATE(data_planu)=%s",
+                (int(pid), data_planu)
+            )
+            res = cursor.fetchone()
+            if res and res[0] in ['w toku', 'zakonczone']:
+                conn.close()
+                return jsonify({'success': False, 'message': 'Nie można reorderować planów w toku lub zakończonych'}), 403
+        
+        # Reorder - assign sequences 1,2,3,... only to zaplanowane
+        for idx, pid in enumerate(plan_ids, 1):
+            cursor.execute(
+                "UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s AND DATE(data_planu)=%s AND status='zaplanowane'",
+                (idx, int(pid), data_planu)
+            )
+            if cursor.rowcount == 0:
+                conn.rollback()
+                conn.close()
+                return jsonify({'success': False, 'message': f'Plan {int(pid)} nie jest zaplanowany'}), 403
+        
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'OK'}), 200
+        
+    except Exception as e:
+        try:
+            conn.rollback()
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500

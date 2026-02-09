@@ -92,8 +92,18 @@ def panel_planisty():
         # Dodajemy obliczony czas do listy p (index 11)
         p.append(czas_trwania_min)
 
-        # Jeśli to nie jest wpis "Czyszczenie", wliczamy do planu wydajnościowego
+        # 1b. Dla planów Zasyp - pobierz uszkodzone_worki z odpowiadającego planu Workowania
         sekcja = (p[1] or '').lower()
+        if sekcja == 'zasyp':
+            cursor.execute(
+                "SELECT COALESCE(uszkodzone_worki, 0) FROM plan_produkcji WHERE DATE(data_planu)=%s AND sekcja='Workowanie' AND produkt=%s LIMIT 1",
+                (wybrana_data, p[2])
+            )
+            work_result = cursor.fetchone()
+            if work_result:
+                p[11] = work_result[0]  # Zastąp uszkodzone_worki z Zasyp wartością z Workowania
+
+        # Jeśli to nie jest wpis "Czyszczenie", wliczamy do planu wydajnościowego
         if sekcja != 'czyszczenie':
             suma_plan += waga_plan
             suma_minut_plan += czas_trwania_min

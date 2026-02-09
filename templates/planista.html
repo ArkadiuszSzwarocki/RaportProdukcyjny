@@ -2,6 +2,9 @@
 
 {% block content %}
 
+<!-- Sortable.js for drag-and-drop reordering -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
 <div class="section-header">
     <div><h2 class="header-title">📅 Panel Planisty</h2><p class="text-muted">{{ _('zarzadzanie_produkcja') }}</p></div>
     <form action="/planista" method="GET" class="d-flex align-center gap-10">
@@ -75,14 +78,14 @@
                 <th class="text-right">⚙️ Akcje</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="plans-tbody" class="sortable-tbody">
             {% for p in plany %}
             <tr data-plan-id="{{ p[0] }}">
                 <td><strong class="text-primary">{{ p[2] }}</strong></td>
                 <td><span class="badge-sekcja">{{ p[9]|upper }}</span></td>
                 <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
                 <td>
-                    <span class="duration-badge">{{ p[11] }} min</span>
+                    <span class="duration-badge">{{ p[12]|default(0) }} min</span>
                 </td>
                 <td>
                     {% if (p[8]|default(0, true)) > 0 %}
@@ -96,7 +99,7 @@
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
-                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p[0] }}" value="{{ p[12]|default(0, true)|int }}" min="0" max="999999" style="width: 80px;" title="Liczba uszkodzonych worków" />
+                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p[0] }}" value="{{ p[11]|default(0, true)|int }}" min="0" max="999999" style="width: 80px;" title="Liczba uszkodzonych worków" />
                 </td>
                 <td>
                     {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
@@ -259,19 +262,50 @@ function confirmMove(){
 function moveUp(id){
     fetch('/api/przesun_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, kierunek:'gora', data: '{{ wybrana_data }}'})})
         .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); }); return r.json().catch(function(){ throw new Error('Nieprawidłowa odpowiedź JSON'); }); })
-        .then(function(j){ if(j && j.success){ location.reload(); } else { alert((j && j.message)||'Błąd'); } })
+        .then(function(j){ 
+            if(j && j.success) {
+                // Swap rows in table without reload
+                var row = document.querySelector('tr[data-plan-id="' + id + '"]');
+                if(row && row.previousElementSibling && row.previousElementSibling.tagName === 'TR') {
+                    row.parentNode.insertBefore(row, row.previousElementSibling);
+                }
+            } else { 
+                alert((j && j.message)||'Błąd'); 
+            } 
+        })
         .catch(function(err){ alert(err && err.message ? err.message : 'Błąd sieci'); });
 }
 function moveDown(id){
     fetch('/api/przesun_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, kierunek:'dol', data: '{{ wybrana_data }}'})})
         .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); }); return r.json().catch(function(){ throw new Error('Nieprawidłowa odpowiedź JSON'); }); })
-        .then(function(j){ if(j && j.success){ location.reload(); } else { alert((j && j.message)||'Błąd'); } })
+        .then(function(j){ 
+            if(j && j.success) {
+                // Swap rows in table without reload
+                var row = document.querySelector('tr[data-plan-id="' + id + '"]');
+                if(row && row.nextElementSibling && row.nextElementSibling.tagName === 'TR') {
+                    row.parentNode.insertBefore(row.nextElementSibling, row);
+                }
+            } else { 
+                alert((j && j.message)||'Błąd'); 
+            } 
+        })
         .catch(function(err){ alert(err && err.message ? err.message : 'Błąd sieci'); });
 }
 function deletePlanConfirm(id, data){ if(!confirm('Usunąć?')) return; deletePlan(id, data); }
 function deletePlan(id, data){
     fetch('/api/usun_plan_ajax/'+id, {method:'POST'})
-        .then(function(r){ if(r.ok){ location.reload(); return null; } return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); }); })
+        .then(function(r){ 
+            if(r.ok) { 
+                // Remove row from table without reload
+                var row = document.querySelector('tr[data-plan-id="' + id + '"]');
+                if(row) row.remove();
+                // Also remove details row if exists
+                var detailsRow = document.getElementById('details-' + id);
+                if(detailsRow) detailsRow.remove();
+                return null; 
+            } 
+            return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); }); 
+        })
         .then(function(j){ if(j && !j.success){ alert(j.message || 'Błąd'); } })
         .catch(function(){ alert('Błąd sieci'); });
 }
@@ -432,6 +466,79 @@ function deletePlan(id, data){
         }
     }, false);
 
+// Initialize Sortable for plan reordering via drag-and-drop
+if (typeof Sortable !== 'undefined') {
+    var plansTbody = document.getElementById('plans-tbody');
+    if (plansTbody) {
+        // Check if ANY plan on this day is w toku or zakonczone
+        var hasActiveOrComplete = false;
+        var allRows = plansTbody.querySelectorAll('tr:not(.details-row)');
+        allRows.forEach(function(row) {
+            if (row.querySelector('[title*="zablokowane"]')) {
+                hasActiveOrComplete = true;
+            }
+        });
+        
+        // Only enable drag if NO plans are w toku/zakonczone
+        if (hasActiveOrComplete) {
+            // Show message that reordering is disabled
+            var msg = document.createElement('div');
+            msg.className = 'alert alert-warning mt-2 mb-2';
+            msg.innerHTML = '⚠️ {{ _("Reorderowanie wyłączone - na tym dniu jest plan w toku lub zakończony") }}';
+            plansTbody.parentNode.parentNode.insertAdjacentElement('afterend', msg);
+        } else {
+            Sortable.create(plansTbody, {
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                handle: 'tr',  // Allow dragging entire row
+                filter: '.details-row', // Don't allow dragging details rows
+                onEnd: function(evt) {
+                    // Get new order of plan IDs
+                    var rows = plansTbody.querySelectorAll('tr:not(.details-row)');
+                    var newOrder = [];
+                    rows.forEach(function(row) {
+                        var planId = row.getAttribute('data-plan-id');
+                        if (planId) {
+                            newOrder.push(parseInt(planId));
+                        }
+                    });
+                    
+                    if (newOrder.length > 0) {
+                        // Send reorder request to backend
+                        var data = {
+                            plan_ids: newOrder,
+                            data: '{{ wybrana_data }}',
+                            sekcja: 'zasyp'
+                        };
+                        
+                        fetch('/api/reorder_plans_bulk', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify(data)
+                        })
+                        .then(function(r) {
+                            if (!r.ok) return r.text().then(function(t) { throw new Error(t || 'Błąd serwera'); });
+                            return r.json().catch(function() { throw new Error('Nieprawidłowa odpowiedź JSON'); });
+                        })
+                        .then(function(j) {
+                            if (j && j.success) {
+                                // Silently update UI without reload
+                                console.log('Reorder success - no reload needed');
+                            } else {
+                                alert((j && j.message) || 'Błąd przy reorderowaniu');
+                            }
+                        })
+                        .catch(function(err) {
+                            alert('Błąd: ' + (err && err.message ? err.message : 'Nie wiadomo'));
+                        });
+                    }
+                }
+            });
+        }
+    }
+}
+
 </script>
 
 <!-- Quick-popup: center modal for AJAX-loaded content -->
@@ -443,5 +550,26 @@ function deletePlan(id, data){
     </div>
     <div id="quickPopupBody" class="qp-body p-10">{{ _('ladowanie') }}</div>
 </div>
+
+<style>
+/* Drag and drop styles for Sortable.js */
+.sortable-tbody tr.sortable-ghost {
+    opacity: 0.4;
+    background: #f5f5f5;
+}
+
+.sortable-tbody tr.sortable-drag {
+    opacity: 0;
+}
+
+.sortable-tbody tr {
+    cursor: move;
+}
+
+.sortable-tbody tr:hover {
+    background: #f9f9f9;
+    transition: background 0.2s;
+}
+</style>
 
 {% endblock %}

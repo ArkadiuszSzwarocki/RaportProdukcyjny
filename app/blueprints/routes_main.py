@@ -121,6 +121,8 @@ def index() -> str:
     global_active = DashboardService.any_plan_in_progress(dzisiaj)
     # Products that have an active 'w toku' plan (used to selectively disable START for matching products)
     active_products = DashboardService.get_active_products(dzisiaj)
+    # Check if ANY plan on Zasyp is 'w toku' — if so, block ALL START buttons for Zasyp
+    zasyp_has_active = DashboardService.get_zasyp_active_status(dzisiaj)
     # Buffer queue: mapping product -> ordered list of Zasyp plan ids (first = next to be processed)
     buffer_queue = DashboardService.get_buffer_queue(dzisiaj)
     # Map product -> first Workowanie plan id (ordered by status/kolejnosc)
@@ -204,6 +206,7 @@ def index() -> str:
         'buffer_map': buffer_queue,
         'global_active': global_active,
         'active_products': active_products,
+        'zasyp_has_active': zasyp_has_active,
         'work_first_map': work_first_map,
         'zasyp_product_order': zasyp_product_order,
         'allowed_work_start_ids': allowed_work_start_ids,

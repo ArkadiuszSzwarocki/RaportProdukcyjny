@@ -402,6 +402,20 @@ class DashboardService:
             return False
 
     @staticmethod
+    def get_zasyp_active_status(dzisiaj: date) -> bool:
+        """Return True if ANY plan on Zasyp section has status 'w toku' for the given date."""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM plan_produkcji WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND status = 'w toku'", (dzisiaj,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            return bool(row and row[0])
+        except Exception:
+            return False
+
+    @staticmethod
     def get_active_products(dzisiaj: date) -> List[str]:
         """Return list of product names that have a plan with status 'w toku' for Workowanie/Magazyn (not Zasyp).
         
@@ -624,7 +638,7 @@ class DashboardService:
             cursor.execute(
                 """SELECT id, produkt, tonaz, status, real_start, real_stop, 
                    TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, 
-                   kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, uszkodzone_worki 
+                   kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
                    FROM plan_produkcji 
                    WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND status != 'nieoplacone' 
                    AND is_deleted = 0 
@@ -638,7 +652,7 @@ class DashboardService:
             cursor.execute(
                 """SELECT id, produkt, tonaz, status, real_start, real_stop, 
                    TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, 
-                   kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, uszkodzone_worki 
+                   kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
                    FROM plan_produkcji p
                    WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' AND p.status != 'nieoplacone' 
                    AND p.is_deleted = 0
