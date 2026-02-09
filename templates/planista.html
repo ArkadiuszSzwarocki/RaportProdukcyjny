@@ -6,7 +6,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <div class="section-header">
-    <div><h2 class="header-title">📅 Panel Planisty</h2><p class="text-muted">{{ _('zarzadzanie_produkcja') }}</p></div>
+    <div><h2 class="header-title">📅 {{ _('panel_planisty') }}</h2><p class="text-muted">{{ _('zarzadzanie_produkcja') }}</p></div>
     <form action="/planista" method="GET" class="d-flex align-center gap-10">
         <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm" aria-label="Wybierz datę">
         <a href="/planista?data={{ wybrana_data }}" class="btn btn-primary">{{ _('odswiez') }}</a>
@@ -50,16 +50,16 @@
 
     <div class="section-box section-box-no-pad">
         <div class="d-flex justify-between align-center p-15 p-15-bg">
-            <h3 class="m-0">📋 Główny Plan: <strong>{{ wybrana_data }}</strong></h3>
+            <h3 class="m-0">📋 {{ _('glowny_plan') }}: <strong>{{ wybrana_data }}</strong></h3>
             <div class="d-flex gap-10 align-center">
                 <a href="{{ url_for('planning.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan" class="btn-action btn-action-success">+ DODAJ PLAN</a>
                 <!-- Quick add cleaning form -->
                 <form action="/planista/add_czyszczenie" method="POST" class="d-flex align-center gap-5 czyszczenie-form">
                     <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-                    <label class="small text-muted">Czyszczenie:</label>
+                    <label class="small text-muted">{{ _('czyszczenie') }}:</label>
                     <input type="number" name="tonaz" min="0" step="1" placeholder="kg" class="input-sm input-width-80">
                     <input type="number" name="kolejnosc" min="1" step="1" placeholder="poz." class="input-sm input-width-80">
-                    <button type="submit" class="btn-action btn-small btn-warning">Dodaj</button>
+                    <button type="submit" class="btn-action btn-small btn-warning">{{ _('dodaj') }}</button>
                 </form>
             </div>
         </div>
@@ -67,15 +67,15 @@
     <table class="modern-table">
         <thead>
             <tr>
-                <th>📦 Produkt</th>
-                <th>🏷️ Typ</th>
-                <th>📋 Plan</th>
+                <th>📦 {{ _('produkt') }}</th>
+                <th>🏷️ {{ _('typ') }}</th>
+                <th>📋 {{ _('plan') }}</th>
                 <th>⏱️ Estymacja</th>
-                <th>✅ Wykonanie</th>
-                <th>📚 Palety</th>
-                <th>� Uszkodzone Worki</th>
-                <th>�📊 Status</th>
-                <th class="text-right">⚙️ Akcje</th>
+                <th>✅ {{ _('wykonanie') }}</th>
+                <th>📚 {{ _('palet') }}</th>
+                <th>🧵 {{ _('uszkodzone_worki') }}</th>
+                <th>📊 {{ _('status') }}</th>
+                <th class="text-right">⚙️ {{ _('akcje') }}</th>
             </tr>
         </thead>
         <tbody id="plans-tbody" class="sortable-tbody">

@@ -26,7 +26,8 @@ def inject_static_version():
 
 def inject_role_permissions():
     """Inject role-based access control functions into templates."""
-    cfg_path = os.path.join(current_app.root_path, 'config', 'role_permissions.json')
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
 
     def role_has_access(page):
         try:
@@ -146,10 +147,16 @@ def inject_translations():
             
             # Load translations if not in global cache
             if 'translations' not in _translations_cache:
-                trans_path = os.path.join(current_app.root_path, 'config', 'translations.json')
-                if os.path.exists(trans_path):
-                    with open(trans_path, 'r', encoding='utf-8') as f:
-                        _translations_cache['translations'] = json.load(f)
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                trans_paths = [
+                    os.path.join(project_root, 'config', 'translations.json'),
+                    os.path.join(current_app.root_path, 'config', 'translations.json'),
+                ]
+                for trans_path in trans_paths:
+                    if os.path.exists(trans_path):
+                        with open(trans_path, 'r', encoding='utf-8') as f:
+                            _translations_cache['translations'] = json.load(f)
+                        break
                 else:
                     _translations_cache['translations'] = {}
             

@@ -1,7 +1,8 @@
 <div class="panel panel--wnioski">
   {% if wnioski is defined %}
     {% if wnioski %}
-      <ul class="list-unstyled">{% for w in wnioski %}
+      <ul class="list-unstyled">
+        {% for w in wnioski %}
           <li class="wniosek-item">
             <strong>{{ w.pracownik or w.user }}</strong>
             — {{ w.typ or w.type or w.nazwa }} ({{ w.data or w.date }})
