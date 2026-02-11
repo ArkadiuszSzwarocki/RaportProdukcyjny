@@ -12,6 +12,7 @@ def register_middleware(app):
         app: Flask application instance
     """
     app.before_request(log_request_info(app))
+    app.before_request(ensure_default_language(app))
     app.before_request(ensure_pracownik_mapping(app))
     app.after_request(add_cache_headers(app))
 
@@ -131,6 +132,25 @@ def ensure_pracownik_mapping(app):
         except Exception:
             try:
                 app.logger.exception('Error ensuring pracownik mapping')
+            except Exception:
+                pass
+    return middleware
+
+
+def ensure_default_language(app):
+    """Middleware: Ensure `session['app_language']` defaults to Polish ('pl').
+
+    Sets the language in session when it's not already present. This ensures
+    templates and translation helper default to Polish after app start.
+    """
+    def middleware():
+        try:
+            # Only set default if not already configured in session/cookies
+            if session.get('app_language') is None:
+                session['app_language'] = 'pl'
+        except Exception:
+            try:
+                app.logger.exception('Failed to set default app_language in session')
             except Exception:
                 pass
     return middleware
