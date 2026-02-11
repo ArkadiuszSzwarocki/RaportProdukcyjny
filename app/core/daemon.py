@@ -146,3 +146,26 @@ def start_daemon_threads(app, cleanup_enabled=False):
     except Exception:
         app.logger.exception('Failed to start palety monitor thread')
 
+    # Start periodic refresh of bufor/Workowanie sync to keep DB in sync with Zasyp
+    try:
+        from app.db import refresh_bufor_queue
+
+        def _periodic_refresh(interval_seconds=60):
+            while True:
+                try:
+                    refresh_bufor_queue()
+                    app.logger.debug('Periodic refresh_bufor_queue executed')
+                except Exception:
+                    app.logger.exception('Periodic refresh_bufor_queue failed')
+                time.sleep(interval_seconds)
+
+        refresh_thread = threading.Thread(
+            target=_periodic_refresh,
+            kwargs={'interval_seconds': 60},
+            daemon=True
+        )
+        refresh_thread.start()
+        app.logger.info('Started periodic refresh_bufor_queue thread')
+    except Exception:
+        app.logger.exception('Failed to start periodic refresh_bufor_queue thread')
+

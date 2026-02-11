@@ -45,7 +45,8 @@ def setup_logging(app):
     
     # Main app logger
     log_path = os.path.join(logs_dir, 'app.log')
-    handler = RotatingFileHandler(log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8')
+    # Use delay=True so file is opened on first emit (reduces rotate race on Windows)
+    handler = RotatingFileHandler(log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8', delay=True)
     handler.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s %(levelname)s [pid=%(process)d]: %(message)s [in %(pathname)s:%(lineno)d]')
     handler.setFormatter(formatter)
@@ -62,7 +63,7 @@ def setup_logging(app):
     palety_logger = logging.getLogger('palety_logger')
     palety_logger.setLevel(logging.INFO)
     palety_log_path = os.path.join(logs_dir, 'palety.log')
-    palety_handler = RotatingFileHandler(palety_log_path, maxBytes=2 * 1024 * 1024, backupCount=3, encoding='utf-8')
+    palety_handler = RotatingFileHandler(palety_log_path, maxBytes=2 * 1024 * 1024, backupCount=3, encoding='utf-8', delay=True)
     palety_handler.setLevel(logging.INFO)
     palety_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
     palety_handler.setFormatter(palety_formatter)

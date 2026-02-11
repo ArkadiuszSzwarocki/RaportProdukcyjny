@@ -128,52 +128,6 @@
 {% endif %}
 
 <script>
-// ========== AUTO-WZNOWIENIE ZLECEŃ Z POPRZEDNIEGO DNIA ==========
-// Wywoływane automatycznie przy załadowaniu strony
-document.addEventListener('DOMContentLoaded', function() {
-  // Pobierz datę ostatniego wznowienia z sessionStorage
-  const lastResumeDate = sessionStorage.getItem('lastResumeDate');
-  const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
-  
-  // Wznów zlecenia tylko raz dziennie (jeśli jest to nowy dzień)
-  if (lastResumeDate !== today) {
-    console.log('[AUTO-RESUME] ℹ️ Wznawiam zlecenia z poprzedniego dnia...');
-    
-    fetch('/api/wznow_zlecenia_z_wczoraj', {
-      method: 'POST',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest'
-      }
-    })
-    .then(response => {
-      if (!response.ok) {
-        console.error(`[AUTO-RESUME] ✗ HTTP Error: ${response.status}`);
-        return null;
-      }
-      return response.json();
-    })
-    .then(data => {
-      if (data && data.success) {
-        console.log(`[AUTO-RESUME] ✅ Wznowiono ${data.resumed_count} zleceń z ${data.date_resumed}`);
-        // Zapisz dzisiejszą datę jako ostatni dzień wznowienia
-        sessionStorage.setItem('lastResumeDate', today);
-        
-        // Opcjonalnie: pokaż wiadomość użytkownikowi jeśli wznowiono jakieś zlecenia
-        if (data.resumed_count > 0) {
-          console.log(`[AUTO-RESUME] 📋 Automatycznie wznowiono ${data.resumed_count} zleceń`);
-        }
-      } else if (data && data.error) {
-        console.error(`[AUTO-RESUME] ✗ Błąd serwera: ${data.message || data.error}`);
-      }
-    })
-    .catch(error => {
-      console.error('[AUTO-RESUME] ✗ Błąd sieci:', error);
-    });
-  }
-});
-</script>
-
-<script>
 document.addEventListener('click', function(e){
   if(e.target.classList.contains('wn-approve') || e.target.classList.contains('wn-reject')){
     const id = e.target.getAttribute('data-id');

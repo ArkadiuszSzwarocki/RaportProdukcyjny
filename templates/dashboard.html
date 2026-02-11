@@ -146,19 +146,6 @@
         </div>
     </div>
     {% endif %}
-    
-    <!-- Sekcja: Wznowienie zleceń z poprzedniego dnia -->
-    {% if sekcja in ['Zasyp', 'Workowanie'] %}
-    <div class="alert-info d-flex justify-between align-center mb-10" id="resume-yesterday-section">
-        <div>
-            <div class="font-bold">🔄 Wczorajsze zlecenia (zawieszonych)</div>
-            <div class="small text-muted">{{ _('kliknij_wznow') }}</div>
-        </div>
-        <button type="button" class="btn-action btn-info" data-action="resume-orders" data-sekcja="{{ sekcja }}">
-            <span class="material-icons icon-mr-small">replay</span> {{ _('wznow_zlecenia_z_wczoraj') }}
-        </button>
-    </div>
-    {% endif %}
 
     {% if sekcja == 'Magazyn' %}
     <!-- MAGAZYN: Wyświetl magazyn_palety (potwierdzone palety) -->
@@ -409,52 +396,6 @@
         if (!row) return;
         var isHidden = getComputedStyle(row).display === 'none' || row.style.display === 'none';
         row.style.display = isHidden ? 'table-row' : 'none';
-    }
-    
-    // ========== RĘCZNE WZNOWIENIE ZLECEŃ Z POPRZEDNIEGO DNIA ==========
-    function resumeYesterdaysOrders(sekcja, buttonElem) {
-        console.log(`[RESUME] Starting resume for sekcja=${sekcja}`);
-        var button = buttonElem || (event && event.target ? event.target.closest('button') : null);
-        console.log(`[RESUME] Button element: ${button ? 'found' : 'NOT FOUND'}`);
-        if (!button) return;
-        
-        const originalText = button.textContent;
-        button.disabled = true;
-        button.textContent = '⏳ Wznawiam...';
-        
-        const fetchUrl = `/api/wznow_zlecenia_sekcji/${sekcja}`;
-        console.log(`[RESUME] Sending fetch to: ${fetchUrl}`);
-        
-        fetch(fetchUrl, {
-            method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => {
-            console.log(`[RESUME] Response status: ${response.status}`);
-            return response.json();
-        })
-        .then(data => {
-            console.log(`[RESUME] Response data:`, data);
-            if (data.success) {
-                console.log(`[RESUME] ✅ ${data.message}`);
-                alert(`✅ ${data.message}`);
-                // Odśwież stronę aby pokazać wznowione zlecenia
-                setTimeout(() => location.reload(), 500);
-            } else {
-                console.error(`[RESUME] ✗ Błąd: ${data.message}`);
-                alert(`❌ ${data.message}`);
-                button.disabled = false;
-                button.textContent = originalText;
-            }
-        })
-        .catch(error => {
-            console.error('[RESUME] ✗ Błąd sieci:', error);
-            alert(`❌ Błąd sieci: ${error.message}`);
-            button.disabled = false;
-            button.textContent = originalText;
-        });
     }
     
     // Modale wyłączone — funkcje zastępcze blokujące popupy
@@ -887,10 +828,6 @@ function closeQuickPopup(){
 document.addEventListener('click', function(e){
     if(e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'close-popup'){
         closeQuickPopup();
-    }
-    if(e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'resume-orders'){
-        var sekcja = e.target.getAttribute('data-sekcja');
-        resumeYesterdaysOrders(sekcja, e.target);
     }
 }, false);
 

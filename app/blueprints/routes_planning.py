@@ -513,9 +513,27 @@ def edytuj_plan(id):
         if not r:
             flash('Nie znaleziono zlecenia', 'warning')
             return redirect(bezpieczny_powrot())
-        if r[1] in ['w toku', 'zakonczone']:
-            flash('Nie można edytować zleceń w toku lub zakończonych', 'warning')
+        
+        # Allow planista to edit only tonaz (kg) when order is 'w toku' (NOT when 'zakonczone')
+        # If zakonczone, nobody can edit
+        if r[1] == 'zakonczone':
+            flash('Nie można edytować zakończonych zleceń', 'warning')
             return redirect(bezpieczny_powrot())
+        elif r[1] == 'w toku':
+            current_role = session.get('rola', '')
+            if current_role == 'planista':
+                # Check if user is trying to change only tonaz field
+                is_tonaz_only = (tonaz_val is not None and 
+                               produkt is None and 
+                               sekcja is None and 
+                               data_planu is None)
+                if not is_tonaz_only:
+                    flash('Gdy zlecenie w toku, planista może zmieniać tylko kg', 'warning')
+                    return redirect(bezpieczny_powrot())
+            else:
+                # Other roles cannot edit when 'w toku'
+                flash('Nie można edytować zleceń w toku', 'warning')
+                return redirect(bezpieczny_powrot())
         
         current_sekcja = r[2]  # Get current section
 
@@ -597,9 +615,27 @@ def edytuj_plan_ajax():
         if not before:
             conn.close()
             return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
-        if before[5] in ['w toku', 'zakonczone']:
+        
+        # If zakonczone, nobody can edit
+        if before[5] == 'zakonczone':
             conn.close()
-            return jsonify({'success': False, 'message': 'Nie można edytować zleceń w toku lub zakończonych'}), 403
+            return jsonify({'success': False, 'message': 'Nie można edytować zakończonych zleceń'}), 403
+        
+        # If w toku, allow planista to edit only tonaz (kg)
+        current_role = session.get('rola', '')
+        if before[5] == 'w toku' and current_role == 'planista':
+            # Check if user is trying to change only tonaz field
+            is_tonaz_only = (tonaz is not None and str(tonaz).strip() != '' and
+                           produkt is None and 
+                           sekcja is None and 
+                           data_planu is None)
+            if not is_tonaz_only:
+                conn.close()
+                return jsonify({'success': False, 'message': 'Gdy zlecenie w toku, planista może zmieniać tylko kg'}), 403
+        elif before[5] == 'w toku':
+            # Other roles cannot edit when w toku
+            conn.close()
+            return jsonify({'success': False, 'message': 'Nie można edytować zleceń w toku'}), 403
 
         updates = []
         params = []

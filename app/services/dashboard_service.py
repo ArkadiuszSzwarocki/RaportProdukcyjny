@@ -192,6 +192,33 @@ class DashboardService:
                 p[5] = p[5].strftime('%H:%M') if p[5] else ''
             except Exception:
                 p[5] = str(p[5]) if p[5] else ''
+
+        # For Workowanie: ensure displayed "plan" (p[2]) matches the
+        # corresponding Zasyp.tonaz_rzeczywisty when available. This keeps
+        # Workowanie.plan in sync with what was realized on Zasyp.
+        if sekcja == 'Workowanie':
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                for p in plan_dnia:
+                    try:
+                        produkt = p[1]
+                        # Find first matching Zasyp for same date/product
+                        cursor.execute(
+                            "SELECT COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji "
+                            "WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND produkt = %s "
+                            "ORDER BY COALESCE(real_stop, real_start, id) ASC LIMIT 1",
+                            (dzisiaj, produkt)
+                        )
+                        row = cursor.fetchone()
+                        if row and row[0] is not None:
+                            p[2] = row[0]
+                    except Exception:
+                        continue
+                cursor.close()
+                conn.close()
+            except Exception:
+                pass
         
         # Calculate sums and palety mapping
         palety_mapa = {}
@@ -214,15 +241,13 @@ class DashboardService:
                 palety_mapa[p[0]] = palety
                 waga_kg = sum(pal[0] for pal in palety)
                 p[7] = waga_kg
-                suma_wykonanie += waga_kg
             
-            # Calculate Zasyp differences
+            # Calculate Zasyp differences (do NOT add to global sum here,
+            # final value for p[7] may be overwritten below by sum of szarze)
             if sekcja == 'Zasyp':
                 waga_workowania = p[7]
                 diff = p[2] - waga_workowania if p[2] else 0
                 alert = abs(diff) > 10 if diff else False
-                if not is_quality:
-                    suma_wykonanie += waga_workowania or 0
                 p.extend([waga_workowania, diff, alert])
             
             # Add szarża/paleta count at fixed index p[15]
@@ -272,8 +297,6 @@ class DashboardService:
                     # Calculate sum of szarża weights for Realizacja column p[7]
                     suma_szarzy = sum(r[1] for r in rows)
                     p[7] = suma_szarzy
-                    if not is_quality:
-                        suma_wykonanie += suma_szarzy
                 elif sekcja == 'Workowanie' and p[0] not in palety_mapa:
                     # Use existing query helper to fetch paletki for plan
                     palety = QueryHelper.get_paletki_for_plan(p[0])
@@ -284,9 +307,16 @@ class DashboardService:
                         # Calculate sum of pallet weights for Realizacja column p[7]
                         suma_palet = sum(r[2] for r in palety)
                         p[7] = suma_palet
-                        if not is_quality:
-                            suma_wykonanie += suma_palet
             except Exception:
+                pass
+
+            # After possible overrides (e.g. when palety/szarze were fetched and
+            # p[7] was updated), add the final realized weight to the global sum
+            try:
+                if not is_quality:
+                    suma_wykonanie += p[7] or 0
+            except Exception:
+                # be resilient to malformed plan rows
                 pass
         
         return plan_dnia, palety_mapa, suma_plan, suma_wykonanie

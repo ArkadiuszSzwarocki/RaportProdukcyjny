@@ -50,7 +50,15 @@
                     <td>
                         <button class="btn btn-success btn-sm js-start-order"
                                 data-kolejka="{{ b.kolejka }}"
-                                data-produkt="{{ b.produkt }}@">▶️ Startuj</button>
+                                data-produkt="{{ b.produkt }}@"
+                                data-status="{{ b.status }}"
+                                {% if b.status != 'w toku' %}style="opacity: 0.5;"{% endif %}>▶️ Startuj</button>
+                        <button class="btn btn-info btn-sm js-create-zlecenie"
+                                data-zasyp-id="{{ b.id }}"
+                                data-produkt="{{ b.produkt }}"
+                                data-status="{{ b.status }}"
+                                title="Utwórz nowe zlecenie Workowanie z pozostałym towarem{% if b.status != 'zakonczone' %} (niedostępne - zlecenie musi być zamknięte){% endif %}"
+                                {% if b.status != 'zakonczone' %}style="opacity: 0.5;"{% endif %}>➕ Utwórz</button>
                         <button class="btn btn-outline-danger btn-sm js-archive-order"
                                 data-plan-id="{{ b.id }}">📁 Archiwizuj</button>
                     </td>
@@ -64,13 +72,51 @@
     </div>
 </div>
 
-{% endblock %}
-
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    const createButtons = document.querySelectorAll('.js-create-zlecenie');
+    const startButtons = document.querySelectorAll('.js-start-order');
+    const archiveButtons = document.querySelectorAll('.js-archive-order');
+    
     document.querySelectorAll('.js-start-order').forEach((button) => {
         button.addEventListener('click', () => {
-            startujZlecenie(button.dataset.kolejka, button.dataset.produkt || '');
+            const kolejka = button.dataset.kolejka;
+            const produkt = button.dataset.produkt || '';
+            const status = button.dataset.status || '';
+            
+            if (!kolejka) {
+                alert('❌ Brak numeru kolejki');
+                return;
+            }
+            
+            if (status && status !== 'w toku') {
+                alert('⚠️ Zlecenie musi być w trakcie (status: w toku)\n\nAktualny status: ' + status);
+                return;
+            }
+            
+            startujZlecenie(kolejka, produkt);
+        });
+    });
+
+    document.querySelectorAll('.js-create-zlecenie').forEach((button) => {
+        button.addEventListener('click', () => {
+            const zasypId = button.dataset.zasypId;
+            const produkt = button.dataset.produkt || '';
+            const status = button.dataset.status || '';
+            
+            if (!zasypId) {
+                alert('❌ Brak ID zasypu');
+                return;
+            }
+            
+            if (status !== 'zakonczone') {
+                alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status);
+                return;
+            }
+            
+            if (produkt) {
+                utworzZlecenie(zasypId, produkt);
+            }
         });
     });
 
@@ -83,6 +129,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
+
+function utworzZlecenie(zasypId, produkt) {
+    if (!confirm(`Czy na pewno chcesz utworzyć nowe zlecenie Workowanie dla "${produkt}"?\n\nSystem obliczy różnicę między towarem w zasypu a spakowanym i tyle wstawi jako plan.`)) {
+        return;
+    }
+    fetch('/bufor/create_zlecenie', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zasyp_id: zasypId })
+    }).then(r => r.json()).then(j => {
+        if (j && j.success) { 
+            alert(`✅ ${j.message}`);
+            location.reload(); 
+        } else { 
+            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); 
+        }
+    }).catch(e => { 
+        alert('❌ Błąd sieci: ' + e.message); 
+    });
+}
 
 function startujZlecenie(kolejka, produkt) {
     if (!confirm(`Czy na pewno chcesz uruchomić zlecenie ${produkt.replace('@', '')} (kolejka ${kolejka}) na Workowaniu?`)) {
@@ -122,3 +188,5 @@ function archiwizujZlecenie(planId) {
     });
 }
 </script>
+
+{% endblock %}

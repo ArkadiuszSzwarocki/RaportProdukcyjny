@@ -386,6 +386,174 @@ def api_bufor():
     return jsonify({'bufor': out})
 
 
+@warehouse_bp.route('/bufor', methods=['GET'])
+@login_required
+@roles_required('planista', 'zarzad', 'lider', 'admin', 'laboratorium')
+def bufor_page_html():
+    """HTML page for buffer management with 'Create Order' buttons"""
+    from datetime import date as _date
+    from app.db import refresh_bufor_queue
+    
+    wybrana_data = request.args.get('data', str(_date.today()))
+    bufor_list = []
+    
+    try:
+        # Refresh buffer before displaying
+        refresh_bufor_queue()
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Read buffer entries for selected date
+        cursor.execute("""
+            SELECT b.id, b.zasyp_id, b.data_planu, b.produkt, b.nazwa_zlecenia, 
+                   b.typ_produkcji, b.tonaz_rzeczywisty, b.spakowano, b.kolejka,
+                   z.real_start, z.status
+            FROM bufor b
+            LEFT JOIN plan_produkcji z ON z.id = b.zasyp_id
+            WHERE b.data_planu = %s AND b.status = 'aktywny'
+            ORDER BY b.kolejka ASC
+        """, (wybrana_data,))
+        
+        rows = cursor.fetchall()
+        
+        for row in rows:
+            (buf_id, z_id, z_data, z_produkt, z_nazwa, z_typ, z_tonaz, z_spakowano, 
+             z_kolejka, z_real_start, z_status) = row
+            
+            pozostalo_w_silosie = (z_tonaz or 0) - (z_spakowano or 0)
+            needs_reconciliation = round((z_spakowano or 0) - (z_tonaz or 0), 1) != 0
+            start_time = z_real_start.strftime('%H:%M') if z_real_start else 'N/A'
+            
+            bufor_list.append({
+                'id': z_id,
+                'data': str(z_data),
+                'produkt': z_produkt,
+                'nazwa': z_nazwa or '',
+                'w_silosie': round(max(pozostalo_w_silosie, 0), 1),
+                'typ_produkcji': z_typ or '',
+                'zasyp_total': z_tonaz or 0,
+                'spakowano_total': z_spakowano or 0,
+                'kolejka': z_kolejka,
+                'needs_reconciliation': needs_reconciliation,
+                'raw_pozostalo': round(pozostalo_w_silosie, 1),
+                'status': z_status or 'zaplanowane',
+                'real_start': z_real_start,
+                'start_time': start_time
+            })
+        
+        conn.close()
+        
+    except Exception as e:
+        current_app.logger.error(f"ERROR in bufor_page_html for date {wybrana_data}: {type(e).__name__}: {str(e)}", exc_info=True)
+        bufor_list = []
+    
+    return render_template('bufor.html', bufor_list=bufor_list, wybrana_data=wybrana_data)
+
+
+@warehouse_bp.route('/bufor/create_zlecenie', methods=['POST'])
+@login_required
+@roles_required('planista', 'admin', 'zarzad', 'lider')
+def warehouse_bufor_create_zlecenie():
+    """Create new Workowanie zlecenie based on buffer remainder (Zasyp.tonaz_rzeczywisty - spakowano)."""
+    try:
+        data = request.get_json(force=True) if request.is_json else request.form.to_dict()
+    except Exception:
+        data = request.form.to_dict()
+    
+    zasyp_id = data.get('zasyp_id')
+    if not zasyp_id:
+        return jsonify({'success': False, 'message': 'Brak zasyp_id'}), 400
+    
+    try:
+        zasyp_id = int(zasyp_id)
+    except Exception:
+        return jsonify({'success': False, 'message': 'Nieprawidłowy zasyp_id'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Get Zasyp details (tonaz_rzeczywisty, date, product, type)
+        cursor.execute("""
+            SELECT id, data_planu, produkt, tonaz_rzeczywisty, typ_produkcji, nazwa_zlecenia
+            FROM plan_produkcji
+            WHERE id = %s AND sekcja = 'Zasyp'
+        """, (zasyp_id,))
+        zasyp = cursor.fetchone()
+        
+        if not zasyp:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Nie znaleziono Zasypu'}), 404
+        
+        z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa = zasyp
+        
+        # Get how much was already packed (sum from bufor.spakowano)
+        cursor.execute("""
+            SELECT SUM(spakowano) FROM bufor
+            WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'
+        """, (zasyp_id, z_data))
+        
+        result = cursor.fetchone()
+        spakowano = result[0] or 0 if result else 0
+        
+        # Calculate remainder: Zasyp.tonaz_rzeczywisty - spakowano
+        roznicza = (z_tonaz_rz or 0) - spakowano
+        
+        if roznicza <= 0:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Nie ma pozostałego towaru do spakowania (różnica <= 0)'}), 400
+        
+        # Get next sequence number for Workowanie section
+        cursor.execute("""
+            SELECT MAX(kolejnosc) FROM plan_produkcji 
+            WHERE data_planu = %s AND sekcja = 'Workowanie'
+        """, (z_data,))
+        
+        result = cursor.fetchone()
+        next_kolejnosc = (result[0] or 0) + 1 if result else 1
+        
+        # Create new Workowanie zlecenie with plan = roznicza
+        cursor.execute("""
+            INSERT INTO plan_produkcji 
+            (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            z_data,
+            'Workowanie',
+            z_produkt,
+            round(roznicza, 1),  # plan = różnica
+            'zaplanowane',
+            next_kolejnosc,
+            z_typ or 'worki_zgrzewane_25',
+            (z_nazwa or '') + '_BUF'  # Add _BUF suffix to mark buffer origin
+        ))
+        
+        conn.commit()
+        new_id = cursor.lastrowid
+        
+        conn.close()
+        return jsonify({
+            'success': True,
+            'message': f'Utworzono zlecenie Workowanie z planem {round(roznicza, 1)} kg',
+            'new_id': new_id,
+            'plan_kg': round(roznicza, 1)
+        }), 201
+        
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        current_app.logger.exception('Error in warehouse_bufor_create_zlecenie')
+        return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 @warehouse_bp.route('/api/start_from_queue/<int:kolejka>', methods=['POST'])
 @login_required
 def start_from_queue(kolejka):

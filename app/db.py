@@ -222,19 +222,34 @@ def refresh_bufor_queue(conn=None):
     
     try:
         cursor = conn.cursor()
+        # Safety check: report any plan_produkcji rows with NULL tonaz
+        try:
+            cursor.execute("SELECT id FROM plan_produkcji WHERE tonaz IS NULL LIMIT 20")
+            null_rows = cursor.fetchall()
+            if null_rows:
+                ids = [str(r[0]) for r in null_rows]
+                print(f"[WARN] plan_produkcji rows with NULL tonaz detected (sample ids): {', '.join(ids)}")
+        except Exception:
+            # If this check fails, don't block main logic
+            pass
         
         # SYNC 1: Synchronizuj Workowanie.tonaz = Zasyp.tonaz_rzeczywisty (dla dzisiaj)
         try:
+                        # Use COALESCE around the whole subquery result to ensure we never
+            # assign NULL to w.tonaz when there is no matching Zasyp row.
+            # Prioritize closed batches (status='zakonczone') and take the latest one.
             cursor.execute("""
                 UPDATE plan_produkcji w
-                SET w.tonaz = (
+                SET w.tonaz = COALESCE((
                     SELECT COALESCE(z.tonaz_rzeczywisty, 0) FROM plan_produkcji z
                     WHERE z.sekcja = 'Zasyp' 
                     AND z.produkt = w.produkt 
                     AND DATE(z.data_planu) = DATE(w.data_planu)
-                    ORDER BY COALESCE(z.real_stop, z.real_start, z.id) ASC
+                    ORDER BY CASE WHEN z.status = 'zakonczone' THEN 0 ELSE 1 END ASC,
+                             COALESCE(z.real_stop, z.real_start, z.id) DESC,
+                             z.id DESC
                     LIMIT 1
-                )
+                ), 0)
                 WHERE w.sekcja = 'Workowanie' AND DATE(w.data_planu) = CURDATE()
             """)
             if cursor.rowcount > 0:
@@ -345,6 +360,19 @@ def refresh_bufor_queue(conn=None):
             cursor.execute("""
                 UPDATE bufor SET kolejka = %s WHERE id = %s
             """, (idx, buf_id))
+
+        # 4a. Aktualizuj tonaz_rzeczywisty w buforze na podstawie odpowiadającego Zasyp.plan_produkcji
+        try:
+            cursor.execute("""
+                UPDATE bufor b
+                JOIN plan_produkcji z ON z.id = b.zasyp_id
+                SET b.tonaz_rzeczywisty = COALESCE(z.tonaz_rzeczywisty, 0)
+                WHERE b.status = 'aktywny'
+            """
+            )
+        except Exception:
+            # If update fails, log but continue to update spakowano
+            print('[WARN] Failed to update bufor.tonaz_rzeczywisty from plan_produkcji')
         
         # 4. Aktualizuj pola spakowano dla istniejących wpisów w buforze
         cursor.execute("""
