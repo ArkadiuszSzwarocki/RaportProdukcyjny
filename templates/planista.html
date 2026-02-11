@@ -147,6 +147,44 @@
     </table>
 </div>
 
+<!-- Rozliczenie sekcja: Zasyp / Plan Workowanie / Spakowane / Bufor / Różnice -->
+<div class="section-box mt-20">
+    <div class="d-flex justify-between align-center p-15 p-15-bg">
+        <h3 class="m-0">📊 Rozliczenie</h3>
+        <div class="small text-muted">Dane: {{ wybrana_data }} — zawiera bufor</div>
+    </div>
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>📦 Produkt</th>
+                <th>📋 Zasyp (kg)</th>
+                <th>🧾 Plan Workowanie (kg)</th>
+                <th>📦 Spakowano (kg)</th>
+                <th>🗂️ Bufor (kg)</th>
+                <th>➖ Różnica (bez bufor)</th>
+                <th>➖ Różnica (z buforem)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if rozliczenia and rozliczenia|length > 0 %}
+                {% for r in rozliczenia %}
+                <tr>
+                    <td><strong class="text-primary">{{ r.produkt }}</strong></td>
+                    <td>{{ r.zasyp_kg|float }} kg</td>
+                    <td>{{ r.plan_workowanie|float }} kg</td>
+                    <td>{{ r.spakowano_palety|float }} kg</td>
+                    <td>{{ r.bufor_spakowano|float }} kg</td>
+                    <td>{{ r.diff_no_buf }} kg</td>
+                    <td>{{ r.diff_with_buf }} kg</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr><td colspan="7" class="text-center text-muted">Brak danych rozliczeniowych dla wybranej daty.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
     <script>
     // Translation messages for Planista view
     var pnMsgs = {
