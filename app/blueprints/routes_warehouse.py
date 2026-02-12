@@ -516,8 +516,8 @@ def warehouse_bufor_create_zlecenie():
         # Create new Workowanie zlecenie with plan = roznicza
         cursor.execute("""
             INSERT INTO plan_produkcji 
-            (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, zasyp_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             z_data,
             'Workowanie',
@@ -526,7 +526,8 @@ def warehouse_bufor_create_zlecenie():
             'zaplanowane',
             next_kolejnosc,
             z_typ or 'worki_zgrzewane_25',
-            (z_nazwa or '') + '_BUF'  # Add _BUF suffix to mark buffer origin
+            (z_nazwa or '') + '_BUF',  # Add _BUF suffix to mark buffer origin
+            z_id  # Link to source Zasyp
         ))
         
         conn.commit()
@@ -564,13 +565,12 @@ def start_from_queue(kolejka):
     cur = conn.cursor()
     
     try:
-        # Pobierz wpis z bufora po kolejce
+        # Pobierz wpis z bufora po kolejce - Workowanie połącz na podstawie zasyp_id FK
         cur.execute("""
             SELECT b.zasyp_id, b.data_planu, b.produkt, b.kolejka,
                    w.id as workowanie_id
             FROM bufor b
-            LEFT JOIN plan_produkcji w ON w.produkt = b.produkt 
-                AND w.data_planu = b.data_planu 
+            LEFT JOIN plan_produkcji w ON w.zasyp_id = b.zasyp_id
                 AND w.sekcja = 'Workowanie'
             WHERE b.kolejka = %s AND b.status = 'aktywny'
             LIMIT 1

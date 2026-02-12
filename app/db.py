@@ -155,6 +155,9 @@ def _migrate_columns(cursor):
     except Exception:
         pass
     
+    # plan_produkcji: Link Workowanie to Zasyp (1:1 relationship for exact order tracking)
+    _add_column_if_missing(cursor, "plan_produkcji", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' - FK linkujacy Workowanie z Zasyp 1:1")
+    
     # palety_workowanie columns
     _add_column_if_missing(cursor, "palety_workowanie", "tara", "FLOAT DEFAULT 0", "Dodawanie kolumny 'tara' do palet")
     _add_column_if_missing(cursor, "palety_workowanie", "waga_brutto", "FLOAT DEFAULT 0", "Dodawanie kolumny 'waga_brutto' do palet")
@@ -233,24 +236,13 @@ def refresh_bufor_queue(conn=None):
             # If this check fails, don't block main logic
             pass
         
-        # SYNC 1: Synchronizuj Workowanie.tonaz = Zasyp.tonaz_rzeczywisty (dla dzisiaj)
+        # SYNC 1: Synchronizuj Workowanie.tonaz = Zasyp.tonaz_rzeczywisty (przez FK zasyp_id)
         try:
-                        # Use COALESCE around the whole subquery result to ensure we never
-            # assign NULL to w.tonaz when there is no matching Zasyp row.
-            # Prioritize closed batches (status='zakonczone') and take the latest one.
             cursor.execute("""
                 UPDATE plan_produkcji w
-                SET w.tonaz = COALESCE((
-                    SELECT COALESCE(z.tonaz_rzeczywisty, 0) FROM plan_produkcji z
-                    WHERE z.sekcja = 'Zasyp' 
-                    AND z.produkt = w.produkt 
-                    AND DATE(z.data_planu) = DATE(w.data_planu)
-                    ORDER BY CASE WHEN z.status = 'zakonczone' THEN 0 ELSE 1 END ASC,
-                             COALESCE(z.real_stop, z.real_start, z.id) DESC,
-                             z.id DESC
-                    LIMIT 1
-                ), 0)
-                WHERE w.sekcja = 'Workowanie' AND DATE(w.data_planu) = CURDATE()
+                JOIN plan_produkcji z ON z.id = w.zasyp_id
+                SET w.tonaz = COALESCE(z.tonaz_rzeczywisty, 0)
+                WHERE w.sekcja = 'Workowanie' AND z.sekcja = 'Zasyp' AND DATE(w.data_planu) = CURDATE()
             """)
             if cursor.rowcount > 0:
                 print(f"[SYNC] Workowanie.tonaz synchronized: {cursor.rowcount} rows")
@@ -286,14 +278,13 @@ def refresh_bufor_queue(conn=None):
         """)
         deleted = cursor.rowcount
         
-        # 2. Pobierz wszystkie Zasypy które powinny być w buforze
+        # 2. Pobierz wszystkie Zasypy które powinny być w buforze (linkuj przez zasyp_id FK)
         # Warunki: wszystkie Zasypy (w toku, zakonczone) które mają odpowiadające Workowanie w statusie 'w toku' lub 'zaplanowane'
-        # WAŻNE: Sortuj po real_start (czas rzeczywistego startu) aby kolejka bufor odzwierciedlała rzeczywistą kolejność startu
         cursor.execute("""
             SELECT z.id, z.data_planu, z.produkt, z.nazwa_zlecenia, z.typ_produkcji, 
                    z.tonaz_rzeczywisty, z.status
             FROM plan_produkcji z
-            INNER JOIN plan_produkcji w ON z.produkt = w.produkt AND z.data_planu = w.data_planu
+            INNER JOIN plan_produkcji w ON w.zasyp_id = z.id
             WHERE z.sekcja = 'Zasyp'
               AND w.sekcja = 'Workowanie'
               AND w.status IN ('w toku', 'zaplanowane')
@@ -438,7 +429,13 @@ def setup_database():
         _seed_default_users(cursor)
         
         # 4. Auto-confirm all palety with data_dodania and set confirmation time to +2 min
-        _auto_confirm_existing_palety(cursor)
+        # NOTE: This migration could auto-confirm recently added palety on every app
+        # startup. Only run it when explicitly requested via environment variable
+        # `AUTO_CONFIRM_PALET=1` to avoid unexpected automatic acceptance.
+        if os.environ.get('AUTO_CONFIRM_PALET') == '1':
+            _auto_confirm_existing_palety(cursor)
+        else:
+            print("[INFO] Skipping auto-confirm palet on startup (AUTO_CONFIRM_PALET not set)")
         
         conn.commit()
         cursor.close()

@@ -59,6 +59,11 @@
                                 data-status="{{ b.status }}"
                                 title="Utwórz nowe zlecenie Workowanie z pozostałym towarem{% if b.status != 'zakonczone' %} (niedostępne - zlecenie musi być zamknięte){% endif %}"
                                 {% if b.status != 'zakonczone' %}style="opacity: 0.5;"{% endif %}>➕ Utwórz</button>
+                        <button class="btn btn-sm js-move-order"
+                                data-plan-id="{{ b.id }}"
+                                data-produkt="{{ b.produkt }}"
+                                title="{{ _('przenies_zlecenie') }}"
+                                style="background: #6c757d; color: white;">📦 {{ _('przenies_zlecenie') }}</button>
                         <button class="btn btn-outline-danger btn-sm js-archive-order"
                                 data-plan-id="{{ b.id }}">📁 Archiwizuj</button>
                     </td>
@@ -77,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const createButtons = document.querySelectorAll('.js-create-zlecenie');
     const startButtons = document.querySelectorAll('.js-start-order');
     const archiveButtons = document.querySelectorAll('.js-archive-order');
+    const moveButtons = document.querySelectorAll('.js-move-order');
     
     document.querySelectorAll('.js-start-order').forEach((button) => {
         button.addEventListener('click', () => {
@@ -125,6 +131,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const planId = button.dataset.planId;
             if (planId) {
                 archiwizujZlecenie(planId);
+            }
+        });
+    });
+
+    document.querySelectorAll('.js-move-order').forEach((button) => {
+        button.addEventListener('click', () => {
+            const planId = button.dataset.planId;
+            const produkt = button.dataset.produkt || '';
+            if (planId) {
+                openMoveModalBuffer(planId, produkt);
             }
         });
     });
@@ -187,6 +203,86 @@ function archiwizujZlecenie(planId) {
         alert('Błąd sieci: ' + e.message); 
     });
 }
+
+function openMoveModalBuffer(planId, produkt) {
+    var modal = document.getElementById('moveModalBuffer');
+    if (!modal) {
+        alert('❌ Brak okna dialogowego przeniesienia');
+        return;
+    }
+    modal.style.display = 'block';
+    modal.dataset.planId = planId;
+    
+    // Ustaw dzisiejszą datę jako domyślną
+    var today = new Date().toISOString().split('T')[0];
+    var dateInput = document.getElementById('move_to_date_buffer');
+    if (dateInput) {
+        dateInput.value = today;
+    }
+    
+    var title = modal.querySelector('.move-title-buffer');
+    if (title) {
+        title.innerText = '📦 Przenieś szarżę: ' + produkt;
+    }
+}
+
+function confirmMoveBuffer() {
+    var modal = document.getElementById('moveModalBuffer');
+    if (!modal) return;
+    var planId = modal.dataset.planId;
+    var toDate = document.getElementById('move_to_date_buffer').value;
+    
+    if (!planId || !toDate) {
+        alert('❌ Brak wymaganych danych (ID lub data)');
+        return;
+    }
+    
+    fetch('/api/przenies_zlecenie_ajax', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: planId, to_date: toDate })
+    })
+    .then(r => r.json().catch(() => ({ success: false, message: 'Nieprawidłowa odpowiedź serwera' })))
+    .then(j => {
+        if (j && j.success) {
+            modal.style.display = 'none';
+            alert('✅ ' + (j.message || 'Szarża przeniesiona na nową datę'));
+            location.reload();
+        } else {
+            alert('❌ ' + (j && j.message ? j.message : 'Błąd przeniesienia'));
+        }
+    })
+    .catch(e => {
+        alert('❌ Błąd sieci: ' + e.message);
+    });
+}
+
+function closeMoveModalBuffer() {
+    var modal = document.getElementById('moveModalBuffer');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
 </script>
+
+<!-- Move modal for Buffer -->
+<div id="moveModalBuffer" class="move-modal-buffer" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000; min-width: 300px;">
+    <h3 class="move-title-buffer" style="margin-top: 0; margin-bottom: 15px; font-size: 16px; font-weight: bold;">📦 Przenieś szarżę</h3>
+    <div class="move-modal-field" style="margin-bottom: 15px;">
+        <label for="move_to_date_buffer" style="display: block; margin-bottom: 5px; font-weight: 500;">Nowa data planu:</label>
+        <input type="date" id="move_to_date_buffer" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" required>
+    </div>
+    <div class="move-modal-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button type="button" onclick="confirmMoveBuffer()" style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">✅ Przenieś</button>
+        <button type="button" onclick="closeMoveModalBuffer()" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Anuluj</button>
+    </div>
+</div>
+
+<style>
+#moveModalBuffer {
+    font-family: inherit;
+    font-size: 14px;
+}
+</style>
 
 {% endblock %}

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, current_app
+from flask import Blueprint, render_template, request, current_app, session
 from app.db import get_db_connection
 from app.dto.paleta import PaletaDTO
 from datetime import date
@@ -201,6 +201,7 @@ def panel_planisty():
             rozliczenia.append({
                 'zasyp_id': zasyp_id,
                 'produkt': produkt,
+                'status': p[4],  # Dodaj status zlecenia
                 'zasyp_kg': round(float(zasyp_kg), 1),
                 'plan_workowanie': round(float(plan_work), 1),
                 'spakowano_palety': round(float(spakowano_palety), 1),
@@ -227,7 +228,8 @@ def panel_planisty():
                            procent_czasu=procent_czasu,     # Przekazujemy % zajętości zmiany
                            quality_count=quality_count,
                            quality_orders=quality_orders,
-                           rozliczenia=rozliczenia)
+                           rozliczenia=rozliczenia,
+                           current_role=session.get('rola'))
 
 
 @planista_bp.route('/planista/add_czyszczenie', methods=['POST'])
@@ -530,8 +532,8 @@ def bufor_create_zlecenie():
         # Create new Workowanie zlecenie with plan = roznicza
         cursor.execute("""
             INSERT INTO plan_produkcji 
-            (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, zasyp_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             z_data,
             'Workowanie',
@@ -540,7 +542,8 @@ def bufor_create_zlecenie():
             'zaplanowane',
             next_kolejnosc,
             z_typ or 'worki_zgrzewane_25',
-            z_nazwa or ''
+            z_nazwa or '',
+            z_id  # Link to source Zasyp
         ))
         
         conn.commit()

@@ -621,9 +621,9 @@ def edytuj_plan_ajax():
             conn.close()
             return jsonify({'success': False, 'message': 'Nie można edytować zakończonych zleceń'}), 403
         
-        # If w toku, allow planista to edit only tonaz (kg)
+        # If w toku, allow planista and admin to edit only tonaz (kg)
         current_role = session.get('rola', '')
-        if before[5] == 'w toku' and current_role == 'planista':
+        if before[5] == 'w toku' and current_role in ['planista', 'admin']:
             # Check if user is trying to change only tonaz field
             is_tonaz_only = (tonaz is not None and str(tonaz).strip() != '' and
                            produkt is None and 
@@ -631,7 +631,7 @@ def edytuj_plan_ajax():
                            data_planu is None)
             if not is_tonaz_only:
                 conn.close()
-                return jsonify({'success': False, 'message': 'Gdy zlecenie w toku, planista może zmieniać tylko kg'}), 403
+                return jsonify({'success': False, 'message': 'Gdy zlecenie w toku, możesz zmieniać tylko kg'}), 403
         elif before[5] == 'w toku':
             # Other roles cannot edit when w toku
             conn.close()
