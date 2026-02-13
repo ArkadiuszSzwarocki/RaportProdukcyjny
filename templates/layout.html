@@ -242,5 +242,42 @@
         }
     </script>
 
+    <!-- Zabezpieczenie przed double-click (duplikaty) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Dla każdego formularza - czuwaj na duplikaty
+            const forms = document.querySelectorAll('form');
+            forms.forEach(form => {
+                let isSubmitting = false;
+                form.addEventListener('submit', function(e) {
+                    if (isSubmitting) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    isSubmitting = true;
+                    
+                    // Wyłącz wszystkie submit buttony w form
+                    const buttons = form.querySelectorAll('button[type="submit"]');
+                    buttons.forEach(btn => {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                        const originalText = btn.textContent;
+                        btn.textContent = '⏳ Przetwarzanie...';
+                        
+                        // Reset po 30 sekundach (na wypadek błędu)
+                        setTimeout(() => {
+                            btn.disabled = false;
+                            btn.style.opacity = '1';
+                            btn.style.cursor = 'pointer';
+                            btn.textContent = originalText;
+                            isSubmitting = false;
+                        }, 30000);
+                    });
+                });
+            });
+        });
+    </script>
+
 </body>
 </html>
