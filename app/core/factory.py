@@ -15,6 +15,7 @@ from app.blueprints.routes_quality import quality_bp
 from app.blueprints.routes_shifts import shifts_bp
 from app.blueprints.routes_panels import panels_bp
 from app.blueprints.routes_production import production_bp
+from app.blueprints.routes_debug import debug_bp
 from app.blueprints.routes_warehouse import warehouse_bp
 from app.blueprints.routes_planning import planning_bp
 from app.blueprints.routes_journal import journal_bp
@@ -96,6 +97,14 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(shifts_bp)
     app.register_blueprint(panels_bp)
     app.register_blueprint(production_bp)
+    # Debug blueprint: only enabled locally to assist troubleshooting (temporary)
+    try:
+        app.register_blueprint(debug_bp)
+    except Exception:
+        try:
+            app.logger.exception('Failed to register debug_bp')
+        except Exception:
+            pass
     app.register_blueprint(warehouse_bp)
     app.register_blueprint(planning_bp, url_prefix='/api')
     app.register_blueprint(journal_bp)

@@ -98,7 +98,8 @@
   <script>
   (function(){
     // Obsługa dodawania nowej roli
-    document.getElementById('btnAddRole').addEventListener('click', async function(){
+    const _btnAddRole = document.getElementById('btnAddRole');
+    if (_btnAddRole) _btnAddRole.addEventListener('click', async function(){
       const roleName = document.getElementById('newRoleName').value.trim().toLowerCase();
       if(!roleName){
         alert('Proszę wpisać nazwę roli');
@@ -114,9 +115,9 @@
         
         const result = await resp.json();
         if(result.success){
-          document.getElementById('addRoleStatus').textContent = '✓ Rola dodana!';
-          document.getElementById('addRoleStatus').style.display = 'inline';
-          document.getElementById('newRoleName').value = '';
+          const _addRoleStatusEl = document.getElementById('addRoleStatus');
+          if (_addRoleStatusEl) { _addRoleStatusEl.textContent = '✓ Rola dodana!'; _addRoleStatusEl.style.display = 'inline'; }
+          const _newRoleNameEl = document.getElementById('newRoleName'); if(_newRoleNameEl) _newRoleNameEl.value = '';
           setTimeout(() => location.reload(), 1000);
         } else {
           alert('Błąd: ' + (result.error || 'Nie udało się dodać roli'));
@@ -128,8 +129,9 @@
     
     let current = {};
     try{
-      const raw = document.getElementById('perms-data') && document.getElementById('perms-data').textContent;
-      console.log('Raw perms-data (first 300 chars):', raw.slice(0, 300));
+      const _permsDataEl = document.getElementById('perms-data');
+      const raw = _permsDataEl && _permsDataEl.textContent;
+      console.log('Raw perms-data (first 300 chars):', (raw||'').slice(0, 300));
       current = raw ? JSON.parse(raw) : {};
       console.log('Parsed perms:', Object.keys(current).length, 'pages');
     }catch(e){
@@ -174,7 +176,8 @@
       });
     });
 
-    document.getElementById('btnSavePerms').addEventListener('click', async function(){
+    const _btnSavePerms = document.getElementById('btnSavePerms');
+    if (_btnSavePerms) _btnSavePerms.addEventListener('click', async function(){
       // Canonical page order (must match server-side list)
       const pageOrder = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki'];
       const payload = {};
@@ -211,11 +214,11 @@
         if(resp.status === 200){
           try{
             const j = await resp.json();
-            document.getElementById('permStatus').textContent = 'Zapisano.' + (j && j.backup ? ' Kopia: ' + j.backup : '');
+            const _permStatusEl = document.getElementById('permStatus'); if (_permStatusEl) _permStatusEl.textContent = 'Zapisano.' + (j && j.backup ? ' Kopia: ' + j.backup : '');
           }catch(e){
-            document.getElementById('permStatus').textContent = 'Zapisano.';
+            const _permStatusEl2 = document.getElementById('permStatus'); if (_permStatusEl2) _permStatusEl2.textContent = 'Zapisano.';
           }
-          document.getElementById('permStatus').style.display='inline';
+          const _permStatusEl3 = document.getElementById('permStatus'); if (_permStatusEl3) _permStatusEl3.style.display='inline';
           setTimeout(function(){ location.reload(); }, 1200);
         } else {
           // try to extract JSON error
@@ -230,7 +233,8 @@
     });
 
     // Handle adding new role
-    document.getElementById('btnAddRole').addEventListener('click', async function(){
+    const _btnAddRole2 = document.getElementById('btnAddRole');
+    if (_btnAddRole2) _btnAddRole2.addEventListener('click', async function(){
       const roleName = document.getElementById('newRoleName').value.trim();
       if (!roleName) {
         alert('Proszę wpisać nazwę roli!');
@@ -246,9 +250,8 @@
 
         const result = await resp.json();
         if (resp.status === 200 && result.success) {
-          document.getElementById('addRoleStatus').textContent = '✓ ' + result.message;
-          document.getElementById('addRoleStatus').style.display = 'inline';
-          document.getElementById('newRoleName').value = '';
+          const _addRoleStatusEl2 = document.getElementById('addRoleStatus'); if (_addRoleStatusEl2) { _addRoleStatusEl2.textContent = '✓ ' + result.message; _addRoleStatusEl2.style.display = 'inline'; }
+          const _newRoleNameEl2 = document.getElementById('newRoleName'); if(_newRoleNameEl2) _newRoleNameEl2.value = '';
           setTimeout(function() { location.reload(); }, 1500);
         } else {
           alert('Błąd: ' + (result.error || 'Nie udało się dodać roli'));

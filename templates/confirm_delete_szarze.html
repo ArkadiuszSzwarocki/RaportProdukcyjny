@@ -3,7 +3,7 @@
     <form action="{{ url_for('warehouse.usun_szarze', id=szarza_id) }}" method="POST">
         <div class="button-group">
             <button type="submit" class="btn-action btn-danger">{{ _('usun_btn') }}</button>
-            <button type="button" class="btn-action btn-action-cancel" onclick="closeQuickPopup();">ANULUJ</button>
+            <button type="button" class="btn-action btn-action-cancel" onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)">ANULUJ</button>
         </div>
     </form>
 </div>

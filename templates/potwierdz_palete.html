@@ -5,6 +5,6 @@
   </div>
   <div class="btn-row">
     <button type="submit" class="btn-action btn-success">{{ _('zatwierdz_btn') }}</button>
-    <button type="button" class="btn-action btn-action-cancel" onclick="closeQuickPopup()">ANULUJ</button>
+    <button type="button" class="btn-action btn-action-cancel" onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)">ANULUJ</button>
   </div>
 </form>

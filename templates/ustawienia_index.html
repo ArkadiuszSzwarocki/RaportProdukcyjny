@@ -199,37 +199,25 @@
 
             // Ustawienie dzisiejszej daty
             const today = new Date().toISOString().split('T')[0];
-            dateInput.value = today;
+            if (dateInput) dateInput.value = today;
 
-            function showModal() {
-                modal.style.display = 'block';
-            }
+            function showModal() { if (modal) modal.style.display = 'block'; }
 
-            function closeModal() {
-                modal.style.display = 'none';
-                statusDiv.style.display = 'none';
-                loadingDiv.style.display = 'none';
-            }
+            function closeModal() { if (modal) modal.style.display = 'none'; if (statusDiv) statusDiv.style.display = 'none'; if (loadingDiv) loadingDiv.style.display = 'none'; }
 
-            function showStatus(message, type = 'info') {
-                statusDiv.textContent = message;
-                statusDiv.className = `test-report-status ${type}`;
-                statusDiv.style.display = 'block';
-            }
+            function showStatus(message, type = 'info') { if (statusDiv) { statusDiv.textContent = message; statusDiv.className = `test-report-status ${type}`; statusDiv.style.display = 'block'; } }
 
-            function showLoading(show = true) {
-                loadingDiv.style.display = show ? 'block' : 'none';
-            }
+            function showLoading(show = true) { if (loadingDiv) loadingDiv.style.display = show ? 'block' : 'none'; }
 
-            btnOpen.addEventListener('click', showModal);
-            btnClose.addEventListener('click', closeModal);
-            backdrop.addEventListener('click', closeModal);
+            if (btnOpen) btnOpen.addEventListener('click', showModal);
+            if (btnClose) btnClose.addEventListener('click', closeModal);
+            if (backdrop) backdrop.addEventListener('click', closeModal);
 
             // Upewnij się, że modal jest zamknięty przy wejściu na stronę
             closeModal();
 
-            btnGenerate.addEventListener('click', async function() {
-                const date = dateInput.value;
+            if (btnGenerate) btnGenerate.addEventListener('click', async function() {
+                const date = dateInput ? dateInput.value : '';
                 if (!date) {
                     showStatus('Proszę wybrać datę!', 'error');
                     return;
@@ -259,8 +247,8 @@
                 btnDownload.disabled = false;
             });
 
-            btnDownload.addEventListener('click', async function() {
-                const date = dateInput.value;
+            if (btnDownload) btnDownload.addEventListener('click', async function() {
+                const date = dateInput ? dateInput.value : '';
                 if (!date) {
                     showStatus('Proszę wybrać datę!', 'error');
                     return;
@@ -295,8 +283,8 @@
                     showStatus(`Błąd: ${error.message}`, 'error');
                 }
 
-                btnGenerate.disabled = false;
-                btnDownload.disabled = false;
+                if (btnGenerate) btnGenerate.disabled = false;
+                if (btnDownload) btnDownload.disabled = false;
             });
         })();
     </script>

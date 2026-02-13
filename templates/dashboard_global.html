@@ -224,7 +224,8 @@ document.addEventListener('DOMContentLoaded', function(){
 <script>
 // ========== WYSŁIJ RAPORT MAILEM ==========
 // Funkcja otwierająca klienta poczty z mailto linkiem
-document.getElementById('btnSendEmailReport').addEventListener('click', function(e) {
+const _btnSendEmailReport = document.getElementById('btnSendEmailReport');
+if (_btnSendEmailReport) _btnSendEmailReport.addEventListener('click', function(e) {
   e.preventDefault();
   this.disabled = true;
   const originalText = this.textContent;

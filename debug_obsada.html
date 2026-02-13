@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Produkcyjny</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+    <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css?v=1771016177">
+</head>
+<body>
+
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="top-bar">
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
+            <span class="material-icons">menu</span>
+        </button>
+        <div class="d-flex align-center gap-15">
+            <img src="/static/agro_logo.png" alt="Company logo: the word agro with AGRO and MES styled difference and a simple agricultural emblema; place in the top bar header beige the page title agro; conveys a Natural, professional, trustworthy tone" class="logo-sm" onerror="handleLogoError(this)">
+            <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
+        </div>
+
+        <div class="user-info">
+            
+                <a href="/zarzad" class="btn-icon" title="Raport">
+                    <span class="material-icons">bar_chart</span>
+                </a>
+            
+
+            
+
+            
+                <a href="/zglos" class="btn-icon" title="Zgłoś problem">
+                    <span class="material-icons">report_problem</span>
+                </a>
+            
+
+            <!-- Language selector dropdown -->
+            <div class="language-selector">
+                <button type="button" class="btn-icon language-toggle" title="Zmień język / Change language / Змінити мову" onclick="toggleLanguageMenu(); return false;">
+                    <span class="material-icons">language</span>
+                </button>
+                <div id="languageMenu" class="language-menu hidden">
+                    <a href="/api/set_language?language=pl" class="language-option">
+                        <span>🇵🇱</span> Polski
+                    </a>
+                    <a href="/api/set_language?language=uk" class="language-option">
+                        <span>🇺🇦</span> Українська
+                    </a>
+                    <a href="/api/set_language?language=en" class="language-option">
+                        <span>🇬🇧</span> English
+                    </a>
+                </div>
+            </div>
+
+            
+
+            
+
+            <span class="user-role">Zalogowany: <strong>N/A</strong></span>
+            
+            <a href="/logout" class="logout-btn" aria-label="Wyloguj">
+                <span class="material-icons">logout</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="top-submenu">
+        <div class="top-submenu-inner">
+            <a class="top-tile active" href="/api/obsada_page?sekcja=Workowanie" title="Obsada">
+                <span class="material-icons">people</span>
+                <div class="tile-label">Obsada</div>
+            </a>
+            <nav class="top-menu">
+                <a class="top-menu-item " href="/panel_wnioski_page"> <span class="material-icons">assignment_turned_in</span> Zatwierdzenie wniosków</a>
+                <a class="top-menu-item " href="/panel/planowane"> <span class="material-icons">beach_access</span> Planowane urlopy</a>
+                <a class="top-menu-item " href="/panel/obecnosci"> <span class="material-icons">calendar_today</span> Nieobecności</a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="app-layout">
+        <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+        <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
+            <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
+            <nav class="sidebar-nav">
+                
+                    <a href="/" class="nav-item ">📊 <span class="text-capitalize">Dashboard</span></a>
+                
+
+                
+                    <a href="/?sekcja=Zasyp" class="nav-item ">📥 <span class="text-capitalize">Zasyp</span></a>
+                
+
+                
+                    
+                    <a href="/bufor" class="nav-item ">🗂️ <span class="text-capitalize">Bufor</span></a>
+                    <a href="/?sekcja=Workowanie" class="nav-item active">⚙️ <span class="text-capitalize">Workowanie</span></a>
+                
+
+                
+                    <a href="/?sekcja=Magazyn" class="nav-item ">📦 <span class="text-capitalize">Magazyn</span></a>
+                
+
+                
+                    <a href="/jakosc" class="nav-item ">✅ <span class="text-capitalize">Jakość</span></a>
+                
+
+                
+                    <a href="/zarzad" class="nav-item ">📊 <span class="text-capitalize">Wyniki</span></a>
+                
+
+                
+                    <a href="/dur/awarie" class="nav-item ">⚠️ <span class="text-capitalize">Awarie</span></a>
+                
+
+                
+                    <a href="/planista" class="nav-item ">📋 <span class="text-capitalize">Plan</span></a>
+                
+
+                
+                    <a href="/moje_godziny" class="nav-item ">🕐 <span class="text-capitalize">Moje godziny</span></a>
+                
+
+                
+                    <a href="/admin/ustawienia" class="nav-item ">⚙️ <span class="text-capitalize">Ustawienia</span></a>
+                
+            </nav>
+            <div class="sidebar-footer">
+                <!-- Logout removed from sidebar as per UI request -->
+            </div>
+        </aside>
+
+        <main class="main-content" id="mainContent">
+        
+            
+        
+
+        
+<div class="section-box">
+    <div class="section-header">
+        <h2>Obsada</h2>
+    </div>
+
+    <div class="mt-10">
+        <div class="obsada-toolbar d-flex gap-10 align-center mb-8 obsada-toolbar-wrap">
+            <label for="obsada-date" class="obsada-label">Data:</label>
+            <input type="date" id="obsada-date" value="2026-02-13" class="input-sm">
+            
+                <label for="lider_psd" class="obsada-label obsada-label-ml">Lider PSD:</label>
+                <select id="lider_psd" class="input-sm">
+                    <option value="">- brak -</option>
+                    
+                </select>
+                <label for="lider_agro" class="obsada-label obsada-label-ml">Lider AGRO:</label>
+                <select id="lider_agro" class="input-sm">
+                    <option value="">- brak -</option>
+                    
+                </select>
+                <button type="button" id="btnSaveLiderzy" class="btn btn-primary">Zapisz liderów</button>
+            
+        </div>
+        <!-- sześć niezależnych kolumn: Zasyp / Workowanie / Magazyn / Hala Agro / Laboratorium / Handel -->
+        <div class="obsada-sections">
+            
+            
+            <div class="obsada-section" data-sekcja="Zasyp">
+                <h4>Zasyp</h4>
+                <!-- wybór pracownika + przycisk przeniesione na górę pod nazwą sekcji -->
+                
+                <div class="d-flex gap-5 align-center mb-8 obsada-select-wrap">
+                    <input type="hidden" id="obsada-sekcja-0" value="Zasyp">
+                    <select id="obsada-select-0" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm obsada-select">
+                        <option value="" disabled selected>+ Wybierz pracownika</option>
+                        <option value="1">Admin</option><option value="6">Agencja 4</option><option value="51">Agnieszka Dałek</option><option value="2">Aneta Pawłowska</option><option value="20">Anna Stefanowska</option><option value="24">Arkadiusz Szwarocki</option><option value="14">Filip Kwiatkowski</option><option value="9">Jakub Godosz</option><option value="17">Janek Warzywoda</option><option value="11">Marcin Boczkowski</option><option value="8">Mateusz Budzałek</option><option value="18">Mateusz Budzałek</option><option value="19">Piotr Banaszak</option><option value="7">Vania</option>
+                    </select>
+                    <button type="button" id="btnAddObsada-0" class="btn btn-start">Dodaj</button>
+                </div>
+                
+
+                <div id="current-obsada-0" class="d-flex flex-column gap-10 mb-8">
+                    
+                    
+                        
+                            <div class="chip">
+                                Dawid Grys
+                                
+                                <form action="/api/usun_z_obsady/102" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                            <div class="chip">
+                                Piotr Stępień
+                                
+                                <form action="/api/usun_z_obsady/103" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                    
+                </div>
+
+                <!-- immediate add: no pending list, no confirm/cancel buttons -->
+            </div>
+            
+            <div class="obsada-section" data-sekcja="Workowanie">
+                <h4>Workowanie</h4>
+                <!-- wybór pracownika + przycisk przeniesione na górę pod nazwą sekcji -->
+                
+                <div class="d-flex gap-5 align-center mb-8 obsada-select-wrap">
+                    <input type="hidden" id="obsada-sekcja-1" value="Workowanie">
+                    <select id="obsada-select-1" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm obsada-select">
+                        <option value="" disabled selected>+ Wybierz pracownika</option>
+                        <option value="1">Admin</option><option value="6">Agencja 4</option><option value="51">Agnieszka Dałek</option><option value="2">Aneta Pawłowska</option><option value="20">Anna Stefanowska</option><option value="24">Arkadiusz Szwarocki</option><option value="14">Filip Kwiatkowski</option><option value="9">Jakub Godosz</option><option value="17">Janek Warzywoda</option><option value="11">Marcin Boczkowski</option><option value="8">Mateusz Budzałek</option><option value="18">Mateusz Budzałek</option><option value="19">Piotr Banaszak</option><option value="7">Vania</option>
+                    </select>
+                    <button type="button" id="btnAddObsada-1" class="btn btn-start">Dodaj</button>
+                </div>
+                
+
+                <div id="current-obsada-1" class="d-flex flex-column gap-10 mb-8">
+                    
+                    
+                        
+                            <div class="chip">
+                                Agencja 1
+                                
+                                <form action="/api/usun_z_obsady/110" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                            <div class="chip">
+                                Agencja 2
+                                
+                                <form action="/api/usun_z_obsady/111" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                            <div class="chip">
+                                Agencja 3
+                                
+                                <form action="/api/usun_z_obsady/112" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                    
+                </div>
+
+                <!-- immediate add: no pending list, no confirm/cancel buttons -->
+            </div>
+            
+            <div class="obsada-section" data-sekcja="Magazyn">
+                <h4>Magazyn</h4>
+                <!-- wybór pracownika + przycisk przeniesione na górę pod nazwą sekcji -->
+                
+                <div class="d-flex gap-5 align-center mb-8 obsada-select-wrap">
+                    <input type="hidden" id="obsada-sekcja-2" value="Magazyn">
+                    <select id="obsada-select-2" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm obsada-select">
+                        <option value="" disabled selected>+ Wybierz pracownika</option>
+                        <option value="1">Admin</option><option value="6">Agencja 4</option><option value="51">Agnieszka Dałek</option><option value="2">Aneta Pawłowska</option><option value="20">Anna Stefanowska</option><option value="24">Arkadiusz Szwarocki</option><option value="14">Filip Kwiatkowski</option><option value="9">Jakub Godosz</option><option value="17">Janek Warzywoda</option><option value="11">Marcin Boczkowski</option><option value="8">Mateusz Budzałek</option><option value="18">Mateusz Budzałek</option><option value="19">Piotr Banaszak</option><option value="7">Vania</option>
+                    </select>
+                    <button type="button" id="btnAddObsada-2" class="btn btn-start">Dodaj</button>
+                </div>
+                
+
+                <div id="current-obsada-2" class="d-flex flex-column gap-10 mb-8">
+                    
+                    
+                        
+                            <div class="chip">
+                                Bartłomiej Luberacki
+                                
+                                <form action="/api/usun_z_obsady/104" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                            <div class="chip">
+                                Mateusz Burzykowski
+                                
+                                <form action="/api/usun_z_obsady/105" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                    
+                </div>
+
+                <!-- immediate add: no pending list, no confirm/cancel buttons -->
+            </div>
+            
+            <div class="obsada-section" data-sekcja="Hala Agro">
+                <h4>Hala Agro</h4>
+                <!-- wybór pracownika + przycisk przeniesione na górę pod nazwą sekcji -->
+                
+                <div class="d-flex gap-5 align-center mb-8 obsada-select-wrap">
+                    <input type="hidden" id="obsada-sekcja-3" value="Hala Agro">
+                    <select id="obsada-select-3" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm obsada-select">
+                        <option value="" disabled selected>+ Wybierz pracownika</option>
+                        <option value="1">Admin</option><option value="6">Agencja 4</option><option value="51">Agnieszka Dałek</option><option value="2">Aneta Pawłowska</option><option value="20">Anna Stefanowska</option><option value="24">Arkadiusz Szwarocki</option><option value="14">Filip Kwiatkowski</option><option value="9">Jakub Godosz</option><option value="17">Janek Warzywoda</option><option value="11">Marcin Boczkowski</option><option value="8">Mateusz Budzałek</option><option value="18">Mateusz Budzałek</option><option value="19">Piotr Banaszak</option><option value="7">Vania</option>
+                    </select>
+                    <button type="button" id="btnAddObsada-3" class="btn btn-start">Dodaj</button>
+                </div>
+                
+
+                <div id="current-obsada-3" class="d-flex flex-column gap-10 mb-8">
+                    
+                    
+                </div>
+
+                <!-- immediate add: no pending list, no confirm/cancel buttons -->
+            </div>
+            
+            <div class="obsada-section" data-sekcja="Laboratorium">
+                <h4>Laboratorium</h4>
+                <!-- wybór pracownika + przycisk przeniesione na górę pod nazwą sekcji -->
+                
+                <div class="d-flex gap-5 align-center mb-8 obsada-select-wrap">
+                    <input type="hidden" id="obsada-sekcja-4" value="Laboratorium">
+                    <select id="obsada-select-4" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm obsada-select">
+                        <option value="" disabled selected>+ Wybierz pracownika</option>
+                        <option value="1">Admin</option><option value="6">Agencja 4</option><option value="51">Agnieszka Dałek</option><option value="2">Aneta Pawłowska</option><option value="20">Anna Stefanowska</option><option value="24">Arkadiusz Szwarocki</option><option value="14">Filip Kwiatkowski</option><option value="9">Jakub Godosz</option><option value="17">Janek Warzywoda</option><option value="11">Marcin Boczkowski</option><option value="8">Mateusz Budzałek</option><option value="18">Mateusz Budzałek</option><option value="19">Piotr Banaszak</option><option value="7">Vania</option>
+                    </select>
+                    <button type="button" id="btnAddObsada-4" class="btn btn-start">Dodaj</button>
+                </div>
+                
+
+                <div id="current-obsada-4" class="d-flex flex-column gap-10 mb-8">
+                    
+                    
+                        
+                            <div class="chip">
+                                Andżela Heller
+                                
+                                <form action="/api/usun_z_obsady/108" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                            <div class="chip">
+                                Artur Jabłoński
+                                
+                                <form action="/api/usun_z_obsady/109" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                    
+                </div>
+
+                <!-- immediate add: no pending list, no confirm/cancel buttons -->
+            </div>
+            
+            <div class="obsada-section" data-sekcja="Handel">
+                <h4>Handel</h4>
+                <!-- wybór pracownika + przycisk przeniesione na górę pod nazwą sekcji -->
+                
+                <div class="d-flex gap-5 align-center mb-8 obsada-select-wrap">
+                    <input type="hidden" id="obsada-sekcja-5" value="Handel">
+                    <select id="obsada-select-5" title="Wybierz pracownika" aria-label="Wybierz pracownika" class="input-sm obsada-select">
+                        <option value="" disabled selected>+ Wybierz pracownika</option>
+                        <option value="1">Admin</option><option value="6">Agencja 4</option><option value="51">Agnieszka Dałek</option><option value="2">Aneta Pawłowska</option><option value="20">Anna Stefanowska</option><option value="24">Arkadiusz Szwarocki</option><option value="14">Filip Kwiatkowski</option><option value="9">Jakub Godosz</option><option value="17">Janek Warzywoda</option><option value="11">Marcin Boczkowski</option><option value="8">Mateusz Budzałek</option><option value="18">Mateusz Budzałek</option><option value="19">Piotr Banaszak</option><option value="7">Vania</option>
+                    </select>
+                    <button type="button" id="btnAddObsada-5" class="btn btn-start">Dodaj</button>
+                </div>
+                
+
+                <div id="current-obsada-5" class="d-flex flex-column gap-10 mb-8">
+                    
+                    
+                        
+                            <div class="chip">
+                                Justyna Gałek
+                                
+                                <form action="/api/usun_z_obsady/107" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                            <div class="chip">
+                                Karolina Koza
+                                
+                                <form action="/api/usun_z_obsady/106" method="POST" class="m-0 d-inline-block ml-6">
+                                    <button type="submit" class="delete-button" aria-label="Usuń z obsady">🗑️</button>
+                                </form>
+                                
+                            </div>
+                        
+                    
+                </div>
+
+                <!-- immediate add: no pending list, no confirm/cancel buttons -->
+            </div>
+            
+        </div>
+
+    <script>
+    (function(){
+        // Dynamicznie czytaj sekcje z HTML-u zamiast hardcoding
+        const sectionEls = document.querySelectorAll('.obsada-section');
+        const sections = Array.from(sectionEls).map(el => el.getAttribute('data-sekcja'));
+        
+        // Zapobiegaj zamknięciu sidebara gdy klikniemy na selecty
+        const allSelects = document.querySelectorAll('.obsada-toolbar select, .obsada-section select');
+        allSelects.forEach(sel => {
+            sel.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+            sel.addEventListener('change', function(e) {
+                e.stopPropagation();
+            });
+        });
+        
+        sections.forEach(function(name, idx){
+            const select = document.getElementById('obsada-select-'+idx);
+            const addBtn = document.getElementById('btnAddObsada-'+idx);
+            const pending = document.getElementById('pending-list-'+idx);
+            const sekcjaEl = document.getElementById('obsada-sekcja-'+idx);
+            const sekcja = sekcjaEl ? sekcjaEl.value : name;
+            const confirmBtn = document.getElementById('btnConfirmObsada-'+idx);
+            const current = document.getElementById('current-obsada-'+idx);
+
+            // Immediate add: when clicking 'Dodaj', send AJAX to add worker and update list
+            if(addBtn){
+                addBtn.addEventListener('click', async function(){
+                    if(!select) return;
+                    const val = select.value; const txt = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : '';
+                    if(!val) return;
+                    addBtn.disabled = true;
+                    try{
+                        const fd = new URLSearchParams(); fd.append('sekcja', sekcja); fd.append('pracownik_id', val);
+                        const dateEl = document.getElementById('obsada-date'); const dateVal = dateEl ? dateEl.value : '';
+                        if(dateVal) fd.append('date', dateVal);
+                        const resp = await fetch('/api/dodaj_do_obsady', { method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} });
+                        if(!resp.ok){ const txt = await resp.text(); showToast && showToast('Błąd: '+ (txt||resp.status), 'error'); addBtn.disabled = false; return; }
+                        let j = null;
+                        try{ j = await resp.json(); }catch(e){ j = null; }
+                        const newId = j && j.id ? j.id : null;
+                        const newName = j && j.name ? j.name : txt;
+                        if(current){
+                            const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = newName;
+                            if(newId){
+                                const form = document.createElement('form'); form.method = 'POST'; form.action = '/leaves/usun_z_obsady/' + newId; form.className='m-0'; form.style.display='inline-block'; form.style.marginLeft='6px';
+                                const btn = document.createElement('button'); btn.type='submit'; btn.className='btn-delete'; btn.innerHTML='&times;';
+                                form.appendChild(btn);
+                                chip.appendChild(form);
+                            } else {
+                                const rem = document.createElement('button'); rem.className='btn-delete'; rem.type='button'; rem.innerHTML='&times;'; rem.style.marginLeft='6px';
+                                rem.addEventListener('click', function(){ chip.remove(); });
+                                chip.appendChild(rem);
+                            }
+                            current.appendChild(chip);
+                        }
+                        // remove option from select
+                        try{ const opt = select.querySelector('option[value="'+val+'"]'); if(opt) opt.remove(); }catch(e){}
+                        select.selectedIndex = 0;
+                        showToast && showToast('Dodano pracownika','success');
+                    }catch(e){ console.error(e); showToast && showToast('Błąd sieci','error'); }
+                    addBtn.disabled = false;
+                });
+            }
+
+            // save leaders handler
+            const saveBtn = document.getElementById('btnSaveLiderzy');
+            if(saveBtn){
+                saveBtn.addEventListener('click', async function(){
+                    const dateEl = document.getElementById('obsada-date'); const dateVal = dateEl ? dateEl.value : '';
+                    const lpsd = document.getElementById('lider_psd') ? document.getElementById('lider_psd').value : '';
+                    const lagro = document.getElementById('lider_agro') ? document.getElementById('lider_agro').value : '';
+                    saveBtn.disabled = true;
+                    try{
+                        const fd = new URLSearchParams(); if(dateVal) fd.append('date', dateVal); fd.append('lider_psd', lpsd); fd.append('lider_agro', lagro);
+                        const resp = await fetch('/api/zapisz_liderow_obsady', { method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} });
+                        if(!resp.ok){ const txt = await resp.text(); showToast && showToast('Błąd zapisu liderów: '+(txt||resp.status),'error'); saveBtn.disabled = false; return; }
+                        showToast && showToast('Zapisano liderów','success');
+                    }catch(e){ console.error(e); showToast && showToast('Błąd sieci','error'); }
+                    saveBtn.disabled = false;
+                });
+            }
+
+            // deletion for existing obsada entries in this section: delegate click
+            if(current){
+                current.addEventListener('click', function(ev){
+                    const t = ev.target;
+                    if(!t.classList.contains('btn-delete')) return;
+                    const frm = t.closest('form');
+                    if(frm){
+                        ev.preventDefault();
+                        const url = frm.getAttribute('action') || window.location.href;
+                        fetch(url, { method: 'POST', credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} })
+                        .then(async function(resp){
+                            if(resp.status === 401){ window.location.href = '/login'; return; }
+                            if(!resp.ok){ const txt = await resp.text(); showToast && showToast('Błąd: '+(txt||resp.status),'error'); return; }
+                            const chip = t.closest('.chip'); if(chip) chip.remove();
+                            showToast && showToast('Usunięto pracownika','success');
+                        }).catch(function(err){ console.error('delete obsada failed', err); showToast && showToast('Błąd sieci','error'); });
+                    }
+                });
+            }
+
+            // no pending list in immediate-add mode
+        });
+    })();
+    </script>
+    </div>
+</div>
+
+        </main>
+    </div>
+
+    <script src="/static/js/toasts.js?v=1771016177"></script>
+    <script src="/static/scripts.js?v=1771016177"></script>
+    <script src="/static/quick_debug.js?v=1771016177"></script>
+    <script>
+        // Ensure language menu is always closed on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const menu = document.getElementById('languageMenu');
+            if(menu) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        function handleLogoError(img){
+            try{
+                if(img.src.indexOf('agro_logo.png') !== -1){
+                    img.src = '/static/logo.png';
+                } else {
+                    img.onerror = null;
+                    img.src = 'https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';
+                }
+            }catch(e){
+                img.onerror = null;
+            }
+        }
+        
+        // Przełączanie widoczności menu języków
+        function toggleLanguageMenu(){
+            const menu = document.getElementById('languageMenu');
+            if(menu) {
+                menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+            }
+        }
+        
+        // Zamykanie menu ponad innymi klikami w dokumencie
+        document.addEventListener('click', function(event) {
+            const selector = document.querySelector('.language-selector');
+            const menu = document.getElementById('languageMenu');
+            if(selector && menu && !selector.contains(event.target)) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        // Przełączanie języka aplikacji
+        function switchLanguage(lang){
+            const setLangCookie = function() {
+                try {
+                    const maxAge = 365 * 24 * 60 * 60;
+                    document.cookie = 'app_language=' + encodeURIComponent(lang) + '; path=/; max-age=' + maxAge;
+                } catch (e) {
+                    /* ignore */
+                }
+            };
+
+            fetch('/api/set_language', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({language: lang})
+            })
+            .then(r => {
+                if (!r.ok) {
+                    throw new Error('HTTP ' + r.status);
+                }
+                return r.json();
+            })
+            .then(data => {
+                if (data && data.success) {
+                    const langNames = {uk: 'Ukrainski', pl: 'Polski', en: 'English'};
+                    if (typeof showToast === 'function') {
+                        showToast('✓ Jezyk zmieniony na ' + (langNames[lang] || lang), 'success');
+                    }
+                    setTimeout(() => location.reload(), 300);
+                    return;
+                }
+                throw new Error((data && data.message) || 'Blad zmiany jezyka');
+            })
+            .catch(err => {
+                setLangCookie();
+                if (typeof showToast === 'function') {
+                    showToast('✓ Jezyk zmieniony (cookie). ' + (err && err.message ? err.message : ''), 'warning');
+                }
+                setTimeout(() => location.reload(), 300);
+            });
+        }
+    </script>
+
+    <!-- Zabezpieczenie przed double-click (duplikaty) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Dla każdego formularza - czuwaj na duplikaty
+            const forms = document.querySelectorAll('form');
+            forms.forEach(form => {
+                let isSubmitting = false;
+                form.addEventListener('submit', function(e) {
+                    if (isSubmitting) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    isSubmitting = true;
+                    
+                    // Wyłącz wszystkie submit buttony w form
+                    const buttons = form.querySelectorAll('button[type="submit"]');
+                    buttons.forEach(btn => {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                        const originalText = btn.textContent;
+                        btn.textContent = '⏳ Przetwarzanie...';
+                        
+                        // Reset po 30 sekundach (na wypadek błędu)
+                        setTimeout(() => {
+                            btn.disabled = false;
+                            btn.style.opacity = '1';
+                            btn.style.cursor = 'pointer';
+                            btn.textContent = originalText;
+                            isSubmitting = false;
+                        }, 30000);
+                    });
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>

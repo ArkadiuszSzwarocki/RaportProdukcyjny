@@ -259,6 +259,11 @@ def szarza_page(plan_id):
 @login_required
 def wyjasnij_page(id):
     """Render form to submit explanation via zapisz_wyjasnienie"""
+    # If this endpoint is requested directly (not via AJAX/data-slide),
+    # rendering the raw fragment results in a bare page. Redirect back
+    # to a safe location to avoid showing an unstyled fragment.
+    if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+        return redirect(bezpieczny_powrot())
     return render_template('wyjasnij.html', id=id)
 
 
@@ -283,6 +288,7 @@ def manual_rollover():
 
 
 @production_bp.route('/obsada_page', methods=['GET'])
+@production_bp.route('/api/obsada_page', methods=['GET'])
 @login_required
 def obsada_page():
     """Render slide-over for managing obsada (workers on shift) for a sekcja"""

@@ -462,7 +462,7 @@ function updatePaletaTimers(){
         if(isNaN(start)) return;
         const now = Date.now();
         const secs = Math.floor((now - start)/1000);
-        el.textContent = '⏱️ ' + formatElapsed(secs);
+        if (el) el.textContent = '⏱️ ' + formatElapsed(secs);
     });
 }
 function initUpdatePaletaTimers(){
@@ -529,12 +529,16 @@ document.addEventListener('DOMContentLoaded', function(){
     var weekBtn = document.getElementById('view-week');
     var monthBtn = document.getElementById('view-month');
 
-    var currentDate = baseIso ? parseIso(baseIso) : new Date();
-    currentEl.textContent = fmt(currentDate);
+    // Defensive: if the date-overview widget isn't rendered for this sekcja (e.g. Zasyp/Workowanie),
+    // don't attempt to update its DOM (prevents "Cannot set properties of null" errors).
+    if (!currentEl || !rangeEl) return;
 
-    function showDay(){ rangeEl.textContent = fmt(currentDate); }
-    function showWeek(){ var s = startOfWeek(currentDate); var e = endOfWeek(currentDate); rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
-    function showMonth(){ var s = startOfMonth(currentDate); var e = endOfMonth(currentDate); rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
+    var currentDate = baseIso ? parseIso(baseIso) : new Date();
+    if (currentEl) currentEl.textContent = fmt(currentDate);
+
+    function showDay(){ if (rangeEl) rangeEl.textContent = fmt(currentDate); }
+    function showWeek(){ var s = startOfWeek(currentDate); var e = endOfWeek(currentDate); if (rangeEl) rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
+    function showMonth(){ var s = startOfMonth(currentDate); var e = endOfMonth(currentDate); if (rangeEl) rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
 
     // default to day view
     showDay();
@@ -566,7 +570,7 @@ document.addEventListener('DOMContentLoaded', function(){
         if (e.stopImmediatePropagation) try { e.stopImmediatePropagation(); } catch (e) {}
         // remove legacy slide attributes to fully disable slide-cover behavior
         try { a.removeAttribute('data-slide'); a.removeAttribute('data-slide-html'); } catch (e) {}
-        var title = a.getAttribute('title') || a.textContent.trim() || 'Szybki popup';
+        var title = a.getAttribute('title') || ((a.textContent && a.textContent.trim()) ? a.textContent.trim() : '') || 'Szybki popup';
         fetch(href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(function(res){ return res.text(); })
             .then(function(html){
@@ -636,7 +640,7 @@ document.addEventListener('DOMContentLoaded', function(){
         t.style.marginTop = '8px';
         t.style.borderRadius = '4px';
         t.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
-        t.textContent = msg;
+        if (t) t.textContent = msg;
         toastContainer.appendChild(t);
         setTimeout(function(){ t.style.opacity = '0'; setTimeout(function(){ t.remove(); }, 300); }, 3500);
     }
@@ -723,7 +727,7 @@ function showToast(message, type = 'error') {
     // Create toast element
     const toast = document.createElement('div');
     toast.className = `toast-notification toast-${type}`;
-    toast.textContent = message;
+    if (toast) toast.textContent = message;
     toast.style.cssText = `
         position: fixed;
         top: 20px;
@@ -926,8 +930,8 @@ document.addEventListener('click', function(e){
             const newDateStr = currentDate.toISOString().split('T')[0];
             const newDateDisplay = currentDate.toLocaleDateString('pl-PL');
             
-            dateISO.value = newDateStr;
-            dateDisplay.textContent = newDateDisplay;
+            if (dateISO) dateISO.value = newDateStr;
+            if (dateDisplay) dateDisplay.textContent = newDateDisplay;
             
             updateWpisyForDate(newDateStr);
         });

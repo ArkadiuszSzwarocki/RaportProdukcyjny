@@ -36,7 +36,8 @@
 </div>
 
 <script>
-document.getElementById('reportForm').addEventListener('submit', async function(e) {
+const _reportForm = document.getElementById('reportForm');
+if (_reportForm) _reportForm.addEventListener('submit', async function(e) {
     e.preventDefault();
     const submitBtn = document.getElementById('submitBtn');
     const originalText = submitBtn.textContent;

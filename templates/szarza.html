@@ -21,7 +21,7 @@
         </div>
         <div class="btn-row mt-10">
             <button type="submit" class="btn-action btn-primary">{{ _('dodaj_szarze') }}</button>
-            <button type="button" onclick="closeQuickPopup()" class="btn-action btn-action-cancel">ANULUJ</button>
+            <button type="button" onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)" class="btn-action btn-action-cancel">ANULUJ</button>
         </div>
     </form>
 </div>

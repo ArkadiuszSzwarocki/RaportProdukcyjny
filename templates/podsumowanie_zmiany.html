@@ -228,7 +228,8 @@ function togglePalety(planId) {
     }
 }
 
-document.getElementById('raport-form').addEventListener('submit', function(e) {
+const _raportForm = document.getElementById('raport-form');
+if (_raportForm) _raportForm.addEventListener('submit', function(e) {
     e.preventDefault();
     
     const notatki = document.getElementById('notatki').value;
