@@ -272,8 +272,8 @@ def dodaj_plan():
                     nk_work = (res[0] if res and res[0] else 0) + 1
                     
                     cursor.execute(
-                        "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                        (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
+                        "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, typ, 0, zasyp_plan_id)
                     )
                     try:
                         current_app.logger.info(f'[DODAJ_PLAN] Created new Workowanie plan for produkt={produkt} when first szarża added')
@@ -438,9 +438,12 @@ def dodaj_plany_batch():
                 nk_work = max_seq_map.get('Workowanie', 0) + 1
                 max_seq_map['Workowanie'] = nk_work
                 
+                # Get the ID of the Zasyp we just created (for linking)
+                zasyp_id_created = cursor.lastrowid
+                
                 cursor.execute(
-                    "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0)
+                    "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0, zasyp_id_created)
                 )
         conn.commit()
     except Exception as e:
