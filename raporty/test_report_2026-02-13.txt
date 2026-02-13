@@ -1,0 +1,3 @@
+Testowy raport dla daty 2026-02-13
+Wygenerowano: 2026-02-13T19:12:32.423340Z
+To jest stub generujący przykładowe pliki raportów dla testów.
