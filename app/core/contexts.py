@@ -16,9 +16,22 @@ _translations_cache = {}
 def inject_static_version():
     """Inject cache-busting static file version based on CSS modification time."""
     try:
-        # Use file modification time of static/css/style.css as cache-buster
-        path = os.path.join(current_app.root_path, 'static', 'css', 'style.css')
-        v = int(os.path.getmtime(path))
+        # Use the latest modification time among key static assets (style + scripts)
+        candidates = [
+            os.path.join(current_app.root_path, 'static', 'css', 'style.css'),
+            os.path.join(current_app.root_path, 'static', 'scripts.js'),
+            os.path.join(current_app.root_path, 'static', 'quick_debug.js')
+        ]
+        mtimes = []
+        for p in candidates:
+            try:
+                mtimes.append(int(os.path.getmtime(p)))
+            except Exception:
+                continue
+        if mtimes:
+            v = max(mtimes)
+        else:
+            v = int(time.time())
     except Exception:
         v = int(time.time())
     return dict(static_version=v)

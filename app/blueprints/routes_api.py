@@ -11,6 +11,13 @@ from app.db import get_db_connection, rollover_unfinished, log_plan_history
 from app.dto.paleta import PaletaDTO
 from app.decorators import login_required, roles_required
 from app.services.raport_service import RaportService
+# Import test wrappers (used by admin UI test buttons)
+try:
+    from app.blueprints.routes_testing import test_generate_report as _test_generate_report
+    from app.blueprints.routes_testing import test_download_zip as _test_download_zip
+except Exception:
+    _test_generate_report = None
+    _test_download_zip = None
 
 api_bp = Blueprint('api', __name__)
 
@@ -243,6 +250,20 @@ def wpisy_na_date():
             'success': False,
             'message': str(e)
         }), 400
+
+# Compatibility endpoints used by frontend admin test buttons
+@api_bp.route('/test-generate-report')
+def api_test_generate_report():
+    if _test_generate_report is None:
+        return jsonify({'success': False, 'message': 'Test generator unavailable'}), 503
+    return _test_generate_report()
+
+
+@api_bp.route('/test-download-zip')
+def api_test_download_zip():
+    if _test_download_zip is None:
+        return jsonify({'success': False, 'message': 'Test ZIP unavailable'}), 503
+    return _test_download_zip()
 
 
 @api_bp.route('/shift_notes_na_date')

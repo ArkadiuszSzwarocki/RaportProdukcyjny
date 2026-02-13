@@ -570,4 +570,25 @@
         };
     }
 
+    // Sanitize alerts that contain full HTML documents or HTML snippets.
+    // Some server endpoints return an HTML error page; many templates did `alert(err.message)`
+    // which caused the entire HTML to be shown. This wrapper strips tags and truncates.
+    try {
+        (function(){
+            const _origAlert = window.alert.bind(window);
+            window.alert = function(msg){
+                try{
+                    if(typeof msg === 'string' && (msg.indexOf('<!DOCTYPE') !== -1 || msg.indexOf('<html') !== -1 || /<[^>]+>/.test(msg))){
+                        let t = msg.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+                        t = t.replace(/<[^>]*>/g, '');
+                        t = t.replace(/\s+/g, ' ').trim();
+                        if(t.length > 800) t = t.slice(0,800) + '...';
+                        return _origAlert(t);
+                    }
+                }catch(e){ /* fallthrough to original */ }
+                return _origAlert(msg);
+            };
+        })();
+    } catch(e){ console.warn('alert sanitization failed', e); }
+
 })();

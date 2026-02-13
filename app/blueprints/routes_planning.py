@@ -719,7 +719,7 @@ def edytuj_plan_ajax():
         return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
 
 
-@planning_bp.route('/api/update_uszkodzone_worki', methods=['POST'])
+@planning_bp.route('/update_uszkodzone_worki', methods=['POST'])
 @roles_required('planista', 'admin', 'produkcja')
 def update_uszkodzone_worki():
     """Update uszkodzone_worki field via AJAX."""
@@ -958,7 +958,7 @@ def jakosc_dodaj_do_planow(id):
     return redirect(bezpieczny_powrot())
 
 
-@planning_bp.route('/api/reorder_plans_bulk', methods=['POST'])
+@planning_bp.route('/reorder_plans_bulk', methods=['POST'])
 @roles_required('planista', 'admin')
 def reorder_plans_bulk():
     """Reorder plans via drag-and-drop - only zaplanowane plans."""
@@ -986,9 +986,14 @@ def reorder_plans_bulk():
                 (int(pid), data_planu)
             )
             res = cursor.fetchone()
-            if res and res[0] in ['w toku', 'zakonczone']:
+            if res:
+                status = res[0]
+                if status in ['w toku', 'zakonczone']:
+                    conn.close()
+                    return jsonify({'success': False, 'message': f'Plan {int(pid)} ma status "{status}" — nie można reorderować planów w toku lub zakończonych'}), 403
+            else:
                 conn.close()
-                return jsonify({'success': False, 'message': 'Nie można reorderować planów w toku lub zakończonych'}), 403
+                return jsonify({'success': False, 'message': f'Plan {int(pid)} nie znaleziony dla daty {data_planu}'}), 404
         
         # Reorder - assign sequences 1,2,3,... only to zaplanowane
         for idx, pid in enumerate(plan_ids, 1):

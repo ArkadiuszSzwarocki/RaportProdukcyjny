@@ -126,6 +126,19 @@ def test_download_zip() -> Union[Response, Tuple[Response, int]]:
         }), 500
 
 
+# Backwards-compatible API paths expected by frontend
+@testing_bp.route('/api/test-generate-report')
+def api_test_generate_report():
+    """Compatibility wrapper for frontend expecting /api/test-generate-report"""
+    return test_generate_report()
+
+
+@testing_bp.route('/api/test-download-zip')
+def api_test_download_zip():
+    """Compatibility wrapper for frontend expecting /api/test-download-zip"""
+    return test_download_zip()
+
+
 # --- Slide/Center Modal Test Routes ---
 # Used to demonstrate and test slide-over and center modal behavior
 
