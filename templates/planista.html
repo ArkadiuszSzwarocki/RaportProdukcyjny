@@ -118,7 +118,7 @@
                                 <button type="submit" class="btn-icon text-danger" title="{{ _('usun_plan') }}">🗑️</button>
                             </form>
                         {% elif p[4] == 'w toku' %}
-                            {% if current_role in ['planista', 'admin'] %}
+                            {% if session.get('rola') in ['planista', 'admin'] %}
                                 <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit" data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
                             {% else %}
                                 <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
@@ -163,6 +163,7 @@
         <thead>
             <tr>
                 <th>📦 Produkt</th>
+                <th>📋 Planowany Zasyp (kg)</th>
                 <th>📋 Zasyp (kg)</th>
                 <th>🧾 Plan Workowanie (kg)</th>
                 <th>📦 Spakowano (kg)</th>
@@ -176,6 +177,7 @@
                 {% for r in rozliczenia %}
                 <tr class="{% if r.status == 'w toku' %}bg-success-light{% elif r.status == 'zakonczone' %}bg-dark-light{% elif r.status == 'zaplanowane' %}bg-warning-light{% endif %}">
                     <td><strong class="text-primary">{{ r.produkt }}</strong></td>
+                    <td>{{ r.planowany_zasyp|float }} kg</td>
                     <td>{{ r.zasyp_kg|float }} kg</td>
                     <td>{{ r.plan_workowanie|float }} kg</td>
                     <td>{{ r.spakowano_palety|float }} kg</td>
@@ -185,7 +187,7 @@
                 </tr>
                 {% endfor %}
             {% else %}
-                <tr><td colspan="7" class="text-center text-muted">Brak danych rozliczeniowych dla wybranej daty.</td></tr>
+                <tr><td colspan="8" class="text-center text-muted">Brak danych rozliczeniowych dla wybranej daty.</td></tr>
             {% endif %}
         </tbody>
     </table>

@@ -176,36 +176,38 @@ def panel_planisty():
 
             zasyp_id = p[0]
             produkt = p[2]
-            zasyp_kg = p[8] or 0
+            planowany_zasyp = p[3] or 0  # tonaz z tabeli plan_produkcji (kolumna tonaz dla Zasypu)
 
-            # Plan Workowanie (suma tonaz zadeklarowanych w planach Workowanie dla produktu i daty)
+            # Plan Workowanie = Zasyp (suma wagi szarż wysłanych z bufora dla tego Zasypu)
             cursor.execute("""
-                SELECT SUM(tonaz) FROM plan_produkcji
-                WHERE data_planu = %s AND sekcja = 'Workowanie' AND produkt = %s
-            """, (wybrana_data, produkt))
+                SELECT SUM(waga) FROM szarze
+                WHERE plan_id = %s
+            """, (zasyp_id,))
             row = cursor.fetchone()
             plan_work = row[0] or 0 if row else 0
+            zasyp_kg = plan_work  # Zasyp = Plan produkcji
 
             # Spakowano (sumarycznie z palet Workowanie dla tego produktu/daty)
             pal_list = palety_mapa.get(zasyp_id, [])
             spakowano_palety = sum([float(x[0]) for x in pal_list]) if pal_list else 0
 
-            # Bufor: ile zostało zarejestrowane w buforze jako spakowano dla tego zasypu
-            cursor.execute("SELECT SUM(spakowano) FROM bufor WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'", (zasyp_id, wybrana_data))
+            # Bufor: ile czeka w buforze do spakowania (tonaz_rzeczywisty - spakowano)
+            cursor.execute("SELECT SUM(tonaz_rzeczywisty - spakowano) FROM bufor WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'", (zasyp_id, wybrana_data))
             rowb = cursor.fetchone()
-            bufor_spak = rowb[0] or 0 if rowb else 0
+            bufor_czeka = rowb[0] or 0 if rowb else 0
 
             diff_no_buf = round((zasyp_kg - spakowano_palety), 1)
-            diff_with_buf = round((zasyp_kg - (spakowano_palety + bufor_spak)), 1)
+            diff_with_buf = round((zasyp_kg - (spakowano_palety + bufor_czeka)), 1)
 
             rozliczenia.append({
                 'zasyp_id': zasyp_id,
                 'produkt': produkt,
                 'status': p[4],  # Dodaj status zlecenia
+                'planowany_zasyp': round(float(planowany_zasyp), 1),
                 'zasyp_kg': round(float(zasyp_kg), 1),
                 'plan_workowanie': round(float(plan_work), 1),
                 'spakowano_palety': round(float(spakowano_palety), 1),
-                'bufor_spakowano': round(float(bufor_spak), 1),
+                'bufor_spakowano': round(float(bufor_czeka), 1),
                 'diff_no_buf': diff_no_buf,
                 'diff_with_buf': diff_with_buf,
             })
@@ -217,6 +219,8 @@ def panel_planisty():
         except Exception:
             pass
 
+    rola = session.get('rola')
+    current_app.logger.info(f'[PLANISTA] Rendering template: current_role={rola}, session_keys={list(session.keys())}')
     return render_template('planista.html', 
                            plany=plany_list, 
                            wybrana_data=wybrana_data, 
@@ -229,7 +233,7 @@ def panel_planisty():
                            quality_count=quality_count,
                            quality_orders=quality_orders,
                            rozliczenia=rozliczenia,
-                           current_role=session.get('rola'))
+                           current_role=rola)
 
 
 @planista_bp.route('/planista/add_czyszczenie', methods=['POST'])

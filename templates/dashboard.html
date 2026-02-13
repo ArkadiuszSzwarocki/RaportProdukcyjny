@@ -259,11 +259,20 @@
                                             <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                                         {% endif %}
                                     </div>
+                                    {% if rola in ['planista', 'admin'] %}
+                                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit" data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
+                                    {% endif %}
                                     <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% elif sekcja == 'Zasyp' %}
                                     <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
+                                    {% if rola in ['planista', 'admin'] %}
+                                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit" data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
+                                    {% endif %}
                                     <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% else %}
+                                    {% if rola in ['planista', 'admin'] %}
+                                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit" data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
+                                    {% endif %}
                                     <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
                                 {% endif %}
                             </div>
@@ -993,5 +1002,53 @@ function deletePlan(id, data){
         console.log('❌ [19] Fetch error:', err, 'stack:', err.stack);
         alert('Błąd sieci: ' + err.message); 
     });
+}
+
+// Event listener dla tonaz edit buttons na dashboard
+document.addEventListener('click', function(e) {
+    var closestBtn = e.target.closest('[data-action="dashboard-tonaz-edit"]');
+    if (closestBtn) {
+        e.preventDefault();
+        const planId = closestBtn.getAttribute('data-plan-id');
+        if (planId) dashboardTonazEdit(planId);
+    }
+});
+
+function dashboardTonazEdit(id){
+    // Pobierz wiersz planu
+    var tr = document.querySelector('tr[data-plan-id="'+id+'"]');
+    if(!tr) return;
+    
+    // Pobierz wartość tonażu z trzeciej kolumny (index 2)
+    var tonaz = tr.children[2].innerText.replace(/[^0-9\.\,]/g,'')||0;
+    
+    // Użyj prompt() do pobrania nowej wartości
+    var newTonaz = prompt('Wpisz nowy tonaż (kg):', tonaz);
+    if (newTonaz === null) return; // User clicked cancel
+    
+    try {
+        newTonaz = parseFloat(newTonaz.replace(',', '.'));
+        if (isNaN(newTonaz) || newTonaz < 0) {
+            alert('Nieprawidłowa wartość');
+            return;
+        }
+    } catch(e) {
+        alert('Błąd: ' + e.message);
+        return;
+    }
+    
+    // Wyślij aktualizację
+    fetch('/api/edytuj_plan_ajax', {
+        method: 'POST', 
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id: id, tonaz: newTonaz})
+    }).then(r=>r.json()).then(j=>{
+        if(j && j.success){
+            alert('Tonaż zaktualizowany');
+            location.reload();
+        } else {
+            alert((j && j.message) || 'Błąd');
+        }
+    }).catch(()=>alert('Błąd sieci'));
 }
 </script>
