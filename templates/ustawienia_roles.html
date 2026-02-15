@@ -48,6 +48,7 @@
     .add-role-flex-container-inner { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
     .btn-add-role-primary { padding: 8px 16px; }
     #addRoleStatus-inline { color: green; display: none; }
+    .implied-access { color: #666; font-size: 0.9em; margin-top:6px; }
   </style>
   <div class="section-header">
     <h2>{{ _('ustawienia_role') }}</h2>
@@ -144,36 +145,58 @@
     rows.forEach(function(tr){
       const page = tr.getAttribute('data-page');
       const pagePerms = current[page] || {};
-      
+
       // Dla każdego checkboxa access/readonly — sprawdź czy rola+strona istnieje w config
       tr.querySelectorAll('input.perm-access').forEach(function(accessCh){
         const role = accessCh.getAttribute('data-role');
         const rolePerms = pagePerms[role];
-        
+
         // Ustaw state checkboxa
         accessCh.checked = rolePerms && rolePerms.access ? true : false;
-        
+
         // Znajdź readonly checkbox dla tej samej roli w tym wierszu
         const readonlyCh = tr.querySelector('input.perm-readonly[data-role="' + role + '"]');
-        if(readonlyCh) {
+        if (readonlyCh) {
           readonlyCh.checked = rolePerms && rolePerms.readonly ? true : false;
-          
-          // Add listener: jeśli readonly=true, to access musi być true i disabled
+
+          const accessLabel = accessCh.parentElement;
+          const readonlyLabel = readonlyCh.parentElement;
+
+          function showImplied(){
+            if(accessLabel) accessLabel.style.display = 'none';
+            let ind = tr.querySelector('.implied-access[data-role="' + role + '"]');
+            if(!ind){
+              ind = document.createElement('div');
+              ind.className = 'implied-access';
+              ind.setAttribute('data-role', role);
+              ind.textContent = 'Dostęp (wynika z: Tylko odczyt)';
+              if(readonlyLabel) readonlyLabel.appendChild(ind);
+            }
+          }
+
+          function hideImplied(){
+            if(accessLabel) accessLabel.style.display = '';
+            const ind = tr.querySelector('.implied-access[data-role="' + role + '"]');
+            if(ind) ind.remove();
+          }
+
           readonlyCh.addEventListener('change', function(){
             if(this.checked) {
               accessCh.checked = true;
-              accessCh.disabled = true;
+              showImplied();
             } else {
-              accessCh.disabled = false;
+              hideImplied();
             }
           });
-          
-          // Initial state: jeśli readonly=true, wyłącz access checkbox
+
+          // Initial state handling
           if(readonlyCh.checked) {
-            accessCh.disabled = true;
+            accessCh.checked = true;
+            showImplied();
           }
         }
       });
+    });
     });
 
     const _btnSavePerms = document.getElementById('btnSavePerms');

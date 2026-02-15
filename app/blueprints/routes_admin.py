@@ -154,14 +154,93 @@ def admin_ustawienia_roles():
             ordered_perms[p] = {}
     
     # Ensure full matrix: all pages × all roles (fill missing with access:false, readonly:false)
+    # Also handle simple name mismatches by mapping DB role names to JSON keys when possible.
+    # Mapping can be extended if more mismatches are discovered.
+    mapping = {
+        'laborant': 'laboratorium'
+    }
+    # collect role keys present in JSON config
+    json_role_keys = set()
+    for pvals in ordered_perms.values():
+        if isinstance(pvals, dict):
+            json_role_keys.update(pvals.keys())
+
     for p in pages:
         for r in roles:
             role_name = r[0]
+            # prefer exact DB role name; if missing, try mapping to known JSON key
+            json_key = role_name if role_name in json_role_keys else mapping.get(role_name, role_name)
+            # take perms from json_key if available, otherwise default
+            src = ordered_perms[p].get(json_key, {'access': False, 'readonly': False})
+            # ensure perms_json contains an entry under the DB role_name (template expects DB names)
             if role_name not in ordered_perms[p]:
-                ordered_perms[p][role_name] = {'access': False, 'readonly': False}
+                ordered_perms[p][role_name] = {'access': bool(src.get('access')), 'readonly': bool(src.get('readonly'))}
 
     # pass JSON to template
+    try:
+        current_app.logger.info('[ROLES_UI] roles from DB: %s', [r[0] for r in roles])
+        current_app.logger.info('[ROLES_UI] perms pages keys: %s', list(ordered_perms.keys()))
+        # also log first page perms roles keys sample
+        first_page = pages[0]
+        current_app.logger.info('[ROLES_UI] sample perms for page %s: %s', first_page, list(ordered_perms.get(first_page, {}).keys()))
+    except Exception:
+        pass
+    # pass JSON to template
     return render_template('ustawienia_roles.html', pages=pages, roles=roles, perms_json=ordered_perms)
+
+
+@admin_bp.route('/admin/ustawienia/roles/users')
+@admin_required
+def admin_ustawienia_roles_users():
+    """Show effective permissions per user (for admin verification)."""
+    try:
+        current_app.logger.info('[ROLES_USERS] invoked by session: %s', { 'login': session.get('login'), 'rola': session.get('rola') })
+    except Exception:
+        pass
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Get users
+    cursor.execute("SELECT id, login, COALESCE(rola, '') FROM uzytkownicy ORDER BY login")
+    users_raw = cursor.fetchall()
+
+    # Load roles config
+    import os, json
+    cfg_path = os.path.join(current_app.root_path, '..', 'config', 'role_permissions.json')
+    cfg_path = os.path.abspath(cfg_path)
+    perms = {}
+    try:
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            perms = json.load(f)
+    except Exception:
+        perms = {}
+
+    # Define canonical pages order (same as roles UI)
+    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki']
+
+    # mapping for name mismatches (same as above)
+    mapping = {
+        'laborant': 'laboratorium'
+    }
+
+    users = []
+    for u in users_raw:
+        uid, login, role = u[0], u[1], (u[2] or '').strip()
+        row = {'id': uid, 'login': login, 'role': role, 'perms': {}}
+        for p in pages:
+            # Try direct lookup; if not present, try mapping known role name differences
+            page_perms = perms.get(p, {}) if perms else {}
+            if role in page_perms:
+                role_perms = page_perms.get(role, {})
+            else:
+                mapped = mapping.get(role)
+                role_perms = page_perms.get(mapped, {}) if mapped else {}
+            access = bool(role_perms.get('access')) if isinstance(role_perms, dict) else False
+            readonly = bool(role_perms.get('readonly')) if isinstance(role_perms, dict) else False
+            row['perms'][p] = {'access': access, 'readonly': readonly}
+        users.append(row)
+
+    conn.close()
+    return render_template('roles_by_user.html', users=users, pages=pages)
 
 
 @admin_bp.route('/admin/ustawienia/roles/save', methods=['POST'])
@@ -299,23 +378,47 @@ def admin_ustawienia_roles_add():
         if not all(c.isalnum() or c == '_' for c in role_name):
             return jsonify({'success': False, 'error': 'Nazwa roli może zawierać tylko litery, liczby i podkreślnik'}), 400
         
-        cfg_path = os.path.join(current_app.root_path, 'config', 'role_permissions.json')
-        
+        cfg_path = os.path.join(current_app.root_path, '..', 'config', 'role_permissions.json')
+
         # Czytaj obecną konfigurację
         config = {}
         if os.path.exists(cfg_path):
             with open(cfg_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-        
+                try:
+                    config = json.load(f)
+                except Exception:
+                    config = {}
+
+        # If config empty, initialize canonical pages structure so new role is added everywhere
+        if not config:
+            pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki']
+            config = {p: {} for p in pages}
+
         # Sprawdź czy rola już istnieje
         for page in config.values():
             if isinstance(page, dict) and role_name in page:
                 return jsonify({'success': False, 'error': f'Rola "{role_name}" już istnieje'}), 400
-        
+
         # Dodaj nową rolę do wszystkich stron bez dostępu (domyślnie)
         for page in config:
             if isinstance(config[page], dict):
                 config[page][role_name] = {'access': False, 'readonly': False}
+
+        # Try to insert the new role into the DB `roles` table so the UI shows the column.
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            try:
+                cur.execute("INSERT INTO roles (name, label) VALUES (%s, %s)", (role_name, role_name))
+                conn.commit()
+                current_app.logger.info('Inserted new role "%s" into roles table', role_name)
+            except Exception:
+                # If insert fails (table missing or duplicate), ignore — config file is primary source
+                conn.rollback()
+            finally:
+                conn.close()
+        except Exception:
+            pass
         
         # Stwórz backup
         import shutil

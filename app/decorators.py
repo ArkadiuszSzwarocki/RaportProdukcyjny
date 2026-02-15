@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import session, redirect, request, jsonify
+from flask import session, redirect, request, jsonify, current_app
 
 # 1. WYMAGANE LOGOWANIE (Dla wszystkich podstron)
 def login_required(f):
@@ -61,6 +61,10 @@ def admin_required(f):
             return redirect('/login')
         
         if session.get('rola') != 'admin':
+            try:
+                current_app.logger.warning("[ADMIN_CHECK] Access denied for admin_required - session: %s", {k: session.get(k) for k in ('login','rola','imie_nazwisko')})
+            except Exception:
+                pass
             try:
                 is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
                 accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'

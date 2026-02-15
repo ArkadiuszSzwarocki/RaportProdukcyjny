@@ -617,6 +617,9 @@ def edytuj_plan_ajax():
     tonaz = data.get('tonaz')
     sekcja = data.get('sekcja')
     data_planu = data.get('data_planu')
+    # Optional fields that should be propagated to linked Workowanie when editing Zasyp
+    typ_produkcji = data.get('typ_produkcji')
+    nazwa_zlecenia = data.get('nazwa_zlecenia')
 
     try:
         tonaz_val = int(float(tonaz)) if tonaz is not None and str(tonaz).strip() != '' else None
@@ -626,7 +629,7 @@ def edytuj_plan_ajax():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT id, produkt, tonaz, sekcja, data_planu, status FROM plan_produkcji WHERE id=%s", (pid,))
+        cursor.execute("SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, '') FROM plan_produkcji WHERE id=%s", (pid,))
         before = cursor.fetchone()
         if not before:
             conn.close()
@@ -677,6 +680,15 @@ def edytuj_plan_ajax():
             params.append(sekcja)
             changes['sekcja'] = {'before': before[3], 'after': sekcja}
             current_sekcja = sekcja  # Update sekcja if changing it
+        # typ_produkcji and nazwa_zlecenia are optional editable fields
+        if typ_produkcji is not None and typ_produkcji != (before[6] or ''):
+            updates.append('typ_produkcji=%s')
+            params.append(typ_produkcji)
+            changes['typ_produkcji'] = {'before': before[6], 'after': typ_produkcji}
+        if nazwa_zlecenia is not None and nazwa_zlecenia != (before[7] or ''):
+            updates.append('nazwa_zlecenia=%s')
+            params.append(nazwa_zlecenia)
+            changes['nazwa_zlecenia'] = {'before': before[7], 'after': nazwa_zlecenia}
         if data_planu and data_planu != str(before[4]):
             # Get max sequence FOR THIS SEKCJA on the new date
             cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja=%s", (data_planu, current_sekcja))
@@ -693,6 +705,32 @@ def edytuj_plan_ajax():
             params.append(pid)
             cursor.execute(sql, tuple(params))
             conn.commit()
+            # If this edited plan is a Zasyp, propagate key changes to linked Workowanie entries
+            try:
+                sekcja_before = (before[3] or '').lower()
+                if sekcja_before == 'zasyp':
+                    linked_updates = []
+                    linked_params = []
+                    if 'produkt' in changes:
+                        linked_updates.append('produkt=%s')
+                        linked_params.append(changes['produkt']['after'])
+                    if 'typ_produkcji' in changes:
+                        linked_updates.append('typ_produkcji=%s')
+                        linked_params.append(changes['typ_produkcji']['after'])
+                    if 'nazwa_zlecenia' in changes:
+                        linked_updates.append('nazwa_zlecenia=%s')
+                        linked_params.append(changes['nazwa_zlecenia']['after'])
+                    if 'data_planu' in changes:
+                        linked_updates.append('data_planu=%s')
+                        linked_params.append(changes['data_planu']['after'])
+                    if linked_updates:
+                        linked_sql = f"UPDATE plan_produkcji SET {', '.join(linked_updates)} WHERE zasyp_id=%s"
+                        linked_params.append(pid)
+                        cursor.execute(linked_sql, tuple(linked_params))
+                        conn.commit()
+            except Exception:
+                # don't fail entire request if propagation fails; just log
+                current_app.logger.exception('Error propagating Zasyp changes to Workowanie')
             # log history
             try:
                 user_login = session.get('login') or session.get('imie_nazwisko')

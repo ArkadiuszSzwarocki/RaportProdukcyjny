@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h2>Przegląd uprawnień użytkowników</h2>
+  <p>Lista efektywnych uprawnień (dostęp / tylko odczyt) dla każdego użytkownika.</p>
+  <table class="table table-sm table-striped table-bordered">
+    <thead>
+      <tr>
+        <th>Login</th>
+        <th>Rola</th>
+        {% for p in pages %}
+        <th>{{ p }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.login }}</td>
+        <td>{{ u.role or '(brak)' }}</td>
+        {% for p in pages %}
+        {% set rp = u.perms[p] %}
+        <td class="text-center">
+          {% if rp.access %}
+            <span title="Dostęp">✓</span>
+            {% if rp.readonly %}
+              <small class="text-muted">(r)</small>
+            {% endif %}
+          {% else %}
+            &mdash;
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <a class="btn btn-secondary" href="/admin/ustawienia/roles">Powrót do ustawień ról</a>
+</div>
+{% endblock %}
