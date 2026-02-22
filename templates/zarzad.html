@@ -56,7 +56,7 @@
     </div>
 </div>
 
-{% if session.get('rola') in ['admin', 'zarzad', 'lider'] %}
+{% if session.get('rola') in ['admin', 'zarzad', 'lider', 'laboratorium'] %}
 <div class="section-box section-box-no-pad">
     <div class="p-15 p-15-bg">
         <h3 class="m-0 text-primary">👥 {{ _('statystyki_pracownikow_hr') }}</h3>
@@ -92,27 +92,34 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
 <script>
     // --- NOWY WYKRES LINIOWO-SŁUPKOWY ---
+    const chartLabels = {{ chart_labels|default([])|tojson }};
+    const chartPlan = {{ chart_plan|default([])|tojson }};
+    const chartZasyp = {{ chart_zasyp|default([])|tojson }};
+    const chartWork = {{ chart_work|default([])|tojson }};
+    const pieLabels = {{ pie_labels|default([])|tojson }};
+    const pieValues = {{ pie_values|default([])|tojson }};
+    
     new Chart(document.getElementById('chartProduction'), {
         type: 'bar',
         data: {
-            labels: {{ chart_labels|safe }},
+            labels: chartLabels,
             datasets: [
                 { 
-                    label: 'Plan (kg)', 
-                    data: {{ chart_plan|safe }}, 
-                    backgroundColor: '#bdc3c7', 
-                    barPercentage: 0.5 
+                    label: 'Plan (kg)',
+                    data: chartPlan,
+                    backgroundColor: '#bdc3c7',
+                    barPercentage: 0.5
                 },
                 { 
-                    label: '{{ _('zasyp') }} (kg)', 
-                    data: {{ chart_zasyp|safe }}, 
-                    backgroundColor: '#3498db', // Niebieski dla Zasypu
+                    label: "{{ _('zasyp') }} (kg)", 
+                    data: chartZasyp, 
+                    backgroundColor: '#3498db',
                     barPercentage: 0.7 
                 },
                 { 
-                    label: '{{ _('workowanie') }} (kg)', 
-                    data: {{ chart_work|safe }}, 
-                    backgroundColor: '#8e44ad', // Fioletowy dla Workowania
+                    label: "{{ _('workowanie') }} (kg)", 
+                    data: chartWork, 
+                    backgroundColor: '#8e44ad',
                     barPercentage: 0.7 
                 }
             ]
@@ -133,9 +140,9 @@
     new Chart(document.getElementById('chartIssues'), {
         type: 'doughnut',
         data: {
-            labels: {{ pie_labels|safe }},
+            labels: pieLabels,
             datasets: [{
-                data: {{ pie_values|safe }},
+                data: pieValues,
                 backgroundColor: ['#e74c3c', '#f39c12', '#f1c40f', '#95a5a6', '#34495e']
             }]
         },
