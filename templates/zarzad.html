@@ -90,14 +90,27 @@
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
+<script id="chart-data-json" type="application/json">
+{{ {
+    'chartLabels': chart_labels|default([]),
+    'chartPlan': chart_plan|default([]),
+    'chartZasyp': chart_zasyp|default([]),
+    'chartWork': chart_work|default([]),
+    'pieLabels': pie_labels|default([]),
+    'pieValues': pie_values|default([])
+}|tojson }}
+</script>
 <script>
     // --- NOWY WYKRES LINIOWO-SŁUPKOWY ---
-    const chartLabels = {{ chart_labels|default([])|tojson }};
-    const chartPlan = {{ chart_plan|default([])|tojson }};
-    const chartZasyp = {{ chart_zasyp|default([])|tojson }};
-    const chartWork = {{ chart_work|default([])|tojson }};
-    const pieLabels = {{ pie_labels|default([])|tojson }};
-    const pieValues = {{ pie_values|default([])|tojson }};
+    /* Chart data injected as JSON to avoid editor/parser errors */
+    const rawDataElem = document.getElementById('chart-data-json');
+    const chartData = rawDataElem ? JSON.parse(rawDataElem.textContent) : {};
+    const chartLabels = chartData.chartLabels || [];
+    const chartPlan = chartData.chartPlan || [];
+    const chartZasyp = chartData.chartZasyp || [];
+    const chartWork = chartData.chartWork || [];
+    const pieLabels = chartData.pieLabels || [];
+    const pieValues = chartData.pieValues || [];
     
     new Chart(document.getElementById('chartProduction'), {
         type: 'bar',
