@@ -240,8 +240,10 @@ def potwierdz_palete(paleta_id):
         try:
             cursor.execute("SELECT id, COALESCE(status,''), data_potwierdzenia, czas_potwierdzenia_s FROM palety_workowanie WHERE id=%s", (paleta_id,))
             res = cursor.fetchone()
+            prev_status = res[1] if res and len(res) > 1 else ''
             current_app.logger.info('potwierdz_palete result: %s', res)
         except Exception:
+            prev_status = ''
             try:
                 current_app.logger.exception('Failed to fetch result for id=%s', paleta_id)
             except Exception: pass
@@ -252,16 +254,17 @@ def potwierdz_palete(paleta_id):
             if r:
                 plan_id = r[0]
                 netto_val = int(r[1] or 0)
-                try:
-                    cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
-                except Exception:
-                    try: conn.rollback()
-                    except Exception: pass
+                # Do NOT reset Workowanie aggregates here — Workowanie records
+                # reflect produced pallets and should remain unchanged on confirmation.
+                # Only add weight to Magazyn on the first confirmation of this paleta.
                 try:
                     cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
                     z = cursor.fetchone()
-                    if z:
-                        cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = tonaz_rzeczywisty + %s WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'", (netto_val, z[0], z[1]))
+                    if z and prev_status != 'przyjeta':
+                        cursor.execute(
+                            "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'",
+                            (netto_val, z[0], z[1])
+                        )
                 except Exception:
                     try: conn.rollback()
                     except Exception: pass
@@ -513,33 +516,66 @@ def warehouse_bufor_create_zlecenie():
         result = cursor.fetchone()
         next_kolejnosc = (result[0] or 0) + 1 if result else 1
         
-        # Create new Workowanie zlecenie with plan = roznicza
-        cursor.execute("""
-            INSERT INTO plan_produkcji 
+        # Atomically create new Workowanie zlecenie only if one doesn't already exist
+        insert_sql = """
+            INSERT INTO plan_produkcji
             (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, zasyp_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
+            SELECT %s, 'Workowanie', %s, %s, 'zaplanowane', %s, %s, %s, %s
+            FROM DUAL
+            WHERE NOT EXISTS (SELECT 1 FROM plan_produkcji WHERE zasyp_id = %s AND sekcja = 'Workowanie')
+        """
+        params = (
             z_data,
-            'Workowanie',
             z_produkt,
             round(roznicza, 1),  # plan = różnica
-            'zaplanowane',
             next_kolejnosc,
             z_typ or 'worki_zgrzewane_25',
             (z_nazwa or '') + '_BUF',  # Add _BUF suffix to mark buffer origin
-            z_id  # Link to source Zasyp
-        ))
-        
-        conn.commit()
-        new_id = cursor.lastrowid
-        
-        conn.close()
-        return jsonify({
-            'success': True,
-            'message': f'Utworzono zlecenie Workowanie z planem {round(roznicza, 1)} kg',
-            'new_id': new_id,
-            'plan_kg': round(roznicza, 1)
-        }), 201
+            z_id,  # value for zasyp_id column
+            z_id   # value for WHERE NOT EXISTS check
+        )
+
+        import mysql.connector
+        try:
+            cursor.execute(insert_sql, params)
+        except mysql.connector.IntegrityError as ie:
+            # Likely a duplicate-key created by concurrent insert — return existing record gracefully
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            cursor.execute("SELECT id FROM plan_produkcji WHERE zasyp_id=%s AND sekcja='Workowanie' LIMIT 1", (z_id,))
+            existing = cursor.fetchone()
+            existing_id = existing[0] if existing else None
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': 'Zlecenie Workowanie już istnieje',
+                'existing_id': existing_id
+            }), 200
+
+        # If rowcount==1 then INSERT happened; otherwise another process already created it
+        if cursor.rowcount:
+            conn.commit()
+            new_id = cursor.lastrowid
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': f'Utworzono zlecenie Workowanie z planem {round(roznicza, 1)} kg',
+                'new_id': new_id,
+                'plan_kg': round(roznicza, 1)
+            }), 201
+        else:
+            # Someone else created the Workowanie for this zasyp_id concurrently — return existing id
+            cursor.execute("SELECT id FROM plan_produkcji WHERE zasyp_id=%s AND sekcja='Workowanie' LIMIT 1", (z_id,))
+            existing = cursor.fetchone()
+            existing_id = existing[0] if existing else None
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': 'Zlecenie Workowanie już istnieje',
+                'existing_id': existing_id
+            }), 200
         
     except Exception as e:
         try:
