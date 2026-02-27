@@ -1,6 +1,8 @@
 """Flask application factory."""
 
 import os
+import glob
+from datetime import timedelta
 from flask import Flask
 from scripts.raporty import format_godziny
 from app.config import SECRET_KEY
@@ -44,24 +46,20 @@ def create_app(config_secret_key=None, init_db=True):
     template_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'templates')
     static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'static')
     app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
-    # Debug: log template folder and available templates to help diagnose TemplateNotFound
+    
+    # Log template folder and available templates to help diagnose TemplateNotFound
+    app.logger.debug('Flask template_folder=%s', template_folder)
     try:
-        import glob
-        app.logger.debug('Flask template_folder=%s', template_folder)
         templates_list = glob.glob(os.path.join(template_folder, '**', '*.html'), recursive=True)
         for t in templates_list:
             app.logger.debug('Template file: %s', t)
-    except Exception:
-        try:
-            app.logger.exception('Failed to enumerate templates')
-        except Exception:
-            pass
+    except Exception as e:
+        app.logger.exception('Failed to enumerate templates: %s', e)
     
     # Configure with secret key
     app.secret_key = config_secret_key or SECRET_KEY
     
     # Configure session to ensure cookies are properly set
-    from datetime import timedelta
     app.config['SESSION_COOKIE_SECURE'] = False  # Allow HTTP in development
     app.config['SESSION_COOKIE_HTTPONLY'] = True  # Don't allow JS access
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cross-site requests
@@ -71,19 +69,6 @@ def create_app(config_secret_key=None, init_db=True):
     # Set up logging and error handlers BEFORE any routes or blueprints
     setup_logging(app)
     register_error_handlers(app)
-
-    # After logging is configured, emit debug entries about templates for diagnostics
-    try:
-        import glob
-        app.logger.debug('Flask template_folder=%s', template_folder)
-        templates_list = glob.glob(os.path.join(template_folder, '**', '*.html'), recursive=True)
-        for t in templates_list:
-            app.logger.debug('Template file: %s', t)
-    except Exception:
-        try:
-            app.logger.exception('Failed to enumerate templates')
-        except Exception:
-            pass
     
     # Add Jinja2 extensions
     app.jinja_env.add_extension('jinja2.ext.do')
@@ -101,11 +86,8 @@ def create_app(config_secret_key=None, init_db=True):
     # Debug blueprint: only enabled locally to assist troubleshooting (temporary)
     try:
         app.register_blueprint(debug_bp)
-    except Exception:
-        try:
-            app.logger.exception('Failed to register debug_bp')
-        except Exception:
-            pass
+    except Exception as e:
+        app.logger.exception('Failed to register debug_bp: %s', e)
     app.register_blueprint(warehouse_bp)
     app.register_blueprint(planning_bp, url_prefix='/api')
     app.register_blueprint(journal_bp)
@@ -136,11 +118,8 @@ def create_app(config_secret_key=None, init_db=True):
                 db.setup_database()
             else:
                 app.logger.debug('Skipping setup_database() under pytest')
-        except Exception:
-            try:
-                app.logger.exception('setup_database() failed or skipped')
-            except Exception:
-                pass
+        except Exception as e:
+            app.logger.exception('setup_database() failed or skipped: %s', e)
     
     return app
 

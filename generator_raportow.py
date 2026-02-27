@@ -13,7 +13,6 @@ otherwise provide a minimal fallback that accepts the extended signature.
 from pathlib import Path
 from datetime import datetime
 import zipfile
-import os
 import logging
 
 logger = logging.getLogger(__name__)
