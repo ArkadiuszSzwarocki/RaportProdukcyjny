@@ -46,6 +46,27 @@ def _create_tables(cursor):
             wyjasnienie_rozbieznosci TEXT
         )
     """)
+
+    # Tabela dla planowania AGRO (oddzielna od PSD/plan_produkcji)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS plan_agro (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data_planu DATE NOT NULL,
+            produkt VARCHAR(100) NOT NULL,
+            tonaz FLOAT,
+            status VARCHAR(20) DEFAULT 'zaplanowane',
+            real_start DATETIME,
+            real_stop DATETIME,
+            tonaz_rzeczywisty FLOAT,
+            kolejnosc INT DEFAULT 0,
+            typ_produkcji VARCHAR(50) DEFAULT 'agro',
+            nr_receptury VARCHAR(64) DEFAULT '',
+            nazwa_zlecenia VARCHAR(255) DEFAULT '',
+            wyjasnienie_rozbieznosci TEXT,
+            uszkodzone_worki INT DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS palety_workowanie (

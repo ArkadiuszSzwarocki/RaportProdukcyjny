@@ -20,7 +20,7 @@
     margin-bottom: 30px;
     background: white;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     overflow: hidden;
   }
 
@@ -64,7 +64,7 @@
 
   .problem-section {
     padding: 10px;
-    background: rgba(0,0,0,0.05);
+    background: rgba(0, 0, 0, 0.05);
     border-radius: 4px;
     margin-top: 10px;
   }
@@ -226,7 +226,7 @@
   .btn-add-comment:hover {
     opacity: 0.9;
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-add-comment:disabled {
@@ -274,7 +274,7 @@
   button:hover {
     opacity: 0.9;
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   form {
@@ -296,7 +296,7 @@
     margin-bottom: 30px;
     background: white;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     overflow: hidden;
   }
 
@@ -309,7 +309,7 @@
 
   .problem-block {
     padding: 10px;
-    background: rgba(0,0,0,0.05);
+    background: rgba(0, 0, 0, 0.05);
     border-radius: 4px;
   }
 
@@ -475,7 +475,7 @@
     margin-bottom: 30px;
     background: white;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     overflow: hidden;
   }
 
@@ -486,7 +486,7 @@
     margin-bottom: 10px;
   }
 
-  .header-grid-inline > div {
+  .header-grid-inline>div {
     font-size: 14px;
   }
 
@@ -496,7 +496,7 @@
 
   .problem-section-inline {
     padding: 10px;
-    background: rgba(0,0,0,0.05);
+    background: rgba(0, 0, 0, 0.05);
     border-radius: 4px;
     margin-top: 10px;
   }
@@ -673,7 +673,7 @@
     margin-bottom: 30px;
     background: white;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     overflow: hidden;
   }
 
@@ -711,7 +711,7 @@
   /* Problem box styling */
   .problem-box {
     padding: 10px;
-    background: rgba(0,0,0,0.05);
+    background: rgba(0, 0, 0, 0.05);
     border-radius: 4px;
   }
 
@@ -936,137 +936,314 @@
     background-color: #d4edda;
     border-left-color: #28a745;
   }
+
+  <style>
+
+  /* Base styles */
+  .header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+  }
+
+  /* Modal background */
+  .filter-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+
+  /* Modal content box */
+  .filter-modal-content {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  @keyframes modalPop {
+    0% {
+      transform: scale(0.9);
+      opacity: 0;
+    }
+
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .modal-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #999;
+  }
+
+  .modal-close-btn:hover {
+    color: #333;
+  }
+
+  /* Filter bar internal styles - adapted for vertical modal */
+  .filter-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+  }
+
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 100%;
+  }
+
+  .filter-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+  }
+
+  .filter-input,
+  .filter-select {
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .filter-modal-header {
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+  }
+
+  .filter-modal-header h3 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 18px;
+  }
 </style>
+
 <div class="awarie-wrapper">
-  <h1 class="page-heading">⚠️ Awarie i Przestoje - Zatwierdzanie</h1>
-  
-  {% if awarie %}
-    {% for awaria in awarie %}
-    <div class="awaria-card-inner">
-      <!-- NAGŁÓWEK AWARII -->
-      <div class="awaria-header status-{{ awaria.status }}" data-status="{{ awaria.status }}">
+  <div class="header-actions">
+    <h1 class="page-heading" style="margin-bottom: 0;">⚠️ Awarie i Przestoje - Zatwierdzanie</h1>
+    <button id="btn-open-filter" class="btn-action btn-action-primary">
+      🔍 Filtruj Awarie
+    </button>
+  </div>
+
+  <!-- Modal Filtrowania -->
+  <div id="filter-modal" class="filter-modal-overlay">
+    <div class="filter-modal-content">
+      <button class="modal-close-btn" id="btn-close-filter">✖</button>
+
+      <div class="filter-modal-header">
+        <h3>Parametry Filtrowania</h3>
+      </div>
+
+      <div class="filter-bar">
+        <div class="filter-group">
+          <label for="filter-text">🔍 Szukaj (problem, zgłaszający)</label>
+          <input type="text" id="filter-text" class="filter-input" placeholder="Wpisz słowo kluczowe...">
+        </div>
+
+        <div class="filter-group">
+          <label for="filter-status">🔧 Status</label>
+          <select id="filter-status" class="filter-select">
+            <option value="">Wszystkie</option>
+            <option value="zgłoszone">🔔 Zgłoszone</option>
+            <option value="w_trakcie_naprawy">🔧 W trakcie naprawy</option>
+            <option value="czeka_na_czesci">⚙️ Czeka na części</option>
+            <option value="zakończone">✅ Zakończone</option>
+          </select>
+        </div>
+        <select id="filter-status" class="filter-select">
+          <option value="">Wszystkie</option>
+          <option value="zgłoszone">🔔 Zgłoszone</option>
+          <option value="w_trakcie_naprawy">🔧 W trakcie naprawy</option>
+          <option value="czeka_na_czesci">⚙️ Czeka na części</option>
+          <option value="zakończone">✅ Zakończone</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filter-sekcja">📍 Sekcja</label>
+        <select id="filter-sekcja" class="filter-select">
+          <option value="">Wszystkie</option>
+          <option value="zasyp">Zasyp</option>
+          <option value="czyszczenie">Czyszczenie</option>
+          <option value="workowanie">Workowanie</option>
+          <option value="magazyn">Magazyn</option>
+          <option value="inne">Inne</option>
+        </select>
+      </div>
+
+      <div class="filter-group" style="margin-top: 10px; flex-direction: row; justify-content: space-between;">
+        <button id="btn-clear-filters" class="btn-action" style="background:#e9ecef; color:#333; border:none;">Wyczyść
+          filtry</button>
+        <button id="btn-apply-filters" class="btn-action btn-action-success">Zastosuj</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if awarie %}
+{% for awaria in awarie %}
+<div class="awaria-card-inner awaria-item-filterable" data-status="{{ awaria.status }}"
+  data-sekcja="{{ awaria.sekcja|lower }}"
+  data-text="{{ awaria.problem|lower }} {{ awaria.kategoria|lower }} {{ awaria.pracownik_name|lower }}">
+  <!-- NAGŁÓWEK AWARII -->
+  <div class="awaria-header status-{{ awaria.status }}" data-status="{{ awaria.status }}">
 
 
-        <div class="awaria-header-grid">
-          <div>
-            <strong>Data:</strong> {{ awaria.data_wpisu }}<br>
-            <strong>{{ _('sekcja_label') }}</strong> {{ awaria.sekcja }}
-          </div>
-          <div>
-            <strong>{{ _('kategoria') }}</strong> {{ awaria.kategoria }}<br>
-            <strong>{{ _('raportował') }}</strong> {{ awaria.pracownik_name }}
-          </div>
-          <div>
-            <strong>{{ _('start_label') }}</strong> {{ awaria.czas_start_str }}<br>
-            <strong>{{ _('stop_label') }}</strong> {% if awaria.czas_stop_str and awaria.czas_stop_str != '??:??' %}{{ awaria.czas_stop_str }}{% else %}—{% endif %}
-          </div>
-          <div>
-            <label class="status-label">🔧 Status:</label>
-            <select class="status-select-header" data-awaria-id="{{ awaria.id }}" title="{{ _('zmien_status') }}">
-              <!-- Statusy -->
-              <option value="zgłoszone" {% if awaria.status == 'zgłoszone' %}selected{% endif %}>🔔 Zgłoszone</option>
-              <option value="czeka_na_czesci" {% if awaria.status == 'czeka_na_czesci' %}selected{% endif %}>⚙️ Czeka na części</option>
-              <option value="w_trakcie_naprawy" {% if awaria.status == 'w_trakcie_naprawy' %}selected{% endif %}>🔧 W trakcie naprawy</option>
-              <option value="zakończone" {% if awaria.status == 'zakończone' %}selected{% endif %}>✅ Zakończone</option>
-              
-              <!-- Stare statusy - do migracji (pokazane z ostrzeżeniem) -->
-              {% set old_statuses = ['roboczy', 'zatwierdzone', 'odrzucone', 'wznowione', 'zgłoszony', 'czeka_na_czesci_old'] %}
-              {% if awaria.status in old_statuses and awaria.status not in ['czeka_na_czesci', 'w_trakcie_naprawy', 'zakończone'] %}
-              <option value="{{ awaria.status }}" selected>⚠️ [STARY] {{ awaria.status }}</option>
-              {% endif %}
-            </select>
-            <small class="status-warning-message">
-              {% if awaria.status in ['roboczy', 'zatwierdzone', 'odrzucone', 'wznowione', 'zgłoszony'] %}
-              ⚠️ Status wymaga migracji - proszę wybrać nowy status z listy
-              {% endif %}
-            </small>
-            {% if awaria.data_zakonczenia %}
-            <small class="status-date-message"><strong>{{ _('zakonczono') }}</strong> {{ awaria.data_zakonczenia }}</small>
-            {% endif %}
-          </div>
-        </div>
-        <div class="problem-box">
-          <strong>Problem:</strong><br>
-          {{ awaria.problem }}
-        </div>
+    <div class="awaria-header-grid">
+      <div>
+        <strong>Data:</strong> {{ awaria.data_wpisu }}<br>
+        <strong>{{ _('sekcja_label') }}</strong> {{ awaria.sekcja }}
       </div>
-      
-      <!-- HISTORIA ZMIAN STATUSU -->
-      {% if awaria.historia_statusu %}
-      <div class="history-section-wrapper">
-        <h4 class="history-title-main">📊 Historia zmian statusu</h4>
-        {% for zmiana in awaria.historia_statusu %}
-        <div class="history-change-item">
-          <div class="history-flex-layout">
-            <div>
-              <strong>{{ zmiana.imie_nazwisko or 'System' }}</strong> zmienił status
-              {% if zmiana.stary_status %}na <strong>{{ zmiana.nowy_status }}</strong> (z {{ zmiana.stary_status }}){% else %}na <strong>{{ zmiana.nowy_status }}</strong>{% endif %}
-            </div>
-            <small class="history-timestamp-main">
-              {{ zmiana.data_zmiany.strftime('%Y-%m-%d %H:%M:%S') if zmiana.data_zmiany else 'N/A' }}
-            </small>
-          </div>
-        </div>
-        {% endfor %}
+      <div>
+        <strong>{{ _('kategoria') }}</strong> {{ awaria.kategoria }}<br>
+        <strong>{{ _('raportował') }}</strong> {{ awaria.pracownik_name }}
       </div>
-      {% endif %}
-      
-      <!-- KOMENTARZE (ZWIJANE) -->
-      <div class="comments-section-wrapper">
-        <div class="toggle-comments-header toggle-comments" data-awaria-id="{{ awaria.id }}">
-          <h4 class="comments-title-header">💬 Komentarze ({{ awaria.komentarze|length if awaria.komentarze else 0 }})</h4>
-          <span class="toggle-icon-main toggle-icon">▼</span>
-        </div>
-        
-        <!-- Lista komentarzy -->
-        <div class="comments-container-wrapper comments-container" data-awaria-id="{{ awaria.id }}">
-          {% if awaria.komentarze %}
-            {% for kom in awaria.komentarze %}
-            <div class="comment-item-main">
-              <small class="comment-meta-main">
-                <strong>{{ kom.imie_nazwisko or 'System' }}</strong> - {{ kom.created_at.strftime('%Y-%m-%d %H:%M:%S') if kom.created_at else 'N/A' }}
-              </small>
-              <p class="comment-text-main">{{ kom.tresc }}</p>
-            </div>
-            {% endfor %}
-          {% else %}
-            <p class="no-comments-message">{{ _('brak_komentarzy') }}</p>
+      <div>
+        <strong>{{ _('start_label') }}</strong> {{ awaria.czas_start_str }}<br>
+        <strong>{{ _('stop_label') }}</strong> {% if awaria.czas_stop_str and awaria.czas_stop_str != '??:??' %}{{
+        awaria.czas_stop_str }}{% else %}—{% endif %}
+      </div>
+      <div>
+        <label class="status-label">🔧 Status:</label>
+        <select class="status-select-header" data-awaria-id="{{ awaria.id }}" title="{{ _('zmien_status') }}">
+          <!-- Statusy -->
+          <option value="zgłoszone" {% if awaria.status=='zgłoszone' %}selected{% endif %}>🔔 Zgłoszone</option>
+          <option value="czeka_na_czesci" {% if awaria.status=='czeka_na_czesci' %}selected{% endif %}>⚙️ Czeka na
+            części</option>
+          <option value="w_trakcie_naprawy" {% if awaria.status=='w_trakcie_naprawy' %}selected{% endif %}>🔧 W
+            trakcie naprawy</option>
+          <option value="zakończone" {% if awaria.status=='zakończone' %}selected{% endif %}>✅ Zakończone</option>
+
+          <!-- Stare statusy - do migracji (pokazane z ostrzeżeniem) -->
+          {% set old_statuses = ['roboczy', 'zatwierdzone', 'odrzucone', 'wznowione', 'zgłoszony',
+          'czeka_na_czesci_old'] %}
+          {% if awaria.status in old_statuses and awaria.status not in ['czeka_na_czesci', 'w_trakcie_naprawy',
+          'zakończone'] %}
+          <option value="{{ awaria.status }}" selected>⚠️ [STARY] {{ awaria.status }}</option>
           {% endif %}
-        </div>
-        
-        <!-- Formularz dodawania komentarza -->
-        <form class="add-comment-form add-comment-form-wrapper" data-awaria-id="{{ awaria.id }}">
-          <div class="comment-input-flex-layout">
-            <input 
-              type="text" 
-              class="comment-input comment-input-field-main" 
-              name="komentarz" 
-              placeholder="Dodaj komentarz...">
-            <button 
-              type="submit" 
-              class="btn-add-comment btn-add-comment-main">
-              📝 Dodaj
-            </button>
-          </div>
-        </form>
+        </select>
+        <small class="status-warning-message">
+          {% if awaria.status in ['roboczy', 'zatwierdzone', 'odrzucone', 'wznowione', 'zgłoszony'] %}
+          ⚠️ Status wymaga migracji - proszę wybrać nowy status z listy
+          {% endif %}
+        </small>
+        {% if awaria.data_zakonczenia %}
+        <small class="status-date-message"><strong>{{ _('zakonczono') }}</strong> {{ awaria.data_zakonczenia
+          }}</small>
+        {% endif %}
       </div>
+    </div>
+    <div class="problem-box">
+      <strong>Problem:</strong><br>
+      {{ awaria.problem }}
+    </div>
+  </div>
 
+  <!-- HISTORIA ZMIAN STATUSU -->
+  {% if awaria.historia_statusu %}
+  <div class="history-section-wrapper">
+    <h4 class="history-title-main">📊 Historia zmian statusu</h4>
+    {% for zmiana in awaria.historia_statusu %}
+    <div class="history-change-item">
+      <div class="history-flex-layout">
+        <div>
+          <strong>{{ zmiana.imie_nazwisko or 'System' }}</strong> zmienił status
+          {% if zmiana.stary_status %}na <strong>{{ zmiana.nowy_status }}</strong> (z {{ zmiana.stary_status }}){%
+          else %}na <strong>{{ zmiana.nowy_status }}</strong>{% endif %}
+        </div>
+        <small class="history-timestamp-main">
+          {{ zmiana.data_zmiany.strftime('%Y-%m-%d %H:%M:%S') if zmiana.data_zmiany else 'N/A' }}
+        </small>
+      </div>
     </div>
     {% endfor %}
-    
-    <div class="stats-section-main">
-      <p><strong>{{ _('razem_awarii') }}</strong> {{ awarie|length }}</p>
-      <p><strong>{{ _('zgloszenia') }}</strong> {{ awarie|selectattr('status', 'equalto', 'zgłoszone')|list|length }}</p>
-      <p><strong>{{ _('czeka_na_czesci') }}</strong> {{ awarie|selectattr('status', 'equalto', 'czeka_na_czesci')|list|length }}</p>
-      <p><strong>{{ _('w_trakcie_naprawy') }}</strong> {{ awarie|selectattr('status', 'equalto', 'w_trakcie_naprawy')|list|length }}</p>
-      <p><strong>Zakończone:</strong> {{ awarie|selectattr('status', 'equalto', 'zakończone')|list|length }}</p>
-    </div>
-  {% else %}
-    <div class="empty-state-main">
-      <h3 class="empty-state-title-main">{{ _('brak_awarii_30_dni') }}</h3>
-      <p class="empty-state-message-main">{{ _('wszystkie_systemy_ok') }}</p>
-    </div>
+  </div>
   {% endif %}
+
+  <!-- KOMENTARZE (ZWIJANE) -->
+  <div class="comments-section-wrapper">
+    <div class="toggle-comments-header toggle-comments" data-awaria-id="{{ awaria.id }}">
+      <h4 class="comments-title-header">💬 Komentarze ({{ awaria.komentarze|length if awaria.komentarze else 0 }})
+      </h4>
+      <span class="toggle-icon-main toggle-icon">▼</span>
+    </div>
+
+    <!-- Lista komentarzy -->
+    <div class="comments-container-wrapper comments-container" data-awaria-id="{{ awaria.id }}">
+      {% if awaria.komentarze %}
+      {% for kom in awaria.komentarze %}
+      <div class="comment-item-main">
+        <small class="comment-meta-main">
+          <strong>{{ kom.imie_nazwisko or 'System' }}</strong> - {{ kom.created_at.strftime('%Y-%m-%d %H:%M:%S') if
+          kom.created_at else 'N/A' }}
+        </small>
+        <p class="comment-text-main">{{ kom.tresc }}</p>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="no-comments-message">{{ _('brak_komentarzy') }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Formularz dodawania komentarza -->
+    <form class="add-comment-form add-comment-form-wrapper" data-awaria-id="{{ awaria.id }}">
+      <div class="comment-input-flex-layout">
+        <input type="text" class="comment-input comment-input-field-main" name="komentarz"
+          placeholder="Dodaj komentarz...">
+        <button type="submit" class="btn-add-comment btn-add-comment-main">
+          📝 Dodaj
+        </button>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endfor %}
+
+<div class="stats-section-main">
+  <p><strong>{{ _('razem_awarii') }}</strong> {{ awarie|length }}</p>
+  <p><strong>{{ _('zgloszenia') }}</strong> {{ awarie|selectattr('status', 'equalto', 'zgłoszone')|list|length }}</p>
+  <p><strong>{{ _('czeka_na_czesci') }}</strong> {{ awarie|selectattr('status', 'equalto',
+    'czeka_na_czesci')|list|length }}</p>
+  <p><strong>{{ _('w_trakcie_naprawy') }}</strong> {{ awarie|selectattr('status', 'equalto',
+    'w_trakcie_naprawy')|list|length }}</p>
+  <p><strong>Zakończone:</strong> {{ awarie|selectattr('status', 'equalto', 'zakończone')|list|length }}</p>
+</div>
+{% else %}
+<div class="empty-state-main">
+  <h3 class="empty-state-title-main">{{ _('brak_awarii_30_dni') }}</h3>
+  <p class="empty-state-message-main">{{ _('wszystkie_systemy_ok') }}</p>
+</div>
+{% endif %}
 </div>
 
 <style>
@@ -1074,144 +1251,256 @@
   input[type="text"] {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   }
-  
+
   button:hover {
     opacity: 0.9;
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }
-  
+
   form {
     margin: 0;
   }
 </style>
 
 <script>
-// Obsługa zwijania/rozwijania komentarzy
-document.querySelectorAll('.toggle-comments').forEach(header => {
-  // data-awaria-id w HTML → dataset.awariaId (camelCase!)
-  const awaria_id = header.dataset.awariaId;
-  const container = document.querySelector(`.comments-container[data-awaria-id="${awaria_id}"]`);
-  const icon = header.querySelector('.toggle-icon');
-  
-  // Sprawdzenie czy elementy istnieją
-  if (!container || !icon) {
-    console.warn('Missing elements for awaria_id:', awaria_id, { container: !!container, icon: !!icon });
-    return;
-  }
-  
-  // Domyślnie - komentarze ZAMKNIĘTE (zawsze)
-  container.style.display = 'none';
-  icon.style.transform = 'rotate(-90deg)';
-  
-  header.addEventListener('click', function() {
-    const isHidden = container.style.display === 'none';
-    container.style.display = isHidden ? 'block' : 'none';
-    icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
-  });
-});
+  // Obsługa zwijania/rozwijania komentarzy
+  document.querySelectorAll('.toggle-comments').forEach(header => {
+    // data-awaria-id w HTML → dataset.awariaId (camelCase!)
+    const awaria_id = header.dataset.awariaId;
+    const container = document.querySelector(`.comments-container[data-awaria-id="${awaria_id}"]`);
+    const icon = header.querySelector('.toggle-icon');
 
-// Obsługa dodawania komentarzy
-document.querySelectorAll('.add-comment-form').forEach(form => {
-  form.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const awaria_id = this.dataset.awariaId;
-    const input = this.querySelector('.comment-input');
-    const komentarz = input.value.trim();
-    const button = this.querySelector('.btn-add-comment');
-    
-    if (!komentarz) {
-      showToast('Wpisz komentarz!', 'warning');
+    // Sprawdzenie czy elementy istnieją
+    if (!container || !icon) {
+      console.warn('Missing elements for awaria_id:', awaria_id, { container: !!container, icon: !!icon });
       return;
     }
-    
-    try {
-      button.disabled = true;
-      button.textContent = '⏳ Wysyłanie...';
-      
-      const formData = new FormData();
-      formData.append('komentarz', komentarz);
-      
-      const endpoint = `{{ url_for('quality.dur_zatwierdz_awarię', awaria_id=0) }}`.replace('/0', '/' + awaria_id);
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        body: formData
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        showToast('✓ Komentarz dodany', 'success');
-        input.value = '';
-        button.textContent = '📝 Dodaj';
-        button.disabled = false;
-        // Odśwież stronę aby pokazać nowy komentarz
-        setTimeout(() => location.reload(), 1000);
-      } else {
-        showToast(`❌ ${data.message}`, 'error');
+
+    // Domyślnie - komentarze ZAMKNIĘTE (zawsze)
+    container.style.display = 'none';
+    icon.style.transform = 'rotate(-90deg)';
+
+    header.addEventListener('click', function () {
+      const isHidden = container.style.display === 'none';
+      container.style.display = isHidden ? 'block' : 'none';
+      icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+    });
+  });
+
+  // Obsługa dodawania komentarzy
+  document.querySelectorAll('.add-comment-form').forEach(form => {
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const awaria_id = this.dataset.awariaId;
+      const input = this.querySelector('.comment-input');
+      const komentarz = input.value.trim();
+      const button = this.querySelector('.btn-add-comment');
+
+      if (!komentarz) {
+        showToast('Wpisz komentarz!', 'warning');
+        return;
+      }
+
+      try {
+        button.disabled = true;
+        button.textContent = '⏳ Wysyłanie...';
+
+        const formData = new FormData();
+        formData.append('komentarz', komentarz);
+
+        const endpoint = `{{ url_for('quality.dur_zatwierdz_awarię', awaria_id=0) }}`.replace('/0', '/' + awaria_id);
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showToast('✓ Komentarz dodany', 'success');
+          input.value = '';
+          button.textContent = '📝 Dodaj';
+          button.disabled = false;
+          // Odśwież stronę aby pokazać nowy komentarz
+          setTimeout(() => location.reload(), 1000);
+        } else {
+          showToast(`❌ ${data.message}`, 'error');
+          button.textContent = '📝 Dodaj';
+          button.disabled = false;
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        showToast(`❌ Błąd: ${error.message}`, 'error');
         button.textContent = '📝 Dodaj';
         button.disabled = false;
       }
-    } catch (error) {
-      console.error('Error:', error);
-      showToast(`❌ Błąd: ${error.message}`, 'error');
-      button.textContent = '📝 Dodaj';
-      button.disabled = false;
-    }
+    });
   });
-});
 
-// Obsługa zmiany statusu w nagłówku (select w górnym rogu)
-document.querySelectorAll('.status-select-header').forEach(select => {
-  select.addEventListener('change', async function(e) {
-    e.preventDefault();
-    const awaria_id = this.dataset.awariaId;
-    const nowy_status = this.value;
-    const old_value = this.dataset.old_value;
-    
-    try {
-      const formData = new FormData();
-      formData.append('status', nowy_status);
-      
-      const endpoint = `{{ url_for('quality.dur_zatwierdz_awarię', awaria_id=0) }}`.replace('/0', '/' + awaria_id);
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        body: formData
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        this.dataset.old_value = nowy_status;
-        // Zmień kolor tła nagłówka na podstawie nowego statusu
-        const status_colors = {'zgłoszone': '#e7f3ff', 'czeka_na_czesci': '#ffcccc', 'w_trakcie_naprawy': '#fff3cd', 'zakończone': '#d4edda'};
-        const header = this.closest('[style*="background"]');
-        if (header) {
-          header.style.background = status_colors[nowy_status] || '#f0f0f0';
-        }
-        
-        // Pokaż toast z dodatkową informacją dla zakończone
-        if (nowy_status === 'zakończone') {
-          showToast(`✓ Status zmieniony na "✅ Zakończone" — karta zostanie odświeżona`, 'success');
+  // Obsługa zmiany statusu w nagłówku (select w górnym rogu)
+  document.querySelectorAll('.status-select-header').forEach(select => {
+    select.addEventListener('change', async function (e) {
+      e.preventDefault();
+      const awaria_id = this.dataset.awariaId;
+      const nowy_status = this.value;
+      const old_value = this.dataset.old_value;
+
+      try {
+        const formData = new FormData();
+        formData.append('status', nowy_status);
+
+        const endpoint = `{{ url_for('quality.dur_zatwierdz_awarię', awaria_id=0) }}`.replace('/0', '/' + awaria_id);
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          this.dataset.old_value = nowy_status;
+          // Zmień kolor tła nagłówka na podstawie nowego statusu
+          const status_colors = { 'zgłoszone': '#e7f3ff', 'czeka_na_czesci': '#ffcccc', 'w_trakcie_naprawy': '#fff3cd', 'zakończone': '#d4edda' };
+          const header = this.closest('[style*="background"]');
+          if (header) {
+            header.style.background = status_colors[nowy_status] || '#f0f0f0';
+          }
+
+          // Pokaż toast z dodatkową informacją dla zakończone
+          if (nowy_status === 'zakończone') {
+            showToast(`✓ Status zmieniony na "✅ Zakończone" — karta zostanie odświeżona`, 'success');
+          } else {
+            showToast(`✓ Status zmieniony na "${nowy_status}"`, 'success');
+          }
+
+          setTimeout(() => location.reload(), 500);
         } else {
-          showToast(`✓ Status zmieniony na "${nowy_status}"`, 'success');
+          showToast(`❌ ${data.message}`, 'error');
+          this.value = old_value;
         }
-        
-        setTimeout(() => location.reload(), 500);
-      } else {
-        showToast(`❌ ${data.message}`, 'error');
+      } catch (error) {
+        console.error('Error:', error);
+        showToast(`❌ Błąd: ${error.message}`, 'error');
         this.value = old_value;
       }
-    } catch (error) {
-      console.error('Error:', error);
-      showToast(`❌ Błąd: ${error.message}`, 'error');
-      this.value = old_value;
-    }
+    });
+    select.dataset.old_value = select.value;
   });
-  select.dataset.old_value = select.value;
-});
 </script>
+
+<!-- Skrypt Filtrowania -->
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const filterModal = document.getElementById("filter-modal");
+    const btnOpenFilter = document.getElementById("btn-open-filter");
+    const btnCloseFilter = document.getElementById("btn-close-filter");
+    const btnApplyFilters = document.getElementById("btn-apply-filters");
+
+    // Modal logic
+    function openModal() {
+      filterModal.style.display = "flex";
+    }
+
+    function closeModal() {
+      filterModal.style.display = "none";
+    }
+
+    if (btnOpenFilter) btnOpenFilter.addEventListener("click", openModal);
+    if (btnCloseFilter) btnCloseFilter.addEventListener("click", closeModal);
+    if (btnApplyFilters) btnApplyFilters.addEventListener("click", function () {
+      applyFilters();
+      closeModal();
+    });
+
+    // Close modal when clicking outside
+    window.addEventListener("click", function (event) {
+      if (event.target === filterModal) {
+        closeModal();
+      }
+    });
+
+    const filterText = document.getElementById("filter-text");
+    const filterStatus = document.getElementById("filter-status");
+    const filterSekcja = document.getElementById("filter-sekcja");
+    const btnClear = document.getElementById("btn-clear-filters");
+    const awarieItems = document.querySelectorAll(".awaria-item-filterable");
+
+    function applyFilters() {
+      const textVal = filterText.value.toLowerCase().trim();
+      const statusVal = filterStatus.value;
+      const sekcjaVal = filterSekcja.value;
+
+      let visibleCount = 0;
+
+      awarieItems.forEach(item => {
+        const itemText = item.getAttribute("data-text") || "";
+        const itemStatus = item.getAttribute("data-status") || "";
+        const itemSekcja = item.getAttribute("data-sekcja") || "";
+
+        // Evaluate conditions
+        const matchText = textVal === "" || itemText.includes(textVal);
+        const matchStatus = statusVal === "" || itemStatus === statusVal;
+        const matchSekcja = sekcjaVal === "" || itemSekcja.includes(sekcjaVal);
+
+        if (matchText && matchStatus && matchSekcja) {
+          item.style.display = "";
+          visibleCount++;
+        } else {
+          item.style.display = "none";
+        }
+      });
+
+      // Brak wyników handling
+      let emptyMessage = document.getElementById("no-filter-results");
+      if (visibleCount === 0 && awarieItems.length > 0) {
+        if (!emptyMessage) {
+          emptyMessage = document.createElement("div");
+          emptyMessage.id = "no-filter-results";
+          emptyMessage.className = "empty-state-main";
+          emptyMessage.style.marginTop = "20px";
+          emptyMessage.innerHTML = "<h3 class='empty-state-title-main'>Brak wyników</h3><p class='empty-state-message-main'>Zmień lub wyczyść filtry, aby zobaczyć więcej awarii.</p>";
+          document.querySelector(".header-actions").insertAdjacentElement("afterend", emptyMessage);
+        }
+        emptyMessage.style.display = "block";
+      } else if (emptyMessage) {
+        emptyMessage.style.display = "none";
+      }
+
+      // Change button style to indicate filters are active
+      if (textVal || statusVal || sekcjaVal) {
+        btnOpenFilter.classList.remove("btn-action-primary");
+        btnOpenFilter.classList.add("btn-action-warning");
+        btnOpenFilter.innerHTML = "🔍 Aktywne filtry (" + visibleCount + ")";
+      } else {
+        btnOpenFilter.classList.remove("btn-action-warning");
+        btnOpenFilter.classList.add("btn-action-primary");
+        btnOpenFilter.innerHTML = "🔍 Filtruj Awarie";
+      }
+    }
+
+    [filterText, filterStatus, filterSekcja].forEach(el => {
+      if (el) {
+        el.addEventListener("change", applyFilters);
+      }
+    });
+
+    if (btnClear) {
+      btnClear.addEventListener("click", function (e) {
+        e.preventDefault();
+        filterText.value = "";
+        filterStatus.value = "";
+        filterSekcja.value = "";
+        applyFilters();
+      });
+    }
+
+    // Run once on load to establish state
+    applyFilters();
+  });
+</script>
+
 {% endblock %}

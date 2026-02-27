@@ -9,18 +9,18 @@
     margin-bottom: 20px;
     flex-wrap: wrap;
   }
-  
+
   .bulk-header-controls label {
     white-space: nowrap;
   }
-  
+
   #emptyState {
     text-align: center;
     padding: 40px;
     color: #999;
     font-size: 16px;
   }
-  
+
   #bulkTable {
     display: none;
   }
@@ -30,11 +30,12 @@
 <form id="bulkForm" method="post" action="#">
   <div class="bulk-header-controls">
     <label>Data planu: <input type="date" id="data_planu" value="{{ wybrana_data }}"></label>
-    <label>Sekcja: 
+    <label>Sekcja:
       <select id="sekcja_select">
-        <option value="Zasyp">Zasyp</option>
-        <option value="Workowanie">Workowanie</option>
-        <option value="Magazyn">Magazyn</option>
+        <option value="Zasyp" {% if domyslna_sekcja=='Zasyp' %}selected{% endif %}>Zasyp</option>
+        <option value="Workowanie" {% if domyslna_sekcja=='Workowanie' %}selected{% endif %}>Workowanie</option>
+        <option value="Magazyn" {% if domyslna_sekcja=='Magazyn' %}selected{% endif %}>Magazyn</option>
+        <option value="Agro" {% if domyslna_sekcja=='Agro' %}selected{% endif %}>🌿 Agro</option>
       </select>
     </label>
   </div>
@@ -58,105 +59,116 @@
   </div>
 
   <table class="modern-table" id="bulkTable">
-    <thead><tr><th>{{ _('produkt') }}</th><th>{{ _('nr_receptury') }}</th><th>{{ _('waga_kg_symbol') }}</th><th>{{ _('typ') }}</th><th></th></tr></thead>
+    <thead>
+      <tr>
+        <th>{{ _('produkt') }}</th>
+        <th>{{ _('nr_receptury') }}</th>
+        <th>{{ _('waga_kg_symbol') }}</th>
+        <th>{{ _('typ') }}</th>
+        <th></th>
+      </tr>
+    </thead>
     <tbody></tbody>
   </table>
 
   <div class="d-flex gap-10 m-10">
-    <button type="button" id="btnSubmitBatch" class="btn-action btn-action-success">{{ _('zatwierdz_wszystkie') }}</button>
+    <button type="button" id="btnSubmitBatch" class="btn-action btn-action-success">{{ _('zatwierdz_wszystkie')
+      }}</button>
     <a href="{{ url_for('planista.panel_planisty', data=wybrana_data) }}" class="btn-action">{{ _('anuluj') }}</a>
   </div>
 </form>
 
 <script>
-(function(){
-  const tbody = document.querySelector('#bulkTable tbody');
-  const bulkTable = document.querySelector('#bulkTable');
-  const emptyState = document.querySelector('#emptyState');
+  (function () {
+    const tbody = document.querySelector('#bulkTable tbody');
+    const bulkTable = document.querySelector('#bulkTable');
+    const emptyState = document.querySelector('#emptyState');
 
-  function updateTableVisibility(){
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    if(rows.length === 0){
-      bulkTable.style.display = 'none';
-      emptyState.style.display = 'block';
-    } else {
-      bulkTable.style.display = 'table';
-      emptyState.style.display = 'none';
-    }
-  }
-
-  const addRow = () => {
-    const produkt = document.getElementById('inpProdukt').value.trim();
-    const nr = document.getElementById('inpNr').value.trim();
-    const tonazVal = document.getElementById('inpTonaz').value;
-    const tonaz = tonazVal === '' ? null : (parseFloat(tonazVal) || 0);
-    const typ = document.getElementById('inpTyp').value;
-    // Walidacja pól przed dodaniem do listy
-    if(!produkt){ return alert('Podaj produkt'); }
-    if(tonaz === null || tonaz <= 0){ return alert('Podaj poprawną wagę (kg) większą od 0'); }
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${produkt}</td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="delete-button">🗑️</button></td>`;
-    tr.dataset.produkt = produkt; tr.dataset.nr = nr; tr.dataset.tonaz = tonaz; tr.dataset.typ = typ;
-    tbody.appendChild(tr);
-    document.getElementById('inpProdukt').value=''; document.getElementById('inpNr').value=''; document.getElementById('inpTonaz').value='';
-    updateTableVisibility();
-    updateSubmitState();
-  };
-  const _btnAddRow = document.getElementById('btnAddRow');
-  if (_btnAddRow) _btnAddRow.addEventListener('click', addRow);
-  tbody.addEventListener('click', function(e){ 
-    if(e.target.classList.contains('delete-button')){ 
-      e.target.closest('tr').remove(); 
-      updateTableVisibility();
-      updateSubmitState(); 
-    } 
-  });
-
-  const submitBtn = document.getElementById('btnSubmitBatch');
-
-  function validateRows(rows){
-    for(let i=0;i<rows.length;i++){
-      const r = rows[i];
-      const produkt = (r.dataset.produkt||'').trim();
-      const ton = parseFloat(r.dataset.tonaz)||0;
-      const typ = (r.dataset.typ||'').trim();
-      if(!produkt) return {ok:false, message:`Wiersz ${i+1}: brak produktu`};
-      if(!typ) return {ok:false, message:`Wiersz ${i+1}: brak typu produkcji`};
-      if(!(ton>0)) return {ok:false, message:`Wiersz ${i+1}: waga (kg) powinna być większa niż 0`};
-    }
-    return {ok:true};
-  }
-
-  function updateSubmitState(){
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    const v = validateRows(rows);
-    submitBtn.disabled = !(rows.length>0 && v.ok);
-  }
-
-  const _btnSubmitBatch = document.getElementById('btnSubmitBatch');
-  if (_btnSubmitBatch) _btnSubmitBatch.addEventListener('click', function(){
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    if(rows.length === 0) return alert('Brak dodanych zleceń');
-    const valid = validateRows(rows);
-    if(!valid.ok) return alert(valid.message);
-    const data_planu = document.getElementById('data_planu').value || '{{ wybrana_data }}';
-    const sekcja = document.getElementById('sekcja_select').value;
-    const payload = rows.map(r=>({produkt:r.dataset.produkt, nr_receptury:r.dataset.nr, tonaz:parseFloat(r.dataset.tonaz)||0, typ_produkcji:r.dataset.typ, sekcja:sekcja}));
-    fetch('{{ url_for("planning.dodaj_plany_batch") }}', {
-      method: 'POST', headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
-      body: JSON.stringify({data_planu:data_planu, plans: payload})
-    }).then(r=>r.json()).then(j=>{
-      if(j && j.success){
-        window.location = "{{ url_for('planista.panel_planisty') }}?data=" + encodeURIComponent(data_planu);
+    function updateTableVisibility() {
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      if (rows.length === 0) {
+        bulkTable.style.display = 'none';
+        emptyState.style.display = 'block';
       } else {
-        alert(j && j.message ? j.message : 'Błąd serwera');
+        bulkTable.style.display = 'table';
+        emptyState.style.display = 'none';
       }
-    }).catch(e=>{ console.error(e); alert('Błąd sieci'); });
-  });
+    }
 
-  // Initial state
-  updateTableVisibility();
-})();
+    const addRow = () => {
+      const produkt = document.getElementById('inpProdukt').value.trim();
+      const nr = document.getElementById('inpNr').value.trim();
+      const tonazVal = document.getElementById('inpTonaz').value;
+      const tonaz = tonazVal === '' ? null : (parseFloat(tonazVal) || 0);
+      const typ = document.getElementById('inpTyp').value;
+      // Walidacja pól przed dodaniem do listy
+      if (!produkt) { return alert('Podaj produkt'); }
+      if (tonaz === null || tonaz <= 0) { return alert('Podaj poprawną wagę (kg) większą od 0'); }
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${produkt}</td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="delete-button">🗑️</button></td>`;
+      tr.dataset.produkt = produkt; tr.dataset.nr = nr; tr.dataset.tonaz = tonaz; tr.dataset.typ = typ;
+      tbody.appendChild(tr);
+      document.getElementById('inpProdukt').value = ''; document.getElementById('inpNr').value = ''; document.getElementById('inpTonaz').value = '';
+      updateTableVisibility();
+      updateSubmitState();
+    };
+    const _btnAddRow = document.getElementById('btnAddRow');
+    if (_btnAddRow) _btnAddRow.addEventListener('click', addRow);
+    tbody.addEventListener('click', function (e) {
+      if (e.target.classList.contains('delete-button')) {
+        e.target.closest('tr').remove();
+        updateTableVisibility();
+        updateSubmitState();
+      }
+    });
+
+    const submitBtn = document.getElementById('btnSubmitBatch');
+
+    function validateRows(rows) {
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const produkt = (r.dataset.produkt || '').trim();
+        const ton = parseFloat(r.dataset.tonaz) || 0;
+        const typ = (r.dataset.typ || '').trim();
+        if (!produkt) return { ok: false, message: `Wiersz ${i + 1}: brak produktu` };
+        if (!typ) return { ok: false, message: `Wiersz ${i + 1}: brak typu produkcji` };
+        if (!(ton > 0)) return { ok: false, message: `Wiersz ${i + 1}: waga (kg) powinna być większa niż 0` };
+      }
+      return { ok: true };
+    }
+
+    function updateSubmitState() {
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const v = validateRows(rows);
+      submitBtn.disabled = !(rows.length > 0 && v.ok);
+    }
+
+    const _btnSubmitBatch = document.getElementById('btnSubmitBatch');
+    if (_btnSubmitBatch) _btnSubmitBatch.addEventListener('click', function () {
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      if (rows.length === 0) return alert('Brak dodanych zleceń');
+      const valid = validateRows(rows);
+      if (!valid.ok) return alert(valid.message);
+      const data_planu = document.getElementById('data_planu').value || '{{ wybrana_data }}';
+      const sekcja = document.getElementById('sekcja_select').value;
+      const payload = rows.map(r => ({ produkt: r.dataset.produkt, nr_receptury: r.dataset.nr, tonaz: parseFloat(r.dataset.tonaz) || 0, typ_produkcji: r.dataset.typ, sekcja: sekcja }));
+      fetch('{{ url_for("planning.dodaj_plany_batch") }}', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ data_planu: data_planu, plans: payload })
+      }).then(r => r.json()).then(j => {
+        if (j && j.success) {
+          const sekcja = document.getElementById('sekcja_select').value;
+          const tab = sekcja.toLowerCase() === 'agro' ? 'agro' : 'psd';
+          window.location = "{{ url_for('planista.panel_planisty') }}?data=" + encodeURIComponent(data_planu) + '&tab=' + tab;
+        } else {
+          alert(j && j.message ? j.message : 'Błąd serwera');
+        }
+      }).catch(e => { console.error(e); alert('Błąd sieci'); });
+    });
+
+    // Initial state
+    updateTableVisibility();
+  })();
 </script>
 
 {% endblock %}

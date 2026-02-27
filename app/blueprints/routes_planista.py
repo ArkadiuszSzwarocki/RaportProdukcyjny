@@ -220,20 +220,72 @@ def panel_planisty():
             pass
 
     rola = session.get('rola')
-    current_app.logger.info(f'[PLANISTA] Rendering template: current_role={rola}, session_keys={list(session.keys())}')
-    return render_template('planista.html', 
-                           plany=plany_list, 
-                           wybrana_data=wybrana_data, 
+    aktywna_zakladka = request.args.get('tab', 'psd').lower()
+    if aktywna_zakladka not in ('psd', 'agro'):
+        aktywna_zakladka = 'psd'
+
+    current_app.logger.info(f'[PLANISTA] Rendering template: current_role={rola}, tab={aktywna_zakladka}, session_keys={list(session.keys())}')
+
+    # ===== DANE DLA ZAKŁADKI AGRO =====
+    plany_agro = []
+    suma_plan_agro = 0
+    suma_wyk_agro = 0
+    suma_minut_plan_agro = 0
+    procent_agro = 0
+
+    try:
+        conn_agro = get_db_connection()
+        cursor_agro = conn_agro.cursor()
+        cursor_agro.execute("""
+            SELECT id, 'Agro' as sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
+            FROM plan_agro
+            WHERE data_planu = %s
+            ORDER BY kolejnosc
+        """, (wybrana_data,))
+        agro_rows = cursor_agro.fetchall()
+        plany_agro = [list(r) for r in agro_rows]
+
+        for p in plany_agro:
+            waga_plan = p[3] if p[3] else 0
+            typ_prod = p[9]
+            norma = calculate_kg_per_hour(typ_prod) if typ_prod else calculate_kg_per_hour('bigbag')
+            czas_min = int((waga_plan / norma) * 60) if norma > 0 else 0
+            p.append(czas_min)  # index 12
+            suma_plan_agro += waga_plan
+            suma_minut_plan_agro += czas_min
+
+            # Wykonanie
+            cursor_agro.execute("SELECT SUM(waga) FROM szarze WHERE plan_id = %s", (p[0],))
+            sz = cursor_agro.fetchone()
+            wyk = sz[0] if sz and sz[0] else (p[8] if p[8] else 0)
+            p[8] = wyk
+            suma_wyk_agro += wyk
+
+        conn_agro.close()
+        procent_agro = (suma_wyk_agro / suma_plan_agro * 100) if suma_plan_agro > 0 else 0
+    except Exception as e:
+        current_app.logger.error(f'[PLANISTA AGRO] Błąd ładowania danych AGRO: {e}')
+        plany_agro = []
+
+    return render_template('planista.html',
+                           plany=plany_list,
+                           wybrana_data=wybrana_data,
                            palety_mapa=palety_mapa,
                            suma_plan=suma_plan,
                            suma_wyk=suma_wyk,
                            procent=procent,
-                           suma_minut_plan=suma_minut_plan, # Przekazujemy sumę minut
-                           procent_czasu=procent_czasu,     # Przekazujemy % zajętości zmiany
+                           suma_minut_plan=suma_minut_plan,
+                           procent_czasu=procent_czasu,
                            quality_count=quality_count,
                            quality_orders=quality_orders,
                            rozliczenia=rozliczenia,
-                           current_role=rola)
+                           current_role=rola,
+                           aktywna_zakladka=aktywna_zakladka,
+                           plany_agro=plany_agro,
+                           suma_plan_agro=suma_plan_agro,
+                           suma_wyk_agro=suma_wyk_agro,
+                           suma_minut_plan_agro=suma_minut_plan_agro,
+                           procent_agro=procent_agro)
 
 
 @planista_bp.route('/planista/add_czyszczenie', methods=['POST'])

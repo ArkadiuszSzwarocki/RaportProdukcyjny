@@ -379,7 +379,8 @@ def dodaj_plan():
 def planista_bulk_page():
     """Render page for bulk adding plans."""
     wybrana_data = request.args.get('data', str(date.today()))
-    return render_template('planista_bulk.html', wybrana_data=wybrana_data)
+    domyslna_sekcja = request.args.get('sekcja', 'Zasyp')
+    return render_template('planista_bulk.html', wybrana_data=wybrana_data, domyslna_sekcja=domyslna_sekcja)
 
 
 @planning_bp.route('/dodaj_plany_batch', methods=['POST'])
@@ -436,7 +437,18 @@ def dodaj_plany_batch():
                 conn.rollback()
                 conn.close()
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: brak typu produkcji'})
-            
+
+            # === AGRO: zapisz do dedykowanej tabeli plan_agro ===
+            if sekcja == 'Agro':
+                nk_agro = max_seq_map.get('Agro', 0) + 1
+                max_seq_map['Agro'] = nk_agro
+                cursor.execute(
+                    "INSERT INTO plan_agro (data_planu, produkt, tonaz, status, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (data_planu, produkt, tonaz, 'zaplanowane', nk_agro, 'agro', nr, 0)
+                )
+                continue  # nie wstawiaj do plan_produkcji
+
+            # === PSD / inne sekcje: zapisz do plan_produkcji ===
             # Increment kolejnosc for this specific sekcja
             nk_zasyp = max_seq_map.get('Zasyp', 0) + 1
             max_seq_map['Zasyp'] = nk_zasyp
@@ -1066,3 +1078,20 @@ def reorder_plans_bulk():
         except Exception:
             pass
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@planning_bp.route('/planista/agro/usun/<int:plan_id>', methods=['POST'])
+@roles_required('planista', 'admin')
+def usun_plan_agro(plan_id):
+    """Usuń plan z tabeli plan_agro."""
+    from flask import redirect, url_for
+    data_planu = request.form.get('data_planu', '')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM plan_agro WHERE id=%s AND status='zaplanowane'", (plan_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        current_app.logger.exception('Błąd usuwania plan_agro id=%s: %s', plan_id, e)
+    return redirect(url_for('planista.panel_planisty', data=data_planu, tab='agro'))

@@ -6,18 +6,130 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <div class="section-header">
-    <div><h2 class="header-title">📅 {{ _('panel_planisty') }}</h2><p class="text-muted">{{ _('zarzadzanie_produkcja') }}</p></div>
+    <div>
+        <h2 class="header-title">📅 {{ _('panel_planisty') }}</h2>
+        <p class="text-muted">{{ _('zarzadzanie_produkcja') }}</p>
+    </div>
     <form action="/planista" method="GET" class="d-flex align-center gap-10">
-        <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm" aria-label="Wybierz datę">
-        <a href="/planista?data={{ wybrana_data }}" class="btn btn-primary">{{ _('odswiez') }}</a>
+        <input type="hidden" name="tab" value="{{ aktywna_zakladka }}">
+        <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm"
+            aria-label="Wybierz datę">
+        <a href="/planista?data={{ wybrana_data }}&tab={{ aktywna_zakladka }}" class="btn btn-primary">{{ _('odswiez')
+            }}</a>
     </form>
 </div>
 
+<!-- Zakładki PSD / AGRO -->
+<div class="plan-tabs" style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--border-color);">
+    <a href="/planista?data={{ wybrana_data }}&tab=psd"
+        class="plan-tab {% if aktywna_zakladka == 'psd' %}plan-tab-active{% endif %}" style="padding:10px 24px;font-weight:700;text-decoration:none;border-radius:8px 8px 0 0;
+              border:1px solid var(--border-color);border-bottom:{% if aktywna_zakladka == 'psd' %}2px solid white{% else %}none{% endif %};
+              background:{% if aktywna_zakladka == 'psd' %}white{% else %}#f4f6f9{% endif %};
+              color:{% if aktywna_zakladka == 'psd' %}var(--primary-color){% else %}var(--text-muted){% endif %};
+              margin-bottom:-2px;">
+        🏭 PSD
+    </a>
+    <a href="/planista?data={{ wybrana_data }}&tab=agro"
+        class="plan-tab {% if aktywna_zakladka == 'agro' %}plan-tab-active{% endif %}" style="padding:10px 24px;font-weight:700;text-decoration:none;border-radius:8px 8px 0 0;
+              border:1px solid var(--border-color);border-bottom:{% if aktywna_zakladka == 'agro' %}2px solid white{% else %}none{% endif %};
+              background:{% if aktywna_zakladka == 'agro' %}white{% else %}#f4f6f9{% endif %};
+              color:{% if aktywna_zakladka == 'agro' %}var(--primary-color){% else %}var(--text-muted){% endif %};
+              margin-bottom:-2px;">
+        🌿 AGRO
+    </a>
+</div>
+
+{% if aktywna_zakladka == 'agro' %}
+{# ===== ZAKŁADKA AGRO ===== #}
+<div class="stat-grid">
+    <div
+        class="stat-card {% if suma_minut_plan_agro > 450 %}border-danger-left{% else %}border-success-left{% endif %}">
+        <span class="label">Obłożenie zmiany (AGRO)</span>
+        <div class="header-title header-lg">{{ suma_minut_plan_agro }} min</div>
+        <div class="small text-muted">{% if suma_minut_plan_agro > 450 %}⚠️ Przekroczono o {{ suma_minut_plan_agro - 450
+            }} min!{% else %}Zapas: {{ 450 - suma_minut_plan_agro }} min{% endif %}</div>
+    </div>
+    <div class="stat-card border-primary-left">
+        <span class="label">Plan Wagowy (AGRO)</span>
+        <div class="header-title header-lg">{{ suma_plan_agro|int }} kg</div>
+    </div>
+    <div class="stat-card border-warning-left">
+        <span class="label">Realizacja Planu (AGRO)</span>
+        <div class="header-title header-lg {% if procent_agro >= 100 %}text-success{% else %}text-warning{% endif %}">{{
+            procent_agro|int }}%</div>
+        <div class="small text-muted">Wykonano: {{ suma_wyk_agro|int }} kg</div>
+    </div>
+</div>
+
+<div class="section-box section-box-no-pad">
+    <div class="d-flex justify-between align-center p-15 p-15-bg">
+        <h3 class="m-0">🌿 Plan AGRO: <strong>{{ wybrana_data }}</strong></h3>
+        <div class="d-flex gap-10 align-center">
+            <a href="{{ url_for('planning.planista_bulk_page', data=wybrana_data, sekcja='Agro') }}"
+                class="btn-action btn-action-success">+ DODAJ PLAN AGRO</a>
+        </div>
+    </div>
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>📦 Produkt</th>
+                <th>🏷️ Typ</th>
+                <th>📋 Plan</th>
+                <th>⏱️ Estymacja</th>
+                <th>✅ Wykonanie</th>
+                <th>📊 Status</th>
+                <th class="text-right">⚙️ Akcje</th>
+            </tr>
+        </thead>
+        <tbody id="plans-agro-tbody">
+            {% for p in plany_agro %}
+            <tr data-plan-id="{{ p[0] }}">
+                <td><strong class="text-primary">{{ p[2] }}</strong></td>
+                <td><span class="badge-sekcja">{{ (p[9] or '-')|upper }}</span></td>
+                <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
+                <td><span class="duration-badge">{{ p[12]|default(0) }} min</span></td>
+                <td>
+                    {% if (p[8]|default(0, true)) > 0 %}
+                    <strong class="text-success">{{ p[8]|int }} kg</strong>
+                    {% else %}<span class="text-muted">-</span>{% endif %}
+                </td>
+                <td>
+                    {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
+                    {% elif p[4] == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
+                    {% else %}<span class="status-badge status-zaplanowane">ZAPLANOWANE</span>{% endif %}
+                </td>
+                <td class="text-right">
+                    <div class="d-flex gap-5 align-center justify-end">
+                        {% if p[4] not in ['w toku', 'zakonczone'] %}
+                        <form action="{{ url_for('planning.usun_plan_agro', plan_id=p[0]) }}" method="POST"
+                            class="inline-form" onsubmit="return confirm('Usunąć zlecenie AGRO?');">
+                            <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
+                            <button type="submit" class="btn-icon text-danger" title="Usuń">🗑️</button>
+                        </form>
+                        {% else %}
+                        <span class="text-muted" title="Zablokowane">🔒</span>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center p-20">Brak planu AGRO na ten dzień.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% else %}
+{# ===== ZAKŁADKA PSD (domyślna) ===== #}
+
 {% if quality_count and quality_count > 0 %}
 <div class="plan-box d-flex justify-between align-center">
-    <div class="text-warning"><strong>🔔 Laboratorium zgłosiło {{ quality_count }}</strong> zleceń dezynfekcji na {{ wybrana_data }} — sprawdź Jakość i dodaj do planów.</div>
+    <div class="text-warning"><strong>🔔 Laboratorium zgłosiło {{ quality_count }}</strong> zleceń dezynfekcji na {{
+        wybrana_data }} — sprawdź Jakość i dodaj do planów.</div>
     {% if session.get('rola') == 'planista' %}
-        <div>
+    <div>
         <button type="button" class="btn-action btn-warning">{{ _('szczegoly_dezynfekcji') }}</button>
     </div>
     {% endif %}
@@ -25,12 +137,17 @@
 {% endif %}
 
 <div class="stat-grid">
-    
+
     <div class="stat-card {% if suma_minut_plan > 450 %}border-danger-left{% else %}border-success-left{% endif %}">
         <span class="label">{{ _('oblegenie_zmiany') }}</span>
         <div class="header-title header-lg">{{ suma_minut_plan }} min</div>
-        <div class="small text-muted">{% if suma_minut_plan > 450 %}⚠️ Przekroczono o {{ suma_minut_plan - 450 }} min!{% else %}Zapas: {{ 450 - suma_minut_plan }} min{% endif %}</div>
-        <div class="progress"><div class="progress-bar {% if suma_minut_plan > 450 %}progress-bar-danger{% else %}progress-bar-success{% endif %} progress-w-{{ [procent_czasu, 100]|min|round(0)|int }}"></div></div>
+        <div class="small text-muted">{% if suma_minut_plan > 450 %}⚠️ Przekroczono o {{ suma_minut_plan - 450 }} min!{%
+            else %}Zapas: {{ 450 - suma_minut_plan }} min{% endif %}</div>
+        <div class="progress">
+            <div
+                class="progress-bar {% if suma_minut_plan > 450 %}progress-bar-danger{% else %}progress-bar-success{% endif %} progress-w-{{ [procent_czasu, 100]|min|round(0)|int }}">
+            </div>
+        </div>
     </div>
 
     <div class="stat-card border-primary-left">
@@ -41,28 +158,31 @@
 
     <div class="stat-card border-warning-left">
         <span class="label">Realizacja Planu</span>
-        <div class="header-title header-lg {% if procent >= 100 %}text-success{% else %}text-warning{% endif %}">{{ procent|int }}%</div>
+        <div class="header-title header-lg {% if procent >= 100 %}text-success{% else %}text-warning{% endif %}">{{
+            procent|int }}%</div>
         <div class="small text-muted">Wykonano: {{ suma_wyk|int }} kg</div>
     </div>
 </div>
 
 {# BUFOR przeniesiony na osobną stronę /bufor — patrz templates/bufor.html #}
 
-    <div class="section-box section-box-no-pad">
-        <div class="d-flex justify-between align-center p-15 p-15-bg">
-            <h3 class="m-0">📋 {{ _('glowny_plan') }}: <strong>{{ wybrana_data }}</strong></h3>
-            <div class="d-flex gap-10 align-center">
-                <a href="{{ url_for('planning.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan" class="btn-action btn-action-success">+ DODAJ PLAN</a>
-                <!-- Quick add cleaning form -->
-                <form action="/planista/add_czyszczenie" method="POST" class="d-flex align-center gap-5 czyszczenie-form">
-                    <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-                    <label class="small text-muted">{{ _('czyszczenie') }}:</label>
-                    <input type="number" name="tonaz" min="0" step="1" placeholder="kg" class="input-sm input-width-80">
-                    <input type="number" name="kolejnosc" min="1" step="1" placeholder="poz." class="input-sm input-width-80">
-                    <button type="submit" class="btn-action btn-small btn-warning">{{ _('dodaj') }}</button>
-                </form>
-            </div>
+<div class="section-box section-box-no-pad">
+    <div class="d-flex justify-between align-center p-15 p-15-bg">
+        <h3 class="m-0">📋 {{ _('glowny_plan') }}: <strong>{{ wybrana_data }}</strong></h3>
+        <div class="d-flex gap-10 align-center">
+            <a href="{{ url_for('planning.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan"
+                class="btn-action btn-action-success">+ DODAJ PLAN</a>
+            <!-- Quick add cleaning form -->
+            <form action="/planista/add_czyszczenie" method="POST" class="d-flex align-center gap-5 czyszczenie-form">
+                <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
+                <label class="small text-muted">{{ _('czyszczenie') }}:</label>
+                <input type="number" name="tonaz" min="0" step="1" placeholder="kg" class="input-sm input-width-80">
+                <input type="number" name="kolejnosc" min="1" step="1" placeholder="poz."
+                    class="input-sm input-width-80">
+                <button type="submit" class="btn-action btn-small btn-warning">{{ _('dodaj') }}</button>
+            </form>
         </div>
+    </div>
 
     <table class="modern-table">
         <thead>
@@ -89,17 +209,20 @@
                 </td>
                 <td>
                     {% if (p[8]|default(0, true)) > 0 %}
-                        <strong class="text-success">{{ p[8]|int }} kg</strong>
-                        {% if p[10] %}<br><span class="small text-danger-color">⚠️ {{ p[10] }}</span>{% endif %}
+                    <strong class="text-success">{{ p[8]|int }} kg</strong>
+                    {% if p[10] %}<br><span class="small text-danger-color">⚠️ {{ p[10] }}</span>{% endif %}
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
                     {% if palety_mapa[p[0]] %}
-                        <button type="button" data-action="toggle-details" data-plan-id="{{ p[0] }}" class="btn-toggle">📦 {{ palety_mapa[p[0]]|length }} szt.</button>
+                    <button type="button" data-action="toggle-details" data-plan-id="{{ p[0] }}" class="btn-toggle">📦
+                        {{ palety_mapa[p[0]]|length }} szt.</button>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
-                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p[0] }}" value="{{ p[11]|default(0, true)|int }}" min="0" max="999999" title="Liczba uszkodzonych worków" />
+                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p[0] }}"
+                        value="{{ p[11]|default(0, true)|int }}" min="0" max="999999"
+                        title="Liczba uszkodzonych worków" />
                 </td>
                 <td>
                     {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
@@ -109,37 +232,56 @@
                 <td>
                     <div class="d-flex gap-5 align-center">
                         {% if p[4] not in ['w toku', 'zakonczone'] %}
-                            <button type="button" data-action="move-up" data-plan-id="{{ p[0] }}" class="btn-icon" aria-label="Przenieś w górę">⬆</button>
-                            <button type="button" data-action="move-down" data-plan-id="{{ p[0] }}" class="btn-icon" aria-label="Przenieś w dół">⬇</button>
-                            <button type="button" data-action="open-move-modal" data-plan-id="{{ p[0] }}" data-plan-day="{{ p[2] }}" class="btn-icon text-primary" aria-label="Przenieś plan">📅</button>
-                            <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p[0] }}" title="{{ _('edytuj') }}">✎</button>
-                            <form action="{{ url_for('planning.usun_plan', id=p[0]) }}" method="POST" class="inline-form" onsubmit="return confirm('Usunąć zlecenie?');">
-                                <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-                                <button type="submit" class="btn-icon text-danger" title="{{ _('usun_plan') }}">🗑️</button>
-                            </form>
+                        <button type="button" data-action="move-up" data-plan-id="{{ p[0] }}" class="btn-icon"
+                            aria-label="Przenieś w górę">⬆</button>
+                        <button type="button" data-action="move-down" data-plan-id="{{ p[0] }}" class="btn-icon"
+                            aria-label="Przenieś w dół">⬇</button>
+                        <button type="button" data-action="open-move-modal" data-plan-id="{{ p[0] }}"
+                            data-plan-day="{{ p[2] }}" class="btn-icon text-primary"
+                            aria-label="Przenieś plan">📅</button>
+                        <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p[0] }}"
+                            title="{{ _('edytuj') }}">✎</button>
+                        <form action="{{ url_for('planning.usun_plan', id=p[0]) }}" method="POST" class="inline-form"
+                            onsubmit="return confirm('Usunąć zlecenie?');">
+                            <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
+                            <button type="submit" class="btn-icon text-danger" title="{{ _('usun_plan') }}">🗑️</button>
+                        </form>
                         {% elif p[4] == 'w toku' %}
-                            {% if session.get('rola') in ['planista', 'admin'] %}
-                                <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit" data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
-                            {% else %}
-                                <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
-                            {% endif %}
+                        {% if session.get('rola') in ['planista', 'admin'] %}
+                        <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
+                            data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
                         {% else %}
-                            <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
+                        <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
                         {% endif %}
                     </div>
                 </td>
             </tr>
-            
+
             {% if palety_mapa[p[0]] %}
             <tr id="details-{{ p[0] }}" class="details-row">
                 <td colspan="8" class="p-0">
                     <div class="p-10">
                         <table class="modern-table small">
-                            <thead><tr><th>{{ _('nr') }}</th><th>🕒 Godzina</th><th>📦 Netto</th><th>⚖️ Brutto</th><th>📌 Tara</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>{{ _('nr') }}</th>
+                                    <th>🕒 Godzina</th>
+                                    <th>📦 Netto</th>
+                                    <th>⚖️ Brutto</th>
+                                    <th>📌 Tara</th>
+                                </tr>
+                            </thead>
                             <tbody>
                                 {% for pal in palety_mapa[p[0]] %}
                                 <tr>
-                                    <td class="text-muted font-bold">{{ loop.index }}</td><td class="time-display">{{ pal[1] }}</td><td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td><td class="text-success">{{ pal[3]|int }} kg</td><td class="text-muted">{{ pal[2]|int }} kg</td>
+                                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                                    <td class="time-display">{{ pal[1] }}</td>
+                                    <td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td>
+                                    <td class="text-success">{{ pal[3]|int }} kg</td>
+                                    <td class="text-muted">{{ pal[2]|int }} kg</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -148,7 +290,9 @@
                 </td>
             </tr>
             {% endif %}
-            {% else %}<tr><td colspan="8" class="text-center p-20">Brak planu.</td></tr>{% endfor %}
+            {% else %}<tr>
+                <td colspan="8" class="text-center p-20">Brak planu.</td>
+            </tr>{% endfor %}
         </tbody>
     </table>
 </div>
@@ -174,105 +318,108 @@
         </thead>
         <tbody>
             {% if rozliczenia and rozliczenia|length > 0 %}
-                {% for r in rozliczenia %}
-                <tr class="{% if r.status == 'w toku' %}bg-success-light{% elif r.status == 'zakonczone' %}bg-dark-light{% elif r.status == 'zaplanowane' %}bg-warning-light{% endif %}">
-                    <td><strong class="text-primary">{{ r.produkt }}</strong></td>
-                    <td>{{ r.planowany_zasyp|float }} kg</td>
-                    <td>{{ r.zasyp_kg|float }} kg</td>
-                    <td>{{ r.plan_workowanie|float }} kg</td>
-                    <td>{{ r.spakowano_palety|float }} kg</td>
-                    <td>{{ r.bufor_spakowano|float }} kg</td>
-                    <td>{{ r.diff_no_buf }} kg</td>
-                    <td>{{ r.diff_with_buf }} kg</td>
-                </tr>
-                {% endfor %}
+            {% for r in rozliczenia %}
+            <tr
+                class="{% if r.status == 'w toku' %}bg-success-light{% elif r.status == 'zakonczone' %}bg-dark-light{% elif r.status == 'zaplanowane' %}bg-warning-light{% endif %}">
+                <td><strong class="text-primary">{{ r.produkt }}</strong></td>
+                <td>{{ r.planowany_zasyp|float }} kg</td>
+                <td>{{ r.zasyp_kg|float }} kg</td>
+                <td>{{ r.plan_workowanie|float }} kg</td>
+                <td>{{ r.spakowano_palety|float }} kg</td>
+                <td>{{ r.bufor_spakowano|float }} kg</td>
+                <td>{{ r.diff_no_buf }} kg</td>
+                <td>{{ r.diff_with_buf }} kg</td>
+            </tr>
+            {% endfor %}
             {% else %}
-                <tr><td colspan="8" class="text-center text-muted">Brak danych rozliczeniowych dla wybranej daty.</td></tr>
+            <tr>
+                <td colspan="8" class="text-center text-muted">Brak danych rozliczeniowych dla wybranej daty.</td>
+            </tr>
             {% endif %}
         </tbody>
     </table>
 </div>
 
-    <script>
+<script>
     // Translation messages for Planista view
     var pnMsgs = {
         zapisz: '{{ _("zapisz") }}',
         anuluj: '{{ _("anuluj") }}'
     };
-    
+
     function toggleDetails(id) { var row = document.getElementById('details-' + id); row.classList.toggle('hidden'); }
-    
+
     function openMoveModal(id, nazwa) {
-        var tr = document.querySelector('tr[data-plan-id="'+id+'"]');
-        if(!tr) return;
-        var html = '<form id="moveForm_'+id+'" class="form-group">';
+        var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
+        if (!tr) return;
+        var html = '<form id="moveForm_' + id + '" class="form-group">';
         html += '<div class="form-group">';
-        html += '  <label for="new_date_'+id+'">Nowa data:</label>';
-        html += '  <input type="date" id="new_date_'+id+'" name="nowa_data" required>';
+        html += '  <label for="new_date_' + id + '">Nowa data:</label>';
+        html += '  <input type="date" id="new_date_' + id + '" name="nowa_data" required>';
         html += '</div>';
         html += '<div class="d-flex gap-10 mt-15">';
-        html += '  <button type="button" class="btn-action btn-success" onclick="submitMoveModal('+id+')">Przenieś</button>';
+        html += '  <button type="button" class="btn-action btn-success" onclick="submitMoveModal(' + id + ')">Przenieś</button>';
         html += '  <button type="button" class="btn-action btn-cancel" onclick="if(window.createQuickPopup && window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close()">Zamknij</button>';
         html += '</div>';
         html += '</form>';
-        var popup = showQuickPopup('Przenieś plan: '+nazwa, html);
-        if(popup) window.createQuickPopup._lastInst = popup;
-        setTimeout(function(){ var inp = document.getElementById('new_date_'+id); if(inp) inp.focus(); }, 200);
+        var popup = showQuickPopup('Przenieś plan: ' + nazwa, html);
+        if (popup) window.createQuickPopup._lastInst = popup;
+        setTimeout(function () { var inp = document.getElementById('new_date_' + id); if (inp) inp.focus(); }, 200);
     }
-    
-    function submitMoveModal(id){
-        var newDate = document.getElementById('new_date_'+id).value;
-        if(!newDate){
+
+    function submitMoveModal(id) {
+        var newDate = document.getElementById('new_date_' + id).value;
+        if (!newDate) {
             alert('Wybierz datę');
             return;
         }
-        fetch('/planista/przenies_zlecenie/'+id, {
-            method:'POST',
-            headers:{'Content-Type':'application/x-www-form-urlencoded'},
-            body:'nowa_data='+encodeURIComponent(newDate),
-            credentials:'same-origin'
-        }).then(r=>r.text()).then(t=>{
-            if(window.createQuickPopup && window.createQuickPopup._lastInst){
+        fetch('/planista/przenies_zlecenie/' + id, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'nowa_data=' + encodeURIComponent(newDate),
+            credentials: 'same-origin'
+        }).then(r => r.text()).then(t => {
+            if (window.createQuickPopup && window.createQuickPopup._lastInst) {
                 window.createQuickPopup._lastInst.close();
             }
             location.reload();
-        }).catch(err=>{
-            alert('Błąd: '+err);
+        }).catch(err => {
+            alert('Błąd: ' + err);
         });
     }
-    
-    function otworzOknoDodawaniaPalety(planId, produkt, typ){
+
+    function otworzOknoDodawaniaPalety(planId, produkt, typ) {
         // Wczytuje stronę formularza przez AJAX i wstrzykuje do quick-popup modala
         var url = '/api/dodaj_palete_page/' + encodeURIComponent(planId);
         fetch(url, { credentials: 'same-origin' })
-            .then(function(resp){ if(!resp.ok) throw new Error('Nie można załadować formularza'); return resp.text(); })
-            .then(function(html){
+            .then(function (resp) { if (!resp.ok) throw new Error('Nie można załadować formularza'); return resp.text(); })
+            .then(function (html) {
                 var body = document.getElementById('quickPopupBody');
-                if(!body) return alert('Brak quick-popup panelu');
+                if (!body) return alert('Brak quick-popup panelu');
                 openQuickPopup(html);
                 // NOTE: data-slide-close handling removed with slide-over component
 
                 // interceptuj formularz i wyślij AJAXem
                 var form = body.querySelector('form');
-                if(form){
-                    form.addEventListener('submit', function(e){
+                if (form) {
+                    form.addEventListener('submit', function (e) {
                         e.preventDefault();
                         var action = form.getAttribute('action') || ('/api/dodaj_palete/' + encodeURIComponent(planId));
                         var method = (form.getAttribute('method') || 'POST').toUpperCase();
                         var fd = new FormData(form);
                         fetch(action, { method: method, body: fd, credentials: 'same-origin' })
-                            .then(function(r){
-                                if(r.ok){
+                            .then(function (r) {
+                                if (r.ok) {
                                     closeQuickPopup();
                                     // odśwież stronę aby zaktualizować listy i bufor
                                     location.reload();
                                 } else {
-                                    return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); });
+                                    return r.text().then(function (t) { throw new Error(t || 'Błąd serwera'); });
                                 }
-                            }).catch(function(err){ alert('Błąd: ' + (err.message || err)); });
+                            }).catch(function (err) { alert('Błąd: ' + (err.message || err)); });
                     });
                 }
-            }).catch(function(){ alert('Błąd ładowania formularza'); closeQuickPopup(); });
+            }).catch(function () { alert('Błąd ładowania formularza'); closeQuickPopup(); });
     }
     /* showModalDisabled removed — slide-over used as fallback instead */
 </script>
@@ -280,296 +427,296 @@
 <!-- Fallback modal-open listener removed -->
 
 <script>
-function moveUp(id){
-    fetch('/api/przesun_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, kierunek:'gora', data: '{{ wybrana_data }}'})})
-        .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); }); return r.json().catch(function(){ throw new Error('Nieprawidłowa odpowiedź JSON'); }); })
-        .then(function(j){ 
-            if(j && j.success) {
-                // Swap rows in table without reload
-                var row = document.querySelector('tr[data-plan-id="' + id + '"]');
-                if(row && row.previousElementSibling && row.previousElementSibling.tagName === 'TR') {
-                    row.parentNode.insertBefore(row, row.previousElementSibling);
+    function moveUp(id) {
+        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'gora', data: '{{ wybrana_data }}' }) })
+            .then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error(t || 'Błąd serwera'); }); return r.json().catch(function () { throw new Error('Nieprawidłowa odpowiedź JSON'); }); })
+            .then(function (j) {
+                if (j && j.success) {
+                    // Swap rows in table without reload
+                    var row = document.querySelector('tr[data-plan-id="' + id + '"]');
+                    if (row && row.previousElementSibling && row.previousElementSibling.tagName === 'TR') {
+                        row.parentNode.insertBefore(row, row.previousElementSibling);
+                    }
+                } else {
+                    alert((j && j.message) || 'Błąd');
                 }
-            } else { 
-                alert((j && j.message)||'Błąd'); 
-            } 
-        })
-        .catch(function(err){ alert(err && err.message ? err.message : 'Błąd sieci'); });
-}
-function moveDown(id){
-    fetch('/api/przesun_zlecenie_ajax', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, kierunek:'dol', data: '{{ wybrana_data }}'})})
-        .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); }); return r.json().catch(function(){ throw new Error('Nieprawidłowa odpowiedź JSON'); }); })
-        .then(function(j){ 
-            if(j && j.success) {
-                // Swap rows in table without reload
-                var row = document.querySelector('tr[data-plan-id="' + id + '"]');
-                if(row && row.nextElementSibling && row.nextElementSibling.tagName === 'TR') {
-                    row.parentNode.insertBefore(row.nextElementSibling, row);
+            })
+            .catch(function (err) { alert(err && err.message ? err.message : 'Błąd sieci'); });
+    }
+    function moveDown(id) {
+        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'dol', data: '{{ wybrana_data }}' }) })
+            .then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error(t || 'Błąd serwera'); }); return r.json().catch(function () { throw new Error('Nieprawidłowa odpowiedź JSON'); }); })
+            .then(function (j) {
+                if (j && j.success) {
+                    // Swap rows in table without reload
+                    var row = document.querySelector('tr[data-plan-id="' + id + '"]');
+                    if (row && row.nextElementSibling && row.nextElementSibling.tagName === 'TR') {
+                        row.parentNode.insertBefore(row.nextElementSibling, row);
+                    }
+                } else {
+                    alert((j && j.message) || 'Błąd');
                 }
-            } else { 
-                alert((j && j.message)||'Błąd'); 
-            } 
-        })
-        .catch(function(err){ alert(err && err.message ? err.message : 'Błąd sieci'); });
-}
-function deletePlanConfirm(id, data){ if(!confirm('Usunąć?')) return; deletePlan(id, data); }
-function deletePlan(id, data){
-    fetch('/api/usun_plan_ajax/'+id, {method:'POST'})
-        .then(function(r){ 
-            if(r.ok) { 
-                // Remove row from table without reload
-                var row = document.querySelector('tr[data-plan-id="' + id + '"]');
-                if(row) row.remove();
-                // Also remove details row if exists
-                var detailsRow = document.getElementById('details-' + id);
-                if(detailsRow) detailsRow.remove();
-                return null; 
-            } 
-            return r.text().then(function(t){ throw new Error(t || 'Błąd serwera'); }); 
-        })
-        .then(function(j){ if(j && !j.success){ alert(j.message || 'Błąd'); } })
-        .catch(function(){ alert('Błąd sieci'); });
-}
+            })
+            .catch(function (err) { alert(err && err.message ? err.message : 'Błąd sieci'); });
+    }
+    function deletePlanConfirm(id, data) { if (!confirm('Usunąć?')) return; deletePlan(id, data); }
+    function deletePlan(id, data) {
+        fetch('/api/usun_plan_ajax/' + id, { method: 'POST' })
+            .then(function (r) {
+                if (r.ok) {
+                    // Remove row from table without reload
+                    var row = document.querySelector('tr[data-plan-id="' + id + '"]');
+                    if (row) row.remove();
+                    // Also remove details row if exists
+                    var detailsRow = document.getElementById('details-' + id);
+                    if (detailsRow) detailsRow.remove();
+                    return null;
+                }
+                return r.text().then(function (t) { throw new Error(t || 'Błąd serwera'); });
+            })
+            .then(function (j) { if (j && !j.success) { alert(j.message || 'Błąd'); } })
+            .catch(function () { alert('Błąd sieci'); });
+    }
 </script>
 <script>
-    function toggleEdit(id){
-        var tr = document.querySelector('tr[data-plan-id="'+id+'"]');
-        if(!tr) return;
+    function toggleEdit(id) {
+        var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
+        if (!tr) return;
         var produkt = tr.children[0].innerText.trim();
-        var typ = tr.querySelector('.badge-sekcja')?tr.querySelector('.badge-sekcja').innerText:'';
-        var tonaz = tr.children[2].innerText.replace(/[^0-9\.\,]/g,'')||0;
-        
-        var html = '<form id="editForm_'+id+'" class="form-group">';
-        html += '<div class="form-group"><label>Produkt:</label><input id="e_prod_'+id+'" name="produkt" value="'+produkt+'" required></div>';
-        html += '<div class="form-group"><label>Typ:</label><input id="e_typ_'+id+'" name="typ" value="'+typ+'" readonly disabled></div>';
-        html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_'+id+'" name="tonaz" type="number" step="0.1" value="'+tonaz+'" required></div>';
-        html += '<div class="form-group"><label>Data:</label><input id="e_date_'+id+'" name="data_planu" type="date" value="{{ wybrana_data }}"></div>';
+        var typ = tr.querySelector('.badge-sekcja') ? tr.querySelector('.badge-sekcja').innerText : '';
+        var tonaz = tr.children[2].innerText.replace(/[^0-9\.\,]/g, '') || 0;
+
+        var html = '<form id="editForm_' + id + '" class="form-group">';
+        html += '<div class="form-group"><label>Produkt:</label><input id="e_prod_' + id + '" name="produkt" value="' + produkt + '" required></div>';
+        html += '<div class="form-group"><label>Typ:</label><input id="e_typ_' + id + '" name="typ" value="' + typ + '" readonly disabled></div>';
+        html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_' + id + '" name="tonaz" type="number" step="0.1" value="' + tonaz + '" required></div>';
+        html += '<div class="form-group"><label>Data:</label><input id="e_date_' + id + '" name="data_planu" type="date" value="{{ wybrana_data }}"></div>';
         html += '<div class="d-flex gap-10 mt-15">';
-        html += '  <button type="button" class="btn-action btn-success" onclick="submitEdit('+id+')">Zapisz</button>';
+        html += '  <button type="button" class="btn-action btn-success" onclick="submitEdit(' + id + ')">Zapisz</button>';
         html += '  <button type="button" class="btn-action btn-cancel" onclick="if(window.createQuickPopup && window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close()">Anuluj</button>';
         html += '</div>';
         html += '</form>';
         var popup = showQuickPopup('Edytuj zlecenie', html);
-        if(popup) window.createQuickPopup._lastInst = popup;
-        setTimeout(function(){ var inp = document.getElementById('e_prod_'+id); if(inp) inp.focus(); }, 200);
+        if (popup) window.createQuickPopup._lastInst = popup;
+        setTimeout(function () { var inp = document.getElementById('e_prod_' + id); if (inp) inp.focus(); }, 200);
     }
 
-    function submitEdit(id){
-        var prod = document.getElementById('e_prod_'+id).value;
-        var ton = document.getElementById('e_ton_'+id).value;
-        var dt = document.getElementById('e_date_'+id).value;
+    function submitEdit(id) {
+        var prod = document.getElementById('e_prod_' + id).value;
+        var ton = document.getElementById('e_ton_' + id).value;
+        var dt = document.getElementById('e_date_' + id).value;
         fetch('/api/edytuj_plan_ajax', {
-            method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({id: id, produkt: prod, tonaz: ton, data_planu: dt})
-        }).then(r=>r.json()).then(j=>{
-            if(j && j.success){
-                if(window.createQuickPopup && window.createQuickPopup._lastInst){
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, produkt: prod, tonaz: ton, data_planu: dt })
+        }).then(r => r.json()).then(j => {
+            if (j && j.success) {
+                if (window.createQuickPopup && window.createQuickPopup._lastInst) {
                     window.createQuickPopup._lastInst.close();
                 }
                 location.reload();
             } else {
                 alert((j && j.message) || 'Błąd');
             }
-        }).catch(()=>alert('Błąd sieci'));
+        }).catch(() => alert('Błąd sieci'));
     }
 
-    function toggleTonazEdit(id){
-        var tr = document.querySelector('tr[data-plan-id="'+id+'"]');
-        if(!tr) return;
-        var tonaz = tr.children[2].innerText.replace(/[^0-9\.\,]/g,'')||0;
-        
-        var html = '<form id="editTonazForm_'+id+'" class="form-group">';
-        html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_only_'+id+'" name="tonaz" type="number" step="0.1" value="'+tonaz+'" required></div>';
+    function toggleTonazEdit(id) {
+        var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
+        if (!tr) return;
+        var tonaz = tr.children[2].innerText.replace(/[^0-9\.\,]/g, '') || 0;
+
+        var html = '<form id="editTonazForm_' + id + '" class="form-group">';
+        html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_only_' + id + '" name="tonaz" type="number" step="0.1" value="' + tonaz + '" required></div>';
         html += '<p class="text-muted small mt-10">⚠️ Gdy zlecenie w toku, możesz edytować tylko tonaż (kg)</p>';
         html += '<div class="d-flex gap-10 mt-15">';
-        html += '  <button type="button" class="btn-action btn-success" onclick="submitTonazEdit('+id+')">Zapisz</button>';
+        html += '  <button type="button" class="btn-action btn-success" onclick="submitTonazEdit(' + id + ')">Zapisz</button>';
         html += '  <button type="button" class="btn-action btn-cancel" onclick="if(window.createQuickPopup && window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close()">Anuluj</button>';
         html += '</div>';
         html += '</form>';
         var popup = showQuickPopup('Edytuj tonaż (w toku)', html);
-        if(popup) window.createQuickPopup._lastInst = popup;
-        setTimeout(function(){ var inp = document.getElementById('e_ton_only_'+id); if(inp) inp.focus(); }, 200);
+        if (popup) window.createQuickPopup._lastInst = popup;
+        setTimeout(function () { var inp = document.getElementById('e_ton_only_' + id); if (inp) inp.focus(); }, 200);
     }
 
-    function submitTonazEdit(id){
-        var ton = document.getElementById('e_ton_only_'+id).value;
+    function submitTonazEdit(id) {
+        var ton = document.getElementById('e_ton_only_' + id).value;
         fetch('/api/edytuj_plan_ajax', {
-            method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({id: id, tonaz: ton})
-        }).then(r=>r.json()).then(j=>{
-            if(j && j.success){
-                if(window.createQuickPopup && window.createQuickPopup._lastInst){
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, tonaz: ton })
+        }).then(r => r.json()).then(j => {
+            if (j && j.success) {
+                if (window.createQuickPopup && window.createQuickPopup._lastInst) {
                     window.createQuickPopup._lastInst.close();
                 }
                 location.reload();
             } else {
                 alert((j && j.message) || 'Błąd');
             }
-        }).catch(()=>alert('Błąd sieci'));
+        }).catch(() => alert('Błąd sieci'));
     }
 
-    function openQuickPopup(html){
+    function openQuickPopup(html) {
         var qp = document.getElementById('quickPopup');
         var bd = document.getElementById('quickBackdrop');
-        if(!qp || !bd) return;
+        if (!qp || !bd) return;
         var body = document.getElementById('quickPopupBody');
-        if(body) body.innerHTML = html || '';
+        if (body) body.innerHTML = html || '';
         bd.classList.add('show');
         qp.style.display = 'block';
-        setTimeout(function(){ qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
+        setTimeout(function () { qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
     }
-    function closeQuickPopup(){
+    function closeQuickPopup() {
         var qp = document.getElementById('quickPopup');
         var bd = document.getElementById('quickBackdrop');
-        if(!qp) return;
+        if (!qp) return;
         qp.classList.remove('open');
         qp.setAttribute('aria-hidden', 'true');
-        if(bd) bd.classList.remove('show');
-        setTimeout(function(){ qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if(body) body.innerHTML=''; }, 360);
+        if (bd) bd.classList.remove('show');
+        setTimeout(function () { qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if (body) body.innerHTML = ''; }, 360);
     }
 
     // Handle uszkodzone_worki input changes (auto-save via AJAX)
-    document.addEventListener('change', function(e){
-        if(e.target.classList.contains('uszkodzone-worki-input')){
+    document.addEventListener('change', function (e) {
+        if (e.target.classList.contains('uszkodzone-worki-input')) {
             var planId = parseInt(e.target.getAttribute('data-plan-id'));
             var value = parseInt(e.target.value) || 0;
-            
+
             fetch('/api/update_uszkodzone_worki', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({id: planId, uszkodzone_worki: value})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: planId, uszkodzone_worki: value })
             })
-            .then(function(r){ return r.json(); })
-            .then(function(j){
-                if(j && j.success){
-                    e.target.style.borderColor = '#4CAF50';
-                    setTimeout(function(){ e.target.style.borderColor = ''; }, 1000);
-                } else {
-                    alert((j && j.message) || 'Błąd aktualizacji');
-                    e.target.value = e.target.getAttribute('data-original-value') || 0;
-                }
-            })
-            .catch(function(err){ 
-                alert('Błąd sieci');
-                console.error(err);
-            });
+                .then(function (r) { return r.json(); })
+                .then(function (j) {
+                    if (j && j.success) {
+                        e.target.style.borderColor = '#4CAF50';
+                        setTimeout(function () { e.target.style.borderColor = ''; }, 1000);
+                    } else {
+                        alert((j && j.message) || 'Błąd aktualizacji');
+                        e.target.value = e.target.getAttribute('data-original-value') || 0;
+                    }
+                })
+                .catch(function (err) {
+                    alert('Błąd sieci');
+                    console.error(err);
+                });
         }
     }, false);
 
     // Event delegation for planista actions
-    document.addEventListener('click', function(e){
+    document.addEventListener('click', function (e) {
         var target = e.target.closest('[data-action]');
-        if(!target) return;
-        
+        if (!target) return;
+
         var action = target.getAttribute('data-action');
         var planId = target.getAttribute('data-plan-id');
-        
-        switch(action){
+
+        switch (action) {
             case 'close-popup':
                 closeQuickPopup();
                 break;
             case 'toggle-details':
-                if(planId) toggleDetails(parseInt(planId));
+                if (planId) toggleDetails(parseInt(planId));
                 break;
             case 'move-up':
-                if(planId) moveUp(parseInt(planId));
+                if (planId) moveUp(parseInt(planId));
                 break;
             case 'move-down':
-                if(planId) moveDown(parseInt(planId));
+                if (planId) moveDown(parseInt(planId));
                 break;
             case 'delete-plan':
-                if(planId){
+                if (planId) {
                     var planDate = target.getAttribute('data-plan-date');
                     deletePlanConfirm(parseInt(planId), planDate);
                 }
                 break;
             case 'open-move-modal':
-                if(planId){
+                if (planId) {
                     var planDay = target.getAttribute('data-plan-day');
                     openMoveModal(parseInt(planId), planDay);
                 }
                 break;
             case 'toggle-edit':
-                if(planId) toggleEdit(parseInt(planId));
+                if (planId) toggleEdit(parseInt(planId));
                 break;
             case 'toggle-tonaz-edit':
-                if(planId) toggleTonazEdit(parseInt(planId));
+                if (planId) toggleTonazEdit(parseInt(planId));
                 break;
         }
     }, false);
 
-// Initialize Sortable for plan reordering via drag-and-drop
-if (typeof Sortable !== 'undefined') {
-    var plansTbody = document.getElementById('plans-tbody');
-    if (plansTbody) {
-        // Check if ANY plan on this day is w toku or zakonczone
-        var hasActiveOrComplete = false;
-        var allRows = plansTbody.querySelectorAll('tr:not(.details-row)');
-        allRows.forEach(function(row) {
-            if (row.querySelector('[title*="zablokowane"]')) {
-                hasActiveOrComplete = true;
-            }
-        });
-        
-        // Only enable drag if NO plans are w toku/zakonczone
-        if (hasActiveOrComplete) {
-            // Show message that reordering is disabled
-            var msg = document.createElement('div');
-            msg.className = 'alert alert-warning mt-2 mb-2';
-            msg.innerHTML = '⚠️ {{ _("Reorderowanie wyłączone - na tym dniu jest plan w toku lub zakończony") }}';
-            plansTbody.parentNode.parentNode.insertAdjacentElement('afterend', msg);
-        } else {
-            Sortable.create(plansTbody, {
-                animation: 150,
-                ghostClass: 'sortable-ghost',
-                dragClass: 'sortable-drag',
-                handle: 'tr',  // Allow dragging entire row
-                filter: '.details-row', // Don't allow dragging details rows
-                onEnd: function(evt) {
-                    // Get new order of plan IDs
-                    var rows = plansTbody.querySelectorAll('tr:not(.details-row)');
-                    var newOrder = [];
-                    rows.forEach(function(row) {
-                        var planId = row.getAttribute('data-plan-id');
-                        if (planId) {
-                            newOrder.push(parseInt(planId));
-                        }
-                    });
-                    
-                    if (newOrder.length > 0) {
-                        // Send reorder request to backend
-                        var data = {
-                            plan_ids: newOrder,
-                            data: '{{ wybrana_data }}',
-                            sekcja: 'zasyp'
-                        };
-                        
-                        fetch('/api/reorder_plans_bulk', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify(data)
-                        })
-                        .then(function(r) {
-                            if (!r.ok) return r.text().then(function(t) { throw new Error(t || 'Błąd serwera'); });
-                            return r.json().catch(function() { throw new Error('Nieprawidłowa odpowiedź JSON'); });
-                        })
-                        .then(function(j) {
-                            if (j && j.success) {
-                                // Silently update UI without reload
-                                console.log('Reorder success - no reload needed');
-                            } else {
-                                alert((j && j.message) || 'Błąd przy reorderowaniu');
-                            }
-                        })
-                        .catch(function(err) {
-                            alert('Błąd: ' + (err && err.message ? err.message : 'Nie wiadomo'));
-                        });
-                    }
+    // Initialize Sortable for plan reordering via drag-and-drop
+    if (typeof Sortable !== 'undefined') {
+        var plansTbody = document.getElementById('plans-tbody');
+        if (plansTbody) {
+            // Check if ANY plan on this day is w toku or zakonczone
+            var hasActiveOrComplete = false;
+            var allRows = plansTbody.querySelectorAll('tr:not(.details-row)');
+            allRows.forEach(function (row) {
+                if (row.querySelector('[title*="zablokowane"]')) {
+                    hasActiveOrComplete = true;
                 }
             });
+
+            // Only enable drag if NO plans are w toku/zakonczone
+            if (hasActiveOrComplete) {
+                // Show message that reordering is disabled
+                var msg = document.createElement('div');
+                msg.className = 'alert alert-warning mt-2 mb-2';
+                msg.innerHTML = '⚠️ {{ _("Reorderowanie wyłączone - na tym dniu jest plan w toku lub zakończony") }}';
+                plansTbody.parentNode.parentNode.insertAdjacentElement('afterend', msg);
+            } else {
+                Sortable.create(plansTbody, {
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag',
+                    handle: 'tr',  // Allow dragging entire row
+                    filter: '.details-row', // Don't allow dragging details rows
+                    onEnd: function (evt) {
+                        // Get new order of plan IDs
+                        var rows = plansTbody.querySelectorAll('tr:not(.details-row)');
+                        var newOrder = [];
+                        rows.forEach(function (row) {
+                            var planId = row.getAttribute('data-plan-id');
+                            if (planId) {
+                                newOrder.push(parseInt(planId));
+                            }
+                        });
+
+                        if (newOrder.length > 0) {
+                            // Send reorder request to backend
+                            var data = {
+                                plan_ids: newOrder,
+                                data: '{{ wybrana_data }}',
+                                sekcja: 'zasyp'
+                            };
+
+                            fetch('/api/reorder_plans_bulk', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(data)
+                            })
+                                .then(function (r) {
+                                    if (!r.ok) return r.text().then(function (t) { throw new Error(t || 'Błąd serwera'); });
+                                    return r.json().catch(function () { throw new Error('Nieprawidłowa odpowiedź JSON'); });
+                                })
+                                .then(function (j) {
+                                    if (j && j.success) {
+                                        // Silently update UI without reload
+                                        console.log('Reorder success - no reload needed');
+                                    } else {
+                                        alert((j && j.message) || 'Błąd przy reorderowaniu');
+                                    }
+                                })
+                                .catch(function (err) {
+                                    alert('Błąd: ' + (err && err.message ? err.message : 'Nie wiadomo'));
+                                });
+                        }
+                    }
+                });
+            }
         }
     }
-}
 
 </script>
 
@@ -584,53 +731,54 @@ if (typeof Sortable !== 'undefined') {
 </div>
 
 <style>
-/* Drag and drop styles for Sortable.js */
-.sortable-tbody tr.sortable-ghost {
-    opacity: 0.4;
-    background: #f5f5f5;
-}
+    /* Drag and drop styles for Sortable.js */
+    .sortable-tbody tr.sortable-ghost {
+        opacity: 0.4;
+        background: #f5f5f5;
+    }
 
-.sortable-tbody tr.sortable-drag {
-    opacity: 0;
-}
+    .sortable-tbody tr.sortable-drag {
+        opacity: 0;
+    }
 
-.sortable-tbody tr {
-    cursor: move;
-}
+    .sortable-tbody tr {
+        cursor: move;
+    }
 
-.sortable-tbody tr:hover {
-    background: #f9f9f9;
-    transition: background 0.2s;
-}
+    .sortable-tbody tr:hover {
+        background: #f9f9f9;
+        transition: background 0.2s;
+    }
 
-/* Quick add cleaning form */
-.czyszczenie-form {
-    align-items: center;
-}
+    /* Quick add cleaning form */
+    .czyszczenie-form {
+        align-items: center;
+    }
 
-.input-width-80 {
-    width: 80px;
-}
+    .input-width-80 {
+        width: 80px;
+    }
 
-.uszkodzone-worki-input {
-    width: 80px;
-}
+    .uszkodzone-worki-input {
+        width: 80px;
+    }
 
-/* Rozliczenie table row colors */
-.bg-success-light {
-    background-color: #d4edda !important;
-    color: #155724;
-}
+    /* Rozliczenie table row colors */
+    .bg-success-light {
+        background-color: #d4edda !important;
+        color: #155724;
+    }
 
-.bg-warning-light {
-    background-color: #fff3cd !important;
-    color: #856404;
-}
+    .bg-warning-light {
+        background-color: #fff3cd !important;
+        color: #856404;
+    }
 
-.bg-dark-light {
-    background-color: #e2e3e5 !important;
-    color: #383d41;
-}
+    .bg-dark-light {
+        background-color: #e2e3e5 !important;
+        color: #383d41;
+    }
 </style>
 
+{% endif %}{# koniec bloku PSD / else AGRO #}
 {% endblock %}
