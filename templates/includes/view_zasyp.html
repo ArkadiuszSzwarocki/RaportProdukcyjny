@@ -21,10 +21,14 @@
                 </div>
 
                 <div class="text-right">
+                    {% if rola in ['lider', 'admin'] %}
                     <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm('Czy na pewno ZAKOŃCZYĆ to zlecenie?');">
                         <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                         <button type="submit" class="btn-stop">■ ZAKOŃCZ ZLECENIE</button>
                     </form>
+                    {% else %}
+                        {# hidden for other roles (e.g., laborant) per request #}
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}

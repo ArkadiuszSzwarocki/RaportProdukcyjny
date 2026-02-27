@@ -44,20 +44,36 @@ def setup_logging(app):
         os.makedirs(logs_dir)
     
     # Main app logger
+    # During pytest runs avoid writing to rotating files to prevent Windows
+    # permission errors when pytest/other processes rotate logs concurrently.
+    use_stream = 'PYTEST_CURRENT_TEST' in os.environ
     log_path = os.path.join(logs_dir, 'app.log')
-    # Use delay=True so file is opened on first emit (reduces rotate race on Windows)
-    handler = RotatingFileHandler(log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8', delay=True)
-    handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s [pid=%(process)d]: %(message)s [in %(pathname)s:%(lineno)d]')
-    handler.setFormatter(formatter)
-    app.logger.setLevel(logging.DEBUG)
-    app.logger.addHandler(handler)
-    logging.getLogger('werkzeug').addHandler(handler)
-    
-    # Attach noise filter to reduce log spam
-    noise_filter = NoiseFilter()
-    handler.addFilter(noise_filter)
-    logging.getLogger('werkzeug').addFilter(noise_filter)
+    if use_stream:
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s [pid=%(process)d]: %(message)s')
+        handler.setFormatter(formatter)
+        app.logger.setLevel(logging.DEBUG)
+        # Avoid duplicate handlers in repeated create_app calls during tests
+        if not any(isinstance(h, logging.StreamHandler) for h in app.logger.handlers):
+            app.logger.addHandler(handler)
+        logging.getLogger('werkzeug').addHandler(handler)
+        noise_filter = NoiseFilter()
+        handler.addFilter(noise_filter)
+        logging.getLogger('werkzeug').addFilter(noise_filter)
+    else:
+        # Use delay=True so file is opened on first emit (reduces rotate race on Windows)
+        handler = RotatingFileHandler(log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8', delay=True)
+        handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s [pid=%(process)d]: %(message)s [in %(pathname)s:%(lineno)d]')
+        handler.setFormatter(formatter)
+        app.logger.setLevel(logging.DEBUG)
+        app.logger.addHandler(handler)
+        logging.getLogger('werkzeug').addHandler(handler)
+        # Attach noise filter to reduce log spam
+        noise_filter = NoiseFilter()
+        handler.addFilter(noise_filter)
+        logging.getLogger('werkzeug').addFilter(noise_filter)
     
     # Dedicated logger for palety (to avoid cluttering main log)
     palety_logger = logging.getLogger('palety_logger')

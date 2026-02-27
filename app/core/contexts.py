@@ -49,12 +49,13 @@ def inject_role_permissions():
             try:
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     perms = json.load(f)
-            except Exception:
+            except Exception as e:
+                from flask import current_app
+                current_app.logger.error(f"[DEBUG configs] Failed to load role_permissions.json from {cfg_path}: {e}")
                 perms = {}
             
-            r = (session.get('rola') or '').lower()
-            # Log dla debugowania
-            current_app.logger.debug(f'role_has_access({page}): rola={r}, session_rola={session.get("rola")}')
+            r = str(session.get('rola') or '').lower()
+            # Do not log debug info here to avoid noisy logs during template rendering
             
             # IMPORTANT: if config exists and contains pages, use ONLY config
             # (no fallback to hardcoded rules)
@@ -62,12 +63,12 @@ def inject_role_permissions():
                 # Config has data - check if page is in config
                 page_perms = perms.get(page)
                 if page_perms is None:
-                    # Page not in config -> allow (permissive)
-                    current_app.logger.debug(f'  page {page} not in perms, allowing')
-                    return True
+                    # Page not in config -> deny access (fail‑closed)
+                    return False
                 # Page in config -> check role access
                 result = bool(page_perms.get(r, {}).get('access', False))
-                current_app.logger.debug(f'  page {page} access for {r}: {result}')
+                from flask import current_app
+                current_app.logger.warning(f"[DEBUG role_has_access] page='{page}', role='{r}', result={result}, page_perms={page_perms}")
                 return result
             
             # Config empty - use fallback
@@ -76,7 +77,7 @@ def inject_role_permissions():
             if page in ('zasyp', 'workowanie', 'magazyn'):
                 return r in ['produkcja', 'lider', 'admin', 'zarzad', 'pracownik']
             if page == 'jakosc':
-                return r in ['laboratorium', 'lider', 'admin', 'zarzad', 'produkcja', 'planista']
+                return r in ['laborant', 'lider', 'admin', 'zarzad', 'produkcja', 'planista']
             if page == 'wyniki':
                 return True
             if page == 'awarie':
@@ -103,7 +104,16 @@ def inject_role_permissions():
             except Exception:
                 perms = {}
             
-            r = (session.get('rola') or '').lower()
+            r = str(session.get('rola') or '').lower()
+            # Normalize common role name variants/synonyms
+            if r.isdigit():
+                try:
+                    idx = int(r)
+                    roles_order = ['admin', 'planista', 'pracownik', 'magazynier', 'dur', 'zarzad', 'laborant']
+                    if 0 <= idx < len(roles_order):
+                        r = roles_order[idx]
+                except Exception:
+                    pass
             if not perms:
                 # default: no readonly restrictions
                 return False

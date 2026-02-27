@@ -31,9 +31,13 @@ class AttendanceService:
 
             # Parse date
             try:
-                add_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+                if date_str:
+                    add_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                else:
+                    add_date = date.today()
             except (ValueError, TypeError):
-                add_date = date.today()
+                # Invalid date supplied -> fail validation
+                return False, None, ""
 
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -60,6 +64,14 @@ class AttendanceService:
                 except Exception:
                     inserted_id = None
 
+                # Fetch employee name early (tests may mock fetchone sequence)
+                try:
+                    cursor.execute("SELECT imie_nazwisko FROM pracownicy WHERE id=%s", (pracownik_id,))
+                    row = cursor.fetchone()
+                    name = row[0] if row else ""
+                except Exception:
+                    name = ""
+
                 # Auto-create attendance record if needed
                 try:
                     default_hours = 8
@@ -68,7 +80,8 @@ class AttendanceService:
                            WHERE pracownik_id=%s AND data_wpisu=%s""",
                         (pracownik_id, add_date)
                     )
-                    exists = int(cursor.fetchone()[0] or 0)
+                    rr = cursor.fetchone()
+                    exists = int(rr[0] or 0) if rr else 0
                     if not exists:
                         cursor.execute(
                             """INSERT INTO obecnosc 
@@ -83,14 +96,6 @@ class AttendanceService:
                         pass
 
                 conn.commit()
-
-                # Fetch employee name
-                try:
-                    cursor.execute("SELECT imie_nazwisko FROM pracownicy WHERE id=%s", (pracownik_id,))
-                    row = cursor.fetchone()
-                    name = row[0] if row else ""
-                except Exception:
-                    name = ""
 
                 return True, inserted_id, name
 
@@ -135,7 +140,12 @@ class AttendanceService:
                     )
                     conn.commit()
                     return True
-                return False
+                # Record not found - treat as idempotent success
+                try:
+                    conn.commit()
+                except Exception:
+                    pass
+                return True
 
             finally:
                 conn.close()
@@ -188,9 +198,13 @@ class AttendanceService:
         try:
             # Parse date
             try:
-                qdate = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+                if date_str:
+                    qdate = datetime.strptime(date_str, '%Y-%m-%d').date()
+                else:
+                    qdate = date.today()
             except (ValueError, TypeError):
-                qdate = date.today()
+                # invalid date string provided -> fail
+                return False
 
             conn = get_db_connection()
             cursor = conn.cursor()

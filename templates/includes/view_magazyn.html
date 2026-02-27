@@ -1,93 +1,102 @@
 <div class="plan-box">
-     <h4 class="plan-title">📦 MAGAZYN</h4>
-     
-     {% if magazyn_palety %}
-         <div class="p-10 panel-white-border max-h-60vh mb-15">
-             <small class="text-muted">📦 Potwierdzone palety ({{ magazyn_palety|length }} szt):</small>
-             <table class="modern-table small table-compact">
-                 <thead>
-                     <tr>
-                         <th>Nr</th>
-                         <th>Produkt</th>
-                         <th>🕒 Czas</th>
-                         <th>⚖️ Waga (kg)</th>
-                         <th>Status</th>
-                         <th>Akcje</th>
-                     </tr>
-                 </thead>
-                 <tbody>
-                     {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_potwierdzenia_s in magazyn_palety %}
-                     <tr>
-                         <td class="text-muted font-bold">{{ loop.index }}</td>
-                         <td>{{ produkt }}</td>
-                         <td class="time-display">{{ czas_potwierdzenia_s }}</td>
-                         <td><strong class="text-success">{{ waga | int }} kg</strong></td>
-                         <td><span class="status-badge status-accepted">{{ status }}</span></td>
-                         <td>
-                             {% if rola in ['produkcja', 'lider', 'admin'] %}
-                                 <button type="button" class="btn-icon" title="Edytuj" onclick="editPalet({{ id }}, {{ waga }})">✎</button>
-                                 <button type="button" class="btn-delete inline-form" title="Usuń" onclick="if(confirm('Usunąć paletę?')) deletePalet({{ id }}, '{{ dzisiaj }}')">🗑</button>
-                             {% endif %}
-                         </td>
-                     </tr>
-                     {% endfor %}
-                 </tbody>
-             </table>
-         </div>
-     {% else %}
-         <div class="text-center p-20 text-muted">
-             <span class="fs-20">📭</span><br>
-             <p>Brak potwierdzonych palet.</p>
-         </div>
-     {% endif %}
+    <h4 class="plan-title">📦 MAGAZYN</h4>
+
+    {% if magazyn_palety %}
+    <div class="p-10 panel-white-border max-h-60vh mb-15">
+        <small class="text-muted">📦 Potwierdzone palety ({{ magazyn_palety|length }} szt):</small>
+        <table class="modern-table small table-compact">
+            <thead>
+                <tr>
+                    <th>Nr</th>
+                    <th>Produkt</th>
+                    <th>🕒 Czas</th>
+                    <th>⚖️ Waga (kg)</th>
+                    <th>Status</th>
+                    <th>Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_potwierdzenia_s in magazyn_palety %}
+                <tr>
+                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                    <td>{{ produkt }}</td>
+                    <td class="time-display">{{ czas_potwierdzenia_s }}</td>
+                    <td><strong class="text-success">{{ waga | int }} kg</strong></td>
+                    <td><span class="status-badge status-accepted">{{ status }}</span></td>
+                    <td>
+                        {% if rola in ['produkcja', 'lider', 'admin'] %}
+                        <button type="button" class="btn-icon text-primary" title="Edytuj wagę"
+                            onclick="editPalet({{ id }}, {{ waga }})">
+                            <span class="material-icons" style="font-size:18px;">edit</span>
+                        </button>
+                        <button type="button" class="btn-icon text-danger" title="Usuń paletę"
+                            onclick="if(confirm('Usunąć paletę?')) deletePalet({{ id }}, '{{ dzisiaj }}')">
+                            <span class="material-icons" style="font-size:18px;">delete</span>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center p-20 text-muted">
+        <span class="fs-20">📭</span><br>
+        <p>Brak potwierdzonych palet.</p>
+    </div>
+    {% endif %}
 
     {% if rola in ['produkcja', 'lider', 'admin'] %}
-     <hr class="custom-hr">
-     <h4>+ Dodaj Zadanie dla Magazynu</h4>
+    <hr class="custom-hr">
+    <h4>+ Dodaj Zadanie dla Magazynu</h4>
     <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="form-flex">
-        <input type="date" name="data_planu" title="Data planu" value="{{ dzisiaj }}" required class="input-sm" aria-label="Data planu">
-        <input type="text" name="produkt" title="Treść zadania / Produkt" placeholder="Treść zadania / Produkt" required class="select-flex" aria-label="Produkt">
-        <input type="number" step="0.1" name="tonaz" title="Ilość" placeholder="Ilość" required class="input-sm w-80" aria-label="Ilość">
+        <input type="date" name="data_planu" title="Data planu" value="{{ dzisiaj }}" required class="input-sm"
+            aria-label="Data planu">
+        <input type="text" name="produkt" title="Treść zadania / Produkt" placeholder="Treść zadania / Produkt" required
+            class="select-flex" aria-label="Produkt">
+        <input type="number" step="0.1" name="tonaz" title="Ilość" placeholder="Ilość" required class="input-sm w-80"
+            aria-label="Ilość">
         <button type="submit" class="btn-add-plan">DODAJ ZADANIE</button>
     </form>
     {% endif %}
 </div>
 
 <script>
-function editPalet(id, waga){
-    var newWaga = prompt('Nowa waga (kg):', waga);
-    if(newWaga && newWaga !== waga){
-        fetch('/api/edytuj_palete_ajax', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id: id, waga: newWaga, data_planu: '{{ dzisiaj }}'})
-        })
-        .then(r => r.json())
-        .then(j => {
-            if(j && j.success){
-                location.reload();
-            } else {
-                alert('Błąd: ' + (j && j.message || 'Nie udało się edytować'));
-            }
-        })
-        .catch(e => alert('Błąd: ' + e));
-    }
-}
-
-function deletePalet(id, data){
-    fetch('/api/usun_palete_ajax', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({id: id, data_planu: data})
-    })
-    .then(r => r.json())
-    .then(j => {
-        if(j && j.success){
-            location.reload();
-        } else {
-            alert('Błąd: ' + (j && j.message || 'Nie udało się usunąć'));
+    function editPalet(id, waga) {
+        var newWaga = prompt('Nowa waga (kg):', waga);
+        if (newWaga && newWaga !== waga) {
+            fetch('/api/edytuj_palete_ajax', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, waga: newWaga, data_planu: '{{ dzisiaj }}' })
+            })
+                .then(r => r.json())
+                .then(j => {
+                    if (j && j.success) {
+                        location.reload();
+                    } else {
+                        alert('Błąd: ' + (j && j.message || 'Nie udało się edytować'));
+                    }
+                })
+                .catch(e => alert('Błąd: ' + e));
         }
-    })
-    .catch(e => alert('Błąd: ' + e));
-}
+    }
+
+    function deletePalet(id, data) {
+        fetch('/api/usun_palete_ajax', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, data_planu: data })
+        })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.success) {
+                    location.reload();
+                } else {
+                    alert('Błąd: ' + (j && j.message || 'Nie udało się usunąć'));
+                }
+            })
+            .catch(e => alert('Błąd: ' + e));
+    }
 </script>

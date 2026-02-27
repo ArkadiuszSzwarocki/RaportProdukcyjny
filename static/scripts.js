@@ -433,11 +433,72 @@
     /* ================= Global quick popup helper ================= */
     function createQuickPopup(title, html, opts){
         opts = opts || {};
+        // Reuse existing global quick popup elements if present to avoid duplicates
+        const existingBd = document.getElementById('quickBackdrop') || document.querySelector('.quick-backdrop');
+        const existingM = document.getElementById('quickPopup') || document.querySelector('.quick-popup');
+        if(existingBd && existingM){
+            try{
+                const headerTitle = existingM.querySelector('.header-title') || existingM.querySelector('.qp-header strong');
+                if(headerTitle) headerTitle.textContent = title || '';
+                const body = document.getElementById('quickPopupBody') || existingM.querySelector('.qp-body');
+                if(body) body.innerHTML = html || '';
+                existingBd.classList.add('show');
+                existingM.style.display = 'block';
+                document.body.classList.add('slide-over-open');
+                setTimeout(()=> existingM.classList.add('open'), 10);
+                // Initialize component initializers after content is updated
+                setTimeout(()=>{
+                    try{
+                        if(typeof window.initDosypkiList === 'function'){
+                            try{ window.initDosypkiList(existingM); }catch(e){ console.warn('initDosypkiList failed', e); }
+                        }
+                    }catch(e){}
+                }, 10);
+            }catch(e){ console.warn('reuse quick-popup failed', e); }
+            return { close: function(){ try{ if(typeof closeQuickPopup === 'function') closeQuickPopup(); else { existingM.classList.remove('open'); existingBd.classList.remove('show'); setTimeout(()=>{ existingM.style.display='none'; document.body.classList.remove('slide-over-open'); }, 260); } }catch(e){} }, element: existingM };
+        }
+
         const bd = document.createElement('div'); bd.className = 'quick-backdrop';
         const m = document.createElement('div'); m.className = 'quick-popup';
         m.innerHTML = `<div class="qp-header"><strong>${title || ''}</strong><button class="qp-close" aria-label="Zamknij">✕</button></div><div class="qp-body">${html || ''}</div>`;
-        document.body.appendChild(bd); document.body.appendChild(m);
+        // Ensure popup/backdrop are appended to top-level root to avoid being clipped by transformed ancestors
+        try{
+            (document.documentElement || document.body).appendChild(bd);
+            (document.documentElement || document.body).appendChild(m);
+        }catch(e){ document.body.appendChild(bd); document.body.appendChild(m); }
+        // Positioning is controlled via CSS; avoid inline z-index to prevent conflicts
         requestAnimationFrame(()=>{ bd.classList.add('show'); m.classList.add('open'); document.body.classList.add('slide-over-open'); });
+        // Initialize any known component initializers for injected content
+        // Delay to ensure DOM elements are fully rendered and accessible by initializers
+        setTimeout(()=>{
+            try{
+                if(typeof window.initDosypkiList === 'function'){
+                    try{ window.initDosypkiList(m); }catch(e){ console.warn('initDosypkiList failed', e); }
+                }
+            }catch(e){}
+        }, 10);
+        // Ensure popup body is scrollable and tables are visible (fix cases where content exists but is not shown)
+        try{
+            const qpBody = m.querySelector('.qp-body');
+            if(qpBody){
+                qpBody.style.maxHeight = qpBody.style.maxHeight || '60vh';
+                qpBody.style.overflow = qpBody.style.overflow || 'auto';
+                console.log('[popup] qpBody dimensions:', {
+                    offsetHeight: qpBody.offsetHeight,
+                    scrollHeight: qpBody.scrollHeight,
+                    maxHeight: getComputedStyle(qpBody).maxHeight,
+                    overflow: getComputedStyle(qpBody).overflow,
+                    display: getComputedStyle(qpBody).display
+                });
+            }
+            const tables = m.querySelectorAll('table');
+            console.log('[popup] Found', tables.length, 'tables');
+            tables.forEach((t, idx) => { 
+                const compStyle = getComputedStyle(t);
+                console.log('[popup] Table', idx, '- display:', compStyle.display, 'visibility:', compStyle.visibility, 'height:', t.offsetHeight, 'rows:', t.querySelectorAll('tbody tr').length);
+                if(compStyle.display === 'none') t.style.display = 'table'; 
+            });
+        }catch(e){ console.warn('quick-popup style init failed', e); }
         function remove(){ m.classList.remove('open'); bd.classList.remove('show'); setTimeout(()=>{ try{ m.remove(); bd.remove(); document.body.classList.remove('slide-over-open'); }catch(e){} }, 260); }
         bd.addEventListener('click', remove);
         const closeBtn = m.querySelector('.qp-close'); if(closeBtn) closeBtn.addEventListener('click', remove);
@@ -480,71 +541,25 @@
     window.createQuickPopup = createQuickPopup;
     window.showQuickPopup = showQuickPopup;
 
-    // closeQuickPopup: Close currently open quick popup
-    function closeQuickPopup(){
-        try{
-            var popup = document.querySelector('.quick-popup');
-            if(popup){
-                var closeBtn = popup.querySelector('.qp-close');
-                if(closeBtn) closeBtn.click();
-            }
-        }catch(e){ console.warn('closeQuickPopup failed', e); }
-    }
-    window.closeQuickPopup = closeQuickPopup;
-    window.closeCenterModal = closeQuickPopup; // Alias for backward compatibility
+    // duplicate createQuickPopup removed; primary implementation above will be used
 
-    // showSlideOver: Load URL or display HTML in a quick popup
     function showSlideOver(urlOrHtml, opts){
         opts = opts || {};
-        
-        // If HTML content is passed directly
-        if(opts.isHtml){
-            return createQuickPopup('', urlOrHtml, opts);
-        }
-        
-        // Otherwise, fetch from URL
-        var url = urlOrHtml;
-        if(!url) {
-            console.warn('[showSlideOver] No URL provided');
+        if(!urlOrHtml) return;
+        // If provided HTML fragment, show it directly
+        if(typeof urlOrHtml === 'string' && urlOrHtml.trim().startsWith('<')){
+            createQuickPopup('', urlOrHtml, opts);
             return;
         }
-        
-        console.info('[showSlideOver] Loading:', url);
-        
-        fetch(url, { credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} })
-        .then(function(resp){
-            if(!resp.ok) throw new Error('HTTP ' + resp.status);
-            return resp.text();
-        })
-        .then(function(html){
-            console.info('[showSlideOver] Loaded content, extracting...');
-            // Extract meaningful content from the response
-            // If it's a full HTML document, try to extract just the body content
-            var content = html;
-            var popupTitle = '';
-            try{
-                var tmp = document.createElement('div');
-                tmp.innerHTML = html;
-                
-                // Try to find popup title from data-popup-title attribute
-                var titleEl = tmp.querySelector('[data-popup-title]');
-                if(titleEl) popupTitle = titleEl.getAttribute('data-popup-title') || '';
-                
-                // Try to find a meaningful fragment
-                var main = tmp.querySelector('main') || tmp.querySelector('[role="main"]') || tmp.querySelector('.container') || tmp.querySelector('.content');
-                if(main) content = main.innerHTML;
-                else if(tmp.querySelector('body')) content = tmp.querySelector('body').innerHTML;
-                else if(tmp.querySelector('div.p-15') || tmp.querySelector('div.box') || tmp.querySelector('div.p-10')) content = tmp.innerHTML;
-            }catch(e){
-                console.error('[showSlideOver] Error extracting content:', e);
-            }
-            
-            console.info('[showSlideOver] Showing popup with title:', popupTitle);
-            createQuickPopup(popupTitle, content, opts);
-        })
-        .catch(function(err){
+        // Otherwise fetch the URL (AJAX expected)
+        fetch(urlOrHtml, { credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} })
+        .then(async function(resp){
+            if(resp.status === 401){ window.location.href = '/login'; return; }
+            const txt = await resp.text();
+            createQuickPopup('', txt, opts);
+        }).catch(function(err){
             console.error('[showSlideOver] fetch failed:', err);
-            createQuickPopup('Błąd', '<div class="p-10">Nie udało się załadować zawartości: ' + err.message + '</div>', opts);
+            createQuickPopup('Błąd', '<div class="p-10">Nie udało się załadować zawartości: ' + (err && err.message ? err.message : 'błąd') + '</div>', opts);
         });
     }
     window.showSlideOver = showSlideOver;

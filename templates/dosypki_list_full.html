@@ -1,0 +1,26 @@
+{% extends 'layout.html' %}
+{% block content %}
+    <main id="mainContent">
+        {% include 'dosypki_list.html' %}
+    </main>
+{% endblock %}
+
+<script>
+// If this page was opened in a new tab/window from the app, try to open the slide-over
+// in the opener (same-origin). This makes middle-click/open-in-new-tab behave like slide-over.
+(function(){
+    try{
+        if(window.opener && window.opener !== window){
+            try{
+                if(typeof window.opener.showSlideOver === 'function'){
+                    // Ask opener to open slide-over with current path
+                    window.opener.showSlideOver(window.location.pathname + window.location.search);
+                    // Try to close this tab (may fail if not opened by script)
+                    setTimeout(function(){ try{ window.close(); }catch(e){} }, 200);
+                    return;
+                }
+            }catch(e){ /* ignore */ }
+        }
+    }catch(e){ /* ignore */ }
+})();
+</script>

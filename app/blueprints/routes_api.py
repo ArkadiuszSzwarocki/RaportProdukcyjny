@@ -131,25 +131,28 @@ def edytuj_palete_ajax():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Pobierz plan_id i sekcję palet
-        cursor.execute("SELECT plan_id, sekcja FROM palety_workowanie WHERE id=%s", (palete_id,))
+        # Pobierz plan_id, sekcję i status palety
+        cursor.execute("SELECT plan_id, sekcja, COALESCE(status,'') FROM palety_workowanie WHERE id=%s", (palete_id,))
         result = cursor.fetchone()
         if not result:
             cursor.close()
             conn.close()
             return jsonify({"success": False, "message": "Paleta nie znaleziona"}), 404
-        
-        plan_id, sekcja = result
-        
-        # Aktualizuj wagę
-        cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (nowa_waga, palete_id))
-        
-        # Przelicz buffer (tonaz_rzeczywisty) dla Workowania
-        if sekcja == 'Workowanie':
-            cursor.execute(
-                "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s",
-                (plan_id, plan_id)
-            )
+        plan_id, sekcja, status = result
+
+        # Jeśli paleta jest już przyjęta do magazynu, nie nadpisujemy oryginalnej kolumny `waga`.
+        # Zamiast tego zapisujemy skorygowaną/ potwierdzoną wagę do `waga_potwierdzona`.
+        if status == 'przyjeta':
+            cursor.execute("UPDATE palety_workowanie SET waga_potwierdzona=%s WHERE id=%s", (nowa_waga, palete_id))
+        else:
+            # Aktualizuj wagę (Workowanie - do przyjęcia)
+            cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (nowa_waga, palete_id))
+            # Przelicz buffer (tonaz_rzeczywisty) dla Workowania
+            if sekcja == 'Workowanie':
+                cursor.execute(
+                    "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s",
+                    (plan_id, plan_id)
+                )
         
         conn.commit()
         cursor.close()

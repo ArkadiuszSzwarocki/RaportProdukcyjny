@@ -1,0 +1,99 @@
+<style>
+    #dosypki-table {
+        width: 100%;
+        display: none;
+    }
+
+    .dosypki-status-row {
+        display: flex;
+        align-items: center;
+        gap: 8px
+    }
+
+    .dosypki-spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid #ccc;
+        border-top-color: #2b7cff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    .dosypki-spinner.hidden {
+        display: none
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+
+<div class="p-15" data-popup-title="Dosypki" {% if plan_id %} data-plan-id="{{ plan_id }}" {% endif %}>
+    <h4 class="m-0 text-zarzad">Dosypki — lista oczekujących</h4>
+    <div class="mt-10">
+        <div class="dosypki-status-row">
+            <div id="dosypki-spinner" class="dosypki-spinner{% if dosypki and dosypki|length>0 %} hidden{% endif %}">
+            </div>
+            <div id="dosypki-status" class="text-muted" {% if dosypki and dosypki|length>0 %} style="display:none"{%
+                endif %}>Ładowanie...</div>
+        </div>
+        <table id="dosypki-table" class="modern-table small" {% if dosypki and dosypki|length>0
+            %}style="display:table"{% else %}style="display:none"{% endif %}>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Plan ID</th>
+                    <th>Nazwa</th>
+                    <th>Kg</th>
+                    <th>Dodana</th>
+                    <th>Akcja</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if dosypki and dosypki|length > 0 %}
+                {# Render server-side rows as fallback when JS doesn't run #}
+                {% for d in dosypki %}
+                <tr>
+                    <td class="text-muted">{{ loop.index }}</td>
+                    <td>{{ d.plan_id }}</td>
+                    <td>{% if d.nazwa %}{{ d.nazwa }}{% else %}<em>— brak nazwy —</em>{% endif %}</td>
+                    <td>{{ d.kg }}</td>
+                    <td>{{ d.data_zlecenia }}</td>
+                    <td><button class="btn-action btn-save btn-small" data-id="{{ d.id }}">Potwierdź</button></td>
+                </tr>
+                {% endfor %}
+                <script>
+                    // If server rendered rows exist, hide spinner/status so UI looks populated immediately
+                    (function () {
+                        const sp = document.getElementById('dosypki-spinner');
+                        const st = document.getElementById('dosypki-status');
+                        const tbl = document.getElementById('dosypki-table');
+                        if (sp) sp.classList.add('hidden');
+                        if (st) st.style.display = 'none';
+                        if (tbl) tbl.style.display = 'table';
+                    })();
+                </script>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Script moved to static/js/dosypki.js to ensure execution when slide-over injects the fragment -->
+
+<script>
+    // Initialize dosypki logic right after the HTML fragment is inserted.
+    (function () {
+        if (typeof window.initDosypkiList === 'function') {
+            // The container is the .quick-popup that houses this fragment
+            var qbody = document.querySelector('.quick-popup');
+            if (qbody) {
+                window.initDosypkiList(qbody);
+            } else {
+                window.initDosypkiList(document.querySelector('.p-15') || document);
+            }
+        }
+    })();
+</script>

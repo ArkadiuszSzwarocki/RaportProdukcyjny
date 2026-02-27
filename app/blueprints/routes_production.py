@@ -244,10 +244,10 @@ def szarza_page(plan_id):
         conn.close()
         current_app.logger.info(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}')
         return render_template('dodaj_palete_popup.html', 
-                             plan_id=plan_id, 
-                             sekcja='Zasyp',
-                             produkt=produkt,
-                             typ=typ_produkcji)
+                     plan_id=plan_id, 
+                     sekcja='Zasyp',
+                     produkt=produkt,
+                     typ=typ_produkcji)
     except Exception as e:
         conn.close()
         current_app.logger.error(f'[SZARZA_PAGE] Error in szarza_page: {e}')
@@ -335,5 +335,202 @@ def obsada_page():
         return render_template('obsada_fragment.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'), qdate=qdate, lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id, all_pracownicy=all_pracownicy)
 
     return render_template('obsada.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'), qdate=qdate, lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id, all_pracownicy=all_pracownicy)
+
+
+@production_bp.route('/dosypka_page/<int:plan_id>', methods=['GET'])
+@roles_required('laborant', 'planista', 'admin')
+def dosypka_page(plan_id):
+    """Render form to add up to 4 dosypki for an active Zasyp plan."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT produkt, typ_produkcji, status FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'", (plan_id,))
+        plan = cursor.fetchone()
+        if not plan:
+            conn.close()
+            flash('Plan nie znaleziony', 'error')
+            return redirect('/')
+        produkt, typ_produkcji, status = plan[0], plan[1], plan[2]
+        # Only allow adding dosypki to active orders
+        if status != 'w toku':
+            conn.close()
+            flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
+            return redirect(bezpieczny_powrot())
+        conn.close()
+        szarza_id = request.args.get('szarza_id')
+        return render_template('dodaj_dosypke_popup.html', plan_id=plan_id, produkt=produkt, typ=typ_produkcji, szarza_id=szarza_id)
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        current_app.logger.exception('Error in dosypka_page: %s', e)
+        flash('Błąd pobierania danych planu', 'error')
+        return redirect('/')
+
+
+@production_bp.route('/dodaj_dosypke', methods=['POST'])
+@roles_required('laborant', 'admin')
+def dodaj_dosypke():
+    """Handle POST from dosypka form and insert rows into `dosypki` table."""
+    plan_id = request.form.get('plan_id')
+    if not plan_id:
+        flash('Brak identyfikatora zlecenia', 'error')
+        return redirect(bezpieczny_powrot())
+    try:
+        plan_id = int(plan_id)
+    except Exception:
+        flash('Nieprawidłowe ID zlecenia', 'error')
+        return redirect(bezpieczny_powrot())
+
+    szarza_id = request.form.get('szarza_id')
+    if szarza_id:
+        try:
+            szarza_id = int(szarza_id)
+        except ValueError:
+            szarza_id = None
+
+    # Collect up to 4 pairs of name/kg from the form
+    entries = []
+    for i in range(1, 5):
+        name = (request.form.get(f'nazwa_{i}') or '').strip()
+        kg_raw = request.form.get(f'kg_{i}')
+        if name and kg_raw:
+            try:
+                kg = float(str(kg_raw).replace(',', '.'))
+            except Exception:
+                kg = 0
+            if kg > 0:
+                entries.append((name, kg))
+
+    if not entries:
+        flash('Brak poprawnych pozycji dosypki do zapisania', 'warning')
+        return redirect(bezpieczny_powrot())
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Validate plan exists and is active
+        cursor.execute("SELECT status FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'", (plan_id,))
+        r = cursor.fetchone()
+        if not r or r[0] != 'w toku':
+            conn.close()
+            flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
+            return redirect(bezpieczny_powrot())
+
+        pracownik_id = session.get('user_id') if 'user_id' in session else None
+        for name, kg in entries:
+            cursor.execute("INSERT INTO dosypki (plan_id, szarza_id, nazwa, kg, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, 0)", (plan_id, szarza_id, name, kg, pracownik_id))
+
+        conn.commit()
+        conn.close()
+        flash(f'Zapisano {len(entries)} pozycji dosypki.', 'success')
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        current_app.logger.exception('Failed to insert dosypki: %s', e)
+        flash('Błąd zapisu dosypki', 'error')
+
+    return redirect(bezpieczny_powrot())
+
+
+@production_bp.route('/potwierdz_dosypke/<int:dosypka_id>', methods=['POST'])
+@roles_required('produkcja', 'lider', 'admin')
+def potwierdz_dosypke(dosypka_id):
+    """Operator potwierdza odczytanie dosypki - mark as confirmed."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id FROM dosypki WHERE id=%s AND potwierdzone=0", (dosypka_id,))
+        r = cursor.fetchone()
+        if not r:
+            conn.close()
+            flash('Pozycja nieznaleziona lub już potwierdzona', 'warning')
+            return redirect(bezpieczny_powrot())
+
+        pracownik_id = session.get('user_id') if 'user_id' in session else None
+        cursor.execute("UPDATE dosypki SET potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s", (pracownik_id, dosypka_id))
+        conn.commit()
+        conn.close()
+        flash('Potwierdzono dosypkę.', 'success')
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        current_app.logger.exception('Failed to confirm dosypka: %s', e)
+        flash('Błąd podczas potwierdzania', 'error')
+
+    return redirect(bezpieczny_powrot())
+
+
+@production_bp.route('/api/dosypki', methods=['GET'])
+@roles_required('produkcja', 'lider', 'admin')
+def api_dosypki():
+    """Return JSON of unconfirmed dosypki for operators (potwierdzone=0), optionally filtered by plan_id."""
+    plan_id = request.args.get('plan_id', None)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        if plan_id:
+            cursor.execute("SELECT id, plan_id, nazwa, kg, data_zlecenia FROM dosypki WHERE potwierdzone=0 AND plan_id=%s ORDER BY data_zlecenia ASC", (plan_id,))
+        else:
+            cursor.execute("SELECT id, plan_id, nazwa, kg, data_zlecenia FROM dosypki WHERE potwierdzone=0 ORDER BY data_zlecenia ASC")
+        rows = cursor.fetchall()
+        role = session.get('rola', '')
+        result = []
+        # Roles that should see the detailed `nazwa` because they need to execute the dosypka
+        visible_roles = ('laborant', 'produkcja', 'lider', 'admin')
+        for r in rows:
+            if role in visible_roles:
+                nazwa = r[2]
+            else:
+                nazwa = None
+            result.append({'id': r[0], 'plan_id': r[1], 'nazwa': nazwa, 'kg': float(r[3]), 'data_zlecenia': str(r[4])})
+        conn.close()
+        return jsonify({'success': True, 'dosypki': result})
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        current_app.logger.exception('api/dosypki failed: %s', e)
+        return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
+
+
+@production_bp.route('/dosypki_list', methods=['GET'])
+@roles_required('produkcja', 'lider', 'admin', 'laborant')
+def dosypki_list():
+    """Render slide-over page with list of unconfirmed dosypki for operators, optionally filtered by plan."""
+    # Accept optional plan_id to filter dosypki for a specific zlecenie
+    plan_id = request.args.get('plan_id', None)
+    # Fetch unconfirmed dosypki server-side so fragment shows data even if client JS doesn't run
+    from app.db import list_unconfirmed_dosypki
+    rows = list_unconfirmed_dosypki()
+    role = session.get('rola', '')
+    visible_roles = ('laboratorium', 'produkcja', 'lider', 'admin')
+    dosypki = []
+    for r in rows:
+        # Filter by plan_id if provided
+        if plan_id and str(r[1]) != str(plan_id):
+            continue
+        if role in visible_roles:
+            nazwa = r[2]
+        else:
+            nazwa = None
+        dosypki.append({'id': r[0], 'plan_id': r[1], 'nazwa': nazwa, 'kg': float(r[3]) if r[3] is not None else None, 'data_zlecenia': str(r[4]) if r[4] is not None else ''})
+    # Always return the fragment regardless of X-Requested-With
+    # because the quick popup JS via fetch expects just the fragment HTML.
+    return render_template('dosypki_list.html', dosypki=dosypki, plan_id=plan_id)
 
 

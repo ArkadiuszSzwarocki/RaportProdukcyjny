@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, current_app, session
 from app.db import get_db_connection
 from app.dto.paleta import PaletaDTO
 from datetime import date
-from app.decorators import roles_required
+from app.decorators import roles_required, dynamic_role_required
 import json
 import os
 
@@ -55,7 +55,7 @@ def calculate_kg_per_hour(product_type: str) -> int:
     return kg_per_hour
 
 @planista_bp.route('/planista', methods=['GET', 'POST'])
-@roles_required('planista', 'zarzad', 'lider', 'admin', 'laboratorium')
+@dynamic_role_required('planista')
 def panel_planisty():
 
     conn = get_db_connection()
@@ -283,7 +283,7 @@ def add_czyszczenie():
 
 
 @planista_bp.route('/bufor', methods=['GET'])
-@roles_required('planista', 'zarzad', 'lider', 'admin', 'laboratorium')
+@dynamic_role_required('bufor')
 def bufor_page():
     from flask import current_app
     from app.db import refresh_bufor_queue

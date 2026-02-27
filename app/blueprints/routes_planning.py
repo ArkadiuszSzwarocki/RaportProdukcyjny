@@ -295,6 +295,12 @@ def dodaj_plan():
                 # No automatic increase of buffer
                 
                 conn.commit()
+                # Odśwież bufor natychmiast po dodaniu szarży, żeby Workowanie pojawiło się w kolejce
+                try:
+                    from app.db import refresh_bufor_queue
+                    refresh_bufor_queue(conn)
+                except Exception:
+                    pass
                 conn.close()
                 try:
                     current_app.logger.warning(f'[DODAJ_PLAN] SUCCESS: committed and returning')
@@ -342,8 +348,13 @@ def dodaj_plan():
                 except Exception:
                     pass
                 
-                conn.commit()
-                conn.close()
+                    conn.commit()
+                    try:
+                        from app.db import refresh_bufor_queue
+                        refresh_bufor_queue(conn)
+                    except Exception:
+                        pass
+                    conn.close()
                 return redirect(bezpieczny_powrot())
     
     # No open order found - create new planned order

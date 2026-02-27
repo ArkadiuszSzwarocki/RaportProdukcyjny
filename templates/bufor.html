@@ -2,6 +2,88 @@
 
 {% block content %}
 
+<style>
+.btn-move-order {
+    background: #6c757d;
+    color: white;
+}
+
+.move-modal-buffer {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    min-width: 300px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.move-title-buffer {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.move-modal-field {
+    margin-bottom: 15px;
+}
+
+.move-modal-field label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.move-modal-field input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.move-modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.move-modal-actions button {
+    padding: 8px 16px;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.move-modal-actions button.btn-confirm {
+    background: #28a745;
+}
+
+.move-modal-actions button.btn-cancel {
+    background: #6c757d;
+}
+
+.btn-move-order-action {
+    opacity: 0.5;
+}
+
+.btn-start-order-active {
+    opacity: 1;
+}
+
+.btn-create-zlecenie-active {
+    opacity: 1;
+}
+</style>
+
 <div class="section-header">
     <div><h2 class="header-title">🏗️ BUFOR / SILOSY — {{ wybrana_data }}</h2><p class="text-muted">Towar z poprzednich dni dostępny do spakowania</p></div>
     <div class="d-flex align-center gap-10">
@@ -48,22 +130,19 @@
                         {% endif %}
                     </td>
                     <td>
-                        <button class="btn btn-success btn-sm js-start-order"
+                        <button class="btn btn-success btn-sm js-start-order{% if b.status != 'w toku' %} btn-move-order-action{% else %} btn-start-order-active{% endif %}"
                                 data-kolejka="{{ b.kolejka }}"
                                 data-produkt="{{ b.produkt }}@"
-                                data-status="{{ b.status }}"
-                                {% if b.status != 'w toku' %}style="opacity: 0.5;"{% endif %}>▶️ Startuj</button>
-                        <button class="btn btn-info btn-sm js-create-zlecenie"
+                                data-status="{{ b.status }}">▶️ Startuj</button>
+                        <button class="btn btn-info btn-sm js-create-zlecenie{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
                                 data-zasyp-id="{{ b.id }}"
                                 data-produkt="{{ b.produkt }}"
                                 data-status="{{ b.status }}"
-                                title="Utwórz nowe zlecenie Workowanie z pozostałym towarem{% if b.status != 'zakonczone' %} (niedostępne - zlecenie musi być zamknięte){% endif %}"
-                                {% if b.status != 'zakonczone' %}style="opacity: 0.5;"{% endif %}>➕ Utwórz</button>
-                        <button class="btn btn-sm js-move-order"
+                                title="Utwórz nowe zlecenie Workowanie z pozostałym towarem{% if b.status != 'zakonczone' %} (niedostępne - zlecenie musi być zamknięte){% endif %}">➕ Utwórz</button>
+                        <button class="btn btn-sm js-move-order btn-move-order"
                                 data-plan-id="{{ b.id }}"
                                 data-produkt="{{ b.produkt }}"
-                                title="{{ _('przenies_zlecenie') }}"
-                                style="background: #6c757d; color: white;">📦 {{ _('przenies_zlecenie') }}</button>
+                                title="{{ _('przenies_zlecenie') }}">📦 {{ _('przenies_zlecenie') }}</button>
                         <button class="btn btn-outline-danger btn-sm js-archive-order"
                                 data-plan-id="{{ b.id }}">📁 Archiwizuj</button>
                     </td>
@@ -266,23 +345,16 @@ function closeMoveModalBuffer() {
 </script>
 
 <!-- Move modal for Buffer -->
-<div id="moveModalBuffer" class="move-modal-buffer" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000; min-width: 300px;">
-    <h3 class="move-title-buffer" style="margin-top: 0; margin-bottom: 15px; font-size: 16px; font-weight: bold;">📦 Przenieś szarżę</h3>
-    <div class="move-modal-field" style="margin-bottom: 15px;">
-        <label for="move_to_date_buffer" style="display: block; margin-bottom: 5px; font-weight: 500;">Nowa data planu:</label>
-        <input type="date" id="move_to_date_buffer" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" required>
+<div id="moveModalBuffer" class="move-modal-buffer">
+    <h3 class="move-title-buffer">📦 Przenieś szarżę</h3>
+    <div class="move-modal-field">
+        <label for="move_to_date_buffer">Nowa data planu:</label>
+        <input type="date" id="move_to_date_buffer" required>
     </div>
-    <div class="move-modal-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
-        <button type="button" onclick="confirmMoveBuffer()" style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">✅ Przenieś</button>
-        <button type="button" onclick="closeMoveModalBuffer()" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Anuluj</button>
+    <div class="move-modal-actions">
+        <button type="button" class="move-modal-actions button btn-confirm" onclick="confirmMoveBuffer()">✅ Przenieś</button>
+        <button type="button" class="move-modal-actions button btn-cancel" onclick="closeMoveModalBuffer()">Anuluj</button>
     </div>
 </div>
-
-<style>
-#moveModalBuffer {
-    font-family: inherit;
-    font-size: 14px;
-}
-</style>
 
 {% endblock %}

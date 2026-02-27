@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pl">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,6 +12,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ static_version }}">
 </head>
+
 <body>
 
     <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
@@ -20,28 +22,31 @@
             <span class="material-icons">menu</span>
         </button>
         <div class="d-flex align-center gap-15">
-            <img src="{{ url_for('static', filename='agro_logo.png') }}" alt="Company logo: the word agro with AGRO and MES styled difference and a simple agricultural emblema; place in the top bar header beige the page title agro; conveys a Natural, professional, trustworthy tone" class="logo-sm" onerror="handleLogoError(this)">
+            <img src="{{ url_for('static', filename='agro_logo.png') }}"
+                alt="Company logo: the word agro with AGRO and MES styled difference and a simple agricultural emblema; place in the top bar header beige the page title agro; conveys a Natural, professional, trustworthy tone"
+                class="logo-sm" onerror="handleLogoError(this)">
             <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
         </div>
 
         <div class="user-info">
             {% if session.get('rola') in ['admin', 'zarzad', 'planista', 'lider', 'dur', 'laboratorium'] %}
-                <a href="/zarzad" class="btn-icon" title="{{ _('raport') }}">
-                    <span class="material-icons">bar_chart</span>
-                </a>
+            <a href="/zarzad" class="btn-icon" title="{{ _('raport') }}">
+                <span class="material-icons">bar_chart</span>
+            </a>
             {% endif %}
 
             {# removed PLAN button per request #}
 
             {% if session.get('zalogowany') %}
-                <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
-                    <span class="material-icons">report_problem</span>
-                </a>
+            <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
+                <span class="material-icons">report_problem</span>
+            </a>
             {% endif %}
 
             <!-- Language selector dropdown -->
             <div class="language-selector">
-                <button type="button" class="btn-icon language-toggle" title="{{ _('zmien_jezyk') }}" onclick="toggleLanguageMenu(); return false;">
+                <button type="button" class="btn-icon language-toggle" title="{{ _('zmien_jezyk') }}"
+                    onclick="toggleLanguageMenu(); return false;">
                     <span class="material-icons">language</span>
                 </button>
                 <div id="languageMenu" class="language-menu hidden">
@@ -61,8 +66,9 @@
 
             {# top users button removed per UI change request #}
 
-            <span class="user-role">{{ _('zalogowany') }}: <strong>{{ session.get('imie_nazwisko') or session.get('login') or 'N/A' }}</strong></span>
-            
+            <span class="user-role">{{ _('zalogowany') }}: <strong>{{ session.get('imie_nazwisko') or
+                    session.get('login') or 'N/A' }}</strong></span>
+
             <a href="/logout" class="logout-btn" aria-label="{{ _('logout') }}">
                 <span class="material-icons">logout</span>
             </a>
@@ -71,14 +77,21 @@
 
     <div class="top-submenu">
         <div class="top-submenu-inner">
-            <a class="top-tile {% if request.endpoint in ['production.obsada_page','panels.panel_obsada_page'] or request.args.get('sekcja')=='Workowanie' %}active{% endif %}" href="{{ url_for('production.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}">
+            <a class="top-tile {% if request.endpoint in ['production.obsada_page','panels.panel_obsada_page'] or request.args.get('sekcja')=='Workowanie' %}active{% endif %}"
+                href="{{ url_for('production.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}">
                 <span class="material-icons">people</span>
                 <div class="tile-label">{{ _('obsada') }}</div>
             </a>
             <nav class="top-menu">
-                <a class="top-menu-item {% if request.endpoint=='panels.panel_wnioski_page' %}active{% endif %}" href="{{ url_for('panels.panel_wnioski_page') }}"> <span class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
-                <a class="top-menu-item {% if request.endpoint=='panels.panel_planowane_page' %}active{% endif %}" href="{{ url_for('panels.panel_planowane_page') }}"> <span class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
-                <a class="top-menu-item {% if request.endpoint=='panels.panel_obecnosci_page' %}active{% endif %}" href="{{ url_for('panels.panel_obecnosci_page') }}"> <span class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_wnioski_page' %}active{% endif %}"
+                    href="{{ url_for('panels.panel_wnioski_page') }}"> <span
+                        class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_planowane_page' %}active{% endif %}"
+                    href="{{ url_for('panels.panel_planowane_page') }}"> <span
+                        class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_obecnosci_page' %}active{% endif %}"
+                    href="{{ url_for('panels.panel_obecnosci_page') }}"> <span
+                        class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
             </nav>
         </div>
     </div>
@@ -89,45 +102,67 @@
             <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
             <nav class="sidebar-nav">
                 {% if role_has_access('dashboard') %}
-                    <a href="{{ url_for('main.index') }}" class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">📊 <span class="text-capitalize">{{ _('dashboard') }}</span></a>
+                <a href="{{ url_for('main.index') }}"
+                    class="nav-item {% if request.path == '/' and not request.args.get('sekcja') %}active{% endif %}">📊
+                    <span class="text-capitalize">{{ _('dashboard') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('zasyp') %}
-                    <a href="{{ url_for('main.index', sekcja='Zasyp') }}" class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">📥 <span class="text-capitalize">{{ _('zasyp') }}</span></a>
+                <a href="{{ url_for('main.index', sekcja='Zasyp') }}"
+                    class="nav-item {% if request.args.get('sekcja')=='Zasyp' %}active{% endif %}">📥 <span
+                        class="text-capitalize">{{ _('zasyp') }}</span></a>
+                {% endif %}
+
+                {% if role_has_access('bufor') %}
+                <a href="{{ url_for('planista.bufor_page') }}"
+                    class="nav-item {% if request.path.startswith('/bufor') %}active{% endif %}">🗂️ <span
+                        class="text-capitalize">{{ _('bufor') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('workowanie') %}
-                    {# BUFOR link placed between Zasyp and Workowanie #}
-                    <a href="{{ url_for('planista.bufor_page') }}" class="nav-item {% if request.path.startswith('/bufor') %}active{% endif %}">🗂️ <span class="text-capitalize">{{ _('bufor') }}</span></a>
-                    <a href="{{ url_for('main.index', sekcja='Workowanie') }}" class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">⚙️ <span class="text-capitalize">{{ _('workowanie') }}</span></a>
+                <a href="{{ url_for('main.index', sekcja='Workowanie') }}"
+                    class="nav-item {% if request.args.get('sekcja')=='Workowanie' %}active{% endif %}">⚙️ <span
+                        class="text-capitalize">{{ _('workowanie') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('magazyn') %}
-                    <a href="{{ url_for('main.index', sekcja='Magazyn') }}" class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">📦 <span class="text-capitalize">{{ _('magazyn') }}</span></a>
+                <a href="{{ url_for('main.index', sekcja='Magazyn') }}"
+                    class="nav-item {% if request.args.get('sekcja')=='Magazyn' %}active{% endif %}">📦 <span
+                        class="text-capitalize">{{ _('magazyn') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('jakosc') %}
-                    <a href="{{ url_for('quality.jakosc_index') }}" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">✅ <span class="text-capitalize">{{ _('jakosc') }}</span></a>
+                <a href="{{ url_for('quality.jakosc_index') }}"
+                    class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">✅ <span
+                        class="text-capitalize">{{ _('jakosc') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('wyniki') %}
-                    <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">📊 <span class="text-capitalize">{{ _('wyniki') }}</span></a>
+                <a href="/zarzad" class="nav-item {% if request.path.startswith('/zarzad') %}active{% endif %}">📊 <span
+                        class="text-capitalize">{{ _('wyniki') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('awarie') %}
-                    <a href="/dur/awarie" class="nav-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">⚠️ <span class="text-capitalize">{{ _('awarie') }}</span></a>
+                <a href="/dur/awarie"
+                    class="nav-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">⚠️ <span
+                        class="text-capitalize">{{ _('awarie') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('planista') %}
-                    <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">📋 <span class="text-capitalize">{{ _('plan') }}</span></a>
+                <a href="/planista" class="nav-item {% if request.path.startswith('/planista') %}active{% endif %}">📋
+                    <span class="text-capitalize">{{ _('plan') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('moje_godziny') %}
-                    <a href="{{ url_for('panels.moje_godziny') }}" class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">🕐 <span class="text-capitalize">{{ _('moje_godziny') }}</span></a>
+                <a href="{{ url_for('panels.moje_godziny') }}"
+                    class="nav-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">🕐 <span
+                        class="text-capitalize">{{ _('moje_godziny') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('ustawienia') %}
-                    <a href="/admin/ustawienia" class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">⚙️ <span class="text-capitalize">{{ _('ustawienia') }}</span></a>
+                <a href="/admin/ustawienia"
+                    class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">⚙️ <span
+                        class="text-capitalize">{{ _('ustawienia') }}</span></a>
                 {% endif %}
             </nav>
             <div class="sidebar-footer">
@@ -136,19 +171,30 @@
         </aside>
 
         <main class="main-content" id="mainContent">
-        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="flash-container">
+            <div class="flash-container">
                 {% for category, message in messages %}
-                    <div class="flash-message flash-{{ category }}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
+                <div class="flash-message flash-{{ category }}">
+                    {{ message }}
                 </div>
+                {% endfor %}
+            </div>
             {% endif %}
-        {% endwith %}
+            {% endwith %}
 
-        {% block content %}{% endblock %}
+            {% if denied %}
+            <div style="text-align:center; padding:80px 20px;">
+                <h2 style="color:#e74c3c;">🚫 Brak dostępu</h2>
+                <p style="color:#666; font-size:1.1em;">Nie masz uprawnień do tej sekcji.<br>Skontaktuj się z
+                    administratorem.</p>
+                <a href="/logout"
+                    style="display:inline-block; margin-top:20px; padding:10px 24px; background:#3498db; color:#fff; border-radius:6px; text-decoration:none;">Wyloguj
+                    się</a>
+            </div>
+            {% else %}
+            {% block content %}{% endblock %}
+            {% endif %}
         </main>
     </div>
 
@@ -157,46 +203,46 @@
     <script src="{{ url_for('static', filename='quick_debug.js') }}?v={{ static_version }}"></script>
     <script>
         // Ensure language menu is always closed on page load
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const menu = document.getElementById('languageMenu');
-            if(menu) {
+            if (menu) {
                 menu.style.display = 'none';
             }
         });
-        
-        function handleLogoError(img){
-            try{
-                if(img.src.indexOf('agro_logo.png') !== -1){
+
+        function handleLogoError(img) {
+            try {
+                if (img.src.indexOf('agro_logo.png') !== -1) {
                     img.src = '{{ url_for("static", filename="logo.png") }}';
                 } else {
                     img.onerror = null;
                     img.src = 'https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';
                 }
-            }catch(e){
+            } catch (e) {
                 img.onerror = null;
             }
         }
-        
+
         // Przełączanie widoczności menu języków
-        function toggleLanguageMenu(){
+        function toggleLanguageMenu() {
             const menu = document.getElementById('languageMenu');
-            if(menu) {
+            if (menu) {
                 menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
             }
         }
-        
+
         // Zamykanie menu ponad innymi klikami w dokumencie
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function (event) {
             const selector = document.querySelector('.language-selector');
             const menu = document.getElementById('languageMenu');
-            if(selector && menu && !selector.contains(event.target)) {
+            if (selector && menu && !selector.contains(event.target)) {
                 menu.style.display = 'none';
             }
         });
-        
+
         // Przełączanie języka aplikacji
-        function switchLanguage(lang){
-            const setLangCookie = function() {
+        function switchLanguage(lang) {
+            const setLangCookie = function () {
                 try {
                     const maxAge = 365 * 24 * 60 * 60;
                     document.cookie = 'app_language=' + encodeURIComponent(lang) + '; path=/; max-age=' + maxAge;
@@ -213,49 +259,49 @@
                     'X-Requested-With': 'XMLHttpRequest'
                 },
                 credentials: 'same-origin',
-                body: JSON.stringify({language: lang})
+                body: JSON.stringify({ language: lang })
             })
-            .then(r => {
-                if (!r.ok) {
-                    throw new Error('HTTP ' + r.status);
-                }
-                return r.json();
-            })
-            .then(data => {
-                if (data && data.success) {
-                    const langNames = {uk: 'Ukrainski', pl: 'Polski', en: 'English'};
+                .then(r => {
+                    if (!r.ok) {
+                        throw new Error('HTTP ' + r.status);
+                    }
+                    return r.json();
+                })
+                .then(data => {
+                    if (data && data.success) {
+                        const langNames = { uk: 'Ukrainski', pl: 'Polski', en: 'English' };
+                        if (typeof showToast === 'function') {
+                            showToast('✓ Jezyk zmieniony na ' + (langNames[lang] || lang), 'success');
+                        }
+                        setTimeout(() => location.reload(), 300);
+                        return;
+                    }
+                    throw new Error((data && data.message) || 'Blad zmiany jezyka');
+                })
+                .catch(err => {
+                    setLangCookie();
                     if (typeof showToast === 'function') {
-                        showToast('✓ Jezyk zmieniony na ' + (langNames[lang] || lang), 'success');
+                        showToast('✓ Jezyk zmieniony (cookie). ' + (err && err.message ? err.message : ''), 'warning');
                     }
                     setTimeout(() => location.reload(), 300);
-                    return;
-                }
-                throw new Error((data && data.message) || 'Blad zmiany jezyka');
-            })
-            .catch(err => {
-                setLangCookie();
-                if (typeof showToast === 'function') {
-                    showToast('✓ Jezyk zmieniony (cookie). ' + (err && err.message ? err.message : ''), 'warning');
-                }
-                setTimeout(() => location.reload(), 300);
-            });
+                });
         }
     </script>
 
     <!-- Zabezpieczenie przed double-click (duplikaty) -->
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             // Dla każdego formularza - czuwaj na duplikaty
             const forms = document.querySelectorAll('form');
             forms.forEach(form => {
                 let isSubmitting = false;
-                form.addEventListener('submit', function(e) {
+                form.addEventListener('submit', function (e) {
                     if (isSubmitting) {
                         e.preventDefault();
                         return false;
                     }
                     isSubmitting = true;
-                    
+
                     // Wyłącz wszystkie submit buttony w form
                     const buttons = form.querySelectorAll('button[type="submit"]');
                     buttons.forEach(btn => {
@@ -264,7 +310,7 @@
                         btn.style.cursor = 'not-allowed';
                         const originalText = btn.textContent;
                         btn.textContent = '⏳ Przetwarzanie...';
-                        
+
                         // Reset po 30 sekundach (na wypadek błędu)
                         setTimeout(() => {
                             btn.disabled = false;
@@ -279,5 +325,8 @@
         });
     </script>
 
+    <script src="{{ url_for('static', filename='js/dosypki.js') }}?v={{ static_version }}"></script>
+
 </body>
+
 </html>

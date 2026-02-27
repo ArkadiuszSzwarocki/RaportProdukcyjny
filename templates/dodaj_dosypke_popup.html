@@ -1,0 +1,27 @@
+<div class="p-15" data-popup-title="Dodaj Dosypkę">
+    <h4 class="m-0 text-zarzad">🧪 Dodaj Dosypkę</h4>
+    <form action="{{ url_for('production.dodaj_dosypke') }}" method="POST" class="mt-10">
+        <input type="hidden" name="plan_id" value="{{ plan_id }}">
+        <input type="hidden" name="szarza_id" value="{{ szarza_id or '' }}">
+
+        <p><strong>Zlecenie:</strong> {{ plan_id }}{% if produkt %} — <em>{{ produkt }}</em>{% endif %}{% if typ %} ({{
+            typ }}){% endif %}</p>
+        <p>Dodaj maksymalnie 4 pozycje dosypki (nazwa surowca + kg). Pola puste zostaną zignorowane.</p>
+
+        {% for i in range(1,5) %}
+        <label>Pozycja {{ i }}</label>
+        <div class="form-field grid-2">
+            <input type="text" name="nazwa_{{ i }}" value="{% if i==1 and produkt %}{{ produkt }}{% else %}{% endif %}"
+                class="input-sm" placeholder="Nazwa surowca">
+            <input type="number" name="kg_{{ i }}" value="" class="input-sm" step="0.01" min="0" placeholder="kg">
+        </div>
+        {% endfor %}
+
+        <div class="btn-row mt-10">
+            <button type="submit" class="btn-action btn-primary">Dodaj Dosypkę</button>
+            <button type="button"
+                onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)"
+                class="btn-action btn-action-cancel">ANULUJ</button>
+        </div>
+    </form>
+</div>

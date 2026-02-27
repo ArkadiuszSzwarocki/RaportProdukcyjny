@@ -5,7 +5,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from datetime import date, datetime, timedelta
 import json
 import os
-from app.decorators import login_required, roles_required
+from app.decorators import login_required, roles_required, dynamic_role_required
 from app.services.dashboard_service import DashboardService
 from app.services.report_generation_service import ReportGenerationService
 from app.db import get_db_connection
@@ -56,6 +56,39 @@ def index() -> str:
     # Parse parameters
     aktywna_sekcja = request.args.get('sekcja', 'Dashboard')
     role = (session.get('rola') or '').lower()
+
+    # --- Dynamic section access check ---
+    # Map sekcja param to the key used in role_permissions.json
+    _sekcja_to_page = {
+        'Dashboard': 'dashboard',
+        'Zasyp': 'zasyp',
+        'Workowanie': 'workowanie',
+        'Magazyn': 'magazyn',
+    }
+    _page_key = _sekcja_to_page.get(aktywna_sekcja)
+    if _page_key:
+        from app.core.contexts import inject_role_permissions
+        _checker = inject_role_permissions().get('role_has_access')
+        if _checker and not _checker(_page_key):
+            # If default Dashboard is denied, try to redirect to first accessible section
+            if aktywna_sekcja == 'Dashboard':
+                for fallback_sekcja, fallback_key in [('Zasyp','zasyp'),('Workowanie','workowanie'),('Magazyn','magazyn')]:
+                    if _checker(fallback_key):
+                        return redirect(f'/?sekcja={fallback_sekcja}')
+            # No accessible section found — show denied page (raw HTML, no template)
+            return (
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Brak dostępu</title>'
+                '<style>body{font-family:Arial,sans-serif;display:flex;justify-content:center;'
+                'align-items:center;height:100vh;margin:0;background:#f5f5f5;}'
+                '.box{text-align:center;padding:40px;background:#fff;border-radius:12px;'
+                'box-shadow:0 2px 12px rgba(0,0,0,.1);}'
+                'a{display:inline-block;margin-top:20px;padding:10px 24px;background:#3498db;'
+                'color:#fff;border-radius:6px;text-decoration:none;}</style></head>'
+                '<body><div class="box"><h2>&#128683; Brak dostępu</h2>'
+                '<p>Nie masz uprawnień do tej sekcji.<br>Skontaktuj się z administratorem.</p>'
+                '<a href="/logout">Wyloguj się</a></div></body></html>'
+            ), 403
+    # --- End dynamic section access check ---
     
     # Log open_stop param if present
     try:
@@ -95,9 +128,13 @@ def index() -> str:
         magazyn_palety, unconfirmed_palety, suma_wykonanie = \
             DashboardService.get_warehouse_data(dzisiaj)
     
-    # Production plans
-    plan_dnia, palety_mapa, suma_plan, suma_wykonanie = \
-        DashboardService.get_production_plans(dzisiaj, aktywna_sekcja)
+    # Production plans (don't overwrite Magazyn aggregates when viewing Magazyn)
+    if aktywna_sekcja != 'Magazyn':
+        plan_dnia, palety_mapa, suma_plan, suma_wykonanie = \
+            DashboardService.get_production_plans(dzisiaj, aktywna_sekcja)
+    else:
+        # Ensure plan_dnia and palety_mapa are still populated for the template
+        plan_dnia, palety_mapa, suma_plan = [], {}, 0
     
     # Get zasyp started products
     zasyp_rozpoczete = DashboardService.get_zasyp_started_products(dzisiaj)
@@ -175,6 +212,35 @@ def index() -> str:
         app.logger.error(traceback.format_exc())
         allowed_work_start_ids = set()
     
+    # Krok: Pobranie zrealizowanych (potwierdzonych) dosypek dla sekcji Zasyp
+    dosypki_mapa = {}
+    if aktywna_sekcja == 'Zasyp':
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT d.plan_id, d.nazwa, d.kg, d.data_zlecenia, d.data_potwierdzenia, d.szarza_id
+                FROM dosypki d
+                JOIN plan_produkcji p ON d.plan_id = p.id
+                WHERE d.potwierdzone = 1 AND DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp'
+                ORDER BY d.data_potwierdzenia ASC
+            """, (dzisiaj,))
+            for row in cursor.fetchall():
+                pid = row[0]
+                if pid not in dosypki_mapa:
+                    dosypki_mapa[pid] = []
+                dosypki_mapa[pid].append({
+                    'nazwa': row[1],
+                    'kg': row[2],
+                    'zlecono': str(row[3])[:16] if row[3] else '',
+                    'potwierdzono': str(row[4])[:16] if row[4] else '',
+                    'szarza_id': row[5]
+                })
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            app.logger.error(f"[ERROR-DOSYPKI] Błąd pobierania potwierdzonych dosypek: {e}")
+            
     # Build template context
     context = {
         'sekcja': aktywna_sekcja,
@@ -210,6 +276,7 @@ def index() -> str:
         'work_first_map': work_first_map,
         'zasyp_product_order': zasyp_product_order,
         'allowed_work_start_ids': allowed_work_start_ids,
+        'dosypki_mapa': dosypki_mapa,
     }
     
     # Render appropriate template

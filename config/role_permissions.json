@@ -17,14 +17,14 @@
       "readonly": false
     },
     "dur": {
-      "access": true,
-      "readonly": true
+      "access": false,
+      "readonly": false
     },
     "zarzad": {
       "access": true,
       "readonly": false
     },
-    "laboratorium": {
+    "laborant": {
       "access": false,
       "readonly": false
     }
@@ -54,7 +54,7 @@
       "access": true,
       "readonly": false
     },
-    "laboratorium": {
+    "laborant": {
       "access": false,
       "readonly": false
     }
@@ -84,7 +84,7 @@
       "access": true,
       "readonly": false
     },
-    "laboratorium": {
+    "laborant": {
       "access": true,
       "readonly": false
     }
@@ -104,24 +104,24 @@
     },
     "magazynier": {
       "access": false,
-      "readonly": false
+      "readonly": true
     },
     "dur": {
-      "access": true,
-      "readonly": true
+      "access": false,
+      "readonly": false
     },
     "zarzad": {
       "access": true,
       "readonly": false
     },
-    "laboratorium": {
-      "access": true,
+    "laborant": {
+      "access": false,
       "readonly": true
     }
   },
   "plan": {
     "admin": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "planista": {
@@ -129,24 +129,24 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
-      "readonly": true
-    },
-    "magazynier": {
-      "access": true,
-      "readonly": true
-    },
-    "dur": {
-      "access": true,
-      "readonly": true
-    },
-    "zarzad": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
-    "laboratorium": {
-      "access": true,
-      "readonly": true
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
     }
   },
   "zasyp": {
@@ -155,7 +155,7 @@
       "readonly": false
     },
     "planista": {
-      "access": true,
+      "access": false,
       "readonly": true
     },
     "pracownik": {
@@ -163,20 +163,20 @@
       "readonly": false
     },
     "magazynier": {
-      "access": true,
-      "readonly": true
+      "access": false,
+      "readonly": false
     },
     "dur": {
-      "access": true,
-      "readonly": true
+      "access": false,
+      "readonly": false
     },
     "zarzad": {
       "access": true,
       "readonly": false
     },
-    "laboratorium": {
+    "laborant": {
       "access": true,
-      "readonly": true
+      "readonly": false
     }
   },
   "workowanie": {
@@ -185,7 +185,7 @@
       "readonly": false
     },
     "planista": {
-      "access": true,
+      "access": false,
       "readonly": true
     },
     "pracownik": {
@@ -193,20 +193,20 @@
       "readonly": false
     },
     "magazynier": {
-      "access": true,
-      "readonly": true
+      "access": false,
+      "readonly": false
     },
     "dur": {
-      "access": true,
-      "readonly": true
+      "access": false,
+      "readonly": false
     },
     "zarzad": {
       "access": true,
       "readonly": false
     },
-    "laboratorium": {
-      "access": true,
-      "readonly": true
+    "laborant": {
+      "access": false,
+      "readonly": false
     }
   },
   "magazyn": {
@@ -215,11 +215,11 @@
       "readonly": false
     },
     "planista": {
-      "access": true,
+      "access": false,
       "readonly": true
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "magazynier": {
@@ -227,16 +227,46 @@
       "readonly": false
     },
     "dur": {
-      "access": true,
-      "readonly": true
+      "access": false,
+      "readonly": false
     },
     "zarzad": {
       "access": true,
       "readonly": false
     },
-    "laboratorium": {
+    "laborant": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "bufor": {
+    "admin": {
+      "access": false,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
       "access": true,
-      "readonly": true
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
     }
   },
   "moje_godziny": {
@@ -264,7 +294,7 @@
       "access": true,
       "readonly": false
     },
-    "laboratorium": {
+    "laborant": {
       "access": true,
       "readonly": false
     }
@@ -276,15 +306,15 @@
     },
     "planista": {
       "access": true,
-      "readonly": true
+      "readonly": false
     },
     "pracownik": {
       "access": true,
-      "readonly": true
+      "readonly": false
     },
     "magazynier": {
       "access": true,
-      "readonly": true
+      "readonly": false
     },
     "dur": {
       "access": true,
@@ -294,7 +324,7 @@
       "access": true,
       "readonly": false
     },
-    "laboratorium": {
+    "laborant": {
       "access": true,
       "readonly": false
     }
@@ -305,28 +335,28 @@
       "readonly": false
     },
     "planista": {
-      "access": true,
+      "access": false,
       "readonly": true
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": true
     },
     "magazynier": {
       "access": true,
-      "readonly": true
+      "readonly": false
     },
     "dur": {
-      "access": true,
+      "access": false,
       "readonly": true
     },
     "zarzad": {
       "access": true,
       "readonly": false
     },
-    "laboratorium": {
+    "laborant": {
       "access": true,
-      "readonly": true
+      "readonly": false
     }
   }
 }

@@ -72,9 +72,11 @@ class DashboardService:
             except Exception:
                 sdt = str(dt)
             
-            # Get actual confirmation time or calculate fallback
+            # Get actual confirmation time: prefer explicit confirmation datetime/time
             czas_rzeczywisty = '-'
             try:
+                # r[10] may contain either a datetime (magazyn_palety.data_potwierdzenia)
+                # or a TIME (palety_workowanie.czas_rzeczywistego_potwierdzenia).
                 if len(r) > 10 and r[10]:
                     czas_obj = r[10]
                     if hasattr(czas_obj, 'strftime'):
@@ -85,15 +87,20 @@ class DashboardService:
                             parts = czas_str.split(':')
                             czas_rzeczywisty = f"{parts[0]}:{parts[1]}"
                 else:
+                    # Fallback: use the record's timestamp (data_dodania / data_potwierdzenia)
                     if dt and hasattr(dt, 'strftime'):
-                        czas_oblic = dt + timedelta(minutes=2)
-                        czas_rzeczywisty = czas_oblic.strftime('%H:%M')
+                        czas_rzeczywisty = dt.strftime('%H:%M')
+                    else:
+                        czas_rzeczywisty = str(dt) if dt else '-'
             except Exception:
                 pass
             
+            # Pass actual confirmation time (`czas_rzeczywisty`) as the
+            # third element so template's `czas_potwierdzenia` shows the
+            # confirmed time (creation+wait) rather than creation time.
             magazyn_palety.append((
-                dto.produkt, dto.waga, sdt, dto.id, dto.plan_id, 
-                dto.status, czas_rzeczywisty
+                dto.produkt, dto.waga, czas_rzeczywisty, dto.id, dto.plan_id,
+                dto.status, sdt
             ))
             suma_wykonanie += dto.waga or 0
         
@@ -286,7 +293,12 @@ class DashboardService:
                     conn = get_db_connection()
                     cursor = conn.cursor()
                     cursor.execute(
-                        "SELECT id, waga, godzina, data_dodania, pracownik_id, status FROM szarze WHERE plan_id = %s AND status = 'zarejestowana' ORDER BY data_dodania ASC",
+                        """SELECT s.id, 
+                                  s.waga + COALESCE((SELECT SUM(kg) FROM dosypki d WHERE d.szarza_id = s.id AND d.potwierdzone = 1), 0) as waga_total, 
+                                  s.godzina, s.data_dodania, s.pracownik_id, s.status 
+                           FROM szarze s 
+                           WHERE s.plan_id = %s AND s.status = 'zarejestowana' 
+                           ORDER BY s.data_dodania ASC""",
                         (p[0],)
                     )
                     rows = cursor.fetchall()

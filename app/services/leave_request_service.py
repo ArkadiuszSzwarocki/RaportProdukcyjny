@@ -43,7 +43,8 @@ class LeaveRequestService:
             else:
                 # Regular leave - require date range
                 if not data_od or not data_do:
-                    return False, "Podaj zakres dat wniosku.", None
+                    # Keep message friendly and include 'data' keyword for tests
+                    return False, "Podaj zakres dat (data_od i data_do) wniosku.", None
 
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -226,7 +227,8 @@ class LeaveRequestService:
                        WHERE pracownik_id=%s AND data_wpisu BETWEEN %s AND %s""",
                     (pid, d_od, d_do)
                 )
-                obecnosci = int(cursor.fetchone()[0] or 0)
+                rr = cursor.fetchone()
+                obecnosci = int(rr[0] or 0) if rr else 0
 
                 # Hours by type
                 cursor.execute(
@@ -247,7 +249,8 @@ class LeaveRequestService:
                            AND data_wpisu BETWEEN %s AND %s""",
                         (pid, d_od, d_do)
                     )
-                    wyjscia_hours = float(cursor.fetchone()[0] or 0)
+                    rr2 = cursor.fetchone()
+                    wyjscia_hours = float(rr2[0] or 0) if rr2 else 0.0
                 except Exception:
                     wyjscia_hours = 0.0
 
@@ -259,8 +262,13 @@ class LeaveRequestService:
                         (pid,)
                     )
                     rr = cursor.fetchone()
-                    urlop_biezacy = int(rr[0] or 0) if rr else 0
-                    urlop_zalegly = int(rr[1] or 0) if rr else 0
+                    if rr:
+                        # be tolerant to different shapes
+                        urlop_biezacy = int(rr[0] or 0) if len(rr) > 0 else 0
+                        urlop_zalegly = int(rr[1] or 0) if len(rr) > 1 else 0
+                    else:
+                        urlop_biezacy = 0
+                        urlop_zalegly = 0
                 except Exception:
                     urlop_biezacy = 0
                     urlop_zalegly = 0

@@ -58,6 +58,24 @@ def _create_tables(cursor):
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE
         )
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_palety (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            paleta_workowanie_id INT NULL,
+            plan_id INT NULL,
+            data_planu DATE NULL,
+            produkt VARCHAR(100) NULL,
+            waga_netto FLOAT DEFAULT 0,
+            waga_brutto FLOAT DEFAULT 0,
+            tara FLOAT DEFAULT 0,
+            user_login VARCHAR(100) DEFAULT NULL,
+            data_potwierdzenia DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (paleta_workowanie_id) REFERENCES palety_workowanie(id) ON DELETE SET NULL,
+            FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE SET NULL
+        )
+    """)
     
     cursor.execute("CREATE TABLE IF NOT EXISTS dziennik_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), problem TEXT, czas_start DATETIME, czas_stop DATETIME, status VARCHAR(30) DEFAULT 'zgłoszone', kategoria VARCHAR(50), pracownik_id INT)")
     cursor.execute("CREATE TABLE IF NOT EXISTS obsada_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), pracownik_id INT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
@@ -90,6 +108,23 @@ def _create_tables(cursor):
             uwagi TEXT,
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE,
             FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dosypki (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            plan_id INT NOT NULL,
+            nazwa VARCHAR(255) NOT NULL,
+            kg FLOAT NOT NULL,
+            data_zlecenia DATETIME DEFAULT CURRENT_TIMESTAMP,
+            pracownik_id INT NULL,
+            potwierdzone BOOLEAN DEFAULT 0,
+            potwierdzil_pracownik_id INT NULL,
+            data_potwierdzenia DATETIME NULL,
+            FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE,
+            FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL,
+            FOREIGN KEY (potwierdzil_pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
         )
     """)
     
@@ -165,6 +200,8 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "palety_workowanie", "data_potwierdzenia", "DATETIME NULL", "Dodawanie kolumny 'data_potwierdzenia' do palet")
     _add_column_if_missing(cursor, "palety_workowanie", "czas_potwierdzenia_s", "INT NULL", "Dodawanie kolumny 'czas_potwierdzenia_s' do palet")
     _add_column_if_missing(cursor, "palety_workowanie", "czas_rzeczywistego_potwierdzenia", "TIME NULL", "Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do palet")
+    # Store confirmed weight separately to avoid overwriting original Workowanie weight
+    _add_column_if_missing(cursor, "palety_workowanie", "waga_potwierdzona", "FLOAT NULL", "Dodawanie kolumny 'waga_potwierdzona' do palet")
     
     # raporty_koncowe columns
     _add_column_if_missing(cursor, "raporty_koncowe", "sekcja", "VARCHAR(50)", "Dodawanie kolumny 'sekcja' do raporty_koncowe")
@@ -332,10 +369,14 @@ def refresh_bufor_queue(conn=None):
                     INSERT INTO bufor 
                     (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'aktywny')
+                    ON DUPLICATE KEY UPDATE id = id
                 """, (z_id, z_data, z_produkt, z_nazwa or '', z_typ or 'worki_zgrzewane_25', 
                       z_tonaz, spakowano, next_kolejka))
-                
-                added += 1
+
+                # If insert succeeded (or duplicate key prevented a second insert), count as added only
+                # when a new row was actually created
+                if cursor.rowcount:
+                    added += 1
         
         # WAŻNE: ZAWSZE Renumeruj kolejki żeby były Sequential (1,2,3,4...)
         # Po DELETE i po dodaniu nowych wpisów - renumeric: dzisiejsze najpierw (DESC), potem po real_start
@@ -454,6 +495,17 @@ def rollover_unfinished(from_date, to_date):
     """Przenosi niezakończone zlecenia z `from_date` na `to_date`.
     Zlecenia przenoszone są jako nowe wiersze z datą docelową, statusem
     'zaplanowane' (reset real_start/real_stop) i odpowiednią kolejnością.
+            # Ensure a uniqueness constraint to prevent multiple Workowanie rows pointing to the same zasyp_id
+            try:
+                cursor.execute("SHOW INDEX FROM plan_produkcji WHERE Key_name = 'uq_plan_produkcji_zasyp_sekcja'")
+                if not cursor.fetchone():
+                    try:
+                        cursor.execute("ALTER TABLE plan_produkcji ADD UNIQUE INDEX uq_plan_produkcji_zasyp_sekcja (zasyp_id, sekcja)")
+                    except Exception:
+                        # If index creation fails (e.g., existing conflicting data), skip — migration scripts handle deduplication separately
+                        pass
+            except Exception:
+                pass
     Oryginały są usuwane.
     Zwraca liczbę przeniesionych zleceń.
     """
@@ -534,3 +586,68 @@ def log_plan_history(plan_id, action, changes, user_login=None):
             conn.close()
         except Exception:
             pass
+
+
+def insert_dosypka(plan_id, nazwa, kg, pracownik_id=None):
+    """Insert single dosypka record."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO dosypki (plan_id, nazwa, kg, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, 0)",
+            (plan_id, nazwa, kg, pracownik_id)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return False
+
+
+def list_unconfirmed_dosypki():
+    """Return list of unconfirmed dosypki (potwierdzone=0)."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, plan_id, nazwa, kg, data_zlecenia, pracownik_id FROM dosypki WHERE potwierdzone=0 ORDER BY data_zlecenia ASC")
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return rows
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return []
+
+
+def confirm_dosypka(dosypka_id, potwierdzil_pracownik_id=None):
+    """Mark dosypka as confirmed (odczytanie)."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE dosypki SET potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s", (potwierdzil_pracownik_id, dosypka_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return False

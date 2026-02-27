@@ -6,7 +6,7 @@ import os
 import calendar
 
 from app.db import get_db_connection
-from app.decorators import login_required, roles_required, zarzad_required
+from app.decorators import login_required, roles_required, zarzad_required, dynamic_role_required
 
 # Import QueryHelper if available for complex queries
 try:
@@ -90,7 +90,7 @@ def test_download():
 
 
 @panels_bp.route('/moje_godziny')
-@login_required
+@dynamic_role_required('moje_godziny')
 def moje_godziny():
     """Pokaż podsumowanie godzin dla zalogowanego pracownika.
     
@@ -245,7 +245,7 @@ def moje_godziny():
 
 
 @panels_bp.route('/zarzad')
-@zarzad_required
+@dynamic_role_required('wyniki')
 def zarzad_panel():
     """Management dashboard z KPI i chartami."""
     teraz = datetime.now()
@@ -334,7 +334,7 @@ def ustawienia_app():
             cursor.execute("SELECT name, label FROM roles ORDER BY id ASC")
             roles = cursor.fetchall()
         except Exception:
-            roles = [('admin','admin'),('planista','planista'),('pracownik','pracownik'),('magazynier','magazynier'),('dur','dur'),('zarzad','zarzad'),('laboratorium','laboratorium')]
+            roles = [('admin','admin'),('planista','planista'),('pracownik','pracownik'),('magazynier','magazynier'),('dur','dur'),('zarzad','zarzad'),('laborant','laborant')]
         conn.close()
         return render_template('ustawienia.html', roles=roles)
     except Exception:

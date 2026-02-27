@@ -3,36 +3,48 @@
 
 {% block content %}
 <!-- modalOverlay removed (mechanizm popup wyłączony) -->
-    <div class="section-header">
+<div class="section-header">
     <div>
         <h2 class="header-title">{{ _('hala_produkcyjna') }}: <strong>{{ _(sekcja.lower()) }}</strong></h2>
         {% if sekcja != 'Zasyp' %}
         <p class="text-muted m-0">{{ rola|upper }} | {{ dzisiaj }}</p>
         {% endif %}
         <div class="day-tile" data-sekcja="{{ sekcja }}">
-            <button type="button" class="day-nav left" data-day-offset="-1" aria-label="{{ _('poprzedni_dzien') }}">◀</button>
+            <button type="button" class="day-nav left" data-day-offset="-1"
+                aria-label="{{ _('poprzedni_dzien') }}">◀</button>
             <div class="day-center">
                 <div class="day-label">{{ _('widok_dla') }}</div>
                 <div id="current-date-display" class="day-date">{{ dzisiaj }}</div>
             </div>
-            <button type="button" class="day-nav right" data-day-offset="1" aria-label="{{ _('nastepny_dzien') }}">▶</button>
+            <button type="button" class="day-nav right" data-day-offset="1"
+                aria-label="{{ _('nastepny_dzien') }}">▶</button>
             <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') }}">
         </div>
     </div>
     <div class="d-flex align-center gap-12 header-stats">
         {% if sekcja == 'Magazyn' %}
-            <div class="stat-inline stat-magazyn"><span class="label">{{ _('przyjeto') }}</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
-            <div class="stat-inline stat-magazyn"><span class="label">{{ _('palet_liczba') }}</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
+        <div class="stat-inline stat-magazyn"><span class="label">{{ _('palet_liczba') }}</span><strong class="value">{{
+                magazyn_palety|length }} szt.</strong></div>
+        <div class="stat-inline stat-przyjeto"><span class="label">{{ _('przyjeto') }}</span><strong
+                class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
         {% else %}
-            <div class="stat-inline stat-plan"><span class="label">{{ _('plan') }}</span><strong class="value">{{ suma_plan|int }} kg</strong></div>
-            <div class="stat-inline stat-wykonanie"><span class="label">{{ _('wykonanie') }}</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
-            <div class="stat-inline stat-realizacja"><span class="label">% Realizacja</span><strong class="value">{{ (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
+        <div class="stat-inline stat-plan"><span class="label">{{ _('plan') }}</span><strong class="value">{{
+                suma_plan|int }} kg</strong></div>
+        <div class="stat-inline stat-wykonanie"><span class="label">{{ _('wykonanie') }}</span><strong
+                class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
+        <div class="stat-inline stat-realizacja"><span class="label">% Realizacja</span><strong class="value">{{
+                (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
         {% endif %}
     </div>
+    <script>
+        // URL template for confirming dosypka (use replace to insert id)
+        window._urls = window._urls || {};
+        window._urls.potwierdz_dosypke = "{{ url_for('production.potwierdz_dosypke', dosypka_id=0) }}";
+    </script>
 </div>
 
 {# Date overview widget removed for Zasyp and Workowanie (not needed there) #}
-{% if sekcja not in ['Zasyp', 'Workowanie'] %}
+{% if sekcja not in ['Zasyp', 'Workowanie', 'Magazyn'] %}
 <!-- Date overview widget: shows current date and range (dzień/tydzień/miesiąc) -->
 <div class="section-box mb-10 date-overview">
     <div class="p-10 d-flex align-center justify-between">
@@ -51,77 +63,81 @@
 {% endif %}
 
 {% if sekcja == 'Magazyn' %}
-    <div class="section-box mb-10">
-        <h4 class="m-0">📦 Palety do Zatwierdzenia</h4>
-        <div class="mt-10">
-                    {% if unconfirmed_palety and unconfirmed_palety|length > 0 %}
-                        <table class="modern-table small">
-                            <thead>
-                                <tr>
-                                    <th>{{ _('nr') }}</th>
-                                    <th>📋 Produkt</th>
-                                    <th>🕒 Dodana</th>
-                                    <th>⏱️ Czas</th>
-                                    <th>✅ Akcja</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                        {% for p in unconfirmed_palety %}
-                            <tr>
-                                <td class="text-muted font-bold">{{ p[0] }}</td>
-                                <td><strong class="text-primary">{{ p[2] }}</strong></td>
-                                <td class="time-display">{{ p[3] }}</td>
-                                <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</span></td>
-                                <td>
-                                    <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=p[0]) }}" class="btn-action btn-success btn-small" data-slide>{{ _('zatwierdz') }}</a>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                            </tbody>
-                        </table>
-                    {% else %}
-                        <div class="text-muted text-center p-10">{{ _('brak_palet_czekajacych') }}</div>
-                    {% endif %}
-        </div>
+<div class="section-box mb-10">
+    <h4 class="m-0">📦 Palety do Zatwierdzenia</h4>
+    <div class="mt-10">
+        {% if unconfirmed_palety and unconfirmed_palety|length > 0 %}
+        <table class="modern-table small">
+            <thead>
+                <tr>
+                    <th>{{ _('nr') }}</th>
+                    <th>📋 Produkt</th>
+                    <th>🕒 Dodana</th>
+                    <th>⏱️ Czas</th>
+                    <th>✅ Akcja</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in unconfirmed_palety %}
+                <tr>
+                    <td class="text-muted font-bold">{{ p[0] }}</td>
+                    <td><strong class="text-primary">{{ p[2] }}</strong></td>
+                    <td class="time-display">{{ p[3] }}</td>
+                    <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{%
+                            else %}-{% endif %}</span></td>
+                    <td>
+                        <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=p[0]) }}"
+                            class="btn-action btn-success btn-small" data-slide>{{ _('zatwierdz') }}</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-muted text-center p-10">{{ _('brak_palet_czekajacych') }}</div>
+        {% endif %}
     </div>
-    {% if rola in ['lider', 'admin'] %}
-    <!-- Przycisk wysyłania przypomnień usunięty. Potwierdzanie palet odbywa się przez sekcję 'Zatwierdź' w Magazyn. -->
-    {% endif %}
+</div>
+{% if rola in ['lider', 'admin'] %}
+<!-- Przycisk wysyłania przypomnień usunięty. Potwierdzanie palet odbywa się przez sekcję 'Zatwierdź' w Magazyn. -->
+{% endif %}
 {% else %}
-    {# Stat cards removed — metrics already shown in the header to avoid duplication and overlap #}
-    
+{# Stat cards removed — metrics already shown in the header to avoid duplication and overlap #}
+
 {% endif %}
 
 <!-- Dedykowany kontener na wpisy dla zmienianej daty -->
 <div id="wpisy-container" class="mb-20">
-{% if wpisy %}
+    {% if wpisy %}
     {% for w in wpisy[:2] %}
-        <div class="alert-warning d-flex justify-between align-center mb-5">
-            <div>
-                <span>⚠️ <strong>{{ w[3] }}</strong> [{{ w[5] }}]: {{ w[2] }}</span>
-                <div class="small text-muted">
-                    od {{ w[3] }}{% if w[4] %} — do {{ w[4] }}{% endif %}
-                    {% if w[9] %}
-                    {% set status_map = {'zgłoszony': '🔔 Zgłoszony', 'czeka_na_czesci': '⚙️ Czeka na części', 'zakończony': '✅ Zakończony', 'zamknięty': '🔒 Zamknięty'} %}
-                    | Status: <strong>{{ status_map.get(w[9], w[9]) }}</strong>
-                    {% endif %}
-                    {% if w[10] %} | Zakończono: <strong>{{ w[10] }}</strong>{% endif %}
-                </div>
+    <div class="alert-warning d-flex justify-between align-center mb-5">
+        <div>
+            <span>⚠️ <strong>{{ w[3] }}</strong> [{{ w[5] }}]: {{ w[2] }}</span>
+            <div class="small text-muted">
+                od {{ w[3] }}{% if w[4] %} — do {{ w[4] }}{% endif %}
+                {% if w[9] %}
+                {% set status_map = {'zgłoszony': '🔔 Zgłoszony', 'czeka_na_czesci': '⚙️ Czeka na części', 'zakończony':
+                '✅ Zakończony', 'zamknięty': '🔒 Zamknięty'} %}
+                | Status: <strong>{{ status_map.get(w[9], w[9]) }}</strong>
+                {% endif %}
+                {% if w[10] %} | Zakończono: <strong>{{ w[10] }}</strong>{% endif %}
             </div>
-
-            
-            {% if rola in ['lider', 'admin'] %}
-                <div class="d-flex gap-8 align-center">
-                    <a href="{{ url_for('journal.edytuj', id=w[0]) }}" title="{{ _('edytuj_wpis') }}" class="font-bold text-warning-dark no-underline">✎</a>
-                    <form action="{{ url_for('journal.usun_wpis', id=w[0]) }}" method="POST" class="m-0">
-                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                        <button type="submit" class="btn-icon text-warning-dark" aria-label="Usuń wpis">✖</button>
-                    </form>
-                </div>
-            {% endif %}
         </div>
+
+
+        {% if rola in ['lider', 'admin'] %}
+        <div class="d-flex gap-8 align-center">
+            <a href="{{ url_for('journal.edytuj', id=w[0]) }}" title="{{ _('edytuj_wpis') }}"
+                class="font-bold text-warning-dark no-underline">✎</a>
+            <form action="{{ url_for('journal.usun_wpis', id=w[0]) }}" method="POST" class="m-0">
+                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                <button type="submit" class="btn-icon text-warning-dark" aria-label="Usuń wpis">✖</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
     {% endfor %}
-{% endif %}
+    {% endif %}
 </div>
 
 {% set ns = namespace(is_active=false) %}
@@ -129,21 +145,23 @@
 
 {# Defensive: prefer server-provided `hr_pracownicy`; fallback to full lists if not provided #}
 {% if hr_pracownicy is not defined %}
-    {% if wszyscy_pracownicy is defined %}
-        {% set hr_pracownicy = wszyscy_pracownicy %}
-    {% else %}
-        {% set hr_pracownicy = pracownicy %}
-    {% endif %}
+{% if wszyscy_pracownicy is defined %}
+{% set hr_pracownicy = wszyscy_pracownicy %}
+{% else %}
+{% set hr_pracownicy = pracownicy %}
+{% endif %}
 {% endif %}
 
-    <div class="section-box p-0">
+<div class="section-box p-0">
     <div class="p-15 p-15-bg">
-        <h3 class="m-0 text-primary">📋 {% if sekcja=='Magazyn' %}{{ _('rejestr_przyjec') }}{% else %}{{ _('kolejka_produkcyjna') }}{% endif %}</h3>
+        <h3 class="m-0 text-primary">📋 {% if sekcja=='Magazyn' %}{{ _('rejestr_przyjec') }}{% else %}{{
+            _('kolejka_produkcyjna') }}{% endif %}</h3>
         <span class="badge-info">{{ _(sekcja.lower()) }}</span>
     </div>
     {% if rola == 'planista' and quality_count and quality_count > 0 %}
     <div class="alert-warning d-flex justify-between align-center mb-10">
-        <div class="text-warning-dark font-bold">🔔 Są {{ quality_count }} zgłoszeń dezynfekcji od laboratorium — sprawdź i dodaj do planów.</div>
+        <div class="text-warning-dark font-bold">🔔 Są {{ quality_count }} zgłoszeń dezynfekcji od laboratorium —
+            sprawdź i dodaj do planów.</div>
         <div>
             <a href="{{ url_for('jakosc_index') }}" class="btn-action btn-warning">{{ _('przejdz_jakosc') }}</a>
         </div>
@@ -155,11 +173,17 @@
     <table class="modern-table">
         <thead>
             <tr>
-                <th>#</th><th>📦 Produkt</th><th>� Czas Potwierdzenia</th><th>⚖️ Waga (kg)</th><th>📊 Status</th><th class="text-right">⚙️ Akcje</th>
+                <th>#</th>
+                <th>📦 Produkt</th>
+                <th>� Czas Potwierdzenia</th>
+                <th>⚖️ Waga (kg)</th>
+                <th>📊 Status</th>
+                <th class="text-right">⚙️ Akcje</th>
             </tr>
         </thead>
         <tbody>
-        {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_rzeczywistego_potwierdzenia in magazyn_palety %}
+            {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_rzeczywistego_potwierdzenia in
+            magazyn_palety %}
             <tr>
                 <td class="text-muted font-bold">{{ loop.index }}</td>
                 <td><strong class="text-primary">{{ produkt }}</strong></td>
@@ -168,14 +192,22 @@
                 <td><span class="status-badge status-accepted">{{ status }}</span></td>
                 <td class="text-right">
                     {% if rola in ['produkcja', 'lider', 'admin'] %}
-                        <button type="button" class="btn-icon" title="{{ _('edytuj') }}" onclick="editPalet('{{ id }}', '{{ waga }}')">✎</button>
-                        <button type="button" class="btn-delete inline-form" title="{{ _('usun') }}" onclick="if(confirm('Usunąć paletę?')) deletePalet('{{ id }}', '{{ dzisiaj }}')">🗑</button>
+                    <button type="button" class="btn-icon text-primary" title="{{ _('edytuj') }}"
+                        onclick="editPalet('{{ id }}', '{{ waga }}')">
+                        <span class="material-icons" style="font-size:18px;">edit</span>
+                    </button>
+                    <button type="button" class="btn-icon text-danger" title="{{ _('usun') }}"
+                        onclick="if(confirm('Usunąć paletę?')) deletePalet('{{ id }}', '{{ dzisiaj }}')">
+                        <span class="material-icons" style="font-size:18px;">delete</span>
+                    </button>
                     {% endif %}
                 </td>
             </tr>
-        {% else %}
-            <tr><td colspan="6" class="text-center p-30">Brak potwierdzone palet.</td></tr>
-        {% endfor %}
+            {% else %}
+            <tr>
+                <td colspan="6" class="text-center p-30">Brak potwierdzone palet.</td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
     {% else %}
@@ -183,11 +215,17 @@
     <table class="modern-table">
         <thead>
             <tr>
-                <th>#</th><th>📦 Produkt</th><th>📋 Plan</th><th>🕒 Czas Pracy</th><th>📊 Status</th><th>✅ Realizacja</th><th class="text-right">⚙️ Akcje</th>
+                <th>#</th>
+                <th>📦 Produkt</th>
+                <th>📋 Plan</th>
+                <th>🕒 Czas Pracy</th>
+                <th>📊 Status</th>
+                <th>✅ Realizacja</th>
+                <th class="text-right">⚙️ Akcje</th>
             </tr>
         </thead>
         <tbody>
-        {% for p in plan %}
+            {% for p in plan %}
             <tr class="row-{{ p[3]|replace(' ', '') }}" data-id="{{ p[0] }}">
                 <td class="text-muted font-bold">{{ loop.index }}</td>
                 <td>
@@ -201,101 +239,146 @@
                     {% if p[4] %}<div class="time-display">🟢 {{ p[4] }}</div>{% endif %}
                     {% if p[5] %}<div class="time-display text-danger-color">🔴 {{ p[5] }}</div>{% endif %}
                     {% if p[6] is not none and p[6] > 0 %}
-                        {% set mins = p[6] %}
-                        {% set h = (mins // 60) %}
-                        {% set m = mins % 60 %}
-                        <div class="duration-badge">⏱️ {% if h > 0 %}{{ h }}h {% endif %}{{ m }}m</div>
+                    {% set mins = p[6] %}
+                    {% set h = (mins // 60) %}
+                    {% set m = mins % 60 %}
+                    <div class="duration-badge">⏱️ {% if h > 0 %}{{ h }}h {% endif %}{{ m }}m</div>
                     {% endif %}
                 </td>
                 <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
                 <td>
-                    {% if p[7] and p[7]|int > 0 %}<strong class="text-success">{{ p[7]|int }} kg</strong>{% else %}<span class="text-muted">-</span>{% endif %}
+                    {% if p[7] and p[7]|int > 0 %}<strong class="text-success">{{ p[7]|int }} kg</strong>{% else %}<span
+                        class="text-muted">-</span>{% endif %}
                     {% if palety_mapa[p[0]] and palety_mapa[p[0]]|length > 0 %}
-                        <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
-                            {% if sekcja == 'Zasyp' %}⏺️ {{ palety_mapa[p[0]]|length }} szt.{% else %}📦 {{ palety_mapa[p[0]]|length }} szt.{% endif %} ▼
-                        </button>
+                    <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
+                        {% if sekcja == 'Zasyp' %}⏺️ {{ palety_mapa[p[0]]|length }} szt.{% else %}📦 {{
+                        palety_mapa[p[0]]|length }} szt.{% endif %} ▼
+                    </button>
                     {% elif p|length > 15 and p[15] and p[15]|int > 0 %}
-                        <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
-                            {% if sekcja == 'Zasyp' %}⏺️ {{ p[15] }} szarż{% else %}📦 {{ p[15] }} palet{% endif %} ▼
-                        </button>
+                    <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
+                        {% if sekcja == 'Zasyp' %}⏺️ {{ p[15] }} szarż{% else %}📦 {{ p[15] }} palet{% endif %} ▼
+                    </button>
                     {% endif %}
-                    {# Przyciski przenoszenia do Jakość usunięte — dezynfekcja planowana przez laboratorium i zgłaszana planiście. #}
+                    {# Przyciski przenoszenia do Jakość usunięte — dezynfekcja planowana przez laboratorium i zgłaszana
+                    planiście. #}
                 </td>
                 <td class="text-right">
-                    {% if rola in ['lider', 'admin', 'pracownik'] and sekcja != 'Magazyn' %}
-                        {% if p[3] == 'zaplanowane' %}
-                            <div class="d-flex gap-5 justify-end">
-                                {% set product_active = (active_products is defined and active_products and p[1] in active_products) %}
-                                {% if sekcja == 'Workowanie' %}
-                                    {% set allowed = (allowed_work_start_ids is defined and (p[0] in allowed_work_start_ids)) %}
-                                    {% if allowed and not product_active %}
-                                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>
-                                    {% else %}
-                                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
-                                    {% endif %}
-                                {% elif sekcja == 'Zasyp' %}
-                                    <!-- On Zasyp: block START if ANY plan is already 'w toku', OR if this product is active -->
-                                    {% set zasyp_blocked = (zasyp_has_active is defined and zasyp_has_active) or product_active %}
-                                    {% if zasyp_blocked %}
-                                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
-                                    {% else %}
-                                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>
-                                    {% endif %}
-                                {% else %}
-                                    {% if product_active %}
-                                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span class="material-icons">block</span></button>
-                                    {% else %}
-                                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-action btn-start">START</button></form>
-                                    {% endif %}
-                                {% endif %}
-                                {% if rola in ['planista', 'admin', 'lider'] and sekcja not in ['Workowanie', 'Zasyp'] %}
-                                    <button type="button" class="btn-delete inline-form delete-plan-btn" aria-label="Usuń plan" data-plan-id="{{ p[0] }}" data-plan-date="{{ dzisiaj }}" data-plan-name="{{ p[1] }}">🗑</button>
-                                {% endif %}
-                            </div>
-                        {% elif p[3] == 'w toku' %}
-                            <div class="d-flex gap-5 justify-end">
-                                {% if sekcja == 'Workowanie' %}
-                                    <div class="paleta-inline-wrapper paleta-inline">
-                                            {% if p[9] == 'bigbag' %}
-                                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
-                                        {% else %}
-                                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
-                                        {% endif %}
-                                    </div>
-                                    {% if rola in ['planista', 'admin'] %}
-                                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit" data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
-                                    {% endif %}
-                                    <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
-                                {% elif sekcja == 'Zasyp' %}
-                                    <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
-                                    {% if rola in ['planista', 'admin'] %}
-                                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit" data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
-                                    {% endif %}
-                                    <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
-                                {% else %}
-                                    {% if rola in ['planista', 'admin'] %}
-                                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit" data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
-                                    {% endif %}
-                                    <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-action btn-stop" data-slide>STOP</a>
-                                {% endif %}
-                            </div>
-                            <!-- Modale paleta/szarza/stop-zasyp usunięte -->
-                            {% if sekcja != 'Zasyp' %}
-                            <!-- Modal stop usunięty -->
-                            {% endif %}
-                        {% elif p[3] == 'zakonczone' %}
-                                    <div class="d-flex align-center justify-end gap-10">
-                                            {% if sekcja == 'Zasyp' and p[13] and not p[10] %}
-                                            <a href="{{ url_for('production.wyjasnij_page', id=p[0]) }}" class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ ({{ p[12]|int }} kg)</a>
-                                            <!-- Wyjaśnienie modal (slide-over) -->
-                                            {% endif %}
-                                {% if rola in ['lider', 'admin'] %}
-                                <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" class="inline-form" onsubmit="return confirm('Wznowić {{ p[1] }}?');"><button type="submit" class="btn-action btn-outline-warning btn-icon" title="Wznowić zlecenie"><span class="material-icons">replay</span></button></form>
-                                {% endif %}
-                            </div>
+                    {% if sekcja != 'Magazyn' and (rola in ['lider', 'admin', 'pracownik']) %}
+                    {% if p[3] == 'zaplanowane' %}
+                    <div class="d-flex gap-5 justify-end">
+                        {% set product_active = (active_products is defined and active_products and p[1] in
+                        active_products) %}
+                        {% if sekcja == 'Workowanie' %}
+                        {% set allowed = (allowed_work_start_ids is defined and (p[0] in allowed_work_start_ids)) %}
+                        {% if allowed and not product_active %}
+                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
+                            class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button
+                                type="submit" class="btn-action btn-start">START</button></form>
                         {% else %}
-                            {# Status inny niż 'w toku' i 'zakonczone' - brak akcji #}
+                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span
+                                class="material-icons">block</span></button>
                         {% endif %}
+                        {% elif sekcja == 'Zasyp' %}
+                        <!-- On Zasyp: block START if ANY plan is already 'w toku', OR if this product is active -->
+                        {% set zasyp_blocked = (zasyp_has_active is defined and zasyp_has_active) or product_active %}
+                        {% if zasyp_blocked %}
+                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span
+                                class="material-icons">block</span></button>
+                        {% else %}
+                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
+                            class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button
+                                type="submit" class="btn-action btn-start">START</button></form>
+                        {% endif %}
+                        {% else %}
+                        {% if product_active %}
+                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span
+                                class="material-icons">block</span></button>
+                        {% else %}
+                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
+                            class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button
+                                type="submit" class="btn-action btn-start">START</button></form>
+                        {% endif %}
+                        {% endif %}
+                        {% if rola in ['planista', 'admin', 'lider'] and sekcja not in ['Workowanie', 'Zasyp'] %}
+                        <button type="button" class="btn-delete inline-form delete-plan-btn" aria-label="Usuń plan"
+                            data-plan-id="{{ p[0] }}" data-plan-date="{{ dzisiaj }}"
+                            data-plan-name="{{ p[1] }}">🗑</button>
+                        {% endif %}
+                    </div>
+                    {% elif p[3] == 'w toku' %}
+                    <div class="d-flex gap-5 justify-end">
+                        {% if sekcja == 'Workowanie' %}
+                        <div class="paleta-inline-wrapper paleta-inline">
+                            {% if p[9] == 'bigbag' %}
+                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}"
+                                class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
+                            {% else %}
+                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}"
+                                class="btn-action btn-purple" data-slide>+ PALETA</a>
+                            {% endif %}
+                        </div>
+                        {% if rola in ['planista', 'admin'] %}
+                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit"
+                            data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
+                        {% endif %}
+                        <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}"
+                            class="btn-action btn-stop" data-slide>STOP</a>
+                        {% elif sekcja == 'Zasyp' %}
+                        {% set _r = (rola or '')|lower %}
+                        {% if _r == 'admin' %}
+                        <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green"
+                            data-slide>+ SZARŻA</a>
+                        {% elif _r in ['laboratorium','laborant','laborantka','lab'] %}
+                        {# Laborant może dodawać dosypki dopiero z poziomu konkretnej szarży #}
+                        {% else %}
+                        <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green"
+                            data-slide>+ SZARŻA</a>
+                        {% endif %}
+                        {% if rola in ['produkcja','lider','admin'] %}
+                        <a href="{{ url_for('production.dosypki_list', plan_id=p[0]) }}"
+                            class="btn-action btn-blue ml-5" data-slide>Dosypki</a>
+                        {% endif %}
+                        {% if rola in ['planista', 'admin'] %}
+                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit"
+                            data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
+                        {% endif %}
+                        {% if rola|lower not in ['laboratorium','laborant','laborantka','lab'] %}
+                        <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}"
+                            class="btn-action btn-stop" data-slide>STOP</a>
+                        {% endif %}
+                        {% else %}
+                        {% if rola in ['planista', 'admin'] %}
+                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit"
+                            data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
+                        {% endif %}
+                        <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}"
+                            class="btn-action btn-stop" data-slide>STOP</a>
+                        {% endif %}
+                    </div>
+                    <!-- Modale paleta/szarza/stop-zasyp usunięte -->
+                    {% if sekcja != 'Zasyp' %}
+                    <!-- Modal stop usunięty -->
+                    {% endif %}
+                    {% elif p[3] == 'zakonczone' %}
+                    <div class="d-flex align-center justify-end gap-10">
+                        {% if sekcja == 'Zasyp' and p[13] and not p[10] %}
+                        {% if rola|lower not in ['laboratorium','laborant','laborantka','lab'] %}
+                        <a href="{{ url_for('production.wyjasnij_page', id=p[0]) }}"
+                            class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ ({{ p[12]|int
+                            }} kg)</a>
+                        {% endif %}
+                        <!-- Wyjaśnienie modal (slide-over) -->
+                        {% endif %}
+                        {% if rola in ['lider', 'admin'] %}
+                        <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST"
+                            class="inline-form" onsubmit="return confirm('Wznowić {{ p[1] }}?');"><button type="submit"
+                                class="btn-action btn-outline-warning btn-icon" title="Wznowić zlecenie"><span
+                                    class="material-icons">replay</span></button></form>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    {# Status inny niż 'w toku' i 'zakonczone' - brak akcji #}
+                    {% endif %}
                     {% endif %}
                 </td>
             </tr>
@@ -305,86 +388,155 @@
                     <div class="p-10">
                         <table class="modern-table small">
                             {% if sekcja == 'Zasyp' %}
-                                <thead><tr><th>{{ _('nr') }}</th><th>🕒 Czas od poprzedniej</th><th>{{ _('waga') }}</th><th>{{ _('opcje') }}</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>{{ _('nr') }}</th>
+                                    <th>🕒 Czas od poprzedniej</th>
+                                    <th>{{ _('waga') }}</th>
+                                    <th>{{ _('opcje') }}</th>
+                                </tr>
+                            </thead>
                             {% elif sekcja == 'Workowanie' %}
-                                <thead><tr><th>{{ _('nr') }}</th><th>🕒 Czas od poprzedniej</th><th>{{ _('waga') }}</th><th>{{ _('opcje') }}</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>{{ _('nr') }}</th>
+                                    <th>🕒 Czas od poprzedniej</th>
+                                    <th>{{ _('waga') }}</th>
+                                    <th>{{ _('opcje') }}</th>
+                                </tr>
+                            </thead>
                             {% else %}
-                                <thead><tr><th>{{ _('nr') }}</th><th>🕒 Godzina</th><th>{{ _('typ') }}</th><th>{{ _('waga') }}</th><th>⏱️ Czas</th><th>{{ _('opcje') }}</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>{{ _('nr') }}</th>
+                                    <th>🕒 Godzina</th>
+                                    <th>{{ _('typ') }}</th>
+                                    <th>{{ _('waga') }}</th>
+                                    <th>⏱️ Czas</th>
+                                    <th>{{ _('opcje') }}</th>
+                                </tr>
+                            </thead>
                             {% endif %}
                             <tbody>
                                 {% for pal in palety_mapa[p[0]] %}
                                 <tr>
                                     <td class="text-muted font-bold">{{ loop.index }}</td>
                                     {% if sekcja == 'Zasyp' %}
-                                        <td class="time-display"><span>{{ pal[1] }}</span></td>
-                                        <td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td>
-                                        <td>
-                                            {% if rola in ['lider', 'admin'] %}
-                                                <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="Edytuj szarzę" data-slide>✏️</a>
-                                                <a href="{{ url_for('warehouse.confirm_delete_szarze_page', szarza_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="Usuń szarzę" data-slide>🗑️</a>
+                                    <td class="time-display"><span>{{ pal[1] }}</span></td>
+                                    <td>
+                                        <strong class="text-primary">{{ pal[0]|int }} kg</strong>
+                                        {% if dosypki_mapa and p[0] in dosypki_mapa %}
+                                        {% set ns = namespace(has_dosypki=false) %}
+                                        {% for d in dosypki_mapa[p[0]] %}
+                                        {% if d.szarza_id == pal[2] %}
+                                        {% set ns.has_dosypki = true %}
+                                        {% endif %}
+                                        {% endfor %}
+                                        {% if ns.has_dosypki %}
+                                        <div class="mt-5"
+                                            style="border-top: 1px dotted #ccc; padding-top: 3px; font-size: 0.85em;">
+                                            <span class="text-muted small">Dosypki:</span>
+                                            {% for d in dosypki_mapa[p[0]] %}
+                                            {% if d.szarza_id == pal[2] %}
+                                            <div class="mb-5">
+                                                <strong>{{ d.nazwa or 'Brak nazwy' }}</strong>: <span
+                                                    class="text-success">{{ d.kg }} kg</span> <span
+                                                    class="text-muted">({{ d.potwierdzono.split(' ')|last if
+                                                    d.potwierdzono else '' }})</span>
+                                            </div>
                                             {% endif %}
-                                        </td>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if rola in ['lider', 'admin'] %}
+                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}"
+                                            class="btn-icon" aria-label="Edytuj szarzę" data-slide>✏️</a>
+                                        <a href="{{ url_for('warehouse.confirm_delete_szarze_page', szarza_id=pal[2]) }}"
+                                            class="btn-icon text-danger-color" aria-label="Usuń szarzę"
+                                            data-slide>🗑️</a>
+                                        {% endif %}
+                                        {% set _l_r = (rola or '')|lower %}
+                                        {% if _l_r in ['lider', 'admin', 'laboratorium', 'laborant', 'laborantka'] %}
+                                        <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2]) }}"
+                                            class="btn-action btn-green btn-small" data-slide>+ DOSYPKA</a>
+                                        {% endif %}
+                                    </td>
                                     {% elif sekcja == 'Workowanie' %}
-                                        <td class="time-display">{{ pal[1] }}</td>
-                                        <td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td>
-                                        <td>
-                                            {% if pal[7] and pal[7] != '' %}
-                                                {% if pal[7] == 'do_przyjecia' %}
-                                                    <span class="badge badge-warning">🔄 Do przyjęcia</span>
-                                                {% elif pal[7] == 'przyjeta' %}
-                                                    <span class="badge badge-success">✅ Przyjęta</span>
-                                                {% elif pal[7] == 'zamknieta' %}
-                                                    <span class="badge badge-secondary">🔒 Zamknięta</span>
-                                                {% else %}
-                                                    <span class="badge">{{ pal[7] }}</span>
-                                                {% endif %}
-                                            {% endif %}
-                                            {% if rola in ['lider', 'admin'] %}
-                                                <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
-                                                <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}" data-slide>🗑️</a>
-                                            {% endif %}
-                                        </td>
+                                    <td class="time-display">{{ pal[1] }}</td>
+                                    <td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td>
+                                    <td>
+                                        {% if pal[7] and pal[7] != '' %}
+                                        {% if pal[7] == 'do_przyjecia' %}
+                                        <span class="badge badge-warning">🔄 Do przyjęcia</span>
+                                        {% elif pal[7] == 'przyjeta' %}
+                                        <span class="badge badge-success">✅ Przyjęta</span>
+                                        {% elif pal[7] == 'zamknieta' %}
+                                        <span class="badge badge-secondary">🔒 Zamknięta</span>
+                                        {% else %}
+                                        <span class="badge">{{ pal[7] }}</span>
+                                        {% endif %}
+                                        {% endif %}
+                                        {% if rola in ['lider', 'admin'] %}
+                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}"
+                                            class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
+                                        <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2]) }}"
+                                            class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}"
+                                            data-slide>🗑️</a>
+                                        {% endif %}
+                                    </td>
                                     {% else %}
-                                        <td class="time-display"><span>{{ pal[1] }}</span></td>
-                                        <td><span class="badge-sekcja">{{ pal[4]|upper }}</span></td>
-                                        <td>
-                                                {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
-                                                    {% if pal[0] == 0 %}
-                                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-warning small" data-slide>⚖️ WAŻENIE</a>
-                                                    {% else %}
-                                                        <strong class="text-success">{{ pal[0]|int }} kg</strong>
-                                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon ml-5" aria-label="Edytuj wagę" data-slide>✏️</a>
-                                                    {% endif %}
-                                                <!-- Waga modal removed -->
-                                            {% else %}<strong class="text-primary">{{ pal[0]|int }} kg</strong>{% endif %}
-                                        </td>
-                                        <td>
-                                            <span class="paleta-elapsed duration-badge" data-start="{{ pal[9] }}"></span>
-                                        </td>
-                                        <td>
-                                            {% if pal[7] and pal[7] != '' %}
-                                                {% if pal[7] == 'do_przyjecia' %}
-                                                    {% if sekcja != 'Zasyp' %}
-                                                        <span class="badge badge-warning">🔄 Do przyjęcia</span>
-                                                    {% endif %}
-                                                {% elif pal[7] == 'przyjeta' %}
-                                                    <span class="badge badge-success">✅ Przyjęta</span>
-                                                {% elif pal[7] == 'zamknieta' %}
-                                                    <span class="badge badge-secondary">🔒 Zamknięta</span>
-                                                {% else %}
-                                                    <span class="badge">{{ pal[7] }}</span>
-                                                {% endif %}
-                                            {% endif %}
-                                            {% if rola in ['lider', 'admin'] %}
-                                                <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}" class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
-                                                <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2]) }}" class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}" data-slide>🗑️</a>
-                                            {% endif %}
-                                            {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in ['lider','admin']) and pal[7] == 'do_przyjecia' %}
-                                                {# Inline styles removed — use .btn-confirm-inline class in external CSS (static/style.css) #}
-                                                <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=pal[2]) }}" class="btn-action btn-save btn-small btn-confirm-inline" data-slide>{{ _('potwierdz') }}</a>
-                                            {% endif %}
+                                    <td class="time-display"><span>{{ pal[1] }}</span></td>
+                                    <td><span class="badge-sekcja">{{ pal[4]|upper }}</span></td>
+                                    <td>
+                                        {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
+                                        {% if pal[0] == 0 %}
+                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}"
+                                            class="btn-action btn-warning small" data-slide>⚖️ WAŻENIE</a>
+                                        {% else %}
+                                        <strong class="text-success">{{ pal[0]|int }} kg</strong>
+                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}"
+                                            class="btn-icon ml-5" aria-label="Edytuj wagę" data-slide>✏️</a>
+                                        {% endif %}
+                                        <!-- Waga modal removed -->
+                                        {% else %}<strong class="text-primary">{{ pal[0]|int }} kg</strong>{% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="paleta-elapsed duration-badge" data-start="{{ pal[9] }}"></span>
+                                    </td>
+                                    <td>
+                                        {% if pal[7] and pal[7] != '' %}
+                                        {% if pal[7] == 'do_przyjecia' %}
+                                        {% if sekcja != 'Zasyp' %}
+                                        <span class="badge badge-warning">🔄 Do przyjęcia</span>
+                                        {% endif %}
+                                        {% elif pal[7] == 'przyjeta' %}
+                                        <span class="badge badge-success">✅ Przyjęta</span>
+                                        {% elif pal[7] == 'zamknieta' %}
+                                        <span class="badge badge-secondary">🔒 Zamknięta</span>
+                                        {% else %}
+                                        <span class="badge">{{ pal[7] }}</span>
+                                        {% endif %}
+                                        {% endif %}
+                                        {% if rola in ['lider', 'admin'] %}
+                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}"
+                                            class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
+                                        <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2]) }}"
+                                            class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}"
+                                            data-slide>🗑️</a>
+                                        {% endif %}
+                                        {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in
+                                        ['lider','admin']) and pal[7] == 'do_przyjecia' %}
+                                        {# Inline styles removed — use .btn-confirm-inline class in external CSS
+                                        (static/style.css) #}
+                                        <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=pal[2]) }}"
+                                            class="btn-action btn-save btn-small btn-confirm-inline" data-slide>{{
+                                            _('potwierdz') }}</a>
+                                        {% endif %}
                                         <!-- editpal and confirm-delete modals removed -->
-                                        </td>
+                                    </td>
                                     {% endif %}
                                 </tr>
                                 {% endfor %}
@@ -394,13 +546,15 @@
                 </td>
             </tr>
             {% endif %}
-        {% else %}<tr><td colspan="7" class="text-center p-30">{{ _('brak_danych') }}</td></tr>{% endfor %}
+            {% else %}<tr>
+                <td colspan="7" class="text-center p-30">{{ _('brak_danych') }}</td>
+            </tr>{% endfor %}
         </tbody>
     </table>
     {% endif %}
 </div>
 
-    {# HR, Nadgodziny i Raport Końcowy usunięte z tego widoku — przeniesione do dashboard_global.html #}
+{# HR, Nadgodziny i Raport Końcowy usunięte z tego widoku — przeniesione do dashboard_global.html #}
 
 <script>
     function toggleDetails(id) {
@@ -409,175 +563,180 @@
         var isHidden = getComputedStyle(row).display === 'none' || row.style.display === 'none';
         row.style.display = isHidden ? 'table-row' : 'none';
     }
-    
+
     // Modale wyłączone — funkcje zastępcze blokujące popupy
     function openModal(id) {
-        try { if(window.__RP_DEBUG__){ console.debug('[modal-disabled] openModal called, id=', id); } } catch(e){}
+        try { if (window.__RP_DEBUG__) { console.debug('[modal-disabled] openModal called, id=', id); } } catch (e) { }
         return;
     }
 
     function closeAllModals() {
-        try { if(window.__RP_DEBUG__){ console.debug('[modal-disabled] closeAllModals called'); } } catch(e){}
+        try { if (window.__RP_DEBUG__) { console.debug('[modal-disabled] closeAllModals called'); } } catch (e) { }
         // Backwards-compat shim: route legacy modal close calls to the quick-popup/center-modal
-        try { if (typeof closeQuickPopup === 'function') closeQuickPopup(); } catch(e){}
-        try { if (typeof closeCenterModal === 'function') closeCenterModal(); } catch(e){}
+        try { if (typeof closeQuickPopup === 'function') closeQuickPopup(); } catch (e) { }
+        try { if (typeof closeCenterModal === 'function') closeCenterModal(); } catch (e) { }
         return;
     }
 
     // openPopup removed — use `showSlideOver(...)` directly where needed
-    
+
     // Zamknij wszystko na start
     closeAllModals();
 
     /* showModalDisabled removed — slide-over used as fallback instead */
 
-    
+
 </script>
 
 <script>
-// Modal movement logger: logs bounding rect before and after a small mousemove below the modal,
-// prints to console and posts JSON to server endpoint `/debug/modal-move`.
-// modal movement logger removed (modal mechanism disabled)
+    // Modal movement logger: logs bounding rect before and after a small mousemove below the modal,
+    // prints to console and posts JSON to server endpoint `/debug/modal-move`.
+    // modal movement logger removed (modal mechanism disabled)
 </script>
 
 <script>
-// Live elapsed timers for unconfirmed palety
-function formatElapsed(secs){
-    if(secs < 0) secs = 0;
-    const h = Math.floor(secs/3600);
-    const m = Math.floor((secs%3600)/60);
-    const s = secs%60;
-    if(h>0) return h+"h "+String(m).padStart(2,'0')+"m";
-    if(m>0) return m+"m "+String(s).padStart(2,'0')+"s";
-    return s+"s";
-}
-function updatePaletaTimers(){
-    document.querySelectorAll('.paleta-elapsed').forEach(function(el){
-        const ds = el.getAttribute('data-start');
-        if(!ds) return;
-        // parse 'YYYY-MM-DD HH:MM:SS' by replacing space with 'T'
-        let t = ds.replace(' ', 'T');
-        // If no timezone, Date.parse treats as local in most browsers
-        const start = Date.parse(t);
-        if(isNaN(start)) return;
-        const now = Date.now();
-        const secs = Math.floor((now - start)/1000);
-        if (el) el.textContent = '⏱️ ' + formatElapsed(secs);
-    });
-}
-function initUpdatePaletaTimers(){
-    updatePaletaTimers(); 
-    clearInterval(window._paletaTimersInterval);
-    window._paletaTimersInterval = setInterval(updatePaletaTimers, 1000);
-}
-document.addEventListener('DOMContentLoaded', initUpdatePaletaTimers);
-window.addEventListener('app:partialReload', initUpdatePaletaTimers);
+    // Live elapsed timers for unconfirmed palety
+    function formatElapsed(secs) {
+        if (secs < 0) secs = 0;
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        if (h > 0) return h + "h " + String(m).padStart(2, '0') + "m";
+        if (m > 0) return m + "m " + String(s).padStart(2, '0') + "s";
+        return s + "s";
+    }
+    function updatePaletaTimers() {
+        document.querySelectorAll('.paleta-elapsed').forEach(function (el) {
+            const ds = el.getAttribute('data-start');
+            if (!ds) return;
+            // parse 'YYYY-MM-DD HH:MM:SS' by replacing space with 'T'
+            let t = ds.replace(' ', 'T');
+            // If no timezone, Date.parse treats as local in most browsers
+            const start = Date.parse(t);
+            if (isNaN(start)) return;
+            const now = Date.now();
+            const secs = Math.floor((now - start) / 1000);
+            if (el) el.textContent = '⏱️ ' + formatElapsed(secs);
+        });
+    }
+    function initUpdatePaletaTimers() {
+        updatePaletaTimers();
+        clearInterval(window._paletaTimersInterval);
+        window._paletaTimersInterval = setInterval(updatePaletaTimers, 1000);
+    }
+    document.addEventListener('DOMContentLoaded', initUpdatePaletaTimers);
+    window.addEventListener('app:partialReload', initUpdatePaletaTimers);
 </script>
 
 <script>
-// Day shift buttons (global): navigate with ?sekcja=...&data=YYYY-MM-DD
-document.addEventListener('DOMContentLoaded', function(){
-    // selector updated: controls are rendered in .day-tile
-    var container = document.querySelector('.day-tile');
-    if(!container) return;
-    function pad(n){ return n<10?('0'+n):n; }
-    function isoFromDate(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
-    var baseIso = document.getElementById('current-date-iso') ? document.getElementById('current-date-iso').value : null;
-    var baseDate = baseIso ? new Date(baseIso+'T00:00:00') : new Date();
-    container.querySelectorAll('button[data-day-offset]').forEach(function(btn){
-        btn.addEventListener('click', function(){
-            var offset = parseInt(btn.getAttribute('data-day-offset')||0,10);
-            var target = new Date(baseDate.getTime());
-            target.setDate(target.getDate() + offset);
-            var iso = isoFromDate(target);
-            // preserve sekcja in querystring (use data-sekcja from container)
-            var params = new URLSearchParams(window.location.search);
-            var sec = container.dataset.sekcja || params.get('sekcja');
-            if(sec) params.set('sekcja', sec);
-            else params.delete('sekcja');
-            params.set('data', iso);
-            window.location.search = params.toString();
+    // Day shift buttons (global): navigate with ?sekcja=...&data=YYYY-MM-DD
+    document.addEventListener('DOMContentLoaded', function () {
+        // selector updated: controls are rendered in .day-tile
+        var container = document.querySelector('.day-tile');
+        if (!container) return;
+        function pad(n) { return n < 10 ? ('0' + n) : n; }
+        function isoFromDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+        var baseIso = document.getElementById('current-date-iso') ? document.getElementById('current-date-iso').value : null;
+        var baseDate = baseIso ? new Date(baseIso + 'T00:00:00') : new Date();
+        container.querySelectorAll('button[data-day-offset]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var offset = parseInt(btn.getAttribute('data-day-offset') || 0, 10);
+                var target = new Date(baseDate.getTime());
+                target.setDate(target.getDate() + offset);
+                var iso = isoFromDate(target);
+                // preserve sekcja in querystring (use data-sekcja from container)
+                var params = new URLSearchParams(window.location.search);
+                var sec = container.dataset.sekcja || params.get('sekcja');
+                if (sec) params.set('sekcja', sec);
+                else params.delete('sekcja');
+                params.set('data', iso);
+                window.location.search = params.toString();
+            });
         });
     });
-});
 </script>
 
 <script>
-// Date overview logic: compute day/week/month ranges based on #current-date-iso
-document.addEventListener('DOMContentLoaded', function(){
-    var isoInput = document.getElementById('current-date-iso');
-    if(!isoInput) return;
-    var baseIso = isoInput.value;
-    function parseIso(s){ return new Date((s||'') + 'T00:00:00'); }
-    function fmt(d){ try { return d.toLocaleDateString('pl-PL', { day: '2-digit', month: 'short', year: 'numeric' }); } catch(e){ return d.toISOString().slice(0,10); } }
+    // Date overview logic: compute day/week/month ranges based on #current-date-iso
+    document.addEventListener('DOMContentLoaded', function () {
+        var isoInput = document.getElementById('current-date-iso');
+        if (!isoInput) return;
+        var baseIso = isoInput.value;
+        function parseIso(s) { return new Date((s || '') + 'T00:00:00'); }
+        function fmt(d) { try { return d.toLocaleDateString('pl-PL', { day: '2-digit', month: 'short', year: 'numeric' }); } catch (e) { return d.toISOString().slice(0, 10); } }
 
-    function startOfWeek(d){ // Monday as first day
-        var dt = new Date(d.getTime());
-        var dow = dt.getDay(); // 0 Sun .. 6 Sat
-        var delta = (dow + 6) % 7; // days since Monday
-        dt.setDate(dt.getDate() - delta);
-        dt.setHours(0,0,0,0);
-        return dt;
-    }
-    function endOfWeek(d){ var s = startOfWeek(d); s.setDate(s.getDate()+6); return s; }
-    function startOfMonth(d){ var s = new Date(d.getFullYear(), d.getMonth(), 1); return s; }
-    function endOfMonth(d){ var s = new Date(d.getFullYear(), d.getMonth()+1, 0); return s; }
+        function startOfWeek(d) { // Monday as first day
+            var dt = new Date(d.getTime());
+            var dow = dt.getDay(); // 0 Sun .. 6 Sat
+            var delta = (dow + 6) % 7; // days since Monday
+            dt.setDate(dt.getDate() - delta);
+            dt.setHours(0, 0, 0, 0);
+            return dt;
+        }
+        function endOfWeek(d) { var s = startOfWeek(d); s.setDate(s.getDate() + 6); return s; }
+        function startOfMonth(d) { var s = new Date(d.getFullYear(), d.getMonth(), 1); return s; }
+        function endOfMonth(d) { var s = new Date(d.getFullYear(), d.getMonth() + 1, 0); return s; }
 
-    var currentEl = document.getElementById('overview-current');
-    var rangeEl = document.getElementById('overview-range');
-    var dayBtn = document.getElementById('view-day');
-    var weekBtn = document.getElementById('view-week');
-    var monthBtn = document.getElementById('view-month');
+        var currentEl = document.getElementById('overview-current');
+        var rangeEl = document.getElementById('overview-range');
+        var dayBtn = document.getElementById('view-day');
+        var weekBtn = document.getElementById('view-week');
+        var monthBtn = document.getElementById('view-month');
 
-    // Defensive: if the date-overview widget isn't rendered for this sekcja (e.g. Zasyp/Workowanie),
-    // don't attempt to update its DOM (prevents "Cannot set properties of null" errors).
-    if (!currentEl || !rangeEl) return;
+        // Defensive: if the date-overview widget isn't rendered for this sekcja (e.g. Zasyp/Workowanie),
+        // don't attempt to update its DOM (prevents "Cannot set properties of null" errors).
+        if (!currentEl || !rangeEl) return;
 
-    var currentDate = baseIso ? parseIso(baseIso) : new Date();
-    if (currentEl) currentEl.textContent = fmt(currentDate);
+        var currentDate = baseIso ? parseIso(baseIso) : new Date();
+        if (currentEl) currentEl.textContent = fmt(currentDate);
 
-    function showDay(){ if (rangeEl) rangeEl.textContent = fmt(currentDate); }
-    function showWeek(){ var s = startOfWeek(currentDate); var e = endOfWeek(currentDate); if (rangeEl) rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
-    function showMonth(){ var s = startOfMonth(currentDate); var e = endOfMonth(currentDate); if (rangeEl) rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
+        function showDay() { if (rangeEl) rangeEl.textContent = fmt(currentDate); }
+        function showWeek() { var s = startOfWeek(currentDate); var e = endOfWeek(currentDate); if (rangeEl) rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
+        function showMonth() { var s = startOfMonth(currentDate); var e = endOfMonth(currentDate); if (rangeEl) rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
 
-    // default to day view
-    showDay();
+        // default to day view
+        showDay();
 
-    dayBtn && dayBtn.addEventListener('click', function(){ showDay(); });
-    weekBtn && weekBtn.addEventListener('click', function(){ showWeek(); });
-    monthBtn && monthBtn.addEventListener('click', function(){ showMonth(); });
-});
+        dayBtn && dayBtn.addEventListener('click', function () { showDay(); });
+        weekBtn && weekBtn.addEventListener('click', function () { showWeek(); });
+        monthBtn && monthBtn.addEventListener('click', function () { showMonth(); });
+    });
 </script>
 
 {% if sekcja in ['Zasyp', 'Workowanie', 'Magazyn'] %}
 <script>
-// Zamienia zachowanie linków z `data-slide` na popup zamiast slide-over
-// ładuje zawartość przez fetch i pokazuje w globalnym `showQuickPopup`.
-document.addEventListener('DOMContentLoaded', function(){
-    if(typeof showQuickPopup !== 'function') return;
+    // Zamienia zachowanie linków z `data-slide` na popup zamiast slide-over
+    // ładuje zawartość przez fetch i pokazuje w globalnym `showQuickPopup`.
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof showQuickPopup !== 'function') return;
 
-    document.body.addEventListener('click', function(e){
-        var a = e.target.closest && e.target.closest('a[data-slide]');
-        if(!a) return;
-        var href = a.getAttribute('href');
-        if(!href) return;
+        document.body.addEventListener('click', function (e) {
+            var a = e.target.closest && e.target.closest('a[data-slide]');
+            if (!a) return;
+            var href = a.getAttribute('href');
+            if (!href) return;
 
-        // only intercept relative links (same-origin)
-        if(href.indexOf('http') === 0 && new URL(href, location.href).origin !== location.origin) return;
+            // only intercept relative links (same-origin)
+            if (href.indexOf('http') === 0 && new URL(href, location.href).origin !== location.origin) return;
 
-        e.preventDefault();
-        // Prevent other click handlers (including slide-over) from running
-        if (e.stopImmediatePropagation) try { e.stopImmediatePropagation(); } catch (e) {}
-        // remove legacy slide attributes to fully disable slide-cover behavior
-        try { a.removeAttribute('data-slide'); a.removeAttribute('data-slide-html'); } catch (e) {}
-        var title = a.getAttribute('title') || ((a.textContent && a.textContent.trim()) ? a.textContent.trim() : '') || 'Szybki popup';
-        fetch(href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(function(res){ return res.text(); })
-            .then(function(html){
-                try{ showQuickPopup(title, html); }catch(err){ console.error(err); alert('Błąd: nie udało się otworzyć popupu'); }
-            }).catch(function(err){ console.error('fetch popup failed', err); alert('Błąd ładowania zawartości'); });
-    }, false);
-});
+            e.preventDefault();
+            // Prevent other click handlers (including slide-over) from running
+            if (e.stopImmediatePropagation) try { e.stopImmediatePropagation(); } catch (e) { }
+            var title = a.getAttribute('title') || ((a.textContent && a.textContent.trim()) ? a.textContent.trim() : '') || 'Szybki popup';
+            fetch(href, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (res) { return res.text(); })
+                .then(function (html) {
+                    try {
+                        showQuickPopup(title, html);
+                        // If this was the dosypki list fragment, initialize its logic explicitly
+                        if (href.indexOf('dosypki_list') !== -1 && typeof window.initDosypkiList === 'function') {
+                            var qpopup = document.querySelector('.quick-popup');
+                            if (qpopup) window.initDosypkiList(qpopup);
+                        }
+                    } catch (err) { console.error(err); alert('Błąd: nie udało się otworzyć popupu'); }
+                }).catch(function (err) { console.error('fetch popup failed', err); alert('Błąd ładowania zawartości'); });
+        }, false);
+    });
 </script>
 {% endif %}
 
@@ -586,27 +745,68 @@ document.addEventListener('DOMContentLoaded', function(){
 <!-- moved CSS to static/style.css -->
 <!-- Paleta modal removed: replaced by a separate page (dodaj_palete) -->
 <script>
-// AJAX approve/reject for dashboard wnioski_pending
-document.addEventListener('DOMContentLoaded', function(){
-    // showToast() provided by static/js/toasts.js
+    // AJAX approve/reject for dashboard wnioski_pending
+    document.addEventListener('DOMContentLoaded', function () {
+        // showToast() provided by static/js/toasts.js
 
-    var forms = document.querySelectorAll('.wn-form');
-    forms.forEach(function(f){
-        f.addEventListener('submit', function(e){
-            e.preventDefault();
-            var url = f.getAttribute('action');
-            var row = f.closest('tr');
-            var btn = f.querySelector('.wn-btn'); if(btn) btn.disabled = true;
-            fetch(url, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams()})
-            .then(function(r){ try{ return r.json(); }catch(e){ return {}; } })
-            .then(function(j){
-                if(j && j.success){ if(row) row.remove(); showToast(j.message || 'Wniosek przetworzony', 'success'); }
-                else { showToast((j && j.message) ? j.message : 'Błąd', 'danger'); if(btn) btn.disabled = false; }
-            }).catch(function(err){ console.error(err); showToast('Błąd sieci', 'danger'); if(btn) btn.disabled = false; });
+        var forms = document.querySelectorAll('.wn-form');
+        forms.forEach(function (f) {
+            f.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var url = f.getAttribute('action');
+                var row = f.closest('tr');
+                var btn = f.querySelector('.wn-btn'); if (btn) btn.disabled = true;
+                fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams() })
+                    .then(function (r) { try { return r.json(); } catch (e) { return {}; } })
+                    .then(function (j) {
+                        if (j && j.success) { if (row) row.remove(); showToast(j.message || 'Wniosek przetworzony', 'success'); }
+                        else { showToast((j && j.message) ? j.message : 'Błąd', 'danger'); if (btn) btn.disabled = false; }
+                    }).catch(function (err) { console.error(err); showToast('Błąd sieci', 'danger'); if (btn) btn.disabled = false; });
+            });
         });
     });
-});
 </script>
+
+{% if sekcja == 'Magazyn' %}
+<script>
+    function editPalet(id, waga) {
+        var newWaga = prompt('Nowa waga (kg):', waga);
+        if (newWaga && newWaga != waga) {
+            fetch('/api/edytuj_palete_ajax', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, waga: newWaga, data_planu: '{{ dzisiaj }}' })
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (j) {
+                    if (j && j.success) {
+                        location.reload();
+                    } else {
+                        alert('Błąd: ' + (j && j.message || 'Nie udało się edytować'));
+                    }
+                })
+                .catch(function (e) { alert('Błąd: ' + e); });
+        }
+    }
+
+    function deletePalet(id, data) {
+        fetch('/api/usun_palete_ajax', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, data_planu: data })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.success) {
+                    location.reload();
+                } else {
+                    alert('Błąd: ' + (j && j.message || 'Nie udało się usunąć'));
+                }
+            })
+            .catch(function (e) { alert('Błąd: ' + e); });
+    }
+</script>
+{% endif %}
 
 {% endblock %}
 
@@ -615,120 +815,120 @@ document.addEventListener('DOMContentLoaded', function(){
 {% endif %}
 
 <script>
-document.addEventListener('DOMContentLoaded', function(){
-    // Disable submit button after first click for dodawanie palet (prevent double-add)
-    document.querySelectorAll('form[action*="/api/dodaj_palete"]').forEach(function(f){
-        f.addEventListener('submit', function(e){
-            var btn = f.querySelector('button[type="submit"]');
-            if(btn){ btn.disabled = true; btn.classList.add('btn-disabled'); }
+    document.addEventListener('DOMContentLoaded', function () {
+        // Disable submit button after first click for dodawanie palet (prevent double-add)
+        document.querySelectorAll('form[action*="/api/dodaj_palete"]').forEach(function (f) {
+            f.addEventListener('submit', function (e) {
+                var btn = f.querySelector('button[type="submit"]');
+                if (btn) { btn.disabled = true; btn.classList.add('btn-disabled'); }
+            });
         });
-    });
-    // Toast helper
-    var toastContainer = document.createElement('div');
-    toastContainer.id = 'toast-container';
-    toastContainer.style.position = 'fixed';
-    toastContainer.style.right = '20px';
-    toastContainer.style.top = '20px';
-    toastContainer.style.zIndex = 9999;
-    document.body.appendChild(toastContainer);
-    function showToast(msg, type){
-        var t = document.createElement('div');
-        t.className = 'toast ' + (type||'');
-        t.style.background = (type=='success')? '#2ecc71' : (type=='error'? '#e74c3c' : '#333');
-        t.style.color = '#fff';
-        t.style.padding = '10px 14px';
-        t.style.marginTop = '8px';
-        t.style.borderRadius = '4px';
-        t.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
-        if (t) t.textContent = msg;
-        toastContainer.appendChild(t);
-        setTimeout(function(){ t.style.opacity = '0'; setTimeout(function(){ t.remove(); }, 300); }, 3500);
-    }
+        // Toast helper
+        var toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.style.position = 'fixed';
+        toastContainer.style.right = '20px';
+        toastContainer.style.top = '20px';
+        toastContainer.style.zIndex = 9999;
+        document.body.appendChild(toastContainer);
+        function showToast(msg, type) {
+            var t = document.createElement('div');
+            t.className = 'toast ' + (type || '');
+            t.style.background = (type == 'success') ? '#2ecc71' : (type == 'error' ? '#e74c3c' : '#333');
+            t.style.color = '#fff';
+            t.style.padding = '10px 14px';
+            t.style.marginTop = '8px';
+            t.style.borderRadius = '4px';
+            t.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+            if (t) t.textContent = msg;
+            toastContainer.appendChild(t);
+            setTimeout(function () { t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 300); }, 3500);
+        }
 
-    // Intercept potwierdz_palete forms and send via fetch with retry/backoff; remove tile on success
-    // Use event delegation to handle forms added dynamically
-    document.addEventListener('submit', function(e){
-        var form = e.target;
-        if (!form.classList.contains('confirm-paleta-form')) return;
-        
-        console.log('[DEBUG] confirm-paleta-form submit intercepted (event delegation)');
-        e.preventDefault();
-        var btn = form.querySelector('button[type="submit"]');
-        if(btn){ btn.disabled = true; }
-        var attempts = 0;
-        var maxAttempts = 3;
-        function doFetch(){
-            attempts++;
-            fetch(form.action, { method: 'POST', credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} })
-                .then(function(res){
-                    if(res.ok){
-                        console.log('[DEBUG] potwierdz_palete success');
-                        showToast('Potwierdzono paletę', 'success');
-                        var li = form.closest('li');
-                        if(li) {
-                            console.log('[DEBUG] removing <li> element');
-                            li.remove();
+        // Intercept potwierdz_palete forms and send via fetch with retry/backoff; remove tile on success
+        // Use event delegation to handle forms added dynamically
+        document.addEventListener('submit', function (e) {
+            var form = e.target;
+            if (!form.classList.contains('confirm-paleta-form')) return;
+
+            console.log('[DEBUG] confirm-paleta-form submit intercepted (event delegation)');
+            e.preventDefault();
+            var btn = form.querySelector('button[type="submit"]');
+            if (btn) { btn.disabled = true; }
+            var attempts = 0;
+            var maxAttempts = 3;
+            function doFetch() {
+                attempts++;
+                fetch(form.action, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (res) {
+                        if (res.ok) {
+                            console.log('[DEBUG] potwierdz_palete success');
+                            showToast('Potwierdzono paletę', 'success');
+                            var li = form.closest('li');
+                            if (li) {
+                                console.log('[DEBUG] removing <li> element');
+                                li.remove();
+                            }
+                            // Soft reload using current URL - will keep user on same sekcja/page
+                            // Using location.href with same URL causes page reload but preserves query params
+                            setTimeout(function () {
+                                console.log('[DEBUG] soft reload with location.href');
+                                location.href = location.href;
+                            }, 300);
+                        } else {
+                            if (attempts < maxAttempts) {
+                                var delay = 300 * Math.pow(2, attempts - 1);
+                                setTimeout(doFetch, delay);
+                            } else {
+                                showToast('Błąd potwierdzenia (server)', 'error');
+                                if (btn) { btn.disabled = false; }
+                            }
                         }
-                        // Soft reload using current URL - will keep user on same sekcja/page
-                        // Using location.href with same URL causes page reload but preserves query params
-                        setTimeout(function(){
-                            console.log('[DEBUG] soft reload with location.href');
-                            location.href = location.href;
-                        }, 300);
-                    } else {
-                        if(attempts < maxAttempts){
-                            var delay = 300 * Math.pow(2, attempts-1);
+                    })
+                    .catch(function (err) {
+                        if (attempts < maxAttempts) {
+                            var delay = 300 * Math.pow(2, attempts - 1);
                             setTimeout(doFetch, delay);
                         } else {
-                            showToast('Błąd potwierdzenia (server)', 'error');
-                            if(btn){ btn.disabled = false; }
+                            showToast('Błąd sieci podczas potwierdzania', 'error');
+                            if (btn) { btn.disabled = false; }
                         }
-                    }
-                })
-                .catch(function(err){
-                    if(attempts < maxAttempts){
-                        var delay = 300 * Math.pow(2, attempts-1);
-                        setTimeout(doFetch, delay);
-                    } else {
-                        showToast('Błąd sieci podczas potwierdzania', 'error');
-                        if(btn){ btn.disabled = false; }
-                    }
-                });
-        }
-        doFetch();
-    }, false);
-});
+                    });
+            }
+            doFetch();
+        }, false);
+    });
 </script>
 
 <script>
-// Jeśli URL zawiera open_stop, otwórz modal stop dla podanego plan_id
-// Usuń parametr `open_stop` z URL natychmiast — zapobiega niechcianemu auto-otwieraniu modalów
-(function(){
-    try{
-        const params = new URLSearchParams(window.location.search);
-        if(params.has('open_stop')){
-            console.log('[debug] Removing open_stop from URL to prevent auto modal open. skip_open_stop=', sessionStorage.getItem('skip_open_stop'));
-            params.delete('open_stop');
-            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-            window.history.replaceState({}, document.title, newUrl);
-            // Nie otwieramy modalu automatycznie w tej wersji.
-        }
-    }catch(e){console.error(e)}
-})();
+    // Jeśli URL zawiera open_stop, otwórz modal stop dla podanego plan_id
+    // Usuń parametr `open_stop` z URL natychmiast — zapobiega niechcianemu auto-otwieraniu modalów
+    (function () {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('open_stop')) {
+                console.log('[debug] Removing open_stop from URL to prevent auto modal open. skip_open_stop=', sessionStorage.getItem('skip_open_stop'));
+                params.delete('open_stop');
+                const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+                window.history.replaceState({}, document.title, newUrl);
+                // Nie otwieramy modalu automatycznie w tej wersji.
+            }
+        } catch (e) { console.error(e) }
+    })();
 </script>
 
 <script>
-// Toast notification function
-function showToast(message, type = 'error') {
-    // Remove old toasts
-    const oldToasts = document.querySelectorAll('.toast-notification');
-    oldToasts.forEach(t => t.remove());
-    
-    // Create toast element
-    const toast = document.createElement('div');
-    toast.className = `toast-notification toast-${type}`;
-    if (toast) toast.textContent = message;
-    toast.style.cssText = `
+    // Toast notification function
+    function showToast(message, type = 'error') {
+        // Remove old toasts
+        const oldToasts = document.querySelectorAll('.toast-notification');
+        oldToasts.forEach(t => t.remove());
+
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast-notification toast-${type}`;
+        if (toast) toast.textContent = message;
+        toast.style.cssText = `
         position: fixed;
         top: 20px;
         inset-inline-end: 20px;
@@ -741,19 +941,19 @@ function showToast(message, type = 'error') {
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         animation: slideIn 0.3s ease-out;
     `;
-    
-    document.body.appendChild(toast);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        toast.style.animation = 'slideOut 0.3s ease-out';
-        setTimeout(() => toast.remove(), 300);
-    }, 5000);
-}
 
-// Add CSS animation for toast
-const style = document.createElement('style');
-style.textContent = `
+        document.body.appendChild(toast);
+
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            toast.style.animation = 'slideOut 0.3s ease-out';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
+    }
+
+    // Add CSS animation for toast
+    const style = document.createElement('style');
+    style.textContent = `
     @keyframes slideIn {
         from { transform: translateX(400px); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
@@ -763,51 +963,51 @@ style.textContent = `
         to { transform: translateX(400px); opacity: 0; }
     }
 `;
-document.head.appendChild(style);
+    document.head.appendChild(style);
 
-// AJAX submit for dodaj_palete forms to avoid click interception by overlays
-document.addEventListener('DOMContentLoaded', function(){
-    document.querySelectorAll('form[action*="/dodaj_palete"]').forEach(form => {
-        form.addEventListener('submit', async function(e){
-            e.preventDefault();
-            // disable pointer events on stop-* overlays to avoid interception
-            const stopEls = Array.from(document.querySelectorAll('[id^="stop-"]'));
-            stopEls.forEach(el => { el.dataset._savedPe = el.style.pointerEvents || ''; el.style.pointerEvents = 'none'; });
-            // safety timeout to restore if request hangs
-            let restoreCalled = false;
-            const restore = () => {
-                if(restoreCalled) return; restoreCalled = true;
-                stopEls.forEach(el => { if(el.dataset._savedPe !== undefined){ el.style.pointerEvents = el.dataset._savedPe; delete el.dataset._savedPe; } else { el.style.pointerEvents = ''; } });
-            };
-            const timeoutId = setTimeout(restore, 3000);
-            try{
-                sessionStorage.setItem('skip_open_stop','1');
-                const action = form.getAttribute('action');
-                const fd = new FormData(form);
-                const resp = await fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' });
-                clearTimeout(timeoutId);
-                restore();
-                
-                // Check for error responses (4xx, 5xx)
-                if (!resp.ok) {
-                    const errorText = await resp.text();
-                    showToast(errorText || `Błąd ${resp.status}: Nie udało się dodać przedmiotu`, 'error');
-                    return;
+    // AJAX submit for dodaj_palete forms to avoid click interception by overlays
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('form[action*="/dodaj_palete"]').forEach(form => {
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                // disable pointer events on stop-* overlays to avoid interception
+                const stopEls = Array.from(document.querySelectorAll('[id^="stop-"]'));
+                stopEls.forEach(el => { el.dataset._savedPe = el.style.pointerEvents || ''; el.style.pointerEvents = 'none'; });
+                // safety timeout to restore if request hangs
+                let restoreCalled = false;
+                const restore = () => {
+                    if (restoreCalled) return; restoreCalled = true;
+                    stopEls.forEach(el => { if (el.dataset._savedPe !== undefined) { el.style.pointerEvents = el.dataset._savedPe; delete el.dataset._savedPe; } else { el.style.pointerEvents = ''; } });
+                };
+                const timeoutId = setTimeout(restore, 3000);
+                try {
+                    sessionStorage.setItem('skip_open_stop', '1');
+                    const action = form.getAttribute('action');
+                    const fd = new FormData(form);
+                    const resp = await fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' });
+                    clearTimeout(timeoutId);
+                    restore();
+
+                    // Check for error responses (4xx, 5xx)
+                    if (!resp.ok) {
+                        const errorText = await resp.text();
+                        showToast(errorText || `Błąd ${resp.status}: Nie udało się dodać przedmiotu`, 'error');
+                        return;
+                    }
+
+                    if (resp.redirected) { window.location.href = resp.url; return; }
+                    // Reload with current URL parameters preserved (sekcja, data, etc)
+                    window.location.href = window.location.href;
+                } catch (err) {
+                    clearTimeout(timeoutId);
+                    restore();
+                    console.error('AJAX dodaj_palete failed, falling back to normal submit', err);
+                    showToast('Błąd sieci: ' + err.message, 'error');
+                    form.submit();
                 }
-                
-                if(resp.redirected){ window.location.href = resp.url; return; }
-                // Reload with current URL parameters preserved (sekcja, data, etc)
-                window.location.href = window.location.href;
-            }catch(err){
-                clearTimeout(timeoutId);
-                restore();
-                console.error('AJAX dodaj_palete failed, falling back to normal submit', err);
-                showToast('Błąd sieci: ' + err.message, 'error');
-                form.submit();
-            }
+            });
         });
     });
-});
 </script>
 <!-- Quick-popup: center modal for AJAX-loaded content -->
 <div id="quickBackdrop" class="quick-backdrop" data-action="close-popup"></div>
@@ -820,77 +1020,77 @@ document.addEventListener('DOMContentLoaded', function(){
 </div>
 
 <script>
-function openQuickPopup(html){
-    var qp = document.getElementById('quickPopup');
-    var bd = document.getElementById('quickBackdrop');
-    if(!qp || !bd) return;
-    var body = document.getElementById('quickPopupBody');
-    if(body) body.innerHTML = html || '';
-    bd.classList.add('show');
-    qp.style.display = 'block';
-    setTimeout(function(){ qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
-}
-function closeQuickPopup(){
-    var qp = document.getElementById('quickPopup');
-    var bd = document.getElementById('quickBackdrop');
-    if(!qp) return;
-    qp.classList.remove('open');
-    qp.setAttribute('aria-hidden', 'true');
-    if(bd) bd.classList.remove('show');
-    setTimeout(function(){ qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if(body) body.innerHTML=''; }, 360);
-}
-
-// Event delegation for close-popup action
-document.addEventListener('click', function(e){
-    if(e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'close-popup'){
-        closeQuickPopup();
+    function openQuickPopup(html) {
+        var qp = document.getElementById('quickPopup');
+        var bd = document.getElementById('quickBackdrop');
+        if (!qp || !bd) return;
+        var body = document.getElementById('quickPopupBody');
+        if (body) body.innerHTML = html || '';
+        bd.classList.add('show');
+        qp.style.display = 'block';
+        setTimeout(function () { qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
     }
-}, false);
+    function closeQuickPopup() {
+        var qp = document.getElementById('quickPopup');
+        var bd = document.getElementById('quickBackdrop');
+        if (!qp) return;
+        qp.classList.remove('open');
+        qp.setAttribute('aria-hidden', 'true');
+        if (bd) bd.classList.remove('show');
+        setTimeout(function () { qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if (body) body.innerHTML = ''; }, 360);
+    }
 
-// ===== NOTATKI NA DASHBOARD - ZMIANA DATY =====
-(function() {
-    // Translation messages
-    var msgs = {
-        errorLoading: '{{ _("blad_ladowania") }}',
-        noNotes: '{{ _("brak_notatek") }}',
-        editWpis: '{{ _("edytuj_wpis") }}'
-    };
-    
-    const dateDisplay = document.getElementById('current-date-display');
-    const dateISO = document.getElementById('current-date-iso');
-    const dayNavButtons = document.querySelectorAll('.day-nav');
-    const wpisyContainer = document.getElementById('wpisy-container');
-    
-    if (!dateDisplay || !dateISO || !wpisyContainer) return;
-    
-    function updateWpisyForDate(dateStr) {
-        const sekcja = document.querySelector('[data-sekcja]')?.getAttribute('data-sekcja') || 'Zasyp';
-        
-        fetch(`/api/wpisy_na_date?data=${dateStr}&sekcja=${encodeURIComponent(sekcja)}`)
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success) {
-                    console.error('Error loading wpisy:', data.message);
-                    wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">' + msgs.errorLoading + '</div>';
-                    return;
-                }
-                
-                // Clear existing wpisy
-                wpisyContainer.innerHTML = '';
-                
-                // Add new wpisy (limit to 2)
-                if (data.wpisy && data.wpisy.length > 0) {
-                    data.wpisy.slice(0, 2).forEach(w => {
-                        const statusMap = {
-                            'zgłoszony': '🔔 Zgłoszony',
-                            'czeka_na_czesci': '⚙️ Czeka na części',
-                            'zakończony': '✅ Zakończony',
-                            'zamknięty': '🔒 Zamknięty'
-                        };
-                        const statusText = w[9] ? ('| Status: <strong>' + (statusMap[w[9]] || w[9]) + '</strong>') : '';
-                        const dataText = w[10] ? (' | Zakończono: <strong>' + w[10] + '</strong>') : '';
-                        
-                        const html = `
+    // Event delegation for close-popup action
+    document.addEventListener('click', function (e) {
+        if (e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'close-popup') {
+            closeQuickPopup();
+        }
+    }, false);
+
+    // ===== NOTATKI NA DASHBOARD - ZMIANA DATY =====
+    (function () {
+        // Translation messages
+        var msgs = {
+            errorLoading: '{{ _("blad_ladowania") }}',
+            noNotes: '{{ _("brak_notatek") }}',
+            editWpis: '{{ _("edytuj_wpis") }}'
+        };
+
+        const dateDisplay = document.getElementById('current-date-display');
+        const dateISO = document.getElementById('current-date-iso');
+        const dayNavButtons = document.querySelectorAll('.day-nav');
+        const wpisyContainer = document.getElementById('wpisy-container');
+
+        if (!dateDisplay || !dateISO || !wpisyContainer) return;
+
+        function updateWpisyForDate(dateStr) {
+            const sekcja = document.querySelector('[data-sekcja]')?.getAttribute('data-sekcja') || 'Zasyp';
+
+            fetch(`/api/wpisy_na_date?data=${dateStr}&sekcja=${encodeURIComponent(sekcja)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        console.error('Error loading wpisy:', data.message);
+                        wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">' + msgs.errorLoading + '</div>';
+                        return;
+                    }
+
+                    // Clear existing wpisy
+                    wpisyContainer.innerHTML = '';
+
+                    // Add new wpisy (limit to 2)
+                    if (data.wpisy && data.wpisy.length > 0) {
+                        data.wpisy.slice(0, 2).forEach(w => {
+                            const statusMap = {
+                                'zgłoszony': '🔔 Zgłoszony',
+                                'czeka_na_czesci': '⚙️ Czeka na części',
+                                'zakończony': '✅ Zakończony',
+                                'zamknięty': '🔒 Zamknięty'
+                            };
+                            const statusText = w[9] ? ('| Status: <strong>' + (statusMap[w[9]] || w[9]) + '</strong>') : '';
+                            const dataText = w[10] ? (' | Zakończono: <strong>' + w[10] + '</strong>') : '';
+
+                            const html = `
                             <div class="alert-warning d-flex justify-between align-center mb-5">
                                 <div>
                                     <span>⚠️ <strong>${w[3]}</strong> [${w[5]}]: ${w[2]}</span>
@@ -909,153 +1109,153 @@ document.addEventListener('click', function(e){
                                 </div>
                             </div>
                         `;
-                        wpisyContainer.insertAdjacentHTML('beforeend', html);
-                    });
-                } else {
-                    wpisyContainer.insertAdjacentHTML('beforeend', '<div class="text-muted text-center p-10">' + msgs.noNotes + '</div>');
-                }
-            })
-            .catch(err => {
-                console.error('Failed to update wpisy:', err);
-                wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">' + msgs.errorLoading + '</div>';
-            });
-    }
-    
-    dayNavButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const offset = parseInt(this.getAttribute('data-day-offset'), 10);
-            const currentDate = new Date(dateISO.value);
-            currentDate.setDate(currentDate.getDate() + offset);
-            
-            const newDateStr = currentDate.toISOString().split('T')[0];
-            const newDateDisplay = currentDate.toLocaleDateString('pl-PL');
-            
-            if (dateISO) dateISO.value = newDateStr;
-            if (dateDisplay) dateDisplay.textContent = newDateDisplay;
-            
-            updateWpisyForDate(newDateStr);
-        });
-    });
-})();
-
-// Event listener dla DELETE buttons - rejestruj NATYCHMIAST
-console.log('⚡ [1] Rejestrowanie DELETE button listeners...');
-var deleteButtonCount = document.querySelectorAll('.delete-plan-btn').length;
-console.log('⚡ [2] Znaleziono buttonów:', deleteButtonCount);
-
-// Event delegation - Listen on document for clicks na delete buttons
-document.addEventListener('click', function(e) {
-    console.log('⚡ [3] CLICK EVENT FIRED - target:', e.target, 'classList:', e.target.className);
-    var closestBtn = e.target.closest('.delete-plan-btn');
-    console.log('⚡ [4] closest(.delete-plan-btn) result:', closestBtn);
-    
-    if (closestBtn) {
-        e.preventDefault();
-        const btn = closestBtn;
-        const id = btn.getAttribute('data-plan-id');
-        const date = btn.getAttribute('data-plan-date');
-        const name = btn.getAttribute('data-plan-name');
-        console.log('🗑️ [5] DELETE BUTTON CLICKED - ID:', id, 'DATE:', date, 'NAME:', name);
-        deletePlan(id, date);
-    }
-});
-
-console.log('✅ [6] DELETE button listeners registered! Total buttons:', deleteButtonCount);
-
-// Delete plan function - dostępna w global scope
-function deletePlan(id, data){
-    console.log('🗑️ [7] deletePlan() CALLED - id:', id, 'data:', data);
-    
-    if(!confirm('Na pewno usunąć zlecenie?')) {
-        console.log('❌ [8] User cancelled delete');
-        return;
-    }
-    
-    console.log('✅ [9] User confirmed, preparing fetch...');
-    const url = '/api/usun_plan_ajax/' + id;
-    console.log('📡 [10] Fetch URL:', url);
-    console.log('📦 [11] Fetch body:', JSON.stringify({data_planu: data}));
-    
-    fetch(url, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({data_planu: data})
-    })
-    .then(function(r){ 
-        console.log('📡 [12] Response status:', r.status, 'statusText:', r.statusText);
-        console.log('📡 [13] Response headers OK - Content-Type:', r.headers.get('content-type'));
-        return r.text().then(function(text) {
-            console.log('📡 [14] Raw response text:', text);
-            try {
-                return JSON.parse(text);
-            } catch(e) {
-                console.log('❌ [15] JSON parse error:', e, 'text was:', text);
-                return {success:false, message:'Błąd parsowania JSON: ' + e.message}; 
-            }
-        });
-    })
-    .then(function(j) {
-        console.log('✅ [16] Parsed response data:', j);
-        if(j && j.success){
-            console.log('✅ [17] Delete SUCCESS!');
-            alert(j.message || 'Zlecenie usunięte');
-            location.reload();
-        } else {
-            console.log('❌ [18] API error:', j && j.message);
-            alert((j && j.message) || 'Błąd usunięcia');
+                            wpisyContainer.insertAdjacentHTML('beforeend', html);
+                        });
+                    } else {
+                        wpisyContainer.insertAdjacentHTML('beforeend', '<div class="text-muted text-center p-10">' + msgs.noNotes + '</div>');
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to update wpisy:', err);
+                    wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">' + msgs.errorLoading + '</div>';
+                });
         }
-    })
-    .catch(function(err){ 
-        console.log('❌ [19] Fetch error:', err, 'stack:', err.stack);
-        alert('Błąd sieci: ' + err.message); 
+
+        dayNavButtons.forEach(btn => {
+            btn.addEventListener('click', function () {
+                const offset = parseInt(this.getAttribute('data-day-offset'), 10);
+                const currentDate = new Date(dateISO.value);
+                currentDate.setDate(currentDate.getDate() + offset);
+
+                const newDateStr = currentDate.toISOString().split('T')[0];
+                const newDateDisplay = currentDate.toLocaleDateString('pl-PL');
+
+                if (dateISO) dateISO.value = newDateStr;
+                if (dateDisplay) dateDisplay.textContent = newDateDisplay;
+
+                updateWpisyForDate(newDateStr);
+            });
+        });
+    })();
+
+    // Event listener dla DELETE buttons - rejestruj NATYCHMIAST
+    console.log('⚡ [1] Rejestrowanie DELETE button listeners...');
+    var deleteButtonCount = document.querySelectorAll('.delete-plan-btn').length;
+    console.log('⚡ [2] Znaleziono buttonów:', deleteButtonCount);
+
+    // Event delegation - Listen on document for clicks na delete buttons
+    document.addEventListener('click', function (e) {
+        console.log('⚡ [3] CLICK EVENT FIRED - target:', e.target, 'classList:', e.target.className);
+        var closestBtn = e.target.closest('.delete-plan-btn');
+        console.log('⚡ [4] closest(.delete-plan-btn) result:', closestBtn);
+
+        if (closestBtn) {
+            e.preventDefault();
+            const btn = closestBtn;
+            const id = btn.getAttribute('data-plan-id');
+            const date = btn.getAttribute('data-plan-date');
+            const name = btn.getAttribute('data-plan-name');
+            console.log('🗑️ [5] DELETE BUTTON CLICKED - ID:', id, 'DATE:', date, 'NAME:', name);
+            deletePlan(id, date);
+        }
     });
-}
 
-// Event listener dla tonaz edit buttons na dashboard
-document.addEventListener('click', function(e) {
-    var closestBtn = e.target.closest('[data-action="dashboard-tonaz-edit"]');
-    if (closestBtn) {
-        e.preventDefault();
-        const planId = closestBtn.getAttribute('data-plan-id');
-        if (planId) dashboardTonazEdit(planId);
-    }
-});
+    console.log('✅ [6] DELETE button listeners registered! Total buttons:', deleteButtonCount);
 
-function dashboardTonazEdit(id){
-    // Pobierz wiersz planu
-    var tr = document.querySelector('tr[data-plan-id="'+id+'"]');
-    if(!tr) return;
-    
-    // Pobierz wartość tonażu z trzeciej kolumny (index 2)
-    var tonaz = tr.children[2].innerText.replace(/[^0-9\.\,]/g,'')||0;
-    
-    // Użyj prompt() do pobrania nowej wartości
-    var newTonaz = prompt('Wpisz nowy tonaż (kg):', tonaz);
-    if (newTonaz === null) return; // User clicked cancel
-    
-    try {
-        newTonaz = parseFloat(newTonaz.replace(',', '.'));
-        if (isNaN(newTonaz) || newTonaz < 0) {
-            alert('Nieprawidłowa wartość');
+    // Delete plan function - dostępna w global scope
+    function deletePlan(id, data) {
+        console.log('🗑️ [7] deletePlan() CALLED - id:', id, 'data:', data);
+
+        if (!confirm('Na pewno usunąć zlecenie?')) {
+            console.log('❌ [8] User cancelled delete');
             return;
         }
-    } catch(e) {
-        alert('Błąd: ' + e.message);
-        return;
+
+        console.log('✅ [9] User confirmed, preparing fetch...');
+        const url = '/api/usun_plan_ajax/' + id;
+        console.log('📡 [10] Fetch URL:', url);
+        console.log('📦 [11] Fetch body:', JSON.stringify({ data_planu: data }));
+
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data_planu: data })
+        })
+            .then(function (r) {
+                console.log('📡 [12] Response status:', r.status, 'statusText:', r.statusText);
+                console.log('📡 [13] Response headers OK - Content-Type:', r.headers.get('content-type'));
+                return r.text().then(function (text) {
+                    console.log('📡 [14] Raw response text:', text);
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.log('❌ [15] JSON parse error:', e, 'text was:', text);
+                        return { success: false, message: 'Błąd parsowania JSON: ' + e.message };
+                    }
+                });
+            })
+            .then(function (j) {
+                console.log('✅ [16] Parsed response data:', j);
+                if (j && j.success) {
+                    console.log('✅ [17] Delete SUCCESS!');
+                    alert(j.message || 'Zlecenie usunięte');
+                    location.reload();
+                } else {
+                    console.log('❌ [18] API error:', j && j.message);
+                    alert((j && j.message) || 'Błąd usunięcia');
+                }
+            })
+            .catch(function (err) {
+                console.log('❌ [19] Fetch error:', err, 'stack:', err.stack);
+                alert('Błąd sieci: ' + err.message);
+            });
     }
-    
-    // Wyślij aktualizację
-    fetch('/api/edytuj_plan_ajax', {
-        method: 'POST', 
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({id: id, tonaz: newTonaz})
-    }).then(r=>r.json()).then(j=>{
-        if(j && j.success){
-            alert('Tonaż zaktualizowany');
-            location.reload();
-        } else {
-            alert((j && j.message) || 'Błąd');
+
+    // Event listener dla tonaz edit buttons na dashboard
+    document.addEventListener('click', function (e) {
+        var closestBtn = e.target.closest('[data-action="dashboard-tonaz-edit"]');
+        if (closestBtn) {
+            e.preventDefault();
+            const planId = closestBtn.getAttribute('data-plan-id');
+            if (planId) dashboardTonazEdit(planId);
         }
-    }).catch(()=>alert('Błąd sieci'));
-}
+    });
+
+    function dashboardTonazEdit(id) {
+        // Pobierz wiersz planu
+        var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
+        if (!tr) return;
+
+        // Pobierz wartość tonażu z trzeciej kolumny (index 2)
+        var tonaz = tr.children[2].innerText.replace(/[^0-9\.\,]/g, '') || 0;
+
+        // Użyj prompt() do pobrania nowej wartości
+        var newTonaz = prompt('Wpisz nowy tonaż (kg):', tonaz);
+        if (newTonaz === null) return; // User clicked cancel
+
+        try {
+            newTonaz = parseFloat(newTonaz.replace(',', '.'));
+            if (isNaN(newTonaz) || newTonaz < 0) {
+                alert('Nieprawidłowa wartość');
+                return;
+            }
+        } catch (e) {
+            alert('Błąd: ' + e.message);
+            return;
+        }
+
+        // Wyślij aktualizację
+        fetch('/api/edytuj_plan_ajax', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, tonaz: newTonaz })
+        }).then(r => r.json()).then(j => {
+            if (j && j.success) {
+                alert('Tonaż zaktualizowany');
+                location.reload();
+            } else {
+                alert((j && j.message) || 'Błąd');
+            }
+        }).catch(() => alert('Błąd sieci'));
+    }
 </script>

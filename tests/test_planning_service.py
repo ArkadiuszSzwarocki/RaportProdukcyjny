@@ -150,6 +150,47 @@ class TestDeletePlan:
             assert success is False
             assert 'zakonczone' in message.lower() or 'completed' in message.lower()
 
+    @patch('app.services.planning_service.get_db_connection')
+    def test_delete_zasyp_cascades_workowanie(self, mock_get_conn, app):
+        """Test: usunięcie Zasyp kaskadowo kasuje powiązane Workowanie (zasyp_id)."""
+        with app.app_context():
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_get_conn.return_value = mock_conn
+            mock_conn.cursor.return_value = mock_cursor
+
+            # Zwraca (status, produkt, sekcja) = zaplanowane Zasyp
+            mock_cursor.fetchone.return_value = ('zaplanowane', 'POLMLEK 100 %', 'Zasyp')
+            mock_cursor.rowcount = 1  # jeden rekord Workowanie do usunięcia
+
+            success, message = PlanningService.delete_plan(1215)
+
+            assert success is True
+            # Sprawdź, że wywołano kaskadowy DELETE dla Workowanie
+            execute_calls = [str(c) for c in mock_cursor.execute.call_args_list]
+            cascade_call = any("zasyp_id" in c for c in execute_calls)
+            assert cascade_call, "Oczekiwano DELETE ... WHERE zasyp_id=%s dla kasowania powiązanego Workowanie"
+            mock_conn.commit.assert_called_once()
+
+    @patch('app.services.planning_service.get_db_connection')
+    def test_delete_non_zasyp_no_cascade(self, mock_get_conn, app):
+        """Test: usunięcie sekcji innej niż Zasyp NIE wykonuje kaskady Workowanie."""
+        with app.app_context():
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_get_conn.return_value = mock_conn
+            mock_conn.cursor.return_value = mock_cursor
+
+            # Workowanie plan — nie powinno kaskadować
+            mock_cursor.fetchone.return_value = ('zaplanowane', 'POLMLEK 100 %', 'Workowanie')
+
+            success, message = PlanningService.delete_plan(1216)
+
+            assert success is True
+            execute_calls = [str(c) for c in mock_cursor.execute.call_args_list]
+            cascade_call = any("zasyp_id" in c for c in execute_calls)
+            assert not cascade_call, "Nie powinno być kaskadowego DELETE dla sekcji innej niż Zasyp"
+
 
 @pytest.mark.usefixtures("app")
 class TestRestorePlan:

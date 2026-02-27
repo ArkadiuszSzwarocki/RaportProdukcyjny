@@ -3,52 +3,228 @@
 {% block content %}
 <div class="section-box">
   <style>
-    .perm-actions { margin-top:12px; }
-    .perm-status { margin-left:12px; color:green; display:none; }
-    .section-actions { margin-top:12px; }
-    .alert-info-roles { margin-bottom:20px; background:#e3f2fd; border-left:4px solid #2196f3; padding:12px; color:#1565c0; }
-    .alert-info-roles-container { display:flex; gap:10px; margin-top:10px; align-items:center; }
-    .input-sm-custom { min-width:250px; }
-    .btn-add-role { padding:8px 16px; }
-    .add-role-status { color:green; display:none; }
-    .alert-add-role { margin-bottom:20px; background:#e3f2fd; border-left:4px solid #2196f3; padding:12px; color:#1565c0; }
-    .alert-add-role-container { display:flex; gap:10px; margin-top:10px; align-items:center; }
-    .alert-add-newrole { margin-bottom: 20px; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; color: #1565c0; }
-    .alert-add-newrole-container { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .input-add-newrole { min-width: 250px; }
-    .btn-add-newrole { padding: 8px 16px; }
-    .alert-add-roles { margin-bottom: 20px; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; color: #1565c0; }
-    .alert-add-roles-container { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .input-role-name { min-width: 250px; }
-    .add-role-btn { padding: 8px 16px; }
-    .alert-add-newrole-main { margin-bottom: 20px; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; color: #1565c0; }
-    .alert-add-newrole-container-main { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .input-sm-newrole { min-width: 250px; }
-    .btn-add-newrole-primary { padding: 8px 16px; }
-    .alert-info-inline { margin-bottom: 20px; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; color: #1565c0; }
-    .alert-info-container { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .input-sm { min-width: 250px; }
-    .section-header { display: flex; justify-content: space-between; align-items: center; }
-    .alert-info { margin-bottom: 20px; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; color: #1565c0; }
-    .alert-info-container-inline { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .add-role-container { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .add-role-input { min-width: 250px; }
-    .add-role-btn-primary { padding: 8px 16px; }
-    .alert-info-block { margin-bottom: 20px; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; color: #1565c0; }
-    .alert-info-block-container { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .add-role-flex-container { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .add-role-flex-inline { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    #addRoleStatus { color: green; display: none; }
-    .alert-info-box { margin-bottom: 20px; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; color: #1565c0; }
-    .alert-info-box-container { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .add-role-flex-input { min-width: 250px; }
-    .add-role-btn-flex { padding: 8px 16px; }
-    .alert-new-role-form { margin-bottom: 20px; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; color: #1565c0; }
-    .alert-new-role-form-container { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .add-role-flex-container-inner { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
-    .btn-add-role-primary { padding: 8px 16px; }
-    #addRoleStatus-inline { color: green; display: none; }
-    .implied-access { color: #666; font-size: 0.9em; margin-top:6px; }
+    /* Karta Premium dla Panelu Głównego */
+    .premium-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    /* Nagłówek sekcji w karcie */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #f0f0f0;
+      padding-bottom: 16px;
+    }
+
+    .section-header h2 {
+      margin: 0;
+      font-weight: 600;
+      color: #2c3e50;
+    }
+
+    /* Elegancki Alert Info dla Dodawania Ról */
+    .alert-add-role-modern {
+      background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%);
+      border-left: 4px solid #00acc1;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .new-role-input-group {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .input-sm-custom {
+      min-width: 250px;
+      border: 1px solid #b0bec5;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    .input-sm-custom:focus {
+      border-color: #00acc1;
+      box-shadow: 0 0 0 3px rgba(0, 172, 193, 0.1);
+      outline: none;
+    }
+
+    /* Tabela Sticky Header & Hover z nowymi Switchami */
+    .table-container {
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+      border: 1px solid #eaeaea;
+    }
+
+    .modern-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+    }
+
+    .modern-table th {
+      background: #f8f9fa;
+      color: #34495e;
+      padding: 16px 12px;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 2px solid #e0e0e0;
+      box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .modern-table td {
+      padding: 14px 12px;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: middle;
+    }
+
+    /* Delikatne podświetlenie wierszy */
+    .modern-table tbody tr:hover td {
+      background-color: #f7f9fc;
+    }
+
+    .modern-table tbody tr td:first-child {
+      text-align: left;
+      font-weight: 500;
+      color: #2c3e50;
+      background: #fafafa;
+    }
+
+    .modern-table tbody tr:hover td:first-child {
+      background-color: #f0f4f8;
+    }
+
+    /* Kontener dla zawartości komórki (2 swobodnie opadające linie Switchy) */
+    .perm-cell-content {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .switch-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.85em;
+      color: #555;
+    }
+
+    /* Toggle Switch - Modern iOS Style */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    input:checked+.slider {
+      background-color: #2ecc71;
+      /* Zielony Tło (Dostęp) */
+    }
+
+    /* Zmiana Koloru na Niebieski dla Tylko Odczyt */
+    input.perm-readonly:checked+.slider {
+      background-color: #3498db;
+    }
+
+    input:focus+.slider {
+      box-shadow: 0 0 1px #2ecc71;
+    }
+
+    input:checked+.slider:before {
+      transform: translateX(20px);
+    }
+
+    .slider.round {
+      border-radius: 34px;
+    }
+
+    .slider.round:before {
+      border-radius: 50%;
+    }
+
+    /* Komunikat na szaro o wymuszonym dostępie */
+    .implied-access {
+      color: #888;
+      font-size: 0.8em;
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    /* Dolny panel zapisu */
+    .section-actions {
+      margin-top: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-top: 1px solid #f0f0f0;
+      padding-top: 20px;
+    }
+
+    .perm-status {
+      font-weight: 500;
+      color: #27ae60;
+      display: none;
+      background: #eafaf1;
+      padding: 8px 16px;
+      border-radius: 20px;
+    }
+
+    #addRoleStatus {
+      font-weight: 500;
+      color: #00897b;
+      display: none;
+      background: #e0f2f1;
+      padding: 8px 16px;
+      border-radius: 20px;
+    }
   </style>
   <div class="section-header">
     <h2>{{ _('ustawienia_role') }}</h2>
@@ -57,16 +233,19 @@
 
   <p>Tu możesz zarządzać dostępem ról do stron aplikacji oraz ustawić, czy dostęp ma być tylko do odczytu.</p>
 
-  <div class="alert alert-info" style="margin-bottom: 20px; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; color: #1565c0;">
-    <strong>➕ Dodaj nową rolę:</strong>
-    <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center;">
-      <input type="text" id="newRoleName" placeholder="Nazwa nowej roli (np. kierownik, specjalista)" class="input-sm" style="min-width: 250px;">
-      <button type="button" id="btnAddRole" class="btn btn-primary" style="padding: 8px 16px;">+ Dodaj rolę</button>
-      <span id="addRoleStatus" style="color: green; display: none;"></span>
+  <div class="premium-card">
+    <div class="alert-add-role-modern">
+      <strong>➕ Dodaj nową rolę:</strong>
+      <div class="new-role-input-group">
+        <input type="text" id="newRoleName" placeholder="Nazwa nowej roli (np. kierownik, specjalista)"
+          class="input-sm-custom">
+        <button type="button" id="btnAddRole" class="btn btn-primary">+ Dodaj rolę</button>
+        <span id="addRoleStatus"></span>
+      </div>
     </div>
   </div>
 
-  <div class="table-responsive">
+  <div class="premium-card table-container">
     <table class="modern-table">
       <thead>
         <tr>
@@ -80,8 +259,22 @@
           <td><strong>{{ p }}</strong></td>
           {% for r in roles %}
           <td>
-            <label><input type="checkbox" class="perm-access" data-role="{{ r[0] }}"> Dostęp</label><br>
-            <label><input type="checkbox" class="perm-readonly" data-role="{{ r[0] }}"> Tylko odczyt</label>
+            <div class="perm-cell-content">
+              <label class="switch-row">
+                <div class="switch">
+                  <input type="checkbox" class="perm-access" data-role="{{ r[0] }}">
+                  <span class="slider round"></span>
+                </div>
+                Dostęp
+              </label>
+              <label class="switch-row">
+                <div class="switch">
+                  <input type="checkbox" class="perm-readonly" data-role="{{ r[0] }}">
+                  <span class="slider round"></span>
+                </div>
+                Tylko odczyt
+              </label>
+            </div>
           </td>
           {% endfor %}
         </tr>
@@ -95,195 +288,150 @@
     <span id="permStatus" class="perm-status">{{ _('zapisano_punkt') }}</span>
   </div>
 
-  <script id="perms-data" type="application/json">{{ perms_json|tojson }}</script>
+  <script id="perms-data" type="application/json">{{ perms_json|tojson|safe }}</script>
   <script>
-  (function(){
-    // Obsługa dodawania nowej roli
-    const _btnAddRole = document.getElementById('btnAddRole');
-    if (_btnAddRole) _btnAddRole.addEventListener('click', async function(){
-      const roleName = document.getElementById('newRoleName').value.trim().toLowerCase();
-      if(!roleName){
-        alert('Proszę wpisać nazwę roli');
-        return;
-      }
-      
-      try{
-        const resp = await fetch('/admin/ustawienia/roles/add', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({role_name: roleName})
-        });
-        
-        const result = await resp.json();
-        if(result.success){
-          const _addRoleStatusEl = document.getElementById('addRoleStatus');
-          if (_addRoleStatusEl) { _addRoleStatusEl.textContent = '✓ Rola dodana!'; _addRoleStatusEl.style.display = 'inline'; }
-          const _newRoleNameEl = document.getElementById('newRoleName'); if(_newRoleNameEl) _newRoleNameEl.value = '';
-          setTimeout(() => location.reload(), 1000);
-        } else {
-          alert('Błąd: ' + (result.error || 'Nie udało się dodać roli'));
+    (function () {
+      // Obsługa dodawania nowej roli
+      const _btnAddRole = document.getElementById('btnAddRole');
+      if (_btnAddRole) _btnAddRole.addEventListener('click', async function () {
+        const roleName = document.getElementById('newRoleName').value.trim().toLowerCase();
+        if (!roleName) {
+          alert('Proszę wpisać nazwę roli');
+          return;
         }
-      } catch(e){
-        alert('Błąd sieci: ' + e);
-      }
-    });
-    
-    let current = {};
-    try{
-      const _permsDataEl = document.getElementById('perms-data');
-      const raw = _permsDataEl && _permsDataEl.textContent;
-      console.log('Raw perms-data (first 300 chars):', (raw||'').slice(0, 300));
-      current = raw ? JSON.parse(raw) : {};
-      console.log('Parsed perms:', Object.keys(current).length, 'pages');
-    }catch(e){
-      console.error('Failed to parse perms_json:', e);
-      current = {};
-    }
-    
-    // Renderuj checkboxy na podstawie config
-    const rows = document.querySelectorAll('#permBody tr');
-    rows.forEach(function(tr){
-      const page = tr.getAttribute('data-page');
-      const pagePerms = current[page] || {};
 
-      // Dla każdego checkboxa access/readonly — sprawdź czy rola+strona istnieje w config
-      tr.querySelectorAll('input.perm-access').forEach(function(accessCh){
-        const role = accessCh.getAttribute('data-role');
-        const rolePerms = pagePerms[role];
-
-        // Ustaw state checkboxa
-        accessCh.checked = rolePerms && rolePerms.access ? true : false;
-
-        // Znajdź readonly checkbox dla tej samej roli w tym wierszu
-        const readonlyCh = tr.querySelector('input.perm-readonly[data-role="' + role + '"]');
-        if (readonlyCh) {
-          readonlyCh.checked = rolePerms && rolePerms.readonly ? true : false;
-
-          const accessLabel = accessCh.parentElement;
-          const readonlyLabel = readonlyCh.parentElement;
-
-          function showImplied(){
-            if(accessLabel) accessLabel.style.display = 'none';
-            let ind = tr.querySelector('.implied-access[data-role="' + role + '"]');
-            if(!ind){
-              ind = document.createElement('div');
-              ind.className = 'implied-access';
-              ind.setAttribute('data-role', role);
-              ind.textContent = 'Dostęp (wynika z: Tylko odczyt)';
-              if(readonlyLabel) readonlyLabel.appendChild(ind);
-            }
-          }
-
-          function hideImplied(){
-            if(accessLabel) accessLabel.style.display = '';
-            const ind = tr.querySelector('.implied-access[data-role="' + role + '"]');
-            if(ind) ind.remove();
-          }
-
-          readonlyCh.addEventListener('change', function(){
-            if(this.checked) {
-              accessCh.checked = true;
-              showImplied();
-            } else {
-              hideImplied();
-            }
+        try {
+          const resp = await fetch('/admin/ustawienia/roles/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role_name: roleName })
           });
 
-          // Initial state handling
-          if(readonlyCh.checked) {
-            accessCh.checked = true;
-            showImplied();
+          const result = await resp.json();
+          if (result.success) {
+            const _addRoleStatusEl = document.getElementById('addRoleStatus');
+            if (_addRoleStatusEl) { _addRoleStatusEl.textContent = '✓ Rola dodana!'; _addRoleStatusEl.style.display = 'inline'; }
+            const _newRoleNameEl = document.getElementById('newRoleName'); if (_newRoleNameEl) _newRoleNameEl.value = '';
+            setTimeout(() => location.reload(), 1000);
+          } else {
+            alert('Błąd: ' + (result.error || 'Nie udało się dodać roli'));
           }
+        } catch (e) {
+          alert('Błąd sieci: ' + e);
         }
       });
-    });
-    });
 
-    const _btnSavePerms = document.getElementById('btnSavePerms');
-    if (_btnSavePerms) _btnSavePerms.addEventListener('click', async function(){
-      // Canonical page order (must match server-side list)
-      const pageOrder = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki'];
-      const payload = {};
-      
-      // Build payload in canonical page order
-      pageOrder.forEach(function(page){
-        const tr = document.querySelector('#permBody tr[data-page="' + page + '"]');
-        if(!tr) return; // page not found, skip
-        
-        const pageRoles = {};
-        
-        // Dla każdego wiersza — przejrzyj pary (access, readonly) checkbox dla tej samej roli
-        tr.querySelectorAll('input.perm-access').forEach(function(accessCh){
-          const role = accessCh.getAttribute('data-role');
-          const readonlyCh = tr.querySelector('input.perm-readonly[data-role="' + role + '"]');
-          
-          // Zapisz KAŻDĄ rolę (zaznaczoną lub nie)
-          const access = accessCh.checked;
-          const readonly = readonlyCh && readonlyCh.checked;
-          
-          // Jeśli readonly=true, automatycznie access=true (readonly bez dostępu to nonsens)
-          pageRoles[role] = { access: !!(access || readonly), readonly: !!readonly };
-        });
-        
-        // Dodaj KAŻDĄ stronę do payload (nawet jeśli żadna rola nie ma dostępu)
-        payload[page] = pageRoles;
-      });
-
-      console.log('Wysyłam payload (ordered):', JSON.stringify(payload).slice(0, 300));
-      console.log('Payload keys order:', Object.keys(payload));
-      
-      try{
-        const resp = await fetch('/admin/ustawienia/roles/save', { method: 'POST', headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'}, body: JSON.stringify(payload) });
-        if(resp.status === 200){
-          try{
-            const j = await resp.json();
-            const _permStatusEl = document.getElementById('permStatus'); if (_permStatusEl) _permStatusEl.textContent = 'Zapisano.' + (j && j.backup ? ' Kopia: ' + j.backup : '');
-          }catch(e){
-            const _permStatusEl2 = document.getElementById('permStatus'); if (_permStatusEl2) _permStatusEl2.textContent = 'Zapisano.';
-          }
-          const _permStatusEl3 = document.getElementById('permStatus'); if (_permStatusEl3) _permStatusEl3.style.display='inline';
-          setTimeout(function(){ location.reload(); }, 1200);
-        } else {
-          // try to extract JSON error
-          try{
-            const j = await resp.json();
-            alert('Błąd zapisu: ' + (j && j.error ? j.error : resp.status));
-          }catch(e){
-            alert('Błąd zapisu (status ' + resp.status + ')');
-          }
-        }
-      }catch(e){ alert('Błąd sieci: ' + e); }
-    });
-
-    // Handle adding new role
-    const _btnAddRole2 = document.getElementById('btnAddRole');
-    if (_btnAddRole2) _btnAddRole2.addEventListener('click', async function(){
-      const roleName = document.getElementById('newRoleName').value.trim();
-      if (!roleName) {
-        alert('Proszę wpisać nazwę roli!');
-        return;
-      }
-
+      let current = {};
       try {
-        const resp = await fetch('/admin/ustawienia/roles/add', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-          body: JSON.stringify({role_name: roleName})
+        const _permsDataEl = document.getElementById('perms-data');
+        const raw = _permsDataEl && _permsDataEl.textContent;
+        console.log('Raw perms-data (first 300 chars):', (raw || '').slice(0, 300));
+        current = raw ? JSON.parse(raw) : {};
+        console.log('Parsed perms:', Object.keys(current).length, 'pages');
+      } catch (e) {
+        console.error('Failed to parse perms_json:', e);
+        current = {};
+      }
+
+      // Renderuj checkboxy na podstawie config
+      const rows = document.querySelectorAll('#permBody tr');
+      rows.forEach(function (tr) {
+        const page = tr.getAttribute('data-page');
+        const pagePerms = current[page] || {};
+
+        tr.querySelectorAll('input.perm-access').forEach(function (accessCh) {
+          const role = accessCh.getAttribute('data-role');
+          const rolePerms = pagePerms[role];
+
+          accessCh.checked = rolePerms && rolePerms.access ? true : false;
+
+          const readonlyCh = tr.querySelector('input.perm-readonly[data-role="' + role + '"]');
+          if (readonlyCh) {
+            readonlyCh.checked = rolePerms && rolePerms.readonly ? true : false;
+          }
+        });
+      });
+
+      const _btnSavePerms = document.getElementById('btnSavePerms');
+      if (_btnSavePerms) _btnSavePerms.addEventListener('click', async function () {
+        const pageOrder = ['dashboard', 'ustawienia', 'jakosc', 'planista', 'plan', 'zasyp', 'workowanie', 'magazyn', 'bufor', 'moje_godziny', 'awarie', 'wyniki'];
+        const payload = {};
+
+        // Build payload in canonical page order
+        pageOrder.forEach(function (page) {
+          const tr = document.querySelector('#permBody tr[data-page="' + page + '"]');
+          if (!tr) return;
+
+          const pageRoles = {};
+
+          tr.querySelectorAll('input.perm-access').forEach(function (accessCh) {
+            const role = accessCh.getAttribute('data-role');
+            const readonlyCh = tr.querySelector('input.perm-readonly[data-role="' + role + '"]');
+
+            const readonly = readonlyCh && readonlyCh.checked;
+            const access = accessCh.checked; // REMOVED the '|| readonly' override
+
+            pageRoles[role] = { access: !!access, readonly: !!readonly };
+          });
+
+          payload[page] = pageRoles;
         });
 
-        const result = await resp.json();
-        if (resp.status === 200 && result.success) {
-          const _addRoleStatusEl2 = document.getElementById('addRoleStatus'); if (_addRoleStatusEl2) { _addRoleStatusEl2.textContent = '✓ ' + result.message; _addRoleStatusEl2.style.display = 'inline'; }
-          const _newRoleNameEl2 = document.getElementById('newRoleName'); if(_newRoleNameEl2) _newRoleNameEl2.value = '';
-          setTimeout(function() { location.reload(); }, 1500);
-        } else {
-          alert('Błąd: ' + (result.error || 'Nie udało się dodać roli'));
+        console.log('Wysyłam payload (ordered):', JSON.stringify(payload).slice(0, 300));
+        console.log('Payload keys order:', Object.keys(payload));
+
+        // Debug: show laborant permissions being sent
+        const labDebug = Object.keys(payload).map(p => p + ':' + (payload[p].laborant ? payload[p].laborant.access : 'BRAK')).join(', ');
+        console.log('Laborant payload:', labDebug);
+
+        try {
+          const resp = await fetch('/admin/ustawienia/roles/save', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(payload) });
+          const respText = await resp.text();
+          console.log('Save response:', resp.status, respText.slice(0, 200));
+          if (resp.status === 200) {
+            try {
+              const j = JSON.parse(respText);
+              const _permStatusEl = document.getElementById('permStatus'); if (_permStatusEl) _permStatusEl.textContent = 'Zapisano.' + (j && j.backup ? ' Kopia: ' + j.backup : '');
+            } catch (e) {
+              const _permStatusEl2 = document.getElementById('permStatus'); if (_permStatusEl2) _permStatusEl2.textContent = 'Zapisano.';
+            }
+            const _permStatusEl3 = document.getElementById('permStatus'); if (_permStatusEl3) _permStatusEl3.style.display = 'inline';
+            setTimeout(function () { location.reload(); }, 1200);
+          } else {
+            alert('BŁĄD ZAPISU (status ' + resp.status + '):\\n' + respText.slice(0, 500));
+          }
+        } catch (e) { alert('Błąd sieci: ' + e); }
+      });
+
+      // Handle adding new role
+      const _btnAddRole2 = document.getElementById('btnAddRole');
+      if (_btnAddRole2) _btnAddRole2.addEventListener('click', async function () {
+        const roleName = document.getElementById('newRoleName').value.trim();
+        if (!roleName) {
+          alert('Proszę wpisać nazwę roli!');
+          return;
         }
-      } catch(e) {
-        alert('Błąd sieci: ' + e.message);
-      }
-    });
-  })();
+
+        try {
+          const resp = await fetch('/admin/ustawienia/roles/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ role_name: roleName })
+          });
+
+          const result = await resp.json();
+          if (resp.status === 200 && result.success) {
+            const _addRoleStatusEl2 = document.getElementById('addRoleStatus'); if (_addRoleStatusEl2) { _addRoleStatusEl2.textContent = '✓ ' + result.message; _addRoleStatusEl2.style.display = 'inline'; }
+            const _newRoleNameEl2 = document.getElementById('newRoleName'); if (_newRoleNameEl2) _newRoleNameEl2.value = '';
+            setTimeout(function () { location.reload(); }, 1500);
+          } else {
+            alert('Błąd: ' + (result.error || 'Nie udało się dodać roli'));
+          }
+        } catch (e) {
+          alert('Błąd sieci: ' + e.message);
+        }
+      });
+    })();
   </script>
 
 </div>

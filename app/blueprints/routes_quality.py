@@ -5,14 +5,14 @@ from datetime import date, datetime
 import os
 from werkzeug.utils import secure_filename
 
-from app.decorators import roles_required, login_required
+from app.decorators import roles_required, login_required, dynamic_role_required
 from app.db import get_db_connection
 
 quality_bp = Blueprint('quality', __name__)
 
 
 @quality_bp.route('/jakosc')
-@roles_required('laboratorium', 'lider', 'zarzad', 'admin', 'planista')
+@dynamic_role_required('jakosc')
 def jakosc_index():
     """Lista zleceń jakościowych (typ_zlecenia = 'jakosc')."""
     try:
@@ -43,7 +43,7 @@ def jakosc_index():
 
 
 @quality_bp.route('/jakosc/dodaj', methods=['POST'])
-@roles_required('laboratorium', 'lider', 'zarzad', 'admin')
+@roles_required('laborant', 'lider', 'zarzad', 'admin')
 def jakosc_dodaj():
     """Utwórz nowe zlecenie jakościowe (sekcja 'Jakosc', typ_zlecenia='jakosc')."""
     try:
@@ -78,7 +78,7 @@ def jakosc_dodaj():
 
 
 @quality_bp.route('/jakosc/<int:plan_id>', methods=['GET', 'POST'])
-@roles_required('laboratorium', 'lider', 'zarzad', 'admin', 'planista')
+@dynamic_role_required('jakosc')
 def jakosc_detail(plan_id):
     """Szczegóły zlecenia jakościowego i upload dokumentów."""
     docs_dir = os.path.join('raporty', 'jakosc_docs', str(plan_id))
@@ -91,7 +91,7 @@ def jakosc_detail(plan_id):
 
         if request.method == 'POST':
             # Tylko role laboratorum/lider/zarzad/admin mogą przesyłać pliki.
-            if session.get('rola') not in ['laboratorium', 'lider', 'zarzad', 'admin']:
+            if session.get('rola') not in ['laborant', 'lider', 'zarzad', 'admin']:
                 flash('Brak uprawnień do przesyłania plików', 'danger')
                 return redirect(url_for('quality.jakosc_detail', plan_id=plan_id))
             f = request.files.get('file')
@@ -116,7 +116,7 @@ def jakosc_detail(plan_id):
 
 
 @quality_bp.route('/jakosc/download/<int:plan_id>/<path:filename>')
-@roles_required('laboratorium', 'lider', 'zarzad', 'admin', 'planista')
+@dynamic_role_required('jakosc')
 def jakosc_download(plan_id, filename):
     """Download quality document."""
     docs_dir = os.path.join('raporty', 'jakosc_docs', str(plan_id))
@@ -127,7 +127,7 @@ def jakosc_download(plan_id, filename):
 
 
 @quality_bp.route('/dur/awarie')
-@roles_required('admin', 'planista', 'pracownik', 'magazynier', 'dur', 'zarzad', 'laboratorium')
+@dynamic_role_required('awarie')
 def dur_awarie():
     """DUR - przegląd i zatwierdzanie awarii"""
     try:

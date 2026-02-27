@@ -1,0 +1,162 @@
+{
+    "workowania_dzisiaj": [
+        {
+            "id": 1210,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "extra milk 2",
+            "tonaz": 4578.0,
+            "tonaz_rzeczywisty": 4560.0,
+            "status": "zakonczone",
+            "real_start": "2026-02-27T08:39:54",
+            "real_stop": "2026-02-27T09:12:16",
+            "kolejnosc": 1,
+            "zasyp_id": 1209,
+            "typ_produkcji": "worki_zszywane_20"
+        },
+        {
+            "id": 1212,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "BAMBINO TURBO START",
+            "tonaz": 2000.0,
+            "tonaz_rzeczywisty": 2000.0,
+            "status": "zakonczone",
+            "real_start": "2026-02-27T09:13:41",
+            "real_stop": "2026-02-27T09:53:49",
+            "kolejnosc": 2,
+            "zasyp_id": 1211,
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1214,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "POLMLEK POMARAŃCZOWY",
+            "tonaz": 5194.0,
+            "tonaz_rzeczywisty": 6000.0,
+            "status": "zakonczone",
+            "real_start": "2026-02-27T12:37:16",
+            "real_stop": "2026-02-27T12:45:16",
+            "kolejnosc": 3,
+            "zasyp_id": 1213,
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1216,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "POLMLEK 100 %",
+            "tonaz": 0.0,
+            "tonaz_rzeczywisty": 2000.0,
+            "status": "zakonczone",
+            "real_start": "2026-02-27T09:57:44",
+            "real_stop": "2026-02-27T10:46:35",
+            "kolejnosc": 4,
+            "zasyp_id": 1215,
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1218,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "POLMLEK SZARY",
+            "tonaz": 2054.0,
+            "tonaz_rzeczywisty": 3060.0,
+            "status": "zakonczone",
+            "real_start": "2026-02-27T14:14:49",
+            "real_stop": "2026-02-27T14:20:38",
+            "kolejnosc": 5,
+            "zasyp_id": 1217,
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1220,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "AGROS 3 LEN",
+            "tonaz": 0.0,
+            "tonaz_rzeczywisty": 0.0,
+            "status": "zaplanowane",
+            "real_start": null,
+            "real_stop": null,
+            "kolejnosc": 6,
+            "zasyp_id": 1219,
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1224,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "POLMLEK 100 %",
+            "tonaz": 2000.0,
+            "tonaz_rzeczywisty": 0.0,
+            "status": "zakonczone",
+            "real_start": "2026-02-27T10:47:03",
+            "real_stop": "2026-02-27T10:47:28",
+            "kolejnosc": 7,
+            "zasyp_id": 1223,
+            "typ_produkcji": "worki_zgrzewane_25"
+        }
+    ],
+    "polmlek_100_wszystkie": [
+        {
+            "id": 1216,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "POLMLEK 100 %",
+            "tonaz": 0.0,
+            "tonaz_rzeczywisty": 2000.0,
+            "status": "zakonczone",
+            "real_start": "2026-02-27T09:57:44",
+            "real_stop": "2026-02-27T10:46:35",
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1223,
+            "data_planu": "2026-02-27",
+            "sekcja": "Zasyp",
+            "produkt": "POLMLEK 100 %",
+            "tonaz": 2000.0,
+            "tonaz_rzeczywisty": 2000.0,
+            "status": "zakonczone",
+            "real_start": "2026-02-27T09:12:04",
+            "real_stop": "2026-02-27T09:55:01",
+            "typ_produkcji": "worki_zgrzewane_25"
+        },
+        {
+            "id": 1224,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "POLMLEK 100 %",
+            "tonaz": 2000.0,
+            "tonaz_rzeczywisty": 0.0,
+            "status": "zakonczone",
+            "real_start": "2026-02-27T10:47:03",
+            "real_stop": "2026-02-27T10:47:28",
+            "typ_produkcji": "worki_zgrzewane_25"
+        }
+    ],
+    "szarze_polmlek": [
+        {
+            "id": 441,
+            "plan_id": 1223,
+            "waga": 1000.0,
+            "data_dodania": "2026-02-27T09:30:55",
+            "godzina": "9:30:55",
+            "status": "zarejestowana",
+            "produkt": "POLMLEK 100 %",
+            "sekcja": "Zasyp"
+        },
+        {
+            "id": 442,
+            "plan_id": 1223,
+            "waga": 1000.0,
+            "data_dodania": "2026-02-27T09:54:51",
+            "godzina": "9:54:51",
+            "status": "zarejestowana",
+            "produkt": "POLMLEK 100 %",
+            "sekcja": "Zasyp"
+        }
+    ]
+}

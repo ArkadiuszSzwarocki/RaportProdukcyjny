@@ -808,9 +808,11 @@ button[type="submit"]:hover {
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.18s ease, visibility 0s linear 0.18s;
-    z-index: 12000;
+    z-index: 20001;
+    pointer-events: none;
+    will-change: opacity;
 }
-.quick-backdrop.show { opacity: 1; visibility: visible; transition-delay: 0s; }
+.quick-backdrop.show { opacity: 1; visibility: visible; transition-delay: 0s; display: block; pointer-events: auto; }
 
 .quick-popup {
     position: fixed;
@@ -823,12 +825,13 @@ button[type="submit"]:hover {
     color: var(--text-main);
     border-radius: 10px;
     box-shadow: 0 18px 50px rgba(0,0,0,0.28);
-    z-index: 12001;
+    z-index: 20002;
     opacity: 0;
     transition: transform 0.22s cubic-bezier(.2,.8,.2,1), opacity 0.16s ease;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    will-change: transform, opacity;
 }
 .quick-popup.open { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 
@@ -866,6 +869,8 @@ button[type="submit"]:hover {
     .quick-popup { top: 6%; width: calc(100% - 24px); border-radius: 8px; }
     .quick-popup .qp-body { padding: 12px; }
 }
+
+/* overlays stacking defined above; duplicates removed */
 
 /* Slight tweak so forms inside quick-popup use primary button styling */
 .quick-popup .btn-action { background: var(--accent-color); color: #fff; }
@@ -976,6 +981,7 @@ button[type="submit"]:hover {
 .gap-15 { gap:15px; }
 .text-muted { color: var(--text-muted); }
 .text-danger-color { color: var(--danger-color); }
+.text-danger { color: var(--danger-color); }
 .text-primary { color: var(--accent-color); }
 .text-capitalize { text-transform: capitalize; }
 .small { font-size:0.85em; }

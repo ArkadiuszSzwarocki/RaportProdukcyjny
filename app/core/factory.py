@@ -66,6 +66,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.config['SESSION_COOKIE_HTTPONLY'] = True  # Don't allow JS access
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cross-site requests
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+    app.config['SESSION_PERMANENT'] = True  # Make sessions survive app restarts
     
     # Set up logging and error handlers BEFORE any routes or blueprints
     setup_logging(app)

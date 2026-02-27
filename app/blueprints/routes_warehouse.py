@@ -1,7 +1,7 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
 from datetime import date, datetime
 from app.db import get_db_connection
-from app.decorators import login_required, roles_required
+from app.decorators import login_required, roles_required, dynamic_role_required
 from app.utils.validation import require_field
 
 warehouse_bp = Blueprint('warehouse', __name__)
@@ -202,32 +202,62 @@ def potwierdz_palete(paleta_id):
         except Exception:
             tara = 25
 
+        # NOTE: Przy potwierdzeniu palety nie nadpisujemy oryginalnej wagi
+        # z Workowania — chcemy zachować rekord palety tak jak został dodany
+        # na Workowaniu. Jeśli operator podaje wagę brutto/netto przy
+        # przyjęciu do Magazynu, użyjemy tej wagi tylko do aktualizacji
+        # agregatów Magazynu, ale nie nadpiszemy `palety_workowanie.waga`.
+        provided_netto = None
+        provided_brutto = None
         try:
             if request.form.get('waga_palety'):
                 try:
-                    waga_input = int(float(require_field(request.form, 'waga_palety').replace(',', '.')))
+                    provided_netto = int(float(require_field(request.form, 'waga_palety').replace(',', '.')))
                 except Exception:
-                    waga_input = None
-                if waga_input is not None:
-                    cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (waga_input, paleta_id))
-                    conn.commit()
+                    provided_netto = None
             elif request.form.get('waga_brutto'):
                 try:
-                    brutto = int(float(require_field(request.form, 'waga_brutto').replace(',', '.')))
+                    provided_brutto = int(float(require_field(request.form, 'waga_brutto').replace(',', '.')))
                 except Exception:
-                    brutto = 0
-                netto = brutto - int(tara)
-                if netto < 0: netto = 0
-                cursor.execute("UPDATE palety_workowanie SET waga_brutto=%s, waga=%s WHERE id=%s", (brutto, netto, paleta_id))
-                conn.commit()
+                    provided_brutto = None
+                if provided_brutto is not None:
+                    n = provided_brutto - int(tara)
+                    provided_netto = n if n >= 0 else 0
         except Exception:
-            try: current_app.logger.exception('Failed to set weight for id=%s', paleta_id)
+            try: current_app.logger.exception('Failed to parse provided weight for id=%s', paleta_id)
             except Exception: pass
 
+        # Persist provided weights separately (don't overwrite Workowanie.waga)
         try:
-            from datetime import datetime as _dt
-            current_time = _dt.now().time()
-            cursor.execute("UPDATE palety_workowanie SET status='przyjeta', data_potwierdzenia=NOW(), czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()), czas_rzeczywistego_potwierdzenia=%s WHERE id=%s", (current_time, paleta_id))
+            if provided_netto is not None:
+                cursor.execute("UPDATE palety_workowanie SET waga_potwierdzona=%s WHERE id=%s", (provided_netto, paleta_id))
+            if provided_brutto is not None:
+                cursor.execute("UPDATE palety_workowanie SET waga_brutto=%s WHERE id=%s", (provided_brutto, paleta_id))
+            if provided_netto is not None or provided_brutto is not None:
+                conn.commit()
+        except Exception:
+            try: current_app.logger.exception('Failed to persist provided weights for paleta %s', paleta_id)
+            except Exception: pass
+
+        # Pobierz poprzedni status ZANIM go nadpiszemy
+        try:
+            cursor.execute("SELECT COALESCE(status,'') FROM palety_workowanie WHERE id=%s", (paleta_id,))
+            prev_row = cursor.fetchone()
+            prev_status = prev_row[0] if prev_row else ''
+        except Exception:
+            prev_status = ''
+
+        try:
+            # Compute elapsed seconds since creation and store both the elapsed
+            # interval (as TIME) and the derived confirmation datetime = data_dodania + elapsed.
+            cursor.execute(
+                "UPDATE palety_workowanie SET status='przyjeta', "
+                "data_potwierdzenia = DATE_ADD(data_dodania, INTERVAL TIMESTAMPDIFF(SECOND, data_dodania, NOW()) SECOND), "
+                "czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()), "
+                "czas_rzeczywistego_potwierdzenia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_dodania, NOW())) "
+                "WHERE id=%s",
+                (paleta_id,)
+            )
             conn.commit()
         except Exception:
             try:
@@ -240,10 +270,8 @@ def potwierdz_palete(paleta_id):
         try:
             cursor.execute("SELECT id, COALESCE(status,''), data_potwierdzenia, czas_potwierdzenia_s FROM palety_workowanie WHERE id=%s", (paleta_id,))
             res = cursor.fetchone()
-            prev_status = res[1] if res and len(res) > 1 else ''
             current_app.logger.info('potwierdz_palete result: %s', res)
         except Exception:
-            prev_status = ''
             try:
                 current_app.logger.exception('Failed to fetch result for id=%s', paleta_id)
             except Exception: pass
@@ -253,17 +281,31 @@ def potwierdz_palete(paleta_id):
             r = cursor.fetchone()
             if r:
                 plan_id = r[0]
-                netto_val = int(r[1] or 0)
-                # Do NOT reset Workowanie aggregates here — Workowanie records
-                # reflect produced pallets and should remain unchanged on confirmation.
-                # Only add weight to Magazyn on the first confirmation of this paleta.
+                stored_netto = int(r[1] or 0)
+                # Use provided_netto (from form) for Magazyn addition if present,
+                # otherwise use the stored paleta weight. Do NOT overwrite stored paleta waga here.
+                netto_val = provided_netto if provided_netto is not None else stored_netto
                 try:
                     cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
                     z = cursor.fetchone()
                     if z and prev_status != 'przyjeta':
+                        # Insert a separate magazyn record instead of incrementing Workowanie row.
+                        # Try to find an existing Magazyn plan id for this date+product
+                        cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (z[0], z[1]))
+                        mp = cursor.fetchone()
+                        mp_id = mp[0] if mp else None
+                        # Prevent duplicate magazyn entries for same paleta
+                        cursor.execute("SELECT id FROM magazyn_palety WHERE paleta_workowanie_id=%s", (paleta_id,))
+                        exists = cursor.fetchone()
+                        if not exists:
+                            cursor.execute(
+                                "INSERT INTO magazyn_palety (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                                (paleta_id, mp_id, z[0], z[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'))
+                            )
+                        # Recalculate Magazyn aggregates from magazyn_palety
                         cursor.execute(
-                            "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'",
-                            (netto_val, z[0], z[1])
+                            "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto),0) FROM magazyn_palety WHERE plan_id = plan_produkcji.id) WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'",
+                            (z[0], z[1])
                         )
                 except Exception:
                     try: conn.rollback()
@@ -391,7 +433,7 @@ def api_bufor():
 
 @warehouse_bp.route('/bufor', methods=['GET'])
 @login_required
-@roles_required('planista', 'zarzad', 'lider', 'admin', 'laboratorium')
+@dynamic_role_required('bufor')
 def bufor_page_html():
     """HTML page for buffer management with 'Create Order' buttons"""
     from datetime import date as _date
@@ -676,12 +718,33 @@ def wazenie_magazyn(paleta_id):
         tara, plan_id = res
         netto = brutto - int(tara)
         if netto < 0: netto = 0
-        cursor.execute("UPDATE palety_workowanie SET waga_brutto=%s, waga=%s WHERE id=%s", (brutto, netto, paleta_id))
-        cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
+        # Do not overwrite original Workowanie paleta weight here; store brutto
+        # for warehouse audit and add netto to Magazyn aggregates only.
+        try:
+            cursor.execute("UPDATE palety_workowanie SET waga_brutto=%s WHERE id=%s", (brutto, paleta_id))
+        except Exception:
+            try: current_app.logger.exception('Failed to store brutto for paleta %s', paleta_id)
+            except Exception: pass
         cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
         z = cursor.fetchone()
-        if z: 
-            cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = tonaz_rzeczywisty + %s WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'", (netto, z[0], z[1]))
+        if z:
+            # For magazyn, insert a separate magazyn_palety record (or update existing)
+            cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (z[0], z[1]))
+            mp = cursor.fetchone()
+            mp_id = mp[0] if mp else None
+            cursor.execute("SELECT id FROM magazyn_palety WHERE paleta_workowanie_id=%s", (paleta_id,))
+            exists = cursor.fetchone()
+            if not exists:
+                cursor.execute(
+                    "INSERT INTO magazyn_palety (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (paleta_id, mp_id, z[0], z[1], netto, brutto, tara, session.get('login'))
+                )
+            else:
+                cursor.execute("UPDATE magazyn_palety SET waga_netto=%s, waga_brutto=%s, tara=%s, data_potwierdzenia=NOW() WHERE paleta_workowanie_id=%s", (netto, brutto, tara, paleta_id))
+            cursor.execute(
+                "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto),0) FROM magazyn_palety WHERE plan_id = plan_produkcji.id) WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'",
+                (z[0], z[1])
+            )
     
     conn.commit()
     conn.close()
@@ -734,7 +797,7 @@ def usun_palete(id):
     return redirect(bezpieczny_powrot())
 
 
-@warehouse_bp.route('/edytuj_palete/<int:paleta_id>', methods=['POST'])
+@warehouse_bp.route('/edytuj_palete/\u003cint:paleta_id\u003e', methods=['POST'])
 @roles_required('lider', 'admin')
 def edytuj_palete(paleta_id):
     """Edit paleta weight (netto)"""
@@ -745,13 +808,23 @@ def edytuj_palete(paleta_id):
             waga = int(float(request.form.get('waga_palety', '0').replace(',', '.')))
         except Exception:
             waga = 0
-        
-        cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (waga, paleta_id))
-        cursor.execute("SELECT plan_id FROM palety_workowanie WHERE id=%s", (paleta_id,))
-        res = cursor.fetchone()
-        if res:
-            plan_id = res[0]
-            cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
+
+        # Sprawdź aktualny status palety
+        cursor.execute("SELECT COALESCE(status,'') FROM palety_workowanie WHERE id=%s", (paleta_id,))
+        s = cursor.fetchone()
+        status = s[0] if s else ''
+
+        if status == 'przyjeta':
+            # Jeśli paleta jest już przyjęta do magazynu, nie nadpisujemy oryginalnej `waga`.
+            # Zapisujemy korektę do `waga_potwierdzona`.
+            cursor.execute("UPDATE palety_workowanie SET waga_potwierdzona=%s WHERE id=%s", (waga, paleta_id))
+        else:
+            cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (waga, paleta_id))
+            cursor.execute("SELECT plan_id FROM palety_workowanie WHERE id=%s", (paleta_id,))
+            res = cursor.fetchone()
+            if res:
+                plan_id = res[0]
+                cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
         conn.commit()
     except Exception:
         current_app.logger.exception('Failed to edit paleta %s', paleta_id)
@@ -762,3 +835,70 @@ def edytuj_palete(paleta_id):
     return redirect(bezpieczny_powrot())
 
 
+@warehouse_bp.route('/api/edytuj_palete_ajax', methods=['POST'])
+@roles_required('lider', 'admin')
+def edytuj_palete_ajax():
+    """AJAX: Edytuj wagę palety w magazyn_palety (Rejestr Przyjęć)."""
+    data = request.get_json(force=True) or {}
+    paleta_id = data.get('id')
+    nowa_waga = data.get('waga')
+    try:
+        paleta_id = int(paleta_id)
+        nowa_waga = int(float(str(nowa_waga).replace(',', '.')))
+    except Exception:
+        return jsonify({'success': False, 'message': 'Nieprawidłowe dane'}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE magazyn_palety SET waga_netto=%s WHERE id=%s", (nowa_waga, paleta_id))
+        # Zaktualizuj agregat Magazyn
+        cursor.execute("""
+            UPDATE plan_produkcji pp
+            SET tonaz_rzeczywisty = (
+                SELECT COALESCE(SUM(mp.waga_netto), 0)
+                FROM magazyn_palety mp
+                WHERE mp.plan_id = pp.id
+            )
+            WHERE pp.id = (SELECT plan_id FROM magazyn_palety WHERE id = %s LIMIT 1)
+        """, (paleta_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Waga zaktualizowana'})
+    except Exception as e:
+        current_app.logger.exception('Failed to edit magazyn_paleta %s', paleta_id)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@warehouse_bp.route('/api/usun_palete_ajax', methods=['POST'])
+@roles_required('lider', 'admin')
+def usun_palete_ajax():
+    """AJAX: Usuń paletę z magazyn_palety (Rejestr Przyjęć)."""
+    data = request.get_json(force=True) or {}
+    paleta_id = data.get('id')
+    try:
+        paleta_id = int(paleta_id)
+    except Exception:
+        return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Pobierz plan_id przed usunięciem
+        cursor.execute("SELECT plan_id FROM magazyn_palety WHERE id=%s", (paleta_id,))
+        row = cursor.fetchone()
+        plan_id = row[0] if row else None
+
+        cursor.execute("DELETE FROM magazyn_palety WHERE id=%s", (paleta_id,))
+        # Zaktualizuj agregat Magazyn
+        if plan_id:
+            cursor.execute(
+                "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto), 0) FROM magazyn_palety WHERE plan_id = %s) WHERE id = %s",
+                (plan_id, plan_id)
+            )
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Paleta usunięta'})
+    except Exception as e:
+        current_app.logger.exception('Failed to delete magazyn_paleta %s', paleta_id)
+        return jsonify({'success': False, 'message': str(e)}), 500

@@ -1,0 +1,137 @@
+{
+    "plan_1215": null,
+    "history_1215_1216_1223_1224": [],
+    "columns": [
+        "id",
+        "data_planu",
+        "sekcja",
+        "produkt",
+        "tonaz",
+        "status",
+        "real_start",
+        "real_stop",
+        "tonaz_rzeczywisty",
+        "kolejnosc",
+        "typ_produkcji",
+        "wyjasnienie_rozbieznosci",
+        "typ_zlecenia",
+        "nazwa_zlecenia",
+        "nr_receptury",
+        "uszkodzone_worki",
+        "is_deleted",
+        "deleted_at",
+        "zasyp_id"
+    ],
+    "id_range_1213_1225": [
+        {
+            "id": 1213,
+            "data_planu": "2026-02-27",
+            "sekcja": "Zasyp",
+            "produkt": "POLMLEK POMARAŃCZOWY",
+            "tonaz": 5000.0,
+            "tonaz_rzeczywisty": 5194.0,
+            "status": "zakonczone",
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1214,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "POLMLEK POMARAŃCZOWY",
+            "tonaz": 5194.0,
+            "tonaz_rzeczywisty": 6000.0,
+            "status": "zakonczone",
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1216,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "POLMLEK 100 %",
+            "tonaz": 0.0,
+            "tonaz_rzeczywisty": 2000.0,
+            "status": "zakonczone",
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1217,
+            "data_planu": "2026-02-27",
+            "sekcja": "Zasyp",
+            "produkt": "POLMLEK SZARY",
+            "tonaz": 3000.0,
+            "tonaz_rzeczywisty": 2054.0,
+            "status": "zakonczone",
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1218,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "POLMLEK SZARY",
+            "tonaz": 2054.0,
+            "tonaz_rzeczywisty": 3060.0,
+            "status": "zakonczone",
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1219,
+            "data_planu": "2026-02-27",
+            "sekcja": "Zasyp",
+            "produkt": "AGROS 3 LEN",
+            "tonaz": 3000.0,
+            "tonaz_rzeczywisty": 0.0,
+            "status": "zaplanowane",
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1220,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "AGROS 3 LEN",
+            "tonaz": 0.0,
+            "tonaz_rzeczywisty": 0.0,
+            "status": "zaplanowane",
+            "typ_produkcji": "worki_zgrzewane_20"
+        },
+        {
+            "id": 1221,
+            "data_planu": "2026-02-26",
+            "sekcja": "Zasyp",
+            "produkt": "test",
+            "tonaz": 1.0,
+            "tonaz_rzeczywisty": 1656.0,
+            "status": "zaplanowane",
+            "typ_produkcji": "worki_zgrzewane_25"
+        },
+        {
+            "id": 1222,
+            "data_planu": "2026-02-26",
+            "sekcja": "Workowanie",
+            "produkt": "test",
+            "tonaz": 1656.0,
+            "tonaz_rzeczywisty": 0.0,
+            "status": "zaplanowane",
+            "typ_produkcji": "worki_zgrzewane_25"
+        },
+        {
+            "id": 1223,
+            "data_planu": "2026-02-27",
+            "sekcja": "Zasyp",
+            "produkt": "POLMLEK 100 %",
+            "tonaz": 2000.0,
+            "tonaz_rzeczywisty": 2000.0,
+            "status": "zakonczone",
+            "typ_produkcji": "worki_zgrzewane_25"
+        },
+        {
+            "id": 1224,
+            "data_planu": "2026-02-27",
+            "sekcja": "Workowanie",
+            "produkt": "POLMLEK 100 %",
+            "tonaz": 2000.0,
+            "tonaz_rzeczywisty": 0.0,
+            "status": "zakonczone",
+            "typ_produkcji": "worki_zgrzewane_25"
+        }
+    ]
+}

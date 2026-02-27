@@ -1,14 +1,14 @@
 # routes_zarzad.py
 from flask import Blueprint, render_template, request
 from datetime import datetime, date, timedelta
-from app.decorators import zarzad_required
+from app.decorators import zarzad_required, dynamic_role_required
 from app.services.stats_service import get_date_range, get_kpi_data, get_chart_data, get_worker_stats
 from app.db import get_db_connection # Do raportów okresowych jeśli nie przeniesione w całości
 
 zarzad_bp = Blueprint('zarzad', __name__)
 
 @zarzad_bp.route('/zarzad')
-@zarzad_required
+@dynamic_role_required('wyniki')
 def zarzad_panel():
     teraz = datetime.now()
     tryb = request.args.get('tryb', 'miesiac')
@@ -64,7 +64,7 @@ def zarzad_panel():
     )
 
 @zarzad_bp.route('/raporty_okresowe')
-@zarzad_required
+@dynamic_role_required('wyniki')
 def raporty_okresowe():
     # Tu również można zastosować stats_service, aby odchudzić kod
     teraz = datetime.now()

@@ -3,7 +3,7 @@ from datetime import date
 from app.db import get_db_connection
 from werkzeug.security import generate_password_hash
 # Importujemy dekorator
-from app.decorators import admin_required
+from app.decorators import admin_required, login_required
 
 
 def _load_roles(cursor):
@@ -11,7 +11,7 @@ def _load_roles(cursor):
         cursor.execute("SELECT name, label FROM roles ORDER BY id ASC")
         return cursor.fetchall()
     except Exception:
-        return [('admin', 'admin'), ('planista', 'planista'), ('pracownik', 'pracownik'), ('magazynier', 'magazynier'), ('dur', 'dur'), ('zarzad', 'zarzad'), ('laboratorium', 'laboratorium')]
+        return [('admin', 'admin'), ('planista', 'planista'), ('pracownik', 'pracownik'), ('magazynier', 'magazynier'), ('dur', 'dur'), ('zarzad', 'zarzad'), ('laborant', 'laborant')]
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -123,20 +123,20 @@ def admin_ustawienia_pracownicy():
 @admin_required
 def admin_ustawienia_roles():
     # pages and roles
-    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki']
+    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','bufor','moje_godziny','awarie','wyniki']
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT name, label FROM roles ORDER BY id ASC")
         roles = cursor.fetchall()
     except Exception:
-        roles = [('admin','admin'),('planista','planista'),('pracownik','pracownik'),('magazynier','magazynier'),('dur','dur'),('zarzad','zarzad'),('laboratorium','laboratorium'),('produkcja','produkcja'),('lider','lider')]
+        roles = [('admin','admin'),('planista','planista'),('pracownik','pracownik'),('magazynier','magazynier'),('dur','dur'),('zarzad','zarzad'),('laborant','laborant'),('produkcja','produkcja'),('lider','lider')]
     conn.close()
 
     # load existing perms from file
     import os, json
-    cfg_path = os.path.join(current_app.root_path, '..', 'config', 'role_permissions.json')
-    cfg_path = os.path.abspath(cfg_path)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
     perms = {}
     try:
         with open(cfg_path, 'r', encoding='utf-8') as f:
@@ -157,7 +157,7 @@ def admin_ustawienia_roles():
     # Also handle simple name mismatches by mapping DB role names to JSON keys when possible.
     # Mapping can be extended if more mismatches are discovered.
     mapping = {
-        'laborant': 'laboratorium'
+        'laborant': 'laborant'
     }
     # collect role keys present in JSON config
     json_role_keys = set()
@@ -205,8 +205,8 @@ def admin_ustawienia_roles_users():
 
     # Load roles config
     import os, json
-    cfg_path = os.path.join(current_app.root_path, '..', 'config', 'role_permissions.json')
-    cfg_path = os.path.abspath(cfg_path)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
     perms = {}
     try:
         with open(cfg_path, 'r', encoding='utf-8') as f:
@@ -215,11 +215,11 @@ def admin_ustawienia_roles_users():
         perms = {}
 
     # Define canonical pages order (same as roles UI)
-    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki']
+    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','bufor','moje_godziny','awarie','wyniki']
 
     # mapping for name mismatches (same as above)
     mapping = {
-        'laborant': 'laboratorium'
+        'laborant': 'laborant'
     }
 
     users = []
@@ -244,11 +244,18 @@ def admin_ustawienia_roles_users():
 
 
 @admin_bp.route('/admin/ustawienia/roles/save', methods=['POST'])
-@admin_required
+@login_required
 def admin_ustawienia_roles_save():
     import os, json
+    # Inline check: must be admin
+    session_rola = str(session.get('rola') or '').lower()
+    session_login = session.get('login') or '?'
+    current_app.logger.info('[ROLES_SAVE] Save attempt: login=%s rola=%s', session_login, session_rola)
+    if session_rola != 'admin':
+        current_app.logger.warning('[ROLES_SAVE] Rejected: not admin. login=%s rola=%s', session_login, session_rola)
+        return jsonify({'error': f'Brak uprawnień (twoja rola: {session_rola}, wymagana: admin)'}), 403
     try:
-        current_app.logger.info('admin_ustawienia_roles_save invoked by user=%s remote=%s', session.get('login'), request.remote_addr)
+        current_app.logger.info('admin_ustawienia_roles_save invoked by user=%s remote=%s', session_login, request.remote_addr)
         data = request.get_json(force=True)
     except Exception:
         data = None
@@ -289,8 +296,8 @@ def admin_ustawienia_roles_save():
         # If our check fails for unexpected reasons, proceed cautiously and reject.
         current_app.logger.exception('Error validating roles payload; rejecting save request')
         return (jsonify({'error': 'Validation error'}), 400)
-    cfg_dir = os.path.join(current_app.root_path, '..', 'config')
-    cfg_dir = os.path.abspath(cfg_dir)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    cfg_dir = os.path.join(project_root, 'config')
     os.makedirs(cfg_dir, exist_ok=True)
     cfg_path = os.path.join(cfg_dir, 'role_permissions.json')
     
@@ -314,7 +321,7 @@ def admin_ustawienia_roles_save():
     
     # Reorder merged_config to match pages order for consistency
     # Define canonical page order
-    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki']
+    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','bufor','moje_godziny','awarie','wyniki']
     ordered_merged = {}
     for p in pages:
         if p in merged_config:
@@ -378,7 +385,8 @@ def admin_ustawienia_roles_add():
         if not all(c.isalnum() or c == '_' for c in role_name):
             return jsonify({'success': False, 'error': 'Nazwa roli może zawierać tylko litery, liczby i podkreślnik'}), 400
         
-        cfg_path = os.path.join(current_app.root_path, '..', 'config', 'role_permissions.json')
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
 
         # Czytaj obecną konfigurację
         config = {}
@@ -391,7 +399,7 @@ def admin_ustawienia_roles_add():
 
         # If config empty, initialize canonical pages structure so new role is added everywhere
         if not config:
-            pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','moje_godziny','awarie','wyniki']
+            pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','bufor','moje_godziny','awarie','wyniki']
             config = {p: {} for p in pages}
 
         # Sprawdź czy rola już istnieje

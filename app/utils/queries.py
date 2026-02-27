@@ -77,7 +77,7 @@ class QueryHelper:
                             "SELECT COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji "
                             "WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND produkt = %s "
                             "ORDER BY COALESCE(real_stop, real_start, id) ASC LIMIT 1",
-                            (data_planu, prod)
+                            (data_wpisu, prod)
                         )
                         zasyp_row = cursor.fetchone()
                         if zasyp_row and zasyp_row[0] is not None:
@@ -86,7 +86,7 @@ class QueryHelper:
                         # Get spakowano value from bufor (take MAX to avoid double-counting duplicates)
                         cursor.execute(
                             "SELECT COALESCE(MAX(spakowano), 0) FROM bufor WHERE data_planu = %s AND produkt = %s AND status = 'aktywny'",
-                            (data_planu, prod)
+                            (data_wpisu, prod)
                         )
                         buf_row = cursor.fetchone()
                         if buf_row and buf_row[0] is not None:
@@ -155,13 +155,28 @@ class QueryHelper:
         """Get all confirmed paletki in Magazyn (Warehouse) for a given day."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        # Prefer magazyn_palety records (separate table) for Magazyn UI. Fall back
+        # to palety_workowanie rows with status='przyjeta' for backwards compatibility.
         cursor.execute(
-            "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, "
-            "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s, pw.czas_rzeczywistego_potwierdzenia "
+            "SELECT m.id, m.plan_id, m.waga_netto AS waga, m.tara, m.waga_brutto, "
+            "pw.data_dodania AS data_dodania, "
+            "m.produkt, COALESCE(p.typ_produkcji, '') AS typ_produkcji, 'przyjeta' AS status, NULL AS czas_potwierdzenia_s, "
+            "GREATEST(m.data_potwierdzenia, pw.data_dodania) "
+            "FROM magazyn_palety m LEFT JOIN plan_produkcji p ON m.plan_id = p.id "
+            "LEFT JOIN palety_workowanie pw ON m.paleta_workowanie_id = pw.id "
+            "WHERE DATE(GREATEST(m.data_potwierdzenia, pw.data_dodania)) = %s AND m.waga_netto > 0 "
+            "UNION ALL "
+            "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, COALESCE(pw.data_potwierdzenia, pw.data_dodania) AS data_dodania, "
+            "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s, "
+            "CASE WHEN pw.data_potwierdzenia IS NOT NULL AND pw.data_potwierdzenia >= pw.data_dodania THEN pw.data_potwierdzenia "
+            "WHEN pw.czas_rzeczywistego_potwierdzenia IS NOT NULL THEN CAST(CONCAT(DATE(pw.data_dodania), ' ', pw.czas_rzeczywistego_potwierdzenia) AS DATETIME) "
+            "ELSE pw.data_dodania END "
             "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-            "WHERE DATE(pw.data_dodania) = %s AND pw.waga > 0 AND COALESCE(pw.status, 'do_przyjecia') = 'przyjeta' "
-            "ORDER BY pw.id DESC",
-            (data_planu,)
+            "WHERE (pw.data_potwierdzenia IS NOT NULL OR COALESCE(pw.status,'') = 'przyjeta') AND pw.waga > 0 "
+            "AND NOT EXISTS (SELECT 1 FROM magazyn_palety mp WHERE mp.paleta_workowanie_id = pw.id) "
+            "AND DATE(COALESCE(pw.data_potwierdzenia, pw.data_dodania)) = %s "
+            "ORDER BY 6 DESC, 1 DESC",
+            (data_planu, data_planu)
         )
         result = cursor.fetchall()
         conn.close()
