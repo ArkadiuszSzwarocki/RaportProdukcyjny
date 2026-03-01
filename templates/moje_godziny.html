@@ -807,6 +807,199 @@
         }
       }).catch(err => { console.error('Summary fetch error', err); });
   }
+
+  // ============ DELETE OBECNOSC HANDLER (ADMIN ONLY) ============
+  document.addEventListener('DOMContentLoaded', function() {
+    const role = '{{ session.get("rola", "").lower() }}';
+    const isAdmin = role === 'admin';
+    
+    console.log('[DEBUG] Role:', role);
+    console.log('[DEBUG] isAdmin:', isAdmin);
+    console.log('[DEBUG] Calendar cells found:', document.querySelectorAll('.cal-grid td[data-date][data-pid]').length);
+    
+    // Add delete button to calendar cells (admin only)
+    if (isAdmin) {
+      const calendarCells = document.querySelectorAll('.cal-grid td[data-date][data-pid]');
+      console.log('[DEBUG] Adding delete buttons to', calendarCells.length, 'cells');
+      
+      calendarCells.forEach(cell => {
+        // Create context menu trigger
+        cell.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+          const date = this.getAttribute('data-date');
+          const pid = this.getAttribute('data-pid');
+          
+          showDeleteMenu(this, date, pid);
+        });
+        
+        // Also add small delete button to cell corner
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn btn-xs btn-danger cal-delete-btn';
+        deleteBtn.innerHTML = '❌';
+        deleteBtn.title = 'Usuń wpis (prawy klik dla więcej opcji)';
+        deleteBtn.style.cssText = 'position: absolute; top: 2px; right: 2px; padding: 2px 4px; font-size: 10px; opacity: 0; transition: opacity 0.3s;';
+        
+        deleteBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          showDeleteMenu(cell, cell.getAttribute('data-date'), cell.getAttribute('data-pid'));
+        });
+        
+        cell.style.position = 'relative';
+        cell.appendChild(deleteBtn);
+        
+        // Show button on hover
+        cell.addEventListener('mouseenter', function() {
+          deleteBtn.style.opacity = '1';
+        });
+        cell.addEventListener('mouseleave', function() {
+          deleteBtn.style.opacity = '0';
+        });
+      });
+    }
+    
+    // Show delete context menu
+    function showDeleteMenu(cell, date, pid) {
+      // Remove old menu if exists
+      const oldMenu = document.querySelector('.delete-menu');
+      if (oldMenu) oldMenu.remove();
+      
+      const menu = document.createElement('div');
+      menu.className = 'delete-menu';
+      menu.style.cssText = `
+        position: absolute;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 200px;
+      `;
+      
+      // Get all entries for this date
+      const dateStr = date;
+      const typeCell = cell.querySelector('.cal-type');
+      const typeLabel = typeCell ? typeCell.textContent : 'nieznany typ';
+      
+      menu.innerHTML = `
+        <div style="padding: 10px;">
+          <strong>Data: ${dateStr}</strong>
+          <div style="color: #666; font-size: 0.9em; margin-top: 4px;">Typ: ${typeLabel}</div>
+          <hr style="margin: 8px 0;">
+          <button type="button" class="btn btn-sm btn-danger btn-block" onclick="deleteObecnoscEntry('${dateStr}', '${pid}')">
+            🗑️ Usuń wpis na dzień ${dateStr}
+          </button>
+          <button type="button" class="btn btn-sm btn-secondary btn-block" onclick="undoDeleteObecnosc()" style="margin-top: 6px;">
+            ↩️ Cofnij ostatnie usunięcie
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary btn-block" onclick="this.parentElement.parentElement.remove()" style="margin-top: 6px;">
+            ✕ Zamknij
+          </button>
+        </div>
+      `;
+      
+      document.body.appendChild(menu);
+      
+      // Position menu near cursor
+      const rect = cell.getBoundingClientRect();
+      menu.style.top = (rect.top + 20) + 'px';
+      menu.style.left = (rect.left + 20) + 'px';
+      
+      // Close on click outside
+      setTimeout(() => {
+        document.addEventListener('click', function closeMenu(e) {
+          if (!menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener('click', closeMenu);
+          }
+        });
+      }, 0);
+    }
+  });
+  
+  // Delete obecnosc entry by date and pid
+  function deleteObecnoscEntry(dateStr, pid) {
+    if (!confirm('Jesteś pewna że chcesz usunąć wpis? Ta akcja nie może być cofnięta (chyba że użyjesz "Cofnij").')) {
+      return;
+    }
+    
+    fetch('/api/obecnosc/delete-by-date', { 
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest' 
+      },
+      body: JSON.stringify({ date: dateStr, pid: pid })
+    })
+    .then(r => r.json())
+    .then(j => {
+      if (j.success) {
+        // Znajdź i wyczyść TD element na kalendarzu
+        const cells = document.querySelectorAll(`td[data-date="${dateStr}"][data-pid="${pid}"]`);
+        cells.forEach(cell => {
+          // Wyczyść klasy kolorów
+          cell.className = '';
+          // Wyczyść zawartość
+          cell.innerHTML = `
+            <div class="cal-day">${new Date(dateStr).getDate()}</div>
+            <div class="cal-hours">0.00 h</div>
+          `;
+        });
+        
+        // Pokaż alert
+        alert('✓ ' + j.message);
+        
+        // Odśwież podsumowanie (jeśli istnieje)
+        setTimeout(() => {
+          const summaryBtn = document.querySelector('[data-action="refresh-summary"]');
+          if (summaryBtn) summaryBtn.click();
+          
+          // Lub bezpośrednio fetch podsumowania
+          fetch('/moje_godziny')
+            .then(r => r.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const newDoc = parser.parseFromString(html, 'text/html');
+              
+              // Zastąp podsumowanie
+              const oldSummary = document.querySelector('.mp-summary-owner');
+              const newSummary = newDoc.querySelector('.mp-summary-owner');
+              if (oldSummary && newSummary) {
+                oldSummary.innerHTML = newSummary.innerHTML;
+              }
+            })
+            .catch(err => console.warn('Could not refresh summary:', err));
+        }, 500);
+      } else {
+        alert('⚠️ ' + (j.message || 'Błąd'));
+      }
+    })
+    .catch(err => alert('Błąd: ' + err.message));
+  }
+  
+  // Undo last delete
+  function undoDeleteObecnosc() {
+    if (!confirm('Przywrócić ostatnio usunięty wpis?')) return;
+    
+    fetch('/api/obecnosc/restore', { 
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(j => {
+      if (j.success) {
+        alert('✓ ' + j.message);
+        // Pełny reload aby obsada się odświeżyła
+        setTimeout(() => {
+          location.reload();
+        }, 800);
+      } else {
+        alert('⚠️ ' + (j.message || 'Błąd'));
+      }
+    })
+    .catch(err => alert('Błąd: ' + err.message));
+  }
+
 </script>
 
 <!-- Sekcja edycji godzin wewnątrz modalu została usunięta wraz z modalami -->

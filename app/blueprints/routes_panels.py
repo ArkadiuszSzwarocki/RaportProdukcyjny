@@ -473,6 +473,6 @@ def pobierz_logi():
     log_path = os.path.join(os.path.dirname(__file__), 'logs', 'app.log')
     if not os.path.exists(log_path):
         return ("Brak logu", 404)
-    return send_file(log_path, as_attachment=True)
+
 
 

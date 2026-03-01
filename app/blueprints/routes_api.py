@@ -394,3 +394,188 @@ def get_deleted_plans(date):
         current_app.logger.exception('Failed to get deleted plans for %s', date)
         return jsonify({'success': False, 'message': str(e)}), 500
 
+
+# ============ ATTENDANCE RECORD DELETION & RESTORATION ============
+
+@api_bp.route('/obecnosc/delete-by-date', methods=['POST'])
+@roles_required('admin')
+def delete_obecnosc_by_date():
+    """Delete all entries for a specific date and employee (admin only). Also removes from schedule. Saves deleted entries to session for undo."""
+    try:
+        data = request.get_json()
+        date_str = data.get('date')
+        pid = data.get('pid')
+        
+        if not date_str or not pid:
+            return jsonify({'success': False, 'message': 'Brakuje parametrów'}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Pobierz wszystkie wpisy na dany dzień dla tego pracownika
+        cursor.execute(
+            "SELECT id, pracownik_id, data_wpisu, typ, ilosc_godzin FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s",
+            (pid, date_str)
+        )
+        deleted_entries = cursor.fetchall()
+        
+        # Pobierz też obsadę
+        cursor.execute(
+            "SELECT id, pracownik_id, data_wpisu, sekcja FROM obsada_zmiany WHERE pracownik_id=%s AND data_wpisu=%s",
+            (pid, date_str)
+        )
+        deleted_obsada = cursor.fetchall()
+        
+        if not deleted_entries:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Brak wpisów na podaną datę'}), 404
+        
+        # Usuń wszystkie wpisy z obecnosc
+        cursor.execute("DELETE FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s", (pid, date_str))
+        
+        # Usuń też z obsada_zmiany (aby osoba zniknęła z listy pracujących)
+        cursor.execute("DELETE FROM obsada_zmiany WHERE pracownik_id=%s AND data_wpisu=%s", (pid, date_str))
+        
+        conn.commit()
+        conn.close()
+        
+        # Zapisz do sesji dla możliwości undo (ostatni zestaw)
+        session['deleted_obecnosc'] = {
+            'date': date_str,
+            'pid': pid,
+            'entries': [
+                {
+                    'id': e['id'],
+                    'pracownik_id': e['pracownik_id'],
+                    'data_wpisu': str(e['data_wpisu']),
+                    'typ': e['typ'],
+                    'ilosc_godzin': e['ilosc_godzin']
+                }
+                for e in deleted_entries
+            ],
+            'obsada_entries': [
+                {
+                    'pracownik_id': o['pracownik_id'],
+                    'data_wpisu': str(o['data_wpisu']),
+                    'sekcja': o['sekcja']
+                }
+                for o in deleted_obsada
+            ]
+        }
+        session.modified = True
+        
+        entry_types = ', '.join([e['typ'] for e in deleted_entries])
+        current_app.logger.info(f"[ADMIN] Deleted {len(deleted_entries)} obecnosc entries AND {len(deleted_obsada)} obsada entries for date={date_str}, pid={pid}, types={entry_types}")
+        
+        return jsonify({
+            'success': True, 
+            'message': f"Usunięto {len(deleted_entries)} wpisów z dnia {date_str} ({entry_types}). Pracownik usunięty z listy obsady. Możesz cofnąć zmiany."
+        })
+    
+    except Exception as e:
+        current_app.logger.error(f"Error deleting obecnosc entries: {e}")
+        return jsonify({'success': False, 'message': 'Błąd przy usuwaniu wpisów'}), 500
+
+
+@api_bp.route('/obecnosc/<int:obecnosc_id>', methods=['DELETE'])
+@roles_required('admin')
+def delete_obecnosc(obecnosc_id):
+    """Delete a single attendance entry by ID (admin only). Saves deleted entry to session for undo."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Pobierz wpis przed usunięciem (na wypadek undo)
+        cursor.execute(
+            "SELECT id, pracownik_id, data_wpisu, typ, ilosc_godzin FROM obecnosc WHERE id=%s",
+            (obecnosc_id,)
+        )
+        deleted_entry = cursor.fetchone()
+        
+        if not deleted_entry:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Wpis nie znaleziony'}), 404
+        
+        # Usuń wpis
+        cursor.execute("DELETE FROM obecnosc WHERE id=%s", (obecnosc_id,))
+        conn.commit()
+        conn.close()
+        
+        # Zapisz do sesji dla możliwości undo
+        session['deleted_obecnosc'] = {
+            'id': deleted_entry['id'],
+            'pracownik_id': deleted_entry['pracownik_id'],
+            'data_wpisu': str(deleted_entry['data_wpisu']),
+            'typ': deleted_entry['typ'],
+            'ilosc_godzin': deleted_entry['ilosc_godzin']
+        }
+        session.modified = True
+        
+        current_app.logger.info(f"[ADMIN] Deleted obecnosc entry ID={obecnosc_id}, data={deleted_entry['data_wpisu']}, typ={deleted_entry['typ']}")
+        
+        return jsonify({'success': True, 'message': f"Usunięto wpis z dnia {deleted_entry['data_wpisu']} (typ: {deleted_entry['typ']}). Możesz cofnąć zmiany."})
+    
+    except Exception as e:
+        current_app.logger.error(f"Error deleting obecnosc entry: {e}")
+        return jsonify({'success': False, 'message': 'Błąd przy usuwaniu wpisu'}), 500
+
+
+@api_bp.route('/obecnosc/restore', methods=['POST'])
+@roles_required('admin')
+def restore_ostatnia_usuniety():
+    """Restore the last deleted attendance entry(ies) and schedule entries from session."""
+    try:
+        deleted = session.get('deleted_obecnosc')
+        if not deleted:
+            return jsonify({'success': False, 'message': 'Brak usuniętego wpisu do przywrócenia'}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if it's a batch delete (multiple entries) or single
+        if 'entries' in deleted:
+            # Batch restore
+            for entry in deleted['entries']:
+                cursor.execute(
+                    """INSERT INTO obecnosc (pracownik_id, data_wpisu, typ, ilosc_godzin) 
+                       VALUES (%s, %s, %s, %s)""",
+                    (entry['pracownik_id'], entry['data_wpisu'], entry['typ'], entry['ilosc_godzin'])
+                )
+            
+            # Restore obsada entries too
+            if 'obsada_entries' in deleted:
+                for o in deleted['obsada_entries']:
+                    cursor.execute(
+                        """INSERT INTO obsada_zmiany (pracownik_id, data_wpisu, sekcja) 
+                           VALUES (%s, %s, %s)""",
+                        (o['pracownik_id'], o['data_wpisu'], o['sekcja'])
+                    )
+            
+            conn.commit()
+            count = len(deleted['entries'])
+            date_str = deleted['date']
+            msg = f"Przywrócono {count} wpisów z dnia {date_str}"
+        else:
+            # Single restore
+            cursor.execute(
+                """INSERT INTO obecnosc (pracownik_id, data_wpisu, typ, ilosc_godzin) 
+                   VALUES (%s, %s, %s, %s)""",
+                (deleted['pracownik_id'], deleted['data_wpisu'], deleted['typ'], deleted['ilosc_godzin'])
+            )
+            conn.commit()
+            msg = f"Przywrócono wpis z dnia {deleted['data_wpisu']}"
+        
+        conn.close()
+        
+        # Wyczyść z sesji
+        session.pop('deleted_obecnosc', None)
+        session.modified = True
+        
+        current_app.logger.info(f"[ADMIN] Restored {count if 'entries' in deleted else 1} obecnosc entries and obsada")
+        
+        return jsonify({'success': True, 'message': msg})
+    
+    except Exception as e:
+        current_app.logger.error(f"Error restoring obecnosc entry: {e}")
+        return jsonify({'success': False, 'message': 'Błąd przy przywracaniu wpisu'}), 500
+
