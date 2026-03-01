@@ -1,26 +1,30 @@
 <div class="panel panel--wnioski">
   {% if wnioski is defined %}
     {% if wnioski %}
-      <ul class="list-unstyled">
+      <div class="wnioski-list">
         {% for w in wnioski %}
-          <li class="wniosek-item">
-            <strong>{{ w.pracownik or w.user }}</strong>
-            — {{ w.typ or w.type or w.nazwa }} ({{ w.data or w.date }})
-            <div class="wniosek-actions">
+          <div class="wniosek-item" data-wniosek-id="{{ w.id }}" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e0e0e0;">
+            <div style="flex: 1;">
+              <strong>{{ w.pracownik }}</strong>
+              <span style="color: #666; margin: 0 8px;">—</span>
+              <span>{{ w.typ }}</span>
+              <span style="color: #999; font-size: 0.9em; margin-left: 8px;">
+                (
+                {%- if w.data_od %} {{ w.data_od }}
+                  {%- if w.data_do and w.data_do != w.data_od %} - {{ w.data_do }} {%- endif %}
+                {%- else %} - {%- endif %}
+                )
+              </span>
+            </div>
+            <div class="wniosek-actions" style="display: flex; gap: 6px; flex-shrink: 0;">
               {% if w.id %}
-                <form method="post" action="{{ url_for('admin.zatwierdz_wniosek') }}" class="wniosek-form">
-                  <input type="hidden" name="id" value="{{ w.id }}">
-                  <button type="submit" class="btn btn-sm btn-success">Zatwierdź</button>
-                </form>
-                <form method="post" action="{{ url_for('admin.odrzuc_wniosek') }}" class="wniosek-form">
-                  <input type="hidden" name="id" value="{{ w.id }}">
-                  <button type="submit" class="btn btn-sm btn-danger">Odrzuć</button>
-                </form>
+                <button type="button" class="btn btn-sm btn-success wn-approve-btn" data-wid="{{ w.id }}">✓ Zatwierdź</button>
+                <button type="button" class="btn btn-sm btn-danger wn-reject-btn" data-wid="{{ w.id }}">✕ Odrzuć</button>
               {% endif %}
             </div>
-          </li>
+          </div>
         {% endfor %}
-      </ul>
+      </div>
     {% else %}
       <p>Brak wniosków.</p>
     {% endif %}
@@ -28,3 +32,145 @@
     <p>Brak danych do wyświetlenia.</p>
   {% endif %}
 </div>
+
+<script>
+(function() {
+  console.log('[WNIOSKI] Script załadowany');
+  
+  function setupWniosekHandlers() {
+    console.log('[WNIOSKI] setupWniosekHandlers wywoływany');
+    
+    const approveBtns = document.querySelectorAll('.wn-approve-btn');
+    const rejectBtns = document.querySelectorAll('.wn-reject-btn');
+    
+    console.log('[WNIOSKI] Znaleziono przyciski zatwierdź:', approveBtns.length);
+    console.log('[WNIOSKI] Znaleziono przyciski odrzuć:', rejectBtns.length);
+    
+    function handleWniosekAction(btn, action) {
+      const wid = btn.getAttribute('data-wid');
+      console.log('[WNIOSKI] handleWniosekAction:', action, 'wid:', wid);
+      
+      if (!wid) {
+        console.error('[WNIOSKI] Brak data-wid!');
+        return;
+      }
+      
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳...';
+      
+      const url = '/api/wnioski/' + wid + '/' + action;
+      console.log('[WNIOSKI] Fetch do:', url);
+      
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      })
+      .then(r => {
+        console.log('[WNIOSKI] Response status:', r.status);
+        if (!r.ok) {
+          // Spróbuj parsować JSON z błędu
+          return r.text().then(text => {
+            try {
+              return Promise.reject(JSON.parse(text));
+            } catch (e) {
+              return Promise.reject({success: false, message: 'Błąd serwera: ' + r.status + ' ' + r.statusText});
+            }
+          });
+        }
+        return r.json();
+      })
+      .then(data => {
+        console.log('[WNIOSKI] Response data:', data);
+        
+        if (data && data.success) {
+          const item = btn.closest('[data-wniosek-id]');
+          console.log('[WNIOSKI] Item do usunięcia:', item);
+          
+          if (item) {
+            item.style.opacity = '0.5';
+            setTimeout(() => {
+              item.remove();
+              console.log('[WNIOSKI] Element usunięty');
+              
+              const list = document.querySelector('.wnioski-list');
+              if (list && list.children.length === 0) {
+                console.log('[WNIOSKI] Lista pusta, odświeżam panel');
+                fetch('{{ url_for("panels.panel_wnioski_page", fragment="true") }}', {
+                  headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(r => r.text())
+                .then(html => {
+                  const panel = document.querySelector('.panel--wnioski');
+                  if (panel) {
+                    panel.outerHTML = html;
+                    setupWniosekHandlers();
+                  }
+                });
+              }
+            }, 300);
+          }
+          
+          if (typeof showToast === 'function') {
+            showToast(data.message || 'OK', 'success');
+          } else {
+            alert(data.message || 'OK');
+          }
+        } else {
+          console.error('[WNIOSKI] Błąd:', data);
+          btn.disabled = false;
+          btn.textContent = originalText;
+          if (typeof showToast === 'function') {
+            showToast(data.message || 'Błąd', 'danger');
+          } else {
+            alert(data.message || 'Błąd');
+          }
+        }
+      })
+      .catch(err => {
+        console.error('[WNIOSKI] Fetch error:', err);
+        btn.disabled = false;
+        btn.textContent = originalText;
+        if (typeof showToast === 'function') {
+          showToast('Błąd: ' + err.message, 'danger');
+        } else {
+          alert('Błąd: ' + err.message);
+        }
+      });
+    }
+    
+    approveBtns.forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        handleWniosekAction(this, 'approve');
+      });
+    });
+    
+    rejectBtns.forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        handleWniosekAction(this, 'reject');
+      });
+    });
+  }
+  
+  // Zaraz się ładujesz
+  setupWniosekHandlers();
+  
+  // Obserwuj zmiany DOM (na wypadek dynamicznego ładowania)
+  if (typeof MutationObserver !== 'undefined') {
+    const observer = new MutationObserver(function(mutations) {
+      console.log('[WNIOSKI] DOM zmieniony, przeładowuję handlery');
+      setupWniosekHandlers();
+    });
+    
+    const panel = document.querySelector('.panel--wnioski');
+    if (panel) {
+      observer.observe(panel, { childList: true, subtree: true });
+    }
+  }
+})();
+</script>

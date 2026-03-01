@@ -315,27 +315,39 @@ body.sidebar-open {
 }
 .top-tile .material-icons { font-size: 20px; color: var(--accent-color); }
 .tile-label { font-weight: 700; }
-.top-menu { display: flex; gap: 8px; align-items: center; }
+.top-menu { 
+    display: flex; 
+    align-items: center; 
+    background: white;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden; 
+}
 .top-menu-item {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: white;
+    background: transparent;
     color: var(--primary-color);
-    padding: 8px 10px;
-    border-radius: 8px;
+    padding: 10px 14px;
+    border-radius: 0;
     text-decoration: none;
-    border: 1px solid var(--border-color);
+    border: none;
+    border-right: 1px solid var(--border-color);
     font-weight: 700;
+    transition: all var(--transition-normal);
+}
+.top-menu-item:last-child {
+    border-right: none;
 }
 .top-menu-item .material-icons { font-size: 18px; color: var(--accent-color); }
-.top-menu-item:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+.top-menu-item:hover { background: rgba(0,0,0,0.03); }
 
 /* Active state for top menu items */
 .top-menu-item.active {
     background: var(--accent-color);
     color: white;
-    border-color: transparent;
 }
 .top-menu-item.active .material-icons {
     color: white;
@@ -397,6 +409,17 @@ body.sidebar-open {
 @media (max-width: 880px){
     .header-stats { flex-wrap: wrap; }
     .stat-inline { min-width: 110px; }
+}
+
+/* Header with date navigation */
+.header-with-date {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    justify-content: flex-start;
+}
+.header-with-date > div:first-child {
+    flex: 0 1 auto;
 }
 
 /* Day overview tile (date + arrows) */

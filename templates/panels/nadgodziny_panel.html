@@ -1,0 +1,171 @@
+<div class="panel panel--nadgodziny">
+  {% if pending_nadgodziny is defined %}
+    {% if pending_nadgodziny %}
+      <div class="nadgodziny-list">
+        {% for n in pending_nadgodziny %}
+          <div class="nadgodzina-item" data-nadgodzina-id="{{ n.id }}" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e0e0e0;">
+            <div style="flex: 1;">
+              <strong>{{ n.imie_nazwisko }}</strong>
+              <span style="color: #666; margin: 0 8px;">—</span>
+              <span>{{ n.data }}</span>
+              <span style="color: #999; font-weight: bold; margin-left: 8px;">{{ n.ilosc_nadgodzin }}h OT</span>
+              {% if n.powod %}
+                <div style="color: #666; font-size: 0.9em; margin-top: 4px;">{{ n.powod }}</div>
+              {% endif %}
+            </div>
+            <div class="nadgodzina-actions" style="display: flex; gap: 6px; flex-shrink: 0;">
+              {% if n.id %}
+                <button type="button" class="btn btn-sm btn-success ng-approve-btn" data-ngid="{{ n.id }}">✓ Zatwierdź</button>
+                <button type="button" class="btn btn-sm btn-danger ng-reject-btn" data-ngid="{{ n.id }}">✕ Odrzuć</button>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>Brak wniosków o nadgodziny do zatwierdzenia.</p>
+    {% endif %}
+  {% else %}
+    <p>Brak danych do wyświetlenia.</p>
+  {% endif %}
+</div>
+
+<script>
+(function() {
+  console.log('[NADGODZINY] Script załadowany');
+  
+  function setupNadgodzinyHandlers() {
+    console.log('[NADGODZINY] setupNadgodzinyHandlers wywoływany');
+    
+    const approveBtns = document.querySelectorAll('.ng-approve-btn');
+    const rejectBtns = document.querySelectorAll('.ng-reject-btn');
+    
+    console.log('[NADGODZINY] Znaleziono przyciski zatwierdź:', approveBtns.length);
+    console.log('[NADGODZINY] Znaleziono przyciski odrzuć:', rejectBtns.length);
+    
+    function handleNadgodzinyAction(btn, action) {
+      const ngid = btn.getAttribute('data-ngid');
+      console.log('[NADGODZINY] handleNadgodzinyAction:', action, 'ngid:', ngid);
+      
+      if (!ngid) {
+        console.error('[NADGODZINY] Brak data-ngid!');
+        return;
+      }
+      
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳...';
+      
+      const url = '/api/nadgodziny/' + ngid + '/' + action;
+      console.log('[NADGODZINY] Fetch do:', url);
+      
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      })
+      .then(r => {
+        console.log('[NADGODZINY] Response status:', r.status);
+        if (!r.ok) {
+          return r.text().then(text => {
+            try {
+              return Promise.reject(JSON.parse(text));
+            } catch (e) {
+              return Promise.reject({success: false, message: 'Błąd serwera: ' + r.status + ' ' + r.statusText});
+            }
+          });
+        }
+        return r.json();
+      })
+      .then(data => {
+        console.log('[NADGODZINY] Response data:', data);
+        
+        if (data && data.success) {
+          const item = btn.closest('[data-nadgodzina-id]');
+          console.log('[NADGODZINY] Item do usunięcia:', item);
+          
+          if (item) {
+            item.style.opacity = '0.5';
+            setTimeout(() => {
+              item.remove();
+              console.log('[NADGODZINY] Element usunięty');
+              
+              const list = document.querySelector('.nadgodziny-list');
+              if (list && list.children.length === 0) {
+                list.innerHTML = '<p>Brak wniosków o nadgodziny.</p>';
+              }
+            }, 300);
+          }
+          
+          showToast(data.message || action === 'approve' ? 'Zatwierdzone' : 'Odrzucone', 'success');
+        } else {
+          btn.textContent = originalText;
+          btn.disabled = false;
+          showToast(data?.message || 'Błąd operacji', 'error');
+        }
+      })
+      .catch(error => {
+        console.error('[NADGODZINY] Error:', error);
+        btn.textContent = originalText;
+        btn.disabled = false;
+        const msg = error.message || 'Błąd operacji';
+        showToast(msg, 'error');
+      });
+    }
+    
+    approveBtns.forEach(btn => {
+      btn.removeEventListener('click', function() {});
+      btn.addEventListener('click', function() {
+        handleNadgodzinyAction(this, 'approve');
+      });
+    });
+    
+    rejectBtns.forEach(btn => {
+      btn.removeEventListener('click', function() {});
+      btn.addEventListener('click', function() {
+        handleNadgodzinyAction(this, 'reject');
+      });
+    });
+  }
+  
+  // Call once on initial load
+  setupNadgodzinyHandlers();
+  
+  // Also use MutationObserver to handle dynamic updates
+  const observer = new MutationObserver(function(mutations) {
+    console.log('[NADGODZINY] DOM zmieniony, ustawianie handlersów...');
+    setupNadgodzinyHandlers();
+  });
+  
+  const config = { childList: true, subtree: true };
+  observer.observe(document.body, config);
+})();
+</script>
+
+<style>
+.panel--nadgodziny {
+  margin: 16px 0;
+  padding: 16px;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.nadgodziny-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.nadgodzina-item {
+  transition: opacity 0.3s ease;
+}
+
+.nadgodzina-item:hover {
+  background: #f0f0f0;
+  padding: 12px;
+  margin: 0 -12px;
+  border-radius: 4px;
+}
+</style>

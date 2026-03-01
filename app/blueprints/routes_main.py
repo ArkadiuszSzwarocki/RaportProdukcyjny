@@ -146,7 +146,7 @@ def index() -> str:
     quality_data = DashboardService.get_quality_and_leave_requests(role)
     
     # Get shift notes
-    shift_notes = DashboardService.get_shift_notes()
+    shift_notes = DashboardService.get_shift_notes(dzisiaj)
     
     # Get full plans for Dashboard
     plans_zasyp, plans_workowanie = DashboardService.get_full_plans_for_sections(dzisiaj)

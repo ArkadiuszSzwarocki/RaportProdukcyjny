@@ -3,6 +3,7 @@ from app.config import DB_CONFIG
 import os
 from werkzeug.security import generate_password_hash
 import time
+from datetime import date, timedelta
 
 def get_db_connection(retries=3):
     """Get database connection with retry logic"""
@@ -103,6 +104,7 @@ def _create_tables(cursor):
     cursor.execute("CREATE TABLE IF NOT EXISTS obsada_liderzy (data_wpisu DATE PRIMARY KEY, lider_psd_id INT NULL, lider_agro_id INT NULL, FOREIGN KEY (lider_psd_id) REFERENCES pracownicy(id) ON DELETE SET NULL, FOREIGN KEY (lider_agro_id) REFERENCES pracownicy(id) ON DELETE SET NULL)")
     cursor.execute("CREATE TABLE IF NOT EXISTS obecnosc (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, pracownik_id INT, typ VARCHAR(50), ilosc_godzin FLOAT DEFAULT 0, komentarz TEXT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
     cursor.execute("CREATE TABLE IF NOT EXISTS wnioski_wolne (id INT AUTO_INCREMENT PRIMARY KEY, pracownik_id INT NOT NULL, typ VARCHAR(50) NOT NULL, data_od DATE NOT NULL, data_do DATE NOT NULL, czas_od TIME NULL, czas_do TIME NULL, powod TEXT, status VARCHAR(20) DEFAULT 'pending', zlozono DATETIME DEFAULT CURRENT_TIMESTAMP, decyzja_dnia DATETIME NULL, lider_id INT NULL, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS nadgodziny (id INT AUTO_INCREMENT PRIMARY KEY, pracownik_id INT NOT NULL, data DATE NOT NULL, ilosc_nadgodzin FLOAT NOT NULL, powod TEXT, status VARCHAR(20) DEFAULT 'pending', zlozono DATETIME DEFAULT CURRENT_TIMESTAMP, decyzja_dnia DATETIME NULL, lider_id INT NULL, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
     cursor.execute("CREATE TABLE IF NOT EXISTS raporty_koncowe (id INT AUTO_INCREMENT PRIMARY KEY, data_raportu DATE, sekcja VARCHAR(50), lider_id INT, lider_uwagi TEXT, summary_json LONGTEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (lider_id) REFERENCES pracownicy(id) ON DELETE SET NULL)")
     cursor.execute("CREATE TABLE IF NOT EXISTS plan_history (id INT AUTO_INCREMENT PRIMARY KEY, plan_id INT NULL, action VARCHAR(50), changes LONGTEXT, user_login VARCHAR(100), created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
     cursor.execute("""
@@ -183,15 +185,21 @@ def _create_tables(cursor):
 
 def _add_column_if_missing(cursor, table, column, definition, description=""):
     """Helper to add column if it doesn't exist."""
-    cursor.execute(f"SHOW COLUMNS FROM {table} LIKE '{column}'")
-    if not cursor.fetchone():
-        try:
-            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-            if description:
-                print(f"[MIGRATE] {description}")
-        except Exception as e:
-            print(f"[WARN] Nie udało się dodać kolumny {table}.{column}: {e}")
-            pass
+    try:
+        # Use information_schema instead of SHOW COLUMNS for better reliability
+        cursor.execute(
+            "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND COLUMN_NAME=%s",
+            (table, column)
+        )
+        if not cursor.fetchone():
+            try:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+                if description:
+                    print(f"[MIGRATE] {description}")
+            except Exception as e:
+                print(f"[WARN] Nie udało się dodać kolumny {table}.{column}: {e}")
+    except Exception as e:
+        print(f"[WARN] Błąd sprawdzania kolumny {table}.{column}: {e}")
 
 
 def _migrate_columns(cursor):
@@ -275,7 +283,7 @@ def _seed_default_users(cursor):
 
 
 def refresh_bufor_queue(conn=None):
-    """Odświeța bufor - dodaje nowe zlecenia z przepisanymi kolejkami"""
+    """Odświeța bufor - dodaje nowe zlecenia z przepisanymi kolejkami (OPTIMIZED)"""
     close_conn = False
     if conn is None:
         conn = get_db_connection()
@@ -283,31 +291,24 @@ def refresh_bufor_queue(conn=None):
     
     try:
         cursor = conn.cursor()
-        # Safety check: report any plan_produkcji rows with NULL tonaz
-        try:
-            cursor.execute("SELECT id FROM plan_produkcji WHERE tonaz IS NULL LIMIT 20")
-            null_rows = cursor.fetchall()
-            if null_rows:
-                ids = [str(r[0]) for r in null_rows]
-                print(f"[WARN] plan_produkcji rows with NULL tonaz detected (sample ids): {', '.join(ids)}")
-        except Exception:
-            # If this check fails, don't block main logic
-            pass
+        today = date.today()
+        yesterday = today - timedelta(days=1)
         
-        # SYNC 1: Synchronizuj Workowanie.tonaz = Zasyp.tonaz_rzeczywisty (przez FK zasyp_id)
+        # SYNC 1: Synchronizuj Workowanie.tonaz = Zasyp.tonaz_rzeczywisty (tylko dzisiaj)
         try:
             cursor.execute("""
                 UPDATE plan_produkcji w
                 JOIN plan_produkcji z ON z.id = w.zasyp_id
                 SET w.tonaz = COALESCE(z.tonaz_rzeczywisty, 0)
-                WHERE w.sekcja = 'Workowanie' AND z.sekcja = 'Zasyp' AND DATE(w.data_planu) = CURDATE()
-            """)
+                WHERE w.sekcja = 'Workowanie' AND z.sekcja = 'Zasyp' 
+                  AND w.data_planu >= %s AND w.data_planu <= %s
+            """, (yesterday, today))
             if cursor.rowcount > 0:
                 print(f"[SYNC] Workowanie.tonaz synchronized: {cursor.rowcount} rows")
         except Exception as e:
             print(f"[WARN] Sync Workowanie.tonaz failed: {e}")
         
-        # SYNC 2: Synchronizuj Workowanie.tonaz_rzeczywisty = sum palet (dla dzisiaj)
+        # SYNC 2: Synchronizuj Workowanie.tonaz_rzeczywisty = sum palet (tylko dzisiaj)
         try:
             cursor.execute("""
                 UPDATE plan_produkcji w
@@ -315,128 +316,103 @@ def refresh_bufor_queue(conn=None):
                     SELECT COALESCE(SUM(pw.waga), 0) FROM palety_workowanie pw
                     WHERE pw.plan_id = w.id
                 )
-                WHERE w.sekcja = 'Workowanie' AND DATE(w.data_planu) = CURDATE()
-            """)
+                WHERE w.sekcja = 'Workowanie' AND w.data_planu >= %s AND w.data_planu <= %s
+            """, (yesterday, today))
             if cursor.rowcount > 0:
                 print(f"[SYNC] Workowanie.tonaz_rzeczywisty synchronized: {cursor.rowcount} rows")
         except Exception as e:
             print(f"[WARN] Sync Workowanie.tonaz_rzeczywisty failed: {e}")
         
-        # 1. Usuń wszystkie wpisy z bufora dla Workowania które już się nie mają statusu 'w toku'
+        # 1. Usuń wszystkie wpisy z bufora które się nie mają statusu 'w toku'
         cursor.execute("""
             DELETE FROM bufor 
             WHERE status = 'aktywny'
             AND NOT EXISTS (
                 SELECT 1 FROM plan_produkcji w 
-                WHERE w.sekcja = 'Workowanie' 
-                AND w.status = 'w toku'
-                AND w.produkt = bufor.produkt 
-                AND w.data_planu = bufor.data_planu
+                WHERE w.sekcja = 'Workowanie' AND w.status = 'w toku'
+                AND w.produkt = bufor.produkt AND w.data_planu = bufor.data_planu
             )
         """)
         deleted = cursor.rowcount
         
-        # 2. Pobierz wszystkie Zasypy które powinny być w buforze (linkuj przez zasyp_id FK)
-        # Warunki: wszystkie Zasypy (w toku, zakonczone) które mają odpowiadające Workowanie w statusie 'w toku' lub 'zaplanowane'
+        # 2. Pobierz Zasypy dla dzisiejszego i wczorajszego bufora
         cursor.execute("""
             SELECT z.id, z.data_planu, z.produkt, z.nazwa_zlecenia, z.typ_produkcji, 
                    z.tonaz_rzeczywisty, z.status
             FROM plan_produkcji z
             INNER JOIN plan_produkcji w ON w.zasyp_id = z.id
-            WHERE z.sekcja = 'Zasyp'
-              AND w.sekcja = 'Workowanie'
+            WHERE z.sekcja = 'Zasyp' AND w.sekcja = 'Workowanie'
               AND w.status IN ('w toku', 'zaplanowane')
               AND (z.status = 'w toku' OR z.status = 'zakonczone')
-              AND z.data_planu >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-              AND z.data_planu <= CURDATE()
+              AND z.data_planu >= %s AND z.data_planu <= %s
               AND z.tonaz_rzeczywisty > 0
             ORDER BY z.data_planu DESC, CASE WHEN z.real_start IS NOT NULL THEN 0 ELSE 1 END ASC, 
-                     z.real_start ASC, z.id ASC
-        """)
+                     COALESCE(z.real_start, '00:00:00') ASC, z.id ASC
+        """, (yesterday, today))
         
         zasypy_do_bufora = cursor.fetchall()
         
-        # 3. Dla każdego Zasypu - jeśli go nie ma w buforze, dodaj z nowym numerem kolejki
+        # 3. Dodaj brakujące Zasypy do bufora
         added = 0
         for z_id, z_data, z_produkt, z_nazwa, z_typ, z_tonaz, z_status in zasypy_do_bufora:
-            # Sprawdź czy już jest w buforze
+            cursor.execute("SELECT id FROM bufor WHERE zasyp_id = %s AND status = 'aktywny'", (z_id,))
+            if cursor.fetchone():
+                continue
+                
+            # Pobierz max kolejkę i ilość spakowanego w jednym zapytaniu
             cursor.execute("""
-                SELECT id FROM bufor 
-                WHERE zasyp_id = %s AND status = 'aktywny'
-            """, (z_id,))
+                SELECT COALESCE(MAX(b.kolejka), 0), COALESCE(SUM(pw.waga), 0)
+                FROM bufor b
+                LEFT JOIN palety_workowanie pw ON pw.plan_id IN (
+                    SELECT id FROM plan_produkcji 
+                    WHERE data_planu = %s AND produkt = %s AND sekcja = 'Workowanie'
+                )
+                WHERE b.data_planu = %s AND b.status = 'aktywny'
+            """, (z_data, z_produkt, z_data))
             
-            if not cursor.fetchone():
-                # Nie ma - pobierz następny numer kolejki dla całej DATY (niezależnie od produktu)
-                cursor.execute("""
-                    SELECT MAX(kolejka) FROM bufor 
-                    WHERE data_planu = %s AND status = 'aktywny'
-                """, (z_data,))
-                
-                result = cursor.fetchone()
-                next_kolejka = (result[0] or 0) + 1
-                
-                # Pobierz ile palet już spakowano
-                cursor.execute("""
-                    SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie pw
-                    INNER JOIN plan_produkcji w ON pw.plan_id = w.id
-                    WHERE w.data_planu = %s AND w.produkt = %s AND w.sekcja = 'Workowanie'
-                """, (z_data, z_produkt))
-                
-                spakowano_result = cursor.fetchone()
-                spakowano = spakowano_result[0] if spakowano_result else 0
-                
-                # Dodaj do bufora
-                cursor.execute("""
-                    INSERT INTO bufor 
-                    (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'aktywny')
-                    ON DUPLICATE KEY UPDATE id = id
-                """, (z_id, z_data, z_produkt, z_nazwa or '', z_typ or 'worki_zgrzewane_25', 
-                      z_tonaz, spakowano, next_kolejka))
-
-                # If insert succeeded (or duplicate key prevented a second insert), count as added only
-                # when a new row was actually created
-                if cursor.rowcount:
-                    added += 1
-        
-        # WAŻNE: ZAWSZE Renumeruj kolejki żeby były Sequential (1,2,3,4...)
-        # Po DELETE i po dodaniu nowych wpisów - renumeric: dzisiejsze najpierw (DESC), potem po real_start
-        cursor.execute("""
-            SELECT b.id, b.data_planu FROM bufor b
-            LEFT JOIN plan_produkcji z ON z.id = b.zasyp_id
-            WHERE b.status = 'aktywny'
-            ORDER BY b.data_planu DESC, CASE WHEN z.real_start IS NOT NULL THEN 0 ELSE 1 END ASC, 
-                     z.real_start ASC, b.id ASC
-        """)
-        bufor_entries = cursor.fetchall()
-        for idx, (buf_id, buf_date) in enumerate(bufor_entries, start=1):
+            result = cursor.fetchone()
+            next_kolejka = (result[0] or 0) + 1
+            spakowano = result[1] or 0
+            
+            # Dodaj do bufora
             cursor.execute("""
-                UPDATE bufor SET kolejka = %s WHERE id = %s
-            """, (idx, buf_id))
-
-        # 4a. Aktualizuj tonaz_rzeczywisty w buforze na podstawie odpowiadającego Zasyp.plan_produkcji
-        try:
-            cursor.execute("""
-                UPDATE bufor b
-                JOIN plan_produkcji z ON z.id = b.zasyp_id
-                SET b.tonaz_rzeczywisty = COALESCE(z.tonaz_rzeczywisty, 0)
-                WHERE b.status = 'aktywny'
-            """
-            )
-        except Exception:
-            # If update fails, log but continue to update spakowano
-            print('[WARN] Failed to update bufor.tonaz_rzeczywisty from plan_produkcji')
+                INSERT INTO bufor 
+                (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'aktywny')
+                ON DUPLICATE KEY UPDATE id = id
+            """, (z_id, z_data, z_produkt, z_nazwa or '', z_typ or 'worki_zgrzewane_25', 
+                  z_tonaz, spakowano, next_kolejka))
+            if cursor.rowcount:
+                added += 1
         
-        # 4. Aktualizuj pola spakowano dla istniejących wpisów w buforze
+        # 4. OPTYMALIZACJA: Renumeruj kolejki w jednym UPDATE (zamiast pętli N updateów)
         cursor.execute("""
             UPDATE bufor b
-            SET spakowano = (
-                SELECT COALESCE(SUM(pw.waga), 0) FROM palety_workowanie pw
-                INNER JOIN plan_produkcji w ON pw.plan_id = w.id
-                WHERE w.data_planu = b.data_planu AND w.produkt = b.produkt 
-                AND w.sekcja = 'Workowanie'
-            )
-            WHERE status = 'aktywny'
+            JOIN (
+                SELECT b2.id, ROW_NUMBER() OVER (
+                    PARTITION BY b2.data_planu 
+                    ORDER BY b2.data_planu DESC, COALESCE((
+                        SELECT z.real_start FROM plan_produkcji z WHERE z.id = b2.zasyp_id
+                    ), '00:00:00'), b2.id
+                ) as nowa_kolejka
+                FROM bufor b2
+                WHERE b2.status = 'aktywny'
+            ) ranked ON b.id = ranked.id
+            SET b.kolejka = ranked.nowa_kolejka
+        """)
+        
+        # 5. Aktualizuj tonaz_rzeczywisty i spakowano w jednym UPDATE
+        cursor.execute("""
+            UPDATE bufor b
+            JOIN plan_produkcji z ON z.id = b.zasyp_id
+            SET b.tonaz_rzeczywisty = COALESCE(z.tonaz_rzeczywisty, 0),
+                b.spakowano = (
+                    SELECT COALESCE(SUM(pw.waga), 0) FROM palety_workowanie pw
+                    INNER JOIN plan_produkcji w ON pw.plan_id = w.id
+                    WHERE w.data_planu = b.data_planu AND w.produkt = b.produkt 
+                      AND w.sekcja = 'Workowanie'
+                )
+            WHERE b.status = 'aktywny'
         """)
         
         conn.commit()

@@ -161,7 +161,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
 
         refresh_thread = threading.Thread(
             target=_periodic_refresh,
-            kwargs={'interval_seconds': 60},
+            kwargs={'interval_seconds': 300},
             daemon=True
         )
         refresh_thread.start()

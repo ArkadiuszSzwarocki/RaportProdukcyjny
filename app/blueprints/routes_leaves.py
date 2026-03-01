@@ -20,7 +20,7 @@ def bezpieczny_powrot():
         return url_for('planista.panel_planisty', data=data)
     sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
     data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-    return url_for('index', sekcja=sekcja, data=data)
+    return url_for('main.index', sekcja=sekcja, data=data)
 
 # =============== WNIOSKI O WOLNE ================
 @leaves_bp.route('/wnioski/submit', methods=['POST'])
@@ -57,35 +57,71 @@ def submit_wniosek():
     )
     
     flash(message, 'success' if success else 'warning')
-    return redirect(url_for('moje_godziny'))
+    return redirect(url_for('panels.moje_godziny'))
 
 
 @leaves_bp.route('/wnioski/<int:wid>/approve', methods=['POST'])
 @roles_required('lider', 'admin')
 def approve_wniosek(wid):
     """Approve leave request - delegated to LeaveRequestService."""
-    lider_id = session.get('pracownik_id')
-    success, message = LeaveRequestService.approve_leave_request(wid, lider_id)
-    
-    flash(message, 'success' if success else 'warning')
-    
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept', '').find('application/json') != -1:
-        return jsonify({'success': success, 'message': message})
-    return redirect(bezpieczny_powrot())
+    try:
+        import sys
+        print(f"[APPROVE_ENDPOINT_CALLED] wid={wid}", file=sys.stderr, flush=True)
+        current_app.logger.info(f"[APPROVE] wid={wid}")
+        lider_id = session.get('pracownik_id')
+        current_app.logger.info(f"[APPROVE] lider_id={lider_id}")
+        
+        if not lider_id:
+            raise ValueError("Brak ID lidera w sesji")
+        
+        success, message = LeaveRequestService.approve_leave_request(wid, lider_id)
+        current_app.logger.info(f"[APPROVE] success={success}, message={message}")
+        
+        flash(message, 'success' if success else 'warning')
+        
+        # Return JSON dla AJAX żądań
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': success, 'message': message}), 200
+        return redirect(bezpieczny_powrot())
+    except Exception as e:
+        import sys
+        print(f"[APPROVE_EXCEPTION] {type(e).__name__}: {str(e)}", file=sys.stderr, flush=True)
+        current_app.logger.exception(f"[APPROVE] Exception: {type(e).__name__}: {str(e)}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
+        raise
 
 
 @leaves_bp.route('/wnioski/<int:wid>/reject', methods=['POST'])
 @roles_required('lider', 'admin')
 def reject_wniosek(wid):
     """Reject leave request - delegated to LeaveRequestService."""
-    lider_id = session.get('pracownik_id')
-    success, message = LeaveRequestService.reject_leave_request(wid, lider_id)
-    
-    flash(message, 'info' if success else 'warning')
-    
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept', '').find('application/json') != -1:
-        return jsonify({'success': success, 'message': message})
-    return redirect(bezpieczny_powrot())
+    try:
+        import sys
+        print(f"[REJECT_ENDPOINT_CALLED] wid={wid}", file=sys.stderr, flush=True)
+        current_app.logger.info(f"[REJECT] wid={wid}")
+        lider_id = session.get('pracownik_id')
+        current_app.logger.info(f"[REJECT] lider_id={lider_id}")
+        
+        if not lider_id:
+            raise ValueError("Brak ID lidera w sesji")
+        
+        success, message = LeaveRequestService.reject_leave_request(wid, lider_id)
+        current_app.logger.info(f"[REJECT] success={success}, message={message}")
+        
+        flash(message, 'info' if success else 'warning')
+        
+        # Return JSON dla AJAX żądań
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': success, 'message': message}), 200
+        return redirect(bezpieczny_powrot())
+    except Exception as e:
+        import sys
+        print(f"[REJECT_EXCEPTION] {type(e).__name__}: {str(e)}", file=sys.stderr, flush=True)
+        current_app.logger.exception(f"[REJECT] Exception: {type(e).__name__}: {str(e)}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
+        raise
 
 
 @leaves_bp.route('/wnioski/day', methods=['GET'])
@@ -155,9 +191,12 @@ def usun_obecnosc(id):
     
     if not success:
         flash('Błąd przy usuwaniu wpisu.', 'warning')
-    else:
-        flash('Wpis usunięty.', 'success')
+    AttendanceService.delete_absence_record(id)
+    flash('Wpis został usunięty.', 'success')
     
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Wpis usunięty'})
+        
     return redirect(bezpieczny_powrot())
 
 

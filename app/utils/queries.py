@@ -299,50 +299,27 @@ class QueryHelper:
             "WHERE w.status = 'pending' ORDER BY w.zlozono DESC LIMIT %s",
             (limit,)
         )
-        result = cursor.fetchall()
+        raw = cursor.fetchall()
         conn.close()
-        return result
+        
+        # Convert tuples to dictionaries
+        wnioski = []
+        for r in raw:
+            wnioski.append({
+                'id': r[0],
+                'pracownik': r[1],
+                'typ': r[2],
+                'data_od': r[3],
+                'data_do': r[4],
+                'czas_od': r[5],
+                'czas_do': r[6],
+                'powod': r[7],
+                'zlozono': r[8]
+            })
+        return wnioski
     
     @staticmethod
-    def get_planned_leaves(data_od=None, data_do=None, limit=500):
-        """Get planned leave requests within a date range."""
-        if data_od is None:
-            data_od = date.today()
-        if data_do is None:
-            data_do = date.today() + timedelta(days=60)
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, "
-            "w.czas_do, w.status FROM wnioski_wolne w "
-            "JOIN pracownicy p ON w.pracownik_id = p.id "
-            "WHERE w.data_od <= %s AND w.data_do >= %s "
-            "ORDER BY w.data_od ASC LIMIT %s",
-            (data_do, data_od, limit)
-        )
-        result = cursor.fetchall()
-        conn.close()
-        return result
-    
-    @staticmethod
-    def get_recent_absences(days=30, limit=500):
-        """Get recent absence/non-attendance records (last N days)."""
-        since = date.today() - timedelta(days=days)
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz "
-            "FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id "
-            "WHERE o.data_wpisu BETWEEN %s AND %s "
-            "AND LOWER(TRIM(COALESCE(o.typ,''))) NOT LIKE 'obec%' "
-            "ORDER BY o.data_wpisu DESC LIMIT %s",
-            (since, date.today(), limit)
-        )
-        result = cursor.fetchall()
-        conn.close()
-        return result
+
     
     @staticmethod
     def get_plan_typ_zlecenia(plan_id):
@@ -508,11 +485,11 @@ class QueryHelper:
         return int(result[0] or 0) if result else 0
     
     @staticmethod
-    def get_planned_leaves(days_ahead=60, limit=500):
+    def get_planned_leaves(days=60, limit=500):
         """Get planned/scheduled leaves for the next N days.
         
         Args:
-            days_ahead: number of days into the future to check
+            days: number of days into the future to check
             limit: maximum number of records to return
             
         Returns:
@@ -520,7 +497,7 @@ class QueryHelper:
         """
         conn = get_db_connection()
         cursor = conn.cursor()
-        end_date = date.today() + timedelta(days=days_ahead)
+        end_date = date.today() + timedelta(days=days)
         cursor.execute(
             "SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, w.czas_do, w.status "
             "FROM wnioski_wolne w JOIN pracownicy p ON w.pracownik_id = p.id "
@@ -545,11 +522,11 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_recent_absences(days_back=30, limit=500):
+    def get_recent_absences(days=30, limit=500):
         """Get recent absence records (excludes regular attendance).
         
         Args:
-            days_back: number of days back to check
+            days: number of days back to check
             limit: maximum number of records to return
             
         Returns:
@@ -557,7 +534,7 @@ class QueryHelper:
         """
         conn = get_db_connection()
         cursor = conn.cursor()
-        since = date.today() - timedelta(days=days_back)
+        since = date.today() - timedelta(days=days)
         cursor.execute(
             "SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz "
             "FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id "

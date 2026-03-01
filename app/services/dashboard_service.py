@@ -588,14 +588,14 @@ class DashboardService:
             ob_all_ids = set(r[0] for r in ob)
             ob_nonprivate_ids = set(r[0] for r in ob if str(r[1]).strip().lower() != 'wyjscie prywatne')
             hr_dostepni = [p for p in wszyscy if p[0] not in ob_nonprivate_ids]
-            hr_pracownicy = [p for p in wszyscy if p[0] not in ob_all_ids and p[0] not in zajeci_ids]
+            hr_pracownicy = [p for p in wszyscy if p[0] not in ob_nonprivate_ids and p[0] not in zajeci_ids]
         except Exception:
             hr_dostepni = [p for p in wszyscy if p[0] not in zajeci_ids]
             hr_pracownicy = [p for p in wszyscy if p[0] not in zajeci_ids]
         
         # Get leave data
-        planned_leaves = QueryHelper.get_planned_leaves(days_ahead=60, limit=500)
-        recent_absences = QueryHelper.get_recent_absences(days_back=30, limit=500)
+        planned_leaves = QueryHelper.get_planned_leaves(limit=500)
+        recent_absences = QueryHelper.get_recent_absences(days=30, limit=500)
         
         return {
             'raporty_hr': raporty_hr,
@@ -623,8 +623,8 @@ class DashboardService:
         }
 
     @staticmethod
-    def get_shift_notes() -> List[Dict[str, Any]]:
-        """Get shift notes from database."""
+    def get_shift_notes(dzisiaj: date) -> List[Dict[str, Any]]:
+        """Get shift notes from database for the specified date."""
         shift_notes = []
         try:
             conn = get_db_connection()
@@ -647,7 +647,8 @@ class DashboardService:
             
             cursor.execute(
                 "SELECT id, pracownik_id, DATE_FORMAT(date, '%Y-%m-%d'), note, author, created "
-                "FROM shift_notes ORDER BY created DESC LIMIT 200"
+                "FROM shift_notes WHERE DATE(date) = %s OR DATE(created) = %s ORDER BY created DESC LIMIT 200",
+                (dzisiaj, dzisiaj)
             )
             rows = cursor.fetchall()
             for r in rows:

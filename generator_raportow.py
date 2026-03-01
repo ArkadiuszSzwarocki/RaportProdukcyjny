@@ -52,7 +52,7 @@ def generuj_paczke_raportow(data_planu, uwagi_lidera='', lider_name=''):
         "To jest fallback stub generujący przykładowe pliki raportów dla testów.\n"
     )
     txt_path.write_text(content, encoding="utf-8")
-    return [str(txt_path)]
+    return None, str(txt_path), None
 
 
 def generuj_zip_z_raportow(file_paths):

@@ -325,9 +325,9 @@ def obsada_page():
         try: conn.close()
         except Exception: pass
 
-    # If requested via AJAX, return only the fragment
+    # If requested via AJAX or the explicit API route, return only the fragment
     try:
-        is_ajax = request.headers.get('X-Requested-With', '') == 'XMLHttpRequest'
+        is_ajax = request.headers.get('X-Requested-With', '') == 'XMLHttpRequest' or request.path.startswith('/api/') or request.args.get('fragment') == 'true'
     except Exception:
         is_ajax = False
 

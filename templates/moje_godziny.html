@@ -1,307 +1,824 @@
 {% extends 'layout.html' %}
 {% block content %}
+<style>
+  /* Global layout fixes */
+  .block-section {
+    margin-bottom: 32px;
+    padding: 0;
+  }
+
+  .block-section > h2 {
+    margin-bottom: 24px;
+    font-size: 1.8em;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 12px;
+  }
+
+  .block-section > h3 {
+    margin-top: 24px;
+    margin-bottom: 16px;
+    font-size: 1.3em;
+    color: #333;
+  }
+
+  .block-section > h4 {
+    margin-bottom: 12px;
+    font-size: 1.1em;
+    color: #555;
+  }
+
+  /* Form improvements */
+  .block-section form {
+    background: #f8f9fa;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    margin-bottom: 16px;
+  }
+
+  .block-section .row {
+    margin-bottom: 12px;
+  }
+
+  .block-section .col-md-3,
+  .block-section .col-md-6 {
+    margin-bottom: 12px;
+  }
+
+  .block-section label {
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .block-section input,
+  .block-section select {
+    width: 100%;
+  }
+
+  /* Summary box */
+  .summary-box {
+    background: #f8f9fa;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+  }
+
+  .summary-box ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .summary-box li {
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+  }
+
+  .summary-box li:last-child {
+    border-bottom: none;
+  }
+
+  /* Table improvements */
+  .block-section table {
+    margin-top: 12px;
+    margin-bottom: 12px;
+  }
+
+  .block-section table th {
+    background: #e9ecef;
+    font-weight: 700;
+    padding: 12px;
+  }
+
+  .block-section table td {
+    padding: 10px 12px;
+    border: 1px solid #dee2e6;
+  }
+
+  /* Alert box */
+  .alert {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border-radius: 4px;
+  }
+
+  .alert-warning {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    color: #856404;
+  }
+
+  /* Button alignment */
+  .text-right {
+    text-align: right;
+  }
+
+  .align-self-end {
+    align-self: flex-end;
+  }
+
+  /* Ensure form controls are properly sized */
+  .form-control {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95em;
+  }
+
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-block;
+  }
+
+  .btn-primary {
+    background: #007bff;
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: #0056b3;
+  }
+
+  /* Hide/show elements */
+  .d-none {
+    display: none !important;
+  }
+
+  .d-flex {
+    display: flex;
+  }
+
+  .mb-3 {
+    margin-bottom: 16px;
+  }
+
+  .mt-2 {
+    margin-top: 12px;
+  }
+</style>
+
 <h2>{{ _('moje_godziny') }}</h2>
 {% if not mapped %}
-  <div class="alert alert-warning">{{ _('konto_nie_powiazane') }}</div>
+<div class="alert alert-warning">{{ _('konto_nie_powiazane') }}</div>
 {% endif %}
 
 <p>Zakres: {{ d_od }} — {{ d_do }}</p>
-  {% if pracownicy_list %}
-    <form method="get" class="mb-3">
-      <label for="pracownik_select">{{ _('przeglądaj_pracownika') }}</label>
-      <select id="pracownik_select" name="pracownik_id" title="Wybierz pracownika do przeglądu" onchange="this.form.submit()" class="form-control pracownik-select">
-        <option value="">-- wybierz --</option>
-        {% for p in pracownicy_list %}
-          <option value="{{ p[0] }}" {% if selected_pid and p[0]==selected_pid %}selected{% endif %}>{{ p[1] }}</option>
-        {% endfor %}
-      </select>
-    </form>
+{% if pracownicy_list %}
+<form method="get" class="mb-3">
+  <label for="pracownik_select">{{ _('przeglądaj_pracownika') }}</label>
+  <select id="pracownik_select" name="pracownik_id" title="Wybierz pracownika do przeglądu"
+    onchange="this.form.submit()" class="form-control pracownik-select">
+    <option value="">-- wybierz --</option>
+    {% for p in pracownicy_list %}
+    <option value="{{ p[0] }}" {% if selected_pid and p[0]==selected_pid %}selected{% endif %}>{{ p[1] }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endif %}
+<div class="mp-flex-row">
+  <div>
+    <h4>{{ _('twoje_podsumowanie') }}</h4>
+    <ul>
+      <li>Liczba zmian obecności w tym okresie: <strong id="obecnosciCount_owner">{{ owner_summary.obecnosci }}</strong>
+      </li>
+      <li>Wyjścia prywatne (suma godzin): <strong id="wyjsciaHours_owner">{{ '%.2f'|format(owner_summary.wyjscia_hours)
+          }} h</strong></li>
+      <li>Urlop bieżący (dni): <strong id="urlopBiez_owner">{{ owner_summary.urlop_biezacy if
+          owner_summary.urlop_biezacy is defined else 0 }}</strong></li>
+      <li>Urlop zaległy (dni): <strong id="urlopZal_owner">{{ owner_summary.urlop_zalegly if owner_summary.urlop_zalegly
+          is defined else 0 }}</strong></li>
+    </ul>
+  </div>
+  {% if viewed_summary %}
+  <div>
+    <h4>{{ _('przegladany_pracownik') }}</h4>
+    <ul>
+      <li>Liczba zmian obecności w tym okresie: <strong id="obecnosciCount_viewed">{{ viewed_summary.obecnosci
+          }}</strong></li>
+      <li>Wyjścia prywatne (suma godzin): <strong id="wyjsciaHours_viewed">{{
+          '%.2f'|format(viewed_summary.wyjscia_hours) }} h</strong></li>
+      <li>Urlop bieżący (dni): <strong id="urlopBiez_viewed">{{ viewed_summary.urlop_biezacy if
+          viewed_summary.urlop_biezacy is defined else 0 }}</strong></li>
+      <li>Urlop zaległy (dni): <strong id="urlopZal_viewed">{{ viewed_summary.urlop_zalegly if
+          viewed_summary.urlop_zalegly is defined else 0 }}</strong></li>
+    </ul>
+  </div>
   {% endif %}
-  <div class="mp-flex-row">
-    <div>
-      <h4>{{ _('twoje_podsumowanie') }}</h4>
-      <ul>
-        <li>Liczba zmian obecności w tym okresie: <strong id="obecnosciCount_owner">{{ owner_summary.obecnosci }}</strong></li>
-        <li>Wyjścia prywatne (suma godzin): <strong id="wyjsciaHours_owner">{{ '%.2f'|format(owner_summary.wyjscia_hours) }} h</strong></li>
-        <li>Urlop bieżący (dni): <strong id="urlopBiez_owner">{{ owner_summary.urlop_biezacy if owner_summary.urlop_biezacy is defined else 0 }}</strong></li>
-        <li>Urlop zaległy (dni): <strong id="urlopZal_owner">{{ owner_summary.urlop_zalegly if owner_summary.urlop_zalegly is defined else 0 }}</strong></li>
-      </ul>
+</div>
+<h3>{{ _('zloz_wniosek_o_wolne') }}</h3>
+<form action="{{ url_for('leaves.submit_wniosek') }}" method="post" class="mb-3">
+  <div class="row">
+    <div class="col-md-3"><label for="typ_select">{{ _('typ') }}</label>
+      <select id="typ_select" name="typ" class="form-control" title="{{ _('wybierz_typ_wniosku') }}">
+        <option>{{ _('urlop') }}</option>
+        <option>{{ _('nieobecnosc') }}</option>
+        <option>{{ _('wyjscie_prywatne') }}</option>
+      </select>
     </div>
-    {% if viewed_summary %}
-    <div>
-      <h4>{{ _('przegladany_pracownik') }}</h4>
-      <ul>
-        <li>Liczba zmian obecności w tym okresie: <strong id="obecnosciCount_viewed">{{ viewed_summary.obecnosci }}</strong></li>
-        <li>Wyjścia prywatne (suma godzin): <strong id="wyjsciaHours_viewed">{{ '%.2f'|format(viewed_summary.wyjscia_hours) }} h</strong></li>
-        <li>Urlop bieżący (dni): <strong id="urlopBiez_viewed">{{ viewed_summary.urlop_biezacy if viewed_summary.urlop_biezacy is defined else 0 }}</strong></li>
-        <li>Urlop zaległy (dni): <strong id="urlopZal_viewed">{{ viewed_summary.urlop_zalegly if viewed_summary.urlop_zalegly is defined else 0 }}</strong></li>
-      </ul>
-    </div>
+    <div class="col-md-3"><label>{{ _('od') }}</label><input id="data_od" type="date" name="data_od"
+        class="form-control" required title="{{ _('data_od') }}" placeholder="RRRR-MM-DD"></div>
+    <div class="col-md-3"><label>{{ _('do') }}</label><input id="data_do" type="date" name="data_do"
+        class="form-control" title="{{ _('data_do') }}" placeholder="RRRR-MM-DD"></div>
+  </div>
+  <div class="row mt-2">
+    <div class="col-md-3 d-none" id="timeColOd"><label for="czas_od">{{ _('czas_od') }}</label><input id="czas_od"
+        type="time" name="czas_od" title="{{ _('czas_od') }}" placeholder="{{ _('hh_mm') }}" class="form-control"></div>
+    <div class="col-md-3 d-none" id="timeColDo"><label for="czas_do">{{ _('czas_do') }}</label><input id="czas_do"
+        type="time" name="czas_do" title="{{ _('czas_do') }}" placeholder="{{ _('hh_mm') }}" class="form-control"></div>
+    <div class="col-md-6 align-self-end text-right"><button type="submit" class="btn btn-primary">{{ _('zloz_wniosek')
+        }}</button></div>
+  </div>
+</form>
+
+<h3>{{ _('twoje_wnioski') }}</h3>
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th>{{ _('data') }}</th>
+      <th>{{ _('typ') }}</th>
+      <th>{{ _('okres') }}</th>
+      <th>{{ _('stan') }}</th>
+      {% if session.get('rola') in ['lider','admin'] %}<th>{{ _('akcje') }}</th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for w in wnioski %}
+    <tr data-wnid="{{ w.id }}">
+      <td>{{ w.zlozono }}</td>
+      <td>{{ w.typ }}</td>
+      <td>{{ w.data_od }} → {{ w.data_do }}{% if w.czas_od %} ({{ w.czas_od }}-{{ w.czas_do }}){% endif %}</td>
+      <td>{{ w.status }}</td>
+      {% if session.get('rola') in ['lider','admin'] %}
+      <td>
+        {% if w.status != 'approved' %}
+        <button class="btn btn-sm btn-success wn-action" data-id="{{ w.id }}" data-action="approve">{{ _('zatwierdz')
+          }}</button>
+        <button type="button" class="btn btn-sm btn-danger wn-action ml-6" data-id="{{ w.id }}" data-action="reject">{{
+          _('odrzuc') }}</button>
+        {% else %}
+        <span class="badge badge-success">{{ _('zatwierdzony') }}</span>
+        {% endif %}
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<h3>{{ _('suma_godzin_wg_typu') }}</h3>
+<table class="table" id="typyTable_owner">
+  <thead>
+    <tr>
+      <th>{{ _('typ') }}</th>
+      <th>{{ _('godziny') }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t, h in owner_summary.typy.items() %}
+    <tr data-typ="{{ t }}">
+      <td>{{ t or '(brak)' }}</td>
+      <td class="typ-hours">{{ '%.2f'|format(h) }} h</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% if viewed_summary %}
+<h4>{{ _('typy_przeglądany') }}</h4>
+<table class="table" id="typyTable_viewed">
+  <thead>
+    <tr>
+      <th>{{ _('typ') }}</th>
+      <th>{{ _('godziny') }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t, h in viewed_summary.typy.items() %}
+    <tr data-typ="{{ t }}">
+      <td>{{ t or '(brak)' }}</td>
+      <td class="typ-hours">{{ '%.2f'|format(h) }} h</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h3>{{ _('kalendarz_godzin') }}</h3>
+<style>
+  /* Main layout fix */
+  .mp-flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+
+  .mp-flex-row > div {
+    flex: 0 1 auto;
+    min-width: 300px;
+  }
+
+  .mp-cal-row {
+    display: block;
+    width: 100%;
+    clear: both;
+    margin-top: 24px;
+    margin-bottom: 32px;
+  }
+
+  .mp-cal-col-main {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .cal-grid {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+  }
+
+  .cal-grid th {
+    text-align: center;
+    padding: 8px 6px;
+    background: #f0f0f0;
+    font-weight: 600;
+    border: 1px solid #ddd;
+  }
+
+  .cal-grid td {
+    width: 14.28%;
+    vertical-align: top;
+    border: 1px solid #ddd;
+    padding: 8px;
+    height: 120px;
+    background-color: #fafafa;
+    position: relative;
+  }
+
+  .cal-day {
+    font-weight: 700;
+    margin-bottom: 6px;
+    font-size: 1.1em;
+  }
+
+  .cal-hours {
+    font-size: 0.85em;
+    color: #666;
+    margin-bottom: 4px;
+  }
+
+  .cal-type {
+    font-size: 0.75em;
+    font-weight: 600;
+    margin-top: 6px;
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: #e9ecef;
+    color: #495057;
+  }
+
+  .cal-hr {
+    background: #ffe6e6 !important;
+  }
+
+  .cal-approved {
+    outline: 3px solid #28a745;
+    outline-offset: -3px;
+  }
+
+  /* Leave request status colors */
+  .cal-leave-pending {
+    background-color: #fff3cd !important;  /* Pomarańczowy - zaplanowany urlop */
+  }
+
+  .cal-leave-approved {
+    background-color: #d4edda !important;  /* Zielony - zatwierdzony urlop */
+  }
+
+  .cal-assigned {
+    background-color: #cfe2ff !important;  /* Niebieski - przydzielony do pracy */
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 0.75em;
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
+  .badge-success {
+    background: #28a745;
+    color: #fff;
+  }
+
+  .text-danger {
+    color: #dc3545;
+    font-weight: 600;
+    font-size: 0.85em;
+    margin-top: 4px;
+  }
+
+  /* Form styling */
+  .mp-form-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .mp-form-row > div {
+    flex: 0 1 auto;
+  }
+
+  .mp-form-row label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 0.9em;
+  }
+
+  .mp-form-row input,
+  .mp-form-row select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+
+  /* Legend styling */
+  .mp-legend {
+    margin-top: 20px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    padding: 16px;
+    border-radius: 6px;
+    font-size: 0.9em;
+  }
+
+  .mp-legend .mp-legend-item {
+    margin-right: 24px;
+    display: inline-block;
+    margin-bottom: 8px;
+  }
+
+  .mp-legend-item span {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  .spinner {
+    width: 18px;
+    height: 18px;
+    border: 3px solid rgba(0, 0, 0, 0.1);
+    border-top: 3px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .cal-grid td {
+      height: 100px;
+      padding: 6px 4px;
+    }
+    .cal-day {
+      font-size: 1em;
+    }
+    .cal-hours {
+      font-size: 0.75em;
+    }
+    .mp-flex-row {
+      flex-direction: column;
+      gap: 16px;
+    }
+    .mp-form-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+</style>
+<div class="mp-cal-row">
+  {# Decide which calendar to show: prefer viewed (selected) if present, otherwise owner #}
+  {% set show_viewed = (calendar_days_viewed is defined and calendar_days_viewed) or (selected_pid) %}
+  {% if show_viewed %}
+  {% set display_days = calendar_days_viewed if (calendar_days_viewed is defined and calendar_days_viewed) else
+  calendar_days_owner %}
+  {% set display_pid = viewed_pid or selected_pid or owner_pid %}
+  {% else %}
+  {% set display_days = calendar_days_owner %}
+  {% set display_pid = owner_pid %}
+  {% endif %}
+  <div class="mp-cal-col-main">
+    <h4>{{ _('kalendarz_pracownika') }}</h4>
+    <table class="cal-grid">
+      <tr>
+        <th>{{ _('pon') }}</th>
+        <th>{{ _('wt') }}</th>
+        <th>{{ _('sr') }}</th>
+        <th>{{ _('czw') }}</th>
+        <th>{{ _('pt') }}</th>
+        <th>{{ _('sob') }}</th>
+        <th>{{ _('nd') }}</th>
+      </tr>
+      <tr>
+        {% for d in display_days %}
+        {% set wd = d.date.weekday() %}
+        {% if loop.first and wd > 0 %}
+        {% for i in range(wd) %}
+        <td></td>
+        {% endfor %}
+        {% endif %}
+        {% set classes = [] %}
+        {% if d.hr %}{% do classes.append('cal-hr') %}{% endif %}
+        {% if d.approved %}{% do classes.append('cal-approved') %}{% endif %}
+        {% if d.leave_status == 'pending' %}{% do classes.append('cal-leave-pending') %}{% endif %}
+        {% if d.leave_status == 'approved' %}{% do classes.append('cal-leave-approved') %}{% endif %}
+        {% if d.assigned %}{% do classes.append('cal-assigned') %}{% endif %}
+        <td data-date="{{ d.date }}" data-pid="{{ display_pid }}" class="{{ ' '.join(classes) }}">
+          <div class="cal-day">{{ d.date.day }}</div>
+          <div class="cal-hours">
+            {% if d.nadgodziny > 0 %}
+              {{ '%.2f'|format(d.hours) }}h + <strong style="color: #d9534f;">{{ '%.2f'|format(d.nadgodziny) }}h OT</strong>
+            {% else %}
+              {{ '%.2f'|format(d.hours) }} h
+            {% endif %}
+          </div>
+          {% if d.typ_label %}<div class="cal-type">{{ d.typ_label }}</div>{% endif %}
+          {% if d.approved %}<div class="badge badge-success">Urlop zatwierdzony</div>{% endif %}
+          {% if d.hr %}<div class="text-danger">{{ _('hr') }}</div>{% endif %}
+        </td>
+        {% if wd == 6 and not loop.last %}
+      </tr>
+      <tr>
+        {% endif %}
+        {% endfor %}
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- NADGODZINY SECTIONS -->
+{% if (session.get('rola') or '')|lower in ['lider', 'admin'] %}
+<div class="block-section">
+  <h3>Zatwierdź nadgodziny</h3>
+  <div class="panel panel--nadgodziny">
+    {% if pending_nadgodziny %}
+      <div class="nadgodziny-list">
+        {% for n in pending_nadgodziny %}
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e0e0e0;">
+            <div style="flex: 1;">
+              <strong>{{ n['imie_nazwisko'] }}</strong>
+              <span style="color: #666; margin: 0 8px;">—</span>
+              <span>{{ n['data'] }}</span>
+              <span style="color: #999; font-weight: bold; margin-left: 8px;">{{ n['ilosc_nadgodzin'] }}h OT</span>
+              {% if n['powod'] %}
+                <div style="color: #666; font-size: 0.9em; margin-top: 4px;">{{ n['powod'] }}</div>
+              {% endif %}
+            </div>
+            <div style="display: flex; gap: 6px; flex-shrink: 0;">
+              <button type="button" class="btn btn-sm btn-success ng-approve-btn" data-ngid="{{ n['id'] }}">✓ Zatwierdź</button>
+              <button type="button" class="btn btn-sm btn-danger ng-reject-btn" data-ngid="{{ n['id'] }}">✕ Odrzuć</button>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="padding: 12px 0;">Brak wniosków o nadgodziny do zatwierdzenia.</p>
     {% endif %}
   </div>
-  <h3>{{ _('zloz_wniosek_o_wolne') }}</h3>
-  <form action="{{ url_for('leaves.submit_wniosek') }}" method="post" class="mb-3">
-    <div class="row">
-      <div class="col-md-3"><label for="typ_select">{{ _('typ') }}</label>
-        <select id="typ_select" name="typ" class="form-control" title="{{ _('wybierz_typ_wniosku') }}">
-          <option>{{ _('urlop') }}</option>
-          <option>{{ _('nieobecnosc') }}</option>
-          <option>{{ _('wyjscie_prywatne') }}</option>
-        </select>
+</div>
+{% endif %}
+
+<div class="block-section">
+  <h3>🕐 Zgłoś nadgodziny [DEBUG: user_nadgodziny={{ user_nadgodziny|length if user_nadgodziny else 0 }}]</h3>
+  <div class="panel panel--moje-nadgodziny">
+    <form method="POST" action="{{ url_for('overtime.submit_nadgodziny') }}" style="margin-bottom: 20px; padding: 16px; background: #fff; border: 1px solid #ddd; border-radius: 4px;">
+      <div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 150px;">
+          <label for="ng-data" style="display: block; margin-bottom: 4px; font-weight: bold;">Data:</label>
+          <input type="date" id="ng-data" name="data" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+        <div style="flex: 1; min-width: 150px;">
+          <label for="ng-ilosc" style="display: block; margin-bottom: 4px; font-weight: bold;">Liczba godzin:</label>
+          <input type="number" id="ng-ilosc" name="ilosc_nadgodzin" min="0.25" step="0.25" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
       </div>
-      <div class="col-md-3"><label>{{ _('od') }}</label><input id="data_od" type="date" name="data_od" class="form-control" required title="{{ _('data_od') }}" placeholder="RRRR-MM-DD"></div>
-      <div class="col-md-3"><label>{{ _('do') }}</label><input id="data_do" type="date" name="data_do" class="form-control" required title="{{ _('data_do') }}" placeholder="RRRR-MM-DD"></div>
-      <div class="col-md-3 d-none" id="timeColOd"><label for="czas_od">{{ _('czas_od') }}</label><input id="czas_od" type="time" name="czas_od" title="{{ _('czas_od') }}" placeholder="{{ _('hh_mm') }}" class="form-control"></div>
-    </div>
-    <div class="row mt-2">
-      <div class="col-md-9"></div>
-      <div class="col-md-3 align-self-end"><button type="submit" class="btn btn-primary">{{ _('zloz_wniosek') }}</button></div>
-    </div>
-  </form>
-
-  <h3>{{ _('twoje_wnioski') }}</h3>
-  <table class="table table-sm">
-    <thead>
-      <tr>
-        <th>{{ _('data') }}</th><th>{{ _('typ') }}</th><th>{{ _('okres') }}</th><th>{{ _('stan') }}</th>
-        {% if session.get('rola') in ['lider','admin'] %}<th>{{ _('akcje') }}</th>{% endif %}
-      </tr>
-    </thead>
-    <tbody>
-    {% for w in wnioski %}
-      <tr data-wnid="{{ w.id }}">
-        <td>{{ w.zlozono }}</td>
-        <td>{{ w.typ }}</td>
-        <td>{{ w.data_od }} → {{ w.data_do }}{% if w.czas_od %} ({{ w.czas_od }}-{{ w.czas_do }}){% endif %}</td>
-        <td>{{ w.status }}</td>
-        {% if session.get('rola') in ['lider','admin'] %}
-          <td>
-            {% if w.status != 'approved' %}
-              <button class="btn btn-sm btn-success wn-action" data-id="{{ w.id }}" data-action="approve">{{ _('zatwierdz') }}</button>
-              <button type="button" class="btn btn-sm btn-danger wn-action ml-6" data-id="{{ w.id }}" data-action="reject">{{ _('odrzuc') }}</button>
-            {% else %}
-              <span class="badge badge-success">{{ _('zatwierdzony') }}</span>
-            {% endif %}
-          </td>
-        {% endif %}
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  <h3>{{ _('suma_godzin_wg_typu') }}</h3>
-  <table class="table" id="typyTable_owner">
-    <thead><tr><th>{{ _('typ') }}</th><th>{{ _('godziny') }}</th></tr></thead>
-    <tbody>
-    {% for t, h in owner_summary.typy.items() %}
-      <tr data-typ="{{ t }}"><td>{{ t or '(brak)' }}</td><td class="typ-hours">{{ '%.2f'|format(h) }} h</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% if viewed_summary %}
-  <h4>{{ _('typy_przeglądany') }}</h4>
-  <table class="table" id="typyTable_viewed">
-    <thead><tr><th>{{ _('typ') }}</th><th>{{ _('godziny') }}</th></tr></thead>
-    <tbody>
-    {% for t, h in viewed_summary.typy.items() %}
-      <tr data-typ="{{ t }}"><td>{{ t or '(brak)' }}</td><td class="typ-hours">{{ '%.2f'|format(h) }} h</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
-
-  <h3>{{ _('kalendarz_godzin') }}</h3>
-  <style>
-    .cal-grid { width:100%; border-collapse: collapse; }
-    .cal-grid th { text-align:center; padding:6px; background:#f7f7f7; }
-    .cal-grid td { width:14%; vertical-align: top; border:1px solid #eee; padding:8px; height:100px; }
-    .cal-day { font-weight:600; margin-bottom:6px; }
-    .cal-hours { font-size:0.9em; }
-    .cal-type { font-size:0.85em; font-weight:600; margin-top:6px; display:inline-block; padding:2px 6px; border-radius:4px; background:#f0f0f0; color:#333; }
-    .cal-hr { background:#ffe6e6; }
-    .cal-approved { outline: 3px solid #c8f7c5; }
-    .badge { display:inline-block; padding:2px 6px; border-radius:4px; font-size:0.8em; margin-top:6px; }
-    .badge-success { background:#28a745; color:#fff; }
-    .text-danger { color:#b30000; font-weight:600; }
-    /* Toast styles moved to static/css/toasts.css */
-    /* Spinner */
-    .spinner { width:18px; height:18px; border:3px solid rgba(0,0,0,0.1); border-top:3px solid #007bff; border-radius:50%; animation: spin 1s linear infinite; display:inline-block; vertical-align:middle; }
-    @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-    /* utility spacing to avoid inline styles */
-    .ml-6 { margin-left: 6px; }
-    /* Legend container styles moved from inline to here */
-    .mp-legend {
-      margin-top:14px;
-      background:#fff;
-      border:1px solid #e6e6e6;
-      padding:10px 12px;
-      border-radius:6px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.03);
-      font-size:0.9em;
-    }
-      /* legend items moved from inline styles */
-      .mp-legend .mp-legend-item { margin-left:8px; display:inline-block; }
-      .mp-legend .cal-type-obecny { background:#eef; }
-  </style>
-    <div class="mp-cal-row">
-      {# Decide which calendar to show: prefer viewed (selected) if present, otherwise owner #}
-      {% set show_viewed = (calendar_days_viewed is defined and calendar_days_viewed) or (selected_pid) %}
-      {% if show_viewed %}
-        {% set display_days = calendar_days_viewed if (calendar_days_viewed is defined and calendar_days_viewed) else calendar_days_owner %}
-        {% set display_pid = viewed_pid or selected_pid or owner_pid %}
-      {% else %}
-        {% set display_days = calendar_days_owner %}
-        {% set display_pid = owner_pid %}
-      {% endif %}
-      <div class="mp-cal-col-main">
-        <h4>{{ _('kalendarz_pracownika') }}</h4>
-        <table class="cal-grid">
-          <tr>
-            <th>{{ _('pon') }}</th><th>{{ _('wt') }}</th><th>{{ _('sr') }}</th><th>{{ _('czw') }}</th><th>{{ _('pt') }}</th><th>{{ _('sob') }}</th><th>{{ _('nd') }}</th>
-          </tr>
-          <tr>
-          {% for d in display_days %}
-            {% set wd = d.date.weekday() %}
-            {% if loop.first and wd > 0 %}
-              {% for i in range(wd) %}
-                <td></td>
-              {% endfor %}
-            {% endif %}
-            {% set classes = [] %}
-            {% if d.hr %}{% do classes.append('cal-hr') %}{% endif %}
-            {% if d.approved %}{% do classes.append('cal-approved') %}{% endif %}
-            <td data-date="{{ d.date }}" data-pid="{{ display_pid }}" class="{{ ' '.join(classes) }}">
-              <div class="cal-day">{{ d.date.day }}</div>
-              <div class="cal-hours">{{ '%.2f'|format(d.hours) }} h</div>
-              {% if d.typ_label %}<div class="cal-type">{{ d.typ_label }}</div>{% endif %}
-              {% if d.approved %}<div class="badge badge-success">{{ _('zatwierdzone') }}</div>{% endif %}
-              {% if d.hr %}<div class="text-danger">{{ _('hr') }}</div>{% endif %}
-            </td>
-            {% if wd == 6 and not loop.last %}
-              </tr><tr>
-            {% endif %}
-          {% endfor %}
-          </tr>
+      <div style="margin-bottom: 12px;">
+        <label for="ng-powod" style="display: block; margin-bottom: 4px; font-weight: bold;">Powód (opcjonalnie):</label>
+        <input type="text" id="ng-powod" name="powod" placeholder="np. Dokończenie produkcji, naprawa maszyny..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 10px;">Zgłoś nadgodziny</button>
+    </form>
+    
+    {% if user_nadgodziny %}
+      <h4>Moje wnioski o nadgodziny</h4>
+      <div style="max-height: 300px; overflow-y: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f0f0f0; border-bottom: 2px solid #999;">
+              <th style="padding: 10px; text-align: left;">Data</th>
+              <th style="padding: 10px; text-align: center;">Godziny</th>
+              <th style="padding: 10px; text-align: left;">Powód</th>
+              <th style="padding: 10px; text-align: center;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ng in user_nadgodziny %}
+              <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 10px;">{{ ng['data'] }}</td>
+                <td style="padding: 10px; text-align: center; font-weight: bold;">{{ ng['ilosc_nadgodzin'] }}h</td>
+                <td style="padding: 10px;">{{ ng['powod'] or '-' }}</td>
+                <td style="padding: 10px; text-align: center;">
+                  {% if ng['status'] == 'pending' %}
+                    <span style="background: #fff3cd; padding: 4px 8px; border-radius: 3px; font-weight: bold;">⏳ Oczekuje</span>
+                  {% elif ng['status'] == 'approved' %}
+                    <span style="background: #d4edda; padding: 4px 8px; border-radius: 3px; font-weight: bold;">✓ Zatwierdzone</span>
+                  {% elif ng['status'] == 'rejected' %}
+                    <span style="background: #f8d7da; padding: 4px 8px; border-radius: 3px; font-weight: bold;">✕ Odrzucone</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
         </table>
       </div>
-    </div>
-  <!-- Modale usunięte: podgląd wniosków i potwierdzenia przeniesiony/wyłączony -->
-
-  <script>
-    const my_pid = '{{ session.get("pracownik_id") or "" }}';
-    const my_role = '{{ (session.get("rola") or "")|lower }}';
-    // showToast() provided by static/js/toasts.js
-
-    /* Modal UI removed — podgląd wniosków przeniesiony lub wyłączony. */
-
-    // Edit hours helpers
-    function submitEditHours(){
-      const btn = document.getElementById('editHoursBtn');
-      const pid = btn.getAttribute('data-pid');
-      const date = btn.getAttribute('data-date');
-      const val = document.getElementById('editHoursInput').value;
-      if(!pid || !date) return showToast('Brak danych do zapisu', 'warning');
-      fetch('/edytuj_godziny', {
-        method: 'POST',
-        headers: {'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({pracownik_id: pid, date: date, godziny: val})
-      }).then(r=>r.json()).then(j=>{
-        if(j && j.success){
-          showToast(j.message || 'Zapisano godziny', 'success');
-          // update clicked cell if present
-          // find any td[data-date][data-pid] matching
-          const cell = document.querySelector('td[data-date="'+date+'"][data-pid="'+pid+'"]');
-          if(cell){ const ch = cell.querySelector('.cal-hours'); if(ch) ch.textContent = parseFloat(val||0).toFixed(2)+' h'; }
-          // refresh summary
-          try{ refreshSummary(pid, 'viewed'); }catch(e){}
-        } else {
-          showToast((j && j.message) ? j.message : 'Błąd zapisu', 'danger');
-        }
-      }).catch(e=>{ console.error(e); showToast('Błąd sieci przy zapisie', 'danger'); });
-    }
-
-    // Toggle visibility of date/time inputs depending on selected typ
-    function updateWniosekFields(){
-      try{
-        const typ = document.getElementById('typ_select').value;
-        const timeColOd = document.getElementById('timeColOd');
-        const timeColDo = document.getElementById('timeColDo');
-        const czasOd = document.getElementById('czas_od');
-        const czasDo = document.getElementById('czas_do');
-        const dataDoWrapper = document.getElementById('data_do');
-        const dataOd = document.getElementById('data_od');
-        if(!timeColOd || !timeColDo || !dataOd) return;
-        if(typ === 'Wyjście prywatne'){
-          // Wyjście prywatne — jedno wyjście w danym dniu. Pokaż pola czasowe, ukryj pole data_do (ale zostaw w formularzu).
-          timeColOd.style.display = '';
-          timeColDo.style.display = '';
-          if(czasOd) czasOd.required = true;
-          if(czasDo) czasDo.required = true;
-          if(dataDoWrapper) { dataDoWrapper.style.display = 'none'; dataDoWrapper.value = dataOd.value || ''; }
-          // sync values
-          if(dataOd){ dataOd.addEventListener('change', function(){ if(document.getElementById('typ_select').value === 'Wyjście prywatne'){ if(dataDoWrapper) dataDoWrapper.value = dataOd.value; } }); }
-        } else {
-          timeColOd.style.display = 'none';
-          timeColDo.style.display = 'none';
-          if(czasOd) { czasOd.required = false; czasOd.value = ''; }
-          if(czasDo) { czasDo.required = false; czasDo.value = ''; }
-          if(dataDoWrapper) { dataDoWrapper.style.display = ''; }
-        }
-      }catch(e){ console.error('updateWniosekFields error', e); }
-    }
-
-    // Attach click handlers to calendar cells (data-date attribute) — use data-pid on each cell
-    document.addEventListener('DOMContentLoaded', function(){
-      const cells = document.querySelectorAll('td[data-date]');
-      cells.forEach(function(c){ c.addEventListener('click', function(){
-        try{ if(typeof showToast==='function') showToast('Podgląd wniosków jest wyłączony w tej instalacji', 'info'); else alert('Podgląd wniosków jest wyłączony'); }catch(e){console.log('modal disabled click');}
-      }); });
-      // wire up type selector to toggle fields
-      const typSel = document.getElementById('typ_select');
-      if(typSel){ typSel.addEventListener('change', updateWniosekFields); updateWniosekFields(); }
-      // initial refresh of summaries
-      try{ refreshSummary('{{ owner_pid }}', 'owner'); }catch(e){}
-      /*{% if viewed_summary %}*/
-      try{ refreshSummary('{{ viewed_pid }}', 'viewed'); }catch(e){}
-      /*{% endif %}*/
-    });
-
-    // openModalFor removed — modal UI disabled
-
-    // Refresh summary counters (obecnosci, wyjscia_hours, typy) for given pid and target suffix ('owner'|'viewed')
-    function refreshSummary(pid, suffix){
-      if(!pid) return;
-      const suf = suffix ? ('_' + suffix) : '';
-      fetch('/api/wnioski/summary?pracownik_id='+encodeURIComponent(pid), {headers:{'X-Requested-With':'XMLHttpRequest'}})
-        .then(r=>r.json()).then(j=>{
-          if(j && !j.error){
-            const ob = document.getElementById('obecnosciCount' + suf); if(ob) ob.textContent = j.obecnosci;
-            const wh = document.getElementById('wyjsciaHours' + suf); if(wh) wh.textContent = (parseFloat(j.wyjscia_hours)||0).toFixed(2) + ' h';
-            const ub = document.getElementById('urlopBiez' + suf); if(ub) ub.textContent = j.urlop_biezacy || 0;
-            const uz = document.getElementById('urlopZal' + suf); if(uz) uz.textContent = j.urlop_zalegly || 0;
-            if(j.typy){
-              const table = document.getElementById('typyTable' + (suffix ? ('_' + suffix) : ''));
-              Object.keys(j.typy).forEach(t=>{
-                if(table){
-                  const row = table.querySelector('tr[data-typ="'+t+'"]');
-                  if(row){ const cell = row.querySelector('.typ-hours'); if(cell) cell.textContent = (parseFloat(j.typy[t])||0).toFixed(2)+' h'; }
-                }
-              });
-            }
-          }
-        }).catch(err=>{ console.error('Summary fetch error', err); });
-    }
-  </script>
-  
-  <!-- Sekcja edycji godzin wewnątrz modalu została usunięta wraz z modalami -->
-  
-  <!-- Legend for calendar types (moved under calendar) -->
-  <div class="mp-legend">
-    <strong>Legenda:</strong>
-    <span class="mp-legend-item"><span class="cal-type cal-type-obecny">{{ _('obecny') }}</span> — pracuje</span>
-    <span class="mp-legend-item"><span class="cal-type">{{ _('u') }}</span> — Urlop</span>
-    <span class="mp-legend-item"><span class="cal-type">{{ _('wp') }}</span> — Wyjście prywatne</span>
-    <span class="mp-legend-item"><span class="cal-type">{{ _('n') }}</span> — Nieobecny</span>
-    <span class="mp-legend-item"><span class="cal-type">{{ _('og') }}</span> — Odbiór godzin</span>
-    <span class="mp-legend-item"><span class="cal-type">{{ _('op') }}</span> — Opieka</span>
+    {% else %}
+      <p style="color: #666; padding: 12px 0;">Brak zgłoszonych wniosków o nadgodziny.</p>
+    {% endif %}
   </div>
+</div>
+
+<!-- Modale usunięte: podgląd wniosków i potwierdzenia przeniesiony/wyłączony -->
+
+<script>
+  const my_pid = '{{ session.get("pracownik_id") or "" }}';
+  const my_role = '{{ (session.get("rola") or "")|lower }}';
+  // showToast() provided by static/js/toasts.js
+
+  /* Modal UI removed — podgląd wniosków przeniesiony lub wyłączony. */
+
+  // Edit hours helpers
+  function submitEditHours() {
+    const btn = document.getElementById('editHoursBtn');
+    const pid = btn.getAttribute('data-pid');
+    const date = btn.getAttribute('data-date');
+    const val = document.getElementById('editHoursInput').value;
+    if (!pid || !date) return showToast('Brak danych do zapisu', 'warning');
+    fetch('/edytuj_godziny', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ pracownik_id: pid, date: date, godziny: val })
+    }).then(r => r.json()).then(j => {
+      if (j && j.success) {
+        showToast(j.message || 'Zapisano godziny', 'success');
+        // update clicked cell if present
+        // find any td[data-date][data-pid] matching
+        const cell = document.querySelector('td[data-date="' + date + '"][data-pid="' + pid + '"]');
+        if (cell) { const ch = cell.querySelector('.cal-hours'); if (ch) ch.textContent = parseFloat(val || 0).toFixed(2) + ' h'; }
+        // refresh summary
+        try { refreshSummary(pid, 'viewed'); } catch (e) { }
+      } else {
+        showToast((j && j.message) ? j.message : 'Błąd zapisu', 'danger');
+      }
+    }).catch(e => { console.error(e); showToast('Błąd sieci przy zapisie', 'danger'); });
+  }
+
+  // Toggle visibility of date/time inputs depending on selected typ
+  function updateWniosekFields() {
+    try {
+      const typ = document.getElementById('typ_select').value;
+      const timeColOd = document.getElementById('timeColOd');
+      const timeColDo = document.getElementById('timeColDo');
+      const czasOd = document.getElementById('czas_od');
+      const czasDo = document.getElementById('czas_do');
+      const dataDoWrapper = document.getElementById('data_do');
+      const dataOd = document.getElementById('data_od');
+      if (!timeColOd || !timeColDo || !dataOd) return;
+      if (typ === 'Wyjście prywatne') {
+        // Wyjście prywatne — jedno wyjście w danym dniu. Pokaż pola czasowe, ukryj pole data_do (ale zostaw w formularzu).
+        timeColOd.style.display = '';
+        timeColDo.style.display = '';
+        if (czasOd) czasOd.required = true;
+        if (czasDo) czasDo.required = true;
+        if (dataDoWrapper) { dataDoWrapper.style.display = 'none'; dataDoWrapper.value = dataOd.value || ''; }
+        // sync values
+        if (dataOd) { dataOd.addEventListener('change', function () { if (document.getElementById('typ_select').value === 'Wyjście prywatne') { if (dataDoWrapper) dataDoWrapper.value = dataOd.value; } }); }
+      } else {
+        timeColOd.style.display = 'none';
+        timeColDo.style.display = 'none';
+        if (czasOd) { czasOd.required = false; czasOd.value = ''; }
+        if (czasDo) { czasDo.required = false; czasDo.value = ''; }
+        if (dataDoWrapper) { dataDoWrapper.style.display = ''; }
+      }
+    } catch (e) { console.error('updateWniosekFields error', e); }
+  }
+
+  // Attach click handlers to calendar cells (data-date attribute) — use data-pid on each cell
+  document.addEventListener('DOMContentLoaded', function () {
+    const cells = document.querySelectorAll('td[data-date]');
+    cells.forEach(function (c) {
+      c.addEventListener('click', function () {
+        // Open panel with leave requests for the selected date
+        const dateStr = c.getAttribute('data-date');
+        if (dateStr) {
+          fetch('{{ url_for("panels.panel_wnioski_page", fragment="true") }}', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          })
+          .then(r => r.text())
+          .then(html => {
+            createQuickPopup('Wnioski na dzień: ' + dateStr, html, {});
+          })
+          .catch(err => {
+            console.error('Error loading wnioski panel:', err);
+            if (typeof showToast === 'function') showToast('Błąd przy ładowaniu wniosków', 'danger');
+          });
+        }
+      });
+    });
+    // wire up type selector to toggle fields
+    const typSel = document.getElementById('typ_select');
+    if (typSel) { typSel.addEventListener('change', updateWniosekFields); updateWniosekFields(); }
+    // initial refresh of summaries
+    try { refreshSummary('{{ owner_pid }}', 'owner'); } catch (e) { }
+    /*{% if viewed_summary %}*/
+    try { refreshSummary('{{ viewed_pid }}', 'viewed'); } catch (e) { }
+    /*{% endif %}*/
+
+    // Handle approve/reject actions
+    const wnBtns = document.querySelectorAll('.wn-action');
+    wnBtns.forEach(btn => btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      const id = this.getAttribute('data-id');
+      const action = this.getAttribute('data-action');
+      fetch('/wnioski/' + id + '/' + action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+      }).then(r => r.json()).then(j => {
+        if (j.success) {
+          showToast(j.message, 'success');
+          setTimeout(() => window.location.reload(), 1000);
+        } else {
+          showToast(j.message || 'Błąd', 'danger');
+        }
+      }).catch(err => { console.error(err); showToast('Błąd sieci', 'danger'); });
+    }));
+  });
+
+  // openModalFor removed — modal UI disabled
+
+  // Refresh summary counters (obecnosci, wyjscia_hours, typy) for given pid and target suffix ('owner'|'viewed')
+  function refreshSummary(pid, suffix) {
+    if (!pid) return;
+    const suf = suffix ? ('_' + suffix) : '';
+    fetch('/api/wnioski/summary?pracownik_id=' + encodeURIComponent(pid), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.json()).then(j => {
+        if (j && !j.error) {
+          const ob = document.getElementById('obecnosciCount' + suf); if (ob) ob.textContent = j.obecnosci;
+          const wh = document.getElementById('wyjsciaHours' + suf); if (wh) wh.textContent = (parseFloat(j.wyjscia_hours) || 0).toFixed(2) + ' h';
+          const ub = document.getElementById('urlopBiez' + suf); if (ub) ub.textContent = j.urlop_biezacy || 0;
+          const uz = document.getElementById('urlopZal' + suf); if (uz) uz.textContent = j.urlop_zalegly || 0;
+          if (j.typy) {
+            const table = document.getElementById('typyTable' + (suffix ? ('_' + suffix) : ''));
+            Object.keys(j.typy).forEach(t => {
+              if (table) {
+                const row = table.querySelector('tr[data-typ="' + t + '"]');
+                if (row) { const cell = row.querySelector('.typ-hours'); if (cell) cell.textContent = (parseFloat(j.typy[t]) || 0).toFixed(2) + ' h'; }
+              }
+            });
+          }
+        }
+      }).catch(err => { console.error('Summary fetch error', err); });
+  }
+</script>
+
+<!-- Sekcja edycji godzin wewnątrz modalu została usunięta wraz z modalami -->
+
+<!-- Legend for calendar types (moved under calendar) -->
+<div class="mp-legend">
+  <strong>Legenda:</strong>
+  <span class="mp-legend-item"><span class="cal-type cal-type-obecny">{{ _('obecny') }}</span> — pracuje</span>
+  <span class="mp-legend-item"><span class="cal-type">{{ _('u') }}</span> — Urlop</span>
+  <span class="mp-legend-item"><span class="cal-type">{{ _('wp') }}</span> — Wyjście prywatne</span>
+  <span class="mp-legend-item"><span class="cal-type">{{ _('n') }}</span> — Nieobecny</span>
+  <span class="mp-legend-item"><span class="cal-type">{{ _('og') }}</span> — Odbiór godzin</span>
+  <span class="mp-legend-item"><span class="cal-type">{{ _('op') }}</span> — Opieka</span>
+</div>
 {% endblock %}

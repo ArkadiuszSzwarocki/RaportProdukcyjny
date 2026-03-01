@@ -22,6 +22,7 @@ from app.blueprints.routes_warehouse import warehouse_bp
 from app.blueprints.routes_planning import planning_bp
 from app.blueprints.routes_journal import journal_bp
 from app.blueprints.routes_leaves import leaves_bp
+from app.blueprints.routes_overtime import overtime_bp
 from app.blueprints.routes_schedule import schedule_bp
 from app.blueprints.routes_testing import testing_bp
 from app.blueprints.routes_recovery import recovery_bp
@@ -92,6 +93,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(planning_bp, url_prefix='/api')
     app.register_blueprint(journal_bp)
     app.register_blueprint(leaves_bp, url_prefix='/api')
+    app.register_blueprint(overtime_bp, url_prefix='/api')
     app.register_blueprint(schedule_bp)
     app.register_blueprint(testing_bp)
     app.register_blueprint(recovery_bp, url_prefix='/api')

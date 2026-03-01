@@ -7,10 +7,12 @@ import calendar
 
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required, zarzad_required, dynamic_role_required
+from app.services.attendance_service import AttendanceService
+from app.services.overtime_service import OvertimeService
 
 # Import QueryHelper if available for complex queries
 try:
-    from app.utils.query_helper import QueryHelper
+    from app.utils.queries import QueryHelper
 except ImportError:
     QueryHelper = None
 
@@ -18,16 +20,69 @@ panels_bp = Blueprint('panels', __name__)
 
 
 @panels_bp.route('/panel_wnioski_page', methods=['GET'])
-@roles_required('lider', 'admin')
+@login_required
 def panel_wnioski_page():
-    """Pełnostronicowy widok zatwierdzeń wniosków."""
+    """Panel widok wniosków o wolne - dla liderów/adminów pokazuje wszystkie pending, dla pracowników - swoje."""
     wnioski = []
     try:
-        if QueryHelper:
-            raw_wnioski = QueryHelper.get_pending_leave_requests(limit=200)
-            wnioski = raw_wnioski
-    except Exception:
+        # Use AttendanceService instead of QueryHelper for consistency
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        user_role = session.get('rola', '').lower()
+        user_id = session.get('pracownik_id')
+        
+        # If lider or admin - show ALL pending requests; otherwise show only own
+        if user_role in ['lider', 'admin']:
+            cursor.execute(
+                """SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, 
+                          w.czas_od, w.czas_do, w.powod, w.zlozono 
+                   FROM wnioski_wolne w 
+                   JOIN pracownicy p ON w.pracownik_id = p.id 
+                   WHERE w.status = 'pending' 
+                   ORDER BY w.zlozono DESC 
+                   LIMIT 200"""
+            )
+        else:
+            # Regular employee - show only their own pending requests
+            cursor.execute(
+                """SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, 
+                          w.czas_od, w.czas_do, w.powod, w.zlozono 
+                   FROM wnioski_wolne w 
+                   JOIN pracownicy p ON w.pracownik_id = p.id 
+                   WHERE w.status = 'pending' AND w.pracownik_id = %s
+                   ORDER BY w.zlozono DESC 
+                   LIMIT 200""",
+                (user_id,)
+            )
+        
+        raw = cursor.fetchall()
+        conn.close()
+        
+        wnioski = []
+        for r in raw:
+            wnioski.append({
+                'id': r[0],
+                'pracownik': r[1],
+                'typ': r[2],
+                'data_od': r[3],
+                'data_do': r[4],
+                'czas_od': r[5],
+                'czas_do': r[6],
+                'powod': r[7],
+                'zlozono': r[8]
+            })
+        
+        print(f"[DEBUG panel_wnioski_page] Loaded {len(wnioski)} wnioski as dicts for role={user_role}")
+        
+    except Exception as e:
+        print(f"[ERROR] Exception in panel_wnioski_page: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         current_app.logger.exception('Failed loading wnioski for full page')
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('fragment') == 'true':
+        return render_template('panels/wnioski_panel.html', wnioski=wnioski)
     return render_template('panels_full/wnioski_full.html', wnioski=wnioski)
 
 
@@ -38,9 +93,11 @@ def panel_planowane_page():
     planned = []
     try:
         if QueryHelper:
-            planned = QueryHelper.get_planned_leaves(days_ahead=60, limit=500)
+            planned = QueryHelper.get_planned_leaves(limit=500)
     except Exception:
         current_app.logger.exception('Failed loading planned leaves for full page')
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('fragment') == 'true':
+        return render_template('panels/planowane_panel.html', planned_leaves=planned)
     return render_template('panels_full/planowane_full.html', planned_leaves=planned)
 
 
@@ -49,14 +106,23 @@ def panel_planowane_page():
 def panel_obecnosci_page():
     """Panel niedawnych nieobecności."""
     recent = []
+    pracownicy = []
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko")
+        pracownicy = cursor.fetchall()
+        conn.close()
+
         if QueryHelper:
-            raw_recent = QueryHelper.get_recent_absences(days_back=30, limit=500)
+            raw_recent = QueryHelper.get_recent_absences(days=30, limit=500)
             # Convert keys to match template: data_wpisu -> data, ilosc_godzin -> godziny
             recent = [{'id': r['id'], 'pracownik': r['pracownik'], 'typ': r['typ'], 'data': r['data_wpisu'], 'godziny': r['ilosc_godzin'], 'komentarz': r['komentarz']} for r in raw_recent]
     except Exception:
         current_app.logger.exception('Failed loading absences for full page')
-    return render_template('panels_full/obecnosci_full.html', recent_absences=recent)
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('fragment') == 'true':
+        return render_template('panels/obecnosci_panel.html', recent_absences=recent, pracownicy=pracownicy, dzisiaj=date.today())
+    return render_template('panels_full/obecnosci_full.html', recent_absences=recent, pracownicy=pracownicy, dzisiaj=date.today())
 
 
 @panels_bp.route('/panel/obsada')
@@ -179,6 +245,25 @@ def moje_godziny():
     except Exception:
         wnioski = []
 
+    # Pobierz nadgodziny złożone przez właściciela
+    user_nadgodziny = []
+    try:
+        user_nadgodziny = OvertimeService.get_user_requests(owner_pid) if owner_pid else []
+        current_app.logger.info(f"[DEBUG] moje_godziny: owner_pid={owner_pid}, user_nadgodziny count={len(user_nadgodziny)}")
+    except Exception as e:
+        current_app.logger.error(f"[DEBUG] Error fetching user_nadgodziny: {e}")
+        user_nadgodziny = []
+
+    # Pobierz oczekujące nadgodziny dla lidera
+    pending_nadgodziny = []
+    try:
+        if role in ['lider', 'admin']:
+            pending_nadgodziny = OvertimeService.get_pending_requests()
+            current_app.logger.info(f"[DEBUG] moje_godziny: pending_nadgodziny count={len(pending_nadgodziny)}")
+    except Exception as e:
+        current_app.logger.error(f"[DEBUG] Error fetching pending_nadgodziny: {e}")
+        pending_nadgodziny = []
+
     # Przygotuj dane kalendarza miesiąca: suma godzin na dzień, flaga HR, flaga zatwierdzenia
     try:
         year = d_od.year
@@ -221,7 +306,34 @@ def moje_godziny():
                 cursor.execute("SELECT COUNT(1) FROM wnioski_wolne WHERE pracownik_id=%s AND status='approved' AND data_od <= %s AND data_do >= %s", (prac_id, day_date, day_date))
                 approved_wn = int(cursor.fetchone()[0] or 0) > 0
                 approved = approved_report or approved_wn
-                cal.append({'date': day_date, 'hours': s, 'hr': hr_count > 0, 'approved': approved, 'typ_label': typ_label})
+                
+                # Pobierz status urlopu na ten dzień (pending, approved, rejected, lub None)
+                leave_status = None
+                try:
+                    cursor.execute("SELECT status FROM wnioski_wolne WHERE pracownik_id=%s AND data_od <= %s AND data_do >= %s ORDER BY zlozono DESC LIMIT 1", (prac_id, day_date, day_date))
+                    result = cursor.fetchone()
+                    if result:
+                        leave_status = result[0]
+                except Exception:
+                    leave_status = None
+                
+                # Sprawdź czy pracownik ma przydzielenie do pracy na stanowisko w tym dniu
+                assigned = False
+                try:
+                    cursor.execute("SELECT COUNT(1) FROM obsada_zmiany WHERE pracownik_id=%s AND data_wpisu=%s", (prac_id, day_date))
+                    assigned = int(cursor.fetchone()[0] or 0) > 0
+                except Exception:
+                    assigned = False
+                
+                # Pobierz zatwierdzonych nadgodzin na ten dzień
+                nadgodziny_hours = 0.0
+                try:
+                    cursor.execute("SELECT COALESCE(SUM(ilosc_nadgodzin), 0) FROM nadgodziny WHERE pracownik_id=%s AND data=%s AND status='approved'", (prac_id, day_date))
+                    nadgodziny_hours = float(cursor.fetchone()[0] or 0)
+                except Exception:
+                    nadgodziny_hours = 0.0
+                
+                cal.append({'date': day_date, 'hours': s, 'nadgodziny': nadgodziny_hours, 'total_hours': s + nadgodziny_hours, 'hr': hr_count > 0, 'approved': approved, 'typ_label': typ_label, 'leave_status': leave_status, 'assigned': assigned})
             return cal
 
         calendar_days_owner = build_calendar(owner_pid) if owner_pid else []
@@ -238,6 +350,8 @@ def moje_godziny():
         owner_summary=owner_summary,
         viewed_summary=viewed_summary,
         d_od=d_od, d_do=d_do, wnioski=wnioski,
+        user_nadgodziny=user_nadgodziny,
+        pending_nadgodziny=pending_nadgodziny,
         calendar_days_owner=calendar_days_owner,
         calendar_days_viewed=calendar_days_viewed,
         pracownicy_list=pracownicy_list, selected_pid=selected_pid,

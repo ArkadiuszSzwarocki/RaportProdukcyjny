@@ -42,7 +42,7 @@ def dodaj_obecnosc():
             conn.close()
         except Exception:
             pass
-        return redirect(url_for('main.index'))
+        return redirect(url_for('index'))
     # Jeśli Wyjscie prywatne — wymagamy podania zakresu czasu
     od = None
     do = None
@@ -52,13 +52,27 @@ def dodaj_obecnosc():
         # Dołączamy zakres czasowy do komentarza dla zapisu (kompatybilność wsteczna)
         komentarz = f"Wyjście prywatne od {od} do {do}" + (f" — {komentarz}" if komentarz else '')
 
+    data_wpisu_str = request.form.get('data')
+    if data_wpisu_str:
+        try:
+            from datetime import datetime
+            data_wpisu = datetime.strptime(data_wpisu_str, '%Y-%m-%d').date()
+        except:
+            data_wpisu = date.today()
+    else:
+        data_wpisu = date.today()
+
     # Zapisz też osobne kolumny wyjscie_od/wyjscie_do (mogą być NULL jeśli nie dotyczy)
     cursor.execute(
         "INSERT INTO obecnosc (data_wpisu, pracownik_id, typ, ilosc_godzin, komentarz, wyjscie_od, wyjscie_do) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        (date.today(), pracownik_id, typ, godziny_val, komentarz, od, do)
+        (data_wpisu, pracownik_id, typ, godziny_val, komentarz, od, do)
     )
     conn.commit()
     conn.close()
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Wpis zapisany pomyślnie'})
+        
     return redirect(url_for('main.index'))
 
 

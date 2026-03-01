@@ -14,7 +14,9 @@ DB_CONFIG = {
     'database': os.getenv('DB_NAME', 'biblioteka'),
     'user': os.getenv('DB_USER', 'biblioteka'),
     'password': os.getenv('DB_PASSWORD', ''),  # Puste domyślnie, wymusza pobranie z .env
-    'charset': 'utf8mb4'
+    'charset': 'utf8mb4',
+    'connection_timeout': 5,  # 5 sekund timeout
+    'autocommit': False
 }
 
 # Konfiguracja odbiorców raportów email

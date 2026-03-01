@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 from datetime import datetime
-from db import get_db_connection
+from app.db import get_db_connection
 import logging
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
 
     # 3. PDF (używamy helpera z raporty.py)
     try:
-        from raporty import generuj_pdf
+        from scripts.raporty import generuj_pdf
         # Przygotuj struktury wymagane przez generuj_pdf (listy krotek)
         # Ustal kolejność produktów na podstawie kolejności planu (pole `kolejnosc` lub `id`)
         try:

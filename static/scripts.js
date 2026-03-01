@@ -3,7 +3,7 @@
 (function () {
     'use strict';
 
-    
+
 
     // --- Stałe konfiguracyjne ---
     const REFRESH_INTERVAL_MS = 60_000; // Auto-odświeżanie co 60s
@@ -15,7 +15,7 @@
     // Ta funkcja działa na każdej podstronie systemu
     function initScrollPreservation() {
         const scrollKey = 'system_scroll_pos';
-        
+
         // 1. Jeśli mamy zapisaną pozycję, przewiń do niej
         const savedPos = localStorage.getItem(scrollKey);
         if (savedPos) {
@@ -24,7 +24,7 @@
         }
 
         // 2. Nasłuchuj wysyłania formularzy (każde kliknięcie przycisku "Zapisz", strzałek itp.)
-        document.addEventListener('submit', function(e) {
+        document.addEventListener('submit', function (e) {
             if (e.target.tagName === 'FORM') {
                 localStorage.setItem(scrollKey, window.scrollY);
             }
@@ -119,84 +119,12 @@
             aktualizujWalidacje();
         }
 
-        // top-submenu clicks are handled by global delegation via data-slide
-        // New behavior: load panel pages into `#mainContent` via fetch (partial navigation)
-        try {
-            const topSub = document.querySelector('.top-submenu-inner');
-            if (topSub) {
-                topSub.addEventListener('click', function (ev) {
-                    const a = ev.target.closest && ev.target.closest('a');
-                    if (!a) return;
-                    const href = a.getAttribute('href') || '';
-                    if (!href || href.indexOf('http') === 0 || href.indexOf('javascript:') === 0) return;
-                    // Only handle internal /panel/ routes or obsada partials
-                    if (href.indexOf('/panel/') !== 0 && href.indexOf('/obsada_page') !== 0) return;
-                    ev.preventDefault(); ev.stopPropagation();
-                    // fetch the page and replace main content
-                    (async function(){
-                        try {
-                            // Special-case: if user clicked a /panel/obsada link, fetch the API fragment instead
-                            let fetchUrl = href;
-                            if (href.indexOf('/panel/obsada') === 0) {
-                                // preserve sekcja query if present
-                                const u = new URL(href, window.location.origin);
-                                const sekcja = u.searchParams.get('sekcja') || 'Workowanie';
-                                fetchUrl = '/obsada_page?sekcja=' + encodeURIComponent(sekcja);
-                            }
-                            const resp = await fetch(fetchUrl, { credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} });
-                            if (!resp.ok) { window.location.href = href; return; }
-                            const txt = await resp.text();
-                            const tmp = document.createElement('div'); tmp.innerHTML = txt;
-                            // Try several strategies to extract only the useful fragment:
-                            // 1) #mainContent (full page)
-                            // 2) known obsada marker #current-obsada-0 -> its closest .section-box
-                            // 3) first .section-box
-                            // 4) <main>
-                            // 5) fallback to full response
-                            let newMain = tmp.querySelector('#mainContent');
-                            if (!newMain) {
-                                const obsMarker = tmp.querySelector('#current-obsada-0');
-                                if (obsMarker) {
-                                    newMain = obsMarker.closest('.section-box') || obsMarker;
-                                } else {
-                                    const section = tmp.querySelector('.section-box');
-                                    if (section) newMain = section;
-                                    else {
-                                        const mainEl = tmp.querySelector('main');
-                                        newMain = mainEl || tmp;
-                                    }
-                                }
-                            }
-                            const curMain = document.getElementById('mainContent');
-                            if (newMain && curMain) {
-                                curMain.innerHTML = newMain.innerHTML;
-                                // execute inline scripts in replaced content
-                                newMain.querySelectorAll('script').forEach(s => {
-                                    try {
-                                        if (s.src) {
-                                            const sc = document.createElement('script'); sc.src = s.src; sc.async = false; document.body.appendChild(sc);
-                                        } else {
-                                            (new Function(s.textContent))();
-                                        }
-                                    } catch (e) { console.warn('exec replaced script failed', e); }
-                                });
-                                // update history so back/forward works
-                                try { window.history.pushState({ partial: true, url: href }, '', href); } catch(e){}
-                                // dispatch event for other modules
-                                window.dispatchEvent(new CustomEvent('app:partialReload'));
-                                return;
-                            }
-                            // fallback full navigation
-                            window.location.href = href;
-                        } catch (e) { console.error('partial load failed', e); window.location.href = href; }
-                    })();
-                });
-                // handle browser back/forward to re-fetch content
-                window.addEventListener('popstate', function(ev){
-                    try { if (ev.state && ev.state.url) { fetch(ev.state.url, { credentials: 'same-origin' }).then(r=>r.text()).then(t=>{ const tmp=document.createElement('div'); tmp.innerHTML=t; const nm=tmp.querySelector('#mainContent'); const cm=document.getElementById('mainContent'); if(nm && cm) cm.innerHTML = nm.innerHTML; }); } } catch(e){}
-                });
-            }
-        } catch (e) { /* ignore */ }
+        // top-submenu handlers removed: now using standard data-slide behavior
+
+        // handle browser back/forward to re-fetch content
+        window.addEventListener('popstate', function (ev) {
+            try { if (ev.state && ev.state.url) { fetch(ev.state.url, { credentials: 'same-origin' }).then(r => r.text()).then(t => { const tmp = document.createElement('div'); tmp.innerHTML = t; const nm = tmp.querySelector('#mainContent'); const cm = document.getElementById('mainContent'); if (nm && cm) cm.innerHTML = nm.innerHTML; }); } } catch (e) { }
+        });
 
         // --- Responsive sidebar (hamburger + overlay) ---
         const hamburger = document.getElementById('hamburgerBtn');
@@ -231,7 +159,7 @@
                 }
             } catch (e) { /* ignore */ }
             // After ensuring focus moved, set inert and aria-hidden. Use timeout to allow browser to update focus first.
-            setTimeout(function(){
+            setTimeout(function () {
                 try {
                     if (sidebar) { sidebar.inert = true; sidebar.setAttribute('aria-hidden', 'true'); }
                     if (overlay) { overlay.inert = true; overlay.setAttribute('aria-hidden', 'true'); }
@@ -268,20 +196,20 @@
     });
 
     // Global click delegation: any element with `data-slide` or `data-slide-html` opens slide-over
-    document.addEventListener('click', function(e){
-        try{
+    document.addEventListener('click', function (e) {
+        try {
             var el = e.target.closest && e.target.closest('[data-slide], [data-slide-html], .slide-link');
-            if(!el){
+            if (!el) {
                 // also intercept anchors that point to API page endpoints (convention: urls containing '/api/' and '_page' or modal-like names)
                 var a = e.target.closest && e.target.closest('a[href]');
-                if(a){
+                if (a) {
                     var href = a.getAttribute('href') || '';
-                    if(href.indexOf('/api/') !== -1 && (href.indexOf('_page') !== -1 || href.indexOf('dodaj') !== -1 || href.indexOf('edytuj') !== -1 || href.indexOf('confirm_delete') !== -1 || href.indexOf('przywroc') !== -1)){
+                    if (href.indexOf('/api/') !== -1 && (href.indexOf('_page') !== -1 || href.indexOf('dodaj') !== -1 || href.indexOf('edytuj') !== -1 || href.indexOf('confirm_delete') !== -1 || href.indexOf('przywroc') !== -1)) {
                         el = a;
                     }
                 }
             }
-            if(!el) return;
+            if (!el) return;
             // prevent default navigation
             e.preventDefault();
             var url = el.getAttribute('data-slide') || el.getAttribute('href');
@@ -289,10 +217,10 @@
             // allow per-element opt-out via `data-allow-backdrop="false"`
             var allowAttr = el.getAttribute && el.getAttribute('data-allow-backdrop');
             var allowBackdrop = allowAttr === 'false' ? false : true;
-            if(html){ showSlideOver(html, { isHtml: true, backdrop: true, allowBackdropClose: allowBackdrop }); return; }
-            if(!url || url === '#' || url.indexOf('javascript:') === 0){ showSlideOver('<div class="p-10">Brak docelowego adresu</div>', { isHtml:true }); return; }
+            if (html) { showSlideOver(html, { isHtml: true, backdrop: true, allowBackdropClose: allowBackdrop }); return; }
+            if (!url || url === '#' || url.indexOf('javascript:') === 0) { showSlideOver('<div class="p-10">Brak docelowego adresu</div>', { isHtml: true }); return; }
             showSlideOver(url, { backdrop: true, allowBackdropClose: allowBackdrop, transient: false });
-        }catch(err){ console.error('Click delegation error:', err); }
+        } catch (err) { console.error('Click delegation error:', err); }
     }, false);
 
     // Auto-refresh: odśwież gdy nikt nic nie wpisuje przez określony czas
@@ -303,122 +231,122 @@
 
     // Partial reload: fetch current page and replace main content silently
     async function performPartialReload() {
-        try{
+        try {
             // Save current scroll position before reloading
             const scrollKey = 'system_scroll_pos';
             localStorage.setItem(scrollKey, window.scrollY);
-            
+
             const resp = await fetch(window.location.href, { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
-            if(!resp.ok) return window.location.reload();
+            if (!resp.ok) return window.location.reload();
             const txt = await resp.text();
             const tmp = document.createElement('div'); tmp.innerHTML = txt;
             const newMain = tmp.querySelector('#mainContent');
             const curMain = document.getElementById('mainContent');
-            if(newMain && curMain){
+            if (newMain && curMain) {
                 // Clear any existing event listeners by replacing entire content
                 curMain.innerHTML = newMain.innerHTML;
-                
+
                 // Re-initialize any inline scripts (but NOT external scripts to avoid double-loading)
                 newMain.querySelectorAll('script:not([src])').forEach(s => {
-                    try{
-                        if(s.textContent) {
+                    try {
+                        if (s.textContent) {
                             const scriptCode = s.textContent;
                             // Execute in global scope
                             window.eval(scriptCode);
                         }
-                    }catch(e){ console.warn('exec partial script failed', e); }
+                    } catch (e) { console.warn('exec partial script failed', e); }
                 });
-                
+
                 // Restore scroll position after content update
-                setTimeout(()=> {
+                setTimeout(() => {
                     const savedPos = localStorage.getItem(scrollKey);
-                    if(savedPos) {
+                    if (savedPos) {
                         window.scrollTo(0, parseInt(savedPos));
                         localStorage.removeItem(scrollKey);
                     }
                 }, 50);
-                
+
                 // call update timer function if available
-                try{ if(typeof updatePaletaTimers === 'function') updatePaletaTimers(); }catch(e){}
-                
+                try { if (typeof updatePaletaTimers === 'function') updatePaletaTimers(); } catch (e) { }
+
                 // Dispatch event so other parts of app know content changed
-                try{ window.dispatchEvent(new CustomEvent('app:partialReload')); }catch(e){}
-                
+                try { window.dispatchEvent(new CustomEvent('app:partialReload')); } catch (e) { }
+
                 console.info('[partialReload] Content updated successfully');
                 return;
             }
             // fallback full reload
             console.warn('[partialReload] Could not find #mainContent, falling back to full reload');
             window.location.reload();
-        }catch(e){ console.error('performPartialReload failed', e); window.location.reload(); }
+        } catch (e) { console.error('performPartialReload failed', e); window.location.reload(); }
     }
 
     /* ================= Additional popups: toast, drawer, bottom-sheet, popover, fullscreen, wizard ================= */
 
-    function showToast(message, type){
-        try{
+    function showToast(message, type) {
+        try {
             type = type || 'info';
-            const container = document.getElementById('toastContainer') || (function(){ const c = document.createElement('div'); c.id='toastContainer'; document.body.appendChild(c); return c; })();
-            const t = document.createElement('div'); t.className = 'toast toast-'+type; t.innerText = message;
+            const container = document.getElementById('toastContainer') || (function () { const c = document.createElement('div'); c.id = 'toastContainer'; document.body.appendChild(c); return c; })();
+            const t = document.createElement('div'); t.className = 'toast toast-' + type; t.innerText = message;
             container.appendChild(t);
             // auto remove
-            setTimeout(()=>{ t.classList.add('show'); }, 10);
-            setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=> t.remove(),300); }, 3500);
-        }catch(e){ console.warn('showToast', e); }
+            setTimeout(() => { t.classList.add('show'); }, 10);
+            setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+        } catch (e) { console.warn('showToast', e); }
     }
 
-    function showDrawer(html, opts){
+    function showDrawer(html, opts) {
         opts = opts || {};
         const side = opts.side === 'left' ? 'left' : 'right';
-        let bd = document.querySelector('.slide-over-backdrop'); if(!bd){ bd = document.createElement('div'); bd.className='slide-over-backdrop'; document.body.appendChild(bd);} 
-        const d = document.createElement('div'); d.className = 'drawer drawer-'+side; d.innerHTML = `<div class="drawer-body">${html}</div><button class="drawer-close" aria-label="Zamknij">✕</button>`;
-        document.body.appendChild(d); document.body.classList.add('slide-over-open'); if(bd) bd.classList.add('show');
-        requestAnimationFrame(()=> d.classList.add('open'));
-        d.querySelector('.drawer-close').addEventListener('click', ()=>{ d.classList.remove('open'); if(bd) bd.classList.remove('show'); setTimeout(()=>{ d.remove(); if(bd && !document.querySelector('.drawer')) bd.remove(); document.body.classList.remove('slide-over-open'); }, 260); });
-        if(bd) bd.addEventListener('click', ()=>{ d.querySelector('.drawer-close').click(); });
+        let bd = document.querySelector('.slide-over-backdrop'); if (!bd) { bd = document.createElement('div'); bd.className = 'slide-over-backdrop'; document.body.appendChild(bd); }
+        const d = document.createElement('div'); d.className = 'drawer drawer-' + side; d.innerHTML = `<div class="drawer-body">${html}</div><button class="drawer-close" aria-label="Zamknij">✕</button>`;
+        document.body.appendChild(d); document.body.classList.add('slide-over-open'); if (bd) bd.classList.add('show');
+        requestAnimationFrame(() => d.classList.add('open'));
+        d.querySelector('.drawer-close').addEventListener('click', () => { d.classList.remove('open'); if (bd) bd.classList.remove('show'); setTimeout(() => { d.remove(); if (bd && !document.querySelector('.drawer')) bd.remove(); document.body.classList.remove('slide-over-open'); }, 260); });
+        if (bd) bd.addEventListener('click', () => { d.querySelector('.drawer-close').click(); });
     }
 
-    function showBottomSheet(html, opts){
+    function showBottomSheet(html, opts) {
         opts = opts || {};
-        let bd = document.querySelector('.slide-over-backdrop'); if(!bd){ bd = document.createElement('div'); bd.className='slide-over-backdrop'; document.body.appendChild(bd);} 
+        let bd = document.querySelector('.slide-over-backdrop'); if (!bd) { bd = document.createElement('div'); bd.className = 'slide-over-backdrop'; document.body.appendChild(bd); }
         const s = document.createElement('div'); s.className = 'bottom-sheet'; s.innerHTML = `<div class="bs-handle"></div><div class="bs-body">${html}</div><button class="bs-close" aria-label="Zamknij">Zamknij</button>`;
-        document.body.appendChild(s); document.body.classList.add('slide-over-open'); if(bd) bd.classList.add('show'); requestAnimationFrame(()=> s.classList.add('open'));
-        s.querySelector('.bs-close').addEventListener('click', ()=>{ s.classList.remove('open'); if(bd) bd.classList.remove('show'); setTimeout(()=>{ s.remove(); if(bd && !document.querySelector('.bottom-sheet')) bd.remove(); document.body.classList.remove('slide-over-open'); }, 260); });
-        if(bd) bd.addEventListener('click', ()=> s.querySelector('.bs-close').click());
+        document.body.appendChild(s); document.body.classList.add('slide-over-open'); if (bd) bd.classList.add('show'); requestAnimationFrame(() => s.classList.add('open'));
+        s.querySelector('.bs-close').addEventListener('click', () => { s.classList.remove('open'); if (bd) bd.classList.remove('show'); setTimeout(() => { s.remove(); if (bd && !document.querySelector('.bottom-sheet')) bd.remove(); document.body.classList.remove('slide-over-open'); }, 260); });
+        if (bd) bd.addEventListener('click', () => s.querySelector('.bs-close').click());
     }
 
-    function showPopover(el, html){
-        try{
+    function showPopover(el, html) {
+        try {
             // el: DOM element or selector
             const target = (typeof el === 'string') ? document.querySelector(el) : el;
-            if(!target) return;
+            if (!target) return;
             const p = document.createElement('div'); p.className = 'mini-popover'; p.innerHTML = html + '<button class="mini-close">✕</button>';
             document.body.appendChild(p);
             const r = target.getBoundingClientRect();
             p.style.top = (r.bottom + window.scrollY + 8) + 'px';
             p.style.left = (r.left + window.scrollX) + 'px';
-            requestAnimationFrame(()=> p.classList.add('show'));
-            p.querySelector('.mini-close').addEventListener('click', ()=> p.remove());
-            setTimeout(()=>{ document.addEventListener('click', function _f(e){ if(!p.contains(e.target) && e.target !== target){ p.remove(); document.removeEventListener('click', _f); } }); }, 10);
-        }catch(e){ console.warn('showPopover', e); }
+            requestAnimationFrame(() => p.classList.add('show'));
+            p.querySelector('.mini-close').addEventListener('click', () => p.remove());
+            setTimeout(() => { document.addEventListener('click', function _f(e) { if (!p.contains(e.target) && e.target !== target) { p.remove(); document.removeEventListener('click', _f); } }); }, 10);
+        } catch (e) { console.warn('showPopover', e); }
     }
 
-    function showFullscreenModal(html){
-        const bd = document.createElement('div'); bd.className='slide-over-backdrop'; document.body.appendChild(bd);
-        const f = document.createElement('div'); f.className='fullscreen-modal'; f.innerHTML = `<div class='fs-body'>${html}</div><button class='fs-close'>Zamknij</button>`;
-        document.body.appendChild(f); document.body.classList.add('slide-over-open'); requestAnimationFrame(()=> f.classList.add('open')); bd.classList.add('show');
-        f.querySelector('.fs-close').addEventListener('click', ()=>{ f.classList.remove('open'); bd.classList.remove('show'); setTimeout(()=>{ f.remove(); bd.remove(); document.body.classList.remove('slide-over-open'); },300); });
+    function showFullscreenModal(html) {
+        const bd = document.createElement('div'); bd.className = 'slide-over-backdrop'; document.body.appendChild(bd);
+        const f = document.createElement('div'); f.className = 'fullscreen-modal'; f.innerHTML = `<div class='fs-body'>${html}</div><button class='fs-close'>Zamknij</button>`;
+        document.body.appendChild(f); document.body.classList.add('slide-over-open'); requestAnimationFrame(() => f.classList.add('open')); bd.classList.add('show');
+        f.querySelector('.fs-close').addEventListener('click', () => { f.classList.remove('open'); bd.classList.remove('show'); setTimeout(() => { f.remove(); bd.remove(); document.body.classList.remove('slide-over-open'); }, 300); });
     }
 
-    function showWizard(steps){
+    function showWizard(steps) {
         // steps: array of HTML strings
         let idx = 0;
-        const bd = document.createElement('div'); bd.className='slide-over-backdrop'; document.body.appendChild(bd);
-        const w = document.createElement('div'); w.className='wizard-modal'; w.innerHTML = `<div class='wiz-body'></div><div class='wiz-actions'><button class='wiz-prev'>Wstecz</button><button class='wiz-next'>Dalej</button></div>`;
+        const bd = document.createElement('div'); bd.className = 'slide-over-backdrop'; document.body.appendChild(bd);
+        const w = document.createElement('div'); w.className = 'wizard-modal'; w.innerHTML = `<div class='wiz-body'></div><div class='wiz-actions'><button class='wiz-prev'>Wstecz</button><button class='wiz-next'>Dalej</button></div>`;
         document.body.appendChild(w); document.body.classList.add('slide-over-open'); bd.classList.add('show');
-        function render(){ w.querySelector('.wiz-body').innerHTML = steps[idx] || ''; w.querySelector('.wiz-prev').disabled = idx===0; w.querySelector('.wiz-next').innerText = (idx===steps.length-1)?'Zakończ':'Dalej'; }
-        w.querySelector('.wiz-prev').addEventListener('click', ()=>{ if(idx>0){ idx--; render(); } });
-        w.querySelector('.wiz-next').addEventListener('click', ()=>{ if(idx<steps.length-1){ idx++; render(); } else { w.remove(); bd.remove(); document.body.classList.remove('slide-over-open'); } });
+        function render() { w.querySelector('.wiz-body').innerHTML = steps[idx] || ''; w.querySelector('.wiz-prev').disabled = idx === 0; w.querySelector('.wiz-next').innerText = (idx === steps.length - 1) ? 'Zakończ' : 'Dalej'; }
+        w.querySelector('.wiz-prev').addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
+        w.querySelector('.wiz-next').addEventListener('click', () => { if (idx < steps.length - 1) { idx++; render(); } else { w.remove(); bd.remove(); document.body.classList.remove('slide-over-open'); } });
         render();
     }
 
@@ -431,56 +359,84 @@
     window.showWizard = showWizard;
 
     /* ================= Global quick popup helper ================= */
-    function createQuickPopup(title, html, opts){
+    function createQuickPopup(title, html, opts) {
         opts = opts || {};
         // Reuse existing global quick popup elements if present to avoid duplicates
         const existingBd = document.getElementById('quickBackdrop') || document.querySelector('.quick-backdrop');
         const existingM = document.getElementById('quickPopup') || document.querySelector('.quick-popup');
-        if(existingBd && existingM){
-            try{
+        if (existingBd && existingM) {
+            try {
                 const headerTitle = existingM.querySelector('.header-title') || existingM.querySelector('.qp-header strong');
-                if(headerTitle) headerTitle.textContent = title || '';
+                if (headerTitle) headerTitle.textContent = title || '';
                 const body = document.getElementById('quickPopupBody') || existingM.querySelector('.qp-body');
-                if(body) body.innerHTML = html || '';
+                if (body) {
+                    body.innerHTML = html || '';
+                    body.querySelectorAll('script').forEach(s => {
+                        try {
+                            if (s.src) {
+                                const sc = document.createElement('script'); sc.src = s.src; sc.async = false; document.body.appendChild(sc);
+                            } else {
+                                window.eval(s.textContent);
+                            }
+                        } catch (e) {
+                            console.warn('exec quick-popup script failed', e);
+                        }
+                    });
+                }
                 existingBd.classList.add('show');
                 existingM.style.display = 'block';
                 document.body.classList.add('slide-over-open');
-                setTimeout(()=> existingM.classList.add('open'), 10);
+                setTimeout(() => existingM.classList.add('open'), 10);
                 // Initialize component initializers after content is updated
-                setTimeout(()=>{
-                    try{
-                        if(typeof window.initDosypkiList === 'function'){
-                            try{ window.initDosypkiList(existingM); }catch(e){ console.warn('initDosypkiList failed', e); }
+                setTimeout(() => {
+                    try {
+                        if (typeof window.initDosypkiList === 'function') {
+                            try { window.initDosypkiList(existingM); } catch (e) { console.warn('initDosypkiList failed', e); }
                         }
-                    }catch(e){}
+                    } catch (e) { }
                 }, 10);
-            }catch(e){ console.warn('reuse quick-popup failed', e); }
-            return { close: function(){ try{ if(typeof closeQuickPopup === 'function') closeQuickPopup(); else { existingM.classList.remove('open'); existingBd.classList.remove('show'); setTimeout(()=>{ existingM.style.display='none'; document.body.classList.remove('slide-over-open'); }, 260); } }catch(e){} }, element: existingM };
+            } catch (e) { console.warn('reuse quick-popup failed', e); }
+            return { close: function () { try { if (typeof closeQuickPopup === 'function') closeQuickPopup(); else { existingM.classList.remove('open'); existingBd.classList.remove('show'); setTimeout(() => { existingM.style.display = 'none'; document.body.classList.remove('slide-over-open'); }, 260); } } catch (e) { } }, element: existingM };
         }
 
         const bd = document.createElement('div'); bd.className = 'quick-backdrop';
         const m = document.createElement('div'); m.className = 'quick-popup';
         m.innerHTML = `<div class="qp-header"><strong>${title || ''}</strong><button class="qp-close" aria-label="Zamknij">✕</button></div><div class="qp-body">${html || ''}</div>`;
-        // Ensure popup/backdrop are appended to top-level root to avoid being clipped by transformed ancestors
-        try{
+
+        // Ensure popup/backdrop are appended to top-level root before evaluating scripts
+        try {
             (document.documentElement || document.body).appendChild(bd);
             (document.documentElement || document.body).appendChild(m);
-        }catch(e){ document.body.appendChild(bd); document.body.appendChild(m); }
+        } catch (e) { document.body.appendChild(bd); document.body.appendChild(m); }
+
+        // Execute inline scripts inside the modal content now that it is in the DOM
+        m.querySelectorAll('script').forEach(s => {
+            try {
+                if (s.src) {
+                    const sc = document.createElement('script'); sc.src = s.src; sc.async = false; document.body.appendChild(sc);
+                } else {
+                    window.eval(s.textContent);
+                }
+            } catch (e) {
+                console.warn('exec quick-popup script failed', e);
+            }
+        });
+
         // Positioning is controlled via CSS; avoid inline z-index to prevent conflicts
-        requestAnimationFrame(()=>{ bd.classList.add('show'); m.classList.add('open'); document.body.classList.add('slide-over-open'); });
+        requestAnimationFrame(() => { bd.classList.add('show'); m.classList.add('open'); document.body.classList.add('slide-over-open'); });
         // Initialize any known component initializers for injected content
         // Delay to ensure DOM elements are fully rendered and accessible by initializers
-        setTimeout(()=>{
-            try{
-                if(typeof window.initDosypkiList === 'function'){
-                    try{ window.initDosypkiList(m); }catch(e){ console.warn('initDosypkiList failed', e); }
+        setTimeout(() => {
+            try {
+                if (typeof window.initDosypkiList === 'function') {
+                    try { window.initDosypkiList(m); } catch (e) { console.warn('initDosypkiList failed', e); }
                 }
-            }catch(e){}
+            } catch (e) { }
         }, 10);
         // Ensure popup body is scrollable and tables are visible (fix cases where content exists but is not shown)
-        try{
+        try {
             const qpBody = m.querySelector('.qp-body');
-            if(qpBody){
+            if (qpBody) {
                 qpBody.style.maxHeight = qpBody.style.maxHeight || '60vh';
                 qpBody.style.overflow = qpBody.style.overflow || 'auto';
                 console.log('[popup] qpBody dimensions:', {
@@ -493,95 +449,135 @@
             }
             const tables = m.querySelectorAll('table');
             console.log('[popup] Found', tables.length, 'tables');
-            tables.forEach((t, idx) => { 
+            tables.forEach((t, idx) => {
                 const compStyle = getComputedStyle(t);
                 console.log('[popup] Table', idx, '- display:', compStyle.display, 'visibility:', compStyle.visibility, 'height:', t.offsetHeight, 'rows:', t.querySelectorAll('tbody tr').length);
-                if(compStyle.display === 'none') t.style.display = 'table'; 
+                if (compStyle.display === 'none') t.style.display = 'table';
             });
-        }catch(e){ console.warn('quick-popup style init failed', e); }
-        function remove(){ m.classList.remove('open'); bd.classList.remove('show'); setTimeout(()=>{ try{ m.remove(); bd.remove(); document.body.classList.remove('slide-over-open'); }catch(e){} }, 260); }
+        } catch (e) { console.warn('quick-popup style init failed', e); }
+        function remove() { m.classList.remove('open'); bd.classList.remove('show'); setTimeout(() => { try { m.remove(); bd.remove(); document.body.classList.remove('slide-over-open'); } catch (e) { } }, 260); }
         bd.addEventListener('click', remove);
-        const closeBtn = m.querySelector('.qp-close'); if(closeBtn) closeBtn.addEventListener('click', remove);
+        const closeBtn = m.querySelector('.qp-close'); if (closeBtn) closeBtn.addEventListener('click', remove);
         // Rebind any forms inside quick popup to submit via fetch (AJAX) so page doesn't fully navigate
-        try{
+        try {
             const forms = m.querySelectorAll('form');
-            forms.forEach(function(innerForm){
-                innerForm.addEventListener('submit', function(evt){
+            forms.forEach(function (innerForm) {
+                innerForm.addEventListener('submit', function (evt) {
+                    const confirmMsg = innerForm.dataset.confirm;
+                    if (confirmMsg && !confirm(confirmMsg)) return;
+
                     evt.preventDefault();
-                    try{ innerForm.querySelectorAll('button[type="submit"]').forEach(b=>{ b.disabled = true; b.dataset._disabled_by_js = '1'; }); }catch(e){}
+                    try {
+                        innerForm.querySelectorAll('button[type="submit"]').forEach(b => {
+                            b.dataset._original_html = b.innerHTML;
+                            b.disabled = true;
+                            b.dataset._disabled_by_js = '1';
+                            b.innerHTML = '⏳...';
+                        });
+                    } catch (e) { }
+
                     const url = innerForm.getAttribute('action') || window.location.href;
                     const method = (innerForm.getAttribute('method') || 'POST').toUpperCase();
                     const data = new URLSearchParams(new FormData(innerForm));
-                    const numericEntered = Array.from(innerForm.querySelectorAll('input, textarea')).some(i=> /\d/.test((i.value||'')));
-                    fetch(url, { method: method, body: data, credentials: 'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}, redirect: 'manual' })
-                    .then(async function(resp){
-                        if(resp.status === 401){ window.location.href = '/login'; return; }
-                        if(resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400)){ remove(); performPartialReload(); return; }
-                        if(resp.status === 204){ if(typeof showToast === 'function') showToast('OK','success'); remove(); performPartialReload(); return; }
-                        const txt = await resp.text();
-                        try{
-                            const j = JSON.parse(txt);
-                            if(j && j.success){ if(typeof showToast === 'function') showToast(j.message || 'OK','success'); remove(); performPartialReload(); }
-                            else { if(typeof showToast === 'function') showToast(j && j.message ? j.message : 'Zwrócono odpowiedź', 'info'); }
-                        }catch(e){
-                            if(numericEntered){ if(typeof showToast === 'function') showToast('Zapisano','success'); remove(); performPartialReload(); }
-                            else {
-                                const tmp2 = document.createElement('div'); tmp2.innerHTML = txt; const newForm = tmp2.querySelector('form'); const body = m.querySelector('.qp-body'); if(newForm) { body.innerHTML = newForm.outerHTML; } else if(tmp2.innerHTML) { body.innerHTML = tmp2.innerHTML; }
+
+                    fetch(url, { method: method, body: data, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, redirect: 'manual' })
+                        .then(async function (resp) {
+                            const isRedirect = resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400);
+                            const stayOpen = innerForm.dataset.stayOpen === 'true';
+                            const refreshTarget = innerForm.dataset.refreshTarget;
+                            const refreshUrl = innerForm.dataset.refreshUrl;
+
+                            function finalizeSuccess() {
+                                if (stayOpen && refreshTarget && refreshUrl) {
+                                    fetch(refreshUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                                        .then(r => r.text())
+                                        .then(html => {
+                                            const target = document.querySelector(refreshTarget);
+                                            if (target) target.outerHTML = html;
+                                        });
+                                    // Re-enable buttons
+                                    innerForm.querySelectorAll('button[type="submit"]').forEach(b => {
+                                        b.disabled = false;
+                                        if (b.dataset._original_html) b.innerHTML = b.dataset._original_html;
+                                    });
+                                    return;
+                                }
+                                remove(); performPartialReload();
                             }
-                        }
-                    }).catch(err=>{ console.error('Quick popup form submit failed', err); if(typeof showToast === 'function') showToast('Błąd sieci','danger'); try{ innerForm.querySelectorAll('button[type="submit"]').forEach(b=>{ if(b.dataset._disabled_by_js==='1'){ b.disabled = false; delete b.dataset._disabled_by_js; } }); }catch(e){} });
+
+                            if (resp.status === 401) { window.location.href = '/login'; return; }
+                            if (isRedirect) { finalizeSuccess(); return; }
+                            if (resp.status === 204) { finalizeSuccess(); return; }
+
+                            const txt = await resp.text();
+                            try {
+                                const j = JSON.parse(txt);
+                                if (j && j.success) {
+                                    if (typeof showToast === 'function' && j.message) showToast(j.message, 'success');
+                                    finalizeSuccess();
+                                }
+                                else { if (typeof showToast === 'function') showToast(j && j.message ? j.message : 'Błąd', 'warning'); }
+                            } catch (e) {
+                                // Default fallback if not JSON
+                                finalizeSuccess();
+                            }
+                        }).catch(err => {
+                            console.error('Quick popup form submit failed', err);
+                            if (typeof showToast === 'function') showToast('Błąd sieci', 'danger');
+                            try { innerForm.querySelectorAll('button[type="submit"]').forEach(b => { if (b.dataset._disabled_by_js === '1') { b.disabled = false; b.innerHTML = b.dataset._original_html || 'Wyślij'; } }); } catch (e) { }
+                        });
                 });
             });
-        }catch(e){ console.warn('rebind quick-popup form error', e); }
+        } catch (e) { console.warn('rebind quick-popup form error', e); }
 
         return { close: remove, element: m };
     }
 
-    function showQuickPopup(title, html, opts){ return createQuickPopup(title, html, opts); }
+    function showQuickPopup(title, html, opts) { return createQuickPopup(title, html, opts); }
     window.createQuickPopup = createQuickPopup;
     window.showQuickPopup = showQuickPopup;
 
     // duplicate createQuickPopup removed; primary implementation above will be used
 
-    function showSlideOver(urlOrHtml, opts){
+    function showSlideOver(urlOrHtml, opts) {
         opts = opts || {};
-        if(!urlOrHtml) return;
+        if (!urlOrHtml) return;
         // If provided HTML fragment, show it directly
-        if(typeof urlOrHtml === 'string' && urlOrHtml.trim().startsWith('<')){
+        if (typeof urlOrHtml === 'string' && urlOrHtml.trim().startsWith('<')) {
             createQuickPopup('', urlOrHtml, opts);
             return;
         }
         // Otherwise fetch the URL (AJAX expected)
-        fetch(urlOrHtml, { credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'} })
-        .then(async function(resp){
-            if(resp.status === 401){ window.location.href = '/login'; return; }
-            const txt = await resp.text();
-            createQuickPopup('', txt, opts);
-        }).catch(function(err){
-            console.error('[showSlideOver] fetch failed:', err);
-            createQuickPopup('Błąd', '<div class="p-10">Nie udało się załadować zawartości: ' + (err && err.message ? err.message : 'błąd') + '</div>', opts);
-        });
+        fetch(urlOrHtml, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, cache: 'no-store' })
+            .then(async function (resp) {
+                if (resp.status === 401) { window.location.href = '/login'; return; }
+                const txt = await resp.text();
+                createQuickPopup('', txt, opts);
+            }).catch(function (err) {
+                console.error('[showSlideOver] fetch failed:', err);
+                createQuickPopup('Błąd', '<div class="p-10">Nie udało się załadować zawartości: ' + (err && err.message ? err.message : 'błąd') + '</div>', opts);
+            });
     }
     window.showSlideOver = showSlideOver;
 
     // Reinitialize event listeners after partial reload
-    function reinitializeAfterPartialReload(){
+    function reinitializeAfterPartialReload() {
         console.info('[reinit] Re-initializing after partial reload');
         // Global click delegation is already on document, so it should work
         // But reinit any timers or specific elements here
     }
-    
+
     window.addEventListener('app:partialReload', reinitializeAfterPartialReload);
 
     // Backwards-compatible shim for legacy templates that call `otworzOknoDodawaniaPalety(planId, produkt, typ)`
     if (typeof window.otworzOknoDodawaniaPalety !== 'function') {
-        window.otworzOknoDodawaniaPalety = function(planId, produkt, typ){
-            try{
+        window.otworzOknoDodawaniaPalety = function (planId, produkt, typ) {
+            try {
                 var url = '/api/dodaj_palete_page/' + encodeURIComponent(planId);
                 // pass product/type as query params for any server-side prefill if needed
-                if(produkt) url += '?produkt=' + encodeURIComponent(produkt) + (typ ? '&typ=' + encodeURIComponent(typ) : '');
+                if (produkt) url += '?produkt=' + encodeURIComponent(produkt) + (typ ? '&typ=' + encodeURIComponent(typ) : '');
                 showSlideOver(url, { backdrop: true, allowBackdropClose: true, transient: false });
-            }catch(e){ console.error('otworzOknoDodawaniaPalety shim failed', e); }
+            } catch (e) { console.error('otworzOknoDodawaniaPalety shim failed', e); }
         };
     }
 
@@ -589,21 +585,21 @@
     // Some server endpoints return an HTML error page; many templates did `alert(err.message)`
     // which caused the entire HTML to be shown. This wrapper strips tags and truncates.
     try {
-        (function(){
+        (function () {
             const _origAlert = window.alert.bind(window);
-            window.alert = function(msg){
-                try{
-                    if(typeof msg === 'string' && (msg.indexOf('<!DOCTYPE') !== -1 || msg.indexOf('<html') !== -1 || /<[^>]+>/.test(msg))){
+            window.alert = function (msg) {
+                try {
+                    if (typeof msg === 'string' && (msg.indexOf('<!DOCTYPE') !== -1 || msg.indexOf('<html') !== -1 || /<[^>]+>/.test(msg))) {
                         let t = msg.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
                         t = t.replace(/<[^>]*>/g, '');
                         t = t.replace(/\s+/g, ' ').trim();
-                        if(t.length > 800) t = t.slice(0,800) + '...';
+                        if (t.length > 800) t = t.slice(0, 800) + '...';
                         return _origAlert(t);
                     }
-                }catch(e){ /* fallthrough to original */ }
+                } catch (e) { /* fallthrough to original */ }
                 return _origAlert(msg);
             };
         })();
-    } catch(e){ console.warn('alert sanitization failed', e); }
+    } catch (e) { console.warn('alert sanitization failed', e); }
 
 })();

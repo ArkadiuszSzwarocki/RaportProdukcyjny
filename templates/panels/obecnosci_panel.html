@@ -1,43 +1,123 @@
 {% macro fmt_date(d) -%}
-  {%- if d is none -%}
-    -
-  {%- else -%}
-    {{ d.strftime('%Y-%m-%d') if d.__class__.__name__ == 'date' else d }}
-  {%- endif -%}
+{%- if d is none -%}
+-
+{%- else -%}
+{{ d.strftime('%Y-%m-%d') if d.__class__.__name__ == 'date' else d }}
+{%- endif -%}
 {%- endmacro %}
 
 <div class="panel panel-obecnosci">
-  <h3>Ostatnie wpisy obecności / nieobecności (30 dni)</h3>
+  <h3>Dodaj wpis</h3>
+  <div class="mb-5 p-10" style="background:#f9f9f9; border:1px solid #ddd; border-radius:5px;">
+    <form action="{{ url_for('schedule.dodaj_obecnosc') }}" method="post"
+      class="d-flex flex-wrap gap-10 align-center form-inline" data-stay-open="true"
+      data-refresh-target=".panel-obecnosci"
+      data-refresh-url="{{ url_for('panels.panel_obecnosci_page') }}?fragment=true">
+      <label>Data: <input type="date" name="data" value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}"
+          class="input-sm" required></label>
+      <label>Pracownik:
+        <select name="pracownik_id" class="input-sm" required>
+          <option value="">- wybierz -</option>
+          {% for p in pracownicy %}
+          <option value="{{ p[0] }}">{{ p[1] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Typ:
+        <select name="typ" id="abs_typ_select_panel" class="input-sm" required onchange="toggleAbsTimePanel()">
+          <option value="Nieobecnosc">Nieobecność</option>
+          <option value="Urlop">Urlop</option>
+          <option value="Wyjscie prywatne">Wyjście prywatne</option>
+          <option value="Opieka">Opieka</option>
+          <option value="L4">L4</option>
+          <option value="Nadgodziny">Nadgodziny</option>
+        </select>
+      </label>
+      <label id="abs_wyjscie_label_from_panel" class="hidden" style="display:none;">Od: <input type="time"
+          name="wyjscie_od" id="abs_wyjscie_from_panel" class="input-sm" onchange="calculateAbsHoursPanel()"
+          oninput="calculateAbsHoursPanel()" style="width:105px;"></label>
+      <label id="abs_wyjscie_label_to_panel" class="hidden" style="display:none;">Do: <input type="time"
+          name="wyjscie_do" id="abs_wyjscie_to_panel" class="input-sm" onchange="calculateAbsHoursPanel()"
+          oninput="calculateAbsHoursPanel()" style="width:105px;"></label>
+      <label>Godziny: <input type="text" id="abs_godziny_panel" name="godziny" value="8" class="input-sm"
+          style="width:70px;" oninput="this.value = this.value.replace(/[^0-9.,]/g, '')"></label>
+      <label>Uwagi: <input type="text" name="komentarz" class="input-sm" placeholder="Opcjonalnie..."
+          style="flex-grow:1; min-width:150px;"></label>
+      <button type="submit" class="btn btn-primary btn-sm">Zapisz wpis</button>
+    </form>
+  </div>
+
+  <script>
+    function toggleAbsTimePanel() {
+      const sel = document.getElementById('abs_typ_select_panel');
+      const fromL = document.getElementById('abs_wyjscie_label_from_panel');
+      const toL = document.getElementById('abs_wyjscie_label_to_panel');
+      const godzI = document.getElementById('abs_godziny_panel');
+      if (sel && sel.value === 'Wyjscie prywatne') {
+        fromL.style.display = 'inline-block';
+        toL.style.display = 'inline-block';
+        document.getElementById('abs_wyjscie_from_panel').required = true;
+        document.getElementById('abs_wyjscie_to_panel').required = true;
+        if (godzI) { godzI.value = 0; godzI.readOnly = true; }
+      } else {
+        fromL.style.display = 'none';
+        toL.style.display = 'none';
+        const fromI = document.getElementById('abs_wyjscie_from_panel');
+        const toI = document.getElementById('abs_wyjscie_to_panel');
+        if (fromI) { fromI.required = false; fromI.value = ''; }
+        if (toI) { toI.required = false; toI.value = ''; }
+        if (godzI) { godzI.value = 8; godzI.readOnly = false; }
+      }
+    }
+
+    function calculateAbsHoursPanel() {
+      const fromI = document.getElementById('abs_wyjscie_from_panel');
+      const toI = document.getElementById('abs_wyjscie_to_panel');
+      const godzI = document.getElementById('abs_godziny_panel');
+      if (fromI && toI && godzI && fromI.value && toI.value) {
+        const [h1, m1] = fromI.value.split(':').map(Number);
+        const [h2, m2] = toI.value.split(':').map(Number);
+        let diff = (h2 + m2 / 60) - (h1 + m1 / 60);
+        if (diff < 0) diff += 24;
+        godzI.value = diff.toFixed(1).replace('.', ',');
+      }
+    }
+  </script>
+
+  <h3 class="mt-4">Ostatnie wpisy obecności / nieobecności (30 dni)</h3>
   {% if recent_absences and recent_absences|length > 0 %}
-    <table class="table table-small">
-      <thead>
-        <tr>
-          <th>Data</th>
-          <th>Pracownik</th>
-          <th>Typ</th>
-          <th>Godziny</th>
-          <th>Komentarz</th>
-          <th>Akcje</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in recent_absences %}
-          <tr>
-            <td>{{ fmt_date(r.data) }}</td>
-            <td>{{ r.pracownik }}</td>
-            <td>{{ r.typ }}</td>
-            <td>{{ r.godziny }}</td>
-            <td>{{ r.komentarz }}</td>
-            <td>
-              <form method="post" action="{{ url_for('leaves.usun_obecnosc', id=r.id) }}" class="form-inline">
-                <button class="btn btn-link btn-sm" type="submit">Usuń</button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <table class="table table-small">
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Pracownik</th>
+        <th>Typ</th>
+        <th>Godziny</th>
+        <th>Komentarz</th>
+        <th>Akcje</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in recent_absences %}
+      <tr>
+        <td>{{ fmt_date(r.data) }}</td>
+        <td>{{ r.pracownik }}</td>
+        <td>{{ r.typ }}</td>
+        <td>{{ r.godziny }}</td>
+        <td>{{ r.komentarz }}</td>
+        <td>
+          <form method="post" action="{{ url_for('leaves.usun_obecnosc', id=r.id) }}" class="form-inline"
+            data-confirm="Czy na pewno chcesz usunąć ten wpis?" data-stay-open="true"
+            data-refresh-target=".panel-obecnosci"
+            data-refresh-url="{{ url_for('panels.panel_obecnosci_page') }}?fragment=true">
+            <button class="btn btn-link btn-sm text-danger" type="submit">Usuń</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   {% else %}
-    <p>Brak wpisów za ostatnie 30 dni.</p>
+  <p>Brak wpisów za ostatnie 30 dni.</p>
   {% endif %}
 </div>

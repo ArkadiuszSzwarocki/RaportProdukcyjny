@@ -4,7 +4,29 @@
 {% block content %}
 <!-- modalOverlay removed (mechanizm popup wyłączony) -->
 <div class="section-header">
-    <div>
+    <div class="top-submenu" style="padding: 0; box-shadow: none; margin-bottom: 20px;">
+        <div class="top-submenu-inner" style="margin-left: 0;">
+            <nav class="top-menu">
+                {% if sekcja not in ['Zasyp', 'Bufor', 'Workowanie', 'Magazyn'] %}
+                <a class="top-menu-item {% if request.endpoint in ['production.obsada_page','panels.panel_obsada_page'] or request.args.get('sekcja')=='Workowanie' %}active{% endif %}"
+                    href="{{ url_for('production.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}"
+                    data-slide>
+                    <span class="material-icons">people</span> {{ _('obsada') }}
+                </a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_wnioski_page' %}active{% endif %}"
+                    href="{{ url_for('panels.panel_wnioski_page') }}" data-slide> <span
+                        class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_planowane_page' %}active{% endif %}"
+                    href="{{ url_for('panels.panel_planowane_page') }}" data-slide> <span
+                        class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
+                <a class="top-menu-item {% if request.endpoint=='panels.panel_obecnosci_page' %}active{% endif %}"
+                    href="{{ url_for('panels.panel_obecnosci_page') }}" data-slide> <span
+                        class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
+                {% endif %}
+            </nav>
+        </div>
+    </div>
+    <div style="margin-left: 300px;">
         <h2 class="header-title">{{ _('hala_produkcyjna') }}: <strong>{{ _(sekcja.lower()) }}</strong></h2>
         {% if sekcja != 'Zasyp' %}
         <p class="text-muted m-0">{{ rola|upper }} | {{ dzisiaj }}</p>
