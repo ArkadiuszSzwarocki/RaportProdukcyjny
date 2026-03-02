@@ -3,17 +3,17 @@
     {% if pending_nadgodziny %}
       <div class="nadgodziny-list">
         {% for n in pending_nadgodziny %}
-          <div class="nadgodzina-item" data-nadgodzina-id="{{ n.id }}" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e0e0e0;">
-            <div style="flex: 1;">
+          <div class="nadgodzina-item" data-nadgodzina-id="{{ n.id }}">
+            <div>
               <strong>{{ n.imie_nazwisko }}</strong>
-              <span style="color: #666; margin: 0 8px;">—</span>
+              <span class="separator">—</span>
               <span>{{ n.data }}</span>
-              <span style="color: #999; font-weight: bold; margin-left: 8px;">{{ n.ilosc_nadgodzin }}h OT</span>
+              <span class="value">{{ n.ilosc_nadgodzin }}h OT</span>
               {% if n.powod %}
-                <div style="color: #666; font-size: 0.9em; margin-top: 4px;">{{ n.powod }}</div>
+                <div class="reason">{{ n.powod }}</div>
               {% endif %}
             </div>
-            <div class="nadgodzina-actions" style="display: flex; gap: 6px; flex-shrink: 0;">
+            <div class="nadgodzina-actions">
               {% if n.id %}
                 <button type="button" class="btn btn-sm btn-success ng-approve-btn" data-ngid="{{ n.id }}">✓ Zatwierdź</button>
                 <button type="button" class="btn btn-sm btn-danger ng-reject-btn" data-ngid="{{ n.id }}">✕ Odrzuć</button>

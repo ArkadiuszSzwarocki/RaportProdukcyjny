@@ -3,12 +3,12 @@
     {% if wnioski %}
       <div class="wnioski-list">
         {% for w in wnioski %}
-          <div class="wniosek-item" data-wniosek-id="{{ w.id }}" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e0e0e0;">
-            <div style="flex: 1;">
+          <div class="wniosek-item" data-wniosek-id="{{ w.id }}">
+            <div>
               <strong>{{ w.pracownik }}</strong>
-              <span style="color: #666; margin: 0 8px;">—</span>
+              <span class="separator">—</span>
               <span>{{ w.typ }}</span>
-              <span style="color: #999; font-size: 0.9em; margin-left: 8px;">
+              <span class="date-info">
                 (
                 {%- if w.data_od %} {{ w.data_od }}
                   {%- if w.data_do and w.data_do != w.data_od %} - {{ w.data_do }} {%- endif %}
@@ -16,7 +16,7 @@
                 )
               </span>
             </div>
-            <div class="wniosek-actions" style="display: flex; gap: 6px; flex-shrink: 0;">
+            <div class="wniosek-actions">
               {% if w.id %}
                 <button type="button" class="btn btn-sm btn-success wn-approve-btn" data-wid="{{ w.id }}">✓ Zatwierdź</button>
                 <button type="button" class="btn btn-sm btn-danger wn-reject-btn" data-wid="{{ w.id }}">✕ Odrzuć</button>

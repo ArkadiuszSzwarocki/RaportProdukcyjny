@@ -556,7 +556,7 @@
           <div class="cal-day">{{ d.date.day }}</div>
           <div class="cal-hours">
             {% if d.nadgodziny > 0 %}
-              {{ '%.2f'|format(d.hours) }}h + <strong style="color: #d9534f;">{{ '%.2f'|format(d.nadgodziny) }}h OT</strong>
+              {{ '%.2f'|format(d.hours) }}h + <strong class="hours-summary">{{ '%.2f'|format(d.nadgodziny) }}h OT</strong>
             {% else %}
               {{ '%.2f'|format(d.hours) }} h
             {% endif %}
@@ -583,17 +583,17 @@
     {% if pending_nadgodziny %}
       <div class="nadgodziny-list">
         {% for n in pending_nadgodziny %}
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e0e0e0;">
-            <div style="flex: 1;">
+          <div class="overtime-summary">
+            <div class="nadgodzina-item">
               <strong>{{ n['imie_nazwisko'] }}</strong>
-              <span style="color: #666; margin: 0 8px;">—</span>
+              <span class="separator">—</span>
               <span>{{ n['data'] }}</span>
-              <span style="color: #999; font-weight: bold; margin-left: 8px;">{{ n['ilosc_nadgodzin'] }}h OT</span>
+              <span class="hours-value">{{ n['ilosc_nadgodzin'] }}h OT</span>
               {% if n['powod'] %}
-                <div style="color: #666; font-size: 0.9em; margin-top: 4px;">{{ n['powod'] }}</div>
+                <div class="hours-reason">{{ n['powod'] }}</div>
               {% endif %}
             </div>
-            <div style="display: flex; gap: 6px; flex-shrink: 0;">
+            <div class="nadgodzina-actions">
               <button type="button" class="btn btn-sm btn-success ng-approve-btn" data-ngid="{{ n['id'] }}">✓ Zatwierdź</button>
               <button type="button" class="btn btn-sm btn-danger ng-reject-btn" data-ngid="{{ n['id'] }}">✕ Odrzuć</button>
             </div>
@@ -601,7 +601,7 @@
         {% endfor %}
       </div>
     {% else %}
-      <p style="padding: 12px 0;">Brak wniosków o nadgodziny do zatwierdzenia.</p>
+      <p class="no-requests">Brak wniosków o nadgodziny do zatwierdzenia.</p>
     {% endif %}
   </div>
 </div>
@@ -610,49 +610,49 @@
 <div class="block-section">
   <h3>🕐 Zgłoś nadgodziny [DEBUG: user_nadgodziny={{ user_nadgodziny|length if user_nadgodziny else 0 }}]</h3>
   <div class="panel panel--moje-nadgodziny">
-    <form method="POST" action="{{ url_for('overtime.submit_nadgodziny') }}" style="margin-bottom: 20px; padding: 16px; background: #fff; border: 1px solid #ddd; border-radius: 4px;">
-      <div style="display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
-        <div style="flex: 1; min-width: 150px;">
-          <label for="ng-data" style="display: block; margin-bottom: 4px; font-weight: bold;">Data:</label>
-          <input type="date" id="ng-data" name="data" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+    <form method="POST" action="{{ url_for('overtime.submit_nadgodziny') }}" class="overtime-form">
+      <div class="form-group-inline">
+        <div>
+          <label for="ng-data">Data:</label>
+          <input type="date" id="ng-data" name="data" required>
         </div>
-        <div style="flex: 1; min-width: 150px;">
-          <label for="ng-ilosc" style="display: block; margin-bottom: 4px; font-weight: bold;">Liczba godzin:</label>
-          <input type="number" id="ng-ilosc" name="ilosc_nadgodzin" min="0.25" step="0.25" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        <div>
+          <label for="ng-ilosc">Liczba godzin:</label>
+          <input type="number" id="ng-ilosc" name="ilosc_nadgodzin" min="0.25" step="0.25" required>
         </div>
       </div>
-      <div style="margin-bottom: 12px;">
-        <label for="ng-powod" style="display: block; margin-bottom: 4px; font-weight: bold;">Powód (opcjonalnie):</label>
-        <input type="text" id="ng-powod" name="powod" placeholder="np. Dokończenie produkcji, naprawa maszyny..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+      <div class="form-group-block">
+        <label for="ng-powod">Powód (opcjonalnie):</label>
+        <input type="text" id="ng-powod" name="powod" placeholder="np. Dokończenie produkcji, naprawa maszyny...">
       </div>
-      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 10px;">Zgłoś nadgodziny</button>
+      <button type="submit" class="btn btn-primary submit-button">Zgłoś nadgodziny</button>
     </form>
     
     {% if user_nadgodziny %}
       <h4>Moje wnioski o nadgodziny</h4>
-      <div style="max-height: 300px; overflow-y: auto;">
-        <table style="width: 100%; border-collapse: collapse;">
+      <div class="overflow-auto">
+        <table class="table-responsive">
           <thead>
-            <tr style="background: #f0f0f0; border-bottom: 2px solid #999;">
-              <th style="padding: 10px; text-align: left;">Data</th>
-              <th style="padding: 10px; text-align: center;">Godziny</th>
-              <th style="padding: 10px; text-align: left;">Powód</th>
-              <th style="padding: 10px; text-align: center;">Status</th>
+            <tr>
+              <th>Data</th>
+              <th class="center">Godziny</th>
+              <th>Powód</th>
+              <th class="center">Status</th>
             </tr>
           </thead>
           <tbody>
             {% for ng in user_nadgodziny %}
-              <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 10px;">{{ ng['data'] }}</td>
-                <td style="padding: 10px; text-align: center; font-weight: bold;">{{ ng['ilosc_nadgodzin'] }}h</td>
-                <td style="padding: 10px;">{{ ng['powod'] or '-' }}</td>
-                <td style="padding: 10px; text-align: center;">
+              <tr>
+                <td>{{ ng['data'] }}</td>
+                <td class="center bold">{{ ng['ilosc_nadgodzin'] }}h</td>
+                <td>{{ ng['powód'] or '-' }}</td>
+                <td class="center">
                   {% if ng['status'] == 'pending' %}
-                    <span style="background: #fff3cd; padding: 4px 8px; border-radius: 3px; font-weight: bold;">⏳ Oczekuje</span>
+                    <span class="status-pending">⏳ Oczekuje</span>
                   {% elif ng['status'] == 'approved' %}
-                    <span style="background: #d4edda; padding: 4px 8px; border-radius: 3px; font-weight: bold;">✓ Zatwierdzone</span>
+                    <span class="status-approved">✓ Zatwierdzone</span>
                   {% elif ng['status'] == 'rejected' %}
-                    <span style="background: #f8d7da; padding: 4px 8px; border-radius: 3px; font-weight: bold;">✕ Odrzucone</span>
+                    <span class="status-rejected">✕ Odrzucone</span>
                   {% endif %}
                 </td>
               </tr>
@@ -661,7 +661,7 @@
         </table>
       </div>
     {% else %}
-      <p style="color: #666; padding: 12px 0;">Brak zgłoszonych wniosków o nadgodziny.</p>
+      <p class="no-requests">Brak zgłoszonych wniosków o nadgodziny.</p>
     {% endif %}
   </div>
 </div>
