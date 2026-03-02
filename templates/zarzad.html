@@ -120,28 +120,15 @@
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
-<script id="chart-data-json" type="application/json">
-{{ {
-    'chartLabels': chart_labels|default([]),
-    'chartPlan': chart_plan|default([]),
-    'chartZasyp': chart_zasyp|default([]),
-    'chartWork': chart_work|default([]),
-    'pieLabels': pie_labels|default([]),
-    'pieValues': pie_values|default([])
-}|tojson|safe }}
-</script>
 <script>
-    // --- NOWY WYKRES LINIOWO-SŁUPKOWY ---
-    /* Chart data injected as JSON to avoid editor/parser errors */
-    const rawDataElem = document.getElementById('chart-data-json');
-    const chartData = rawDataElem ? JSON.parse(rawDataElem.textContent) : {};
-    const chartLabels = chartData.chartLabels || [];
-    const chartPlan = chartData.chartPlan || [];
-    const chartZasyp = chartData.chartZasyp || [];
-    const chartWork = chartData.chartWork || [];
-    const pieLabels = chartData.pieLabels || [];
-    const pieValues = chartData.pieValues || [];
+    // Chart data passed from Python as plain arrays, convert to JSON for Chart.js
+    const chartLabels = {{ chartLabels|default([])|tojson|safe }};
+    const chartPlan = {{ chartPlan|default([])|tojson|safe }};
+    const chartZasyp = {{ chartZasyp|default([])|tojson|safe }};
+    const pieLabels = {{ pieLabels|default([])|tojson|safe }};
+    const pieValues = {{ pieValues|default([])|tojson|safe }};
 
+    // Production Chart (Bar Chart)
     new Chart(document.getElementById('chartProduction'), {
         type: 'bar',
         data: {
@@ -158,12 +145,6 @@
                     data: chartZasyp,
                     backgroundColor: '#3498db',
                     barPercentage: 0.7
-                },
-                {
-                    label: "{{ _('workowanie') }} (kg)",
-                    data: chartWork,
-                    backgroundColor: '#8e44ad',
-                    barPercentage: 0.7
                 }
             ]
         },
@@ -179,18 +160,23 @@
         }
     });
 
-    // Wykres Kołowy
-    new Chart(document.getElementById('chartIssues'), {
-        type: 'doughnut',
-        data: {
-            labels: pieLabels,
-            datasets: [{
-                data: pieValues,
-                backgroundColor: ['#e74c3c', '#f39c12', '#f1c40f', '#95a5a6', '#34495e']
-            }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-    });
+    // Issues Chart (Doughnut Chart)
+    if (pieLabels.length > 0 && pieValues.length > 0) {
+        new Chart(document.getElementById('chartIssues'), {
+            type: 'doughnut',
+            data: {
+                labels: pieLabels,
+                datasets: [{
+                    data: pieValues,
+                    backgroundColor: ['#e74c3c', '#f39c12', '#f1c40f', '#95a5a6', '#34495e']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    } else {
+        // No data available, show placeholder
+        document.getElementById('chartIssues').style.display = 'none';
+    }
 </script>
 
 {% endblock %}

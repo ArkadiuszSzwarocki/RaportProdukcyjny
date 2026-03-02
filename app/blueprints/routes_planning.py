@@ -26,6 +26,7 @@ def bezpieczny_powrot():
 
 def log_plan_history(plan_id, action, details, user):
     """Log changes to plan for audit trail."""
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -34,9 +35,14 @@ def log_plan_history(plan_id, action, details, user):
             (plan_id, action, details, user)
         )
         conn.commit()
-        conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        current_app.logger.error(f'Failed to log plan history for plan {plan_id}: {e}', exc_info=True)
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @planning_bp.route('/przywroc_zlecenie_page/<int:id>', methods=['GET'])
@@ -45,20 +51,26 @@ def przywroc_zlecenie_page(id):
     """Render a confirmation popup for resuming/recovering an order."""
     sekcja = request.args.get('sekcja', 'Zasyp')
     produkt = None
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
+    
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         cursor.execute("SELECT produkt FROM plan_produkcji WHERE id=%s", (id,))
         row = cursor.fetchone()
         if row:
             produkt = row[0]
-    except Exception:
-        pass
+            current_app.logger.debug(f'Loaded product for plan {id}: {produkt}')
+    
+    except Exception as e:
+        current_app.logger.error(f'Failed to load product for plan {id}: {e}', exc_info=True)
+    
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
     
     return render_template('przywroc_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt)
 
@@ -127,7 +139,8 @@ def dodaj_plan_zaawansowany():
     
     try:
         tonaz = int(float(request.form.get('tonaz', 0)))
-    except Exception:
+    except Exception as e:
+        current_app.logger.debug(f'Failed to parse tonaz in dodaj_plan_zaawansowany: {e}')
         tonaz = 0
     
     success, message, plan_id = PlanningService.create_plan(
@@ -137,6 +150,7 @@ def dodaj_plan_zaawansowany():
     
     if not success:
         flash(message, 'warning')
+        current_app.logger.warning(f'Failed to create plan: {message}')
     
     return redirect(url_for('planista.panel_planisty', data=data_planu))
 
@@ -417,7 +431,8 @@ def dodaj_plany_batch():
             produkt = (p.get('produkt') or '').strip()
             try:
                 tonaz = int(float(p.get('tonaz') or 0))
-            except Exception:
+            except Exception as parse_err:
+                current_app.logger.debug(f'Row {idx} tonaz parse error: {parse_err}')
                 tonaz = 0
             typ = (p.get('typ_produkcji') or '').strip() or 'worki_zgrzewane_25'
             sekcja = (p.get('sekcja') or 'Zasyp').strip()
@@ -426,16 +441,10 @@ def dodaj_plany_batch():
             nr = p.get('nr_receptury') or ''
             # Basic validation
             if not produkt:
-                conn.rollback()
-                conn.close()
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: brak nazwy produktu'})
             if not (isinstance(tonaz, int) and tonaz > 0):
-                conn.rollback()
-                conn.close()
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: nieprawidłowy tonaż'})
             if not typ:
-                conn.rollback()
-                conn.close()
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: brak typu produkcji'})
 
             # === AGRO: zapisz do dedykowanej tabeli plan_agro ===
@@ -469,22 +478,23 @@ def dodaj_plany_batch():
                     (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0, zasyp_id_created)
                 )
         conn.commit()
+        current_app.logger.info(f'Batch insert successful: {len(plans)} plans for {data_planu}')
+        return jsonify({'success': True})
+    
     except Exception as e:
+        current_app.logger.error(f'Failed to insert batch plans: {e}', exc_info=True)
         try:
             conn.rollback()
         except Exception:
             pass
-        current_app.logger.exception('Failed to insert batch plans: %s', e)
-        try:
-            conn.close()
-        except Exception:
-            pass
         return jsonify({'success': False, 'message': 'Błąd podczas zapisu planów'})
-    try:
-        conn.close()
-    except Exception:
-        pass
-    return jsonify({'success': True})
+    
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @planning_bp.route('/przenies_zlecenie/<int:id>', methods=['POST'])
@@ -527,12 +537,15 @@ def edytuj_plan(id):
     data_planu = request.form.get('data_planu')
     try:
         tonaz_val = int(float(tonaz)) if tonaz is not None and tonaz != '' else None
-    except Exception:
+    except Exception as e:
+        current_app.logger.debug(f'Failed to parse tonaz: {e}')
         tonaz_val = None
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
         # Check if exists and get current sekcja
         cursor.execute("SELECT id, status, sekcja FROM plan_produkcji WHERE id=%s", (id,))
         r = cursor.fetchone()
@@ -604,18 +617,22 @@ def edytuj_plan(id):
             cursor.execute(sql, tuple(params))
             conn.commit()
             flash('Zlecenie zaktualizowane', 'success')
-    except Exception:
-        current_app.logger.exception('Failed to edit plan %s', id)
+            current_app.logger.info('Plan %s updated successfully', id)
+    
+    except Exception as e:
+        current_app.logger.error(f'Failed to edit plan {id}: {e}', exc_info=True)
         try:
             conn.rollback()
         except Exception:
             pass
         flash('Błąd podczas zapisu zmian', 'danger')
+    
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     return redirect(bezpieczny_powrot())
 
@@ -628,9 +645,11 @@ def edytuj_plan_ajax():
         data = request.get_json(force=True)
     except Exception:
         data = request.form.to_dict()
+    
     id = data.get('id')
     if not id:
         return jsonify({'success': False, 'message': 'Brak id'}), 400
+    
     try:
         pid = int(id)
     except Exception:
@@ -649,18 +668,17 @@ def edytuj_plan_ajax():
     except Exception:
         tonaz_val = None
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         cursor.execute("SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, '') FROM plan_produkcji WHERE id=%s", (pid,))
         before = cursor.fetchone()
         if not before:
-            conn.close()
             return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
         
         # If zakonczone, nobody can edit
         if before[5] == 'zakonczone':
-            conn.close()
             return jsonify({'success': False, 'message': 'Nie można edytować zakończonych zleceń'}), 403
         
         # If w toku, allow planista and admin to edit only tonaz (kg)
@@ -678,11 +696,9 @@ def edytuj_plan_ajax():
                            sekcja_provided is None and 
                            data_provided is None)
             if not is_tonaz_only:
-                conn.close()
                 return jsonify({'success': False, 'message': 'Gdy zlecenie w toku, możesz zmieniać tylko kg'}), 403
         elif before[5] == 'w toku':
             # Other roles cannot edit when w toku
-            conn.close()
             return jsonify({'success': False, 'message': 'Nie można edytować zleceń w toku'}), 403
 
         updates = []
@@ -728,6 +744,8 @@ def edytuj_plan_ajax():
             params.append(pid)
             cursor.execute(sql, tuple(params))
             conn.commit()
+            current_app.logger.info('Plan %s updated via AJAX: %s', pid, changes)
+            
             # If this edited plan is a Zasyp, propagate key changes to linked Workowanie entries
             try:
                 sekcja_before = (before[3] or '').lower()
@@ -751,33 +769,39 @@ def edytuj_plan_ajax():
                         linked_params.append(pid)
                         cursor.execute(linked_sql, tuple(linked_params))
                         conn.commit()
-            except Exception:
+            except Exception as e:
                 # don't fail entire request if propagation fails; just log
-                current_app.logger.exception('Error propagating Zasyp changes to Workowanie')
+                current_app.logger.error(f'Error propagating Zasyp changes to Workowanie: {e}', exc_info=True)
+            
             # log history
             try:
                 user_login = session.get('login') or session.get('imie_nazwisko')
             except Exception:
                 user_login = None
+            
             try:
                 log_plan_history(pid, 'edit', json.dumps(changes, default=str, ensure_ascii=False), user_login)
-            except Exception:
-                pass
-            conn.close()
+            except Exception as e:
+                current_app.logger.error(f'Error logging plan history: {e}', exc_info=True)
+            
             return jsonify({'success': True, 'message': 'Zaktualizowano', 'changes': changes})
-        conn.close()
+        
         return jsonify({'success': True, 'message': 'Brak zmian'})
+    
     except Exception as e:
-        current_app.logger.exception('Error edytuj_plan_ajax')
+        current_app.logger.error(f'Error in edytuj_plan_ajax: {e}', exc_info=True)
         try:
             conn.rollback()
         except Exception:
             pass
-        try:
-            conn.close()
-        except Exception:
-            pass
         return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
+    
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @planning_bp.route('/update_uszkodzone_worki', methods=['POST'])

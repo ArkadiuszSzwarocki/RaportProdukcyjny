@@ -54,11 +54,12 @@ def zarzad_panel():
         ilosc_zlecen=kpi['ilosc_zlecen'],
         procent=kpi['procent'],
         time_aw=charts['total_downtime'],
-        chart_labels=charts['labels'],
-        chart_plan=charts['plan'],
-        chart_wyk=charts['wyk'],
-        pie_labels=charts['pie_labels'],
-        pie_values=charts['pie_values'],
+        chartLabels=charts['labels'],
+        chartPlan=charts['plan'],
+        chartZasyp=charts['wyk'],
+        chartWork=[],  # Placeholder for alignment
+        pieLabels=charts['pie_labels'],
+        pieValues=charts['pie_values'],
         pracownicy_stats=pracownicy_stats,
         next_date=next_date
     )

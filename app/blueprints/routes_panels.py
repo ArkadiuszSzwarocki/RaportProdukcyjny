@@ -24,6 +24,7 @@ panels_bp = Blueprint('panels', __name__)
 def panel_wnioski_page():
     """Panel widok wniosków o wolne - dla liderów/adminów pokazuje wszystkie pending, dla pracowników - swoje."""
     wnioski = []
+    conn = None
     try:
         # Use AttendanceService instead of QueryHelper for consistency
         conn = get_db_connection()
@@ -57,7 +58,6 @@ def panel_wnioski_page():
             )
         
         raw = cursor.fetchall()
-        conn.close()
         
         wnioski = []
         for r in raw:
@@ -79,7 +79,13 @@ def panel_wnioski_page():
         print(f"[ERROR] Exception in panel_wnioski_page: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
-        current_app.logger.exception('Failed loading wnioski for full page')
+        current_app.logger.error(f'Failed loading wnioski for full page: {e}', exc_info=True)
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('fragment') == 'true':
         return render_template('panels/wnioski_panel.html', wnioski=wnioski)
@@ -94,8 +100,8 @@ def panel_planowane_page():
     try:
         if QueryHelper:
             planned = QueryHelper.get_planned_leaves(limit=500)
-    except Exception:
-        current_app.logger.exception('Failed loading planned leaves for full page')
+    except Exception as e:
+        current_app.logger.error(f'Failed loading planned leaves for full page: {e}', exc_info=True)
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('fragment') == 'true':
         return render_template('panels/planowane_panel.html', planned_leaves=planned)
     return render_template('panels_full/planowane_full.html', planned_leaves=planned)

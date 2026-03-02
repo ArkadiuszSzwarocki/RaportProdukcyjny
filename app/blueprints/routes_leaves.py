@@ -270,87 +270,99 @@ def zamknij_zmiane():
     dzisiaj = date.today()
     sekcja = request.args.get('sekcja', 'Workowanie')
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Pobierz dane o zmianach dzisiaj
-    cursor.execute("""
-        SELECT id, produkt, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji
-        FROM plan_produkcji
-        WHERE data_planu = %s AND sekcja = %s
-        ORDER BY real_start DESC
-    """, (dzisiaj, sekcja))
-    
-    plany = []
-    for row in cursor.fetchall():
-        plan_id, produkt, tonaz, status, real_start, real_stop, tonaz_wykonania, typ_prod = row
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         
-        # Pobierz palety
+        # Pobierz dane o zmianach dzisiaj
         cursor.execute("""
-            SELECT id, waga, data_dodania, status, czas_potwierdzenia_s
-            FROM palety_workowanie
-            WHERE plan_id = %s
-            ORDER BY data_dodania DESC
-        """, (plan_id,))
+            SELECT id, produkt, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji
+            FROM plan_produkcji
+            WHERE data_planu = %s AND sekcja = %s
+            ORDER BY real_start DESC
+        """, (dzisiaj, sekcja))
         
-        palety = []
-        for p in cursor.fetchall():
-            palety.append({
-                'id': p[0],
-                'waga': p[1],
-                'data_dodania': p[2].strftime('%Y-%m-%d %H:%M:%S') if p[2] else 'N/A',
-                'status': p[3],
-                'czas_potwierdzenia_s': p[4]
+        plany = []
+        for row in cursor.fetchall():
+            plan_id, produkt, tonaz, status, real_start, real_stop, tonaz_wykonania, typ_prod = row
+            
+            # Pobierz palety
+            cursor.execute("""
+                SELECT id, waga, data_dodania, status, czas_potwierdzenia_s
+                FROM palety_workowanie
+                WHERE plan_id = %s
+                ORDER BY data_dodania DESC
+            """, (plan_id,))
+            
+            palety = []
+            for p in cursor.fetchall():
+                palety.append({
+                    'id': p[0],
+                    'waga': p[1],
+                    'data_dodania': p[2].strftime('%Y-%m-%d %H:%M:%S') if p[2] else 'N/A',
+                    'status': p[3],
+                    'czas_potwierdzenia_s': p[4]
+                })
+            
+            plany.append({
+                'id': plan_id,
+                'produkt': produkt,
+                'tonaz': tonaz,
+                'tonaz_wykonania': tonaz_wykonania or 0,
+                'status': status,
+                'real_start': real_start.strftime('%H:%M:%S') if real_start else 'N/A',
+                'real_stop': real_stop.strftime('%H:%M:%S') if real_stop else 'N/A',
+                'typ_produkcji': typ_prod,
+                'palety': palety
             })
         
-        plany.append({
-            'id': plan_id,
-            'produkt': produkt,
-            'tonaz': tonaz,
-            'tonaz_wykonania': tonaz_wykonania or 0,
-            'status': status,
-            'real_start': real_start.strftime('%H:%M:%S') if real_start else 'N/A',
-            'real_stop': real_stop.strftime('%H:%M:%S') if real_stop else 'N/A',
-            'typ_produkcji': typ_prod,
-            'palety': palety
-        })
+        # Pobierz pracowników na zmianie
+        cursor.execute("""
+            SELECT DISTINCT pw.id, pw.imie_nazwisko
+            FROM (
+                SELECT DISTINCT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND sekcja = %s
+            ) ozm
+            JOIN pracownicy pw ON ozm.pracownik_id = pw.id
+        """, (dzisiaj, sekcja))
+        
+        pracownicy = []
+        for row in cursor.fetchall():
+            pracownicy.append({
+                'id': row[0],
+                'imie': row[1]
+            })
+        
+        # Pobierz informacje o liderze
+        lider_id = session.get('pracownik_id')
+        lider_name = session.get('login', 'N/A')
+        
+        zmiana_data = {
+            'data': dzisiaj.strftime('%Y-%m-%d'),
+            'sekcja': sekcja,
+            'lider_name': lider_name,
+            'lider_id': lider_id,
+            'plany': plany,
+            'pracownicy': pracownicy,
+            'notatki': ''
+        }
+        
+        return render_template('podsumowanie_zmiany.html',
+                              zmiana_data=zmiana_data,
+                              sekcja=sekcja,
+                              rola=session.get('rola'))
     
-    # Pobierz pracowników na zmianie
-    cursor.execute("""
-        SELECT DISTINCT pw.id, pw.imie_nazwisko
-        FROM (
-            SELECT DISTINCT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND sekcja = %s
-        ) ozm
-        JOIN pracownicy pw ON ozm.pracownik_id = pw.id
-    """, (dzisiaj, sekcja))
+    except Exception as e:
+        current_app.logger.error(f'Error in zamknij_zmiane: {e}', exc_info=True)
+        flash('Błąd przy ładowaniu danych zmiany', 'danger')
+        return redirect(bezpieczny_powrot())
     
-    pracownicy = []
-    for row in cursor.fetchall():
-        pracownicy.append({
-            'id': row[0],
-            'imie': row[1]
-        })
-    
-    # Pobierz informacje o liderze
-    lider_id = session.get('pracownik_id')
-    lider_name = session.get('login', 'N/A')
-    
-    conn.close()
-    
-    zmiana_data = {
-        'data': dzisiaj.strftime('%Y-%m-%d'),
-        'sekcja': sekcja,
-        'lider_name': lider_name,
-        'lider_id': lider_id,
-        'plany': plany,
-        'pracownicy': pracownicy,
-        'notatki': ''
-    }
-    
-    return render_template('podsumowanie_zmiany.html',
-                          zmiana_data=zmiana_data,
-                          sekcja=sekcja,
-                          rola=session.get('rola'))
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 @leaves_bp.route('/zamknij-zmiane-global', methods=['POST', 'GET'])
 @login_required
@@ -437,6 +449,7 @@ def obsada_for_date():
     except Exception:
         qdate = date.today()
     
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -448,11 +461,18 @@ def obsada_for_date():
             ORDER BY oz.sekcja, pw.imie_nazwisko
         """, (qdate,))
         rows = [{'sekcja': r[0], 'id': r[1], 'imie_nazwisko': r[2]} for r in cursor.fetchall()]
-        conn.close()
         return jsonify({'date': qdate.isoformat(), 'rows': rows})
+    
     except Exception as e:
-        current_app.logger.exception('obsada_for_date error')
+        current_app.logger.error(f'obsada_for_date error: {e}', exc_info=True)
         return jsonify({'date': qdate.isoformat(), 'rows': [], 'error': str(e)}), 500
+    
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @leaves_bp.route('/zapisz-raport-koncowy', methods=['POST'])
@@ -464,6 +484,7 @@ def zapisz_raport_koncowy():
     sekcja = request.form.get('sekcja', 'Workowanie')
     notatki = request.form.get('notatki', '')
     
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -526,15 +547,25 @@ def zapisz_raport_koncowy():
         """, (dzisiaj, sekcja))
         
         conn.commit()
-        conn.close()
-        
+        current_app.logger.info(f'Shift report saved: {sekcja} on {dzisiaj}')
         flash(f"✅ Zmiana w sekcji {sekcja} została zamknięta!", 'success')
         return redirect(url_for('main.index', sekcja=sekcja, data=dzisiaj.isoformat()))
         
     except Exception as e:
-        current_app.logger.error(f"Błąd przy zamykaniu zmiany: {e}")
+        current_app.logger.error(f"Błąd przy zamykaniu zmiany: {e}", exc_info=True)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         flash(f"❌ Błąd: {str(e)}", 'danger')
         return redirect(url_for('main.index', sekcja=sekcja))
+    
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 @leaves_bp.route('/zapisz-raport-koncowy-global', methods=['POST'])
 @login_required
@@ -544,6 +575,7 @@ def zapisz_raport_koncowy_global():
     dzisiaj = date.today()
     notatki = request.form.get('notatki', '')
     
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -663,14 +695,25 @@ def zapisz_raport_koncowy_global():
             """, (dzisiaj, sekcja))
         
         conn.commit()
-        conn.close()
-        
+        current_app.logger.info(f'Global shift report saved on {dzisiaj}')
         flash(f"✅ Zmiana została zamknięta dla wszystkich sekcji!", 'success')
         return redirect(url_for('index'))
-        
+    
     except Exception as e:
-        current_app.logger.error(f"Błąd przy zamykaniu zmiany: {e}")
+        current_app.logger.error(f'Error in zapisz_raport_koncowy_global: {e}', exc_info=True)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         flash(f"❌ Błąd: {str(e)}", 'danger')
+        return redirect(url_for('index'))
+    
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
         return redirect(url_for('index'))
 
 @leaves_bp.route('/pobierz-raport', methods=['GET', 'POST'])

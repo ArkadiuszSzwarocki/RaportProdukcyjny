@@ -34,14 +34,7 @@ def dodaj_obecnosc():
         if not od: missing.append('Czas (od)')
         if not do: missing.append('Czas (do)')
     if missing:
-        try:
-            flash('Brakuje wymaganych pól: ' + ', '.join(missing), 'warning')
-        except Exception:
-            pass
-        try:
-            conn.close()
-        except Exception:
-            pass
+        flash('Brakuje wymaganych pól: ' + ', '.join(missing), 'warning')
         return redirect(url_for('index'))
     # Jeśli Wyjscie prywatne — wymagamy podania zakresu czasu
     od = None
@@ -117,12 +110,14 @@ def edytuj_godziny():
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': 'Godziny zapisane'})
-    except Exception:
-        current_app.logger.exception('Error editing hours')
-        try:
-            conn.close()
-        except Exception:
-            pass
+    except Exception as e:
+        current_app.logger.error(f'Error editing hours: {e}', exc_info=True)
         return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 

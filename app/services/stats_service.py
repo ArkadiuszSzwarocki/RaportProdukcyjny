@@ -71,11 +71,11 @@ def get_chart_data(d_od, d_do):
     conn.close()
 
     return {
-        'labels': json.dumps([str(r[0]) for r in ch]),
-        'plan': json.dumps([float(r[1]) for r in ch]),
-        'wyk': json.dumps([float(r[2]) for r in ch]),
-        'pie_labels': json.dumps([r[0] for r in dt]),
-        'pie_values': json.dumps([float(r[1]) for r in dt]),
+        'labels': [str(r[0]) for r in ch],
+        'plan': [float(r[1]) for r in ch],
+        'wyk': [float(r[2]) for r in ch],
+        'pie_labels': [r[0] for r in dt],
+        'pie_values': [float(r[1]) for r in dt],
         'total_downtime': sum([float(r[1]) for r in dt])
     }
 

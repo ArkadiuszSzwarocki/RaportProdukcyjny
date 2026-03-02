@@ -14,17 +14,20 @@ shifts_bp = Blueprint('shifts', __name__)
 @login_required
 def add_shift_note():
     """Create a new shift note."""
+    note = request.form.get('note', '').strip()
+    pracownik_id = request.form.get('pracownik_id') or None
+    date_str = request.form.get('date') or str(date.today())
+    author = session.get('login') or 'unknown'
+    
+    current_app.logger.info('add_shift_note: note=%s, pracownik_id=%s, date=%s, author=%s', 
+                           note[:50] if note else '', pracownik_id, date_str, author)
+    
+    conn = None
     try:
-        note = request.form.get('note', '').strip()
-        pracownik_id = request.form.get('pracownik_id') or None
-        date_str = request.form.get('date') or str(date.today())
-        author = session.get('login') or 'unknown'
-
-        current_app.logger.info('add_shift_note: note=%s, pracownik_id=%s, date=%s, author=%s', note[:50] if note else '', pracownik_id, date_str, author)
-
         # Ensure shift_notes table exists and insert record
         conn = get_db_connection()
         cursor = conn.cursor()
+        
         try:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS shift_notes (
@@ -36,33 +39,29 @@ def add_shift_note():
                     created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
-        except Exception:
-            # ignore create table errors
-            pass
-        nid = int(time.time() * 1000)  # Use milliseconds for uniqueness
-        try:
-            cursor.execute("INSERT INTO shift_notes (id, pracownik_id, note, author, date) VALUES (%s, %s, %s, %s, %s)", (nid, pracownik_id, note, author, date_str))
-            conn.commit()
-            current_app.logger.info('Note saved successfully: id=%s', nid)
         except Exception as e:
+            current_app.logger.debug(f'CREATE TABLE shift_notes: {e}')
+        
+        nid = int(time.time() * 1000)  # Use milliseconds for uniqueness
+        cursor.execute("INSERT INTO shift_notes (id, pracownik_id, note, author, date) VALUES (%s, %s, %s, %s, %s)", 
+                      (nid, pracownik_id, note, author, date_str))
+        conn.commit()
+        current_app.logger.info('Note saved successfully: id=%s', nid)
+        flash('✅ Notatka zapisana', 'success')
+    
+    except Exception as e:
+        current_app.logger.error(f'Failed to save shift note: {e}', exc_info=True)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    finally:
+        if conn:
             try:
-                conn.rollback()
+                conn.close()
             except Exception:
                 pass
-            current_app.logger.exception('Failed to insert shift note into DB: %s', str(e))
-        try:
-            conn.close()
-        except Exception:
-            pass
-        try:
-            flash('✅ Notatka zapisana', 'success')
-        except Exception:
-            pass
-    except Exception:
-        try:
-            current_app.logger.exception('Error in add_shift_note')
-        except Exception:
-            pass
+    
     return redirect('/')
 
 
@@ -71,31 +70,38 @@ def add_shift_note():
 @roles_required('lider', 'admin')
 def delete_shift_note(note_id):
     """Delete a shift note (owner or admin only)."""
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
         # Sprawdź czy notatka należy do zalogowanego użytkownika lub jest admin
         cursor.execute("SELECT author FROM shift_notes WHERE id = %s", (note_id,))
         row = cursor.fetchone()
         author = session.get('login') or 'unknown'
+        
         if row and (row[0] == author or session.get('rola') == 'admin'):
             cursor.execute("DELETE FROM shift_notes WHERE id = %s", (note_id,))
             conn.commit()
-            try:
-                flash('Notatka usunięta', 'success')
-            except Exception:
-                pass
+            flash('Notatka usunięta', 'success')
+            current_app.logger.info('Shift note deleted: id=%s, author=%s', note_id, author)
         else:
-            try:
-                flash('Brak uprawnień do usunięcia notatki', 'danger')
-            except Exception:
-                pass
-        conn.close()
-    except Exception:
+            flash('Brak uprawnień do usunięcia notatki', 'danger')
+            current_app.logger.warning('Unauthorized delete attempt: id=%s, user=%s', note_id, author)
+    
+    except Exception as e:
+        current_app.logger.error(f'Error deleting shift note {note_id}: {e}', exc_info=True)
         try:
-            current_app.logger.exception('Error deleting shift note')
+            conn.rollback()
         except Exception:
             pass
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    
     return redirect('/')
 
 
@@ -104,32 +110,39 @@ def delete_shift_note(note_id):
 @roles_required('lider', 'admin')
 def update_shift_note(note_id):
     """Edit a shift note (owner or admin only)."""
+    conn = None
     try:
         note_text = request.form.get('note', '').strip()
         conn = get_db_connection()
         cursor = conn.cursor()
+        
         # Sprawdź czy notatka należy do zalogowanego użytkownika lub jest admin
         cursor.execute("SELECT author FROM shift_notes WHERE id = %s", (note_id,))
         row = cursor.fetchone()
         author = session.get('login') or 'unknown'
+        
         if row and (row[0] == author or session.get('rola') == 'admin'):
             cursor.execute("UPDATE shift_notes SET note = %s WHERE id = %s", (note_text, note_id))
             conn.commit()
-            try:
-                flash('Notatka zaktualizowana', 'success')
-            except Exception:
-                pass
+            flash('Notatka zaktualizowana', 'success')
+            current_app.logger.info('Shift note updated: id=%s, author=%s', note_id, author)
         else:
-            try:
-                flash('Brak uprawnień do edycji notatki', 'danger')
-            except Exception:
-                pass
-        conn.close()
-    except Exception:
+            flash('Brak uprawnień do edycji notatki', 'danger')
+            current_app.logger.warning('Unauthorized update attempt: id=%s, user=%s', note_id, author)
+    
+    except Exception as e:
+        current_app.logger.error(f'Error updating shift note {note_id}: {e}', exc_info=True)
         try:
-            current_app.logger.exception('Error updating shift note')
+            conn.rollback()
         except Exception:
             pass
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    
     return redirect('/')
 
 

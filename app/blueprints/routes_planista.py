@@ -211,7 +211,8 @@ def panel_planisty():
                 'diff_no_buf': diff_no_buf,
                 'diff_with_buf': diff_with_buf,
             })
-    except Exception:
+    except Exception as e:
+        current_app.logger.error(f'[PLANISTA] Error calculating rozliczenia: {e}', exc_info=True)
         rozliczenia = []
     finally:
         try:

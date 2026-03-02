@@ -106,12 +106,14 @@ def dodaj_palete_page(plan_id):
         row = cursor.fetchone()
         if row:
             produkt, sekcja, typ = row[0], row[1], row[2]
-    except Exception:
-        try: current_app.logger.exception('Failed to fetch plan %s for dodaj_palete_page', plan_id)
-        except Exception: pass
+    except Exception as e:
+        current_app.logger.error(f'Failed to fetch plan {plan_id} for dodaj_palete_page: {e}', exc_info=True)
     finally:
-        try: conn.close()
-        except Exception: pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
     return render_template('dodaj_palete_popup.html', plan_id=plan_id, produkt=produkt, sekcja=sekcja, typ=typ)
 
 
@@ -133,12 +135,14 @@ def edytuj_palete_page(paleta_id):
             r2 = cursor.fetchone()
             if r2:
                 sekcja = r2[0]
-    except Exception:
-        try: current_app.logger.exception('Failed to load paleta %s for edit page', paleta_id)
-        except Exception: pass
+    except Exception as e:
+        current_app.logger.error(f'Failed to load paleta {paleta_id} for edit page: {e}', exc_info=True)
     finally:
-        try: conn.close()
-        except Exception: pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
     return render_template('edytuj_palete_popup.html', paleta_id=paleta_id, waga=waga, sekcja=sekcja)
 
 
@@ -168,12 +172,14 @@ def potwierdz_palete_page(paleta_id):
         row = cursor.fetchone()
         if row:
             waga = row[0]
-    except Exception:
-        try: current_app.logger.exception('Failed to load paleta %s for potwierdz_palete_page', paleta_id)
-        except Exception: pass
+    except Exception as e:
+        current_app.logger.error(f'Failed to load paleta {paleta_id} for potwierdz_palete_page: {e}', exc_info=True)
     finally:
-        try: conn.close()
-        except Exception: pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
     return render_template('potwierdz_palete.html', paleta_id=paleta_id, waga=waga)
 
 
@@ -186,48 +192,48 @@ def potwierdz_palete(paleta_id):
         return ("Brak uprawnień", 403)
     
     conn = get_db_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
+        
+        # Step 1: Ensure column exists (idempotent)
         try:
             cursor.execute("ALTER TABLE palety_workowanie ADD COLUMN status VARCHAR(32) DEFAULT 'do_przyjecia'")
             conn.commit()
-        except Exception:
+        except Exception as e:
+            current_app.logger.debug(f'ALTER TABLE potwierdz_palete: {e}')
             try: conn.rollback()
-            except Exception: pass
-
+            except: pass
+        
+        # Step 2: Fetch tara (weight of package)
+        tara = 25  # default
         try:
             cursor.execute("SELECT COALESCE(tara,25) FROM palety_workowanie WHERE id=%s", (paleta_id,))
             trow = cursor.fetchone()
             tara = int(trow[0]) if trow and trow[0] is not None else 25
-        except Exception:
-            tara = 25
-
-        # NOTE: Przy potwierdzeniu palety nie nadpisujemy oryginalnej wagi
-        # z Workowania — chcemy zachować rekord palety tak jak został dodany
-        # na Workowaniu. Jeśli operator podaje wagę brutto/netto przy
-        # przyjęciu do Magazynu, użyjemy tej wagi tylko do aktualizacji
-        # agregatów Magazynu, ale nie nadpiszemy `palety_workowanie.waga`.
+        except Exception as e:
+            current_app.logger.warning(f'Failed to fetch tara for paleta {paleta_id}: {e}')
+        
+        # Step 3: Parse provided weights from form (netto/brutto)
         provided_netto = None
         provided_brutto = None
         try:
             if request.form.get('waga_palety'):
                 try:
                     provided_netto = int(float(require_field(request.form, 'waga_palety').replace(',', '.')))
-                except Exception:
+                except (ValueError, Exception):
                     provided_netto = None
             elif request.form.get('waga_brutto'):
                 try:
                     provided_brutto = int(float(require_field(request.form, 'waga_brutto').replace(',', '.')))
-                except Exception:
+                except (ValueError, Exception):
                     provided_brutto = None
                 if provided_brutto is not None:
                     n = provided_brutto - int(tara)
                     provided_netto = n if n >= 0 else 0
-        except Exception:
-            try: current_app.logger.exception('Failed to parse provided weight for id=%s', paleta_id)
-            except Exception: pass
-
-        # Persist provided weights separately (don't overwrite Workowanie.waga)
+        except Exception as e:
+            current_app.logger.error(f'Failed to parse provided weight for paleta {paleta_id}: {e}', exc_info=True)
+        
+        # Step 4: Persist provided weights separately
         try:
             if provided_netto is not None:
                 cursor.execute("UPDATE palety_workowanie SET waga_potwierdzona=%s WHERE id=%s", (provided_netto, paleta_id))
@@ -235,21 +241,22 @@ def potwierdz_palete(paleta_id):
                 cursor.execute("UPDATE palety_workowanie SET waga_brutto=%s WHERE id=%s", (provided_brutto, paleta_id))
             if provided_netto is not None or provided_brutto is not None:
                 conn.commit()
-        except Exception:
-            try: current_app.logger.exception('Failed to persist provided weights for paleta %s', paleta_id)
-            except Exception: pass
-
-        # Pobierz poprzedni status ZANIM go nadpiszemy
+        except Exception as e:
+            current_app.logger.error(f'Failed to persist weights for paleta {paleta_id}: {e}', exc_info=True)
+            try: conn.rollback()
+            except: pass
+        
+        # Step 5: Get previous status before update
+        prev_status = ''
         try:
             cursor.execute("SELECT COALESCE(status,'') FROM palety_workowanie WHERE id=%s", (paleta_id,))
             prev_row = cursor.fetchone()
             prev_status = prev_row[0] if prev_row else ''
-        except Exception:
-            prev_status = ''
-
+        except Exception as e:
+            current_app.logger.warning(f'Failed to fetch previous status for paleta {paleta_id}: {e}')
+        
+        # Step 6: Update paleta status to 'przyjeta' (accepted)
         try:
-            # Compute elapsed seconds since creation and store both the elapsed
-            # interval (as TIME) and the derived confirmation datetime = data_dodania + elapsed.
             cursor.execute(
                 "UPDATE palety_workowanie SET status='przyjeta', "
                 "data_potwierdzenia = DATE_ADD(data_dodania, INTERVAL TIMESTAMPDIFF(SECOND, data_dodania, NOW()) SECOND), "
@@ -259,42 +266,43 @@ def potwierdz_palete(paleta_id):
                 (paleta_id,)
             )
             conn.commit()
-        except Exception:
+        except Exception as e:
+            current_app.logger.warning(f'Complex update failed for paleta {paleta_id}: {e}, retrying simple update')
             try:
                 cursor.execute("UPDATE palety_workowanie SET status='przyjeta' WHERE id=%s", (paleta_id,))
                 conn.commit()
-            except Exception:
+            except Exception as e2:
+                current_app.logger.error(f'Simple status update also failed for paleta {paleta_id}: {e2}', exc_info=True)
                 try: conn.rollback()
-                except Exception: pass
-
+                except: pass
+        
+        # Step 7: Log the result
         try:
             cursor.execute("SELECT id, COALESCE(status,''), data_potwierdzenia, czas_potwierdzenia_s FROM palety_workowanie WHERE id=%s", (paleta_id,))
             res = cursor.fetchone()
-            current_app.logger.info('potwierdz_palete result: %s', res)
-        except Exception:
-            try:
-                current_app.logger.exception('Failed to fetch result for id=%s', paleta_id)
-            except Exception: pass
-
+            current_app.logger.info(f'potwierdz_palete {paleta_id} result: {res}')
+        except Exception as e:
+            current_app.logger.warning(f'Failed to fetch result for paleta {paleta_id}: {e}')
+        
+        # Step 8: Update Magazyn (warehouse) aggregates if not already confirmed
         try:
             cursor.execute("SELECT plan_id, COALESCE(waga,0) FROM palety_workowanie WHERE id=%s", (paleta_id,))
             r = cursor.fetchone()
             if r:
                 plan_id = r[0]
                 stored_netto = int(r[1] or 0)
-                # Use provided_netto (from form) for Magazyn addition if present,
-                # otherwise use the stored paleta weight. Do NOT overwrite stored paleta waga here.
                 netto_val = provided_netto if provided_netto is not None else stored_netto
+                
                 try:
                     cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
                     z = cursor.fetchone()
                     if z and prev_status != 'przyjeta':
-                        # Insert a separate magazyn record instead of incrementing Workowanie row.
-                        # Try to find an existing Magazyn plan id for this date+product
+                        # Find existing Magazyn plan id for this date+product
                         cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (z[0], z[1]))
                         mp = cursor.fetchone()
                         mp_id = mp[0] if mp else None
-                        # Prevent duplicate magazyn entries for same paleta
+                        
+                        # Prevent duplicate magazyn entries
                         cursor.execute("SELECT id FROM magazyn_palety WHERE paleta_workowanie_id=%s", (paleta_id,))
                         exists = cursor.fetchone()
                         if not exists:
@@ -302,25 +310,29 @@ def potwierdz_palete(paleta_id):
                                 "INSERT INTO magazyn_palety (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                                 (paleta_id, mp_id, z[0], z[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'))
                             )
-                        # Recalculate Magazyn aggregates from magazyn_palety
+                        
+                        # Recalculate Magazyn aggregates
                         cursor.execute(
                             "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto),0) FROM magazyn_palety WHERE plan_id = plan_produkcji.id) WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'",
                             (z[0], z[1])
                         )
-                except Exception:
+                        conn.commit()
+                except Exception as e:
+                    current_app.logger.error(f'Failed to update Magazyn aggregates for paleta {paleta_id}: {e}', exc_info=True)
                     try: conn.rollback()
-                    except Exception: pass
-                conn.commit()
-        except Exception:
-            try:
-                current_app.logger.exception('Failed to update plan aggregates for %s', paleta_id)
-            except Exception: pass
-    except Exception:
-        current_app.logger.exception('Failed to potwierdz palete %s', paleta_id)
+                    except: pass
+        except Exception as e:
+            current_app.logger.error(f'Failed to process Magazyn update for paleta {paleta_id}: {e}', exc_info=True)
+    
+    except Exception as e:
+        current_app.logger.error(f'Failed to potwierdz palete {paleta_id}: {e}', exc_info=True)
     finally:
-        try: conn.close()
-        except Exception: pass
-
+        try:
+            conn.close()
+        except Exception:
+            pass
+    
+    # Return response (AJAX or redirect)
     try:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return ('', 204)
@@ -695,10 +707,16 @@ def start_from_queue(kolejka):
         return jsonify({'success': False, 'message': str(e)}), 500
     
     finally:
-        try: cur.close()
-        except Exception: pass
-        try: conn.close()
-        except Exception: pass
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @warehouse_bp.route('/wazenie_magazyn/<int:paleta_id>', methods=['POST'])
@@ -722,9 +740,8 @@ def wazenie_magazyn(paleta_id):
         # for warehouse audit and add netto to Magazyn aggregates only.
         try:
             cursor.execute("UPDATE palety_workowanie SET waga_brutto=%s WHERE id=%s", (brutto, paleta_id))
-        except Exception:
-            try: current_app.logger.exception('Failed to store brutto for paleta %s', paleta_id)
-            except Exception: pass
+        except Exception as e:
+            current_app.logger.error(f'Failed to store brutto for paleta {paleta_id}: {e}', exc_info=True)
         cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
         z = cursor.fetchone()
         if z:
@@ -826,11 +843,14 @@ def edytuj_palete(paleta_id):
                 plan_id = res[0]
                 cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
         conn.commit()
-    except Exception:
-        current_app.logger.exception('Failed to edit paleta %s', paleta_id)
+    except Exception as e:
+        current_app.logger.error(f'Failed to edit paleta {paleta_id}: {e}', exc_info=True)
     finally:
-        try: conn.close()
-        except Exception: pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
     
     return redirect(bezpieczny_powrot())
 

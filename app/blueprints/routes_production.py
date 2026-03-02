@@ -28,86 +28,98 @@ def start_zlecenie(id):
     Workowanie workuje z bufora. Jeśli na Zasyp jest inne zlecenie - pokaż info.
     """
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji WHERE id=%s", (id,))
-    z = cursor.fetchone()
-    
-    warning_info = None  # Informacja o tym co dzieje się na Zasyp
-    
-    if z:
-        produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji WHERE id=%s", (id,))
+        z = cursor.fetchone()
         
-        # INFO ONLY (nie blokuje): jeśli na Workowanie, sprawdzić co dzieje się na Zasyp
-        if sekcja == 'Workowanie':
-            cursor.execute(
-                "SELECT id, produkt FROM plan_produkcji "
-                "WHERE sekcja='Zasyp' AND status='w toku' AND DATE(data_planu)=%s LIMIT 1",
-                (data_planu,)
-            )
-            active_on_zasyp = cursor.fetchone()
+        warning_info = None  # Informacja o tym co dzieje się na Zasyp
+        
+        if z:
+            produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
             
-            if active_on_zasyp and active_on_zasyp[0] != id:
-                # Inne zlecenie aktywne na Zasyp - informuj ale nie blokuj
-                warning_info = {
-                    'message': f"Na Zasyp trwa zlecenie: <strong>{active_on_zasyp[1]}</strong>",
-                    'zasyp_order_id': active_on_zasyp[0],
-                    'zasyp_order_name': active_on_zasyp[1]
-                }
-        
-        # Dodatkowa logika kolejki dla Workowanie:
-        # Tylko produkt, który miał NAJWCZEŚNIEJ zakończone Zasyp tego dnia, może być uruchomiony jako pierwszy.
-        if sekcja == 'Workowanie':
-                # Allow planners/admins to bypass queue restriction
-                role = session.get('rola', '')
-                if role in ('planista', 'admin'):
-                    current_app.logger.debug(f'[KOLEJKA] bypass for role={role} plan_id={id} produkt={produkt}')
-                else:
-                    try:
-                        # Log context for debugging
-                        current_app.logger.debug(f'[KOLEJKA] start_zlecenie called id={id} produkt="{produkt}" data_planu={data_planu} role={role}')
-                        cursor.execute(
-                            "SELECT id, produkt, real_stop FROM plan_produkcji WHERE sekcja='Zasyp' AND status='zakonczone' AND DATE(data_planu)=%s AND real_stop IS NOT NULL ORDER BY real_stop ASC",
-                            (data_planu,)
-                        )
-                        all_closed = cursor.fetchall()
-                        current_app.logger.debug(f'[KOLEJKA] closed_zasyp_count={len(all_closed)}')
-                        for ac in all_closed:
-                            try:
-                                current_app.logger.debug(f'[KOLEJKA] closed: id={ac[0]} produkt="{ac[1]}" real_stop={ac[2]}')
-                            except Exception:
-                                current_app.logger.debug(f'[KOLEJKA] closed (raw): {ac}')
-                        earliest = all_closed[0] if all_closed else None
-                    except Exception as e:
-                        current_app.logger.exception('[KOLEJKA] failed to query closed Zasyp: %s', e)
-                        earliest = None
-                    if earliest:
-                        earliest_product = earliest[1]
-                        # Normalize product names for robust comparison
+            # INFO ONLY (nie blokuje): jeśli na Workowanie, sprawdzić co dzieje się na Zasyp
+            if sekcja == 'Workowanie':
+                cursor.execute(
+                    "SELECT id, produkt FROM plan_produkcji "
+                    "WHERE sekcja='Zasyp' AND status='w toku' AND DATE(data_planu)=%s LIMIT 1",
+                    (data_planu,)
+                )
+                active_on_zasyp = cursor.fetchone()
+                
+                if active_on_zasyp and active_on_zasyp[0] != id:
+                    # Inne zlecenie aktywne na Zasyp - informuj ale nie blokuj
+                    warning_info = {
+                        'message': f"Na Zasyp trwa zlecenie: <strong>{active_on_zasyp[1]}</strong>",
+                        'zasyp_order_id': active_on_zasyp[0],
+                        'zasyp_order_name': active_on_zasyp[1]
+                    }
+            
+            # Dodatkowa logika kolejki dla Workowanie:
+            # Tylko produkt, który miał NAJWCZEŚNIEJ zakończone Zasyp tego dnia, może być uruchomiony jako pierwszy.
+            if sekcja == 'Workowanie':
+                    # Allow planners/admins to bypass queue restriction
+                    role = session.get('rola', '')
+                    if role in ('planista', 'admin'):
+                        current_app.logger.debug(f'[KOLEJKA] bypass for role={role} plan_id={id} produkt={produkt}')
+                    else:
                         try:
-                            prod_norm = (produkt or '').strip().lower()
-                            earliest_norm = (earliest_product or '').strip().lower()
-                        except Exception:
-                            prod_norm = produkt
-                            earliest_norm = earliest_product
-                        current_app.logger.debug(f'[KOLEJKA] produkt="{produkt}" earliest_from_zasyp="{earliest_product}" normalized: "{prod_norm}" vs "{earliest_norm}"')
-                        if prod_norm != earliest_norm:
-                            # Nie zezwalamy na uruchomienie innego produktu niż ten najwcześniej zakończony na Zasyp
-                            flash(f"❌ Kolejkowanie Workowanie: aktualnie otwarty powinien być produkt zakończony najwcześniej na Zasyp: <strong>{earliest_product}</strong>. Najpierw zakończ ten produkt na Zasyp.", 'error')
-                            conn.close()
-                            return redirect(bezpieczny_powrot())
+                            # Log context for debugging
+                            current_app.logger.debug(f'[KOLEJKA] start_zlecenie called id={id} produkt="{produkt}" data_planu={data_planu} role={role}')
+                            cursor.execute(
+                                "SELECT id, produkt, real_stop FROM plan_produkcji WHERE sekcja='Zasyp' AND status='zakonczone' AND DATE(data_planu)=%s AND real_stop IS NOT NULL ORDER BY real_stop ASC",
+                                (data_planu,)
+                            )
+                            all_closed = cursor.fetchall()
+                            current_app.logger.debug(f'[KOLEJKA] closed_zasyp_count={len(all_closed)}')
+                            for ac in all_closed:
+                                try:
+                                    current_app.logger.debug(f'[KOLEJKA] closed: id={ac[0]} produkt="{ac[1]}" real_stop={ac[2]}')
+                                except Exception:
+                                    current_app.logger.debug(f'[KOLEJKA] closed (raw): {ac}')
+                            earliest = all_closed[0] if all_closed else None
+                        except Exception as e:
+                            current_app.logger.exception('[KOLEJKA] failed to query closed Zasyp: %s', e)
+                            earliest = None
+                        if earliest:
+                            earliest_product = earliest[1]
+                            # Normalize product names for robust comparison
+                            try:
+                                prod_norm = (produkt or '').strip().lower()
+                                earliest_norm = (earliest_product or '').strip().lower()
+                            except Exception:
+                                prod_norm = produkt
+                                earliest_norm = earliest_product
+                            current_app.logger.debug(f'[KOLEJKA] produkt="{produkt}" earliest_from_zasyp="{earliest_product}" normalized: "{prod_norm}" vs "{earliest_norm}"')
+                            if prod_norm != earliest_norm:
+                                # Nie zezwalamy na uruchomienie innego produktu niż ten najwcześniej zakończony na Zasyp
+                                flash(f"❌ Kolejkowanie Workowanie: aktualnie otwarty powinien być produkt zakończony najwcześniej na Zasyp: <strong>{earliest_product}</strong>. Najpierw zakończ ten produkt na Zasyp.", 'error')
+                                return redirect(bezpieczny_powrot())
 
-        # Zawsze wykonaj START - Workowanie pracuje niezależnie z bufora
-        if status_obecny != 'w toku':
-            cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
-            cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
-            flash(f"✅ Uruchomiono: <strong>{produkt}</strong>", 'success')
+            # Zawsze wykonaj START - Workowanie pracuje niezależnie z bufora
+            if status_obecny != 'w toku':
+                cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
+                cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
+                flash(f"✅ Uruchomiono: <strong>{produkt}</strong>", 'success')
 
-            # Jeśli jest warning info - dodaj do flash message
-            if warning_info:
-                flash(f"ℹ️ {warning_info['message']}", 'info')
-        
-    conn.commit()
-    conn.close()
+                # Jeśli jest warning info - dodaj do flash message
+                if warning_info:
+                    flash(f"ℹ️ {warning_info['message']}", 'info')
+            
+        conn.commit()
+    except Exception as e:
+        current_app.logger.error(f"Error starting order {id}: {e}", exc_info=True)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        flash(f"❌ Błąd uruchamiania zlecenia", 'danger')
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    
     return redirect(bezpieczny_powrot())
 
 
@@ -116,52 +128,61 @@ def start_zlecenie(id):
 def koniec_zlecenie(id):
     """Zakończ wykonywanie zlecenia"""
     conn = get_db_connection()
-    cursor = conn.cursor()
-    final_tonaz = request.form.get('final_tonaz')
-    wyjasnienie = request.form.get('wyjasnienie')
-    uszkodzone_worki = request.form.get('uszkodzone_worki')
-    sekcja = request.form.get('sekcja')
-    rzeczywista_waga = 0
-    if final_tonaz:
-        try:
-            rzeczywista_waga = int(float(final_tonaz.replace(',', '.')))
-        except Exception:
-            pass
-
-    sql = "UPDATE plan_produkcji SET status='zakonczone', real_stop=NOW()"
-    params = []
-    if rzeczywista_waga > 0:
-        sql += ", tonaz_rzeczywisty=%s"
-        params.append(rzeczywista_waga)
-    if wyjasnienie:
-        sql += ", wyjasnienie_rozbieznosci=%s"
-        params.append(wyjasnienie)
-    if uszkodzone_worki and sekcja == 'Workowanie':
-        try:
-            uszkodzone_count = int(uszkodzone_worki)
-            sql += ", uszkodzone_worki=%s"
-            params.append(uszkodzone_count)
-        except (ValueError, TypeError):
-            pass
-    sql += " WHERE id=%s"
-    params.append(id)
-    cursor.execute(sql, tuple(params))
-    
-    # Zasyp i Workowanie działają NIEZALEŻNIE
-    # Brak automatycznego aktualizowania Workowania gdy kończy się Zasyp
-    conn.commit()
-    
-    # WAŻNE: Odśwież bufor teraz, żeby kolejka się przesuniała
     try:
-        from app.db import refresh_bufor_queue
-        refresh_bufor_queue(conn)
-    except Exception as e:
+        cursor = conn.cursor()
+        final_tonaz = request.form.get('final_tonaz')
+        wyjasnienie = request.form.get('wyjasnienie')
+        uszkodzone_worki = request.form.get('uszkodzone_worki')
+        sekcja = request.form.get('sekcja')
+        rzeczywista_waga = 0
+        if final_tonaz:
+            try:
+                rzeczywista_waga = int(float(final_tonaz.replace(',', '.')))
+            except Exception:
+                pass
+
+        sql = "UPDATE plan_produkcji SET status='zakonczone', real_stop=NOW()"
+        params = []
+        if rzeczywista_waga > 0:
+            sql += ", tonaz_rzeczywisty=%s"
+            params.append(rzeczywista_waga)
+        if wyjasnienie:
+            sql += ", wyjasnienie_rozbieznosci=%s"
+            params.append(wyjasnienie)
+        if uszkodzone_worki and sekcja == 'Workowanie':
+            try:
+                uszkodzone_count = int(uszkodzone_worki)
+                sql += ", uszkodzone_worki=%s"
+                params.append(uszkodzone_count)
+            except (ValueError, TypeError):
+                pass
+        sql += " WHERE id=%s"
+        params.append(id)
+        cursor.execute(sql, tuple(params))
+        
+        # Zasyp i Workowanie działają NIEZALEŻNIE
+        # Brak automatycznego aktualizowania Workowania gdy kończy się Zasyp
+        conn.commit()
+        
+        # WAŻNE: Odśwież bufor teraz, żeby kolejka się przesuniała
         try:
+            from app.db import refresh_bufor_queue
+            refresh_bufor_queue(conn)
+        except Exception as e:
             current_app.logger.warning(f'Failed to refresh bufor after koniec_zlecenie: {e}')
+    except Exception as e:
+        current_app.logger.error(f"Error completing order {id}: {e}", exc_info=True)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        flash(f"❌ Błąd zakończenia zlecenia", 'danger')
+    finally:
+        try:
+            conn.close()
         except Exception:
             pass
     
-    conn.close()
     return redirect(bezpieczny_powrot())
 
 
@@ -170,10 +191,23 @@ def koniec_zlecenie(id):
 def zapisz_wyjasnienie(id):
     """Zapisz wyjaśnienie rozbieżności"""
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE plan_produkcji SET wyjasnienie_rozbieznosci=%s WHERE id=%s", (request.form.get('wyjasnienie'), id))
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE plan_produkcji SET wyjasnienie_rozbieznosci=%s WHERE id=%s", (request.form.get('wyjasnienie'), id))
+        conn.commit()
+    except Exception as e:
+        current_app.logger.error(f"Error saving explanation for {id}: {e}", exc_info=True)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        flash(f"❌ Błąd zapisania wyjaśnienia", 'danger')
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    
     return redirect(bezpieczny_powrot())
 
 
@@ -185,18 +219,19 @@ def koniec_zlecenie_page(id):
     produkt = None
     tonaz_rzeczywisty = None
     conn = get_db_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         cursor.execute("SELECT produkt, tonaz_rzeczywisty FROM plan_produkcji WHERE id=%s", (id,))
         row = cursor.fetchone()
         if row:
             produkt, tonaz_rzeczywisty = row[0], row[1]
-    except Exception:
-        try: current_app.logger.exception('Failed to fetch plan %s for koniec_zlecenie_page', id)
-        except Exception: pass
+    except Exception as e:
+        current_app.logger.error(f'Failed to fetch plan {id} for koniec_zlecenie_page: {e}', exc_info=True)
     finally:
-        try: conn.close()
-        except Exception: pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt, tonaz=tonaz_rzeczywisty)
 
@@ -205,18 +240,19 @@ def koniec_zlecenie_page(id):
 @login_required
 def api_test_pobierz_raport():
     """Test endpoint: return most recent file from raporty/ directory as attachment"""
-    rap_dir = os.path.join(current_app.root_path, 'raporty')
-    if not os.path.isdir(rap_dir):
-        return jsonify({'error': 'raporty directory not found'}), 404
-    files = glob.glob(os.path.join(rap_dir, '*'))
-    if not files:
-        return jsonify({'error': 'no reports available'}), 404
-    latest = max(files, key=os.path.getmtime)
     try:
+        rap_dir = os.path.join(current_app.root_path, 'raporty')
+        if not os.path.isdir(rap_dir):
+            current_app.logger.warning(f'Reports directory not found: {rap_dir}')
+            return jsonify({'error': 'raporty directory not found'}), 404
+        files = glob.glob(os.path.join(rap_dir, '*'))
+        if not files:
+            current_app.logger.warning('No reports available in raporty directory')
+            return jsonify({'error': 'no reports available'}), 404
+        latest = max(files, key=os.path.getmtime)
         return send_file(latest, as_attachment=True, download_name=os.path.basename(latest))
-    except Exception:
-        try: current_app.logger.exception('Failed to send report %s', latest)
-        except Exception: pass
+    except Exception as e:
+        current_app.logger.error(f'Failed to send report: {e}', exc_info=True)
         return jsonify({'error': 'failed to send file'}), 500
 
 
@@ -227,21 +263,19 @@ def szarza_page(plan_id):
     current_app.logger.info(f'[SZARZA_PAGE] Called with plan_id={plan_id}')
     
     conn = get_db_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         cursor.execute(
             "SELECT produkt, typ_produkcji FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'",
             (plan_id,)
         )
         plan = cursor.fetchone()
         if not plan:
-            conn.close()
             current_app.logger.warning(f'[SZARZA_PAGE] Plan {plan_id} not found')
             flash('Plan nie znaleziony', 'error')
             return redirect('/')
         
         produkt, typ_produkcji = plan[0], plan[1]
-        conn.close()
         current_app.logger.info(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}')
         return render_template('dodaj_palete_popup.html', 
                      plan_id=plan_id, 
@@ -249,10 +283,14 @@ def szarza_page(plan_id):
                      produkt=produkt,
                      typ=typ_produkcji)
     except Exception as e:
-        conn.close()
-        current_app.logger.error(f'[SZARZA_PAGE] Error in szarza_page: {e}')
+        current_app.logger.error(f'[SZARZA_PAGE] Error in szarza_page: {e}', exc_info=True)
         flash('Błąd pobierania danych planu', 'error')
         return redirect('/')
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @production_bp.route('/wyjasnij_page/<int:id>', methods=['GET'])
@@ -342,31 +380,31 @@ def obsada_page():
 def dosypka_page(plan_id):
     """Render form to add up to 4 dosypki for an active Zasyp plan."""
     conn = get_db_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         cursor.execute("SELECT produkt, typ_produkcji, status FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'", (plan_id,))
         plan = cursor.fetchone()
         if not plan:
-            conn.close()
             flash('Plan nie znaleziony', 'error')
             return redirect('/')
+        
         produkt, typ_produkcji, status = plan[0], plan[1], plan[2]
         # Only allow adding dosypki to active orders
         if status != 'w toku':
-            conn.close()
             flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
             return redirect(bezpieczny_powrot())
-        conn.close()
+        
         szarza_id = request.args.get('szarza_id')
         return render_template('dodaj_dosypke_popup.html', plan_id=plan_id, produkt=produkt, typ=typ_produkcji, szarza_id=szarza_id)
     except Exception as e:
+        current_app.logger.error(f'Error in dosypka_page: {e}', exc_info=True)
+        flash('Błąd pobierania danych planu', 'error')
+        return redirect('/')
+    finally:
         try:
             conn.close()
         except Exception:
             pass
-        current_app.logger.exception('Error in dosypka_page: %s', e)
-        flash('Błąd pobierania danych planu', 'error')
-        return redirect('/')
 
 
 @production_bp.route('/dodaj_dosypke', methods=['POST'])
@@ -408,13 +446,12 @@ def dodaj_dosypke():
         return redirect(bezpieczny_powrot())
 
     conn = get_db_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         # Validate plan exists and is active
         cursor.execute("SELECT status FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'", (plan_id,))
         r = cursor.fetchone()
         if not r or r[0] != 'w toku':
-            conn.close()
             flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
             return redirect(bezpieczny_powrot())
 
@@ -423,19 +460,19 @@ def dodaj_dosypke():
             cursor.execute("INSERT INTO dosypki (plan_id, szarza_id, nazwa, kg, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, 0)", (plan_id, szarza_id, name, kg, pracownik_id))
 
         conn.commit()
-        conn.close()
         flash(f'Zapisano {len(entries)} pozycji dosypki.', 'success')
     except Exception as e:
         try:
             conn.rollback()
         except Exception:
             pass
+        current_app.logger.error(f'Failed to insert dosypki: {e}', exc_info=True)
+        flash('Błąd zapisu dosypki', 'error')
+    finally:
         try:
             conn.close()
         except Exception:
             pass
-        current_app.logger.exception('Failed to insert dosypki: %s', e)
-        flash('Błąd zapisu dosypki', 'error')
 
     return redirect(bezpieczny_powrot())
 
@@ -445,31 +482,30 @@ def dodaj_dosypke():
 def potwierdz_dosypke(dosypka_id):
     """Operator potwierdza odczytanie dosypki - mark as confirmed."""
     conn = get_db_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         cursor.execute("SELECT id FROM dosypki WHERE id=%s AND potwierdzone=0", (dosypka_id,))
         r = cursor.fetchone()
         if not r:
-            conn.close()
             flash('Pozycja nieznaleziona lub już potwierdzona', 'warning')
             return redirect(bezpieczny_powrot())
 
         pracownik_id = session.get('user_id') if 'user_id' in session else None
         cursor.execute("UPDATE dosypki SET potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s", (pracownik_id, dosypka_id))
         conn.commit()
-        conn.close()
         flash('Potwierdzono dosypkę.', 'success')
     except Exception as e:
         try:
             conn.rollback()
         except Exception:
             pass
+        current_app.logger.error(f'Failed to confirm dosypka: {e}', exc_info=True)
+        flash('Błąd podczas potwierdzania', 'error')
+    finally:
         try:
             conn.close()
         except Exception:
             pass
-        current_app.logger.exception('Failed to confirm dosypka: %s', e)
-        flash('Błąd podczas potwierdzania', 'error')
 
     return redirect(bezpieczny_powrot())
 
@@ -480,8 +516,8 @@ def api_dosypki():
     """Return JSON of unconfirmed dosypki for operators (potwierdzone=0), optionally filtered by plan_id."""
     plan_id = request.args.get('plan_id', None)
     conn = get_db_connection()
-    cursor = conn.cursor()
     try:
+        cursor = conn.cursor()
         if plan_id:
             cursor.execute("SELECT id, plan_id, nazwa, kg, data_zlecenia FROM dosypki WHERE potwierdzone=0 AND plan_id=%s ORDER BY data_zlecenia ASC", (plan_id,))
         else:
@@ -497,15 +533,15 @@ def api_dosypki():
             else:
                 nazwa = None
             result.append({'id': r[0], 'plan_id': r[1], 'nazwa': nazwa, 'kg': float(r[3]), 'data_zlecenia': str(r[4])})
-        conn.close()
         return jsonify({'success': True, 'dosypki': result})
     except Exception as e:
+        current_app.logger.error(f'api/dosypki failed: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
+    finally:
         try:
             conn.close()
         except Exception:
             pass
-        current_app.logger.exception('api/dosypki failed: %s', e)
-        return jsonify({'success': False, 'message': 'Błąd serwera'}), 500
 
 
 @production_bp.route('/dosypki_list', methods=['GET'])
