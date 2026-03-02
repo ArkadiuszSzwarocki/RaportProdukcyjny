@@ -45,7 +45,7 @@ class RaportService:
         wszystkie_obsady = zmiana_data.get('wszystkie_obsady', {})
         if wszystkie_obsady:
             lines.append("-" * 80)
-            lines.append("OBSADA PRACOWNIKÓW:")
+            lines.append("OBSADA PRACOWNIKÓW - OBECNI:")
             lines.append("-" * 80)
             for sekcja_name, obsada in wszystkie_obsady.items():
                 lines.append(f"\n  {sekcja_name.upper()}:")
@@ -68,13 +68,26 @@ class RaportService:
                 lines.append("  Brak danych")
             lines.append("")
         
-        # Awarie i usterki
+        # Nieobecni (odfiltrowani z awarii)
         awarie = zmiana_data.get('awarie', [])
-        if awarie:
+        nieobecni = [a for a in awarie if a.get('typ', '').lower() in ['nieobecność', 'nieobecnosc']]
+        if nieobecni:
             lines.append("-" * 80)
-            lines.append("AWARIE / USTERKI / NIEOBECNOŚCI:")
+            lines.append("NIEOBECNI:")
             lines.append("-" * 80)
-            for a in awarie:
+            for a in nieobecni:
+                lines.append(f"\n  {a.get('pracownik', 'N/A')} ({a.get('sekcja', 'N/A')})")
+                lines.append(f"  Powód: {a.get('opis', 'N/A')}")
+                lines.append(f"  Czas: {a.get('data_wpisu', 'N/A')}")
+            lines.append("")
+        
+        # Awarie i usterki (bez nieobecności)
+        awarie_bez_nieobecnych = [a for a in awarie if a.get('typ', '').lower() not in ['nieobecność', 'nieobecnosc']]
+        if awarie_bez_nieobecnych:
+            lines.append("-" * 80)
+            lines.append("AWARIE / USTERKI:")
+            lines.append("-" * 80)
+            for a in awarie_bez_nieobecnych:
                 lines.append(f"\n  [{a.get('sekcja', 'N/A')}] {a.get('typ', 'N/A').upper()}")
                 lines.append(f"  Opis: {a.get('opis', 'N/A')}")
                 lines.append(f"  Czas: {a.get('data_wpisu', 'N/A')}")
@@ -158,10 +171,10 @@ class RaportService:
         ws[f'B{row}'] = zmiana_data.get('lider_name', 'N/A')
         row += 2
         
-        # Obsada per sekcja (nowa sekcja)
+        # Obsada per sekcja (nowa sekcja) - tylko obecni
         wszystkie_obsady = zmiana_data.get('wszystkie_obsady', {})
         if wszystkie_obsady:
-            ws[f'A{row}'] = "OBSADA PRACOWNIKÓW PER SEKCJA"
+            ws[f'A{row}'] = "OBSADA PRACOWNIKÓW - OBECNI PER SEKCJA"
             ws[f'A{row}'].font = header_font
             ws[f'A{row}'].fill = header_fill
             row += 1
@@ -192,12 +205,37 @@ class RaportService:
                 row += 1
             row += 1
         
-        # Awarie/usterki (nowa sekcja)
+        # Nieobecni (odfiltrowani z awarii)
         awarie = zmiana_data.get('awarie', [])
-        if awarie:
-            ws[f'A{row}'] = "AWARIE / USTERKI / NIEOBECNOŚCI"
+        nieobecni = [a for a in awarie if a.get('typ', '').lower() in ['nieobecność', 'nieobecnosc']]
+        if nieobecni:
+            ws[f'A{row}'] = "NIEOBECNI"
             ws[f'A{row}'].font = header_font
-            ws[f'A{row}'].fill = header_fill
+            ws[f'A{row}'].fill = PatternFill(start_color="FF8C42", end_color="FF8C42", fill_type="solid")
+            row += 1
+            
+            headers_nieobecni = ['Pracownik', 'Sekcja', 'Powód', 'Czas']
+            for col, header in enumerate(headers_nieobecni, 1):
+                cell = ws.cell(row=row, column=col)
+                cell.value = header
+                cell.font = header_font
+                cell.fill = PatternFill(start_color="FF8C42", end_color="FF8C42", fill_type="solid")
+            row += 1
+            
+            for a in nieobecni:
+                ws[f'A{row}'] = a.get('pracownik', 'N/A')
+                ws[f'B{row}'] = a.get('sekcja', '')
+                ws[f'C{row}'] = a.get('opis', '')
+                ws[f'D{row}'] = a.get('data_wpisu', '')
+                row += 1
+            row += 1
+        
+        # Awarie/usterki (bez nieobecności)
+        awarie_bez_nieobecnych = [a for a in awarie if a.get('typ', '').lower() not in ['nieobecność', 'nieobecnosc']]
+        if awarie_bez_nieobecnych:
+            ws[f'A{row}'] = "AWARIE / USTERKI"
+            ws[f'A{row}'].font = header_font
+            ws[f'A{row}'].fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
             row += 1
             
             headers = ['Sekcja', 'Typ', 'Opis', 'Czas', 'Pracownik']
@@ -205,10 +243,10 @@ class RaportService:
                 cell = ws.cell(row=row, column=col)
                 cell.value = header
                 cell.font = header_font
-                cell.fill = header_fill
+                cell.fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
             row += 1
             
-            for a in awarie:
+            for a in awarie_bez_nieobecnych:
                 ws[f'A{row}'] = a.get('sekcja', '')
                 ws[f'B{row}'] = a.get('typ', 'N/A')
                 ws[f'C{row}'] = a.get('opis', '')
@@ -311,10 +349,10 @@ class RaportService:
         story.append(info_table)
         story.append(Spacer(1, 0.5*cm))
         
-        # Obsada per sekcja (nowa sekcja)
+        # Obsada per sekcja (nowa sekcja) - tylko obecni
         wszystkie_obsady = zmiana_data.get('wszystkie_obsady', {})
         if wszystkie_obsady:
-            story.append(Paragraph("Obsada Pracowników per Sekcja", styles['Heading2']))
+            story.append(Paragraph("Obsada Pracowników - Obecni per Sekcja", styles['Heading2']))
             for sekcja, obsada in wszystkie_obsady.items():
                 text = f"<b>{sekcja}:</b> "
                 if obsada:
@@ -324,12 +362,41 @@ class RaportService:
                 story.append(Paragraph(text, styles['Normal']))
             story.append(Spacer(1, 0.3*cm))
         
-        # Awarie/usterki table (nowa sekcja)
+        # Nieobecni (odfiltrowani z awarii)
         awarie = zmiana_data.get('awarie', [])
-        if awarie:
-            story.append(Paragraph("Awarie / Usterki / Nieobecności", styles['Heading2']))
+        nieobecni = [a for a in awarie if a.get('typ', '').lower() in ['nieobecność', 'nieobecnosc']]
+        if nieobecni:
+            story.append(Paragraph("Nieobecni", styles['Heading2']))
+            nieobecni_data = [['Pracownik', 'Sekcja', 'Powód', 'Czas']]
+            for a in nieobecni:
+                nieobecni_data.append([
+                    a.get('pracownik', 'N/A')[:15],
+                    a.get('sekcja', '')[:10],
+                    a.get('opis', '')[:20],
+                    a.get('data_wpisu', '')[:8]
+                ])
+            
+            nieobecni_table = Table(nieobecni_data, colWidths=[3*cm, 2*cm, 4*cm, 2*cm])
+            nieobecni_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FF8C42')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#FFE6D6')),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ]))
+            story.append(nieobecni_table)
+            story.append(Spacer(1, 0.3*cm))
+        
+        # Awarie/usterki (bez nieobecności)
+        awarie_bez_nieobecnych = [a for a in awarie if a.get('typ', '').lower() not in ['nieobecność', 'nieobecnosc']]
+        if awarie_bez_nieobecnych:
+            story.append(Paragraph("Awarie / Usterki", styles['Heading2']))
             awarie_data = [['Sekcja', 'Typ', 'Opis', 'Czas', 'Pracownik']]
-            for a in awarie:
+            for a in awarie_bez_nieobecnych:
                 awarie_data.append([
                     a.get('sekcja', '')[:10],
                     a.get('typ', 'N/A')[:10],
