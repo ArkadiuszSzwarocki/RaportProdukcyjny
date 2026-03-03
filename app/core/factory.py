@@ -74,6 +74,10 @@ def create_app(config_secret_key=None, init_db=True):
     # Add Jinja2 extensions
     app.jinja_env.add_extension('jinja2.ext.do')
     
+    # Disable Jinja2 caching in development to pick up template changes immediately
+    app.jinja_env.cache = None
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
+    
     # Register middleware (request/response processing)
     register_middleware(app)
     

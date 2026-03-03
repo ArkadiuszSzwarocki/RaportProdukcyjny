@@ -511,9 +511,10 @@ def potwierdz_dosypke(dosypka_id):
 
 
 @production_bp.route('/api/dosypki', methods=['GET'])
-@roles_required('produkcja', 'lider', 'admin')
+@roles_required('laborant', 'pracownik', 'produkcja', 'lider', 'admin')
 def api_dosypki():
     """Return JSON of unconfirmed dosypki for operators (potwierdzone=0), optionally filtered by plan_id."""
+    current_app.logger.info(f"[api_dosypki] Endpoint reached by user role: {session.get('rola')}")
     plan_id = request.args.get('plan_id', None)
     conn = get_db_connection()
     try:
@@ -526,7 +527,7 @@ def api_dosypki():
         role = session.get('rola', '')
         result = []
         # Roles that should see the detailed `nazwa` because they need to execute the dosypka
-        visible_roles = ('laborant', 'produkcja', 'lider', 'admin')
+        visible_roles = ('laborant', 'pracownik', 'produkcja', 'lider', 'admin')
         for r in rows:
             if role in visible_roles:
                 nazwa = r[2]
@@ -545,7 +546,7 @@ def api_dosypki():
 
 
 @production_bp.route('/dosypki_list', methods=['GET'])
-@roles_required('produkcja', 'lider', 'admin', 'laborant')
+@roles_required('laborant', 'pracownik', 'produkcja', 'lider', 'admin')
 def dosypki_list():
     """Render slide-over page with list of unconfirmed dosypki for operators, optionally filtered by plan."""
     # Accept optional plan_id to filter dosypki for a specific zlecenie
@@ -554,7 +555,7 @@ def dosypki_list():
     from app.db import list_unconfirmed_dosypki
     rows = list_unconfirmed_dosypki()
     role = session.get('rola', '')
-    visible_roles = ('laboratorium', 'produkcja', 'lider', 'admin')
+    visible_roles = ('laborant', 'pracownik', 'produkcja', 'lider', 'admin')
     dosypki = []
     for r in rows:
         # Filter by plan_id if provided
@@ -567,6 +568,6 @@ def dosypki_list():
         dosypki.append({'id': r[0], 'plan_id': r[1], 'nazwa': nazwa, 'kg': float(r[3]) if r[3] is not None else None, 'data_zlecenia': str(r[4]) if r[4] is not None else ''})
     # Always return the fragment regardless of X-Requested-With
     # because the quick popup JS via fetch expects just the fragment HTML.
-    return render_template('dosypki_list.html', dosypki=dosypki, plan_id=plan_id)
+    return render_template('dosypki_list.html', dosypki=dosypki, plan_id=plan_id, rola=role)
 
 

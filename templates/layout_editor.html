@@ -1,0 +1,932 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+  .layout-editor-page {
+    display: flex;
+    height: calc(100vh - 60px);
+  }
+  
+  .layout-editor-content {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 40px;
+    background: white;
+    transition: margin-right 0.3s ease;
+  }
+  
+  .layout-editor-content.sidebar-open {
+    margin-right: 350px;
+  }
+  
+  .layout-editor-sidebar {
+    position: fixed;
+    right: 0;
+    top: 60px;
+    width: 350px;
+    height: calc(100vh - 60px);
+    background: white;
+    border-left: 1px solid #ddd;
+    padding: 20px;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+    z-index: 100;
+  }
+  
+  .layout-editor-sidebar.open {
+    transform: translateX(0);
+  }
+  
+  .sekcja-nav {
+    background: white;
+    padding: 12px 20px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    gap: 8px;
+  }
+  
+  .sekcja-btn {
+    padding: 8px 16px;
+    background: #f5f5f5;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 13px;
+    transition: all 0.2s ease;
+  }
+  
+  .sekcja-btn:hover {
+    background: #e0e0e0;
+  }
+  
+  .sekcja-btn.active {
+    background: #1976d2;
+    color: white;
+  }
+  
+  .editor-mode-badge {
+    position: fixed;
+    top: 12px;
+    right: 20px;
+    background: #ff9800;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    z-index: 50;
+  }
+  
+  .section-header {
+    background: white;
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .section-header:hover {
+    background: #f9f9f9;
+  }
+  
+  .section-header.editable::after {
+    content: "✎ Edytuj";
+    float: right;
+    font-size: 12px;
+    color: #1976d2;
+    font-weight: 600;
+  }
+  
+  .header-title {
+    margin: 0 0 15px 0;
+    font-size: 24px;
+    color: #333;
+  }
+  
+  .header-title-mobile {
+    margin: 0 0 15px 0;
+    font-size: 20px;
+    color: #333;
+    font-weight: 600;
+  }
+  
+  .day-tile {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+    background: #f9f9f9;
+    padding: 10px 15px;
+    border-radius: 6px;
+    width: fit-content;
+  }
+  
+  .day-nav {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #666;
+  }
+  
+  .day-center {
+    text-align: center;
+  }
+  
+  .day-label {
+    font-size: 11px;
+    color: #999;
+    text-transform: uppercase;
+  }
+  
+  .day-date {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1976d2;
+  }
+  
+  .header-stats {
+    display: flex;
+    gap: 30px;
+    margin-top: 15px;
+  }
+  
+  .stat-inline {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .stat-inline .label {
+    font-size: 11px;
+    color: #999;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  
+  .stat-inline .value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+  }
+  
+  .stat-inline.stat-plan .value { color: #1976d2; }
+  .stat-inline.stat-wykonanie .value { color: #4caf50; }
+  .stat-inline.stat-realizacja .value { color: #ff9800; }
+  
+  .section-box {
+    background: white;
+    margin: 20px;
+    border-radius: 6px;
+    border: 1px solid #eee;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  
+  .section-box:hover {
+    border-color: #1976d2;
+  }
+  
+  .section-box.p-0 { padding: 0; }
+  .p-15 { padding: 15px; }
+  .p-15-bg { background: #f9f9f9; border-bottom: 1px solid #eee; }
+  
+  .section-box h3 {
+    margin: 0;
+    color: #1976d2;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  
+  .badge-info {
+    display: inline-block;
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  
+  .modern-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  
+  .modern-table th {
+    background: #f5f5f5;
+    padding: 12px 15px;
+    text-align: left;
+    font-weight: 600;
+    color: #666;
+    border-bottom: 2px solid #ddd;
+  }
+  
+  .modern-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .modern-table tr:hover {
+    background: #f9f9f9;
+  }
+  
+  .modern-table .text-muted { color: #999; }
+  .modern-table .text-primary { color: #1976d2; }
+  .modern-table .text-success { color: #4caf50; }
+  .modern-table .font-bold { font-weight: 600; }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  
+  .status-zaplanowane { background: #e3f2fd; color: #1976d2; }
+  .status-w-toku { background: #fff3e0; color: #f57c00; }
+  .status-zakonczony { background: #e8f5e9; color: #388e3c; }
+  
+  .sidebar-title {
+    font-weight: 600;
+    font-size: 14px;
+    padding: 10px 0;
+    border-bottom: 2px solid #e0e0e0;
+    margin-bottom: 15px;
+  }
+  
+  .sidebar-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #999;
+  }
+  
+  .sidebar-close:hover { color: #333; }
+  
+  .setting-group {
+    margin-bottom: 15px;
+  }
+  
+  .setting-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+  }
+  
+  .setting-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 8px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    margin-bottom: 5px;
+  }
+  
+  .setting-input {
+    width: 100%;
+    padding: 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  
+  .slider-value {
+    font-size: 11px;
+    color: #999;
+    margin-top: 3px;
+  }
+  
+  .btn-save, .btn-reset {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  
+  .btn-save {
+    background: #4caf50;
+    color: white;
+  }
+  
+  .btn-save:hover {
+    background: #45a049;
+  }
+  
+  .btn-reset {
+    background: #f44336;
+    color: white;
+  }
+  
+  .btn-reset:hover {
+    background: #da190b;
+  }
+  
+  /* Mobile Responsive Design */
+  @media (max-width: 768px) {
+    .layout-editor-page {
+      flex-direction: column;
+    }
+    
+    .layout-editor-content {
+      min-height: calc(100vh - 60px);
+    }
+    
+    .layout-editor-content.sidebar-open {
+      margin-right: 0;
+    }
+    
+    .layout-editor-sidebar {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      top: auto;
+      width: 100%;
+      height: auto;
+      max-height: 70vh;
+      border-left: none;
+      border-top: 1px solid #ddd;
+      border-radius: 12px 12px 0 0;
+      transform: translateY(100%);
+    }
+    
+    .layout-editor-sidebar.open {
+      transform: translateY(0);
+    }
+    
+    .sekcja-nav {
+      padding: 8px 12px;
+      gap: 6px;
+    }
+    
+    .sekcja-btn {
+      padding: 6px 12px;
+      font-size: 11px;
+      flex: 1;
+      text-align: center;
+    }
+    
+    .editor-mode-badge {
+      top: 50%;
+      right: 10px;
+      transform: translateY(-50%);
+      padding: 2px 8px;
+      font-size: 9px;
+    }
+    
+    .section-header {
+      padding: 12px;
+    }
+    
+    .section-header.editable::after {
+      float: none;
+      display: block;
+      font-size: 10px;
+      margin-top: 6px;
+    }
+    
+    .header-title {
+      font-size: 16px;
+      margin: 0 0 8px 0;
+      word-break: break-word;
+    }
+    
+    .header-title strong {
+      display: block;
+      font-size: 14px;
+      margin-top: 2px;
+    }
+    
+    .header-title-mobile {
+      display: block !important;
+      font-size: 16px;
+      margin: 0 0 8px 0;
+    }
+    
+    .day-tile {
+      padding: 8px 10px;
+      gap: 10px;
+      margin-bottom: 8px;
+      width: 100%;
+    }
+    
+    .day-nav {
+      font-size: 14px;
+    }
+    
+    .day-label {
+      font-size: 9px;
+    }
+    
+    .day-date {
+      font-size: 12px;
+    }
+    
+    .header-stats {
+      flex-direction: row;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    
+    .stat-inline {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .stat-inline .label {
+      font-size: 9px;
+    }
+    
+    .stat-inline .value {
+      font-size: 14px;
+    }
+    
+    .section-box {
+      margin: 10px;
+      border-radius: 4px;
+    }
+    
+    .p-15 {
+      padding: 10px;
+    }
+    
+    .section-box h3 {
+      font-size: 13px;
+      margin: 0 0 5px 0;
+    }
+    
+    .badge-info {
+      font-size: 9px;
+      padding: 2px 6px;
+      margin-left: 4px;
+    }
+    
+    .modern-table {
+      font-size: 11px;
+    }
+    
+    .modern-table th {
+      padding: 8px 10px;
+      font-size: 10px;
+    }
+    
+    .modern-table td {
+      padding: 8px 10px;
+    }
+    
+    .status-badge {
+      padding: 3px 6px;
+      font-size: 9px;
+    }
+    
+    .sidebar-title {
+      font-size: 12px;
+    }
+    
+    .setting-group {
+      margin-bottom: 10px;
+    }
+    
+    .setting-label {
+      font-size: 10px;
+    }
+    
+    .setting-input {
+      padding: 5px;
+      font-size: 11px;
+    }
+    
+    .slider-value {
+      font-size: 10px;
+    }
+    
+    .btn-save, .btn-reset {
+      padding: 8px;
+      font-size: 11px;
+      margin-top: 8px;
+    }
+  }
+  
+  /* Extra small phones (< 480px) */
+  @media (max-width: 480px) {
+    .header-title {
+      font-size: 14px;
+    }
+    
+    .header-title strong {
+      font-size: 12px;
+    }
+    
+    .day-date {
+      font-size: 11px;
+    }
+    
+    .stat-inline .value {
+      font-size: 12px;
+    }
+    
+    .header-stats {
+      gap: 8px;
+    }
+    
+    .sekcja-btn {
+      font-size: 10px;
+      padding: 5px 8px;
+    }
+    
+    .header-title-mobile {
+      font-size: 14px;
+    }
+  }
+</style>
+
+<div class="layout-editor-page">
+  <!-- Main Content -->
+  <div class="layout-editor-content" id="main-content">
+    <!-- Section Navigation -->
+    <div class="sekcja-nav">
+      <button class="sekcja-btn active" data-sekcja="Zasyp">Zasyp</button>
+      <button class="sekcja-btn" data-sekcja="Workowanie">Workowanie</button>
+      <button class="sekcja-btn" data-sekcja="Magazyn">Magazyn</button>
+    </div>
+    
+    <!-- Header (Editable) -->
+    <div class="section-header editable" onclick="selectComponent('header')">
+      <!-- Desktop: Full title with "Hala Produkcyjna" -->
+      <h2 class="header-title" id="header-title" style="display: block;">Hala Produkcyjna: <strong id="header-sekcja">Zasyp</strong></h2>
+      
+      <!-- Mobile: Only section name -->
+      <h2 class="header-title-mobile" id="header-title-mobile" style="display: none;">Zasyp</h2>
+      
+      <div class="day-tile" onclick="event.stopPropagation()">
+        <button class="day-nav" onclick="prevDate()">◀</button>
+        <div class="day-center">
+          <div class="day-label">Widok dla</div>
+          <div class="day-date" id="current-date">2026-03-02</div>
+        </div>
+        <button class="day-nav" onclick="nextDate()">▶</button>
+      </div>
+    </div>
+    
+    <!-- Stats Section (Editable) -->
+    <div style="background: white; padding: 15px 20px; border-bottom: 1px solid #eee; cursor: pointer; position: relative;" onclick="selectComponent('stats')">
+      <div style="position: absolute; top: 12px; right: 15px; font-size: 12px; color: #1976d2; font-weight: 600;">✎</div>
+      <div class="header-stats" id="stats-container">
+        <div class="stat-inline stat-plan">
+          <span class="label">Plan</span>
+          <strong class="value" id="stat-plan">0 kg</strong>
+        </div>
+        <div class="stat-inline stat-wykonanie">
+          <span class="label">Wykonanie</span>
+          <strong class="value" id="stat-wykonanie">0 kg</strong>
+        </div>
+        <div class="stat-inline stat-realizacja">
+          <span class="label">% Realizacja</span>
+          <strong class="value" id="stat-realizacja">0%</strong>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Table Section (Editable) -->
+    <div class="section-box p-0" onclick="selectComponent('table')">
+      <div class="p-15 p-15-bg" style="position: relative;">
+        <h3>📋 <span id="table-title">Kolejka Produkcyjna</span></h3>
+        <span class="badge-info" id="section-badge">Zasyp</span>
+        <div style="position: absolute; top: 12px; right: 15px; font-size: 12px; color: #1976d2; font-weight: 600;">✎</div>
+      </div>
+      
+      <div class="cards" id="production-cards">
+        <!-- Karty będą wstawiane dynamicznie -->
+      </div>
+    </div>
+  </div>
+  
+  <!-- Settings Sidebar -->
+  <div class="layout-editor-sidebar" id="settings-sidebar">
+    <button class="sidebar-close" onclick="closeSidebar()">✕</button>
+    <div class="sidebar-title" id="sidebar-title">Ustawienia</div>
+    <div id="settings-content"></div>
+  </div>
+</div>
+
+<div class="editor-mode-badge">EDYTOR</div>
+
+<script>
+  let currentSekcja = 'Zasyp';
+  let selectedComponent = null;
+  let componentSettings = {
+    header: { fontSize: '24px', padding: '20px', show: true },
+    stats: { fontSize: '16px', gap: '30px', show: true },
+    table: { fontSize: '13px', padding: '12px', columns: { produkt: true, plan: true, czas: true, status: true, realizacja: true }, show: true },
+    details: { fontSize: '12px', padding: '10px', show: true }
+  };
+  let componentData = {};
+  
+  document.addEventListener('DOMContentLoaded', function() {
+    setupNavigation();
+    updateResponsiveLayout();
+    loadSekcjaData('Zasyp');
+    window.addEventListener('resize', updateResponsiveLayout);
+  });
+  
+  function updateResponsiveLayout() {
+    const isMobile = window.innerWidth <= 768;
+    const headerTitle = document.getElementById('header-title');
+    const headerTitleMobile = document.getElementById('header-title-mobile');
+    
+    if (isMobile) {
+      headerTitle.style.display = 'none';
+      headerTitleMobile.style.display = 'block';
+    } else {
+      headerTitle.style.display = 'block';
+      headerTitleMobile.style.display = 'none';
+    }
+  }
+  
+  function setupNavigation() {
+    document.querySelectorAll('.sekcja-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const sekcja = this.dataset.sekcja;
+        document.querySelectorAll('.sekcja-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        loadSekcjaData(sekcja);
+      });
+    });
+  }
+  
+  async function loadSekcjaData(sekcja) {
+    currentSekcja = sekcja;
+    document.getElementById('header-sekcja').textContent = sekcja;
+    document.getElementById('header-title-mobile').textContent = sekcja;
+    document.getElementById('section-badge').textContent = sekcja;
+    document.getElementById('table-title').textContent = sekcja === 'Magazyn' ? 'Rejestr Przyjęć' : 'Kolejka Produkcyjna';
+    
+    try {
+      const response = await fetch(`/api/sekcja/dashboard-data?sekcja=${sekcja}`);
+      if (!response.ok) throw new Error('Load failed');
+      
+      componentData = await response.json();
+      
+      applyAllStyles();
+      closeSidebar();
+    } catch (error) {
+      console.error('Error loading data:', error);
+      document.getElementById('table-body').innerHTML = '<tr><td colspan="7" style="text-align: center; color: red; padding: 30px;">Błąd ładowania danych</td></tr>';
+    }
+  }
+  
+  function applyAllStyles() {
+    // Header
+    document.getElementById('stat-plan').textContent = componentData.plan_total || '0 kg';
+    document.getElementById('stat-wykonanie').textContent = componentData.execution_total || '0 kg';
+    document.getElementById('stat-realizacja').textContent = componentData.percent_complete + '%' || '0%';
+    
+    if (componentSettings.header.show !== false) {
+      const title = document.querySelector('.header-title');
+      if (title) title.style.fontSize = componentSettings.header.fontSize;
+      const header = document.querySelector('.section-header');
+      if (header) header.style.padding = componentSettings.header.padding;
+    }
+    
+    if (componentSettings.stats.show !== false) {
+      const stats = document.getElementById('stats-container');
+      if (stats) stats.style.gap = componentSettings.stats.gap;
+      const values = document.querySelectorAll('.stat-inline .value');
+      values.forEach(v => v.style.fontSize = componentSettings.stats.fontSize);
+    }
+    
+    renderTable();
+  }
+  
+  function renderTable() {
+    const container = document.getElementById('production-cards');
+    const items = componentData.items || [];
+    
+    if (items.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: #999; padding: 30px;">Brak planów</div>';
+      return;
+    }
+    
+    const cols = componentSettings.table.columns;
+    const fontSize = componentSettings.table.fontSize;
+    const padding = componentSettings.table.padding;
+    
+    container.innerHTML = items.map((item, idx) => `
+      <div class="card" style="font-size: ${fontSize};">
+        <div class="card-header">
+          <span class="status-badge status-zaplanowane">${item.status.toUpperCase()}</span>
+          <strong class="card-title">${idx + 1}. ${item.product}</strong>
+        </div>
+        <div class="card-body">
+          ${cols.plan ? `<div class="card-row"><strong>Plan:</strong> <span class="text-success">${item.plan}</span></div>` : ''}
+          ${cols.realizacja ? `<div class="card-row"><strong>Realizacja:</strong> <span class="text-muted">-</span></div>` : ''}
+          ${cols.czas ? `<div class="card-row"><strong>Czas Pracy:</strong> <span class="text-muted">-</span></div>` : ''}
+        </div>
+        <div class="card-actions">
+          <button class="btn-start">▶ Uruchom</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  
+  function selectComponent(componentName) {
+    selectedComponent = componentName;
+    const settings = componentSettings[componentName] || {};
+    
+    document.getElementById('sidebar-title').textContent = 'Ustawienia: ' + {
+      'header': 'NAGŁÓWEK',
+      'stats': 'STATYSTYKI',
+      'table': 'TABELA',
+      'details': 'SZCZEGÓŁY'
+    }[componentName];
+    
+    let html = `
+      <div class="setting-group">
+        <label class="setting-checkbox">
+          <input type="checkbox" id="comp-show" ${settings.show !== false ? 'checked' : ''} onchange="updateComponent()">
+          <span>Pokazuj komponent</span>
+        </label>
+      </div>
+    `;
+    
+    if (componentName === 'header') {
+      html += `
+        <div class="setting-group">
+          <label class="setting-label">Rozmiar Czcionki Tytułu</label>
+          <input type="range" id="comp-fontSize" min="18" max="32" value="${parseInt(settings.fontSize)}" style="width: 100%;" onchange="updateComponent()">
+          <div class="slider-value"><span id="fontSize-display">${parseInt(settings.fontSize)}</span>px</div>
+        </div>
+        
+        <div class="setting-group">
+          <label class="setting-label">Padding</label>
+          <input type="range" id="comp-padding" min="10" max="30" value="${parseInt(settings.padding)}" style="width: 100%;" onchange="updateComponent()">
+          <div class="slider-value"><span id="padding-display">${parseInt(settings.padding)}</span>px</div>
+        </div>
+      `;
+    } else if (componentName === 'stats') {
+      html += `
+        <div class="setting-group">
+          <label class="setting-label">Rozmiar Czcionki Wartości</label>
+          <input type="range" id="comp-fontSize" min="12" max="24" value="${parseInt(settings.fontSize)}" style="width: 100%;" onchange="updateComponent()">
+          <div class="slider-value"><span id="fontSize-display">${parseInt(settings.fontSize)}</span>px</div>
+        </div>
+        
+        <div class="setting-group">
+          <label class="setting-label">Gap (Rozstaw Między Statami)</label>
+          <input type="range" id="comp-gap" min="10" max="50" value="${parseInt(settings.gap)}" style="width: 100%;" onchange="updateComponent()">
+          <div class="slider-value"><span id="gap-display">${parseInt(settings.gap)}</span>px</div>
+        </div>
+      `;
+    } else if (componentName === 'table') {
+      html += `
+        <div class="setting-group">
+          <label class="setting-label">Rozmiar Czcionki Tabeli</label>
+          <input type="range" id="comp-fontSize" min="10" max="16" value="${parseInt(settings.fontSize)}" style="width: 100%;" onchange="updateComponent()">
+          <div class="slider-value"><span id="fontSize-display">${parseInt(settings.fontSize)}</span>px</div>
+        </div>
+        
+        <div class="setting-group">
+          <label class="setting-label">Padding Komórek</label>
+          <input type="range" id="comp-padding" min="8" max="20" value="${parseInt(settings.padding)}" style="width: 100%;" onchange="updateComponent()">
+          <div class="slider-value"><span id="padding-display">${parseInt(settings.padding)}</span>px</div>
+        </div>
+        
+        <div class="setting-group">
+          <label class="setting-label">Vidoczne Kolumny</label>
+          <label class="setting-checkbox">
+            <input type="checkbox" id="col-produkt" ${settings.columns.produkt ? 'checked' : ''} onchange="updateComponent()">
+            <span>Produkt</span>
+          </label>
+          <label class="setting-checkbox">
+            <input type="checkbox" id="col-plan" ${settings.columns.plan ? 'checked' : ''} onchange="updateComponent()">
+            <span>Plan</span>
+          </label>
+          <label class="setting-checkbox">
+            <input type="checkbox" id="col-czas" ${settings.columns.czas ? 'checked' : ''} onchange="updateComponent()">
+            <span>Czas Pracy</span>
+          </label>
+          <label class="setting-checkbox">
+            <input type="checkbox" id="col-status" ${settings.columns.status ? 'checked' : ''} onchange="updateComponent()">
+            <span>Status</span>
+          </label>
+          <label class="setting-checkbox">
+            <input type="checkbox" id="col-realizacja" ${settings.columns.realizacja ? 'checked' : ''} onchange="updateComponent()">
+            <span>Realizacja</span>
+          </label>
+        </div>
+      `;
+    }
+    
+    html += `
+      <button class="btn-save" onclick="saveLayout()">Zapisz Ustawienia</button>
+      <button class="btn-reset" onclick="resetLayout()">Resetuj</button>
+    `;
+    
+    document.getElementById('settings-content').innerHTML = html;
+    openSidebar();
+  }
+  
+  function updateComponent() {
+    if (!selectedComponent) return;
+    const settings = componentSettings[selectedComponent];
+    const show = document.getElementById('comp-show');
+    const fontSize = document.getElementById('comp-fontSize');
+    const padding = document.getElementById('comp-padding');
+    const gap = document.getElementById('comp-gap');
+    
+    if (show) settings.show = show.checked;
+    if (fontSize) {
+      settings.fontSize = fontSize.value + 'px';
+      document.getElementById('fontSize-display').textContent = fontSize.value;
+    }
+    if (padding) {
+      settings.padding = padding.value + 'px';
+      document.getElementById('padding-display').textContent = padding.value;
+    }
+    if (gap) {
+      settings.gap = gap.value + 'px';
+      document.getElementById('gap-display').textContent = gap.value;
+    }
+    
+    if (selectedComponent === 'table') {
+      settings.columns = {
+        produkt: document.getElementById('col-produkt').checked,
+        plan: document.getElementById('col-plan').checked,
+        czas: document.getElementById('col-czas').checked,
+        status: document.getElementById('col-status').checked,
+        realizacja: document.getElementById('col-realizacja').checked
+      };
+    }
+    
+    applyAllStyles();
+  }
+  
+  async function saveLayout() {
+    try {
+      const response = await fetch(`/api/layout/save/${currentSekcja}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layout: componentSettings })
+      });
+      
+      if (!response.ok) throw new Error('Save failed');
+      alert(`✓ Ustawienia dla ${currentSekcja} zostały zapisane!`);
+    } catch (error) {
+      alert(`✗ Błąd zapisu: ${error.message}`);
+    }
+  }
+  
+  function resetLayout() {
+    if (confirm('Resetować ustawienia do domyślnych?')) {
+      componentSettings = {
+        header: { fontSize: '24px', padding: '20px', show: true },
+        stats: { fontSize: '16px', gap: '30px', show: true },
+        table: { fontSize: '13px', padding: '12px', columns: { produkt: true, plan: true, czas: true, status: true, realizacja: true }, show: true },
+        details: { fontSize: '12px', padding: '10px', show: true }
+      };
+      applyAllStyles();
+      closeSidebar();
+    }
+  }
+  
+  function openSidebar() {
+    document.getElementById('settings-sidebar').classList.add('open');
+    document.getElementById('main-content').classList.add('sidebar-open');
+  }
+  
+  function closeSidebar() {
+    document.getElementById('settings-sidebar').classList.remove('open');
+    document.getElementById('main-content').classList.remove('sidebar-open');
+  }
+  
+  function prevDate() {
+    // Stub
+  }
+  
+  function nextDate() {
+    // Stub
+  }
+</script>
+
+{% endblock %}

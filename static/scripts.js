@@ -189,7 +189,7 @@
 
         // close sidebar automatically when window resized to large screens
         window.addEventListener('resize', function () {
-            if (window.innerWidth > 900) closeSidebar();
+            if (window.innerWidth > 1200) closeSidebar();
         });
 
         // Modal management removed — modale są wyłączone w całej aplikacji.

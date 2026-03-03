@@ -273,7 +273,7 @@
     },
     "bufor": {
         "admin": {
-            "access": false,
+            "access": true,
             "readonly": false
         },
         "planista": {
@@ -525,6 +525,36 @@
         "widz": {
             "access": true,
             "readonly": true
+        }
+    },
+    "dosypki": {
+        "admin": {
+            "access": true,
+            "readonly": false
+        },
+        "lider": {
+            "access": true,
+            "readonly": false
+        },
+        "zarzad": {
+            "access": true,
+            "readonly": true
+        },
+        "planista": {
+            "access": true,
+            "readonly": true
+        },
+        "pracownik": {
+            "access": true,
+            "readonly": false
+        },
+        "laborant": {
+            "access": true,
+            "readonly": false
+        },
+        "produkcja": {
+            "access": true,
+            "readonly": false
         }
     },
     "production.obsada_page": {

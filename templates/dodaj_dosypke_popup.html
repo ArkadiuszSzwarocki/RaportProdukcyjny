@@ -1,27 +1,138 @@
-<div class="p-15" data-popup-title="Dodaj Dosypkę">
-    <h4 class="m-0 text-zarzad">🧪 Dodaj Dosypkę</h4>
-    <form action="{{ url_for('production.dodaj_dosypke') }}" method="POST" class="mt-10">
+<div class="dosypka-popup-container" data-popup-title="Dodaj Dosypkę">
+    <div class="dosypka-header">
+        <h4 class="dosypka-title">🧪 Dodaj Dosypkę</h4>
+    </div>
+
+    <form action="{{ url_for('production.dodaj_dosypke') }}" method="POST" class="dosypka-form" id="dosypka-form">
         <input type="hidden" name="plan_id" value="{{ plan_id }}">
         <input type="hidden" name="szarza_id" value="{{ szarza_id or '' }}">
 
-        <p><strong>Zlecenie:</strong> {{ plan_id }}{% if produkt %} — <em>{{ produkt }}</em>{% endif %}{% if typ %} ({{
-            typ }}){% endif %}</p>
-        <p>Dodaj maksymalnie 4 pozycje dosypki (nazwa surowca + kg). Pola puste zostaną zignorowane.</p>
-
-        {% for i in range(1,5) %}
-        <label>Pozycja {{ i }}</label>
-        <div class="form-field grid-2">
-            <input type="text" name="nazwa_{{ i }}" value="{% if i==1 and produkt %}{{ produkt }}{% else %}{% endif %}"
-                class="input-sm" placeholder="Nazwa surowca">
-            <input type="number" name="kg_{{ i }}" value="" class="input-sm" step="0.01" min="0" placeholder="kg">
+        <div class="dosypka-info">
+            <div class="info-item">
+                <span class="info-label">Zlecenie:</span>
+                <span class="info-value">
+                    #{{ plan_id }}
+                    {% if produkt %}<span class="info-product">{{ produkt }}</span>{% endif %}
+                    {% if typ %}<span class="info-type">({{ typ }})</span>{% endif %}
+                </span>
+            </div>
+            <p class="dosypka-description">Dodaj pozycje dosypki (nazwa surowca + ilość w kg). Maksymalnie 10 pól.<br>Pola puste będą zignorowane.</p>
         </div>
-        {% endfor %}
 
-        <div class="btn-row mt-10">
-            <button type="submit" class="btn-action btn-primary">Dodaj Dosypkę</button>
-            <button type="button"
+        <div class="dosypka-fields" id="dosypka-fields">
+            {% for i in range(1,2) %}
+            <div class="dosypka-field-group" data-field-index="{{ i }}">
+                <label class="dosypka-label">
+                    Pozycja <span class="field-number">{{ i }}</span>
+                </label>
+                <div class="dosypka-row">
+                    <input type="text" name="nazwa_{{ i }}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Nazwa surowca, składnika...">
+                    <input type="number" name="kg_{{ i }}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="dosypka-add-field">
+            <button type="button" class="dosypka-btn-add" onclick="addDosypkaField()" id="add-field-btn">
+                <span class="btn-icon">+</span> Dodaj pole (maks. 10)
+            </button>
+        </div>
+
+        <div class="dosypka-actions">
+            <button type="submit" class="dosypka-btn dosypka-btn-confirm">
+                <span class="btn-icon">✓</span> Potwierdź
+            </button>
+            <button type="button" 
                 onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)"
-                class="btn-action btn-action-cancel">ANULUJ</button>
+                class="dosypka-btn dosypka-btn-cancel">
+                <span class="btn-icon">✕</span> Anuluj
+            </button>
         </div>
     </form>
 </div>
+
+<script>
+function addDosypkaField() {
+    const fieldsContainer = document.getElementById('dosypka-fields');
+    const currentFields = fieldsContainer.querySelectorAll('.dosypka-field-group');
+    const fieldCount = currentFields.length;
+    
+    if (fieldCount >= 10) {
+        alert('Osiągnięto maksymalną liczbę pól (10)');
+        return;
+    }
+    
+    const newIndex = fieldCount + 1;
+    const newField = document.createElement('div');
+    newField.className = 'dosypka-field-group';
+    newField.setAttribute('data-field-index', newIndex);
+    newField.innerHTML = `
+        <label class="dosypka-label">
+            Pozycja <span class="field-number">${newIndex}</span>
+            <button type="button" class="dosypka-btn-remove" onclick="removeDosypkaField(this)" title="Usuń pole">✕</button>
+        </label>
+        <div class="dosypka-row">
+            <input type="text" name="nazwa_${newIndex}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Nazwa surowca, składnika...">
+            <input type="number" name="kg_${newIndex}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
+        </div>
+    `;
+    
+    fieldsContainer.appendChild(newField);
+    
+    // Update button visibility
+    updateAddFieldButton();
+    
+    // Focus first input in new field
+    newField.querySelector('.dosypka-input-nazwa').focus();
+}
+
+function removeDosypkaField(btn) {
+    const fieldGroup = btn.closest('.dosypka-field-group');
+    fieldGroup.remove();
+    
+    // Renumber remaining fields
+    renumberFields();
+    updateAddFieldButton();
+}
+
+function renumberFields() {
+    const fieldsContainer = document.getElementById('dosypka-fields');
+    const fields = fieldsContainer.querySelectorAll('.dosypka-field-group');
+    
+    fields.forEach((field, index) => {
+        const newIndex = index + 1;
+        field.setAttribute('data-field-index', newIndex);
+        
+        const label = field.querySelector('.field-number');
+        if (label) label.textContent = newIndex;
+        
+        const nameInput = field.querySelector('[name^="nazwa_"]');
+        const kgInput = field.querySelector('[name^="kg_"]');
+        
+        if (nameInput) nameInput.name = `nazwa_${newIndex}`;
+        if (kgInput) kgInput.name = `kg_${newIndex}`;
+    });
+}
+
+function updateAddFieldButton() {
+    const fieldsContainer = document.getElementById('dosypka-fields');
+    const fieldCount = fieldsContainer.querySelectorAll('.dosypka-field-group').length;
+    const addBtn = document.getElementById('add-field-btn');
+    
+    if (fieldCount >= 10) {
+        addBtn.disabled = true;
+        addBtn.style.opacity = '0.5';
+        addBtn.style.cursor = 'not-allowed';
+    } else {
+        addBtn.disabled = false;
+        addBtn.style.opacity = '1';
+        addBtn.style.cursor = 'pointer';
+    }
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', function() {
+    updateAddFieldButton();
+});
+</script>

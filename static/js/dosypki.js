@@ -20,6 +20,9 @@
             const planIdFromUrl = urlParams.get('plan_id');
             const planId = planIdFromAttr || planIdFromUrl;
 
+            console.log('[dosypki.fetch] planIdFromAttr:', planIdFromAttr, 'planIdFromUrl:', planIdFromUrl, 'planId:', planId);
+            console.log('[dosypki.fetch] Current role:', window._currentRole);
+
             let fetchUrl = '/api/dosypki';
             if (planId) fetchUrl += '?plan_id=' + encodeURIComponent(planId);
             console.log('[dosypki.fetch] Fetching from:', fetchUrl);
@@ -47,13 +50,16 @@
             list.forEach(function (d, idx) {
                 if (!tbody) return;
                 const tr = document.createElement('tr');
+                const isLaborant = window._currentRole === 'laborant';
+                const btnDisabled = isLaborant ? 'disabled' : '';
+                const btnStyle = isLaborant ? 'opacity: 0.5; cursor: not-allowed;' : '';
                 tr.innerHTML = `
-                    <td class="text-muted">${idx + 1}</td>
+                    <td class=\"text-muted\">${idx + 1}</td>
                     <td>${d.plan_id}</td>
                     <td>${d.nazwa ? d.nazwa : '<em>— brak nazwy —</em>'}</td>
-                    <td>${d.kg}</td>
+                    <td>${d.kg} kg</td>
                     <td>${d.data_zlecenia}</td>
-                    <td><button class="btn-action btn-save btn-small" data-id="${d.id}">Potwierdź</button></td>
+                    <td><button class=\"btn-action btn-save\" data-id=\"${d.id}\" style=\"padding: 4px 6px; font-size: 0.75em; min-width: 50px; ${btnStyle}\" ${btnDisabled}>✓ Potwierdź</button></td>
                 `;
                 tbody.appendChild(tr);
             });

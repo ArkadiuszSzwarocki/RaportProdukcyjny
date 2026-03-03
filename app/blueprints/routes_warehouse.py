@@ -3,6 +3,7 @@ from datetime import date, datetime
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required, dynamic_role_required
 from app.utils.validation import require_field
+from app.services.planning_service import PlanningService
 
 warehouse_bp = Blueprint('warehouse', __name__)
 
@@ -70,6 +71,16 @@ def dodaj_palete(plan_id):
         )
         
         conn.commit()
+        
+        # Validate and fix status anomalies after tonaz update
+        try:
+            PlanningService.ensure_status_after_tonaz_update(plan_id)
+        except Exception as e:
+            try:
+                current_app.logger.warning(f'Warning during status validation: {str(e)}')
+            except Exception:
+                pass
+        
         try:
             current_app.logger.info(f'✓ Added paleta to Workowanie: plan_id={plan_id}, waga={waga_input}kg')
         except Exception:

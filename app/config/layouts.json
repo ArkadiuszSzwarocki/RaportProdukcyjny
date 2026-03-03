@@ -1,0 +1,71 @@
+{
+  "Zasyp": {
+    "version": "1.0",
+    "layout": {
+      "header": {
+        "fontSize": "18px",
+        "padding": "10px",
+        "show": true
+      },
+      "stats": {
+        "fontSize": "16px",
+        "gap": "30px",
+        "show": true
+      },
+      "table": {
+        "fontSize": "13px",
+        "padding": "12px",
+        "columns": {
+          "produkt": true,
+          "plan": true,
+          "czas": true,
+          "status": true,
+          "realizacja": true
+        },
+        "show": true
+      },
+      "details": {
+        "fontSize": "12px",
+        "padding": "10px",
+        "show": true
+      }
+    }
+  },
+  "Workowanie": {
+    "version": "1.0",
+    "layout": {
+      "header": {
+        "enabled": true,
+        "order": 1,
+        "fontSize": "11px",
+        "padding": "20px",
+        "gap": "20px",
+        "description": "Tytuł sekcji"
+      },
+      "stats": {
+        "enabled": true,
+        "order": 2,
+        "fontSize": "16px",
+        "padding": "12px",
+        "gap": "12px",
+        "description": "Statystyki"
+      },
+      "table": {
+        "enabled": true,
+        "order": 3,
+        "fontSize": "14px",
+        "padding": "10px",
+        "gap": "10px",
+        "description": "Tabela planów"
+      },
+      "details": {
+        "enabled": true,
+        "order": 4,
+        "fontSize": "12px",
+        "padding": "10px",
+        "gap": "10px",
+        "description": "Szczegóły"
+      }
+    }
+  }
+}

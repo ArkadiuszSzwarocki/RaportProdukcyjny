@@ -22,20 +22,8 @@
         <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
             <span class="material-icons">menu</span>
         </button>
-        <div class="d-flex align-center gap-15">
-            <img src="{{ url_for('static', filename='agro_logo.png') }}"
-                alt="Company logo: the word agro with AGRO and MES styled difference and a simple agricultural emblema; place in the top bar header beige the page title agro; conveys a Natural, professional, trustworthy tone"
-                class="logo-sm" onerror="handleLogoError(this)">
-            <h2 class="logo-title">AGRO<span class="logo-accent">MES</span></h2>
-        </div>
 
         <div class="user-info">
-            {% if session.get('rola') in ['admin', 'zarzad', 'planista', 'lider', 'dur', 'laboratorium'] %}
-            <a href="/zarzad" class="btn-icon" title="{{ _('raport') }}">
-                <span class="material-icons">bar_chart</span>
-            </a>
-            {% endif %}
-
             {# removed PLAN button per request #}
 
             {% if session.get('zalogowany') %}
@@ -69,10 +57,6 @@
 
             <span class="user-role">{{ _('zalogowany') }}: <strong>{{ session.get('imie_nazwisko') or
                     session.get('login') or 'N/A' }}</strong></span>
-
-            <a href="/logout" class="logout-btn" aria-label="{{ _('logout') }}">
-                <span class="material-icons">logout</span>
-            </a>
         </div>
     </div>
 
@@ -146,7 +130,11 @@
                 {% endif %}
             </nav>
             <div class="sidebar-footer">
-                <!-- Logout removed from sidebar as per UI request -->
+                {% if session.get('zalogowany') %}
+                <a href="/logout" class="sidebar-logout" title="{{ _('logout') }}">
+                    <span class="material-icons">logout</span> {{ _('logout') }}
+                </a>
+                {% endif %}
             </div>
         </aside>
 

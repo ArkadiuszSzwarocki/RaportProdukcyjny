@@ -281,6 +281,16 @@ def index() -> str:
     
     # Render appropriate template
     try:
+        # Log what we're passing to template
+        app.logger.info('===BEGIN DEBUG DASHBOARD===')
+        app.logger.info('sekcja=%s, len(plan)=%d', aktywna_sekcja, len(plan_dnia))
+        if plan_dnia:
+            app.logger.info('First plan item: id=%s, name=%s, status=%s', plan_dnia[0][0], plan_dnia[0][1], plan_dnia[0][3])
+        else:
+            app.logger.info('plan_dnia is EMPTY!')
+        app.logger.info('palety_mapa keys=%s', list(palety_mapa.keys()) if palety_mapa else 'EMPTY')
+        app.logger.info('===END DEBUG DASHBOARD===')
+        
         if aktywna_sekcja == 'Dashboard':
             app.logger.info('index(): rendering dashboard_global.html for sekcja=%s', aktywna_sekcja)
             return render_template('dashboard_global.html', **context)
@@ -294,6 +304,231 @@ def index() -> str:
         except Exception:
             pass
         return render_template('dashboard_global.html', **context)
+
+
+@main_bp.route('/layout-editor')
+@login_required
+@roles_required('admin', 'lider')
+def layout_editor() -> str:
+    """Visual layout editor for production sections.
+    
+    Allows editing of component styling (fonts, padding, visibility) for
+    Zasyp, Workowanie, and Magazyn sections.
+    
+    Returns:
+        str: Rendered HTML template for layout editor
+    """
+    return render_template('layout_editor.html')
+
+
+@main_bp.route('/sekcja/<name>/edit')
+@login_required
+@roles_required('admin', 'lider')
+def edit_layout(name: str) -> str:
+    """Visual layout editor for section (Zasyp, Workowanie, etc).
+    
+    Allows drag-and-drop reordering of components, font size adjustments,
+    column visibility toggles, and other layout customizations.
+    
+    Args:
+        name: Section name (e.g., 'Zasyp', 'Workowanie')
+        
+    Returns:
+        str: Rendered layout editor template
+    """
+    from flask import current_app
+    app = current_app
+    
+    # Validate section name
+    valid_sections = ['Zasyp', 'Workowanie', 'Magazyn']
+    if name not in valid_sections:
+        return (f'<h2>Nieznana sekcja: {name}</h2><a href="/">Wróć do dashboard</a>', 404)
+    
+    # Fallback configuration (if file not found)
+    default_layouts = {
+        'Zasyp': {
+            'version': '1.0',
+            'layout': {
+                'header': {'enabled': True, 'order': 1, 'fontSize': '21px', 'padding': '20px', 'gap': '20px', 'description': 'Tytuł sekcji i info'},
+                'stats': {'enabled': True, 'order': 2, 'fontSize': '16px', 'padding': '12px', 'gap': '12px', 'description': 'Plan, Wykonanie, % Realizacja'},
+                'table': {'enabled': True, 'order': 3, 'fontSize': '14px', 'padding': '10px', 'columns': [
+                    {'name': 'Produkt', 'visible': True, 'width': 'auto'},
+                    {'name': 'Waga Planu', 'visible': True, 'width': 'auto'},
+                    {'name': 'Wykonanie', 'visible': True, 'width': 'auto'},
+                    {'name': 'Status', 'visible': True, 'width': 'auto'},
+                    {'name': 'Szarże', 'visible': True, 'width': 'auto'},
+                    {'name': 'Akcje', 'visible': True, 'width': 'auto'}
+                ], 'description': 'Tabela planów produkcji'},
+                'details': {'enabled': True, 'order': 4, 'fontSize': '12px', 'padding': '10px', 'description': 'Szczegóły palety/szarży'}
+            }
+        },
+        'Workowanie': {
+            'version': '1.0',
+            'layout': {
+                'header': {'enabled': True, 'order': 1, 'fontSize': '21px', 'padding': '20px', 'description': 'Tytuł sekcji'},
+                'stats': {'enabled': True, 'order': 2, 'fontSize': '16px', 'padding': '12px', 'description': 'Statystyki'},
+                'table': {'enabled': True, 'order': 3, 'fontSize': '14px', 'padding': '10px', 'columns': [
+                    {'name': 'Produkt', 'visible': True, 'width': 'auto'},
+                    {'name': 'Waga', 'visible': True, 'width': 'auto'},
+                    {'name': 'Status', 'visible': True, 'width': 'auto'},
+                    {'name': 'Palety', 'visible': True, 'width': 'auto'},
+                    {'name': 'Akcje', 'visible': True, 'width': 'auto'}
+                ], 'description': 'Tabela planów'}
+            }
+        }
+    }
+    
+    # Load layout configuration
+    layouts_config = {}
+    try:
+        config_path = os.path.join(app.root_path, '../config/layouts.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                layouts_config = json.load(f)
+                app.logger.info(f"[EDIT-LAYOUT] Wczytano konfigurację z {config_path}")
+        else:
+            app.logger.warning(f"[EDIT-LAYOUT] Plik {config_path} nie istnieje, używam domyślnej konfiguracji")
+    except Exception as e:
+        app.logger.error(f"[EDIT-LAYOUT] Błąd wczytywania config/layouts.json: {e}")
+    
+    # Use fallback if needed
+    if name not in layouts_config:
+        app.logger.info(f"[EDIT-LAYOUT] Sekcja {name} nie znaleziona, używam domyślnej konfiguracji")
+        if name in default_layouts:
+            layouts_config[name] = default_layouts[name]
+    
+    # Get current layout for section
+    layout = layouts_config.get(name, {'version': '1.0', 'layout': {}})
+    
+    return render_template('layout_editor.html', 
+                          sekcja=name, 
+                          layout_config=json.dumps(layout),
+                          layout_data=layout,
+                          debug_mode=True)
+
+
+@main_bp.route('/api/layout/get/<name>', methods=['GET'])
+@login_required
+def get_layout(name: str) -> Tuple[Dict, int]:
+    """Get layout configuration for a section (AJAX endpoint).
+    
+    Args:
+        name: Section name (Zasyp, Workowanie, Magazyn)
+        
+    Returns:
+        Tuple[Dict, int]: JSON layout configuration and status code
+    """
+    from flask import current_app
+    app = current_app
+    
+    try:
+        config_path = os.path.join(app.root_path, '../config/layouts.json')
+        
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                layouts_config = json.load(f)
+                
+            if name in layouts_config:
+                return jsonify(layouts_config[name]), 200
+        
+        # Return empty if not found (client will use defaults)
+        return jsonify({'version': '1.0', 'layout': {}}), 200
+        
+    except Exception as e:
+        app.logger.exception(f"[GET-LAYOUT] Błąd wczytywania: {e}")
+        return jsonify({'version': '1.0', 'layout': {}}), 200
+
+
+@main_bp.route('/api/layout/save/<name>', methods=['POST'])
+@login_required
+@roles_required('admin', 'lider')
+def save_layout(name: str) -> Tuple[Dict, int]:
+    """Save layout configuration (AJAX endpoint).
+    
+    Args:
+        name: Section name
+        
+    Returns:
+        Tuple[Dict, int]: JSON response and status code
+    """
+    from flask import current_app
+    app = current_app
+    
+    try:
+        data = request.get_json()
+        layout_updates = data.get('layout', {})
+        
+        # Load or create config
+        config_path = os.path.join(app.root_path, '../config/layouts.json')
+        
+        layouts_config = {}
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                layouts_config = json.load(f)
+        
+        # Update section layout
+        if name not in layouts_config:
+            layouts_config[name] = {'version': '1.0', 'layout': {}}
+        
+        layouts_config[name]['layout'].update(layout_updates)
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        
+        # Save back with indent for readability
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(layouts_config, f, indent=2, ensure_ascii=False)
+        
+        app.logger.info(f"[SAVE-LAYOUT] Zapisano layout dla {name}")
+        return jsonify({'status': 'ok', 'message': f'Layout dla {name} został zapisany'}), 200
+    
+    except Exception as e:
+        app.logger.exception(f"[SAVE-LAYOUT] Błąd zapisu: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@main_bp.route('/api/sekcja/dashboard-data', methods=['GET'])
+@login_required
+def api_get_section_data() -> Tuple[dict, int]:
+    """Load production data for layout editor preview.
+    
+    Returns:
+        JSON with plan_total, execution_total, percent, and items list
+    """
+    from datetime import date as date_type
+    sekcja = request.args.get('sekcja', 'Zasyp')
+    dzisiaj = date_type.today()
+    
+    try:
+        plan_dnia, palety_mapa, suma_plan, suma_wykonanie = \
+            DashboardService.get_production_plans(dzisiaj, sekcja)
+        
+        percent = int((suma_wykonanie / suma_plan * 100) if suma_plan > 0 else 0)
+        
+        # Build items list for preview
+        items = []
+        for p in plan_dnia[:5]:  # First 5 items
+            items.append({
+                'product': p[1] if len(p) > 1 else 'N/A',
+                'plan': f"{p[2] if len(p) > 2 else 0} kg",
+                'status': p[3] if len(p) > 3 else 'zaplanowane'
+            })
+        
+        return jsonify({
+            'plan_total': f"{suma_plan:.0f} kg",
+            'execution_total': f"{suma_wykonanie:.0f} kg",
+            'percent_complete': percent,
+            'items': items
+        }), 200
+    
+    except Exception as e:
+        app.logger.exception(f"[API-SECTION-DATA] Błąd: {e}")
+        return jsonify({
+            'plan_total': '0 kg',
+            'execution_total': '0 kg',
+            'percent_complete': 0,
+            'items': []
+        }), 200
 
 
 @main_bp.route('/zamknij_zmiane', methods=['GET'])

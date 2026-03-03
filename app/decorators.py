@@ -100,6 +100,7 @@ def roles_required(*roles, groups=None):
 
             # Authentication check
             if 'zalogowany' not in session:
+                current_app.logger.info(f"[roles_required] No session 'zalogowany' for {request.path}")
                 if is_xhr or accepts_json:
                     return jsonify({'success': False, 'error': 'unauthenticated'}), 401
                 return redirect('/login')
@@ -127,7 +128,9 @@ def roles_required(*roles, groups=None):
 
             # compare in lowercase
             roles_lower = [x.lower() for x in roles] if roles else []
+            current_app.logger.info(f"[roles_required] Path: {request.path}, User role: {user_rola}, Required roles: {roles_lower}")
             if roles and user_rola not in roles_lower:
+                current_app.logger.warning(f"[roles_required] Access DENIED - User role '{user_rola}' not in {roles_lower}")
                 if is_xhr or accepts_json:
                     return jsonify({'success': False, 'error': 'forbidden'}), 403
                 return redirect('/')

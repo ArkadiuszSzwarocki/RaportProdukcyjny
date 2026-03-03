@@ -353,13 +353,34 @@ class RaportService:
         wszystkie_obsady = zmiana_data.get('wszystkie_obsady', {})
         if wszystkie_obsady:
             story.append(Paragraph("Obsada Pracowników - Obecni per Sekcja", styles['Heading2']))
+            
             for sekcja, obsada in wszystkie_obsady.items():
-                text = f"<b>{sekcja}:</b> "
+                # Nagłówek sekcji
+                story.append(Paragraph(f"<b>Na {sekcja} pracuje:</b>", styles['Normal']))
+                
+                # Pracownicy w sekcji
                 if obsada:
-                    text += ", ".join([f"{p.get('imie_nazwisko', 'N/A')} ({p.get('rola', 'N/A')})" for p in obsada])
+                    obsada_list = []
+                    for p in obsada:
+                        imie_nazwisko = p.get('imie_nazwisko', 'N/A')
+                        rola = p.get('rola', 'N/A')
+                        obsada_list.append(f"{imie_nazwisko} ({rola})")
+                    
+                    # Wyświetl pracowników jako listę w tabelce
+                    obsada_data = [[f"• {emp}"] for emp in obsada_list]
+                    obsada_table = Table(obsada_data, colWidths=[14*cm])
+                    obsada_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+                    ]))
+                    story.append(obsada_table)
                 else:
-                    text += "Brak przypisanych pracowników"
-                story.append(Paragraph(text, styles['Normal']))
+                    story.append(Paragraph("<i>Brak przypisanych pracowników</i>", styles['Normal']))
+                
+                story.append(Spacer(1, 0.15*cm))
+            
             story.append(Spacer(1, 0.3*cm))
         
         # Nieobecni (odfiltrowani z awarii)

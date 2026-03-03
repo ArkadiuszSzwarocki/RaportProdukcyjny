@@ -82,6 +82,79 @@
 .btn-create-zlecenie-active {
     opacity: 1;
 }
+
+/* Responsive styles for button container */
+@media (max-width: 1024px) {
+    td:last-child {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    
+    td:last-child button {
+        flex: 1;
+        min-width: 70px;
+        padding: 6px 8px !important;
+        font-size: 0.75em !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+@media (max-width: 640px) {
+    .table thead {
+        display: none;
+    }
+    
+    .table tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        padding: 12px;
+        border-bottom: 2px solid #ddd;
+        margin-bottom: 8px;
+    }
+    
+    .table tbody td {
+        padding: 6px 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    
+    .table tbody td:before {
+        font-weight: 600;
+        margin-bottom: 3px;
+        font-size: 0.85em;
+        color: #555;
+    }
+    
+    .table tbody td:nth-child(1):before { content: "Kolejka"; }
+    .table tbody td:nth-child(2):before { content: "Data"; }
+    .table tbody td:nth-child(3):before { content: "Produkt"; }
+    .table tbody td:nth-child(4):before { content: "Zasypane"; }
+    .table tbody td:nth-child(5):before { content: "Spakowane"; }
+    .table tbody td:nth-child(6):before { content: "Pozostało"; }
+    .table tbody td:nth-child(7):before { content: "Akcje"; }
+    
+    td:last-child {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    
+    td:last-child button {
+        flex: 1;
+        min-width: 60px;
+        padding: 6px 4px !important;
+        font-size: 0.7em !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
 </style>
 
 <div class="section-header">

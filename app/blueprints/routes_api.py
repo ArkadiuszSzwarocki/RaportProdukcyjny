@@ -579,3 +579,92 @@ def restore_ostatnia_usuniety():
         current_app.logger.error(f"Error restoring obecnosc entry: {e}")
         return jsonify({'success': False, 'message': 'Błąd przy przywracaniu wpisu'}), 500
 
+
+# ================= VALIDATION & ANOMALY DETECTION =================
+
+@api_bp.route('/api/validate_plan_anomalies', methods=['POST'])
+@login_required
+@roles_required(['admin', 'lider'])
+def validate_plan_anomalies():
+    """
+    Scan and fix plan anomalies (plans with tonaz_rzeczywisty > 0 but status='zaplanowane').
+    Restricted to admin and lider roles.
+    
+    Returns JSON with scan results and count of fixed anomalies.
+    """
+    try:
+        from app.services.planning_service import PlanningService
+        
+        success, message, fixed_count = PlanningService.validate_and_fix_anomalies()
+        
+        return jsonify({
+            'success': success,
+            'message': message,
+            'fixed_count': fixed_count,
+            'timestamp': datetime.now().isoformat()
+        }), 200 if success else 400
+        
+    except Exception as e:
+        current_app.logger.exception(f'Error in validate_plan_anomalies: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'Błąd serwera: {str(e)}'
+        }), 500
+
+
+@api_bp.route('/api/plan/<int:plan_id>/check_status', methods=['GET'])
+@login_required
+def check_plan_status(plan_id):
+    """
+    Check if plan has status anomalies and return detailed info.
+    Used for debugging and monitoring.
+    
+    Returns JSON with plan details and anomaly status.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT id, produkt, status, tonaz, tonaz_rzeczywisty, real_start, real_stop, sekcja
+            FROM plan_produkcji
+            WHERE id=%s
+        """, (plan_id,))
+        
+        plan = cursor.fetchone()
+        conn.close()
+        
+        if not plan:
+            return jsonify({
+                'success': False,
+                'message': f'Plan {plan_id} nie istnieje'
+            }), 404
+        
+        # Detect anomaly
+        tonaz_rz = plan['tonaz_rzeczywisty'] or 0
+        has_anomaly = (tonaz_rz > 0 and plan['status'] == 'zaplanowane' and not plan['real_start'])
+        
+        return jsonify({
+            'success': True,
+            'plan_id': plan['id'],
+            'produkt': plan['produkt'],
+            'status': plan['status'],
+            'tonaz_plan': plan['tonaz'],
+            'tonaz_rzeczywisty': tonaz_rz,
+            'real_start': plan['real_start'],
+            'real_stop': plan['real_stop'],
+            'sekcja': plan['sekcja'],
+            'has_status_anomaly': has_anomaly,
+            'anomaly_description': (
+                'Plan has tonaz_rzeczywisty but status is zaplanowane (not yet started)' 
+                if has_anomaly 
+                else 'No anomalies detected'
+            )
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.exception(f'Error checking plan status: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'Błąd serwera: {str(e)}'
+        }), 500

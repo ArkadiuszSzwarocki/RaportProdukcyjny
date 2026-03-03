@@ -481,3 +481,126 @@ class PlanningService:
                 print(f'📅 [SERVICE-17] ROLLBACK error: {rb_err}')
                 pass
             return False, 'Błąd przy przesuwaniu planu.'
+
+    @staticmethod
+    def validate_and_fix_anomalies():
+        """
+        Find and fix anomalies: plans with tonaz_rzeczywisty > 0 but status='zaplanowane'.
+        These were likely entered manually without proper status update.
+        
+        Returns:
+            Tuple (success: bool, message: str, count: int) - count of fixed anomalies
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Find anomalies: tonaz_rzeczywisty > 0 but status = 'zaplanowane' and no real_start
+            cursor.execute("""
+                SELECT id, produkt, status, tonaz_rzeczywisty, real_start, real_stop
+                FROM plan_produkcji
+                WHERE status='zaplanowane' AND COALESCE(tonaz_rzeczywisty, 0) > 0 AND real_start IS NULL
+                ORDER BY data_planu DESC
+            """)
+            
+            anomalies = cursor.fetchall()
+            fixed_count = 0
+            
+            if anomalies:
+                current_app.logger.warning(f'🔧 Found {len(anomalies)} anomalies to fix')
+                
+                for anomaly in anomalies:
+                    plan_id = anomaly['id']
+                    produkt = anomaly['produkt']
+                    tonaz_rz = anomaly['tonaz_rzeczywisty']
+                    
+                    try:
+                        # Fix: Set status to 'zakonczone' since tonaz_rzeczywisty is already set
+                        # (likely manually entered without proper workflow)
+                        cursor.execute("""
+                            UPDATE plan_produkcji 
+                            SET status='zakonczone', 
+                                real_start=IFNULL(real_start, NOW()),
+                                real_stop=IFNULL(real_stop, NOW())
+                            WHERE id=%s
+                        """, (plan_id,))
+                        
+                        fixed_count += 1
+                        current_app.logger.info(
+                            f'✓ Fixed anomaly: ID={plan_id}, {produkt} '
+                            f'(tonaz_rz={tonaz_rz}kg, status: zaplanowane->zakonczone)'
+                        )
+                    except Exception as e:
+                        current_app.logger.error(
+                            f'✗ Failed to fix anomaly ID={plan_id}: {str(e)}'
+                        )
+                        conn.rollback()
+                        continue
+                
+                conn.commit()
+            
+            conn.close()
+            
+            message = f'Naprawiono {fixed_count} anomalii' if fixed_count > 0 else 'Nie znaleziono anomalii'
+            return (True, message, fixed_count)
+            
+        except Exception as e:
+            current_app.logger.exception(f'Error validating anomalies: {str(e)}')
+            return (False, f'Błąd przy sprawdzaniu anomalii: {str(e)}', 0)
+
+    @staticmethod
+    def ensure_status_after_tonaz_update(plan_id):
+        """
+        After tonaz_rzeczywisty is updated, ensure status reflects actual execution.
+        If tonaz_rzeczywisty > 0 and status='zaplanowane', change to 'w toku'.
+        
+        Args:
+            plan_id: Plan ID to validate
+            
+        Returns:
+            Tuple (success: bool, message: str)
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Check current state
+            cursor.execute("""
+                SELECT id, status, tonaz_rzeczywisty, real_start, real_stop
+                FROM plan_produkcji
+                WHERE id=%s
+            """, (plan_id,))
+            
+            result = cursor.fetchone()
+            
+            if not result:
+                conn.close()
+                return (False, 'Plan nie istnieje.')
+            
+            status = result['status']
+            tonaz_rz = result['tonaz_rzeczywisty'] or 0
+            real_start = result['real_start']
+            real_stop = result['real_stop']
+            
+            # Logic: If tonaz_rzeczywisty > 0 but status is still 'zaplanowane'
+            # and no real_start, update to 'w toku'
+            if tonaz_rz > 0 and status == 'zaplanowane' and not real_start:
+                cursor.execute("""
+                    UPDATE plan_produkcji
+                    SET status='w toku', real_start=NOW()
+                    WHERE id=%s
+                """, (plan_id,))
+                
+                conn.commit()
+                current_app.logger.info(
+                    f'✓ Auto-corrected plan {plan_id}: status zaplanowane->w toku '
+                    f'(tonaz_rzeczywisty={tonaz_rz})'
+                )
+                return (True, f'Status automatycznie zmieniony na "w toku" (tonaz={tonaz_rz}kg)')
+            
+            conn.close()
+            return (True, 'Plan jest spójny')
+            
+        except Exception as e:
+            current_app.logger.exception(f'Error ensuring status for plan {plan_id}: {str(e)}')
+            return (False, f'Błąd przy sprawdzaniu statusu: {str(e)}')

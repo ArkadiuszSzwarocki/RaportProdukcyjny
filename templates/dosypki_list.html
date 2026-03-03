@@ -2,6 +2,52 @@
     #dosypki-table {
         width: 100%;
         display: none;
+        font-size: 0.9em;
+    }
+
+    /* Ensure Akcja column is always visible */
+    #dosypki-table th:nth-child(6), 
+    #dosypki-table td:nth-child(6) {
+        display: table-cell !important;
+    }
+
+    /* On small screens, hide Plan ID and show only essential columns */
+    @media (max-width: 640px) {
+        #dosypki-table th:nth-child(2),
+        #dosypki-table td:nth-child(2) {
+            display: none;
+        }
+        
+        #dosypki-table th:nth-child(5),
+        #dosypki-table td:nth-child(5) {
+            display: none;
+        }
+        
+        #dosypki-table {
+            width: 100%;
+        }
+        
+        #dosypki-table th,
+        #dosypki-table td {
+            padding: 8px 4px;
+            font-size: 0.85em;
+        }
+        
+        #dosypki-table th:nth-child(4),
+        #dosypki-table td:nth-child(4) {
+            display: table-cell !important;
+            min-width: 50px;
+        }
+        
+        #dosypki-table td:nth-child(6) {
+            text-align: center;
+        }
+        
+        .btn-action.btn-save {
+            padding: 4px 6px;
+            font-size: 0.75em;
+            min-width: 50px;
+        }
     }
 
     .dosypki-status-row {
@@ -59,9 +105,9 @@
                     <td class="text-muted">{{ loop.index }}</td>
                     <td>{{ d.plan_id }}</td>
                     <td>{% if d.nazwa %}{{ d.nazwa }}{% else %}<em>— brak nazwy —</em>{% endif %}</td>
-                    <td>{{ d.kg }}</td>
+                    <td>{{ d.kg }} kg</td>
                     <td>{{ d.data_zlecenia }}</td>
-                    <td><button class="btn-action btn-save btn-small" data-id="{{ d.id }}">Potwierdź</button></td>
+                    <td><button class=\"btn-action btn-save\" data-id=\"{{ d.id }}\" style=\"padding: 4px 6px; font-size: 0.75em; min-width: 50px;{% if rola == 'laborant' %} opacity: 0.5; cursor: not-allowed;{% endif %}\"{% if rola == 'laborant' %} disabled{% endif %}>✓ Potwierdź</button></td>
                 </tr>
                 {% endfor %}
                 <script>

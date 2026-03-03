@@ -302,12 +302,38 @@ class DashboardService:
                         (p[0],)
                     )
                     rows = cursor.fetchall()
+                    
+                    # For each szarża, also fetch its dosypki
+                    szarze_with_dosypki = []
+                    for r in rows:
+                        szarza_id = r[0]
+                        # Fetch dosypki for this szarża with timestamp
+                        cursor.execute(
+                            """SELECT nazwa, kg, data_zlecenia FROM dosypki WHERE szarza_id = %s AND potwierdzone = 1 ORDER BY data_zlecenia ASC""",
+                            (szarza_id,)
+                        )
+                        dosypki_rows = cursor.fetchall()
+                        # Format as (nazwa, kg, godzina) - extract HH:MM from data_zlecenia
+                        dosypki_list = []
+                        for d in dosypki_rows:
+                            nazwa = d[0]
+                            kg = d[1]
+                            godzina_str = ''
+                            if d[2]:  # data_zlecenia
+                                try:
+                                    # d[2] is a datetime/timestamp, extract HH:MM
+                                    godzina_str = d[2].strftime('%H:%M') if hasattr(d[2], 'strftime') else str(d[2])[:5]
+                                except:
+                                    godzina_str = ''
+                            dosypki_list.append((nazwa, kg, godzina_str))
+                        # Store as (waga_total, godzina, id, dosypki_list, status)
+                        szarze_with_dosypki.append((r[1], r[2], r[0], dosypki_list, r[5] if len(r) > 5 else ''))
+                    
                     cursor.close()
                     conn.close()
-                    # map to (waga, godzina, id, UNUSED, status) to match template expectations
-                    palety_mapa[p[0]] = [(r[1], r[2], r[0], None, r[5] if len(r) > 5 else '') for r in rows]
+                    palety_mapa[p[0]] = szarze_with_dosypki
                     # Calculate sum of szarża weights for Realizacja column p[7]
-                    suma_szarzy = sum(r[1] for r in rows)
+                    suma_szarzy = sum(r[0] for r in szarze_with_dosypki)
                     p[7] = suma_szarzy
                 elif sekcja == 'Workowanie' and p[0] not in palety_mapa:
                     # Use existing query helper to fetch paletki for plan

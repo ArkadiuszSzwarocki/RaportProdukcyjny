@@ -26,10 +26,9 @@
             </nav>
         </div>
     </div>
-    <div style="margin-left: 300px;">
-        <h2 class="header-title">{{ _('hala_produkcyjna') }}: <strong>{{ _(sekcja.lower()) }}</strong></h2>
+    <div class="header-title-row">
         {% if sekcja != 'Zasyp' %}
-        <p class="text-muted m-0">{{ rola|upper }} | {{ dzisiaj }}</p>
+        <h2 class="header-title"><strong>{{ _(sekcja.lower()) }}</strong></h2>
         {% endif %}
         <div class="day-tile" data-sekcja="{{ sekcja }}">
             <button type="button" class="day-nav left" data-day-offset="-1"
@@ -62,6 +61,8 @@
         // URL template for confirming dosypka (use replace to insert id)
         window._urls = window._urls || {};
         window._urls.potwierdz_dosypke = "{{ url_for('production.potwierdz_dosypke', dosypka_id=0) }}";
+        // Current user role for conditional UI features
+        window._currentRole = "{{ rola }}";
     </script>
 </div>
 
@@ -180,6 +181,7 @@
             _('kolejka_produkcyjna') }}{% endif %}</h3>
         <span class="badge-info">{{ _(sekcja.lower()) }}</span>
     </div>
+    
     {% if rola == 'planista' and quality_count and quality_count > 0 %}
     <div class="alert-warning d-flex justify-between align-center mb-10">
         <div class="text-warning-dark font-bold">🔔 Są {{ quality_count }} zgłoszeń dezynfekcji od laboratorium —
@@ -233,358 +235,158 @@
         </tbody>
     </table>
     {% else %}
-    <!-- INNE SEKCJE: Wyświetl plan_dnia (plany produkcji) -->
-    <table class="modern-table">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>📦 Produkt</th>
-                <th>📋 Plan</th>
-                <th>🕒 Czas Pracy</th>
-                <th>📊 Status</th>
-                <th>✅ Realizacja</th>
-                <th class="text-right">⚙️ Akcje</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in plan %}
-            <tr class="row-{{ p[3]|replace(' ', '') }}" data-id="{{ p[0] }}">
-                <td class="text-muted font-bold">{{ loop.index }}</td>
-                <td>
-                    <strong class="text-primary">{{ p[1] }}</strong>
-                    <div class="small badge-sekcja">{{ p[9]|upper }}</div>
-                </td>
-                <td>
-                    <strong class="text-success">{{ p[2]|int }} kg</strong>
-                </td>
-                <td class="small">
-                    {% if p[4] %}<div class="time-display">🟢 {{ p[4] }}</div>{% endif %}
-                    {% if p[5] %}<div class="time-display text-danger-color">🔴 {{ p[5] }}</div>{% endif %}
-                    {% if p[6] is not none and p[6] > 0 %}
-                    {% set mins = p[6] %}
-                    {% set h = (mins // 60) %}
-                    {% set m = mins % 60 %}
-                    <div class="duration-badge">⏱️ {% if h > 0 %}{{ h }}h {% endif %}{{ m }}m</div>
-                    {% endif %}
-                </td>
-                <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
-                <td>
-                    {% if p[7] and p[7]|int > 0 %}<strong class="text-success">{{ p[7]|int }} kg</strong>{% else %}<span
-                        class="text-muted">-</span>{% endif %}
-                    {% if palety_mapa[p[0]] and palety_mapa[p[0]]|length > 0 %}
-                    <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
-                        {% if sekcja == 'Zasyp' %}⏺️ {{ palety_mapa[p[0]]|length }} szt.{% else %}📦 {{
-                        palety_mapa[p[0]]|length }} szt.{% endif %} ▼
-                    </button>
-                    {% elif p|length > 15 and p[15] and p[15]|int > 0 %}
-                    <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
-                        {% if sekcja == 'Zasyp' %}⏺️ {{ p[15] }} szarż{% else %}📦 {{ p[15] }} palet{% endif %} ▼
-                    </button>
-                    {% endif %}
-                    {# Przyciski przenoszenia do Jakość usunięte — dezynfekcja planowana przez laboratorium i zgłaszana
-                    planiście. #}
-                </td>
-                <td class="text-right">
-                    {% if sekcja != 'Magazyn' and (rola in ['lider', 'admin', 'pracownik']) %}
+    <!-- INNE SEKCJE: Wyświetl plan_dnia (plany produkcji) jako karty -->
+    <div class="cards">
+        {% for p in plan %}
+        <div class="card {% if p[3] == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}">
+            <div class="card-header">
+                <strong class="card-title">{{ loop.index }}. {{ p[1] }}</strong>
+                <div class="header-actions">
+                    <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>
                     {% if p[3] == 'zaplanowane' %}
-                    <div class="d-flex gap-5 justify-end">
-                        {% set product_active = (active_products is defined and active_products and p[1] in
-                        active_products) %}
+                        {% set product_active = (active_products is defined and active_products and p[1] in active_products) %}
                         {% if sekcja == 'Workowanie' %}
-                        {% set allowed = (allowed_work_start_ids is defined and (p[0] in allowed_work_start_ids)) %}
-                        {% if allowed and not product_active %}
-                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                            class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button
-                                type="submit" class="btn-action btn-start">START</button></form>
-                        {% else %}
-                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span
-                                class="material-icons">block</span></button>
-                        {% endif %}
-                        {% elif sekcja == 'Zasyp' %}
-                        <!-- On Zasyp: block START if ANY plan is already 'w toku', OR if this product is active -->
-                        {% set zasyp_blocked = (zasyp_has_active is defined and zasyp_has_active) or product_active %}
-                        {% if zasyp_blocked %}
-                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span
-                                class="material-icons">block</span></button>
-                        {% else %}
-                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                            class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button
-                                type="submit" class="btn-action btn-start">START</button></form>
-                        {% endif %}
-                        {% else %}
-                        {% if product_active %}
-                        <button type="button" disabled class="btn-action btn-disabled" aria-label="Zablokowane"><span
-                                class="material-icons">block</span></button>
-                        {% else %}
-                        <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                            class="inline-form"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button
-                                type="submit" class="btn-action btn-start">START</button></form>
-                        {% endif %}
-                        {% endif %}
-                        {% if rola in ['planista', 'admin', 'lider'] and sekcja not in ['Workowanie', 'Zasyp'] %}
-                        <button type="button" class="btn-delete inline-form delete-plan-btn" aria-label="Usuń plan"
-                            data-plan-id="{{ p[0] }}" data-plan-date="{{ dzisiaj }}"
-                            data-plan-name="{{ p[1] }}">🗑</button>
-                        {% endif %}
-                    </div>
-                    {% elif p[3] == 'w toku' %}
-                    <div class="d-flex gap-5 justify-end">
-                        {% if sekcja == 'Workowanie' %}
-                        <div class="paleta-inline-wrapper paleta-inline">
-                            {% if p[9] == 'bigbag' %}
-                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}"
-                                class="btn-action btn-purple" data-slide>{{ '+ BIGBAG' }}</a>
+                            {% set allowed = (allowed_work_start_ids is defined and (p[0] in allowed_work_start_ids)) %}
+                            {% if allowed and not product_active %}
+                            <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
                             {% else %}
-                            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}"
-                                class="btn-action btn-purple" data-slide>+ PALETA</a>
+                            <span class="btn-icon-disabled" title="Zablokowane">🔒</span>
+                            {% endif %}
+                        {% elif sekcja == 'Zasyp' %}
+                            {% set zasyp_blocked = (zasyp_has_active is defined and zasyp_has_active) or product_active %}
+                            {% if zasyp_blocked %}
+                            <span class="btn-icon-disabled" title="Zablokowane">🔒</span>
+                            {% else %}
+                            <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
+                            {% endif %}
+                        {% else %}
+                            {% if product_active %}
+                            <span class="btn-icon-disabled" title="Zablokowane">🔒</span>
+                            {% else %}
+                            <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
+                            {% endif %}
+                        {% endif %}
+                    {% elif p[3] == 'w toku' %}
+                    <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}" class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
+                    {% elif p[3] == 'zakonczone' %}
+                    {% if rola in ['lider', 'admin'] %}
+                    <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić {{ p[1] }}?');" style="display:inline;"><button type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button></form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <div class="card-row"><strong>Plan:</strong> <span class="text-success">{{ p[2]|int }} kg</span></div>
+                {% if p[7] and p[7]|int > 0 %}<div class="card-row"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>{% endif %}
+                <div class="card-row"><strong>Typ:</strong> {{ p[9]|upper }}</div>
+                {% if p[4] %}<div class="card-row"><strong>🟢 Start:</strong> {{ p[4] }}</div>{% endif %}
+                {% if p[5] %}<div class="card-row"><strong>🔴 Stop:</strong> {{ p[5] }}</div>{% endif %}
+                {% if p[6] is not none and p[6] > 0 %}
+                {% set mins = p[6] %}
+                {% set h = (mins // 60) %}
+                {% set m = mins % 60 %}
+                <div class="card-row"><strong>⏱️ Czas:</strong> {% if h > 0 %}{{ h }}h {% endif %}{{ m }}m</div>
+                {% endif %}
+            </div>
+            
+            <div class="card-actions">
+                {% if sekcja != 'Magazyn' %}
+                {% if p[3] == 'w toku' %}
+                    {% if sekcja == 'Workowanie' %}
+                    <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
+                    {% set palety_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]]) else 0 %}
+                    <button type="button" class="btn-action btn-outline-warning" onclick="toggleDetails('{{ p[0] }}')">Palety ({{ palety_count }})</button>
+                    {% elif sekcja == 'Zasyp' %}
+                    {% if rola != 'laborant' %}
+                    <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
+                    {% endif %}
+                    <a href="{{ url_for('production.dosypki_list', plan_id=p[0]) }}" class="btn-action btn-blue" data-slide>Dosypki</a>
+                    {% set szarze_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]]) else 0 %}
+                    <button type="button" class="btn-action btn-outline-warning" onclick="toggleDetails('{{ p[0] }}')">Szarże ({{ szarze_count }})</button>
+                    {% else %}
+                    {% endif %}
+                {% elif p[3] == 'zakonczone' %}
+                {% endif %}
+                {% endif %}
+            </div>
+
+            {% if sekcja == 'Zasyp' %}
+            <div id="details-{{ p[0] }}" class="details-row" style="display:none;">
+                <div class="p-10">
+                    <div class="small text-muted mb-5"><strong>Lista szarż zrobionych:</strong></div>
+                    {% if palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]] %}
+                    {% for pal in palety_mapa[p[0]] %}
+                    <div class="card-row" style="justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-color); padding: 6px 0;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span>#{{ loop.index }} • {{ pal[1] }}</span>
+                                <strong class="text-primary">{{ pal[0]|int }} kg</strong>
+                                {% if rola != 'pracownik' %}
+                                <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2]) }}" class="btn-action btn-green" style="font-size: 11px; padding: 4px 8px; white-space: nowrap;" data-slide>+ dosypka</a>
+                                {% endif %}
+                            </div>
+                            {% if pal[3] and pal[3]|length > 0 %}
+                            <div style="margin-top: 6px; padding-left: 20px; font-size: 0.85em; color: #555;">
+                                <div style="font-weight: 600; margin-bottom: 3px;">Dosypki:</div>
+                                {% for dosypka_item in pal[3] %}
+                                <div style="line-height: 1.4;">{{ dosypka_item[0] }}: {{ dosypka_item[1] }} kg {% if dosypka_item[2] %}({{ dosypka_item[2] }}){% endif %}</div>
+                                {% endfor %}
+                            </div>
                             {% endif %}
                         </div>
-                        {% if rola in ['planista', 'admin'] %}
-                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit"
-                            data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
-                        {% endif %}
-                        <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}"
-                            class="btn-action btn-stop" data-slide>STOP</a>
-                        {% elif sekcja == 'Zasyp' %}
-                        {% set _r = (rola or '')|lower %}
-                        {% if _r == 'admin' %}
-                        <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green"
-                            data-slide>+ SZARŻA</a>
-                        {% elif _r in ['laboratorium','laborant','laborantka','lab'] %}
-                        {# Laborant może dodawać dosypki dopiero z poziomu konkretnej szarży #}
-                        {% else %}
-                        <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green"
-                            data-slide>+ SZARŻA</a>
-                        {% endif %}
-                        {% if rola in ['produkcja','lider','admin'] %}
-                        <a href="{{ url_for('production.dosypki_list', plan_id=p[0]) }}"
-                            class="btn-action btn-blue ml-5" data-slide>Dosypki</a>
-                        {% endif %}
-                        {% if rola in ['planista', 'admin'] %}
-                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit"
-                            data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
-                        {% endif %}
-                        {% if rola|lower not in ['laboratorium','laborant','laborantka','lab'] %}
-                        <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}"
-                            class="btn-action btn-stop" data-slide>STOP</a>
-                        {% endif %}
-                        {% else %}
-                        {% if rola in ['planista', 'admin'] %}
-                        <button type="button" class="btn-action btn-small" data-action="dashboard-tonaz-edit"
-                            data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
-                        {% endif %}
-                        <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}"
-                            class="btn-action btn-stop" data-slide>STOP</a>
-                        {% endif %}
                     </div>
-                    <!-- Modale paleta/szarza/stop-zasyp usunięte -->
-                    {% if sekcja != 'Zasyp' %}
-                    <!-- Modal stop usunięty -->
-                    {% endif %}
-                    {% elif p[3] == 'zakonczone' %}
-                    <div class="d-flex align-center justify-end gap-10">
-                        {% if sekcja == 'Zasyp' and p[13] and not p[10] %}
-                        {% if rola|lower not in ['laboratorium','laborant','laborantka','lab'] %}
-                        <a href="{{ url_for('production.wyjasnij_page', id=p[0]) }}"
-                            class="btn-action btn-stop btn-small pulse-animation" data-slide>⚠️ WYJAŚNIJ ({{ p[12]|int
-                            }} kg)</a>
-                        {% endif %}
-                        <!-- Wyjaśnienie modal (slide-over) -->
-                        {% endif %}
-                        {% if rola in ['lider', 'admin'] %}
-                        <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST"
-                            class="inline-form" onsubmit="return confirm('Wznowić {{ p[1] }}?');"><button type="submit"
-                                class="btn-action btn-outline-warning btn-icon" title="Wznowić zlecenie"><span
-                                    class="material-icons">replay</span></button></form>
-                        {% endif %}
-                    </div>
+                    {% endfor %}
                     {% else %}
-                    {# Status inny niż 'w toku' i 'zakonczone' - brak akcji #}
+                    <div class="small text-muted">Brak zarejestrowanych szarż dla tego zlecenia.</div>
                     {% endif %}
-                    {% endif %}
-                </td>
-            </tr>
-            {% if palety_mapa[p[0]] and (sekcja == 'Workowanie' or sekcja == 'Magazyn' or sekcja == 'Zasyp') %}
-            <tr id="details-{{ p[0] }}" class="details-row">
-                <td colspan="7" class="p-0">
-                    <div class="p-10">
-                        <table class="modern-table small">
-                            {% if sekcja == 'Zasyp' %}
-                            <thead>
-                                <tr>
-                                    <th>{{ _('nr') }}</th>
-                                    <th>🕒 Czas od poprzedniej</th>
-                                    <th>{{ _('waga') }}</th>
-                                    <th>{{ _('opcje') }}</th>
-                                </tr>
-                            </thead>
-                            {% elif sekcja == 'Workowanie' %}
-                            <thead>
-                                <tr>
-                                    <th>{{ _('nr') }}</th>
-                                    <th>🕒 Czas od poprzedniej</th>
-                                    <th>{{ _('waga') }}</th>
-                                    <th>{{ _('opcje') }}</th>
-                                </tr>
-                            </thead>
-                            {% else %}
-                            <thead>
-                                <tr>
-                                    <th>{{ _('nr') }}</th>
-                                    <th>🕒 Godzina</th>
-                                    <th>{{ _('typ') }}</th>
-                                    <th>{{ _('waga') }}</th>
-                                    <th>⏱️ Czas</th>
-                                    <th>{{ _('opcje') }}</th>
-                                </tr>
-                            </thead>
-                            {% endif %}
-                            <tbody>
-                                {% for pal in palety_mapa[p[0]] %}
-                                <tr>
-                                    <td class="text-muted font-bold">{{ loop.index }}</td>
-                                    {% if sekcja == 'Zasyp' %}
-                                    <td class="time-display"><span>{{ pal[1] }}</span></td>
-                                    <td>
-                                        <strong class="text-primary">{{ pal[0]|int }} kg</strong>
-                                        {% if dosypki_mapa and p[0] in dosypki_mapa %}
-                                        {% set ns = namespace(has_dosypki=false) %}
-                                        {% for d in dosypki_mapa[p[0]] %}
-                                        {% if d.szarza_id == pal[2] %}
-                                        {% set ns.has_dosypki = true %}
-                                        {% endif %}
-                                        {% endfor %}
-                                        {% if ns.has_dosypki %}
-                                        <div class="mt-5"
-                                            style="border-top: 1px dotted #ccc; padding-top: 3px; font-size: 0.85em;">
-                                            <span class="text-muted small">Dosypki:</span>
-                                            {% for d in dosypki_mapa[p[0]] %}
-                                            {% if d.szarza_id == pal[2] %}
-                                            <div class="mb-5">
-                                                <strong>{{ d.nazwa or 'Brak nazwy' }}</strong>: <span
-                                                    class="text-success">{{ d.kg }} kg</span> <span
-                                                    class="text-muted">({{ d.potwierdzono.split(' ')|last if
-                                                    d.potwierdzono else '' }})</span>
-                                            </div>
-                                            {% endif %}
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if rola in ['lider', 'admin'] %}
-                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}"
-                                            class="btn-icon" aria-label="Edytuj szarzę" data-slide>✏️</a>
-                                        <a href="{{ url_for('warehouse.confirm_delete_szarze_page', szarza_id=pal[2]) }}"
-                                            class="btn-icon text-danger-color" aria-label="Usuń szarzę"
-                                            data-slide>🗑️</a>
-                                        {% endif %}
-                                        {% set _l_r = (rola or '')|lower %}
-                                        {% if _l_r in ['lider', 'admin', 'laboratorium', 'laborant', 'laborantka'] %}
-                                        <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2]) }}"
-                                            class="btn-action btn-green btn-small" data-slide>+ DOSYPKA</a>
-                                        {% endif %}
-                                    </td>
-                                    {% elif sekcja == 'Workowanie' %}
-                                    <td class="time-display">{{ pal[1] }}</td>
-                                    <td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td>
-                                    <td>
-                                        {% if pal[7] and pal[7] != '' %}
-                                        {% if pal[7] == 'do_przyjecia' %}
-                                        <span class="badge badge-warning">🔄 Do przyjęcia</span>
-                                        {% elif pal[7] == 'przyjeta' %}
-                                        <span class="badge badge-success">✅ Przyjęta</span>
-                                        {% elif pal[7] == 'zamknieta' %}
-                                        <span class="badge badge-secondary">🔒 Zamknięta</span>
-                                        {% else %}
-                                        <span class="badge">{{ pal[7] }}</span>
-                                        {% endif %}
-                                        {% endif %}
-                                        {% if rola in ['lider', 'admin'] %}
-                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}"
-                                            class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
-                                        <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2]) }}"
-                                            class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}"
-                                            data-slide>🗑️</a>
-                                        {% endif %}
-                                    </td>
-                                    {% else %}
-                                    <td class="time-display"><span>{{ pal[1] }}</span></td>
-                                    <td><span class="badge-sekcja">{{ pal[4]|upper }}</span></td>
-                                    <td>
-                                        {% if sekcja == 'Magazyn' and pal[4] == 'bigbag' %}
-                                        {% if pal[0] == 0 %}
-                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}"
-                                            class="btn-action btn-warning small" data-slide>⚖️ WAŻENIE</a>
-                                        {% else %}
-                                        <strong class="text-success">{{ pal[0]|int }} kg</strong>
-                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}"
-                                            class="btn-icon ml-5" aria-label="Edytuj wagę" data-slide>✏️</a>
-                                        {% endif %}
-                                        <!-- Waga modal removed -->
-                                        {% else %}<strong class="text-primary">{{ pal[0]|int }} kg</strong>{% endif %}
-                                    </td>
-                                    <td>
-                                        <span class="paleta-elapsed duration-badge" data-start="{{ pal[9] }}"></span>
-                                    </td>
-                                    <td>
-                                        {% if pal[7] and pal[7] != '' %}
-                                        {% if pal[7] == 'do_przyjecia' %}
-                                        {% if sekcja != 'Zasyp' %}
-                                        <span class="badge badge-warning">🔄 Do przyjęcia</span>
-                                        {% endif %}
-                                        {% elif pal[7] == 'przyjeta' %}
-                                        <span class="badge badge-success">✅ Przyjęta</span>
-                                        {% elif pal[7] == 'zamknieta' %}
-                                        <span class="badge badge-secondary">🔒 Zamknięta</span>
-                                        {% else %}
-                                        <span class="badge">{{ pal[7] }}</span>
-                                        {% endif %}
-                                        {% endif %}
-                                        {% if rola in ['lider', 'admin'] %}
-                                        <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2]) }}"
-                                            class="btn-icon" aria-label="{{ _('edytuj_palete') }}" data-slide>✏️</a>
-                                        <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2]) }}"
-                                            class="btn-icon text-danger-color" aria-label="{{ _('usun_palete') }}"
-                                            data-slide>🗑️</a>
-                                        {% endif %}
-                                        {% if sekcja == 'Magazyn' and (rola == 'magazynier' or rola in
-                                        ['lider','admin']) and pal[7] == 'do_przyjecia' %}
-                                        {# Inline styles removed — use .btn-confirm-inline class in external CSS
-                                        (static/style.css) #}
-                                        <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=pal[2]) }}"
-                                            class="btn-action btn-save btn-small btn-confirm-inline" data-slide>{{
-                                            _('potwierdz') }}</a>
-                                        {% endif %}
-                                        <!-- editpal and confirm-delete modals removed -->
-                                    </td>
-                                    {% endif %}
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                </div>
+            </div>
+            {% elif sekcja == 'Workowanie' %}
+            <div id="details-{{ p[0] }}" class="details-row" style="display:none;">
+                <div class="p-10">
+                    <div class="small text-muted mb-5"><strong>Lista palet zrobione:</strong></div>
+                    {% if palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]] %}
+                    {% for pal in palety_mapa[p[0]] %}
+                    <div class="card-row" style="justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-color); padding: 6px 0;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span>#{{ loop.index }} • {{ pal[1] }}</span>
+                                <strong class="text-primary">{{ pal[0]|int }} kg</strong>
+                            </div>
+                        </div>
                     </div>
-                </td>
-            </tr>
+                    {% endfor %}
+                    {% else %}
+                    <div class="small text-muted">Brak zarejestrowanych palet dla tego zlecenia.</div>
+                    {% endif %}
+                </div>
+            </div>
             {% endif %}
-            {% else %}<tr>
-                <td colspan="7" class="text-center p-30">{{ _('brak_danych') }}</td>
-            </tr>{% endfor %}
-        </tbody>
-    </table>
+        </div>
+        {% else %}
+        <div style="grid-column: 1/-1; text-center; padding: 30px; color: #999;">{{ _('brak_danych') }}</div>
+        {% endfor %}
+    </div>
     {% endif %}
 </div>
 
 {# HR, Nadgodziny i Raport Końcowy usunięte z tego widoku — przeniesione do dashboard_global.html #}
 
+</script>
+
 <script>
-    function toggleDetails(id) {
-        var row = document.getElementById('details-' + id);
-        if (!row) return;
-        var isHidden = getComputedStyle(row).display === 'none' || row.style.display === 'none';
-        row.style.display = isHidden ? 'table-row' : 'none';
-    }
+    // === INIT LOGGING ===
+    console.log('%c===DASHBOARD LOADED===', 'color:blue;font-weight:bold');
+    console.log('Cards elements:', document.querySelectorAll('.card').length);
+    console.log('Card actions elements:', document.querySelectorAll('.card-actions').length);
+    const cards = document.querySelectorAll('.card-actions');
+    cards.forEach((ca, idx) => {
+        const links = ca.querySelectorAll('a');
+        const btns = ca.querySelectorAll('button');
+        console.log(`Card #${idx+1}: ${links.length} links, ${btns.length} buttons`);
+    });
+    console.log('===END INIT LOG===');
 
     // Modale wyłączone — funkcje zastępcze blokujące popupy
     function openModal(id) {
@@ -648,6 +450,46 @@
     }
     document.addEventListener('DOMContentLoaded', initUpdatePaletaTimers);
     window.addEventListener('app:partialReload', initUpdatePaletaTimers);
+</script>
+
+<script>
+    // [DEPRECATED] Old function for toggleing all details at once - no longer used
+    // function toggleAllDetails() {
+    //     const detailsRows = document.querySelectorAll('.details-row');
+    //     const header = document.getElementById('realizacjaHeader');
+    //     
+    //     if (!detailsRows.length) return;
+    //     
+    //     const isExpanded = detailsRows[0].classList.contains('show');
+    //     
+    //     detailsRows.forEach(row => {
+    //         if (isExpanded) {
+    //             row.classList.remove('show');
+    //         } else {
+    //             row.classList.add('show');
+    //         }
+    //     });
+    //     
+    //     if (header) {
+    //         header.classList.toggle('expanded');
+    //     }
+    // }
+    
+    // Backward compatibility: original toggleDetails function
+    function toggleDetails(id) {
+        var row = document.getElementById('details-' + id);
+        var icon = document.getElementById('icon-' + id);
+        
+        if (!row) return;
+        
+        var isHidden = getComputedStyle(row).display === 'none' || row.style.display === 'none';
+        row.style.display = isHidden ? 'block' : 'none';
+        
+        // Rotate icon for per-order Realizacja header
+        if (icon) {
+            icon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+    }
 </script>
 
 <script>
