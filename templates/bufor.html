@@ -549,17 +549,4 @@ function closeMoveModalBuffer() {
 }
 </script>
 
-<!-- Move modal for Buffer -->
-<div id="moveModalBuffer" class="move-modal-buffer">
-    <h3 class="move-title-buffer">📦 Przenieś szarżę</h3>
-    <div class="move-modal-field">
-        <label for="move_to_date_buffer">Nowa data planu:</label>
-        <input type="date" id="move_to_date_buffer" required>
-    </div>
-    <div class="move-modal-actions">
-        <button type="button" class="move-modal-actions button btn-confirm" onclick="confirmMoveBuffer()">✅ Przenieś</button>
-        <button type="button" class="move-modal-actions button btn-cancel" onclick="closeMoveModalBuffer()">Anuluj</button>
-    </div>
-</div>
-
 {% endblock %}
