@@ -282,12 +282,193 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const createButtons = document.querySelectorAll('.js-create-zlecenie');
-    const startButtons = document.querySelectorAll('.js-start-order');
-    const archiveButtons = document.querySelectorAll('.js-archive-order');
-    const moveButtons = document.querySelectorAll('.js-move-order');
+// Funkcja do szybkiego wyboru daty
+function setQuickDate(offsetDays) {
+    var dateInput = document.getElementById('move_to_date_buffer');
+    if (!dateInput) return;
     
+    var date = new Date();
+    date.setDate(date.getDate() + offsetDays);
+    var isoDate = date.toISOString().split('T')[0];
+    dateInput.value = isoDate;
+}
+
+// Otwórz modal przeniesienia
+function openMoveModalBuffer(planId, produkt) {
+    var modal = document.getElementById('moveModalBuffer');
+    var overlay = document.getElementById('moveModalBufferOverlay');
+    
+    if (!modal) {
+        alert('❌ Brak okna dialogowego przeniesienia');
+        return;
+    }
+    
+    modal.style.display = 'block';
+    if (overlay) overlay.style.display = 'block';
+    modal.dataset.planId = planId;
+    
+    // Ustaw dzisiejszą datę jako domyślną
+    var today = new Date().toISOString().split('T')[0];
+    var dateInput = document.getElementById('move_to_date_buffer');
+    if (dateInput) {
+        dateInput.value = today;
+    }
+    
+    var title = modal.querySelector('.move-title-buffer');
+    if (title) {
+        title.innerText = '📦 Przenieś szarżę: ' + produkt;
+    }
+}
+
+// Zamknij modal przeniesienia
+function closeMoveModalBuffer() {
+    var modal = document.getElementById('moveModalBuffer');
+    var overlay = document.getElementById('moveModalBufferOverlay');
+    
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+// Potwierdź przeniesienie
+function confirmMoveBuffer() {
+    var modal = document.getElementById('moveModalBuffer');
+    if (!modal) return;
+    
+    var planId = modal.dataset.planId;
+    var toDate = document.getElementById('move_to_date_buffer').value;
+    
+    if (!planId || !toDate) {
+        alert('❌ Brak wymaganych danych (ID lub data)');
+        return;
+    }
+    
+    fetch('/api/przenies_zlecenie_ajax', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: planId, to_date: toDate })
+    })
+    .then(r => r.json().catch(() => ({ success: false, message: 'Nieprawidłowa odpowiedź serwera' })))
+    .then(j => {
+        if (j && j.success) {
+            closeMoveModalBuffer();
+            alert('✅ ' + (j.message || 'Szarża przeniesiona na nową datę'));
+            location.reload();
+        } else {
+            alert('❌ ' + (j && j.message ? j.message : 'Błąd przeniesienia'));
+        }
+    })
+    .catch(e => {
+        alert('❌ Błąd sieci: ' + e.message);
+    });
+}
+
+// Utwórz Workowanie z bufora NA DZISIAJ (jednym kliknięciem)
+function utworzZlecenieDzisiaj(zasypId, produkt) {
+    var today = new Date().toISOString().split('T')[0];
+    
+    fetch('/bufor/create_zlecenie', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            zasyp_id: zasypId,
+            use_buffer_data: true,
+            workowanie_date: today
+        })
+    })
+    .then(r => r.json())
+    .then(j => {
+        if (j && j.success) { 
+            alert(`✅ Zlecenie Workowanie utworzone NA DZISIAJ!\n${j.message}`);
+            location.reload(); 
+        } else { 
+            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); 
+        }
+    })
+    .catch(e => { 
+        alert('❌ Błąd sieci: ' + e.message); 
+    });
+}
+
+// Utwórz Workowanie ze zwykłego zasypu
+function utworzZlecenie(zasypId, produkt) {
+    if (!confirm(`Czy na pewno chcesz utworzyć nowe zlecenie Workowanie dla "${produkt}"?\n\nSystem obliczy różnicę między towarem w zasypu a spakowanym.`)) {
+        return;
+    }
+    
+    fetch('/bufor/create_zlecenie', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zasyp_id: zasypId })
+    })
+    .then(r => r.json())
+    .then(j => {
+        if (j && j.success) { 
+            alert(`✅ ${j.message}`);
+            location.reload(); 
+        } else { 
+            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); 
+        }
+    })
+    .catch(e => { 
+        alert('❌ Błąd sieci: ' + e.message); 
+    });
+}
+
+// Uruchom zlecenie na Workowaniu
+function startujZlecenie(kolejka, produkt) {
+    if (!confirm(`Czy na pewno chcesz uruchomić zlecenie ${produkt.replace('@', '')} (kolejka ${kolejka})?`)) {
+        return;
+    }
+    
+    fetch(`/api/start_from_queue/${kolejka}`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(j => {
+        if (j && j.success) { 
+            alert(`✅ ${j.message}`);
+            location.reload(); 
+        } else { 
+            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się uruchomić')); 
+        }
+    })
+    .catch(e => { 
+        alert('❌ Błąd sieci: ' + e.message); 
+    });
+}
+
+// Zarchiwizuj zlecenie
+function archiwizujZlecenie(planId) {
+    if (!confirm('Czy na pewno chcesz zarchiwizować to zlecenie?')) {
+        return;
+    }
+    
+    fetch('/bufor/archiwizuj', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_id: planId })
+    })
+    .then(r => r.json())
+    .then(j => {
+        if (j && j.ok) { 
+            location.reload(); 
+        } else { 
+            alert('Błąd: ' + (j && j.message ? j.message : 'Nie udało się zarchiwizować')); 
+        }
+    })
+    .catch(e => { 
+        alert('Błąd sieci: ' + e.message); 
+    });
+}
+
+// Event listeners - załadowane gdy DOM jest gotowy
+document.addEventListener('DOMContentLoaded', () => {
+    // Przyciski Startuj (Workowanie)
     document.querySelectorAll('.js-start-order').forEach((button) => {
         button.addEventListener('click', () => {
             const kolejka = button.dataset.kolejka;
@@ -308,6 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Przyciski Utwórz Workowanie (zwykły)
     document.querySelectorAll('.js-create-zlecenie').forEach((button) => {
         button.addEventListener('click', () => {
             const zasypId = button.dataset.zasypId;
@@ -330,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Nowy przycisk: Utwórz Workowanie NA DZISIAJ (z bufora, niezależnie od statusu Zasypu)
+    // Przyciski Utwórz Workowanie NA DZISIAJ (z bufora)
     document.querySelectorAll('.js-create-zlecenie-dzisiaj').forEach((button) => {
         button.addEventListener('click', () => {
             const zasypId = button.dataset.zasypId;
@@ -353,6 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Przyciski Archiwizuj
     document.querySelectorAll('.js-archive-order').forEach((button) => {
         button.addEventListener('click', () => {
             const planId = button.dataset.planId;
@@ -362,163 +545,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Przyciski Przenieś (Modal)
     document.querySelectorAll('.js-move-order').forEach((button) => {
         button.addEventListener('click', () => {
             const planId = button.dataset.planId;
             const produkt = button.dataset.produkt || '';
+            
             if (planId) {
                 openMoveModalBuffer(planId, produkt);
- 
-// Nowa funkcja: Utwórz Workowanie NA DZISIAJ (jednym kliknięciem, bez pytań)
-function utworzZlecenieDzisiaj(zasypId, produkt) {
-    // Weź dzisiejszą datę
-    const today = new Date().toISOString().split('T')[0];
+            }
+        });
+    });
     
-    fetch('/bufor/create_zlecenie', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            zasyp_id: zasypId,
-            use_buffer_data: true,        // ← WAŻNE: czyta z bufora, nie z Zasypu
-            workowanie_date: today         // ← Data pracy = dzisiaj
-        })
-    }).then(r => r.json()).then(j => {
-        if (j && j.success) { 
-            alert(`✅ Zlecenie Workowanie utworzone NA DZISIAJ!\n${j.message}`);
-            location.reload(); 
-        } else { 
-            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); 
-        }
-    }).catch(e => { 
-        alert('❌ Błąd sieci: ' + e.message); 
-    });
-}        });
-    });
+    // Zamknij modal po kliknięciu na overlay
+    var overlay = document.getElementById('moveModalBufferOverlay');
+    if (overlay) {
+        overlay.addEventListener('click', closeMoveModalBuffer);
+    }
 });
+</script>
 
-function utworzZlecenie(zasypId, produkt) {
-    if (!confirm(`Czy na pewno chcesz utworzyć nowe zlecenie Workowanie dla "${produkt}"?\n\nSystem obliczy różnicę między towarem w zasypu a spakowanym i tyle wstawi jako plan.`)) {
-        return;
-    }
-    fetch('/bufor/create_zlecenie', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ zasyp_id: zasypId })
-    }).then(r => r.json()).then(j => {
-        if (j && j.success) { 
-            alert(`✅ ${j.message}`);
-            location.reload(); 
-        } else { 
-            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); 
-        }
-    }).catch(e => { 
-        alert('❌ Błąd sieci: ' + e.message); 
-    });
-}
+<!-- Overlay dla Modal Bufora -->
+<div id="moveModalBufferOverlay" class="move-modal-buffer-overlay"></div>
 
-function startujZlecenie(kolejka, produkt) {
-    if (!confirm(`Czy na pewno chcesz uruchomić zlecenie ${produkt.replace('@', '')} (kolejka ${kolejka}) na Workowaniu?`)) {
-        return;
-    }
-    fetch(`/api/start_from_queue/${kolejka}`, { 
-        overlay = document.getElementById('moveModalBufferOverlay');
-    var modal = document.getElementById('moveModalBuffer');
-    if (!modal) {
-        alert('❌ Brak okna dialogowego przeniesienia');
-        return;
-    }
-    
-    if (overlay) {
-        overlay.style.display = 'block'&& j.success) { 
-            alert(`✅ ${j.message}`);
-            location.reload(); 
-        } else { 
-            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się uruchomić')); 
-        }
-    }).catch(e => { 
-        alert('❌ Błąd sieci: ' + e.message); 
-    });
-}
-
-function archiwizujZlecenie(planId) {
-    if (!confirm('Czy na pewno chcesz zarchiwizować to zlecenie?')) {
-        return;
-    }
-    fetch('/bufor/archiwizuj', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan_id: planId })
-    }).then(r => r.json()).then(j => {
-        if (j && j.ok) { 
-            location.reload(); 
-        } else { 
-            alert('Błąd: ' + (j && j.message ? j.message : 'Nie udało się zarchiwizować')); 
-        }
-    }).catch(e => { 
-        alert('Błąd sieci: ' + e.message); 
-    });
-}
-
-function openMoveModalBuffer(planId, produkt) {
-    var modal = document.getElementById('moveModalBuffer');
-    if (!modal) {
-        alert('❌ Brak okna dialogowego przeniesienia');
-        return;
-    }
-    modal.style.display = 'block';
-    modal.dataset.planId = planId;
-    
-    // Ustaw dzisiejszą datę jako domyślną
-    var today = new Date().toISOString().split('T')[0];
-    var dateInput = document.getElementById('move_to_date_buffer');
-    if (dateInput) {
-        dateInput.value = today;
-    }
-    
-    var title = modal.querySelector('.move-title-buffer');
-    if (title) {
-        title.innerText = '📦 Przenieś szarżę: ' + produkt;
-    }
-}
-
-function confirmMoveBuffer() {
-    var modal = document.getElementById('moveModalBuffer');
-    if (!modal) return;
-    var planId = modal.dataset.planId;
-    var toDate = document.getElementById('move_to_date_buffer').value;
-    
-    if (!planId || !toDate) {
-        alert('❌ Brak wymaganych danych (ID lub data)');
-        return;
-    }
-    
-    fetch('/api/przenies_zlecenie_ajax', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: planId, to_date: toDate })
-    })
-    .then(r => r.json().catch(() => ({ success: false, message: 'Nieprawidłowa odpowiedź serwera' })))
-    .then(j => {
-        if (j && j.success) {
-            modal.style.display = 'none';
-            alert('✅ ' + (j.message || 'Szarża przeniesiona na nową datę'));
-            location.reload();
-        } else {
-            alert('❌ ' + (j && j.message ? j.message : 'Błąd przeniesienia'));
-        }
-    })
-    .catch(e => {
-        overlay = document.getElementById('moveModalBufferOverlay');
-    var modal = document.getElementById('moveModalBuffer');
-    if (modal) {
-        modal.style.display = 'none';
-    }
-    if (overlay) {
-        overlay.style.display = 'none';
-    }Overlay dla Modal Buffer -->
-<div id="moveModalBufferOverlay" class="move-modal-buffer-overlay" onclick="closeMoveModalBuffer()"></div>
-
-<!-- Move modal for Buffer -->
+<!-- Modal do przeniesienia szarż na inną datę -->
 <div id="moveModalBuffer" class="move-modal-buffer">
     <h3 class="move-title-buffer">📦 Przenieś szarżę</h3>
     
@@ -538,15 +588,9 @@ function confirmMoveBuffer() {
     </div>
     
     <div class="move-modal-actions">
-        <button type="button" class="move-modal-actions button btn-confirm" onclick="confirmMoveBuffer()">✅ Przenieś</button>
-        <button type="button" class="move-modal-actions button btn-cancel" onclick="closeMoveModalBuffer()">❌ 
-
-function closeMoveModalBuffer() {
-    var modal = document.getElementById('moveModalBuffer');
-    if (modal) {
-        modal.style.display = 'none';
-    }
-}
-</script>
+        <button type="button" class="btn btn-success btn-sm" onclick="confirmMoveBuffer()">✅ Przenieś</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeMoveModalBuffer()">❌ Zamknij</button>
+    </div>
+</div>
 
 {% endblock %}
