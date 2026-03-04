@@ -212,6 +212,13 @@
                                 data-produkt="{{ b.produkt }}"
                                 data-status="{{ b.status }}"
                                 title="Utwórz nowe zlecenie Workowanie z pozostałym towarem{% if b.status != 'zakonczone' %} (niedostępne - zlecenie musi być zamknięte){% endif %}">➕ Utwórz</button>
+                        {% if b.data != wybrana_data %}
+                        <button class="btn btn-warning btn-sm js-create-zlecenie-dzisiaj{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
+                                data-zasyp-id="{{ b.id }}"
+                                data-produkt="{{ b.produkt }}"
+                                data-status="{{ b.status }}"
+                                title="Utwórz zlecenie Workowanie na DZISIAJ ({{ wybrana_data }}) z towarem z bufora - zamiast czekać na tamtą datę">🚀 NA DZISIAJ</button>
+                        {% endif %}
                         <button class="btn btn-sm js-move-order btn-move-order"
                                 data-plan-id="{{ b.id }}"
                                 data-produkt="{{ b.produkt }}"
@@ -278,6 +285,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Nowy przycisk: Utwórz Workowanie NA DZISIAJ (z bufora, niezależnie od statusu Zasypu)
+    document.querySelectorAll('.js-create-zlecenie-dzisiaj').forEach((button) => {
+        button.addEventListener('click', () => {
+            const zasypId = button.dataset.zasypId;
+            const produkt = button.dataset.produkt || '';
+            const status = button.dataset.status || '';
+            
+            if (!zasypId) {
+                alert('❌ Brak ID zasypu');
+                return;
+            }
+            
+            if (status !== 'zakonczone') {
+                alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status);
+                return;
+            }
+            
+            if (produkt) {
+                utworzZlecenieDzisiaj(zasypId, produkt);
+            }
+        });
+    });
+
     document.querySelectorAll('.js-archive-order').forEach((button) => {
         button.addEventListener('click', () => {
             const planId = button.dataset.planId;
@@ -293,8 +323,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const produkt = button.dataset.produkt || '';
             if (planId) {
                 openMoveModalBuffer(planId, produkt);
-            }
-        });
+ 
+// Nowa funkcja: Utwórz Workowanie NA DZISIAJ (jednym kliknięciem, bez pytań)
+function utworzZlecenieDzisiaj(zasypId, produkt) {
+    // Weź dzisiejszą datę
+    const today = new Date().toISOString().split('T')[0];
+    
+    fetch('/bufor/create_zlecenie', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            zasyp_id: zasypId,
+            use_buffer_data: true,        // ← WAŻNE: czyta z bufora, nie z Zasypu
+            workowanie_date: today         // ← Data pracy = dzisiaj
+        })
+    }).then(r => r.json()).then(j => {
+        if (j && j.success) { 
+            alert(`✅ Zlecenie Workowanie utworzone NA DZISIAJ!\n${j.message}`);
+            location.reload(); 
+        } else { 
+            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); 
+        }
+    }).catch(e => { 
+        alert('❌ Błąd sieci: ' + e.message); 
+    });
+}        });
     });
 });
 

@@ -511,7 +511,13 @@ def bufor_archiwizuj():
 @planista_bp.route('/bufor/create_zlecenie', methods=['POST'])
 @roles_required('planista', 'admin')
 def bufor_create_zlecenie():
-    """Create new Workowanie zlecenie based on buffer remainder (Zasyp.tonaz_rzeczywisty - spakowano)."""
+    """Create new Workowanie zlecenie based on buffer remainder (Zasyp.tonaz_rzeczywisty - spakowano).
+    
+    OPCJA 1 (standardowa): zasyp_id - czyta z Zasypu
+    OPCJA 2 (nowa): use_buffer_data=true + zasyp_id - czyta bezpośrednio z bufora 
+                    (działa nawet gdy Zasyp jest zamknięty)
+    OPCJA 3: workowanie_date (optionalne) - data dla nowego Workowania (domyślnie data z Zasypu/bufora)
+    """
     from flask import jsonify
     try:
         data = request.get_json(force=True) if request.is_json else request.form.to_dict()
@@ -519,6 +525,9 @@ def bufor_create_zlecenie():
         data = request.form.to_dict()
     
     zasyp_id = data.get('zasyp_id')
+    use_buffer = data.get('use_buffer_data') == 'true' or data.get('use_buffer_data') == True
+    override_work_date = data.get('workowanie_date')  # Np. zmiana daty dla nowego dnia
+    
     if not zasyp_id:
         return jsonify({'success': False, 'message': 'Brak zasyp_id'}), 400
     
@@ -531,31 +540,61 @@ def bufor_create_zlecenie():
     cursor = conn.cursor()
     
     try:
-        # Get Zasyp details (tonaz_rzeczywisty, date, product, type)
-        cursor.execute("""
-            SELECT id, data_planu, produkt, tonaz_rzeczywisty, typ_produkcji, nazwa_zlecenia
-            FROM plan_produkcji
-            WHERE id = %s AND sekcja = 'Zasyp'
-        """, (zasyp_id,))
-        zasyp = cursor.fetchone()
+        if use_buffer:
+            # OPCJA 2: Czytaj bezpośrednio z bufora (niezależnie od statusu Zasypu)
+            cursor.execute("""
+                SELECT 
+                    zasyp_id,
+                    data_planu,
+                    produkt,
+                    COALESCE(tonaz_rzeczywisty, 0) as tonaz_rzeczywisty,
+                    typ_produkcji,
+                    COALESCE(nazwa_zlecenia, '') as nazwa_zlecenia,
+                    COALESCE(SUM(spakowano), 0) as spakowano
+                FROM bufor
+                WHERE zasyp_id = %s
+                GROUP BY zasyp_id, data_planu, produkt, typ_produkcji, nazwa_zlecenia
+                LIMIT 1
+            """, (zasyp_id,))
+            zasyp_data = cursor.fetchone()
+            
+            if not zasyp_data:
+                conn.close()
+                return jsonify({'success': False, 'message': 'Nie znaleziono wpisu w buforze dla tego Zasypu'}), 404
+            
+            z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa, spakowano = zasyp_data
+            # Calculate remainder from buffer directly
+            roznicza = (z_tonaz_rz or 0) - spakowano
+        else:
+            # OPCJA 1 (standardowa): Czytaj z Zasypu
+            # Get Zasyp details (tonaz_rzeczywisty, date, product, type)
+            cursor.execute("""
+                SELECT id, data_planu, produkt, tonaz_rzeczywisty, typ_produkcji, nazwa_zlecenia
+                FROM plan_produkcji
+                WHERE id = %s AND sekcja = 'Zasyp'
+            """, (zasyp_id,))
+            zasyp = cursor.fetchone()
+            
+            if not zasyp:
+                conn.close()
+                return jsonify({'success': False, 'message': 'Nie znaleziono Zasypu'}), 404
+            
+            z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa = zasyp
+            
+            # Get how much was already packed (sum from bufor.spakowano)
+            cursor.execute("""
+                SELECT SUM(spakowano) FROM bufor
+                WHERE zasyp_id = %s AND data_planu = %s
+            """, (zasyp_id, z_data))
+            
+            result = cursor.fetchone()
+            spakowano = result[0] or 0 if result else 0
+            
+            # Calculate remainder: Zasyp.tonaz_rzeczywisty - spakowano
+            roznicza = (z_tonaz_rz or 0) - spakowano
         
-        if not zasyp:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Nie znaleziono Zasypu'}), 404
-        
-        z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa = zasyp
-        
-        # Get how much was already packed (sum from bufor.spakowano)
-        cursor.execute("""
-            SELECT SUM(spakowano) FROM bufor
-            WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'
-        """, (zasyp_id, z_data))
-        
-        result = cursor.fetchone()
-        spakowano = result[0] or 0 if result else 0
-        
-        # Calculate remainder: Zasyp.tonaz_rzeczywisty - spakowano
-        roznicza = (z_tonaz_rz or 0) - spakowano
+        # OPCJA 3: Override workowanie date if provided (dla rana następnego dnia)
+        work_date = override_work_date if override_work_date else z_data
         
         if roznicza <= 0:
             conn.close()
@@ -566,7 +605,7 @@ def bufor_create_zlecenie():
             SELECT id FROM plan_produkcji
             WHERE data_planu = %s AND produkt = %s AND sekcja = 'Workowanie'
             LIMIT 1
-        """, (z_data, z_produkt))
+        """, (work_date, z_produkt))
         
         existing_work = cursor.fetchone()
         
@@ -577,11 +616,11 @@ def bufor_create_zlecenie():
                 'message': f'Zlecenie Workowanie na produkt "{z_produkt}" już istnieje dla tej daty'
             }), 400
         
-        # Get next sequence number for Workowanie section
+        # Get next sequence number for Workowanie section (dla dnia Workowania)
         cursor.execute("""
             SELECT MAX(kolejnosc) FROM plan_produkcji 
             WHERE data_planu = %s AND sekcja = 'Workowanie'
-        """, (z_data,))
+        """, (work_date,))
         
         result = cursor.fetchone()
         next_kolejnosc = (result[0] or 0) + 1 if result else 1
@@ -592,7 +631,7 @@ def bufor_create_zlecenie():
             (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, zasyp_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            z_data,
+            work_date,
             'Workowanie',
             z_produkt,
             round(roznicza, 1),  # plan = różnica
