@@ -307,6 +307,9 @@
                     {% else %}
                     {% endif %}
                 {% elif p[3] == 'zakonczone' %}
+                    {% if sekcja == 'Zasyp' %}
+                    {# Brak przycisków dla statusu zamknięte #}
+                    {% endif %}
                 {% endif %}
                 {% endif %}
             </div>

@@ -69,6 +69,14 @@
                 class="btn-action btn-action-success">+ DODAJ PLAN AGRO</a>
         </div>
     </div>
+    {% if has_incomplete_plans %}
+    <div style="padding: 10px 15px; background-color: #fff3cd; border-bottom: 1px solid #ddd; display: flex; gap: 10px;">
+        <button type="button" class="btn btn-warning btn-sm" onclick="przeniesNiezrealizowane('{{ wybrana_data }}')">
+            ⚠️ Przenieś niezrealizowane zlecenia na następny dzień
+        </button>
+        <span class="text-muted small" style="margin-top: 6px;">Automatycznie przeniesie niezrealizowaną pracę ze zasypu i workowania na następny dzień</span>
+    </div>
+    {% endif %}
     <table class="modern-table">
         <thead>
             <tr>
@@ -183,6 +191,14 @@
             </form>
         </div>
     </div>
+    {% if has_incomplete_plans %}
+    <div style="padding: 10px 15px; background-color: #fff3cd; border-bottom: 1px solid #ddd; display: flex; gap: 10px;">
+        <button type="button" class="btn btn-warning btn-sm" onclick="przeniesNiezrealizowane('{{ wybrana_data }}')">
+            ⚠️ Przenieś niezrealizowane zlecenia na następny dzień
+        </button>
+        <span class="text-muted small" style="margin-top: 6px;">Automatycznie przeniesie niezrealizowaną pracę ze zasypu i workowania na następny dzień</span>
+    </div>
+    {% endif %}
 
     <table class="modern-table">
         <thead>
@@ -716,6 +732,97 @@
                 });
             }
         }
+    }
+
+    // Przenieś niezrealizowane zlecenia na następny dzień
+    function przeniesNiezrealizowane(data) {
+        console.log('[PRZENIES] Kliknięto przycisk dla daty:', data);
+        // First, fetch details about what would be moved
+        fetch('/api/check_niezrealizowane', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: data }),
+            credentials: 'include'
+        })
+            .then(function (r) {
+                console.log('[PRZENIES] check_niezrealizowane response status:', r.status);
+                if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+                return r.json();
+            })
+            .then(function (j) {
+                console.log('[PRZENIES] check_niezrealizowane response:', j);
+                if (j && j.success) {
+                    // Build detailed message
+                    var msg = '⚠️ PRZENIESIENIE NIEZREALIZOWANYCH ZLECEŃ\n\n';
+                    msg += 'Z dnia: ' + j.current_date_formatted + ' → Na dzień: ' + j.next_date_formatted + '\n\n';
+                    msg += '📦 Zlecenia do przeniesienia:\n';
+                    msg += '─'.repeat(50) + '\n';
+                    
+                    j.plans.forEach(function(plan) {
+                        msg += '\n📋 ' + plan.produkt + '\n';
+                        msg += '   Plan: ' + plan.plan_kg + ' kg\n';
+                        msg += '   Wykonanie: ' + plan.wykonanie_kg + ' kg\n';
+                        msg += '   Pozostało: ' + plan.remaining_kg + ' kg ← PRZENIESIENIE\n';
+                    });
+                    
+                    msg += '\n' + '─'.repeat(50) + '\n';
+                    msg += '\n📊 RAZEM DO PRZENIESIENIA: ' + j.total_remaining_kg + ' kg\n';
+                    msg += '📅 Tworzone będą:\n';
+                    msg += '   ✓ ' + j.count + ' nowych planów Zasyp\n';
+                    msg += '   ✓ ' + j.count + ' nowych planów Workowanie\n\n';
+                    msg += '⏳ Stare plany z ' + j.current_date_formatted + ' pozostają bez zmian\n';
+                    msg += '👤 Operator będzie musiał ręcznie startować Workowanie na dzień ' + j.next_date_formatted + '\n\n';
+                    msg += 'Czy chcesz kontynuować?';
+                    
+                    console.log('[PRZENIES] Wyświetlam dialog potwierdzenia');
+                    if (confirm(msg)) {
+                        console.log('[PRZENIES] User potwierdził dialog');
+                        performMove(data);
+                    } else {
+                        console.log('[PRZENIES] User anulował dialog');
+                    }
+                } else {
+                    console.log('[PRZENIES] Brak niezrealizowanych planów:', j && j.message);
+                    alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas sprawdzania planów'));
+                }
+            })
+            .catch(function (err) {
+                console.error('[PRZENIES] ERROR:', err);
+                alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
+                console.error(err);
+            });
+    }
+    
+    function performMove(data) {
+        console.log('[PRZENIES] Wysyłam request do przeniesienia dla daty:', data);
+        fetch('/api/przenies_niezrealizowane', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: data }),
+            credentials: 'include'
+        })
+            .then(function (r) {
+                console.log('[PRZENIES] przenies_niezrealizowane response status:', r.status);
+                if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+                return r.json();
+            })
+            .then(function (j) {
+                console.log('[PRZENIES] przenies_niezrealizowane response:', j);
+                if (j && j.success) {
+                    alert('✓ ' + (j.message || 'Zlecenia przeniesione na następny dzień'));
+                    console.log('[PRZENIES] Przeładowuję stronę...');
+                    // Reload page to show updated data
+                    location.reload();
+                } else {
+                    console.log('[PRZENIES] Błąd operacji: ' + (j && j.message));
+                    alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
+                }
+            })
+            .catch(function (err) {
+                console.error('[PRZENIES] ERROR:', err);
+                alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
+                console.error(err);
+            });
     }
 
 </script>

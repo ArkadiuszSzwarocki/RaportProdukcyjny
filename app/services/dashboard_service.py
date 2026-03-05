@@ -264,7 +264,7 @@ class DashboardService:
                 cursor = conn.cursor()
                 if sekcja == 'Zasyp':
                     cursor.execute(
-                        "SELECT COUNT(*) FROM szarze WHERE plan_id = %s AND status = 'zarejestowana'",
+                        "SELECT COUNT(*) FROM szarze WHERE plan_id = %s",
                         (p[0],)
                     )
                 elif sekcja == 'Workowanie':

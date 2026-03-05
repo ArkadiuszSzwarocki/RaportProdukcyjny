@@ -323,13 +323,13 @@ def refresh_bufor_queue(conn=None):
         except Exception as e:
             print(f"[WARN] Sync Workowanie.tonaz_rzeczywisty failed: {e}")
         
-        # 1. Usuń wszystkie wpisy z bufora które się nie mają statusu 'w toku'
+        # 1. Usuń wszystkie wpisy z bufora które się nie mają statusu 'w toku' lub 'zaplanowane'
         cursor.execute("""
             DELETE FROM bufor 
             WHERE status = 'aktywny'
             AND NOT EXISTS (
                 SELECT 1 FROM plan_produkcji w 
-                WHERE w.sekcja = 'Workowanie' AND w.status = 'w toku'
+                WHERE w.sekcja = 'Workowanie' AND w.status IN ('w toku', 'zaplanowane')
                 AND w.produkt = bufor.produkt AND w.data_planu = bufor.data_planu
             )
         """)

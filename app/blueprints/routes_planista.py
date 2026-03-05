@@ -1,6 +1,7 @@
-from flask import Blueprint, render_template, request, current_app, session
+from flask import Blueprint, render_template, request, current_app, session, jsonify
 from app.db import get_db_connection
 from app.dto.paleta import PaletaDTO
+from app.services.planning_service import PlanningService
 from datetime import date
 from app.decorators import roles_required, dynamic_role_required
 import json
@@ -268,6 +269,29 @@ def panel_planisty():
         current_app.logger.error(f'[PLANISTA AGRO] Błąd ładowania danych AGRO: {e}')
         plany_agro = []
 
+    # Check if there are incomplete plans (status 'zakonczone' with wykonanie < plan)
+    has_incomplete_plans = False
+    try:
+        psd_incomplete = any(
+            p[4] == 'zakonczone' and (p[8] or 0) < (p[3] or 0)
+            for p in plany_list
+        )
+        agro_incomplete = any(
+            p[4] == 'zakonczone' and (p[8] or 0) < (p[3] or 0)
+            for p in plany_agro
+        )
+        has_incomplete_plans = psd_incomplete or agro_incomplete
+        
+        current_app.logger.info(f'DEBUG has_incomplete_plans: psd={psd_incomplete} (plany_list={len(plany_list)}), agro={agro_incomplete} (plany_agro={len(plany_agro)}), result={has_incomplete_plans}')
+        for p in plany_list:
+            if p[4] == 'zakonczone':
+                current_app.logger.info(f'  Zasyp: {p[2]} status={p[4]}, tonaz_rz={p[8]}, tonaz_plan={p[3]}, incomplete={(p[8] or 0) < (p[3] or 0)}')
+        for p in plany_agro:
+            if p[4] == 'zakonczone':
+                current_app.logger.info(f'  Agro: {p[2]} status={p[4]}, tonaz_rz={p[8]}, tonaz_plan={p[3]}, incomplete={(p[8] or 0) < (p[3] or 0)}')
+    except Exception as e:
+        current_app.logger.warning(f'Error checking incomplete plans: {e}')
+
     return render_template('planista.html',
                            plany=plany_list,
                            wybrana_data=wybrana_data,
@@ -286,7 +310,8 @@ def panel_planisty():
                            suma_plan_agro=suma_plan_agro,
                            suma_wyk_agro=suma_wyk_agro,
                            suma_minut_plan_agro=suma_minut_plan_agro,
-                           procent_agro=procent_agro)
+                           procent_agro=procent_agro,
+                           has_incomplete_plans=has_incomplete_plans)
 
 
 @planista_bp.route('/planista/add_czyszczenie', methods=['POST'])
@@ -666,3 +691,123 @@ def bufor_create_zlecenie():
         except Exception:
             pass
 
+
+@planista_bp.route('/api/przenies_niezrealizowane', methods=['POST'])
+@roles_required('planista', 'admin')
+def api_przenies_niezrealizowane():
+    """Move incomplete plans to next day, creating new Zasyp and Workowanie plans."""
+    import traceback
+    import sys
+    
+    # ULTRA DEBUG - Log immediately to stderr and file
+    print(f'[PRZENIES API] *** ENDPOINT CALLED ***', file=sys.stderr, flush=True)
+    current_app.logger.critical(f'[PRZENIES API] *** ENDPOINT CALLED ***')
+    
+    try:
+        data_dict = request.get_json() or {}
+        current_data = data_dict.get('data')
+        
+        print(f'[PRZENIES API] Request body: {data_dict}', file=sys.stderr, flush=True)
+        current_app.logger.info(f'[PRZENIES API] Request body: {data_dict}')
+        current_app.logger.info(f'[PRZENIES API] Extracted current_data: {current_data} (type: {type(current_data).__name__})')
+        
+        if not current_data:
+            current_app.logger.warning(f'[PRZENIES API] Data is missing!')
+            return jsonify({'success': False, 'message': 'Data jest wymagana'}), 400
+        
+        # Call service method
+        success, message, count = PlanningService.przenies_niezrealizowane(current_data)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message,
+                'count': count
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 400
+            
+    except Exception as e:
+        current_app.logger.exception(f'Error in api_przenies_niezrealizowane: {str(e)}')
+        return jsonify({'success': False, 'message': f'Błąd serwera: {str(e)}'}), 500
+
+
+@planista_bp.route('/api/check_niezrealizowane', methods=['POST'])
+@roles_required('planista', 'admin')
+def api_check_niezrealizowane():
+    """Check what incomplete plans exist and would be moved."""
+    try:
+        data_dict = request.get_json() or {}
+        current_data = data_dict.get('data')
+        
+        if not current_data:
+            return jsonify({'success': False, 'message': 'Data jest wymagana'}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get next date
+        from datetime import datetime, timedelta
+        try:
+            current_date = datetime.strptime(current_data, '%Y-%m-%d').date()
+            next_date = current_date + timedelta(days=1)
+            next_data_str = next_date.isoformat()
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Nieprawidłowy format daty: {str(e)}'}), 400
+        
+        # Find incomplete plans
+        cursor.execute("""
+            SELECT id, produkt, tonaz, tonaz_rzeczywisty, typ_produkcji
+            FROM plan_produkcji
+            WHERE DATE(data_planu) = %s AND status = 'zakonczone'
+              AND LOWER(sekcja) = 'zasyp'
+              AND (tonaz_rzeczywisty IS NULL OR tonaz_rzeczywisty < tonaz)
+            ORDER BY id
+        """, (current_data,))
+        
+        incomplete_plans = cursor.fetchall()
+        conn.close()
+        
+        # Prepare summary
+        if not incomplete_plans:
+            return jsonify({
+                'success': False,
+                'message': 'Brak niezrealizowanych planów do przeniesienia'
+            }), 400
+        
+        details = []
+        total_remaining = 0
+        
+        for plan in incomplete_plans:
+            plan_id = plan['id']
+            produkt = plan['produkt']
+            plan_tonaz = plan['tonaz'] or 0
+            real_tonaz = plan['tonaz_rzeczywisty'] or 0
+            remaining = plan_tonaz - real_tonaz
+            total_remaining += remaining
+            
+            details.append({
+                'plan_id': plan_id,
+                'produkt': produkt,
+                'plan_kg': plan_tonaz,
+                'wykonanie_kg': real_tonaz,
+                'remaining_kg': remaining
+            })
+        
+        return jsonify({
+            'success': True,
+            'current_date': current_data,
+            'next_date': next_data_str,
+            'current_date_formatted': datetime.strptime(current_data, '%Y-%m-%d').strftime('%d.%m.%Y'),
+            'next_date_formatted': next_date.strftime('%d.%m.%Y'),
+            'plans': details,
+            'total_remaining_kg': total_remaining,
+            'count': len(details)
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.exception(f'Error in api_check_niezrealizowane: {str(e)}')
+        return jsonify({'success': False, 'message': f'Błąd serwera: {str(e)}'}), 500

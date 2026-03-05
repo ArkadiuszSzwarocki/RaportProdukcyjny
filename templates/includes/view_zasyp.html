@@ -76,7 +76,7 @@
                         {% if p[3] == 'zakonczone' and p|length > 15 and p[15] %}
                             <div class="card-row">
                                 <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle">
-                                    ⏺️ {{ p[15] }} szarż ▼
+                                    ⏺️ {{ p[15] }} szarż
                                 </button>
                             </div>
                         {% endif %}
@@ -97,7 +97,7 @@
                                 <button type="submit" class="btn-start">▶ START</button>
                             </form>
                         {% endif %}
-                        {% if rola in ['admin', 'lider'] %}
+                        {% if p[3] != 'zakonczone' and rola in ['admin', 'lider'] %}
                             <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
                                 <button type="submit" class="btn-action btn-outline-warning">↻ Wznów</button>
                             </form>
