@@ -2,118 +2,1038 @@
 
 {% block content %}
 <style>
-  .bulk-header-controls {
+  /* Main Container */
+  .bulk-page-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 15px;
+  }
+
+  @media (max-width: 1024px) {
+    .bulk-page-container {
+      padding: 0 12px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .bulk-page-container {
+      padding: 0 10px;
+      margin: 0 auto;
+    }
+
+    .bulk-page-title {
+      font-size: 20px;
+      margin-bottom: 15px;
+    }
+  }
+
+  .bulk-page-title {
     display: flex;
-    gap: 15px;
     align-items: center;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 25px;
+    font-size: 28px;
+    color: var(--text-dark);
+  }
+
+  /* Header Card */
+  .bulk-header-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    color: white;
+  }
+
+  @media (max-width: 768px) {
+    .bulk-header-card {
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+  }
+
+  .bulk-header-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+    align-items: end;
+  }
+
+  @media (max-width: 768px) {
+    .bulk-header-controls {
+      grid-template-columns: 1fr;
+      gap: 15px;
+    }
   }
 
   .bulk-header-controls label {
+    display: flex;
+    flex-direction: column;
+    font-weight: 600;
+    font-size: 14px;
+    gap: 8px;
+    color: white;
+  }
+
+  .bulk-header-controls input,
+  .bulk-header-controls select {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
+  }
+
+  .bulk-header-controls input::placeholder {
+    color: #999;
+  }
+
+  .bulk-header-controls input:focus,
+  .bulk-header-controls select:focus {
+    outline: none;
+    border-color: white;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+  }
+
+  /* Form Card */
+  .bulk-form-card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #f0f0f0;
+  }
+
+  @media (max-width: 768px) {
+    .bulk-form-card {
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+  }
+
+  .bulk-form-card h3 {
+    margin: 0 0 20px 0;
+    font-size: 16px;
+    color: var(--text-dark);
+    font-weight: 600;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+
+  .form-grid-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+  }
+
+  @media (max-width: 1024px) {
+    .form-grid-row {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .form-grid-row {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .form-field label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .form-field input,
+  .form-field select {
+    padding: 11px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.2s;
+    background: white;
+  }
+
+  .form-field input:focus,
+  .form-field select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    background: #f8f9ff;
+  }
+
+  .produkty-container {
+    position: relative;
+  }
+
+  .produkty-dropdown {
+    border: 1px solid #ddd;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+  }
+
+  .produkty-dropdown-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.15s;
+  }
+
+  .produkty-dropdown-item:last-child {
+    border-bottom: none;
+  }
+
+  .produkty-dropdown-item:hover,
+  .produkty-dropdown-item.active {
+    background-color: #eef2ff;
+  }
+
+  .produkty-dropdown-item-name {
+    font-weight: 600;
+    color: var(--text-dark);
+  }
+
+  .produkty-dropdown-item-nr {
+    font-size: 12px;
+    color: #999;
+  }
+
+  .btn-small-icon {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+
+  .btn-small-icon:hover {
+    background: #5568d3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+  }
+
+  .btn-action {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s;
     white-space: nowrap;
+  }
+
+  .btn-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(102, 126, 234, 0.3);
+  }
+
+  .btn-action-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  }
+
+  .btn-action-success:hover {
+    box-shadow: 0 6px 12px rgba(17, 153, 142, 0.3);
   }
 
   #emptyState {
     text-align: center;
-    padding: 40px;
+    padding: 60px 40px;
     color: #999;
     font-size: 16px;
   }
 
+  /* Table Styles */
+  .bulk-table-card {
+    background: white;
+    border-radius: 12px;
+    padding: 0;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #f0f0f0;
+    overflow: hidden;
+  }
+
+  @media (max-width: 768px) {
+    .bulk-table-card {
+      border-radius: 8px;
+      overflow-x: auto;
+      margin-bottom: 15px;
+    }
+
+    .bulk-table-card table {
+      min-width: 600px;
+      font-size: 13px;
+    }
+
+    .bulk-table-card th,
+    .bulk-table-card td {
+      padding: 10px;
+    }
+  }
+
+  .bulk-table-card h3 {
+    margin: 0;
+    padding: 20px 25px;
+    font-size: 16px;
+    color: var(--text-dark);
+    font-weight: 600;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
   #bulkTable {
     display: none;
+    width: 100%;
   }
+
+  #bulkTable thead {
+    background: #f8f9fa;
+  }
+
+  #bulkTable th {
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #e9ecef;
+  }
+
+  #bulkTable td {
+    padding: 15px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+  }
+
+  #bulkTable tbody tr {
+    transition: background 0.15s;
+  }
+
+  #bulkTable tbody tr:hover {
+    background: #f8f9fa;
+  }
+
+  .btn-edit-small,
+  .btn-delete-small {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+    margin-right: 5px;
+  }
+
+  .btn-edit-small {
+    background: #e3f2fd;
+    color: #1976d2;
+  }
+
+  .btn-edit-small:hover {
+    background: #bbdefb;
+  }
+
+  .btn-delete-small {
+    background: #ffebee;
+    color: #d32f2f;
+  }
+
+  .btn-delete-small:hover {
+    background: #ffcdd2;
+  }
+
+  /* Modal styles for adding new products */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
+
+  .modal-backdrop.active {
+    display: block;
+  }
+
+  .product-modal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  }
+
+  @media (max-width: 768px) {
+    .product-modal {
+      width: 90%;
+      max-width: 450px;
+      padding: 15px;
+    }
+  }
+
+  .product-modal.active {
+    display: block;
+  }
+
+  .product-modal h3 {
+    margin: 0 0 25px 0;
+    color: var(--text-dark);
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .product-modal .form-group {
+    margin-bottom: 18px;
+  }
+
+  .product-modal .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #555;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .product-modal .form-group input,
+  .product-modal .form-group select {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+    transition: all 0.2s;
+    background: white;
+  }
+
+  .product-modal .form-group input:focus,
+  .product-modal .form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    background: #f8f9ff;
+  }
+
+  .product-modal .form-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 25px;
+    justify-content: flex-end;
+  }
+
+  .product-modal .form-buttons button {
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+  }
+
+  .product-modal .form-buttons button:hover {
+    transform: translateY(-2px);
+  }
+
+  .product-modal #btnCancelModal {
+    background: #f0f0f0;
+    color: var(--text-dark);
+  }
+
+  .product-modal #btnCancelModal:hover {
+    background: #e0e0e0;
+  }
+
+  .product-modal #btnSaveProduct {
+    background: #667eea;
+    color: white;
+  }
+
+  .product-modal #btnSaveProduct:hover {
+    background: #5568d3;
+  }
+
+  /* Buttons area */
+  .bulk-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+    margin-top: 25px;
+  }
+
+  @media (max-width: 768px) {
+    .bulk-actions {
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .bulk-actions button {
+      width: 100%;
+    }
+  }
+
+  .text-muted {
+    color: #999;
+    font-size: 13px;
+    margin-top: 5px;
+  }
+
+  /* Products Management Modal */
+  .products-list {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .product-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+  }
+
+  .product-row:last-child {
+    border-bottom: none;
+  }
+
+  .product-row:hover {
+    background: #f8f9fa;
+  }
+
+  .product-info {
+    flex: 1;
+  }
+
+  .product-name {
+    font-weight: 500;
+    color: #333;
+  }
+
+  .product-details {
+    font-size: 12px;
+    color: #999;
+    margin-top: 4px;
+  }
+
+  .product-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-icon-small {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+
+  .btn-icon-edit {
+    background: #e3f2fd;
+    color: #1976d2;
+  }
+
+  .btn-icon-edit:hover {
+    background: #bbdefb;
+  }
+
+  .btn-icon-delete {
+    background: #ffebee;
+    color: #d32f2f;
+  }
+
+  .btn-icon-delete:hover {
+    background: #ffcdd2;
+  }
+
+  .btn-manage-products {
+    background: #667eea;
+    color: white;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn-manage-products:hover {
+    background: #5568d3;
+  }
+
+  .manage-modal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  }
+
+  .manage-modal.active {
+    display: block;
+  }
+
+  .manage-modal h3 {
+    margin: 0 0 15px 0;
+    font-size: 18px;
+    color: #333;
+  }
+
+  @media (max-width: 768px) {
+    .manage-modal {
+      width: 90%;
+      max-width: 450px;
+      padding: 15px;
+    }
+  }
+
 </style>
 
-<h2>📥 {{ _('dodawanie_zlecen') }}</h2>
-<form id="bulkForm" method="post" action="#">
-  <div class="bulk-header-controls">
-    <label>Data planu: <input type="date" id="data_planu" value="{{ wybrana_data }}"></label>
-    <label>Sekcja:
-      <select id="sekcja_select">
-        <option value="Zasyp" {% if domyslna_sekcja=='Zasyp' %}selected{% endif %}>Zasyp</option>
-        <option value="Workowanie" {% if domyslna_sekcja=='Workowanie' %}selected{% endif %}>Workowanie</option>
-        <option value="Magazyn" {% if domyslna_sekcja=='Magazyn' %}selected{% endif %}>Magazyn</option>
-        <option value="Agro" {% if domyslna_sekcja=='Agro' %}selected{% endif %}>🌿 Agro</option>
+<div class="bulk-page-container">
+  <h2 class="bulk-page-title">📥 {{ _('dodawanie_zlecen') }}</h2>
+
+  <!-- Header Card -->
+  <div class="bulk-header-card">
+    <div class="bulk-header-controls">
+      <label>
+        Data planu
+        <input type="date" id="data_planu" value="{{ wybrana_data }}">
+      </label>
+      <label>
+        Sekcja
+        <select id="sekcja_select">
+          <option value="PSD" {% if domyslna_sekcja=='PSD' %}selected{% endif %}>PSD</option>
+          <option value="Agro" {% if domyslna_sekcja=='Agro' %}selected{% endif %}>🌿 Agro</option>
+        </select>
+      </label>
+      <button type="button" id="btnManageProducts" class="btn-manage-products">
+        ⚙️ Zarządzaj produktami
+      </button>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="bulk-form-card">
+    <h3>➕ Dodaj nowy plan produkcji</h3>
+    <form id="bulkForm" method="post" action="#">
+      <div class="form-grid">
+        <div class="form-field produkty-container">
+          <label>Produkt</label>
+          <input type="text" id="selectProdukt" placeholder="Wpisz lub wybierz produkt..." style="width: 100%;">
+          <div id="produktyDropdown" class="produkty-dropdown" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; max-height: 200px; overflow-y: auto; z-index: 100;">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-grid-row">
+
+        <div class="form-field">
+          <label>Nr receptury</label>
+          <input type="text" id="inpNr" placeholder="Auto-wypełniane" readonly style="background: #f5f5f5;">
+        </div>
+
+        <div class="form-field">
+          <label>Waga (kg)</label>
+          <input type="number" id="inpTonaz" placeholder="0">
+        </div>
+
+        <div class="form-field">
+          <label>Typ produkcji</label>
+          <select id="inpTyp" aria-label="Typ produkcji" title="{{ _('typ_produkcji') }}">
+            <option value="worki_zgrzewane_25">Worki 25 kg</option>
+            <option value="worki_zgrzewane_20">Worki 20 kg</option>
+            <option value="worki_zszywane_25">Szyte 25 kg</option>
+            <option value="worki_zszywane_20">Szyte 20 kg</option>
+            <option value="bigbag">BigBag</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="bulk-actions">
+        <button type="button" id="btnAddNewProduct" class="btn-small-icon" title="Dodaj nowy produkt do listy">
+          ➕ Nowy produkt
+        </button>
+        <button type="button" id="btnAddRow" class="btn-action btn-action-success">Dodaj do listy</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Table Card -->
+  <div class="bulk-table-card">
+    <h3>📋 Plany do zatwierdzenia</h3>
+    <div id="emptyState">
+      Brak planów - dodaj plany używając formularza powyżej
+    </div>
+    <table class="modern-table" id="bulkTable">
+      <thead>
+        <tr>
+          <th>{{ _('produkt') }}</th>
+          <th>{{ _('nr_receptury') }}</th>
+          <th>{{ _('waga_kg_symbol') }}</th>
+          <th>{{ _('typ_produkcji') }}</th>
+          <th>Akcje</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Submit Buttons -->
+  <div class="bulk-actions" style="justify-content: space-between;">
+    <p class="text-muted" id="planCount"></p>
+    <div style="display: flex; gap: 15px;">
+      <button type="button" id="btnCancel" class="btn-action" style="background: #f0f0f0; color: var(--text-dark);">
+        Anuluj
+      </button>
+      <button type="button" id="btnSubmitAll" class="btn-action btn-action-success" style="display: none;">
+        ✅ Zatwierdź wszystkie plany
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for adding new product -->
+<div class="modal-backdrop" id="productModalBackdrop"></div>
+<div class="product-modal" id="productModal">
+  <h3>➕ Dodaj nowy produkt</h3>
+  <form id="newProductForm">
+    <div class="form-group">
+      <label for="newProductName">Nazwa produktu:</label>
+      <input type="text" id="newProductName" required>
+    </div>
+    <div class="form-group">
+      <label for="newProductNr">Nr receptury (opcjonalnie):</label>
+      <input type="text" id="newProductNr">
+    </div>
+    <div class="form-group">
+      <label for="newProductTyp">Typ produkcji:</label>
+      <select id="newProductTyp">
+        <option value="worki_zgrzewane_25">Worki zgrzewane 25 kg</option>
+        <option value="worki_zgrzewane_20">Worki zgrzewane 20 kg</option>
+        <option value="worki_zszywane_25">Worki zszywane 25 kg</option>
+        <option value="worki_zszywane_20">Worki zszywane 20 kg</option>
+        <option value="bigbag">BigBag</option>
       </select>
-    </label>
-  </div>
+    </div>
+    <div class="form-buttons">
+      <button type="button" id="btnCancelModal" class="btn-action">Anuluj</button>
+      <button type="button" id="btnSaveProduct" class="btn-action btn-action-success">Dodaj produkt</button>
+    </div>
+  </form>
+</div>
 
-  <div class="d-flex gap-10 m-10">
-    <input type="text" id="inpProdukt" placeholder="{{ _('produkt') }}" class="input-sm">
-    <input type="text" id="inpNr" placeholder="{{ _('nr_receptury') }}" class="input-sm">
-    <input type="number" id="inpTonaz" placeholder="{{ _('waga_kg_symbol') }}" class="input-sm">
-    <select id="inpTyp" class="input-sm" aria-label="Typ produkcji" title="{{ _('typ_produkcji') }}">
-      <option value="worki_zgrzewane_25">Worki zgrzewane 25 kg</option>
-      <option value="worki_zgrzewane_20">Worki zgrzewane 20 kg</option>
-      <option value="worki_zszywane_25">Worki zszywane 25 kg</option>
-      <option value="worki_zszywane_20">Worki zszywane 20 kg</option>
-      <option value="bigbag">BigBag</option>
-    </select>
-    <button type="button" id="btnAddRow" class="btn-action">Dodaj do listy</button>
+<!-- Modal for managing products -->
+<div class="modal-backdrop" id="manageModalBackdrop"></div>
+<div class="manage-modal" id="manageModal">
+  <h3>⚙️ Zarządzaj produktami</h3>
+  <div class="products-list" id="productsList">
+    <!-- Products will be loaded here by JavaScript -->
   </div>
-
-  <div id="emptyState">
-    Brak planów - dodaj plany używając formularza powyżej
-  </div>
-
-  <table class="modern-table" id="bulkTable">
-    <thead>
-      <tr>
-        <th>{{ _('produkt') }}</th>
-        <th>{{ _('nr_receptury') }}</th>
-        <th>{{ _('waga_kg_symbol') }}</th>
-        <th>{{ _('typ') }}</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div class="d-flex gap-10 m-10">
-    <button type="button" id="btnSubmitBatch" class="btn-action btn-action-success">{{ _('zatwierdz_wszystkie')
-      }}</button>
-    <a href="{{ url_for('planista.panel_planisty', data=wybrana_data) }}" class="btn-action">{{ _('anuluj') }}</a>
-  </div>
-</form>
+</div>
 
 <script>
   (function () {
     const tbody = document.querySelector('#bulkTable tbody');
     const bulkTable = document.querySelector('#bulkTable');
     const emptyState = document.querySelector('#emptyState');
+    const selectProdukt = document.getElementById('selectProdukt');
+    const modalBackdrop = document.getElementById('productModalBackdrop');
+    const productModal = document.getElementById('productModal');
+    const btnAddNewProduct = document.getElementById('btnAddNewProduct');
+    const btnCancelModal = document.getElementById('btnCancelModal');
+    const btnSaveProduct = document.getElementById('btnSaveProduct');
+    const btnCancel = document.getElementById('btnCancel');
+    const newProductForm = document.getElementById('newProductForm');
+    const btnManageProducts = document.getElementById('btnManageProducts');
+    const manageModalBackdrop = document.getElementById('manageModalBackdrop');
+    const manageModal = document.getElementById('manageModal');
+    const productsList = document.getElementById('productsList');
+
+    let produktyList = [];
+
+    // Load produkty from API
+    const loadProdukty = () => {
+      fetch('/api/produkty')
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.produkty) {
+            produktyList = data.produkty;
+            updateProduktySelect();
+          }
+        })
+        .catch(e => console.error('Error loading produkty:', e));
+    };
+
+    // Update dropdown with produkty
+    const updateProduktySelect = () => {
+      filterAndShowProdukty('');
+    };
+
+    // Filter produkty based on search term
+    const filterAndShowProdukty = (searchTerm) => {
+      const dropdown = document.getElementById('produktyDropdown');
+
+      // If search term is empty, close dropdown
+      if (!searchTerm || searchTerm.trim() === '') {
+        dropdown.style.display = 'none';
+        return;
+      }
+
+      const filtered = produktyList.filter(p => 
+        p.nazwa_produktu.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+
+      if (filtered.length === 0) {
+        dropdown.innerHTML = '<div style="padding: 8px 12px; color: #999;">Brak wyników</div>';
+        dropdown.style.display = 'block';
+        return;
+      }
+
+      dropdown.innerHTML = filtered.map(p => `
+        <div class="produkty-dropdown-item" data-produkt="${p.nazwa_produktu}">
+          <div>
+            <div class="produkty-dropdown-item-name">${p.nazwa_produktu}</div>
+            <div class="produkty-dropdown-item-nr">${p.nr_receptury ? 'Nr: ' + p.nr_receptury : ''}</div>
+          </div>
+        </div>
+      `).join('');
+
+      // Add click handlers to dropdown items
+      dropdown.querySelectorAll('.produkty-dropdown-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const produkt = item.getAttribute('data-produkt');
+          selectProdukt.value = produkt;
+          selectProdukt.dispatchEvent(new Event('change'));
+          dropdown.style.display = 'none';
+        });
+      });
+
+      dropdown.style.display = 'block';
+    };
+
+    // Handle product input/search
+    selectProdukt.addEventListener('input', (e) => {
+      filterAndShowProdukty(e.target.value);
+    });
+
+    // Handle product selection to auto-fill values
+    selectProdukt.addEventListener('change', () => {
+      if (selectProdukt.value) {
+        const selectedProduct = produktyList.find(p => p.nazwa_produktu === selectProdukt.value);
+        if (selectedProduct) {
+          document.getElementById('inpNr').value = selectedProduct.nr_receptury || '';
+          document.getElementById('inpTyp').value = selectedProduct.typ_produkcji || 'worki_zgrzewane_25';
+        }
+      }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.produkty-container')) {
+        document.getElementById('produktyDropdown').style.display = 'none';
+      }
+    });
+
+    // Handle Enter key in input
+    selectProdukt.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const dropdown = document.getElementById('produktyDropdown');
+        const firstItem = dropdown.querySelector('.produkty-dropdown-item');
+        if (firstItem) {
+          firstItem.click();
+        }
+      }
+    });
+
+    // Modal functions
+    const openProductModal = () => {
+      modalBackdrop.classList.add('active');
+      productModal.classList.add('active');
+      document.getElementById('newProductName').focus();
+    };
+
+    const closeProductModal = () => {
+      modalBackdrop.classList.remove('active');
+      productModal.classList.remove('active');
+      newProductForm.reset();
+    };
+
+    // Save new product
+    btnSaveProduct.addEventListener('click', () => {
+      const nazwa = (document.getElementById('newProductName').value || '').trim();
+      const nr = (document.getElementById('newProductNr').value || '').trim();
+      const typ = document.getElementById('newProductTyp').value;
+
+      if (!nazwa) {
+        return alert('Podaj nazwę produktu');
+      }
+
+      fetch('/api/produkty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nazwa_produktu: nazwa,
+          nr_receptury: nr,
+          typ_produkcji: typ
+        })
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            alert('✅ Produkt "' + nazwa + '" dodany do listy!');
+            closeProductModal();
+            loadProdukty();
+            setTimeout(() => {
+              selectProdukt.value = nazwa;
+              selectProdukt.focus();
+              selectProdukt.dispatchEvent(new Event('input'));
+              selectProdukt.dispatchEvent(new Event('change'));
+            }, 100);
+          } else {
+            alert('❌ Błąd: ' + data.message);
+          }
+        })
+        .catch(e => {
+          console.error('Error:', e);
+          alert('Błąd sieci');
+        });
+    });
+
+    btnAddNewProduct.addEventListener('click', openProductModal);
+    btnCancelModal.addEventListener('click', closeProductModal);
+    if (btnCancel) btnCancel.addEventListener('click', () => {
+      window.location.href = "{{ url_for('planista.panel_planisty', data=wybrana_data) }}";
+    });
+    modalBackdrop.addEventListener('click', (e) => {
+      if (e.target === modalBackdrop) {
+        closeProductModal();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && productModal.classList.contains('active')) {
+        closeProductModal();
+      }
+    });
 
     function updateTableVisibility() {
       const rows = Array.from(tbody.querySelectorAll('tr'));
+      const planCount = document.getElementById('planCount');
+      const submitBtn = document.getElementById('btnSubmitAll');
+      
       if (rows.length === 0) {
         bulkTable.style.display = 'none';
         emptyState.style.display = 'block';
+        if (planCount) planCount.textContent = '';
+        if (submitBtn) submitBtn.style.display = 'none';
       } else {
         bulkTable.style.display = 'table';
         emptyState.style.display = 'none';
+        if (planCount) planCount.textContent = `Ilość planów: ${rows.length}`;
+        if (submitBtn) submitBtn.style.display = 'inline-block';
       }
     }
 
     const addRow = () => {
-      const produkt = document.getElementById('inpProdukt').value.trim();
+      const produkt = selectProdukt.value.trim();
       const nr = document.getElementById('inpNr').value.trim();
       const tonazVal = document.getElementById('inpTonaz').value;
       const tonaz = tonazVal === '' ? null : (parseFloat(tonazVal) || 0);
       const typ = document.getElementById('inpTyp').value;
-      // Walidacja pól przed dodaniem do listy
-      if (!produkt) { return alert('Podaj produkt'); }
+
+      if (!produkt) { return alert('Wybierz produkt ze listy'); }
       if (tonaz === null || tonaz <= 0) { return alert('Podaj poprawną wagę (kg) większą od 0'); }
+
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${produkt}</td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="delete-button">🗑️</button></td>`;
-      tr.dataset.produkt = produkt; tr.dataset.nr = nr; tr.dataset.tonaz = tonaz; tr.dataset.typ = typ;
+      tr.innerHTML = `<td><strong>${produkt}</strong></td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="delete-button">🗑️</button></td>`;
+      tr.dataset.produkt = produkt;
+      tr.dataset.nr = nr;
+      tr.dataset.tonaz = tonaz;
+      tr.dataset.typ = typ;
       tbody.appendChild(tr);
-      document.getElementById('inpProdukt').value = ''; document.getElementById('inpNr').value = ''; document.getElementById('inpTonaz').value = '';
+
+      selectProdukt.value = '';
+      document.getElementById('inpNr').value = '';
+      document.getElementById('inpTonaz').value = '';
+      document.getElementById('inpTyp').value = 'worki_zgrzewane_25';
+
       updateTableVisibility();
       updateSubmitState();
     };
-    const _btnAddRow = document.getElementById('btnAddRow');
-    if (_btnAddRow) _btnAddRow.addEventListener('click', addRow);
+
+    const btnAddRow = document.getElementById('btnAddRow');
+    if (btnAddRow) btnAddRow.addEventListener('click', addRow);
+
+    document.getElementById('inpTonaz').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addRow();
+      }
+    });
+
     tbody.addEventListener('click', function (e) {
       if (e.target.classList.contains('delete-button')) {
         e.target.closest('tr').remove();
@@ -122,7 +1042,7 @@
       }
     });
 
-    const submitBtn = document.getElementById('btnSubmitBatch');
+    const submitBtn = document.getElementById('btnSubmitAll');
 
     function validateRows(rows) {
       for (let i = 0; i < rows.length; i++) {
@@ -143,30 +1063,137 @@
       submitBtn.disabled = !(rows.length > 0 && v.ok);
     }
 
-    const _btnSubmitBatch = document.getElementById('btnSubmitBatch');
-    if (_btnSubmitBatch) _btnSubmitBatch.addEventListener('click', function () {
+    const btnSubmitAll = document.getElementById('btnSubmitAll');
+    if (btnSubmitAll) btnSubmitAll.addEventListener('click', function () {
       const rows = Array.from(tbody.querySelectorAll('tr'));
       if (rows.length === 0) return alert('Brak dodanych zleceń');
       const valid = validateRows(rows);
       if (!valid.ok) return alert(valid.message);
+
       const data_planu = document.getElementById('data_planu').value || '{{ wybrana_data }}';
       const sekcja = document.getElementById('sekcja_select').value;
-      const payload = rows.map(r => ({ produkt: r.dataset.produkt, nr_receptury: r.dataset.nr, tonaz: parseFloat(r.dataset.tonaz) || 0, typ_produkcji: r.dataset.typ, sekcja: sekcja }));
+      const payload = rows.map(r => ({
+        produkt: r.dataset.produkt,
+        nr_receptury: r.dataset.nr,
+        tonaz: parseFloat(r.dataset.tonaz) || 0,
+        typ_produkcji: r.dataset.typ,
+        sekcja: sekcja
+      }));
+
       fetch('{{ url_for("planning.dodaj_plany_batch") }}', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ data_planu: data_planu, plans: payload })
-      }).then(r => r.json()).then(j => {
-        if (j && j.success) {
-          const sekcja = document.getElementById('sekcja_select').value;
-          const tab = sekcja.toLowerCase() === 'agro' ? 'agro' : 'psd';
-          window.location = "{{ url_for('planista.panel_planisty') }}?data=" + encodeURIComponent(data_planu) + '&tab=' + tab;
-        } else {
-          alert(j && j.message ? j.message : 'Błąd serwera');
-        }
-      }).catch(e => { console.error(e); alert('Błąd sieci'); });
+      })
+        .then(r => r.json())
+        .then(j => {
+          if (j && j.success) {
+            const sekcja = document.getElementById('sekcja_select').value;
+            const tab = sekcja.toLowerCase() === 'agro' ? 'agro' : 'psd';
+            window.location = "{{ url_for('planista.panel_planisty') }}?data=" + encodeURIComponent(data_planu) + '&tab=' + tab;
+          } else {
+            alert(j && j.message ? j.message : 'Błąd serwera');
+          }
+        })
+        .catch(e => {
+          console.error(e);
+          alert('Błąd sieci');
+        });
     });
 
-    // Initial state
+    // Products Management Functions
+    const loadProductsForManagement = () => {
+      productsList.innerHTML = '';
+      produktyList.forEach(product => {
+        const row = document.createElement('div');
+        row.className = 'product-row';
+        row.innerHTML = `
+          <div class="product-info">
+            <div class="product-name">${product.nazwa_produktu}</div>
+            <div class="product-details">
+              Nr: ${product.nr_receptury || '-'} | Typ: ${product.typ_produkcji || '-'}
+            </div>
+          </div>
+          <div class="product-actions">
+            <button class="btn-icon-small btn-icon-edit" data-id="${product.id}" onclick="editProduct(${product.id})">✏️ Edit</button>
+            <button class="btn-icon-small btn-icon-delete" data-id="${product.id}" onclick="deleteProduct(${product.id})">🗑️ Delete</button>
+          </div>
+        `;
+        productsList.appendChild(row);
+      });
+    };
+
+    window.editProduct = (id) => {
+      const product = produktyList.find(p => p.id === id);
+      if (!product) return;
+
+      const newName = prompt('Nazwa produktu:', product.nazwa_produktu);
+      if (!newName) return;
+
+      const newNr = prompt('Nr receptury:', product.nr_receptury || '');
+      const newTyp = prompt('Typ produkcji:', product.typ_produkcji || 'worki_zgrzewane_25');
+
+      fetch(`/api/produkty/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nazwa_produktu: newName,
+          nr_receptury: newNr,
+          typ_produkcji: newTyp
+        })
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            alert('Produkt zaktualizowany');
+            loadProdukty();
+            loadProductsForManagement();
+          } else {
+            alert(data.message || 'Błąd');
+          }
+        })
+        .catch(e => {
+          console.error(e);
+          alert('Błąd sieci');
+        });
+    };
+
+    window.deleteProduct = (id) => {
+      if (!confirm('Czy na pewno chcesz usunąć ten produkt?')) return;
+
+      fetch(`/api/produkty/${id}`, {
+        method: 'DELETE'
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            alert('Produkt usunięty');
+            loadProdukty();
+            loadProductsForManagement();
+          } else {
+            alert(data.message || 'Błąd');
+          }
+        })
+        .catch(e => {
+          console.error(e);
+          alert('Błąd sieci');
+        });
+    };
+
+    // Open/close management modal
+    btnManageProducts.addEventListener('click', () => {
+      manageModalBackdrop.classList.add('active');
+      manageModal.classList.add('active');
+      loadProductsForManagement();
+    });
+
+    manageModalBackdrop.addEventListener('click', () => {
+      manageModalBackdrop.classList.remove('active');
+      manageModal.classList.remove('active');
+    });
+
+    loadProdukty();
+
     updateTableVisibility();
   })();
 </script>

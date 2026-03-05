@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import zipfile
+import mysql.connector
 from datetime import date, datetime, timedelta, time
 from io import BytesIO
 from app.db import get_db_connection, rollover_unfinished, log_plan_history
@@ -668,3 +669,187 @@ def check_plan_status(plan_id):
             'success': False,
             'message': f'Błąd serwera: {str(e)}'
         }), 500
+
+# ================= PRODUKTY / RECEPTURY =================
+
+@api_bp.route('/produkty', methods=['GET'])
+def get_produkty():
+    """Zwraca listę dostępnych produktów (public - dla UI dropdownów)"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT id, nazwa_produktu, nr_receptury, typ_produkcji
+            FROM produkty_receptury
+            ORDER BY nazwa_produktu ASC
+        """)
+        
+        produkty = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'produkty': produkty
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.exception(f'Error fetching produkty: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'Błąd serwera: {str(e)}'
+        }), 500
+
+
+@api_bp.route('/produkty', methods=['POST'])
+@login_required
+def add_produkt():
+    """Dodaje nowy produkt do listy"""
+    try:
+        data = request.get_json() or {}
+        nazwa = (data.get('nazwa_produktu') or '').strip()
+        nr_receptury = (data.get('nr_receptury') or '').strip()
+        typ_produkcji = (data.get('typ_produkcji') or 'worki_zgrzewane_25').strip()
+        
+        if not nazwa:
+            return jsonify({
+                'success': False,
+                'message': 'Nazwa produktu jest wymagana'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                INSERT INTO produkty_receptury (nazwa_produktu, nr_receptury, typ_produkcji)
+                VALUES (%s, %s, %s)
+            """, (nazwa, nr_receptury, typ_produkcji))
+            
+            conn.commit()
+            product_id = cursor.lastrowid
+            
+            return jsonify({
+                'success': True,
+                'message': f'Produkt "{nazwa}" dodany do listy',
+                'product_id': product_id
+            }), 201
+            
+        except mysql.connector.errors.IntegrityError:
+            return jsonify({
+                'success': False,
+                'message': f'Produkt "{nazwa}" już istnieje na liście'
+            }), 409
+        finally:
+            cursor.close()
+            conn.close()
+            
+    except Exception as e:
+        current_app.logger.exception(f'Error adding produkt: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'Błąd serwera: {str(e)}'
+        }), 500
+
+
+@api_bp.route('/produkty/<int:product_id>', methods=['PUT'])
+@login_required
+def update_produkt(product_id):
+    """Aktualizuje produkt"""
+    try:
+        data = request.get_json() or {}
+        nazwa = (data.get('nazwa_produktu') or '').strip()
+        nr_receptury = (data.get('nr_receptury') or '').strip()
+        typ_produkcji = (data.get('typ_produkcji') or 'worki_zgrzewane_25').strip()
+        
+        if not nazwa:
+            return jsonify({
+                'success': False,
+                'message': 'Nazwa produktu jest wymagana'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                UPDATE produkty_receptury
+                SET nazwa_produktu=%s, nr_receptury=%s, typ_produkcji=%s
+                WHERE id=%s
+            """, (nazwa, nr_receptury, typ_produkcji, product_id))
+            
+            conn.commit()
+            
+            if cursor.rowcount == 0:
+                return jsonify({
+                    'success': False,
+                    'message': 'Produkt nie znaleziony'
+                }), 404
+            
+            return jsonify({
+                'success': True,
+                'message': f'Produkt "{nazwa}" zaktualizowany'
+            }), 200
+            
+        except mysql.connector.errors.IntegrityError:
+            return jsonify({
+                'success': False,
+                'message': f'Produkt "{nazwa}" już istnieje na liście'
+            }), 409
+        finally:
+            cursor.close()
+            conn.close()
+            
+    except Exception as e:
+        current_app.logger.exception(f'Error updating produkt: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'Błąd serwera: {str(e)}'
+        }), 500
+
+
+@api_bp.route('/produkty/<int:product_id>', methods=['DELETE'])
+@login_required
+def delete_produkt(product_id):
+    """Usuwa produkt z listy"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Sprawdź czy produkt jest używany w planach
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM plan_produkcji 
+            WHERE produkt = (SELECT nazwa_produktu FROM produkty_receptury WHERE id=%s)
+        """, (product_id,))
+        
+        result = cursor.fetchone()
+        if result and result[0] > 0:
+            return jsonify({
+                'success': False,
+                'message': 'Nie można usunąć produktu - jest używany w planach'
+            }), 409
+        
+        cursor.execute("DELETE FROM produkty_receptury WHERE id=%s", (product_id,))
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            return jsonify({
+                'success': False,
+                'message': 'Produkt nie znaleziony'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'message': 'Produkt usunięty z listy'
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.exception(f'Error deleting produkt: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'Błąd serwera: {str(e)}'
+        }), 500
+    finally:
+        cursor.close()
+        conn.close()

@@ -261,10 +261,13 @@ def dodaj_plan():
                     (zasyp_plan_id, tonaz, now, godzina, pracownik_id, 'zarejestowana')
                 )
                 
-                # Increase szarża plan's tonaz_rzeczywisty
+                # Synchronize plan's tonaz_rzeczywisty = SUM(szarże) + SUM(dosypki potwierdzone)
                 cursor.execute(
-                    "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
-                    (tonaz, zasyp_plan_id)
+                    "UPDATE plan_produkcji SET tonaz_rzeczywisty = "
+                    "COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) + "
+                    "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) "
+                    "WHERE id = %s",
+                    (zasyp_plan_id, zasyp_plan_id, zasyp_plan_id)
                 )
                 try:
                     current_app.logger.warning(f'[DODAJ_PLAN] Added szarża to plan {zasyp_plan_id}')
@@ -386,15 +389,6 @@ def dodaj_plan():
     conn.commit()
     conn.close()
     return redirect(bezpieczny_powrot())
-
-
-@planning_bp.route('/planista/bulk', methods=['GET'])
-@roles_required('planista', 'admin')
-def planista_bulk_page():
-    """Render page for bulk adding plans."""
-    wybrana_data = request.args.get('data', str(date.today()))
-    domyslna_sekcja = request.args.get('sekcja', 'Zasyp')
-    return render_template('planista_bulk.html', wybrana_data=wybrana_data, domyslna_sekcja=domyslna_sekcja)
 
 
 @planning_bp.route('/dodaj_plany_batch', methods=['POST'])

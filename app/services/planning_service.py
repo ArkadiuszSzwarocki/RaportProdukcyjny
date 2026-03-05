@@ -608,7 +608,7 @@ class PlanningService:
             current_app.logger.exception(f'Error ensuring status for plan {plan_id}: {str(e)}')
             return (False, f'Błąd przy sprawdzaniu statusu: {str(e)}')
     @staticmethod
-    def przenies_niezrealizowane(current_data):
+    def przenies_niezrealizowane(current_data, plan_ids_to_move=None):
         """
         Move incomplete plans to next day.
         Creates new Zasyp and Workowanie plans for incomplete work.
@@ -616,6 +616,7 @@ class PlanningService:
         
         Args:
             current_data: Date string (YYYY-MM-DD)
+            plan_ids_to_move: Optional list of plan IDs to move (if None, moves all incomplete)
             
         Returns:
             Tuple (success: bool, message: str, count: int)
@@ -623,8 +624,8 @@ class PlanningService:
         import sys
         try:
             # ULTRA DEBUG on stderr and file log
-            print(f'[PRZENIES SERVICE] *** FUNCTION CALLED *** current_data={current_data}', file=sys.stderr, flush=True)
-            current_app.logger.critical(f'[PRZENIES SERVICE] *** FUNCTION CALLED *** current_data={current_data}')
+            print(f'[PRZENIES SERVICE] *** FUNCTION CALLED *** current_data={current_data}, plan_ids_to_move={plan_ids_to_move}', file=sys.stderr, flush=True)
+            current_app.logger.critical(f'[PRZENIES SERVICE] *** FUNCTION CALLED *** current_data={current_data}, plan_ids_to_move={plan_ids_to_move}')
             current_app.logger.info(f'[PRZENIES SERVICE] START - received current_data={current_data} (type={type(current_data).__name__})')
             
             conn = get_db_connection()
@@ -644,14 +645,28 @@ class PlanningService:
             
             # Get all incomplete plans on current date (status 'zakonczone' but not fully executed)
             # Only Zasyp - is the source of work
-            cursor.execute("""
-                SELECT id, sekcja, produkt, tonaz, tonaz_rzeczywisty, typ_produkcji
-                FROM plan_produkcji
-                WHERE DATE(data_planu) = %s AND status = 'zakonczone'
-                  AND LOWER(sekcja) = 'zasyp'
-                  AND (tonaz_rzeczywisty IS NULL OR tonaz_rzeczywisty < tonaz)
-                ORDER BY id
-            """, (current_data,))
+            if plan_ids_to_move:
+                # Move only selected plans
+                placeholders = ','.join(['%s'] * len(plan_ids_to_move))
+                cursor.execute(f"""
+                    SELECT id, sekcja, produkt, tonaz, tonaz_rzeczywisty, typ_produkcji
+                    FROM plan_produkcji
+                    WHERE DATE(data_planu) = %s AND status = 'zakonczone'
+                      AND LOWER(sekcja) = 'zasyp'
+                      AND id IN ({placeholders})
+                      AND (tonaz_rzeczywisty IS NULL OR tonaz_rzeczywisty < tonaz)
+                    ORDER BY id
+                """, [current_data] + plan_ids_to_move)
+            else:
+                # Move all incomplete plans
+                cursor.execute("""
+                    SELECT id, sekcja, produkt, tonaz, tonaz_rzeczywisty, typ_produkcji
+                    FROM plan_produkcji
+                    WHERE DATE(data_planu) = %s AND status = 'zakonczone'
+                      AND LOWER(sekcja) = 'zasyp'
+                      AND (tonaz_rzeczywisty IS NULL OR tonaz_rzeczywisty < tonaz)
+                    ORDER BY id
+                """, (current_data,))
             
             incomplete_plans = cursor.fetchall()
             plans_to_create = []

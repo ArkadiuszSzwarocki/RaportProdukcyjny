@@ -182,6 +182,17 @@ def _create_tables(cursor):
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS produkty_receptury (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa_produktu VARCHAR(100) NOT NULL UNIQUE,
+            nr_receptury VARCHAR(64) DEFAULT '',
+            typ_produkcji VARCHAR(50) DEFAULT 'worki_zgrzewane_25',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+    """)
+
 
 def _add_column_if_missing(cursor, table, column, definition, description=""):
     """Helper to add column if it doesn't exist."""
@@ -451,6 +462,29 @@ def _auto_confirm_existing_palety(cursor):
         print(f"[INFO] Auto-confirm migration skipped or already applied: {e}")
 
 
+def _seed_produkty(cursor):
+    """Seed initial products/recipes into produkty_receptury table."""
+    default_products = [
+        ('MOM INSTANT', '', 'worki_zgrzewane_25'),
+        ('MILK BAND BIAŁE', '', 'worki_zgrzewane_25'),
+        ('HOLENDER', '', 'worki_zgrzewane_25'),
+        ('testowe 45', '', 'worki_zgrzewane_25'),
+    ]
+    
+    for nazwa, nr_receptury, typ in default_products:
+        cursor.execute(
+            "SELECT id FROM produkty_receptury WHERE nazwa_produktu=%s",
+            (nazwa,)
+        )
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO produkty_receptury (nazwa_produktu, nr_receptury, typ_produkcji) VALUES (%s, %s, %s)",
+                (nazwa, nr_receptury, typ)
+            )
+    
+    print("[OK] Produkty zainicjalizowane w bazie danych")
+
+
 def setup_database():
     """Main setup function - orchestrates all database initialization."""
     try:
@@ -463,10 +497,13 @@ def setup_database():
         # 2. Run migrations (add missing columns)
         _migrate_columns(cursor)
         
-        # 3. Seed default users (including password migration)
+        # 3. Seed initial products
+        _seed_produkty(cursor)
+        
+        # 4. Seed default users (including password migration)
         _seed_default_users(cursor)
         
-        # 4. Auto-confirm all palety with data_dodania and set confirmation time to +2 min
+        # 5. Auto-confirm all palety with data_dodania and set confirmation time to +2 min
         # NOTE: This migration could auto-confirm recently added palety on every app
         # startup. Only run it when explicitly requested via environment variable
         # `AUTO_CONFIRM_PALET=1` to avoid unexpected automatic acceptance.
@@ -480,7 +517,7 @@ def setup_database():
         conn.close()
         print("[OK] Baza danych jest gotowa!")
         
-        # 5. Odśwież bufor (wymagane połączenie)  
+        # 6. Odśwież bufor (wymagane połączenie)  
         refresh_bufor_queue()
         
     except Exception as e:
@@ -629,11 +666,29 @@ def list_unconfirmed_dosypki():
 
 
 def confirm_dosypka(dosypka_id, potwierdzil_pracownik_id=None):
-    """Mark dosypka as confirmed (odczytanie)."""
+    """Mark dosypka as confirmed (odczytanie) and sync plan's tonaz_rzeczywisty."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Get plan_id first
+        cursor.execute("SELECT plan_id FROM dosypki WHERE id=%s", (dosypka_id,))
+        row = cursor.fetchone()
+        plan_id = row[0] if row else None
+        
+        # Update dosypka status
         cursor.execute("UPDATE dosypki SET potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s", (potwierdzil_pracownik_id, dosypka_id))
+        
+        # Synchronize plan's tonaz_rzeczywisty = SUM(szarże) + SUM(dosypki potwierdzone)
+        if plan_id:
+            cursor.execute(
+                "UPDATE plan_produkcji SET tonaz_rzeczywisty = "
+                "COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) + "
+                "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) "
+                "WHERE id = %s",
+                (plan_id, plan_id, plan_id)
+            )
+        
         conn.commit()
         cursor.close()
         conn.close()

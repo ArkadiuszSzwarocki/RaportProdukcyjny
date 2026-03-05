@@ -830,7 +830,13 @@ def usun_szarze(id):
         if res:
             plan_id = res[0]
             cursor.execute("DELETE FROM szarze WHERE id=%s", (id,))
-            cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) WHERE id = %s", (plan_id, plan_id))
+            cursor.execute(
+                "UPDATE plan_produkcji SET tonaz_rzeczywisty = "
+                "COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) + "
+                "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) "
+                "WHERE id = %s",
+                (plan_id, plan_id, plan_id)
+            )
             conn.commit()
     finally:
         conn.close()

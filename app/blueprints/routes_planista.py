@@ -110,14 +110,17 @@ def panel_planisty():
             suma_minut_plan += czas_trwania_min
 
         # 2. POBIERANIE WYKONANIA
-        # Dla planów Zasyp: oblicz z szarży (rzeczywistych wpisów)
+        # Dla planów Zasyp: oblicz z szarży (rzeczywistych wpisów) + dosypki potwierdzone
         # Dla planów innych sekcji: pobierz z planów Workowania/Magazynu
         # For cleaning entries there are no szarze; skip calculation of wykonanie
         plan_id = p[0]
         sekcja = (p[1] or '').lower()
         wykonanie_rzeczywiste = 0
         if sekcja != 'czyszczenie':
-            cursor.execute("SELECT SUM(waga) FROM szarze WHERE plan_id = %s", (plan_id,))
+            cursor.execute(
+                "SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) FROM szarze WHERE plan_id = %s",
+                (plan_id, plan_id)
+            )
             szarze_result = cursor.fetchone()
             wykonanie_rzeczywiste = szarze_result[0] if szarze_result and szarze_result[0] else 0
             # Fallback: jeśli nie ma szarży, użyj tonaz_rzeczywisty z bazy
@@ -179,18 +182,23 @@ def panel_planisty():
             produkt = p[2]
             planowany_zasyp = p[3] or 0  # tonaz z tabeli plan_produkcji (kolumna tonaz dla Zasypu)
 
-            # Plan Workowanie = Zasyp (suma wagi szarż wysłanych z bufora dla tego Zasypu)
+            # Zasyp = SUM(szarże) + SUM(dosypki potwierdzone) - co faktycznie wyjechało z Zasypu
             cursor.execute("""
-                SELECT SUM(waga) FROM szarze
+                SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) FROM szarze
                 WHERE plan_id = %s
-            """, (zasyp_id,))
+            """, (zasyp_id, zasyp_id))
             row = cursor.fetchone()
-            plan_work = row[0] or 0 if row else 0
-            zasyp_kg = plan_work  # Zasyp = Plan produkcji
+            zasyp_kg = row[0] or 0 if row else 0
+            plan_work = zasyp_kg  # Plan Workowanie = Zasyp (co wyjechało = co ma spakować)
 
-            # Spakowano (sumarycznie z palet Workowanie dla tego produktu/daty)
-            pal_list = palety_mapa.get(zasyp_id, [])
-            spakowano_palety = sum([float(x[0]) for x in pal_list]) if pal_list else 0
+            # Spakowano (sumarycznie z palet Workowanie dla tego produktu/daty - rzeczywiste spakowanie)
+            cursor.execute("""
+                SELECT COALESCE(SUM(CASE WHEN waga_potwierdzona > 0 THEN waga_potwierdzona ELSE waga END), 0) 
+                FROM palety_workowanie 
+                WHERE plan_id IN (SELECT id FROM plan_produkcji WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s)
+            """, (wybrana_data, produkt))
+            row_pal = cursor.fetchone()
+            spakowano_palety = row_pal[0] or 0 if row_pal else 0
 
             # Bufor: ile czeka w buforze do spakowania (tonaz_rzeczywisty - spakowano)
             cursor.execute("SELECT SUM(tonaz_rzeczywisty - spakowano) FROM bufor WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'", (zasyp_id, wybrana_data))
@@ -257,7 +265,10 @@ def panel_planisty():
             suma_minut_plan_agro += czas_min
 
             # Wykonanie
-            cursor_agro.execute("SELECT SUM(waga) FROM szarze WHERE plan_id = %s", (p[0],))
+            cursor_agro.execute(
+                "SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) FROM szarze WHERE plan_id = %s",
+                (p[0], p[0])
+            )
             sz = cursor_agro.fetchone()
             wyk = sz[0] if sz and sz[0] else (p[8] if p[8] else 0)
             p[8] = wyk
@@ -811,3 +822,51 @@ def api_check_niezrealizowane():
     except Exception as e:
         current_app.logger.exception(f'Error in api_check_niezrealizowane: {str(e)}')
         return jsonify({'success': False, 'message': f'Błąd serwera: {str(e)}'}), 500
+
+
+@planista_bp.route('/api/przenies_wybrane_zlecenia', methods=['POST'])
+@roles_required('planista', 'admin')
+def api_przenies_wybrane_zlecenia():
+    """Move selected incomplete plans to next day."""
+    try:
+        data_dict = request.get_json() or {}
+        current_data = data_dict.get('data')
+        plan_ids = data_dict.get('plan_ids', [])
+        
+        if not current_data:
+            return jsonify({'success': False, 'message': 'Data jest wymagana'}), 400
+        
+        if not plan_ids or not isinstance(plan_ids, list):
+            return jsonify({'success': False, 'message': 'Wybierz przynajmniej jedno zlecenie'}), 400
+        
+        # Use PlanningService to move selected plans
+        from app.services.planning_service import PlanningService
+        
+        success, message, count = PlanningService.przenies_niezrealizowane(
+            current_data,
+            plan_ids_to_move=plan_ids  # Pass selected plan IDs
+        )
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Przeniesiono {count} zleceń na dzień {current_data}'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 400
+            
+    except Exception as e:
+        current_app.logger.exception(f'Error in api_przenies_wybrane_zlecenia: {str(e)}')
+        return jsonify({'success': False, 'message': f'Błąd serwera: {str(e)}'}), 500
+
+
+@planista_bp.route('/planista/bulk', methods=['GET'])
+@roles_required('planista', 'admin')
+def planista_bulk_page():
+    """Render page for bulk adding plans."""
+    wybrana_data = request.args.get('data', str(date.today()))
+    domyslna_sekcja = request.args.get('sekcja', 'Zasyp')
+    return render_template('planista_bulk.html', wybrana_data=wybrana_data, domyslna_sekcja=domyslna_sekcja)

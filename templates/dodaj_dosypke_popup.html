@@ -6,6 +6,7 @@
     <form action="{{ url_for('production.dodaj_dosypke') }}" method="POST" class="dosypka-form" id="dosypka-form">
         <input type="hidden" name="plan_id" value="{{ plan_id }}">
         <input type="hidden" name="szarza_id" value="{{ szarza_id or '' }}">
+        <input type="hidden" name="brak_dosypki" id="brak_dosypki" value="0">
 
         <div class="dosypka-info">
             <div class="info-item">
@@ -40,14 +41,19 @@
         </div>
 
         <div class="dosypka-actions">
-            <button type="submit" class="dosypka-btn dosypka-btn-confirm">
-                <span class="btn-icon">✓</span> Potwierdź
+            <button type="button" class="dosypka-btn dosypka-btn-none" onclick="submitNoDosypki(event)">
+                <span class="btn-icon">📋</span> Brak dosypki
             </button>
-            <button type="button" 
-                onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)"
-                class="dosypka-btn dosypka-btn-cancel">
-                <span class="btn-icon">✕</span> Anuluj
-            </button>
+            <div class="dosypka-actions-group">
+                <button type="submit" class="dosypka-btn dosypka-btn-confirm">
+                    <span class="btn-icon">✓</span> Potwierdź
+                </button>
+                <button type="button" 
+                    onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)"
+                    class="dosypka-btn dosypka-btn-cancel">
+                    <span class="btn-icon">✕</span> Anuluj
+                </button>
+            </div>
         </div>
     </form>
 </div>
@@ -129,6 +135,16 @@ function updateAddFieldButton() {
         addBtn.style.opacity = '1';
         addBtn.style.cursor = 'pointer';
     }
+}
+
+function submitNoDosypki(event) {
+    event.preventDefault();
+    
+    // Set flag to indicate "no dosypka"
+    document.getElementById('brak_dosypki').value = '1';
+    
+    // Submit the form
+    document.getElementById('dosypka-form').submit();
 }
 
 // Initialize on load
