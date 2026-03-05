@@ -65,7 +65,7 @@
     <div class="d-flex justify-between align-center p-15 p-15-bg">
         <h3 class="m-0">🌿 Plan AGRO: <strong>{{ wybrana_data }}</strong></h3>
         <div class="d-flex gap-10 align-center">
-            <a href="{{ url_for('planning.planista_bulk_page', data=wybrana_data, sekcja='Agro') }}"
+            <a href="{{ url_for('planista.planista_bulk_page', data=wybrana_data, sekcja='Agro') }}"
                 class="btn-action btn-action-success">+ DODAJ PLAN AGRO</a>
         </div>
     </div>
@@ -178,7 +178,7 @@
     <div class="d-flex justify-between align-center p-15 p-15-bg">
         <h3 class="m-0">📋 {{ _('glowny_plan') }}: <strong>{{ wybrana_data }}</strong></h3>
         <div class="d-flex gap-10 align-center">
-            <a href="{{ url_for('planning.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan"
+            <a href="{{ url_for('planista.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan"
                 class="btn-action btn-action-success">+ DODAJ PLAN</a>
             <!-- Quick add cleaning form -->
             <form action="/planista/add_czyszczenie" method="POST" class="d-flex align-center gap-5 czyszczenie-form">
@@ -216,7 +216,7 @@
         </thead>
         <tbody id="plans-tbody" class="sortable-tbody">
             {% for p in plany %}
-            <tr data-plan-id="{{ p[0] }}">
+            <tr data-plan-id="{{ p[0] }}" {% if p[4] in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
                 <td><strong class="text-primary">{{ p[2] }}</strong></td>
                 <td><span class="badge-sekcja">{{ p[9]|upper }}</span></td>
                 <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
@@ -248,6 +248,7 @@
                 <td>
                     <div class="d-flex gap-5 align-center">
                         {% if p[4] not in ['w toku', 'zakonczone'] %}
+                        <!-- Zaplanowane - można reorderować -->
                         <button type="button" data-action="move-up" data-plan-id="{{ p[0] }}" class="btn-icon"
                             aria-label="Przenieś w górę">⬆</button>
                         <button type="button" data-action="move-down" data-plan-id="{{ p[0] }}" class="btn-icon"
@@ -257,18 +258,19 @@
                             aria-label="Przenieś plan">📅</button>
                         <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p[0] }}"
                             title="{{ _('edytuj') }}">✎</button>
+                        {% elif p[4] == 'zakonczone' and (p[8]|default(0, true)) < (p[3]|default(0, true)) %}
+                        <!-- Niezrealizowane (zakonczone ale wykonanie < plan) - przycisk na następny dzień -->
+                        <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ p[0] }}, '{{ p[2] }}')"
+                            title="Przenieś niezrealizowane zlecenie na następny dzień">📦➡️</button>
+                        {% endif %}
                         <form action="{{ url_for('planning.usun_plan', id=p[0]) }}" method="POST" class="inline-form"
                             onsubmit="return confirm('Usunąć zlecenie?');">
                             <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
                             <button type="submit" class="btn-icon text-danger" title="{{ _('usun_plan') }}">🗑️</button>
                         </form>
-                        {% elif p[4] == 'w toku' %}
                         {% if session.get('rola') in ['planista', 'admin'] %}
                         <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
                             data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
-                        {% else %}
-                        <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
-                        {% endif %}
                         {% else %}
                         <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
                         {% endif %}
@@ -687,10 +689,16 @@
                     ghostClass: 'sortable-ghost',
                     dragClass: 'sortable-drag',
                     handle: 'tr',  // Allow dragging entire row
-                    filter: '.details-row', // Don't allow dragging details rows
+                    filter: function(evt) {
+                        // Don't allow dragging details rows or locked plans
+                        var row = evt;
+                        if (row.classList.contains('details-row')) return true;
+                        if (row.classList.contains('plan-locked')) return true;
+                        return false;
+                    },
                     onEnd: function (evt) {
                         // Get new order of plan IDs
-                        var rows = plansTbody.querySelectorAll('tr:not(.details-row)');
+                        var rows = plansTbody.querySelectorAll('tr:not(.details-row):not(.plan-locked)');
                         var newOrder = [];
                         rows.forEach(function (row) {
                             var planId = row.getAttribute('data-plan-id');
@@ -752,35 +760,8 @@
             .then(function (j) {
                 console.log('[PRZENIES] check_niezrealizowane response:', j);
                 if (j && j.success) {
-                    // Build detailed message
-                    var msg = '⚠️ PRZENIESIENIE NIEZREALIZOWANYCH ZLECEŃ\n\n';
-                    msg += 'Z dnia: ' + j.current_date_formatted + ' → Na dzień: ' + j.next_date_formatted + '\n\n';
-                    msg += '📦 Zlecenia do przeniesienia:\n';
-                    msg += '─'.repeat(50) + '\n';
-                    
-                    j.plans.forEach(function(plan) {
-                        msg += '\n📋 ' + plan.produkt + '\n';
-                        msg += '   Plan: ' + plan.plan_kg + ' kg\n';
-                        msg += '   Wykonanie: ' + plan.wykonanie_kg + ' kg\n';
-                        msg += '   Pozostało: ' + plan.remaining_kg + ' kg ← PRZENIESIENIE\n';
-                    });
-                    
-                    msg += '\n' + '─'.repeat(50) + '\n';
-                    msg += '\n📊 RAZEM DO PRZENIESIENIA: ' + j.total_remaining_kg + ' kg\n';
-                    msg += '📅 Tworzone będą:\n';
-                    msg += '   ✓ ' + j.count + ' nowych planów Zasyp\n';
-                    msg += '   ✓ ' + j.count + ' nowych planów Workowanie\n\n';
-                    msg += '⏳ Stare plany z ' + j.current_date_formatted + ' pozostają bez zmian\n';
-                    msg += '👤 Operator będzie musiał ręcznie startować Workowanie na dzień ' + j.next_date_formatted + '\n\n';
-                    msg += 'Czy chcesz kontynuować?';
-                    
-                    console.log('[PRZENIES] Wyświetlam dialog potwierdzenia');
-                    if (confirm(msg)) {
-                        console.log('[PRZENIES] User potwierdził dialog');
-                        performMove(data);
-                    } else {
-                        console.log('[PRZENIES] User anulował dialog');
-                    }
+                    // Show modal with selectable plans
+                    showSelectModal(j, data);
                 } else {
                     console.log('[PRZENIES] Brak niezrealizowanych planów:', j && j.message);
                     alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas sprawdzania planów'));
@@ -788,6 +769,129 @@
             })
             .catch(function (err) {
                 console.error('[PRZENIES] ERROR:', err);
+                alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
+                console.error(err);
+            });
+    }
+
+    function showSelectModal(data, currentDate) {
+        console.log('[SELECT MODAL] Pokazuję modal z planami:', data.plans);
+        
+        // Store current data for later use
+        window.currentMoveData = data;
+        window.currentMoveDate = currentDate;
+        
+        var html = '';
+        html += '<h3 style="margin-bottom: 15px; color: #ff9800;">📦 Przeniesienie z: ' + data.current_date_formatted + ' → na: ' + data.next_date_formatted + '</h3>';
+        html += '<div style="background: #f9f9f9; padding: 10px; border-radius: 4px; margin-bottom: 15px;">';
+        html += '<p style="margin: 0; font-size: 13px; color: #666;">Wybierz które zlecenia chcesz przenieść na następny dzień:</p>';
+        html += '</div>';
+        
+        html += '<div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; margin-bottom: 15px;">';
+        
+        data.plans.forEach(function(plan) {
+            var planId = 'plan_' + plan.plan_id;
+            html += '<div style="padding: 10px; margin-bottom: 8px; background: #f5f5f5; border-radius: 4px; border-left: 4px solid #ff9800;">';
+            html += '  <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">';
+            html += '    <input type="checkbox" id="' + planId + '" class="select-plan-checkbox" data-plan-id="' + plan.plan_id + '" style="margin-right: 10px; cursor: pointer;" checked>';
+            html += '    <div style="flex: 1;">';
+            html += '      <strong style="color: #333;">' + plan.produkt + '</strong><br>';
+            html += '      <span style="font-size: 12px; color: #666;">Plan: ' + plan.plan_kg + ' kg | Wykonanie: ' + plan.wykonanie_kg + ' kg | Zostało: <strong style="color: #d9534f;">' + plan.remaining_kg + ' kg</strong></span>';
+            html += '    </div>';
+            html += '  </label>';
+            html += '</div>';
+        });
+        
+        html += '</div>';
+        
+        document.getElementById('selectPlansContainer').innerHTML = html;
+        document.getElementById('selectBackdrop').classList.add('active');
+        document.getElementById('selectModal').classList.add('active');
+        
+        // Alle all checked by default
+        document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) {
+            cb.checked = true;
+        });
+    }
+
+    function closeSelectModal() {
+        console.log('[SELECT MODAL] Zamykam modal');
+        document.getElementById('selectBackdrop').classList.remove('active');
+        document.getElementById('selectModal').classList.remove('active');
+        window.currentMoveData = null;
+        window.currentMoveDate = null;
+    }
+
+    function selectAllPlans() {
+        console.log('[SELECT MODAL] Zaznaczam wszystkie');
+        document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) {
+            cb.checked = true;
+        });
+    }
+
+    function deselectAllPlans() {
+        console.log('[SELECT MODAL] Odznaczam wszystkie');
+        document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) {
+            cb.checked = false;
+        });
+    }
+
+    function submitSelectedPlans() {
+        console.log('[SELECT MODAL] Wysyłam wybrane plany');
+        
+        // Get checked plan IDs
+        var selectedIds = [];
+        document.querySelectorAll('.select-plan-checkbox:checked').forEach(function(cb) {
+            selectedIds.push(parseInt(cb.dataset.planId));
+        });
+        
+        if (selectedIds.length === 0) {
+            alert('⚠️ Wybierz przynajmniej jedno zlecenie!');
+            return;
+        }
+        
+        console.log('[SELECT MODAL] Wybrane plany:', selectedIds);
+        
+        // Summary message
+        var msg = '📦 PRZENIESIENIE WYBRANYCH ZLECEŃ\n\n';
+        msg += 'Liczba wybranych: ' + selectedIds.length + '\n';
+        msg += 'Razem do przeniesienia: ' + window.currentMoveData.total_remaining_kg + ' kg\n\n';
+        msg += 'Czy potwierdzasz?';
+        
+        if (confirm(msg)) {
+            console.log('[SELECT MODAL] User potwierdził - wysyłam do backendu');
+            performSelectiveMove(window.currentMoveDate, selectedIds);
+            closeSelectModal();
+        }
+    }
+
+    function performSelectiveMove(currentDate, planIds) {
+        console.log('[MOVE] Wysyłam request do przeniesienia wybranych planów:', planIds);
+        fetch('/api/przenies_wybrane_zlecenia', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                data: currentDate,
+                plan_ids: planIds 
+            }),
+            credentials: 'include'
+        })
+            .then(function (r) {
+                console.log('[MOVE] Response status:', r.status);
+                if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+                return r.json();
+            })
+            .then(function (j) {
+                console.log('[MOVE] Response:', j);
+                if (j && j.success) {
+                    alert('✅ ' + (j.message || 'Zlecenia zostały pomyślnie przeniesione!'));
+                    location.reload(); // Reload page to show updated plans
+                } else {
+                    alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
+                }
+            })
+            .catch(function (err) {
+                console.error('[MOVE] ERROR:', err);
                 alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
                 console.error(err);
             });
@@ -825,6 +929,44 @@
             });
     }
 
+    function moveIncompleteToNextDay(planId, currentDate) {
+        console.log('[MOVE SINGLE] Przenoszę plan ID:', planId, 'z daty:', currentDate);
+        
+        // Confirm action
+        if (!confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?')) {
+            return;
+        }
+        
+        // Call endpoint to move only this plan
+        fetch('/api/przenies_wybrane_zlecenia', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: currentDate,
+                plan_ids: [planId]
+            }),
+            credentials: 'include'
+        })
+            .then(function (r) {
+                console.log('[MOVE SINGLE] Response status:', r.status);
+                if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+                return r.json();
+            })
+            .then(function (j) {
+                console.log('[MOVE SINGLE] Response:', j);
+                if (j && j.success) {
+                    alert('✅ ' + (j.message || 'Zlecenie przeniesione na następny dzień'));
+                    location.reload();
+                } else {
+                    alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
+                }
+            })
+            .catch(function (err) {
+                console.error('[MOVE SINGLE] ERROR:', err);
+                alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
+            });
+    }
+
 </script>
 
 <!-- Quick-popup: center modal for AJAX-loaded content -->
@@ -835,6 +977,26 @@
         <div><button type="button" class="btn-action btn-small" data-action="close-popup">✖</button></div>
     </div>
     <div id="quickPopupBody" class="qp-body p-10">{{ _('ladowanie') }}</div>
+</div>
+
+<!-- Modal: Wybiór zleceń do przeniesienia -->
+<div id="selectBackdrop" class="select-backdrop" onclick="closeSelectModal()"></div>
+<div id="selectModal" class="select-modal">
+    <div class="qp-header d-flex justify-between align-center p-10" style="background: #fff3cd; border-bottom: 2px solid #ff9800;">
+        <div class="header-title">📦 Przeniesienie wybranych zleceń</div>
+        <div><button type="button" class="btn-action btn-small" onclick="closeSelectModal()">✖</button></div>
+    </div>
+    <div id="selectModalBody" class="qp-body p-10">
+        <div id="selectPlansContainer"></div>
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <div style="display: flex; gap: 10px; justify-content: space-between;">
+                <button type="button" class="btn-action btn-small" onclick="selectAllPlans()">✓ Zaznacz wszystkie</button>
+                <button type="button" class="btn-action btn-small" onclick="deselectAllPlans()">✗ Odznacz wszystkie</button>
+                <button type="button" class="btn-action btn-success" onclick="submitSelectedPlans()">Przenieś zaznaczone →</button>
+                <button type="button" class="btn-action btn-secondary" onclick="closeSelectModal()">Anuluj</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -855,6 +1017,17 @@
     .sortable-tbody tr:hover {
         background: #f9f9f9;
         transition: background 0.2s;
+    }
+
+    /* Locked plans (w toku or zakonczone) - can't be dragged */
+    .sortable-tbody tr.plan-locked {
+        opacity: 0.7;
+        background: #fafafa;
+        cursor: not-allowed;
+    }
+
+    .sortable-tbody tr.plan-locked:hover {
+        background: #fafafa;
     }
 
     /* Quick add cleaning form */
@@ -884,6 +1057,42 @@
     .bg-dark-light {
         background-color: #e2e3e5 !important;
         color: #383d41;
+    }
+
+    /* Select modal styles */
+    .select-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        display: none;
+    }
+
+    .select-backdrop.active {
+        display: block;
+    }
+
+    .select-modal {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        z-index: 1000;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        display: none;
+    }
+
+    .select-modal.active {
+        display: block;
     }
 </style>
 

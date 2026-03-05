@@ -428,9 +428,12 @@ def dodaj_dosypke():
         except ValueError:
             szarza_id = None
 
-    # Collect up to 4 pairs of name/kg from the form
+    # Check if "brak dosypki" (no supplement) was selected
+    brak_dosypki = request.form.get('brak_dosypki') == '1'
+
+    # Collect up to 10 pairs of name/kg from the form
     entries = []
-    for i in range(1, 5):
+    for i in range(1, 11):
         name = (request.form.get(f'nazwa_{i}') or '').strip()
         kg_raw = request.form.get(f'kg_{i}')
         if name and kg_raw:
@@ -441,7 +444,10 @@ def dodaj_dosypke():
             if kg > 0:
                 entries.append((name, kg))
 
-    if not entries:
+    # If "brak dosypki" is selected, create special entry
+    if brak_dosypki:
+        entries = [('Brak dosypki', 0)]
+    elif not entries:
         flash('Brak poprawnych pozycji dosypki do zapisania', 'warning')
         return redirect(bezpieczny_powrot())
 
@@ -460,7 +466,10 @@ def dodaj_dosypke():
             cursor.execute("INSERT INTO dosypki (plan_id, szarza_id, nazwa, kg, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, 0)", (plan_id, szarza_id, name, kg, pracownik_id))
 
         conn.commit()
-        flash(f'Zapisano {len(entries)} pozycji dosypki.', 'success')
+        if brak_dosypki:
+            flash('Oznaczono, że brak dosypki dla tego zlecenia.', 'success')
+        else:
+            flash(f'Zapisano {len(entries)} pozycji dosypki.', 'success')
     except Exception as e:
         try:
             conn.rollback()
@@ -491,7 +500,24 @@ def potwierdz_dosypke(dosypka_id):
             return redirect(bezpieczny_powrot())
 
         pracownik_id = session.get('user_id') if 'user_id' in session else None
+        
+        # First, get the plan_id from dosypka to update tonaz_rzeczywisty
+        cursor.execute("SELECT plan_id FROM dosypki WHERE id=%s", (dosypka_id,))
+        dosypka_row = cursor.fetchone()
+        plan_id = dosypka_row[0] if dosypka_row else None
+        
         cursor.execute("UPDATE dosypki SET potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s", (pracownik_id, dosypka_id))
+        
+        # Synchronize plan's tonaz_rzeczywisty = SUM(szarże) + SUM(dosypki potwierdzone)
+        if plan_id:
+            cursor.execute(
+                "UPDATE plan_produkcji SET tonaz_rzeczywisty = "
+                "COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) + "
+                "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) "
+                "WHERE id = %s",
+                (plan_id, plan_id, plan_id)
+            )
+        
         conn.commit()
         flash('Potwierdzono dosypkę.', 'success')
     except Exception as e:
