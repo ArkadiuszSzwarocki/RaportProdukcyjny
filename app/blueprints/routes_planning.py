@@ -2,10 +2,11 @@
 
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
 from datetime import date, datetime
-from app.db import get_db_connection
+from app.db import get_db_connection, get_plan_notification_context
 from app.decorators import login_required, roles_required, admin_required
 from app.services.planning_service import PlanningService
 from app.services.plan_movement_service import PlanMovementService
+from app.services.notification_service import notify_laboratory_about_szarza, notify_workers_about_plan_batch, notify_workers_about_plan_change
 import json
 
 planning_bp = Blueprint('planning', __name__)
@@ -147,6 +148,19 @@ def dodaj_plan_zaawansowany():
         data_planu, produkt, tonaz, sekcja, typ, 
         status='zaplanowane', wymaga_oplaty=wymaga_oplaty
     )
+
+    if success and plan_id:
+        notify_workers_about_plan_change(
+            plan_context={
+                'id': plan_id,
+                'produkt': produkt,
+                'sekcja': sekcja,
+                'data_planu': data_planu,
+            },
+            action_label='dodał',
+            author_name=session.get('imie_nazwisko') or session.get('login'),
+            created_by_user_id=session.get('user_id'),
+        )
     
     if not success:
         flash(message, 'warning')
@@ -253,8 +267,8 @@ def dodaj_plan():
                 godzina = now.strftime('%H:%M:%S')
                 
                 pracownik_id = None
-                if 'user_id' in session:
-                    pracownik_id = session.get('user_id')
+                if 'pracownik_id' in session:
+                    pracownik_id = session.get('pracownik_id')
                 
                 cursor.execute(
                     "INSERT INTO szarze (plan_id, waga, data_dodania, godzina, pracownik_id, status) VALUES (%s, %s, %s, %s, %s, %s)",
@@ -273,6 +287,16 @@ def dodaj_plan():
                     current_app.logger.warning(f'[DODAJ_PLAN] Added szarża to plan {zasyp_plan_id}')
                 except Exception:
                     pass
+
+                plan_context = get_plan_notification_context(zasyp_plan_id, conn=conn)
+                notify_laboratory_about_szarza(
+                    plan_context=plan_context,
+                    weight_kg=tonaz,
+                    author_name=session.get('imie_nazwisko') or session.get('login'),
+                    conn=conn,
+                    cursor=cursor,
+                    created_by_user_id=session.get('user_id'),
+                )
                 
                 # IMPORTANT: Create or reset Workowanie plan when first szarża is added
                 # Check if Workowanie plan already exists for this product/date
@@ -381,6 +405,20 @@ def dodaj_plan():
     nk = (res[0] if res and res[0] else 0) + 1
     cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ, 0))
     zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
+
+    notify_workers_about_plan_change(
+        plan_context={
+            'id': zasyp_plan_id,
+            'produkt': produkt,
+            'sekcja': sekcja,
+            'data_planu': data_planu,
+        },
+        action_label='dodał',
+        author_name=session.get('imie_nazwisko') or session.get('login'),
+        conn=conn,
+        cursor=cursor,
+        created_by_user_id=session.get('user_id'),
+    )
     
     # NOTE: Workowanie plan is NOT created here anymore.
     # It will be created automatically when the first szarża is added to Zasyp
@@ -471,6 +509,15 @@ def dodaj_plany_batch():
                     "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0, zasyp_id_created)
                 )
+
+        notify_workers_about_plan_batch(
+            data_planu=data_planu,
+            plans_count=len(plans),
+            author_name=session.get('imie_nazwisko') or session.get('login'),
+            conn=conn,
+            cursor=cursor,
+            created_by_user_id=session.get('user_id'),
+        )
         conn.commit()
         current_app.logger.info(f'Batch insert successful: {len(plans)} plans for {data_planu}')
         return jsonify({'success': True})
@@ -610,6 +657,12 @@ def edytuj_plan(id):
             params.append(id)
             cursor.execute(sql, tuple(params))
             conn.commit()
+            notify_workers_about_plan_change(
+                plan_context=get_plan_notification_context(id, conn=conn),
+                action_label='zmienił',
+                author_name=session.get('imie_nazwisko') or session.get('login'),
+                created_by_user_id=session.get('user_id'),
+            )
             flash('Zlecenie zaktualizowane', 'success')
             current_app.logger.info('Plan %s updated successfully', id)
     
@@ -738,6 +791,12 @@ def edytuj_plan_ajax():
             params.append(pid)
             cursor.execute(sql, tuple(params))
             conn.commit()
+            notify_workers_about_plan_change(
+                plan_context=get_plan_notification_context(pid, conn=conn),
+                action_label='zmienił',
+                author_name=session.get('imie_nazwisko') or session.get('login'),
+                created_by_user_id=session.get('user_id'),
+            )
             current_app.logger.info('Plan %s updated via AJAX: %s', pid, changes)
             
             # If this edited plan is a Zasyp, propagate key changes to linked Workowanie entries

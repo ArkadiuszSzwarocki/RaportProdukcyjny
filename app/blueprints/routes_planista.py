@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, current_app, session, jsonify
 from app.db import get_db_connection
 from app.dto.paleta import PaletaDTO
+from app.services.notification_service import notify_workers_about_plan_change
 from app.services.planning_service import PlanningService
 from datetime import date
 from app.decorators import roles_required, dynamic_role_required
@@ -355,6 +356,19 @@ def add_czyszczenie():
         insert_sql = ("INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_zlecenia) "
                       "VALUES (%s, %s, %s, %s, %s, %s, %s)")
         cursor.execute(insert_sql, (data_planu, 'Czyszczenie', 'Czyszczenie', tonaz_val, 'zaplanowane', kolejnosc_val or 9999, 'jakosc'))
+        notify_workers_about_plan_change(
+            plan_context={
+                'id': cursor.lastrowid if hasattr(cursor, 'lastrowid') else None,
+                'produkt': 'Czyszczenie',
+                'sekcja': 'Czyszczenie',
+                'data_planu': data_planu,
+            },
+            action_label='dodał',
+            author_name=session.get('imie_nazwisko') or session.get('login'),
+            conn=conn,
+            cursor=cursor,
+            created_by_user_id=session.get('user_id'),
+        )
         conn.commit()
         return redirect(url_for('planista.panel_planisty', data=data_planu))
     except Exception as e:

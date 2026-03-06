@@ -214,6 +214,7 @@ def index() -> str:
     
     # Krok: Pobranie zrealizowanych (potwierdzonych) dosypek dla sekcji Zasyp
     dosypki_mapa = {}
+    dosypki_oczekujace_mapa = {}
     if aktywna_sekcja == 'Zasyp':
         try:
             conn = get_db_connection()
@@ -236,6 +237,15 @@ def index() -> str:
                     'potwierdzono': str(row[4])[:16] if row[4] else '',
                     'szarza_id': row[5]
                 })
+            cursor.execute("""
+                SELECT d.plan_id, COUNT(*)
+                FROM dosypki d
+                JOIN plan_produkcji p ON d.plan_id = p.id
+                WHERE d.potwierdzone = 0 AND DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp'
+                GROUP BY d.plan_id
+            """, (dzisiaj,))
+            for plan_id, pending_count in cursor.fetchall():
+                dosypki_oczekujace_mapa[plan_id] = pending_count
             cursor.close()
             conn.close()
         except Exception as e:
@@ -277,6 +287,7 @@ def index() -> str:
         'zasyp_product_order': zasyp_product_order,
         'allowed_work_start_ids': allowed_work_start_ids,
         'dosypki_mapa': dosypki_mapa,
+        'dosypki_oczekujace_mapa': dosypki_oczekujace_mapa,
     }
     
     # Render appropriate template

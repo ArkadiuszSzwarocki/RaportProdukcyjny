@@ -37,6 +37,7 @@ def login():
                 # Must set permanent=True to ensure session cookie is saved
                 session.permanent = True
                 session['zalogowany'] = True
+                session['user_id'] = int(uid)
                 # Normalize role to lowercase to avoid case-sensitivity issues in templates
                 session['rola'] = (rola or '').lower()
                 # Zapisz login i powiązanie pracownika w sesji (może być None)

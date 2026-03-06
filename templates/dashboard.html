@@ -301,7 +301,13 @@
                     {% if rola != 'laborant' %}
                     <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green" data-slide>+ SZARŻA</a>
                     {% endif %}
-                    <a href="{{ url_for('production.dosypki_list', plan_id=p[0]) }}" class="btn-action btn-blue" data-slide>Dosypki</a>
+                    {% set dosypki_pending_count = dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa else 0 %}
+                    <a href="{{ url_for('production.dosypki_list', plan_id=p[0]) }}" class="btn-action btn-blue btn-with-badge" data-slide>
+                        <span>Dosypki</span>
+                        {% if dosypki_pending_count > 0 %}
+                        <span class="action-badge">{{ dosypki_pending_count }}</span>
+                        {% endif %}
+                    </a>
                     {% set szarze_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]]) else 0 %}
                     <button type="button" class="btn-action btn-outline-warning" onclick="toggleDetails('{{ p[0] }}')">Szarże ({{ szarze_count }})</button>
                     {% else %}

@@ -83,15 +83,18 @@ def ensure_pracownik_mapping(app):
     """
     def middleware():
         try:
-            # If logged but no pracownik mapping in session, attempt to read from DB
-            if session.get('zalogowany') and session.get('pracownik_id') is None and session.get('login'):
+            # If logged but user/pracownik mapping is incomplete in session, attempt to read from DB
+            if session.get('zalogowany') and session.get('login') and (session.get('pracownik_id') is None or session.get('user_id') is None):
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT COALESCE(pracownik_id, NULL) FROM uzytkownicy WHERE login=%s", (session.get('login'),))
+                cursor.execute("SELECT id, COALESCE(pracownik_id, NULL) FROM uzytkownicy WHERE login=%s", (session.get('login'),))
                 r = cursor.fetchone()
                 try:
-                    if r and r[0] is not None:
-                        session['pracownik_id'] = int(r[0])
+                    if r:
+                        if r[0] is not None:
+                            session['user_id'] = int(r[0])
+                        if r[1] is not None:
+                            session['pracownik_id'] = int(r[1])
                     else:
                         # Try a best-effort automatic mapping on first login: tokenize login and search pracownicy
                         try:

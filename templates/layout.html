@@ -12,6 +12,115 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ static_version }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/inline-styles.css') }}?v={{ static_version }}">
+    <style>
+        .notifications-wrapper {
+            position: relative;
+        }
+
+        .notifications-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: #d9342b;
+            color: #fff;
+            font-size: 11px;
+            line-height: 18px;
+            text-align: center;
+            font-weight: 700;
+            display: none;
+        }
+
+        .notifications-menu {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            width: min(420px, 88vw);
+            max-height: 70vh;
+            overflow: hidden;
+            background: #fff;
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+            z-index: 1200;
+            display: none;
+        }
+
+        .notifications-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        }
+
+        .notifications-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .notifications-actions button {
+            border: 0;
+            background: transparent;
+            color: #2563eb;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .notifications-list {
+            max-height: 52vh;
+            overflow-y: auto;
+        }
+
+        .notification-item {
+            width: 100%;
+            border: 0;
+            background: #fff;
+            text-align: left;
+            padding: 14px 16px;
+            display: block;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+        }
+
+        .notification-item:hover {
+            background: #f8fafc;
+        }
+
+        .notification-item-title {
+            display: block;
+            font-size: 14px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .notification-item-message {
+            display: block;
+            font-size: 13px;
+            color: #334155;
+            line-height: 1.4;
+            margin-bottom: 6px;
+        }
+
+        .notification-item-meta {
+            display: block;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .notifications-empty {
+            padding: 20px 16px;
+            color: #64748b;
+            font-size: 13px;
+            text-align: center;
+        }
+    </style>
 </head>
 
 <body>
@@ -30,6 +139,27 @@
             <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
                 <span class="material-icons">report_problem</span>
             </a>
+            {% endif %}
+
+            {% if session.get('zalogowany') %}
+            <div class="notifications-wrapper">
+                <button type="button" id="notificationsToggle" class="btn-icon" title="Powiadomienia"
+                    aria-label="Powiadomienia" aria-expanded="false">
+                    <span class="material-icons">notifications</span>
+                    <span id="notificationsBadge" class="notifications-badge">0</span>
+                </button>
+                <div id="notificationsMenu" class="notifications-menu" aria-hidden="true">
+                    <div class="notifications-header">
+                        <span class="notifications-title">Powiadomienia</span>
+                        <div class="notifications-actions">
+                            <button type="button" id="notificationsMarkAll">Oznacz wszystkie</button>
+                        </div>
+                    </div>
+                    <div id="notificationsList" class="notifications-list">
+                        <div class="notifications-empty">Brak nowych powiadomień.</div>
+                    </div>
+                </div>
+            </div>
             {% endif %}
 
             <!-- Language selector dropdown -->
@@ -169,6 +299,218 @@
     <script src="{{ url_for('static', filename='scripts.js') }}?v={{ static_version }}"></script>
     <script src="{{ url_for('static', filename='quick_debug.js') }}?v={{ static_version }}"></script>
     <script>
+        (function () {
+            const state = {
+                initialized: false,
+                shownIds: new Set(),
+                notifications: []
+            };
+
+            function getNotificationElements() {
+                return {
+                    toggle: document.getElementById('notificationsToggle'),
+                    menu: document.getElementById('notificationsMenu'),
+                    badge: document.getElementById('notificationsBadge'),
+                    list: document.getElementById('notificationsList'),
+                    markAll: document.getElementById('notificationsMarkAll')
+                };
+            }
+
+            function closeNotificationsMenu() {
+                const elements = getNotificationElements();
+                if (elements.menu) {
+                    elements.menu.style.display = 'none';
+                    elements.menu.setAttribute('aria-hidden', 'true');
+                }
+                if (elements.toggle) {
+                    elements.toggle.setAttribute('aria-expanded', 'false');
+                }
+            }
+
+            function toggleNotificationsMenu() {
+                const elements = getNotificationElements();
+                if (!elements.menu || !elements.toggle) {
+                    return;
+                }
+                const shouldOpen = elements.menu.style.display !== 'block';
+                elements.menu.style.display = shouldOpen ? 'block' : 'none';
+                elements.menu.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+                elements.toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+            }
+
+            function escapeHtml(value) {
+                return String(value || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function renderNotifications() {
+                const elements = getNotificationElements();
+                if (!elements.list || !elements.badge) {
+                    return;
+                }
+
+                const notifications = state.notifications || [];
+                if (notifications.length === 0) {
+                    elements.list.innerHTML = '<div class="notifications-empty">Brak nowych powiadomień.</div>';
+                    elements.badge.style.display = 'none';
+                    elements.badge.textContent = '0';
+                    return;
+                }
+
+                elements.badge.style.display = 'inline-block';
+                elements.badge.textContent = notifications.length > 99 ? '99+' : String(notifications.length);
+                elements.list.innerHTML = notifications.map(function (item) {
+                    const title = escapeHtml(item.title || 'Powiadomienie');
+                    const message = escapeHtml(item.message || '');
+                    const createdAt = escapeHtml(item.created_at || '');
+                    const safeLink = escapeHtml(item.link_url || '');
+                    return [
+                        '<button type="button" class="notification-item" data-id="', item.id, '" data-link="', safeLink, '">',
+                        '<span class="notification-item-title">', title, '</span>',
+                        '<span class="notification-item-message">', message, '</span>',
+                        '<span class="notification-item-meta">', createdAt, '</span>',
+                        '</button>'
+                    ].join('');
+                }).join('');
+            }
+
+            async function markNotificationRead(notificationId) {
+                const response = await fetch('/api/notifications/' + encodeURIComponent(notificationId) + '/read', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                return response.ok;
+            }
+
+            async function markAllNotificationsRead() {
+                const response = await fetch('/api/notifications/read-all', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                return response.ok;
+            }
+
+            async function fetchNotifications() {
+                const elements = getNotificationElements();
+                if (!elements.toggle) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/notifications?limit=20', {
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const payload = await response.json();
+                    if (!payload || !payload.success) {
+                        return;
+                    }
+
+                    const notifications = Array.isArray(payload.notifications) ? payload.notifications : [];
+                    if (state.initialized) {
+                        notifications.forEach(function (item) {
+                            if (!state.shownIds.has(item.id)) {
+                                state.shownIds.add(item.id);
+                                if (typeof showToast === 'function') {
+                                    showToast(item.title + ': ' + item.message, 'info');
+                                }
+                            }
+                        });
+                    } else {
+                        notifications.forEach(function (item) {
+                            state.shownIds.add(item.id);
+                        });
+                        state.initialized = true;
+                    }
+
+                    state.notifications = notifications;
+                    renderNotifications();
+                } catch (error) {
+                    console.error('notifications fetch error', error);
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                const elements = getNotificationElements();
+                if (!elements.toggle) {
+                    return;
+                }
+
+                fetchNotifications();
+                window.setInterval(fetchNotifications, 15000);
+
+                elements.toggle.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    toggleNotificationsMenu();
+                });
+
+                if (elements.markAll) {
+                    elements.markAll.addEventListener('click', async function () {
+                        const ok = await markAllNotificationsRead();
+                        if (!ok) {
+                            if (typeof showToast === 'function') {
+                                showToast('Nie udało się oznaczyć powiadomień.', 'warning');
+                            }
+                            return;
+                        }
+
+                        state.notifications = [];
+                        renderNotifications();
+                        closeNotificationsMenu();
+                    });
+                }
+
+                if (elements.list) {
+                    elements.list.addEventListener('click', async function (event) {
+                        const button = event.target.closest('.notification-item');
+                        if (!button) {
+                            return;
+                        }
+
+                        const notificationId = button.getAttribute('data-id');
+                        const linkUrl = button.getAttribute('data-link');
+                        const ok = await markNotificationRead(notificationId);
+                        if (!ok) {
+                            if (typeof showToast === 'function') {
+                                showToast('Nie udało się zapisać odczytu powiadomienia.', 'warning');
+                            }
+                            return;
+                        }
+
+                        state.notifications = state.notifications.filter(function (item) {
+                            return String(item.id) !== String(notificationId);
+                        });
+                        renderNotifications();
+                        closeNotificationsMenu();
+
+                        if (linkUrl) {
+                            window.location.href = linkUrl;
+                        }
+                    });
+                }
+            });
+
+            window.closeNotificationsMenu = closeNotificationsMenu;
+        })();
+    </script>
+    <script>
         // Ensure language menu is always closed on page load
         document.addEventListener('DOMContentLoaded', function () {
             const menu = document.getElementById('languageMenu');
@@ -204,6 +546,11 @@
             const menu = document.getElementById('languageMenu');
             if (selector && menu && !selector.contains(event.target)) {
                 menu.style.display = 'none';
+            }
+
+            const notificationsWrapper = document.querySelector('.notifications-wrapper');
+            if (notificationsWrapper && !notificationsWrapper.contains(event.target) && typeof window.closeNotificationsMenu === 'function') {
+                window.closeNotificationsMenu();
             }
         });
 

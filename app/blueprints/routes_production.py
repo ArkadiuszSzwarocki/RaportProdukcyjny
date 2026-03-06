@@ -4,6 +4,7 @@ import glob
 from datetime import date, datetime
 from app.db import get_db_connection, rollover_unfinished
 from app.decorators import login_required, roles_required
+from app.services.notification_service import notify_workers_about_dosypka
 
 production_bp = Blueprint('production', __name__)
 
@@ -455,15 +456,36 @@ def dodaj_dosypke():
     try:
         cursor = conn.cursor()
         # Validate plan exists and is active
-        cursor.execute("SELECT status FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'", (plan_id,))
+        cursor.execute(
+            "SELECT id, produkt, data_planu, status FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'",
+            (plan_id,)
+        )
         r = cursor.fetchone()
-        if not r or r[0] != 'w toku':
+        if not r or r[3] != 'w toku':
             flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
             return redirect(bezpieczny_powrot())
 
-        pracownik_id = session.get('user_id') if 'user_id' in session else None
+        pracownik_id = session.get('pracownik_id') if 'pracownik_id' in session else None
+        created_by_user_id = session.get('user_id') if 'user_id' in session else None
         for name, kg in entries:
             cursor.execute("INSERT INTO dosypki (plan_id, szarza_id, nazwa, kg, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, 0)", (plan_id, szarza_id, name, kg, pracownik_id))
+
+        if not brak_dosypki:
+            plan_context = {
+                'id': r[0],
+                'produkt': r[1],
+                'data_planu': r[2],
+                'sekcja': 'Zasyp',
+            }
+            notify_workers_about_dosypka(
+                plan_context=plan_context,
+                total_kg=sum(item[1] for item in entries),
+                entries_count=len(entries),
+                author_name=session.get('imie_nazwisko') or session.get('login'),
+                conn=conn,
+                cursor=cursor,
+                created_by_user_id=created_by_user_id,
+            )
 
         conn.commit()
         if brak_dosypki:
@@ -487,19 +509,22 @@ def dodaj_dosypke():
 
 
 @production_bp.route('/potwierdz_dosypke/<int:dosypka_id>', methods=['POST'])
-@roles_required('produkcja', 'lider', 'admin')
+@roles_required('pracownik', 'produkcja', 'lider', 'admin')
 def potwierdz_dosypke(dosypka_id):
     """Operator potwierdza odczytanie dosypki - mark as confirmed."""
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM dosypki WHERE id=%s AND potwierdzone=0", (dosypka_id,))
         r = cursor.fetchone()
         if not r:
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Pozycja nieznaleziona lub już potwierdzona'}), 404
             flash('Pozycja nieznaleziona lub już potwierdzona', 'warning')
             return redirect(bezpieczny_powrot())
 
-        pracownik_id = session.get('user_id') if 'user_id' in session else None
+        pracownik_id = session.get('pracownik_id') if 'pracownik_id' in session else None
         
         # First, get the plan_id from dosypka to update tonaz_rzeczywisty
         cursor.execute("SELECT plan_id FROM dosypki WHERE id=%s", (dosypka_id,))
@@ -519,6 +544,8 @@ def potwierdz_dosypke(dosypka_id):
             )
         
         conn.commit()
+        if is_ajax:
+            return jsonify({'success': True, 'message': 'Potwierdzono dosypkę.', 'plan_id': plan_id})
         flash('Potwierdzono dosypkę.', 'success')
     except Exception as e:
         try:
@@ -526,6 +553,8 @@ def potwierdz_dosypke(dosypka_id):
         except Exception:
             pass
         current_app.logger.error(f'Failed to confirm dosypka: {e}', exc_info=True)
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Błąd podczas potwierdzania'}), 500
         flash('Błąd podczas potwierdzania', 'error')
     finally:
         try:

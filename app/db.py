@@ -138,6 +138,7 @@ def _create_tables(cursor):
         CREATE TABLE IF NOT EXISTS dosypki (
             id INT AUTO_INCREMENT PRIMARY KEY,
             plan_id INT NOT NULL,
+            szarza_id INT NULL,
             nazwa VARCHAR(255) NOT NULL,
             kg FLOAT NOT NULL,
             data_zlecenia DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -148,6 +149,36 @@ def _create_tables(cursor):
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE,
             FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL,
             FOREIGN KEY (potwierdzil_pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS powiadomienia (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            typ VARCHAR(50) NOT NULL,
+            tytul VARCHAR(255) NOT NULL,
+            tresc TEXT NOT NULL,
+            odbiorca_rola VARCHAR(50) NOT NULL,
+            link_url VARCHAR(255) NULL,
+            plan_id INT NULL,
+            created_by_user_id INT NULL,
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_powiadomienia_rola_data (odbiorca_rola, created_at),
+            INDEX idx_powiadomienia_active (is_active, created_at),
+            FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE SET NULL,
+            FOREIGN KEY (created_by_user_id) REFERENCES uzytkownicy(id) ON DELETE SET NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS powiadomienia_odczyty (
+            notification_id INT NOT NULL,
+            user_id INT NOT NULL,
+            read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (notification_id, user_id),
+            FOREIGN KEY (notification_id) REFERENCES powiadomienia(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES uzytkownicy(id) ON DELETE CASCADE
         )
     """)
     
@@ -223,6 +254,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji", "uszkodzone_worki", "INT DEFAULT 0", "Dodawanie kolumny 'uszkodzone_worki'")
     _add_column_if_missing(cursor, "plan_produkcji", "is_deleted", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'is_deleted' dla soft delete")
     _add_column_if_missing(cursor, "plan_produkcji", "deleted_at", "DATETIME NULL", "Dodawanie kolumny 'deleted_at' dla soft delete")
+    _add_column_if_missing(cursor, "dosypki", "szarza_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'szarza_id' do dosypek")
     
     # Update typ_zlecenia for known quality orders
     try:
@@ -689,6 +721,215 @@ def confirm_dosypka(dosypka_id, potwierdzil_pracownik_id=None):
                 (plan_id, plan_id, plan_id)
             )
         
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return False
+
+
+def get_plan_notification_context(plan_id, conn=None, cursor=None):
+    """Return minimal plan context used to build notification content."""
+    own_conn = conn is None
+    own_cursor = cursor is None
+    local_conn = conn
+    local_cursor = cursor
+    try:
+        if own_conn:
+            local_conn = get_db_connection()
+        if own_cursor:
+            local_cursor = local_conn.cursor(dictionary=True)
+        local_cursor.execute(
+            """
+            SELECT id, produkt, sekcja, data_planu, COALESCE(typ_produkcji, '') AS typ_produkcji,
+                   COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia
+            FROM plan_produkcji
+            WHERE id = %s
+            """,
+            (plan_id,)
+        )
+        return local_cursor.fetchone()
+    except Exception:
+        return None
+    finally:
+        if own_cursor and local_cursor:
+            try:
+                local_cursor.close()
+            except Exception:
+                pass
+        if own_conn and local_conn:
+            try:
+                local_conn.close()
+            except Exception:
+                pass
+
+
+def create_notifications(typ, tytul, tresc, recipient_roles, link_url=None, plan_id=None, created_by_user_id=None, conn=None, cursor=None):
+    """Create one notification row for each recipient role."""
+    if not recipient_roles:
+        return []
+
+    if isinstance(recipient_roles, str):
+        recipient_roles = [recipient_roles]
+
+    normalized_roles = []
+    for role in recipient_roles:
+        role_value = str(role or '').strip().lower()
+        if role_value and role_value not in normalized_roles:
+            normalized_roles.append(role_value)
+
+    if not normalized_roles:
+        return []
+
+    own_conn = conn is None
+    own_cursor = cursor is None
+    local_conn = conn
+    local_cursor = cursor
+    created_ids = []
+
+    try:
+        if own_conn:
+            local_conn = get_db_connection()
+        if own_cursor:
+            local_cursor = local_conn.cursor()
+
+        for role in normalized_roles:
+            local_cursor.execute(
+                """
+                INSERT INTO powiadomienia
+                    (typ, tytul, tresc, odbiorca_rola, link_url, plan_id, created_by_user_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (typ, tytul, tresc, role, link_url, plan_id, created_by_user_id)
+            )
+            try:
+                created_ids.append(local_cursor.lastrowid)
+            except Exception:
+                pass
+
+        if own_conn:
+            local_conn.commit()
+
+        return created_ids
+    except Exception:
+        if own_conn and local_conn:
+            try:
+                local_conn.rollback()
+            except Exception:
+                pass
+        return []
+    finally:
+        if own_cursor and local_cursor:
+            try:
+                local_cursor.close()
+            except Exception:
+                pass
+        if own_conn and local_conn:
+            try:
+                local_conn.close()
+            except Exception:
+                pass
+
+
+def list_unread_notifications(user_id, role, limit=20):
+    """Return unread notifications for a single user and role."""
+    if not user_id or not role:
+        return []
+
+    safe_limit = max(1, min(int(limit or 20), 100))
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT p.id, p.typ, p.tytul, p.tresc, p.link_url, p.plan_id, p.created_at, p.odbiorca_rola
+            FROM powiadomienia p
+            LEFT JOIN powiadomienia_odczyty po
+                ON po.notification_id = p.id AND po.user_id = %s
+            WHERE p.is_active = 1
+              AND p.odbiorca_rola = %s
+              AND po.notification_id IS NULL
+            ORDER BY p.created_at DESC, p.id DESC
+            LIMIT %s
+            """,
+            (user_id, str(role).strip().lower(), safe_limit)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return rows
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return []
+
+
+def mark_notification_read(notification_id, user_id):
+    """Mark a single notification as read for the given user."""
+    if not notification_id or not user_id:
+        return False
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT IGNORE INTO powiadomienia_odczyty (notification_id, user_id)
+            VALUES (%s, %s)
+            """,
+            (notification_id, user_id)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return False
+
+
+def mark_all_notifications_read(user_id, role):
+    """Mark all unread notifications for a role as read for the given user."""
+    if not user_id or not role:
+        return False
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT IGNORE INTO powiadomienia_odczyty (notification_id, user_id)
+            SELECT p.id, %s
+            FROM powiadomienia p
+            LEFT JOIN powiadomienia_odczyty po
+                ON po.notification_id = p.id AND po.user_id = %s
+            WHERE p.is_active = 1
+              AND p.odbiorca_rola = %s
+              AND po.notification_id IS NULL
+            """,
+            (user_id, user_id, str(role).strip().lower())
+        )
         conn.commit()
         cursor.close()
         conn.close()

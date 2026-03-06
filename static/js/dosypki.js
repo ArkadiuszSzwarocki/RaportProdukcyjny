@@ -80,7 +80,14 @@
             btn.disabled = true;
             originalText = btn.textContent;
             btn.textContent = '⏳...';
-            const res = await fetch('/potwierdz_dosypke/' + id, { method: 'POST', credentials: 'same-origin' });
+            const res = await fetch('/potwierdz_dosypke/' + id, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            });
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
                 const row = btn.closest('tr');

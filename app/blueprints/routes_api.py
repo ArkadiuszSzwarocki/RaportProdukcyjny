@@ -8,7 +8,7 @@ import zipfile
 import mysql.connector
 from datetime import date, datetime, timedelta, time
 from io import BytesIO
-from app.db import get_db_connection, rollover_unfinished, log_plan_history
+from app.db import get_db_connection, rollover_unfinished, log_plan_history, list_unread_notifications, mark_all_notifications_read, mark_notification_read
 from app.dto.paleta import PaletaDTO
 from app.decorators import login_required, roles_required
 from app.services.raport_service import RaportService
@@ -311,6 +311,67 @@ def shift_notes_na_date():
             'success': False,
             'message': str(e)
         }), 400
+
+
+@api_bp.route('/notifications', methods=['GET'])
+@login_required
+def get_notifications():
+    """Zwraca listę nieprzeczytanych powiadomień dla aktualnego użytkownika."""
+    user_id = session.get('user_id')
+    role = (session.get('rola') or '').lower()
+    if not user_id or not role:
+        return jsonify({'success': False, 'message': 'Brak danych użytkownika'}), 400
+
+    try:
+        limit = int(request.args.get('limit', 20))
+    except Exception:
+        limit = 20
+
+    notifications = list_unread_notifications(user_id, role, limit=limit)
+    result = []
+    for item in notifications:
+        created_at = item.get('created_at')
+        result.append({
+            'id': item.get('id'),
+            'type': item.get('typ'),
+            'title': item.get('tytul'),
+            'message': item.get('tresc'),
+            'link_url': item.get('link_url'),
+            'plan_id': item.get('plan_id'),
+            'created_at': created_at.strftime('%Y-%m-%d %H:%M:%S') if created_at else '',
+            'recipient_role': item.get('odbiorca_rola'),
+        })
+
+    return jsonify({'success': True, 'notifications': result, 'unread_count': len(result)})
+
+
+@api_bp.route('/notifications/<int:notification_id>/read', methods=['POST'])
+@login_required
+def read_notification(notification_id):
+    """Oznacza pojedyncze powiadomienie jako przeczytane."""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'success': False, 'message': 'Brak danych użytkownika'}), 400
+
+    if not mark_notification_read(notification_id, user_id):
+        return jsonify({'success': False, 'message': 'Nie udało się oznaczyć powiadomienia'}), 500
+
+    return jsonify({'success': True})
+
+
+@api_bp.route('/notifications/read-all', methods=['POST'])
+@login_required
+def read_all_notifications():
+    """Oznacza wszystkie powiadomienia dla roli użytkownika jako przeczytane."""
+    user_id = session.get('user_id')
+    role = (session.get('rola') or '').lower()
+    if not user_id or not role:
+        return jsonify({'success': False, 'message': 'Brak danych użytkownika'}), 400
+
+    if not mark_all_notifications_read(user_id, role):
+        return jsonify({'success': False, 'message': 'Nie udało się oznaczyć powiadomień'}), 500
+
+    return jsonify({'success': True})
 
 
 @api_bp.route('/update_uszkodzone_worki', methods=['POST'])
