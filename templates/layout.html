@@ -132,62 +132,66 @@
             <span class="material-icons">menu</span>
         </button>
 
-        <div class="user-info">
-            {# removed PLAN button per request #}
+        <!-- Page title in top bar (desktop only) -->
+        <span id="topBarPageTitle"
+            style="font-size:16px;font-weight:700;color:var(--text-secondary,#e2e8f0);margin-right:auto;padding-left:16px;display:none;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
 
-            {% if session.get('zalogowany') %}
-            <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
-                <span class="material-icons">report_problem</span>
-            </a>
-            {% endif %}
 
-            {% if session.get('zalogowany') %}
-            <div class="notifications-wrapper">
-                <button type="button" id="notificationsToggle" class="btn-icon" title="Powiadomienia"
-                    aria-label="Powiadomienia" aria-expanded="false">
-                    <span class="material-icons">notifications</span>
-                    <span id="notificationsBadge" class="notifications-badge">0</span>
-                </button>
-                <div id="notificationsMenu" class="notifications-menu" aria-hidden="true">
-                    <div class="notifications-header">
-                        <span class="notifications-title">Powiadomienia</span>
-                        <div class="notifications-actions">
-                            <button type="button" id="notificationsMarkAll">Oznacz wszystkie</button>
-                        </div>
-                    </div>
-                    <div id="notificationsList" class="notifications-list">
-                        <div class="notifications-empty">Brak nowych powiadomień.</div>
+        {# removed PLAN button per request #}
+
+        {% if session.get('zalogowany') %}
+        <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
+            <span class="material-icons">report_problem</span>
+        </a>
+        {% endif %}
+
+        {% if session.get('zalogowany') %}
+        <div class="notifications-wrapper">
+            <button type="button" id="notificationsToggle" class="btn-icon" title="Powiadomienia"
+                aria-label="Powiadomienia" aria-expanded="false">
+                <span class="material-icons">notifications</span>
+                <span id="notificationsBadge" class="notifications-badge">0</span>
+            </button>
+            <div id="notificationsMenu" class="notifications-menu" aria-hidden="true">
+                <div class="notifications-header">
+                    <span class="notifications-title">Powiadomienia</span>
+                    <div class="notifications-actions">
+                        <button type="button" id="notificationsMarkAll">Oznacz wszystkie</button>
                     </div>
                 </div>
-            </div>
-            {% endif %}
-
-            <!-- Language selector dropdown -->
-            <div class="language-selector">
-                <button type="button" class="btn-icon language-toggle" title="{{ _('zmien_jezyk') }}"
-                    onclick="toggleLanguageMenu(); return false;">
-                    <span class="material-icons">language</span>
-                </button>
-                <div id="languageMenu" class="language-menu hidden">
-                    <a href="/api/set_language?language=pl" class="language-option">
-                        <span>🇵🇱</span> Polski
-                    </a>
-                    <a href="/api/set_language?language=uk" class="language-option">
-                        <span>🇺🇦</span> Українська
-                    </a>
-                    <a href="/api/set_language?language=en" class="language-option">
-                        <span>🇬🇧</span> English
-                    </a>
+                <div id="notificationsList" class="notifications-list">
+                    <div class="notifications-empty">Brak nowych powiadomień.</div>
                 </div>
             </div>
-
-            {# Przyciski przeniesione poniżej belki, zobacz top-submenu #}
-
-            {# top users button removed per UI change request #}
-
-            <span class="user-role">{{ _('zalogowany') }}: <strong>{{ session.get('imie_nazwisko') or
-                    session.get('login') or 'N/A' }}</strong></span>
         </div>
+        {% endif %}
+
+        <!-- Language selector dropdown -->
+        <div class="language-selector">
+            <button type="button" class="btn-icon language-toggle" title="{{ _('zmien_jezyk') }}"
+                onclick="toggleLanguageMenu(); return false;">
+                <span class="material-icons">language</span>
+            </button>
+            <div id="languageMenu" class="language-menu hidden">
+                <a href="/api/set_language?language=pl" class="language-option">
+                    <span>🇵🇱</span> Polski
+                </a>
+                <a href="/api/set_language?language=uk" class="language-option">
+                    <span>🇺🇦</span> Українська
+                </a>
+                <a href="/api/set_language?language=en" class="language-option">
+                    <span>🇬🇧</span> English
+                </a>
+            </div>
+        </div>
+
+        {# Przyciski przeniesione poniżej belki, zobacz top-submenu #}
+
+        {# top users button removed per UI change request #}
+
+        <span class="user-role">{{ _('zalogowany') }}: <strong>{{ session.get('imie_nazwisko') or
+                session.get('login') or 'N/A' }}</strong></span>
+    </div>
     </div>
 
     <div class="app-layout">
@@ -640,6 +644,35 @@
     </script>
 
     <script src="{{ url_for('static', filename='js/dosypki.js') }}?v={{ static_version }}"></script>
+
+    <script>
+        // Show current page name in top bar on desktop
+        (function () {
+            function updateTopBarTitle() {
+                var titleEl = document.getElementById('topBarPageTitle');
+                if (!titleEl) return;
+                // Find the active nav item in sidebar
+                var activeItem = document.querySelector('.sidebar .nav-item.active');
+                if (!activeItem) return;
+                // Get only the text part (strip emoji by using the <span> text if present)
+                var textSpan = activeItem.querySelector('span.text-capitalize');
+                var label = textSpan ? textSpan.textContent.trim() : activeItem.textContent.replace(/[\u{1F300}-\u{1FFFF}]/gu, '').trim();
+                // Find emoji at start (first char if emoji)
+                var raw = activeItem.textContent.trim();
+                var emojiMatch = raw.match(/^([\p{Extended_Pictographic}\uFE0F\u200D]+)/u);
+                var emoji = emojiMatch ? emojiMatch[1] : '';
+                titleEl.textContent = (emoji ? emoji + ' ' : '') + label;
+                // Show only on desktop
+                if (window.innerWidth >= 960) {
+                    titleEl.style.display = 'flex';
+                } else {
+                    titleEl.style.display = 'none';
+                }
+            }
+            updateTopBarTitle();
+            window.addEventListener('resize', updateTopBarTitle);
+        })();
+    </script>
 
 </body>
 

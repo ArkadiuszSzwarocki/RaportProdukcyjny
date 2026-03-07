@@ -100,7 +100,7 @@ class DashboardService:
             # confirmed time (creation+wait) rather than creation time.
             magazyn_palety.append((
                 dto.produkt, dto.waga, czas_rzeczywisty, dto.id, dto.plan_id,
-                dto.status, sdt
+                dto.status, sdt, dto.user_login
             ))
             suma_wykonanie += dto.waga or 0
         
@@ -289,14 +289,16 @@ class DashboardService:
             p[15] = int(count)
             # Populate palety_mapa for Zasyp/Workowanie when DB has detail rows but palety_mapa wasn't filled earlier
             try:
-                if sekcja == 'Zasyp' and p[15] and p[15] > 0 and p[0] not in palety_mapa:
+                if sekcja == 'Zasyp' and p[0] not in palety_mapa:
                     conn = get_db_connection()
                     cursor = conn.cursor()
                     cursor.execute(
                         """SELECT s.id, 
                                   s.waga + COALESCE((SELECT SUM(kg) FROM dosypki d WHERE d.szarza_id = s.id AND d.potwierdzone = 1 AND COALESCE(d.anulowana, 0) = 0), 0) as waga_total, 
-                                  s.godzina, s.data_dodania, s.pracownik_id, s.status 
+                                  s.godzina, s.data_dodania, s.pracownik_id, s.status,
+                                  COALESCE(prac.imie_nazwisko, '') as pracownik_name
                            FROM szarze s 
+                           LEFT JOIN pracownicy prac ON s.pracownik_id = prac.id
                            WHERE s.plan_id = %s AND s.status = 'zarejestowana' 
                            ORDER BY s.data_dodania ASC""",
                         (p[0],)
@@ -326,8 +328,8 @@ class DashboardService:
                                 except:
                                     godzina_str = ''
                             dosypki_list.append((nazwa, kg, godzina_str))
-                        # Store as (waga_total, godzina, id, dosypki_list, status)
-                        szarze_with_dosypki.append((r[1], r[2], r[0], dosypki_list, r[5] if len(r) > 5 else ''))
+                        # Store as (waga_total, godzina, id, dosypki_list, status, pracownik_name)
+                        szarze_with_dosypki.append((r[1], r[2], r[0], dosypki_list, r[5] if len(r) > 5 else '', r[6] if len(r) > 6 else ''))
                     
                     cursor.close()
                     conn.close()
@@ -345,8 +347,9 @@ class DashboardService:
                         # Calculate sum of pallet weights for Realizacja column p[7]
                         suma_palet = sum(r[2] for r in palety)
                         p[7] = suma_palet
-            except Exception:
-                pass
+            except Exception as _sz_exc:
+                import logging as _log
+                _log.getLogger(__name__).error(f'[SZARZE] Failed to load szarze for plan {p[0]}: {_sz_exc}', exc_info=True)
 
             # After possible overrides (e.g. when palety/szarze were fetched and
             # p[7] was updated), add the final realized weight to the global sum

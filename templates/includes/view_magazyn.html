@@ -11,17 +11,20 @@
                     <th>Produkt</th>
                     <th>🕒 Czas</th>
                     <th>⚖️ Waga (kg)</th>
+                    <th>👤 Użytkownik</th>
                     <th>Status</th>
                     <th>Akcje</th>
                 </tr>
             </thead>
             <tbody>
-                {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_potwierdzenia_s in magazyn_palety %}
+                {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_potwierdzenia_s, user_login in
+                magazyn_palety %}
                 <tr>
                     <td class="text-muted font-bold">{{ loop.index }}</td>
                     <td>{{ produkt }}</td>
                     <td class="time-display">{{ czas_potwierdzenia_s }}</td>
                     <td><strong class="text-success">{{ waga | int }} kg</strong></td>
+                    <td><span class="badge-info">{{ user_login or '-' }}</span></td>
                     <td><span class="status-badge status-accepted">{{ status }}</span></td>
                     <td>
                         {% if rola in ['produkcja', 'lider', 'admin'] %}

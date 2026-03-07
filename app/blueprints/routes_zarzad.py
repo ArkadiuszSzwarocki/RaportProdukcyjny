@@ -57,7 +57,7 @@ def zarzad_panel():
         chartLabels=charts['labels'],
         chartPlan=charts['plan'],
         chartZasyp=charts['wyk'],
-        chartWork=[],  # Placeholder for alignment
+        chartWork=charts.get('work', []),
         pieLabels=charts['pie_labels'],
         pieValues=charts['pie_values'],
         pracownicy_stats=pracownicy_stats,

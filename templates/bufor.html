@@ -3,226 +3,301 @@
 {% block content %}
 
 <style>
-.btn-move-order {
-    background: #6c757d;
-    color: white;
-}
-
-.move-modal-buffer-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 999;
-}
-
-.move-modal-buffer {
-    display: none;
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: white;
-    padding: 30px;
-    border: 2px solid #007bff;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    z-index: 1000;
-    min-width: 400px;
-    font-family: inherit;
-    font-size: 14px;
-}
-
-.move-title-buffer {
-    margin-top: 0;
-    margin-bottom: 20px;
-    font-size: 18px;
-    font-weight: bold;
-    color: #007bff;
-    border-bottom: 2px solid #007bff;
-    padding-bottom: 10px;
-}
-
-.move-modal-field {
-    margin-bottom: 15px;
-}
-
-.move-modal-field label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: #333;
-}
-
-.move-modal-field input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 14px;
-}
-
-.move-modal-field input:focus {
-    outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
-}
-
-.quick-dates {
-    margin-bottom: 15px;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.quick-date-btn {
-    padding: 6px 12px;
-    border: 1px solid #ddd;
-    background: #f8f9fa;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-}
-
-.quick-date-btn:hover {
-    background: #e9ecef;
-    border-color: #007bff;
-    color: #007bff;
-}
-
-.move-modal-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-}
-
-.move-modal-actions button {
-    padding: 8px 16px;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.move-modal-actions button.btn-confirm {
-    background: #28a745;
-}
-
-.move-modal-actions button.btn-cancel {
-    background: #6c757d;
-}
-
-.btn-move-order-action {
-    opacity: 0.5;
-}
-
-.btn-start-order-active {
-    opacity: 1;
-}
-
-.btn-create-zlecenie-active {
-    opacity: 1;
-}
-
-/* Responsive styles for button container */
-@media (max-width: 1024px) {
-    td:last-child {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
+    .btn-move-order {
+        background: #6c757d;
+        color: white;
     }
-    
-    td:last-child button {
-        flex: 1;
-        min-width: 70px;
-        padding: 6px 8px !important;
-        font-size: 0.75em !important;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-}
 
-@media (max-width: 640px) {
-    .table thead {
+    .move-modal-buffer-overlay {
         display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
     }
-    
-    .table tbody tr {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-        padding: 12px;
-        border-bottom: 2px solid #ddd;
+
+    .move-modal-buffer {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 30px;
+        border: 2px solid #007bff;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        z-index: 1000;
+        min-width: 400px;
+        font-family: inherit;
+        font-size: 14px;
+    }
+
+    .move-title-buffer {
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-size: 18px;
+        font-weight: bold;
+        color: #007bff;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 10px;
+    }
+
+    .move-modal-field {
+        margin-bottom: 15px;
+    }
+
+    .move-modal-field label {
+        display: block;
         margin-bottom: 8px;
-    }
-    
-    .table tbody td {
-        padding: 6px 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-    
-    .table tbody td:before {
         font-weight: 600;
-        margin-bottom: 3px;
-        font-size: 0.85em;
-        color: #555;
+        color: #333;
     }
-    
-    .table tbody td:nth-child(1):before { content: "Kolejka"; }
-    .table tbody td:nth-child(2):before { content: "Data"; }
-    .table tbody td:nth-child(3):before { content: "Produkt"; }
-    .table tbody td:nth-child(4):before { content: "Zasypane"; }
-    .table tbody td:nth-child(5):before { content: "Spakowane"; }
-    .table tbody td:nth-child(6):before { content: "Pozostało"; }
-    .table tbody td:nth-child(7):before { content: "Akcje"; }
-    
-    td:last-child {
-        grid-column: 1 / -1;
+
+    .move-modal-field input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    .move-modal-field input:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+    }
+
+    .quick-dates {
+        margin-bottom: 15px;
         display: flex;
+        gap: 8px;
         flex-wrap: wrap;
-        gap: 6px;
     }
-    
-    td:last-child button {
-        flex: 1;
-        min-width: 60px;
-        padding: 6px 4px !important;
-        font-size: 0.7em !important;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+
+    .quick-date-btn {
+        padding: 6px 12px;
+        border: 1px solid #ddd;
+        background: #f8f9fa;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.2s;
     }
-}
+
+    .quick-date-btn:hover {
+        background: #e9ecef;
+        border-color: #007bff;
+        color: #007bff;
+    }
+
+    .move-modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+
+    .move-modal-actions button {
+        padding: 8px 16px;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .move-modal-actions button.btn-confirm {
+        background: #28a745;
+    }
+
+    .move-modal-actions button.btn-cancel {
+        background: #6c757d;
+    }
+
+    .btn-move-order-action {
+        opacity: 0.5;
+    }
+
+    .btn-start-order-active {
+        opacity: 1;
+    }
+
+    .btn-create-zlecenie-active {
+        opacity: 1;
+    }
+
+    /* Responsive styles for button container */
+    @media (max-width: 1024px) {
+        td:last-child {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        td:last-child button {
+            flex: 1;
+            min-width: 70px;
+            padding: 6px 8px !important;
+            font-size: 0.75em !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .table thead {
+            display: none;
+        }
+
+        .table tbody tr {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            padding: 12px;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 8px;
+        }
+
+        .table tbody td {
+            padding: 6px 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .table tbody td:before {
+            font-weight: 600;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+            color: #555;
+        }
+
+        .table tbody td:nth-child(1):before {
+            content: "Kolejka";
+        }
+
+        .table tbody td:nth-child(2):before {
+            content: "Data";
+        }
+
+        .table tbody td:nth-child(3):before {
+            content: "Produkt";
+        }
+
+        .table tbody td:nth-child(4):before {
+            content: "Zasypane";
+        }
+
+        .table tbody td:nth-child(5):before {
+            content: "Spakowane";
+        }
+
+        .table tbody td:nth-child(6):before {
+            content: "Pozostało";
+        }
+
+        .table tbody td:nth-child(7):before {
+            content: "Akcje";
+        }
+
+        td:last-child {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        td:last-child button {
+            flex: 1;
+            min-width: 60px;
+            padding: 6px 4px !important;
+            font-size: 0.7em !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    }
 </style>
 
 <div class="section-header">
-    <div><h2 class="header-title">🏗️ BUFOR / SILOSY — {{ wybrana_data }}</h2><p class="text-muted">Towar z poprzednich dni dostępny do spakowania</p></div>
     <div class="d-flex align-center gap-10">
         <button onclick="changeDate(-1)" class="btn btn-sm" title="Poprzedni dzień">⬅️ Poprzedni</button>
         <form action="/bufor" method="GET" class="d-flex align-center gap-10" style="margin: 0;">
-            <input type="date" id="bufor-date-input" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm" aria-label="Wybierz datę">
+            <input type="date" id="bufor-date-input" name="data" value="{{ wybrana_data }}"
+                onchange="this.form.submit()" class="input-sm" aria-label="Wybierz datę">
             <button type="submit" class="btn btn-primary btn-sm">🔄 Odśwież</button>
         </form>
         <button onclick="changeDate(1)" class="btn btn-sm" title="Następny dzień">Następny ➡️</button>
         <a href="/planista?data={{ wybrana_data }}" class="btn">Powrót do Planisty</a>
+        <button onclick="document.getElementById('buforInfoModal').style.display='flex'"
+            style="background:#4e73df;color:white;border:none;border-radius:50%;width:28px;height:28px;font-weight:bold;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;"
+            title="Opis przycisków">i</button>
     </div>
 </div>
 
+
+<!-- Info Modal -->
+<div id="buforInfoModal"
+    style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;"
+    onclick="if(event.target===this)this.style.display='none'">
+    <div
+        style="background:white;border-radius:12px;padding:30px;max-width:560px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <h3 style="margin:0;color:#4e73df;">ℹ️ Opis przycisków – Bufor</h3>
+            <button onclick="document.getElementById('buforInfoModal').style.display='none'"
+                style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">✕</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <thead>
+                <tr style="background:#f0f4ff;">
+                    <th style="padding:10px;text-align:left;border-bottom:2px solid #4e73df;">Przycisk</th>
+                    <th style="padding:10px;text-align:left;border-bottom:2px solid #4e73df;">Działanie</th>
+                    <th style="padding:10px;text-align:left;border-bottom:2px solid #4e73df;">Kiedy aktywny</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:10px;white-space:nowrap;">▶️ <strong>Startuj</strong></td>
+                    <td style="padding:10px;">Uruchamia zlecenie Workowanie z kolejki</td>
+                    <td style="padding:10px;color:#777;">Status: <code>w toku</code></td>
+                </tr>
+                <tr style="border-bottom:1px solid #eee;background:#fafafa;">
+                    <td style="padding:10px;white-space:nowrap;">➕ <strong>Utwórz</strong></td>
+                    <td style="padding:10px;">Tworzy nowe zlecenie Workowanie z towaru bufora</td>
+                    <td style="padding:10px;color:#777;">Status: <code>zakonczone</code></td>
+                </tr>
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:10px;white-space:nowrap;">🚀 <strong>NA DZISIAJ</strong></td>
+                    <td style="padding:10px;">Tworzy zlecenie Workowanie na bieżący dzień (z towaru z innej daty)</td>
+                    <td style="padding:10px;color:#777;">Status: <code>zakonczone</code> + wpis z innego dnia</td>
+                </tr>
+                <tr style="border-bottom:1px solid #eee;background:#fafafa;">
+                    <td style="padding:10px;white-space:nowrap;">📦 <strong>Przenieś</strong></td>
+                    <td style="padding:10px;">Przenosi szarżę na wybraną datę (popup z kalendarzem)</td>
+                    <td style="padding:10px;color:#777;">Zawsze dostępny</td>
+                </tr>
+                <tr>
+                    <td style="padding:10px;white-space:nowrap;">📁 <strong>Archiwizuj</strong></td>
+                    <td style="padding:10px;">Ukrywa zlecenie z widoku bufora</td>
+                    <td style="padding:10px;color:#777;">Zawsze dostępny</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
 <script>
-function changeDate(days) {
-    const input = document.getElementById('bufor-date-input');
-    const currentDate = new Date(input.value);
-    currentDate.setDate(currentDate.getDate() + days);
-    const newDate = currentDate.toISOString().split('T')[0];
-    window.location.href = '/bufor?data=' + newDate;
-}
+    function changeDate(days) {
+        const input = document.getElementById('bufor-date-input');
+        const currentDate = new Date(input.value);
+        currentDate.setDate(currentDate.getDate() + days);
+        const newDate = currentDate.toISOString().split('T')[0];
+        window.location.href = '/bufor?data=' + newDate;
+    }
 </script>
 
 <div class="section-box">
@@ -242,7 +317,7 @@ function changeDate(days) {
             </thead>
             <tbody>
                 {% for b in bufor_list %}
-                <tr{% if b.status == 'zakonczone' %} class="bufor-row-finished"{% endif %}>
+                <tr{% if b.status=='zakonczone' %} class="bufor-row-finished" {% endif %}>
                     <td>
                         <span class="badge badge-primary bufor-kolejka-badge">{{ b.kolejka }}</span>
                     </td>
@@ -253,332 +328,332 @@ function changeDate(days) {
                     <td><strong>{{ b.produkt }}</strong> <small class="text-muted">{{ b.nazwa }}</small></td>
                     <td>{{ b.zasyp_total }} kg</td>
                     <td>{{ b.spakowano_total }} kg</td>
-                    <td class="pozostalo-cell {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %}negative{% else %}positive{% endif %}">
-                        {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %}
-                            <span title="{{ _('nadmiar_spakowany') }}">{{ b.raw_pozostalo }} kg</span>
-                        {% else %}
+                    <td
+                        class="pozostalo-cell {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %}negative{% else %}positive{% endif %}">
+                        {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %} <span
+                            title="{{ _('nadmiar_spakowany') }}">{{ b.raw_pozostalo }} kg</span>
+                            {% else %}
                             {{ b.w_silosie }} kg
-                        {% endif %}
-                        {% if b.needs_reconciliation %}
+                            {% endif %}
+                            {% if b.needs_reconciliation %}
                             <small class="badge badge-warning badge-reconciliation">Do rozliczenia</small>
-                        {% endif %}
+                            {% endif %}
                     </td>
                     <td>
-                        <button class="btn btn-success btn-sm js-start-order{% if b.status != 'w toku' %} btn-move-order-action{% else %} btn-start-order-active{% endif %}"
-                                data-kolejka="{{ b.kolejka }}"
-                                data-produkt="{{ b.produkt }}@"
-                                data-status="{{ b.status }}">▶️ Startuj</button>
-                        <button class="btn btn-info btn-sm js-create-zlecenie{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
-                                data-zasyp-id="{{ b.id }}"
-                                data-produkt="{{ b.produkt }}"
-                                data-status="{{ b.status }}"
-                                title="Utwórz nowe zlecenie Workowanie z pozostałym towarem{% if b.status != 'zakonczone' %} (niedostępne - zlecenie musi być zamknięte){% endif %}">➕ Utwórz</button>
+                        <button
+                            class="btn btn-success btn-sm js-start-order{% if b.status != 'w toku' %} btn-move-order-action{% else %} btn-start-order-active{% endif %}"
+                            data-kolejka="{{ b.kolejka }}" data-produkt="{{ b.produkt }}@"
+                            data-status="{{ b.status }}">▶️ Startuj</button>
+                        <button
+                            class="btn btn-info btn-sm js-create-zlecenie{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
+                            data-zasyp-id="{{ b.id }}" data-produkt="{{ b.produkt }}" data-status="{{ b.status }}"
+                            title="Utwórz nowe zlecenie Workowanie z pozostałym towarem{% if b.status != 'zakonczone' %} (niedostępne - zlecenie musi być zamknięte){% endif %}">➕
+                            Utwórz</button>
                         {% if b.data != wybrana_data %}
-                        <button class="btn btn-warning btn-sm js-create-zlecenie-dzisiaj{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
-                                data-zasyp-id="{{ b.id }}"
-                                data-produkt="{{ b.produkt }}"
-                                data-status="{{ b.status }}"
-                                title="Utwórz zlecenie Workowanie na DZISIAJ ({{ wybrana_data }}) z towarem z bufora - zamiast czekać na tamtą datę">🚀 NA DZISIAJ</button>
+                        <button
+                            class="btn btn-warning btn-sm js-create-zlecenie-dzisiaj{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
+                            data-zasyp-id="{{ b.id }}" data-produkt="{{ b.produkt }}" data-status="{{ b.status }}"
+                            title="Utwórz zlecenie Workowanie na DZISIAJ ({{ wybrana_data }}) z towarem z bufora - zamiast czekać na tamtą datę">🚀
+                            NA DZISIAJ</button>
                         {% endif %}
-                        <button class="btn btn-sm js-move-order btn-move-order"
-                                data-plan-id="{{ b.id }}"
-                                data-produkt="{{ b.produkt }}"
-                                title="{{ _('przenies_zlecenie') }}">📦 {{ _('przenies_zlecenie') }}</button>
-                        <button class="btn btn-outline-danger btn-sm js-archive-order"
-                                data-plan-id="{{ b.id }}">📁 Archiwizuj</button>
+                        <button class="btn btn-sm js-move-order btn-move-order" data-plan-id="{{ b.id }}"
+                            data-produkt="{{ b.produkt }}" title="{{ _('przenies_zlecenie') }}">📦 {{
+                            _('przenies_zlecenie') }}</button>
+                        <button class="btn btn-outline-danger btn-sm js-archive-order" data-plan-id="{{ b.id }}">📁
+                            Archiwizuj</button>
                     </td>
-                </tr>
-                {% endfor %}
+                    </tr>
+                    {% endfor %}
             </tbody>
         </table>
         {% else %}
-            <div class="p-15 text-muted">{{ _('brak_towaru_bufor') }}</div>
+        <div class="p-15 text-muted">{{ _('brak_towaru_bufor') }}</div>
         {% endif %}
     </div>
 </div>
 
 <script>
-// Funkcja do szybkiego wyboru daty
-function setQuickDate(offsetDays) {
-    var dateInput = document.getElementById('move_to_date_buffer');
-    if (!dateInput) return;
-    
-    var date = new Date();
-    date.setDate(date.getDate() + offsetDays);
-    var isoDate = date.toISOString().split('T')[0];
-    dateInput.value = isoDate;
-}
+    // Funkcja do szybkiego wyboru daty
+    function setQuickDate(offsetDays) {
+        var dateInput = document.getElementById('move_to_date_buffer');
+        if (!dateInput) return;
 
-// Otwórz modal przeniesienia
-function openMoveModalBuffer(planId, produkt) {
-    var modal = document.getElementById('moveModalBuffer');
-    var overlay = document.getElementById('moveModalBufferOverlay');
-    
-    if (!modal) {
-        alert('❌ Brak okna dialogowego przeniesienia');
-        return;
+        var date = new Date();
+        date.setDate(date.getDate() + offsetDays);
+        var isoDate = date.toISOString().split('T')[0];
+        dateInput.value = isoDate;
     }
-    
-    modal.style.display = 'block';
-    if (overlay) overlay.style.display = 'block';
-    modal.dataset.planId = planId;
-    
-    // Ustaw dzisiejszą datę jako domyślną
-    var today = new Date().toISOString().split('T')[0];
-    var dateInput = document.getElementById('move_to_date_buffer');
-    if (dateInput) {
-        dateInput.value = today;
-    }
-    
-    var title = modal.querySelector('.move-title-buffer');
-    if (title) {
-        title.innerText = '📦 Przenieś szarżę: ' + produkt;
-    }
-}
 
-// Zamknij modal przeniesienia
-function closeMoveModalBuffer() {
-    var modal = document.getElementById('moveModalBuffer');
-    var overlay = document.getElementById('moveModalBufferOverlay');
-    
-    if (modal) {
-        modal.style.display = 'none';
-    }
-    if (overlay) {
-        overlay.style.display = 'none';
-    }
-}
+    // Otwórz modal przeniesienia
+    function openMoveModalBuffer(planId, produkt) {
+        var modal = document.getElementById('moveModalBuffer');
+        var overlay = document.getElementById('moveModalBufferOverlay');
 
-// Potwierdź przeniesienie
-function confirmMoveBuffer() {
-    var modal = document.getElementById('moveModalBuffer');
-    if (!modal) return;
-    
-    var planId = modal.dataset.planId;
-    var toDate = document.getElementById('move_to_date_buffer').value;
-    
-    if (!planId || !toDate) {
-        alert('❌ Brak wymaganych danych (ID lub data)');
-        return;
-    }
-    
-    fetch('/api/przenies_zlecenie_ajax', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: planId, to_date: toDate })
-    })
-    .then(r => r.json().catch(() => ({ success: false, message: 'Nieprawidłowa odpowiedź serwera' })))
-    .then(j => {
-        if (j && j.success) {
-            closeMoveModalBuffer();
-            alert('✅ ' + (j.message || 'Szarża przeniesiona na nową datę'));
-            location.reload();
-        } else {
-            alert('❌ ' + (j && j.message ? j.message : 'Błąd przeniesienia'));
+        if (!modal) {
+            alert('❌ Brak okna dialogowego przeniesienia');
+            return;
         }
-    })
-    .catch(e => {
-        alert('❌ Błąd sieci: ' + e.message);
-    });
-}
 
-// Utwórz Workowanie z bufora NA DZISIAJ (jednym kliknięciem)
-function utworzZlecenieDzisiaj(zasypId, produkt) {
-    var today = new Date().toISOString().split('T')[0];
-    
-    fetch('/bufor/create_zlecenie', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            zasyp_id: zasypId,
-            use_buffer_data: true,
-            workowanie_date: today
+        modal.style.display = 'block';
+        if (overlay) overlay.style.display = 'block';
+        modal.dataset.planId = planId;
+
+        // Ustaw dzisiejszą datę jako domyślną
+        var today = new Date().toISOString().split('T')[0];
+        var dateInput = document.getElementById('move_to_date_buffer');
+        if (dateInput) {
+            dateInput.value = today;
+        }
+
+        var title = modal.querySelector('.move-title-buffer');
+        if (title) {
+            title.innerText = '📦 Przenieś szarżę: ' + produkt;
+        }
+    }
+
+    // Zamknij modal przeniesienia
+    function closeMoveModalBuffer() {
+        var modal = document.getElementById('moveModalBuffer');
+        var overlay = document.getElementById('moveModalBufferOverlay');
+
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+
+    // Potwierdź przeniesienie
+    function confirmMoveBuffer() {
+        var modal = document.getElementById('moveModalBuffer');
+        if (!modal) return;
+
+        var planId = modal.dataset.planId;
+        var toDate = document.getElementById('move_to_date_buffer').value;
+
+        if (!planId || !toDate) {
+            alert('❌ Brak wymaganych danych (ID lub data)');
+            return;
+        }
+
+        fetch('/api/przenies_zlecenie_ajax', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: planId, to_date: toDate })
         })
-    })
-    .then(r => r.json())
-    .then(j => {
-        if (j && j.success) { 
-            alert(`✅ Zlecenie Workowanie utworzone NA DZISIAJ!\n${j.message}`);
-            location.reload(); 
-        } else { 
-            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); 
-        }
-    })
-    .catch(e => { 
-        alert('❌ Błąd sieci: ' + e.message); 
-    });
-}
-
-// Utwórz Workowanie ze zwykłego zasypu
-function utworzZlecenie(zasypId, produkt) {
-    if (!confirm(`Czy na pewno chcesz utworzyć nowe zlecenie Workowanie dla "${produkt}"?\n\nSystem obliczy różnicę między towarem w zasypu a spakowanym.`)) {
-        return;
+            .then(r => r.json().catch(() => ({ success: false, message: 'Nieprawidłowa odpowiedź serwera' })))
+            .then(j => {
+                if (j && j.success) {
+                    closeMoveModalBuffer();
+                    alert('✅ ' + (j.message || 'Szarża przeniesiona na nową datę'));
+                    location.reload();
+                } else {
+                    alert('❌ ' + (j && j.message ? j.message : 'Błąd przeniesienia'));
+                }
+            })
+            .catch(e => {
+                alert('❌ Błąd sieci: ' + e.message);
+            });
     }
-    
-    fetch('/bufor/create_zlecenie', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ zasyp_id: zasypId })
-    })
-    .then(r => r.json())
-    .then(j => {
-        if (j && j.success) { 
-            alert(`✅ ${j.message}`);
-            location.reload(); 
-        } else { 
-            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); 
-        }
-    })
-    .catch(e => { 
-        alert('❌ Błąd sieci: ' + e.message); 
-    });
-}
 
-// Uruchom zlecenie na Workowaniu
-function startujZlecenie(kolejka, produkt) {
-    if (!confirm(`Czy na pewno chcesz uruchomić zlecenie ${produkt.replace('@', '')} (kolejka ${kolejka})?`)) {
-        return;
+    // Utwórz Workowanie z bufora NA DZISIAJ (jednym kliknięciem)
+    function utworzZlecenieDzisiaj(zasypId, produkt) {
+        var today = new Date().toISOString().split('T')[0];
+
+        fetch('/bufor/create_zlecenie', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                zasyp_id: zasypId,
+                use_buffer_data: true,
+                workowanie_date: today
+            })
+        })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.success) {
+                    alert(`✅ Zlecenie Workowanie utworzone NA DZISIAJ!\n${j.message}`);
+                    location.reload();
+                } else {
+                    alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia'));
+                }
+            })
+            .catch(e => {
+                alert('❌ Błąd sieci: ' + e.message);
+            });
     }
-    
-    fetch(`/api/start_from_queue/${kolejka}`, { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-    })
-    .then(r => r.json())
-    .then(j => {
-        if (j && j.success) { 
-            alert(`✅ ${j.message}`);
-            location.reload(); 
-        } else { 
-            alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się uruchomić')); 
+
+    // Utwórz Workowanie ze zwykłego zasypu
+    function utworzZlecenie(zasypId, produkt) {
+        if (!confirm(`Czy na pewno chcesz utworzyć nowe zlecenie Workowanie dla "${produkt}"?\n\nSystem obliczy różnicę między towarem w zasypu a spakowanym.`)) {
+            return;
         }
-    })
-    .catch(e => { 
-        alert('❌ Błąd sieci: ' + e.message); 
-    });
-}
 
-// Zarchiwizuj zlecenie
-function archiwizujZlecenie(planId) {
-    if (!confirm('Czy na pewno chcesz zarchiwizować to zlecenie?')) {
-        return;
+        fetch('/bufor/create_zlecenie', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zasyp_id: zasypId })
+        })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.success) {
+                    alert(`✅ ${j.message}`);
+                    location.reload();
+                } else {
+                    alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia'));
+                }
+            })
+            .catch(e => {
+                alert('❌ Błąd sieci: ' + e.message);
+            });
     }
-    
-    fetch('/bufor/archiwizuj', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan_id: planId })
-    })
-    .then(r => r.json())
-    .then(j => {
-        if (j && j.ok) { 
-            location.reload(); 
-        } else { 
-            alert('Błąd: ' + (j && j.message ? j.message : 'Nie udało się zarchiwizować')); 
+
+    // Uruchom zlecenie na Workowaniu
+    function startujZlecenie(kolejka, produkt) {
+        if (!confirm(`Czy na pewno chcesz uruchomić zlecenie ${produkt.replace('@', '')} (kolejka ${kolejka})?`)) {
+            return;
         }
-    })
-    .catch(e => { 
-        alert('Błąd sieci: ' + e.message); 
-    });
-}
 
-// Event listeners - załadowane gdy DOM jest gotowy
-document.addEventListener('DOMContentLoaded', () => {
-    // Przyciski Startuj (Workowanie)
-    document.querySelectorAll('.js-start-order').forEach((button) => {
-        button.addEventListener('click', () => {
-            const kolejka = button.dataset.kolejka;
-            const produkt = button.dataset.produkt || '';
-            const status = button.dataset.status || '';
-            
-            if (!kolejka) {
-                alert('❌ Brak numeru kolejki');
-                return;
-            }
-            
-            if (status && status !== 'w toku') {
-                alert('⚠️ Zlecenie musi być w trakcie (status: w toku)\n\nAktualny status: ' + status);
-                return;
-            }
-            
-            startujZlecenie(kolejka, produkt);
-        });
-    });
-
-    // Przyciski Utwórz Workowanie (zwykły)
-    document.querySelectorAll('.js-create-zlecenie').forEach((button) => {
-        button.addEventListener('click', () => {
-            const zasypId = button.dataset.zasypId;
-            const produkt = button.dataset.produkt || '';
-            const status = button.dataset.status || '';
-            
-            if (!zasypId) {
-                alert('❌ Brak ID zasypu');
-                return;
-            }
-            
-            if (status !== 'zakonczone') {
-                alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status);
-                return;
-            }
-            
-            if (produkt) {
-                utworzZlecenie(zasypId, produkt);
-            }
-        });
-    });
-
-    // Przyciski Utwórz Workowanie NA DZISIAJ (z bufora)
-    document.querySelectorAll('.js-create-zlecenie-dzisiaj').forEach((button) => {
-        button.addEventListener('click', () => {
-            const zasypId = button.dataset.zasypId;
-            const produkt = button.dataset.produkt || '';
-            const status = button.dataset.status || '';
-            
-            if (!zasypId) {
-                alert('❌ Brak ID zasypu');
-                return;
-            }
-            
-            if (status !== 'zakonczone') {
-                alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status);
-                return;
-            }
-            
-            if (produkt) {
-                utworzZlecenieDzisiaj(zasypId, produkt);
-            }
-        });
-    });
-
-    // Przyciski Archiwizuj
-    document.querySelectorAll('.js-archive-order').forEach((button) => {
-        button.addEventListener('click', () => {
-            const planId = button.dataset.planId;
-            if (planId) {
-                archiwizujZlecenie(planId);
-            }
-        });
-    });
-
-    // Przyciski Przenieś (Modal)
-    document.querySelectorAll('.js-move-order').forEach((button) => {
-        button.addEventListener('click', () => {
-            const planId = button.dataset.planId;
-            const produkt = button.dataset.produkt || '';
-            
-            if (planId) {
-                openMoveModalBuffer(planId, produkt);
-            }
-        });
-    });
-    
-    // Zamknij modal po kliknięciu na overlay
-    var overlay = document.getElementById('moveModalBufferOverlay');
-    if (overlay) {
-        overlay.addEventListener('click', closeMoveModalBuffer);
+        fetch(`/api/start_from_queue/${kolejka}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.success) {
+                    alert(`✅ ${j.message}`);
+                    location.reload();
+                } else {
+                    alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się uruchomić'));
+                }
+            })
+            .catch(e => {
+                alert('❌ Błąd sieci: ' + e.message);
+            });
     }
-});
+
+    // Zarchiwizuj zlecenie
+    function archiwizujZlecenie(planId) {
+        if (!confirm('Czy na pewno chcesz zarchiwizować to zlecenie?')) {
+            return;
+        }
+
+        fetch('/bufor/archiwizuj', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan_id: planId })
+        })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.ok) {
+                    location.reload();
+                } else {
+                    alert('Błąd: ' + (j && j.message ? j.message : 'Nie udało się zarchiwizować'));
+                }
+            })
+            .catch(e => {
+                alert('Błąd sieci: ' + e.message);
+            });
+    }
+
+    // Event listeners - załadowane gdy DOM jest gotowy
+    document.addEventListener('DOMContentLoaded', () => {
+        // Przyciski Startuj (Workowanie)
+        document.querySelectorAll('.js-start-order').forEach((button) => {
+            button.addEventListener('click', () => {
+                const kolejka = button.dataset.kolejka;
+                const produkt = button.dataset.produkt || '';
+                const status = button.dataset.status || '';
+
+                if (!kolejka) {
+                    alert('❌ Brak numeru kolejki');
+                    return;
+                }
+
+                if (status && status !== 'w toku') {
+                    alert('⚠️ Zlecenie musi być w trakcie (status: w toku)\n\nAktualny status: ' + status);
+                    return;
+                }
+
+                startujZlecenie(kolejka, produkt);
+            });
+        });
+
+        // Przyciski Utwórz Workowanie (zwykły)
+        document.querySelectorAll('.js-create-zlecenie').forEach((button) => {
+            button.addEventListener('click', () => {
+                const zasypId = button.dataset.zasypId;
+                const produkt = button.dataset.produkt || '';
+                const status = button.dataset.status || '';
+
+                if (!zasypId) {
+                    alert('❌ Brak ID zasypu');
+                    return;
+                }
+
+                if (status !== 'zakonczone') {
+                    alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status);
+                    return;
+                }
+
+                if (produkt) {
+                    utworzZlecenie(zasypId, produkt);
+                }
+            });
+        });
+
+        // Przyciski Utwórz Workowanie NA DZISIAJ (z bufora)
+        document.querySelectorAll('.js-create-zlecenie-dzisiaj').forEach((button) => {
+            button.addEventListener('click', () => {
+                const zasypId = button.dataset.zasypId;
+                const produkt = button.dataset.produkt || '';
+                const status = button.dataset.status || '';
+
+                if (!zasypId) {
+                    alert('❌ Brak ID zasypu');
+                    return;
+                }
+
+                if (status !== 'zakonczone') {
+                    alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status);
+                    return;
+                }
+
+                if (produkt) {
+                    utworzZlecenieDzisiaj(zasypId, produkt);
+                }
+            });
+        });
+
+        // Przyciski Archiwizuj
+        document.querySelectorAll('.js-archive-order').forEach((button) => {
+            button.addEventListener('click', () => {
+                const planId = button.dataset.planId;
+                if (planId) {
+                    archiwizujZlecenie(planId);
+                }
+            });
+        });
+
+        // Przyciski Przenieś (Modal)
+        document.querySelectorAll('.js-move-order').forEach((button) => {
+            button.addEventListener('click', () => {
+                const planId = button.dataset.planId;
+                const produkt = button.dataset.produkt || '';
+
+                if (planId) {
+                    openMoveModalBuffer(planId, produkt);
+                }
+            });
+        });
+
+        // Zamknij modal po kliknięciu na overlay
+        var overlay = document.getElementById('moveModalBufferOverlay');
+        if (overlay) {
+            overlay.addEventListener('click', closeMoveModalBuffer);
+        }
+    });
 </script>
 
 <!-- Overlay dla Modal Bufora -->
@@ -587,7 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- Modal do przeniesienia szarż na inną datę -->
 <div id="moveModalBuffer" class="move-modal-buffer">
     <h3 class="move-title-buffer">📦 Przenieś szarżę</h3>
-    
+
     <div class="move-modal-field">
         <label>⏱️ Szybki wybór:</label>
         <div class="quick-dates">
@@ -597,12 +672,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <button type="button" class="quick-date-btn" onclick="setQuickDate(7)">Za tydzień</button>
         </div>
     </div>
-    
+
     <div class="move-modal-field">
         <label for="move_to_date_buffer">📅 Lub wybierz datę:</label>
         <input type="date" id="move_to_date_buffer" required>
     </div>
-    
+
     <div class="move-modal-actions">
         <button type="button" class="btn btn-success btn-sm" onclick="confirmMoveBuffer()">✅ Przenieś</button>
         <button type="button" class="btn btn-secondary btn-sm" onclick="closeMoveModalBuffer()">❌ Zamknij</button>

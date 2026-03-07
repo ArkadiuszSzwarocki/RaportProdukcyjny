@@ -15,6 +15,7 @@ class PaletaDTO:
     typ_produkcji: Optional[str] = None
     status: Optional[str] = None
     czas_potwierdzenia_s: Optional[int] = None
+    user_login: Optional[str] = None
 
     @classmethod
     def from_db_row(cls, row: Any, columns: Optional[Tuple[str, ...]] = None) -> "PaletaDTO":
@@ -61,6 +62,7 @@ class PaletaDTO:
                 typ_produkcji=row[7] if len(row) > 7 else None,
                 status=row[8] if len(row) > 8 else None,
                 czas_potwierdzenia_s=row[9] if len(row) > 9 else None,
+                user_login=row[11] if len(row) > 11 else None,
             )
         except Exception:
             return cls()

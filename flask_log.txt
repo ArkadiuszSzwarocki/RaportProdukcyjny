@@ -1,0 +1,13 @@
+[BUFOR] Odœwie¿ono bufor: usuniêto 0, dodano 0
+[OK] Produkty zainicjalizowane w bazie danych
+[INFO] Skipping auto-confirm palet on startup (AUTO_CONFIRM_PALET not set)
+[OK] Baza danych jest gotowa!
+[BUFOR] Odœwie¿ono bufor: usuniêto 0, dodano 0
+
+======================================================================
+[OK] Serwer w TRYBIE DEBUG: http://localhost:8082 (pid=11480)
+[OK] Auto-reload W£¥CZONY - zmiany w kodzie spowoduj¹ restart
+======================================================================
+
+ * Serving Flask app 'app.core.factory'
+ * Debug mode: on

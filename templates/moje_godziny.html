@@ -1,667 +1,895 @@
 {% extends 'layout.html' %}
 {% block content %}
 <style>
-  /* Global layout fixes */
-  .block-section {
-    margin-bottom: 32px;
-    padding: 0;
-  }
-
-  .block-section > h2 {
+  /* Modern Dashboard Layout */
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 24px;
-    font-size: 1.8em;
-    border-bottom: 2px solid #007bff;
-    padding-bottom: 12px;
-  }
-
-  .block-section > h3 {
-    margin-top: 24px;
-    margin-bottom: 16px;
-    font-size: 1.3em;
-    color: #333;
-  }
-
-  .block-section > h4 {
-    margin-bottom: 12px;
-    font-size: 1.1em;
-    color: #555;
-  }
-
-  /* Form improvements */
-  .block-section form {
-    background: #f8f9fa;
-    padding: 16px;
-    border-radius: 6px;
-    border: 1px solid #dee2e6;
-    margin-bottom: 16px;
-  }
-
-  .block-section .row {
-    margin-bottom: 12px;
-  }
-
-  .block-section .col-md-3,
-  .block-section .col-md-6 {
-    margin-bottom: 12px;
-  }
-
-  .block-section label {
-    font-weight: 600;
-    margin-bottom: 8px;
-    display: block;
-  }
-
-  .block-section input,
-  .block-section select {
-    width: 100%;
-  }
-
-  /* Summary box */
-  .summary-box {
-    background: #f8f9fa;
-    padding: 16px;
-    border-radius: 6px;
-    border: 1px solid #dee2e6;
-  }
-
-  .summary-box ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  .summary-box li {
-    padding: 8px 0;
-    border-bottom: 1px solid #e9ecef;
-  }
-
-  .summary-box li:last-child {
-    border-bottom: none;
-  }
-
-  /* Table improvements */
-  .block-section table {
-    margin-top: 12px;
-    margin-bottom: 12px;
-  }
-
-  .block-section table th {
-    background: #e9ecef;
-    font-weight: 700;
-    padding: 12px;
-  }
-
-  .block-section table td {
-    padding: 10px 12px;
-    border: 1px solid #dee2e6;
-  }
-
-  /* Alert box */
-  .alert {
-    margin-bottom: 16px;
-    padding: 12px 16px;
-    border-radius: 4px;
-  }
-
-  .alert-warning {
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    color: #856404;
-  }
-
-  /* Button alignment */
-  .text-right {
-    text-align: right;
-  }
-
-  .align-self-end {
-    align-self: flex-end;
-  }
-
-  /* Ensure form controls are properly sized */
-  .form-control {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 0.95em;
-  }
-
-  .btn {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    font-weight: 600;
-    cursor: pointer;
-    display: inline-block;
-  }
-
-  .btn-primary {
-    background: #007bff;
-    color: white;
-  }
-
-  .btn-primary:hover {
-    background: #0056b3;
-  }
-
-  /* Hide/show elements */
-  .d-none {
-    display: none !important;
-  }
-
-  .d-flex {
-    display: flex;
-  }
-
-  .mb-3 {
-    margin-bottom: 16px;
-  }
-
-  .mt-2 {
-    margin-top: 12px;
-  }
-</style>
-
-<h2>{{ _('moje_godziny') }}</h2>
-{% if not mapped %}
-<div class="alert alert-warning">{{ _('konto_nie_powiazane') }}</div>
-{% endif %}
-
-<p>Zakres: {{ d_od }} — {{ d_do }}</p>
-{% if pracownicy_list %}
-<form method="get" class="mb-3">
-  <label for="pracownik_select">{{ _('przeglądaj_pracownika') }}</label>
-  <select id="pracownik_select" name="pracownik_id" title="Wybierz pracownika do przeglądu"
-    onchange="this.form.submit()" class="form-control pracownik-select">
-    <option value="">-- wybierz --</option>
-    {% for p in pracownicy_list %}
-    <option value="{{ p[0] }}" {% if selected_pid and p[0]==selected_pid %}selected{% endif %}>{{ p[1] }}</option>
-    {% endfor %}
-  </select>
-</form>
-{% endif %}
-<div class="mp-flex-row">
-  <div>
-    <h4>{{ _('twoje_podsumowanie') }}</h4>
-    <ul>
-      <li>Liczba zmian obecności w tym okresie: <strong id="obecnosciCount_owner">{{ owner_summary.obecnosci }}</strong>
-      </li>
-      <li>Wyjścia prywatne (suma godzin): <strong id="wyjsciaHours_owner">{{ '%.2f'|format(owner_summary.wyjscia_hours)
-          }} h</strong></li>
-      <li>Urlop bieżący (dni): <strong id="urlopBiez_owner">{{ owner_summary.urlop_biezacy if
-          owner_summary.urlop_biezacy is defined else 0 }}</strong></li>
-      <li>Urlop zaległy (dni): <strong id="urlopZal_owner">{{ owner_summary.urlop_zalegly if owner_summary.urlop_zalegly
-          is defined else 0 }}</strong></li>
-    </ul>
-  </div>
-  {% if viewed_summary %}
-  <div>
-    <h4>{{ _('przegladany_pracownik') }}</h4>
-    <ul>
-      <li>Liczba zmian obecności w tym okresie: <strong id="obecnosciCount_viewed">{{ viewed_summary.obecnosci
-          }}</strong></li>
-      <li>Wyjścia prywatne (suma godzin): <strong id="wyjsciaHours_viewed">{{
-          '%.2f'|format(viewed_summary.wyjscia_hours) }} h</strong></li>
-      <li>Urlop bieżący (dni): <strong id="urlopBiez_viewed">{{ viewed_summary.urlop_biezacy if
-          viewed_summary.urlop_biezacy is defined else 0 }}</strong></li>
-      <li>Urlop zaległy (dni): <strong id="urlopZal_viewed">{{ viewed_summary.urlop_zalegly if
-          viewed_summary.urlop_zalegly is defined else 0 }}</strong></li>
-    </ul>
-  </div>
-  {% endif %}
-</div>
-<h3>{{ _('zloz_wniosek_o_wolne') }}</h3>
-<form action="{{ url_for('leaves.submit_wniosek') }}" method="post" class="mb-3">
-  <div class="row">
-    <div class="col-md-3"><label for="typ_select">{{ _('typ') }}</label>
-      <select id="typ_select" name="typ" class="form-control" title="{{ _('wybierz_typ_wniosku') }}">
-        <option>{{ _('urlop') }}</option>
-        <option>{{ _('nieobecnosc') }}</option>
-        <option>{{ _('wyjscie_prywatne') }}</option>
-      </select>
-    </div>
-    <div class="col-md-3"><label>{{ _('od') }}</label><input id="data_od" type="date" name="data_od"
-        class="form-control" required title="{{ _('data_od') }}" placeholder="RRRR-MM-DD"></div>
-    <div class="col-md-3"><label>{{ _('do') }}</label><input id="data_do" type="date" name="data_do"
-        class="form-control" title="{{ _('data_do') }}" placeholder="RRRR-MM-DD"></div>
-  </div>
-  <div class="row mt-2">
-    <div class="col-md-3 d-none" id="timeColOd"><label for="czas_od">{{ _('czas_od') }}</label><input id="czas_od"
-        type="time" name="czas_od" title="{{ _('czas_od') }}" placeholder="{{ _('hh_mm') }}" class="form-control"></div>
-    <div class="col-md-3 d-none" id="timeColDo"><label for="czas_do">{{ _('czas_do') }}</label><input id="czas_do"
-        type="time" name="czas_do" title="{{ _('czas_do') }}" placeholder="{{ _('hh_mm') }}" class="form-control"></div>
-    <div class="col-md-6 align-self-end text-right"><button type="submit" class="btn btn-primary">{{ _('zloz_wniosek')
-        }}</button></div>
-  </div>
-</form>
-
-<h3>{{ _('twoje_wnioski') }}</h3>
-<table class="table table-sm">
-  <thead>
-    <tr>
-      <th>{{ _('data') }}</th>
-      <th>{{ _('typ') }}</th>
-      <th>{{ _('okres') }}</th>
-      <th>{{ _('stan') }}</th>
-      {% if session.get('rola') in ['lider','admin'] %}<th>{{ _('akcje') }}</th>{% endif %}
-    </tr>
-  </thead>
-  <tbody>
-    {% for w in wnioski %}
-    <tr data-wnid="{{ w.id }}">
-      <td>{{ w.zlozono }}</td>
-      <td>{{ w.typ }}</td>
-      <td>{{ w.data_od }} → {{ w.data_do }}{% if w.czas_od %} ({{ w.czas_od }}-{{ w.czas_do }}){% endif %}</td>
-      <td>{{ w.status }}</td>
-      {% if session.get('rola') in ['lider','admin'] %}
-      <td>
-        {% if w.status != 'approved' %}
-        <button class="btn btn-sm btn-success wn-action" data-id="{{ w.id }}" data-action="approve">{{ _('zatwierdz')
-          }}</button>
-        <button type="button" class="btn btn-sm btn-danger wn-action ml-6" data-id="{{ w.id }}" data-action="reject">{{
-          _('odrzuc') }}</button>
-        {% else %}
-        <span class="badge badge-success">{{ _('zatwierdzony') }}</span>
-        {% endif %}
-      </td>
-      {% endif %}
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-<h3>{{ _('suma_godzin_wg_typu') }}</h3>
-<table class="table" id="typyTable_owner">
-  <thead>
-    <tr>
-      <th>{{ _('typ') }}</th>
-      <th>{{ _('godziny') }}</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for t, h in owner_summary.typy.items() %}
-    <tr data-typ="{{ t }}">
-      <td>{{ t or '(brak)' }}</td>
-      <td class="typ-hours">{{ '%.2f'|format(h) }} h</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% if viewed_summary %}
-<h4>{{ _('typy_przeglądany') }}</h4>
-<table class="table" id="typyTable_viewed">
-  <thead>
-    <tr>
-      <th>{{ _('typ') }}</th>
-      <th>{{ _('godziny') }}</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for t, h in viewed_summary.typy.items() %}
-    <tr data-typ="{{ t }}">
-      <td>{{ t or '(brak)' }}</td>
-      <td class="typ-hours">{{ '%.2f'|format(h) }} h</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% endif %}
-
-<h3>{{ _('kalendarz_godzin') }}</h3>
-<style>
-  /* Main layout fix */
-  .mp-flex-row {
-    display: flex;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 16px;
     flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .dashboard-title {
+    margin: 0;
+    font-size: 2.2rem;
+    color: #2b2b2b;
+    font-weight: 700;
+  }
+
+  .dashboard-period {
+    font-size: 1.1rem;
+    color: #495057;
+    font-weight: 600;
+    background: #f8f9fa;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .summary-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 24px;
     margin-bottom: 32px;
   }
 
-  .mp-flex-row > div {
-    flex: 0 1 auto;
-    min-width: 300px;
-  }
-
-  .mp-cal-row {
-    display: block;
-    width: 100%;
-    clear: both;
-    margin-top: 24px;
-    margin-bottom: 32px;
-  }
-
-  .mp-cal-col-main {
-    width: 100%;
-    overflow-x: auto;
-  }
-
-  .cal-grid {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 16px;
-  }
-
-  .cal-grid th {
-    text-align: center;
-    padding: 8px 6px;
-    background: #f0f0f0;
-    font-weight: 600;
-    border: 1px solid #ddd;
-  }
-
-  .cal-grid td {
-    width: 14.28%;
-    vertical-align: top;
-    border: 1px solid #ddd;
-    padding: 8px;
-    height: 120px;
-    background-color: #fafafa;
-    position: relative;
-  }
-
-  .cal-day {
-    font-weight: 700;
-    margin-bottom: 6px;
-    font-size: 1.1em;
-  }
-
-  .cal-hours {
-    font-size: 0.85em;
-    color: #666;
-    margin-bottom: 4px;
-  }
-
-  .cal-type {
-    font-size: 0.75em;
-    font-weight: 600;
-    margin-top: 6px;
-    display: inline-block;
-    padding: 3px 8px;
-    border-radius: 3px;
-    background: #e9ecef;
-    color: #495057;
-  }
-
-  .cal-hr {
-    background: #ffe6e6 !important;
-  }
-
-  .cal-approved {
-    outline: 3px solid #28a745;
-    outline-offset: -3px;
-  }
-
-  /* Leave request status colors */
-  .cal-leave-pending {
-    background-color: #fff3cd !important;  /* Pomarańczowy - zaplanowany urlop */
-  }
-
-  .cal-leave-approved {
-    background-color: #d4edda !important;  /* Zielony - zatwierdzony urlop */
-  }
-
-  .cal-assigned {
-    background-color: #cfe2ff !important;  /* Niebieski - przydzielony do pracy */
-  }
-
-  .badge {
-    display: inline-block;
-    padding: 3px 8px;
-    border-radius: 3px;
-    font-size: 0.75em;
-    margin-top: 6px;
-    font-weight: 500;
-  }
-
-  .badge-success {
-    background: #28a745;
-    color: #fff;
-  }
-
-  .text-danger {
-    color: #dc3545;
-    font-weight: 600;
-    font-size: 0.85em;
-    margin-top: 4px;
-  }
-
-  /* Form styling */
-  .mp-form-row {
+  .stat-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
     display: flex;
-    gap: 16px;
-    align-items: flex-end;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
+    align-items: center;
+    border: 1px solid #f0f0f0;
+    border-left: 5px solid #007bff;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
 
-  .mp-form-row > div {
-    flex: 0 1 auto;
+  .stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
   }
 
-  .mp-form-row label {
-    display: block;
-    margin-bottom: 6px;
+  .stat-card.bg-success-left {
+    border-left-color: #28a745;
+  }
+
+  .stat-card.bg-warning-left {
+    border-left-color: #ffc107;
+  }
+
+  .stat-card.bg-info-left {
+    border-left-color: #17a2b8;
+  }
+
+  .stat-card.bg-purple-left {
+    border-left-color: #6f42c1;
+  }
+
+  .stat-icon {
+    font-size: 2.8rem;
+    margin-right: 20px;
+    opacity: 0.9;
+  }
+
+  .stat-details {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stat-title {
+    font-size: 0.85rem;
+    color: #6c757d;
     font-weight: 600;
-    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
   }
 
-  .mp-form-row input,
-  .mp-form-row select {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 0.9em;
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #2b2b2b;
+    line-height: 1;
   }
 
-  /* Legend styling */
-  .mp-legend {
+  .stat-unit {
+    font-size: 1rem;
+    color: #6c757d;
+    font-weight: 500;
+    margin-left: 4px;
+  }
+
+  .content-card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+    padding: 24px;
+    margin-bottom: 32px;
+    border: 1px solid #f4f5f7;
+  }
+
+  .content-card-header {
+    margin-top: 0;
+    margin-bottom: 24px;
+    color: #2b2b2b;
+    font-size: 1.4rem;
+    font-weight: 700;
+    border-bottom: 2px solid #f8f9fa;
+    padding-bottom: 16px;
+    display: flex;
+    align-items: center;
+  }
+
+  .content-card-header i {
+    margin-right: 12px;
+    color: #007bff;
+  }
+
+  /* Form and Select styling */
+  .modern-form-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .modern-form-row>div {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .modern-form-row.action-row {
+    justify-content: flex-end;
     margin-top: 20px;
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    padding: 16px;
+  }
+
+  .modern-form-control {
+    padding: 10px 14px;
+    border: 1px solid #ced4da;
     border-radius: 6px;
-    font-size: 0.9em;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+    background-color: #f8f9fa;
   }
 
-  .mp-legend .mp-legend-item {
-    margin-right: 24px;
-    display: inline-block;
+  .modern-form-control:focus {
+    border-color: #80bdff;
+    outline: 0;
+    background-color: #fff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, .25);
+  }
+
+  label {
+    font-weight: 600;
+    color: #495057;
     margin-bottom: 8px;
+    display: block;
   }
 
-  .mp-legend-item span {
-    display: inline-block;
-    width: 16px;
-    height: 16px;
-    border-radius: 3px;
-    margin-right: 8px;
-    vertical-align: middle;
+  /* Button redesign */
+  .btn-modern {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .spinner {
-    width: 18px;
-    height: 18px;
-    border: 3px solid rgba(0, 0, 0, 0.1);
-    border-top: 3px solid #007bff;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    display: inline-block;
-    vertical-align: middle;
+  .btn-modern i {
+    margin-right: 10px;
   }
 
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+  .btn-primary-modern {
+    background: #007bff;
+    color: white;
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25);
   }
 
-  /* Responsive */
-  @media (max-width: 768px) {
-    .cal-grid td {
-      height: 100px;
-      padding: 6px 4px;
-    }
-    .cal-day {
-      font-size: 1em;
-    }
-    .cal-hours {
-      font-size: 0.75em;
-    }
-    .mp-flex-row {
-      flex-direction: column;
-      gap: 16px;
-    }
-    .mp-form-row {
-      flex-direction: column;
-      align-items: stretch;
-    }
+  .btn-primary-modern:hover {
+    background: #0069d9;
+    box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
+    transform: translateY(-2px);
+  }
+
+  .alert-box {
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .alert-box.alert-warning {
+    background: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
+  }
+
+  /* Utilities */
+  .mb-4 {
+    margin-bottom: 24px;
+  }
+
+  .mt-4 {
+    margin-top: 24px;
+  }
+
+  /* Basic structure replacements for backwards compat */
+  .block-section {
+    margin-bottom: 30px;
+  }
+
+  .d-none {
+    display: none !important;
   }
 </style>
-<div class="mp-cal-row">
-  {# Decide which calendar to show: prefer viewed (selected) if present, otherwise owner #}
-  {% set show_viewed = (calendar_days_viewed is defined and calendar_days_viewed) or (selected_pid) %}
-  {% if show_viewed %}
-  {% set display_days = calendar_days_viewed if (calendar_days_viewed is defined and calendar_days_viewed) else
-  calendar_days_owner %}
-  {% set display_pid = viewed_pid or selected_pid or owner_pid %}
-  {% else %}
-  {% set display_days = calendar_days_owner %}
-  {% set display_pid = owner_pid %}
-  {% endif %}
-  <div class="mp-cal-col-main">
-    <h4>{{ _('kalendarz_pracownika') }}</h4>
-    <table class="cal-grid">
-      <tr>
-        <th>{{ _('pon') }}</th>
-        <th>{{ _('wt') }}</th>
-        <th>{{ _('sr') }}</th>
-        <th>{{ _('czw') }}</th>
-        <th>{{ _('pt') }}</th>
-        <th>{{ _('sob') }}</th>
-        <th>{{ _('nd') }}</th>
-      </tr>
-      <tr>
-        {% for d in display_days %}
-        {% set wd = d.date.weekday() %}
-        {% if loop.first and wd > 0 %}
-        {% for i in range(wd) %}
-        <td></td>
-        {% endfor %}
-        {% endif %}
-        {% set classes = [] %}
-        {% if d.hr %}{% do classes.append('cal-hr') %}{% endif %}
-        {% if d.approved %}{% do classes.append('cal-approved') %}{% endif %}
-        {% if d.leave_status == 'pending' %}{% do classes.append('cal-leave-pending') %}{% endif %}
-        {% if d.leave_status == 'approved' %}{% do classes.append('cal-leave-approved') %}{% endif %}
-        {% if d.assigned %}{% do classes.append('cal-assigned') %}{% endif %}
-        <td data-date="{{ d.date }}" data-pid="{{ display_pid }}" class="{{ ' '.join(classes) }}">
-          <div class="cal-day">{{ d.date.day }}</div>
-          <div class="cal-hours">
-            {% if d.nadgodziny > 0 %}
-              {{ '%.2f'|format(d.hours) }}h + <strong class="hours-summary">{{ '%.2f'|format(d.nadgodziny) }}h OT</strong>
+
+<div class="dashboard-header mt-4">
+  <h2 class="dashboard-title"><i class="fas fa-user-clock text-primary"></i> {{ _('moje_godziny') }}</h2>
+  <div class="dashboard-period">
+    <i class="far fa-calendar-alt text-primary"></i>
+    <span>{{ d_od }} &mdash; {{ d_do }}</span>
+  </div>
+</div>
+
+{% if not mapped %}
+<div class="alert-box alert-warning"><i class="fas fa-exclamation-triangle"></i> {{ _('konto_nie_powiazane') }}</div>
+{% endif %}
+
+{% if pracownicy_list %}
+<form method="get" class="mb-4">
+  <label for="pracownik_select"><i class="fas fa-users text-primary"></i> {{ _('przeglądaj_pracownika') }}</label>
+  <div style="max-width: 400px;">
+    <select id="pracownik_select" name="pracownik_id" title="Wybierz pracownika do przeglądu"
+      onchange="this.form.submit()" class="modern-form-control pracownik-select">
+      <option value="">-- wybierz --</option>
+      {% for p in pracownicy_list %}
+      <option value="{{ p[0] }}" {% if selected_pid and p[0]==selected_pid %}selected{% endif %}>{{ p[1] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+{% endif %}
+
+<div class="content-card">
+  <h3 class="content-card-header"><i class="fas fa-chart-pie"></i> {{ _('twoje_podsumowanie') }}</h3>
+  <div class="summary-cards-grid">
+    <div class="stat-card bg-info-left">
+      <div class="stat-icon text-info"><i class="fas fa-calendar-check"></i></div>
+      <div class="stat-details">
+        <span class="stat-title">Obecności (zmiany)</span>
+        <div><span class="stat-value" id="obecnosciCount_owner">{{ owner_summary.obecnosci }}</span></div>
+      </div>
+    </div>
+
+    <div class="stat-card bg-warning-left">
+      <div class="stat-icon text-warning"><i class="fas fa-door-open"></i></div>
+      <div class="stat-details">
+        <span class="stat-title">Wyjścia prywatne</span>
+        <div>
+          <span class="stat-value" id="wyjsciaHours_owner">{{ '%.2f'|format(owner_summary.wyjscia_hours) }}</span>
+          <span class="stat-unit">h</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-card bg-success-left">
+      <div class="stat-icon text-success"><i class="fas fa-umbrella-beach"></i></div>
+      <div class="stat-details">
+        <span class="stat-title">Urlop (Bieżący)</span>
+        <div>
+          <span class="stat-value" id="urlopBiez_owner">{{ owner_summary.urlop_biezacy if owner_summary.urlop_biezacy is
+            defined else 0 }}</span>
+          <span class="stat-unit">dni</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-card bg-purple-left">
+      <div class="stat-icon" style="color: #6f42c1;"><i class="fas fa-history"></i></div>
+      <div class="stat-details">
+        <span class="stat-title">Urlop (Zaległy)</span>
+        <div>
+          <span class="stat-value" id="urlopZal_owner">{{ owner_summary.urlop_zalegly if owner_summary.urlop_zalegly is
+            defined else 0 }}</span>
+          <span class="stat-unit">dni</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if viewed_summary %}
+<div class="content-card">
+  <h3 class="content-card-header"><i class="fas fa-user-tag"></i> {{ _('przegladany_pracownik') }}</h3>
+  <div class="summary-cards-grid">
+    <div class="stat-card bg-info-left">
+      <div class="stat-icon text-info"><i class="fas fa-calendar-check"></i></div>
+      <div class="stat-details">
+        <span class="stat-title">Obecności (zmiany)</span>
+        <div><span class="stat-value" id="obecnosciCount_viewed">{{ viewed_summary.obecnosci }}</span></div>
+      </div>
+    </div>
+
+    <div class="stat-card bg-warning-left">
+      <div class="stat-icon text-warning"><i class="fas fa-door-open"></i></div>
+      <div class="stat-details">
+        <span class="stat-title">Wyjścia prywatne</span>
+        <div>
+          <span class="stat-value" id="wyjsciaHours_viewed">{{ '%.2f'|format(viewed_summary.wyjscia_hours) }}</span>
+          <span class="stat-unit">h</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-card bg-success-left">
+      <div class="stat-icon text-success"><i class="fas fa-umbrella-beach"></i></div>
+      <div class="stat-details">
+        <span class="stat-title">Urlop (Bieżący)</span>
+        <div>
+          <span class="stat-value" id="urlopBiez_viewed">{{ viewed_summary.urlop_biezacy if viewed_summary.urlop_biezacy
+            is defined else 0 }}</span>
+          <span class="stat-unit">dni</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-card bg-purple-left">
+      <div class="stat-icon" style="color: #6f42c1;"><i class="fas fa-history"></i></div>
+      <div class="stat-details">
+        <span class="stat-title">Urlop (Zaległy)</span>
+        <div>
+          <span class="stat-value" id="urlopZal_viewed">{{ viewed_summary.urlop_zalegly if viewed_summary.urlop_zalegly
+            is defined else 0 }}</span>
+          <span class="stat-unit">dni</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+<div class="content-card">
+  <h3 class="content-card-header"><i class="fas fa-file-signature"></i> {{ _('zloz_wniosek_o_wolne') }}</h3>
+  <form action="{{ url_for('leaves.submit_wniosek') }}" method="post" class="mb-0">
+    <div class="modern-form-row">
+      <div>
+        <label for="typ_select">{{ _('typ') }}</label>
+        <select id="typ_select" name="typ" class="modern-form-control" title="{{ _('wybierz_typ_wniosku') }}">
+          <option>{{ _('urlop') }}</option>
+          <option>{{ _('nieobecnosc') }}</option>
+          <option>{{ _('wyjscie_prywatne') }}</option>
+        </select>
+      </div>
+      <div>
+        <label>{{ _('od') }}</label>
+        <input id="data_od" type="date" name="data_od" class="modern-form-control" required title="{{ _('data_od') }}"
+          placeholder="RRRR-MM-DD">
+      </div>
+      <div>
+        <label>{{ _('do') }}</label>
+        <input id="data_do" type="date" name="data_do" class="modern-form-control" title="{{ _('data_do') }}"
+          placeholder="RRRR-MM-DD">
+      </div>
+    </div>
+
+    <div class="modern-form-row mt-4">
+      <div id="timeColOd" class="d-none">
+        <label for="czas_od">{{ _('czas_od') }}</label>
+        <input id="czas_od" type="time" name="czas_od" title="{{ _('czas_od') }}" placeholder="{{ _('hh_mm') }}"
+          class="modern-form-control">
+      </div>
+      <div id="timeColDo" class="d-none">
+        <label for="czas_do">{{ _('czas_do') }}</label>
+        <input id="czas_do" type="time" name="czas_do" title="{{ _('czas_do') }}" placeholder="{{ _('hh_mm') }}"
+          class="modern-form-control">
+      </div>
+      <div class="action-row">
+        <button type="submit" class="btn-modern btn-primary-modern"><i class="fas fa-paper-plane"></i> {{
+          _('zloz_wniosek') }}</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="content-card">
+  <h3 class="content-card-header"><i class="fas fa-list-alt"></i> {{ _('twoje_wnioski') }}</h3>
+  <div style="overflow-x: auto;">
+    <table class="modern-table" style="width: 100%;">
+      <thead>
+        <tr>
+          <th>{{ _('data') }}</th>
+          <th>{{ _('typ') }}</th>
+          <th>{{ _('okres') }}</th>
+          <th>{{ _('stan') }}</th>
+
+          {% set can_approve = false %}
+          {% if session.get('rola') in ['lider','admin'] %}
+          {% for w in wnioski %}
+          {% if w.pracownik_id != session.get('pracownik_id') %}
+          {% set can_approve = true %}
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+
+          {% if can_approve %}<th>{{ _('akcje') }}</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in wnioski %}
+        <tr data-wnid="{{ w.id }}">
+          <td><strong>{{ w.zlozono }}</strong></td>
+          <td>{{ w.typ }}</td>
+          <td>{{ w.data_od }} &rarr; {{ w.data_do }}{% if w.czas_od %} ({{ w.czas_od }}-{{ w.czas_do }}){% endif %}</td>
+          <td>
+            {% if w.status == 'approved' %}
+            <span class="badge badge-success"><i class="fas fa-check"></i> {{ _('zatwierdzony') }}</span>
+            {% elif w.status == 'rejected' %}
+            <span class="badge" style="background:#dc3545; color:white;"><i class="fas fa-times"></i> Odrzucony</span>
             {% else %}
-              {{ '%.2f'|format(d.hours) }} h
+            <span class="badge" style="background:#ffc107; color:#212529;"><i class="fas fa-clock"></i> Oczekuje</span>
             {% endif %}
-          </div>
-          {% if d.typ_label %}<div class="cal-type">{{ d.typ_label }}</div>{% endif %}
-          {% if d.approved %}<div class="badge badge-success">Urlop zatwierdzony</div>{% endif %}
-          {% if d.hr %}<div class="text-danger">{{ _('hr') }}</div>{% endif %}
-        </td>
-        {% if wd == 6 and not loop.last %}
-      </tr>
-      <tr>
-        {% endif %}
+          </td>
+          {% if can_approve %}
+          <td>
+            {% if session.get('rola') in ['lider','admin'] and w.pracownik_id != session.get('pracownik_id') %}
+            {% if w.status != 'approved' %}
+            <button class="btn btn-sm btn-success wn-action" data-id="{{ w.id }}" data-action="approve"><i
+                class="fas fa-check"></i> Zatwierdź</button>
+            <button type="button" class="btn btn-sm btn-danger wn-action ml-2" data-id="{{ w.id }}"
+              data-action="reject"><i class="fas fa-times"></i> Odrzuć</button>
+            {% else %}
+            <span class="text-success" style="font-weight:600;"><i class="fas fa-check-circle"></i> Gotowe</span>
+            {% endif %}
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="text-center text-muted p-4">Brak wniosków w tym okresie.</td>
+        </tr>
         {% endfor %}
-      </tr>
+      </tbody>
     </table>
   </div>
 </div>
 
-<!-- NADGODZINY SECTIONS -->
-{% if (session.get('rola') or '')|lower in ['lider', 'admin'] %}
-<div class="block-section">
-  <h3>Zatwierdź nadgodziny</h3>
-  <div class="panel panel--nadgodziny">
-    {% if pending_nadgodziny %}
-      <div class="nadgodziny-list">
-        {% for n in pending_nadgodziny %}
-          <div class="overtime-summary">
-            <div class="nadgodzina-item">
-              <strong>{{ n['imie_nazwisko'] }}</strong>
-              <span class="separator">—</span>
-              <span>{{ n['data'] }}</span>
-              <span class="hours-value">{{ n['ilosc_nadgodzin'] }}h OT</span>
-              {% if n['powod'] %}
-                <div class="hours-reason">{{ n['powod'] }}</div>
+<div class="content-card">
+  <h3 class="content-card-header"><i class="fas fa-hourglass-half"></i> {{ _('suma_godzin_wg_typu') }}</h3>
+  <div class="dashboard-grid"
+    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;">
+    <div>
+      <h4 style="margin-top:0; font-size:1.1rem; color:#495057; border-bottom:1px solid #eee; padding-bottom:8px;"><i
+          class="fas fa-user"></i> Twoje godziny</h4>
+      <table class="modern-table" id="typyTable_owner" style="width: 100%;">
+        <thead>
+          <tr>
+            <th>{{ _('typ') }}</th>
+            <th class="text-right">{{ _('godziny') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t, h in owner_summary.typy.items() %}
+          <tr data-typ="{{ t }}">
+            <td><strong>{{ t or '(brak)' }}</strong></td>
+            <td class="typ-hours text-primary text-right" style="font-weight:700; font-size:1.1rem;">{{ '%.2f'|format(h)
+              }} h</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="2" class="text-muted text-center p-3">Brak danych w tym okresie</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if viewed_summary %}
+    <div>
+      <h4 style="margin-top:0; font-size:1.1rem; color:#495057; border-bottom:1px solid #eee; padding-bottom:8px;"><i
+          class="fas fa-user-tag"></i> {{ _('typy_przeglądany') }}</h4>
+      <table class="modern-table" id="typyTable_viewed" style="width: 100%;">
+        <thead>
+          <tr>
+            <th>{{ _('typ') }}</th>
+            <th class="text-right">{{ _('godziny') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t, h in viewed_summary.typy.items() %}
+          <tr data-typ="{{ t }}">
+            <td><strong>{{ t or '(brak)' }}</strong></td>
+            <td class="typ-hours text-primary text-right" style="font-weight:700; font-size:1.1rem;">{{ '%.2f'|format(h)
+              }} h</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="2" class="text-muted text-center p-3">Brak danych w tym okresie</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="content-card">
+  <h3 class="content-card-header"><i class="far fa-calendar-alt"></i> {{ _('kalendarz_godzin') }}</h3>
+  <style>
+    .cal-grid {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 6px;
+      margin-top: 10px;
+    }
+
+    .cal-grid th {
+      text-align: center;
+      padding: 12px 8px;
+      background: #f8f9fa;
+      font-weight: 700;
+      color: #495057;
+      border-radius: 8px;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+    }
+
+    .cal-grid td {
+      width: 14.28%;
+      vertical-align: top;
+      padding: 12px;
+      height: 130px;
+      background-color: #ffffff;
+      border: 1px solid #e9ecef;
+      border-radius: 10px;
+      position: relative;
+      transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+    }
+
+    .cal-grid td.day-cell:hover {
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06);
+      border-color: #007bff;
+      transform: translateY(-2px);
+      z-index: 2;
+    }
+
+    .cal-day {
+      font-weight: 800;
+      margin-bottom: 8px;
+      font-size: 1.25rem;
+      color: #2b2b2b;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .cal-hours {
+      font-size: 0.95rem;
+      color: #495057;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .cal-type {
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-top: 4px;
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: #f1f3f5;
+      color: #495057;
+    }
+
+    .cal-hr {
+      background: #fff5f5 !important;
+      border-color: #ffc9c9 !important;
+    }
+
+    .cal-approved {
+      box-shadow: inset 0 0 0 3px #28a745;
+    }
+
+    .cal-leave-pending {
+      background-color: #fff8e6 !important;
+      border-color: #ffe8a1 !important;
+    }
+
+    .cal-leave-approved {
+      background-color: #f0fdf4 !important;
+      border-color: #bbf7d0 !important;
+    }
+
+    .cal-assigned {
+      background-color: #f0f7ff !important;
+      border-color: #cce5ff !important;
+    }
+
+    .badge-cal {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      margin-top: 6px;
+      font-weight: 600;
+      gap: 6px;
+      width: fit-content;
+    }
+
+    .badge-cal.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .badge-cal.danger {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    @media (max-width: 768px) {
+      .cal-grid td {
+        height: 110px;
+        padding: 8px 6px;
+      }
+
+      .cal-day {
+        font-size: 1rem;
+      }
+
+      .cal-hours {
+        font-size: 0.85rem;
+      }
+
+      .cal-type,
+      .badge-cal {
+        font-size: 0.7rem;
+        padding: 3px 6px;
+      }
+    }
+  </style>
+
+  <div class="mp-cal-row">
+    {% set show_viewed = (calendar_days_viewed is defined and calendar_days_viewed) or (selected_pid) %}
+    {% if show_viewed %}
+    {% set display_days = calendar_days_viewed if (calendar_days_viewed is defined and calendar_days_viewed) else
+    calendar_days_owner %}
+    {% set display_pid = viewed_pid or selected_pid or owner_pid %}
+    {% else %}
+    {% set display_days = calendar_days_owner %}
+    {% set display_pid = owner_pid %}
+    {% endif %}
+
+    <div class="mp-cal-col-main" style="overflow-x: auto; padding-bottom: 10px;">
+      <table class="cal-grid">
+        <tr>
+          <th>{{ _('pon') }}</th>
+          <th>{{ _('wt') }}</th>
+          <th>{{ _('sr') }}</th>
+          <th>{{ _('czw') }}</th>
+          <th>{{ _('pt') }}</th>
+          <th>{{ _('sob') }}</th>
+          <th>{{ _('nd') }}</th>
+        </tr>
+        <tr>
+          {% for d in display_days %}
+          {% set wd = d.date.weekday() %}
+          {% if loop.first and wd > 0 %}
+          {% for i in range(wd) %}
+          <td style="background: transparent; border: none; box-shadow: none;"></td>
+          {% endfor %}
+          {% endif %}
+
+          {% set classes = ['day-cell'] %}
+          {% if d.hr %}{% do classes.append('cal-hr') %}{% endif %}
+          {% if d.approved %}{% do classes.append('cal-approved') %}{% endif %}
+          {% if d.leave_status == 'pending' %}{% do classes.append('cal-leave-pending') %}{% endif %}
+          {% if d.leave_status == 'approved' %}{% do classes.append('cal-leave-approved') %}{% endif %}
+          {% if d.assigned %}{% do classes.append('cal-assigned') %}{% endif %}
+
+          <td data-date="{{ d.date }}" data-pid="{{ display_pid }}" class="{{ ' '.join(classes) }}"
+            style="cursor: pointer;">
+            <div class="cal-day">
+              <span>{{ d.date.day }}</span>
+              {% if wd == 5 or wd == 6 %}<i class="fas fa-mug-hot" style="font-size: 0.8rem; color:#adb5bd;"></i>{%
+              endif %}
+            </div>
+            <div class="cal-hours">
+              {% if d.nadgodziny > 0 %}
+              {{ '%.2f'|format(d.hours) }}h <br><span class="text-success"><i class="fas fa-plus-circle"></i> {{
+                '%.2f'|format(d.nadgodziny) }}h OT</span>
+              {% else %}
+              <i class="far fa-clock"></i> {{ '%.2f'|format(d.hours) }} h
               {% endif %}
             </div>
-            <div class="nadgodzina-actions">
-              <button type="button" class="btn btn-sm btn-success ng-approve-btn" data-ngid="{{ n['id'] }}">✓ Zatwierdź</button>
-              <button type="button" class="btn btn-sm btn-danger ng-reject-btn" data-ngid="{{ n['id'] }}">✕ Odrzuć</button>
+
+            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: auto;">
+              {% if d.typ_label %}<div class="cal-type"><i class="fas fa-tag text-primary"></i> {{ d.typ_label }}</div>
+              {% endif %}
+              {% if d.approved %}<div class="badge-cal success"><i class="fas fa-check-circle"></i> Zatwierdzony</div>{%
+              endif %}
+              {% if d.hr %}<div class="badge-cal danger"><i class="fas fa-exclamation-triangle"></i> {{ _('hr') }}</div>
+              {% endif %}
             </div>
-          </div>
-        {% endfor %}
-      </div>
+          </td>
+
+          {% if wd == 6 and not loop.last %}
+        </tr>
+        <tr>
+          {% endif %}
+          {% endfor %}
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- DO ZATWIERDZENIA SECTION -->
+{% if (session.get('rola') or '')|lower in ['lider', 'admin'] %}
+<div class="content-card">
+  <h3 class="content-card-header"><i class="fas fa-tasks"></i> Wnioski do zatwierdzenia</h3>
+
+  <div style="display: flex; flex-direction: column; gap: 16px;">
+    {% if not pending_wnioski and not pending_nadgodziny %}
+    <div class="alert-box" style="background:#f8f9fa; border:1px solid #e9ecef; border-radius:8px; padding:16px;">
+      <i class="fas fa-check-circle text-success" style="margin-right:8px;"></i> Brak wniosków do zatwierdzenia.
+    </div>
     {% else %}
-      <p class="no-requests">Brak wniosków o nadgodziny do zatwierdzenia.</p>
+
+    <!-- Wnioski urlopowe/wyjścia -->
+    {% if pending_wnioski %}
+    <h4 style="margin:8px 0 0 0; font-size:1.05rem; color:#495057;"><i class="fas fa-calendar-day text-primary"></i>
+      Wnioski o wolne / wyjścia</h4>
+    <div class="pending-list" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+      {% for w in pending_wnioski %}
+      <div class="pending-item"
+        style="background:#f8f9fa; border:1px solid #e9ecef; border-radius:8px; padding:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+        <div>
+          <strong style="font-size:1.1rem; color:#2b2b2b;">{{ w.pracownik }}</strong>
+          <span style="color:#adb5bd; margin:0 8px;">—</span>
+          <span class="badge badge-info" style="font-size: 0.9rem;">{{ w.typ }}</span>
+          <span style="margin-left: 12px;"><i class="far fa-calendar-alt text-primary"></i> {{ w.data_od }} {% if
+            w.data_od != w.data_do %}&rarr; {{ w.data_do }}{% endif %}</span>
+          {% if w.czas_od %}
+          <span style="margin-left: 12px;"><i class="far fa-clock text-primary"></i> {{ w.czas_od }} - {{ w.czas_do
+            }}</span>
+          {% endif %}
+          {% if w.powod %}
+          <div class="text-muted mt-2"><i class="fas fa-info-circle"></i> Powód: {{ w.powod }}</div>
+          {% endif %}
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-modern btn-primary-modern wn-action" data-id="{{ w.id }}" data-action="approve"
+            style="background:#28a745; box-shadow:none; padding:8px 16px;"><i class="fas fa-check"></i>
+            Zatwierdź</button>
+          <button class="btn-modern btn-primary-modern wn-action" data-id="{{ w.id }}" data-action="reject"
+            style="background:#dc3545; box-shadow:none; padding:8px 16px;"><i class="fas fa-times"></i> Odrzuć</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Nadgodziny -->
+    {% if pending_nadgodziny %}
+    <h4 style="margin:8px 0 0 0; font-size:1.05rem; color:#495057;"><i class="fas fa-business-time text-primary"></i>
+      Wnioski o nadgodziny</h4>
+    <div class="nadgodziny-list" style="display: flex; flex-direction: column; gap: 12px;">
+      {% for n in pending_nadgodziny %}
+      <div class="overtime-summary pending-item"
+        style="background:#f8f9fa; border:1px solid #e9ecef; border-radius:8px; padding:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+        <div class="nadgodzina-item">
+          <strong style="font-size:1.1rem; color:#2b2b2b;">{{ n['imie_nazwisko'] }}</strong>
+          <span style="color:#adb5bd; margin:0 8px;">—</span>
+          <span><i class="far fa-calendar-alt text-primary"></i> {{ n['data'] }}</span>
+          <span class="badge badge-warning" style="margin-left: 12px; font-size: 0.9rem; color:#212529;"><i
+              class="fas fa-clock"></i> {{ n['ilosc_nadgodzin'] }}h OT</span>
+          {% if n['powod'] %}
+          <div class="hours-reason text-muted mt-2"><i class="fas fa-info-circle"></i> Powód: {{ n['powod'] }}</div>
+          {% endif %}
+        </div>
+        <div class="nadgodzina-actions" style="display:flex; gap:8px;">
+          <button type="button" class="btn-modern btn-primary-modern ng-approve-btn"
+            style="background:#28a745; box-shadow:none; padding:8px 16px;" data-ngid="{{ n['id'] }}"><i
+              class="fas fa-check"></i> Zatwierdź</button>
+          <button type="button" class="btn-modern btn-primary-modern ng-reject-btn"
+            style="background:#dc3545; box-shadow:none; padding:8px 16px;" data-ngid="{{ n['id'] }}"><i
+              class="fas fa-times"></i> Odrzuć</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% endif %}
   </div>
 </div>
 {% endif %}
 
-<div class="block-section">
-  <h3>🕐 Zgłoś nadgodziny [DEBUG: user_nadgodziny={{ user_nadgodziny|length if user_nadgodziny else 0 }}]</h3>
+<div class="content-card">
+  <h3 class="content-card-header"><i class="fas fa-business-time"></i> Zgłoś nadgodziny</h3>
   <div class="panel panel--moje-nadgodziny">
-    <form method="POST" action="{{ url_for('overtime.submit_nadgodziny') }}" class="overtime-form">
-      <div class="form-group-inline">
+    <form method="POST" action="{{ url_for('overtime.submit_nadgodziny') }}" class="mb-4">
+      <div class="modern-form-row">
         <div>
           <label for="ng-data">Data:</label>
-          <input type="date" id="ng-data" name="data" required>
+          <input type="date" id="ng-data" name="data" class="modern-form-control" required>
         </div>
         <div>
           <label for="ng-ilosc">Liczba godzin:</label>
-          <input type="number" id="ng-ilosc" name="ilosc_nadgodzin" min="0.25" step="0.25" required>
+          <input type="number" id="ng-ilosc" name="ilosc_nadgodzin" min="0.25" step="0.25" class="modern-form-control"
+            required>
+        </div>
+        <div style="flex: 2;">
+          <label for="ng-powod">Powód (opcjonalnie):</label>
+          <input type="text" id="ng-powod" name="powod" class="modern-form-control"
+            placeholder="np. Dokończenie produkcji, naprawa maszyny...">
         </div>
       </div>
-      <div class="form-group-block">
-        <label for="ng-powod">Powód (opcjonalnie):</label>
-        <input type="text" id="ng-powod" name="powod" placeholder="np. Dokończenie produkcji, naprawa maszyny...">
+      <div class="modern-form-row action-row">
+        <button type="submit" class="btn-modern btn-primary-modern"><i class="fas fa-paper-plane"></i> Zgłoś
+          nadgodziny</button>
       </div>
-      <button type="submit" class="btn btn-primary submit-button">Zgłoś nadgodziny</button>
     </form>
-    
+
     {% if user_nadgodziny %}
-      <h4>Moje wnioski o nadgodziny</h4>
-      <div class="overflow-auto">
-        <table class="table-responsive">
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th class="center">Godziny</th>
-              <th>Powód</th>
-              <th class="center">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for ng in user_nadgodziny %}
-              <tr>
-                <td>{{ ng['data'] }}</td>
-                <td class="center bold">{{ ng['ilosc_nadgodzin'] }}h</td>
-                <td>{{ ng['powód'] or '-' }}</td>
-                <td class="center">
-                  {% if ng['status'] == 'pending' %}
-                    <span class="status-pending">⏳ Oczekuje</span>
-                  {% elif ng['status'] == 'approved' %}
-                    <span class="status-approved">✓ Zatwierdzone</span>
-                  {% elif ng['status'] == 'rejected' %}
-                    <span class="status-rejected">✕ Odrzucone</span>
-                  {% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+    <h4 style="margin-top:24px; font-size:1.1rem; color:#495057; border-bottom:1px solid #eee; padding-bottom:8px;"><i
+        class="fas fa-history"></i> Moje wnioski o nadgodziny</h4>
+    <div style="overflow-x: auto;">
+      <table class="modern-table" style="width: 100%;">
+        <thead>
+          <tr>
+            <th><i class="far fa-calendar-alt"></i> Data</th>
+            <th class="text-center"><i class="fas fa-clock"></i> Godziny</th>
+            <th><i class="fas fa-info-circle"></i> Powód</th>
+            <th class="text-center"><i class="fas fa-flag"></i> Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ng in user_nadgodziny %}
+          <tr>
+            <td><strong>{{ ng['data'] }}</strong></td>
+            <td class="text-center text-primary" style="font-weight:700;">{{ ng['ilosc_nadgodzin'] }}h</td>
+            <td>{{ ng['powód'] or '<span class="text-muted">-</span>'|safe }}</td>
+            <td class="text-center">
+              {% if ng['status'] == 'pending' %}
+              <span class="badge" style="background:#ffc107; color:#212529;"><i class="fas fa-hourglass-half"></i>
+                Oczekuje</span>
+              {% elif ng['status'] == 'approved' %}
+              <span class="badge badge-success"><i class="fas fa-check"></i> Zatwierdzone</span>
+              {% elif ng['status'] == 'rejected' %}
+              <span class="badge" style="background:#dc3545; color:white;"><i class="fas fa-times"></i> Odrzucone</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
-      <p class="no-requests">Brak zgłoszonych wniosków o nadgodziny.</p>
+    <div class="text-muted p-3 text-center">Brak zgłoszonych wniosków o nadgodziny.</div>
     {% endif %}
   </div>
 </div>
@@ -742,14 +970,14 @@
           fetch('{{ url_for("panels.panel_wnioski_page", fragment="true") }}', {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
           })
-          .then(r => r.text())
-          .then(html => {
-            createQuickPopup('Wnioski na dzień: ' + dateStr, html, {});
-          })
-          .catch(err => {
-            console.error('Error loading wnioski panel:', err);
-            if (typeof showToast === 'function') showToast('Błąd przy ładowaniu wniosków', 'danger');
-          });
+            .then(r => r.text())
+            .then(html => {
+              createQuickPopup('Wnioski na dzień: ' + dateStr, html, {});
+            })
+            .catch(err => {
+              console.error('Error loading wnioski panel:', err);
+              if (typeof showToast === 'function') showToast('Błąd przy ładowaniu wniosków', 'danger');
+            });
         }
       });
     });
@@ -780,6 +1008,50 @@
         }
       }).catch(err => { console.error(err); showToast('Błąd sieci', 'danger'); });
     }));
+
+    // Handle overtime (nadgodziny) approve/reject actions
+    const ngBtns = document.querySelectorAll('.ng-approve-btn, .ng-reject-btn');
+    ngBtns.forEach(btn => btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      const ngid = this.getAttribute('data-ngid');
+      const isApprove = this.classList.contains('ng-approve-btn');
+      const action = isApprove ? 'approve' : 'reject';
+
+      if (!ngid) return;
+
+      const originalText = this.innerHTML;
+      this.disabled = true;
+      this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+      fetch('/api/nadgodziny/' + ngid + '/' + action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }
+      }).then(r => r.json()).then(j => {
+        if (j && j.success) {
+          showToast(j.message || (isApprove ? 'Zatwierdzono nadgodziny' : 'Odrzucono nadgodziny'), 'success');
+          const item = this.closest('.pending-item');
+          if (item) {
+            item.style.opacity = '0.5';
+            setTimeout(() => {
+              item.remove();
+              const list = document.querySelector('.nadgodziny-list');
+              if (list && list.children.length === 0) {
+                list.innerHTML = '<div class="alert-box" style="background:#f8f9fa; border:1px solid #e9ecef;"><i class="fas fa-check-circle text-success"></i> Brak wniosków o nadgodziny do zatwierdzenia.</div>';
+              }
+            }, 300);
+          }
+        } else {
+          this.disabled = false;
+          this.innerHTML = originalText;
+          showToast(j.message || 'Błąd operacji', 'danger');
+        }
+      }).catch(err => {
+        console.error(err);
+        this.disabled = false;
+        this.innerHTML = originalText;
+        showToast('Błąd sieci: ' + err, 'danger');
+      });
+    }));
   });
 
   // openModalFor removed — modal UI disabled
@@ -809,29 +1081,29 @@
   }
 
   // ============ DELETE OBECNOSC HANDLER (ADMIN ONLY) ============
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     const role = '{{ session.get("rola", "").lower() }}';
     const isAdmin = role === 'admin';
-    
+
     console.log('[DEBUG] Role:', role);
     console.log('[DEBUG] isAdmin:', isAdmin);
     console.log('[DEBUG] Calendar cells found:', document.querySelectorAll('.cal-grid td[data-date][data-pid]').length);
-    
+
     // Add delete button to calendar cells (admin only)
     if (isAdmin) {
       const calendarCells = document.querySelectorAll('.cal-grid td[data-date][data-pid]');
       console.log('[DEBUG] Adding delete buttons to', calendarCells.length, 'cells');
-      
+
       calendarCells.forEach(cell => {
         // Create context menu trigger
-        cell.addEventListener('contextmenu', function(e) {
+        cell.addEventListener('contextmenu', function (e) {
           e.preventDefault();
           const date = this.getAttribute('data-date');
           const pid = this.getAttribute('data-pid');
-          
+
           showDeleteMenu(this, date, pid);
         });
-        
+
         // Also add small delete button to cell corner
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
@@ -839,31 +1111,31 @@
         deleteBtn.innerHTML = '❌';
         deleteBtn.title = 'Usuń wpis (prawy klik dla więcej opcji)';
         deleteBtn.style.cssText = 'position: absolute; top: 2px; right: 2px; padding: 2px 4px; font-size: 10px; opacity: 0; transition: opacity 0.3s;';
-        
-        deleteBtn.addEventListener('click', function(e) {
+
+        deleteBtn.addEventListener('click', function (e) {
           e.stopPropagation();
           showDeleteMenu(cell, cell.getAttribute('data-date'), cell.getAttribute('data-pid'));
         });
-        
+
         cell.style.position = 'relative';
         cell.appendChild(deleteBtn);
-        
+
         // Show button on hover
-        cell.addEventListener('mouseenter', function() {
+        cell.addEventListener('mouseenter', function () {
           deleteBtn.style.opacity = '1';
         });
-        cell.addEventListener('mouseleave', function() {
+        cell.addEventListener('mouseleave', function () {
           deleteBtn.style.opacity = '0';
         });
       });
     }
-    
+
     // Show delete context menu
     function showDeleteMenu(cell, date, pid) {
       // Remove old menu if exists
       const oldMenu = document.querySelector('.delete-menu');
       if (oldMenu) oldMenu.remove();
-      
+
       const menu = document.createElement('div');
       menu.className = 'delete-menu';
       menu.style.cssText = `
@@ -875,12 +1147,12 @@
         z-index: 10000;
         min-width: 200px;
       `;
-      
+
       // Get all entries for this date
       const dateStr = date;
       const typeCell = cell.querySelector('.cal-type');
       const typeLabel = typeCell ? typeCell.textContent : 'nieznany typ';
-      
+
       menu.innerHTML = `
         <div style="padding: 10px;">
           <strong>Data: ${dateStr}</strong>
@@ -897,14 +1169,14 @@
           </button>
         </div>
       `;
-      
+
       document.body.appendChild(menu);
-      
+
       // Position menu near cursor
       const rect = cell.getBoundingClientRect();
       menu.style.top = (rect.top + 20) + 'px';
       menu.style.left = (rect.left + 20) + 'px';
-      
+
       // Close on click outside
       setTimeout(() => {
         document.addEventListener('click', function closeMenu(e) {
@@ -916,88 +1188,88 @@
       }, 0);
     }
   });
-  
+
   // Delete obecnosc entry by date and pid
   function deleteObecnoscEntry(dateStr, pid) {
     if (!confirm('Jesteś pewna że chcesz usunąć wpis? Ta akcja nie może być cofnięta (chyba że użyjesz "Cofnij").')) {
       return;
     }
-    
-    fetch('/api/obecnosc/delete-by-date', { 
+
+    fetch('/api/obecnosc/delete-by-date', {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest' 
+        'X-Requested-With': 'XMLHttpRequest'
       },
       body: JSON.stringify({ date: dateStr, pid: pid })
     })
-    .then(r => r.json())
-    .then(j => {
-      if (j.success) {
-        // Znajdź i wyczyść TD element na kalendarzu
-        const cells = document.querySelectorAll(`td[data-date="${dateStr}"][data-pid="${pid}"]`);
-        cells.forEach(cell => {
-          // Wyczyść klasy kolorów
-          cell.className = '';
-          // Wyczyść zawartość
-          cell.innerHTML = `
+      .then(r => r.json())
+      .then(j => {
+        if (j.success) {
+          // Znajdź i wyczyść TD element na kalendarzu
+          const cells = document.querySelectorAll(`td[data-date="${dateStr}"][data-pid="${pid}"]`);
+          cells.forEach(cell => {
+            // Wyczyść klasy kolorów
+            cell.className = '';
+            // Wyczyść zawartość
+            cell.innerHTML = `
             <div class="cal-day">${new Date(dateStr).getDate()}</div>
             <div class="cal-hours">0.00 h</div>
           `;
-        });
-        
-        // Pokaż alert
-        alert('✓ ' + j.message);
-        
-        // Odśwież podsumowanie (jeśli istnieje)
-        setTimeout(() => {
-          const summaryBtn = document.querySelector('[data-action="refresh-summary"]');
-          if (summaryBtn) summaryBtn.click();
-          
-          // Lub bezpośrednio fetch podsumowania
-          fetch('/moje_godziny')
-            .then(r => r.text())
-            .then(html => {
-              const parser = new DOMParser();
-              const newDoc = parser.parseFromString(html, 'text/html');
-              
-              // Zastąp podsumowanie
-              const oldSummary = document.querySelector('.mp-summary-owner');
-              const newSummary = newDoc.querySelector('.mp-summary-owner');
-              if (oldSummary && newSummary) {
-                oldSummary.innerHTML = newSummary.innerHTML;
-              }
-            })
-            .catch(err => console.warn('Could not refresh summary:', err));
-        }, 500);
-      } else {
-        alert('⚠️ ' + (j.message || 'Błąd'));
-      }
-    })
-    .catch(err => alert('Błąd: ' + err.message));
+          });
+
+          // Pokaż alert
+          alert('✓ ' + j.message);
+
+          // Odśwież podsumowanie (jeśli istnieje)
+          setTimeout(() => {
+            const summaryBtn = document.querySelector('[data-action="refresh-summary"]');
+            if (summaryBtn) summaryBtn.click();
+
+            // Lub bezpośrednio fetch podsumowania
+            fetch('/moje_godziny')
+              .then(r => r.text())
+              .then(html => {
+                const parser = new DOMParser();
+                const newDoc = parser.parseFromString(html, 'text/html');
+
+                // Zastąp podsumowanie
+                const oldSummary = document.querySelector('.mp-summary-owner');
+                const newSummary = newDoc.querySelector('.mp-summary-owner');
+                if (oldSummary && newSummary) {
+                  oldSummary.innerHTML = newSummary.innerHTML;
+                }
+              })
+              .catch(err => console.warn('Could not refresh summary:', err));
+          }, 500);
+        } else {
+          alert('⚠️ ' + (j.message || 'Błąd'));
+        }
+      })
+      .catch(err => alert('Błąd: ' + err.message));
   }
-  
+
   // Undo last delete
   function undoDeleteObecnosc() {
     if (!confirm('Przywrócić ostatnio usunięty wpis?')) return;
-    
-    fetch('/api/obecnosc/restore', { 
+
+    fetch('/api/obecnosc/restore', {
       method: 'POST',
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
-    .then(r => r.json())
-    .then(j => {
-      if (j.success) {
-        alert('✓ ' + j.message);
-        // Pełny reload aby obsada się odświeżyła
-        setTimeout(() => {
-          location.reload();
-        }, 800);
-      } else {
-        alert('⚠️ ' + (j.message || 'Błąd'));
-      }
-    })
-    .catch(err => alert('Błąd: ' + err.message));
+      .then(r => r.json())
+      .then(j => {
+        if (j.success) {
+          alert('✓ ' + j.message);
+          // Pełny reload aby obsada się odświeżyła
+          setTimeout(() => {
+            location.reload();
+          }, 800);
+        } else {
+          alert('⚠️ ' + (j.message || 'Błąd'));
+        }
+      })
+      .catch(err => alert('Błąd: ' + err.message));
   }
 
 </script>

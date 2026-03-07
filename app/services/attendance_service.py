@@ -269,14 +269,21 @@ class AttendanceService:
                         'zlozono': r[8]
                     })
 
-                return render_template('panels/wnioski_panel.html', wnioski=wnioski)
+                from app.services.overtime_service import OvertimeService
+                pending_nadgodziny = []
+                try:
+                    pending_nadgodziny = OvertimeService.get_pending_requests()
+                except Exception as e:
+                    current_app.logger.error("Failed to fetch pending overtime: %s", str(e))
+
+                return render_template('panels/wnioski_panel.html', wnioski=wnioski, pending_nadgodziny=pending_nadgodziny)
 
             finally:
                 conn.close()
 
         except Exception as e:
             current_app.logger.exception("Failed to build wnioski panel: %s", str(e))
-            return render_template('panels/wnioski_panel.html', wnioski=[])
+            return render_template('panels/wnioski_panel.html', wnioski=[], pending_nadgodziny=[])
 
     @staticmethod
     def get_planned_leaves_panel() -> str:

@@ -1,0 +1,348 @@
+[2026-03-07 16:34:42,345] INFO in daemon: Started palety monitor daemon thread
+[2026-03-07 16:34:42,347] INFO in daemon: Started periodic refresh_bufor_queue thread
+[2026-03-07 16:34:42,435] DEBUG in daemon: Periodic refresh_bufor_queue executed
+[2026-03-07 16:34:43,023] INFO in app: Starting server (pid=11480) host=0.0.0.0 port=8082
+[2026-03-07 16:34:43,866] INFO in daemon: Started palety monitor daemon thread
+[2026-03-07 16:34:43,869] INFO in daemon: Started periodic refresh_bufor_queue thread
+[2026-03-07 16:34:43,950] DEBUG in daemon: Periodic refresh_bufor_queue executed
+[2026-03-07 16:34:44,529] INFO in app: Starting server (pid=40848) host=0.0.0.0 port=8082
+[2026-03-07 16:34:44,630] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:34:49,327] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:34:50,377] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:34:56,983] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:04,648] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:05,065] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:12,279] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:19,327] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:20,373] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:26,977] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:34,641] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:35,057] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:42,290] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:49,336] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:50,369] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:35:56,982] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:04,644] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:05,063] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:12,281] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:19,324] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:20,369] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:26,969] DEBUG in middleware: Incoming request (pid=40848): GET /?sekcja=Zasyp
+[2026-03-07 16:36:26,970] WARNING in contexts: [DEBUG role_has_access] page='zasyp', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': True}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[SZARZE] Failed to load szarze for plan 1406: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+    ~~~~~~~~~~~~~~~~~~^
+        query,
+        ^^^^^^
+    ...<3 lines>...
+        query_attrs=self.query_attrs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+_mysql_connector.MySQLInterfaceError: Unknown column 'prac.login' in 'field list'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\services\dashboard_service.py", line 295, in get_production_plans
+    cursor.execute(
+    ~~~~~~~~~~~~~~^
+        """SELECT s.id,
+        ^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        (p[0],)
+        ^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\cursor_cext.py", line 353, in execute
+    self._connection.cmd_query(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self._stmt_partition["mappable_stmt"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        raw_as_string=self._raw_as_string,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+        err.errno, msg=err.msg, sqlstate=err.sqlstate
+    ) from err
+mysql.connector.errors.ProgrammingError: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+[2026-03-07 16:36:27,292] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[SZARZE] Failed to load szarze for plan 1408: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+    ~~~~~~~~~~~~~~~~~~^
+        query,
+        ^^^^^^
+    ...<3 lines>...
+        query_attrs=self.query_attrs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+_mysql_connector.MySQLInterfaceError: Unknown column 'prac.login' in 'field list'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\services\dashboard_service.py", line 295, in get_production_plans
+    cursor.execute(
+    ~~~~~~~~~~~~~~^
+        """SELECT s.id,
+        ^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        (p[0],)
+        ^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\cursor_cext.py", line 353, in execute
+    self._connection.cmd_query(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self._stmt_partition["mappable_stmt"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        raw_as_string=self._raw_as_string,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+        err.errno, msg=err.msg, sqlstate=err.sqlstate
+    ) from err
+mysql.connector.errors.ProgrammingError: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+[SZARZE] Failed to load szarze for plan 1410: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+    ~~~~~~~~~~~~~~~~~~^
+        query,
+        ^^^^^^
+    ...<3 lines>...
+        query_attrs=self.query_attrs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+_mysql_connector.MySQLInterfaceError: Unknown column 'prac.login' in 'field list'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\services\dashboard_service.py", line 295, in get_production_plans
+    cursor.execute(
+    ~~~~~~~~~~~~~~^
+        """SELECT s.id,
+        ^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        (p[0],)
+        ^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\cursor_cext.py", line 353, in execute
+    self._connection.cmd_query(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self._stmt_partition["mappable_stmt"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        raw_as_string=self._raw_as_string,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+        err.errno, msg=err.msg, sqlstate=err.sqlstate
+    ) from err
+mysql.connector.errors.ProgrammingError: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+[2026-03-07 16:36:27,821] INFO in routes_main: [DEBUG-START] GLOBAL MIN kolejka w buforze: 1
+[2026-03-07 16:36:27,824] INFO in routes_main: [DEBUG-START] Produkty z kolejka=1: ['Mleko Bia쿮']
+[2026-03-07 16:36:27,824] INFO in routes_main: [DEBUG-START] Aktywny START dla Mleko Bia쿮 (id=1407, kolejka=1)
+[2026-03-07 16:36:27,825] INFO in routes_main: [DEBUG-START] Final allowed_work_start_ids: {1407}
+[2026-03-07 16:36:27,854] INFO in routes_main: ===BEGIN DEBUG DASHBOARD===
+[2026-03-07 16:36:27,855] INFO in routes_main: sekcja=Zasyp, len(plan)=3
+[2026-03-07 16:36:27,855] INFO in routes_main: First plan item: id=1406, name=Mleko Bia쿮, status=w toku
+[2026-03-07 16:36:27,855] INFO in routes_main: palety_mapa keys=EMPTY
+[2026-03-07 16:36:27,856] INFO in routes_main: ===END DEBUG DASHBOARD===
+[2026-03-07 16:36:27,856] INFO in routes_main: index(): rendering dashboard.html for sekcja=Zasyp
+[2026-03-07 16:36:27,932] WARNING in contexts: [DEBUG role_has_access] page='dashboard', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': False}, 'pracownik': {'access': False, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': False, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:27,933] WARNING in contexts: [DEBUG role_has_access] page='zasyp', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': True}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:27,933] WARNING in contexts: [DEBUG role_has_access] page='bufor', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': False}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': False, 'readonly': False}, 'laborant': {'access': False, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:27,934] WARNING in contexts: [DEBUG role_has_access] page='workowanie', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': True}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': False, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:27,935] WARNING in contexts: [DEBUG role_has_access] page='magazyn', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': True}, 'pracownik': {'access': False, 'readonly': False}, 'magazynier': {'access': True, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': False, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:27,935] WARNING in contexts: [DEBUG role_has_access] page='jakosc', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': False}, 'pracownik': {'access': False, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:27,936] WARNING in contexts: [DEBUG role_has_access] page='wyniki', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': True}, 'pracownik': {'access': False, 'readonly': True}, 'magazynier': {'access': True, 'readonly': False}, 'dur': {'access': False, 'readonly': True}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:27,937] WARNING in contexts: [DEBUG role_has_access] page='awarie', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': True, 'readonly': False}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': True, 'readonly': False}, 'dur': {'access': True, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:27,937] WARNING in contexts: [DEBUG role_has_access] page='planista', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': True, 'readonly': False}, 'pracownik': {'access': False, 'readonly': False}, 'magazynier': {'access': False, 'readonly': True}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': False, 'readonly': True}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:27,938] WARNING in contexts: [DEBUG role_has_access] page='moje_godziny', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': True, 'readonly': False}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': True, 'readonly': False}, 'dur': {'access': True, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:27,939] WARNING in contexts: [DEBUG role_has_access] page='ustawienia', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': False}, 'pracownik': {'access': False, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': False, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:34,634] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:35,057] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:42,295] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:49,323] DEBUG in middleware: Incoming request (pid=40848): GET /?sekcja=Zasyp
+[2026-03-07 16:36:49,325] WARNING in contexts: [DEBUG role_has_access] page='zasyp', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': True}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[SZARZE] Failed to load szarze for plan 1406: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+    ~~~~~~~~~~~~~~~~~~^
+        query,
+        ^^^^^^
+    ...<3 lines>...
+        query_attrs=self.query_attrs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+_mysql_connector.MySQLInterfaceError: Unknown column 'prac.login' in 'field list'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\services\dashboard_service.py", line 295, in get_production_plans
+    cursor.execute(
+    ~~~~~~~~~~~~~~^
+        """SELECT s.id,
+        ^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        (p[0],)
+        ^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\cursor_cext.py", line 353, in execute
+    self._connection.cmd_query(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self._stmt_partition["mappable_stmt"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        raw_as_string=self._raw_as_string,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+        err.errno, msg=err.msg, sqlstate=err.sqlstate
+    ) from err
+mysql.connector.errors.ProgrammingError: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+[SZARZE] Failed to load szarze for plan 1408: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+    ~~~~~~~~~~~~~~~~~~^
+        query,
+        ^^^^^^
+    ...<3 lines>...
+        query_attrs=self.query_attrs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+_mysql_connector.MySQLInterfaceError: Unknown column 'prac.login' in 'field list'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\services\dashboard_service.py", line 295, in get_production_plans
+    cursor.execute(
+    ~~~~~~~~~~~~~~^
+        """SELECT s.id,
+        ^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        (p[0],)
+        ^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\cursor_cext.py", line 353, in execute
+    self._connection.cmd_query(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self._stmt_partition["mappable_stmt"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        raw_as_string=self._raw_as_string,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+        err.errno, msg=err.msg, sqlstate=err.sqlstate
+    ) from err
+mysql.connector.errors.ProgrammingError: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+[2026-03-07 16:36:49,635] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[SZARZE] Failed to load szarze for plan 1410: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 772, in cmd_query
+    self._cmysql.query(
+    ~~~~~~~~~~~~~~~~~~^
+        query,
+        ^^^^^^
+    ...<3 lines>...
+        query_attrs=self.query_attrs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+_mysql_connector.MySQLInterfaceError: Unknown column 'prac.login' in 'field list'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\services\dashboard_service.py", line 295, in get_production_plans
+    cursor.execute(
+    ~~~~~~~~~~~~~~^
+        """SELECT s.id,
+        ^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        (p[0],)
+        ^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\cursor_cext.py", line 353, in execute
+    self._connection.cmd_query(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self._stmt_partition["mappable_stmt"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        raw_as_string=self._raw_as_string,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\opentelemetry\context_propagation.py", line 97, in wrapper
+    return method(cnx, *args, **kwargs)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\mysql\connector\connection_cext.py", line 781, in cmd_query
+    raise get_mysql_exception(
+        err.errno, msg=err.msg, sqlstate=err.sqlstate
+    ) from err
+mysql.connector.errors.ProgrammingError: 1054 (42S22): Unknown column 'prac.login' in 'field list'
+[2026-03-07 16:36:50,119] INFO in routes_main: [DEBUG-START] GLOBAL MIN kolejka w buforze: 1
+[2026-03-07 16:36:50,120] INFO in routes_main: [DEBUG-START] Produkty z kolejka=1: ['Mleko Bia쿮']
+[2026-03-07 16:36:50,121] INFO in routes_main: [DEBUG-START] Aktywny START dla Mleko Bia쿮 (id=1407, kolejka=1)
+[2026-03-07 16:36:50,121] INFO in routes_main: [DEBUG-START] Final allowed_work_start_ids: {1407}
+[2026-03-07 16:36:50,154] INFO in routes_main: ===BEGIN DEBUG DASHBOARD===
+[2026-03-07 16:36:50,154] INFO in routes_main: sekcja=Zasyp, len(plan)=3
+[2026-03-07 16:36:50,155] INFO in routes_main: First plan item: id=1406, name=Mleko Bia쿮, status=w toku
+[2026-03-07 16:36:50,155] INFO in routes_main: palety_mapa keys=EMPTY
+[2026-03-07 16:36:50,155] INFO in routes_main: ===END DEBUG DASHBOARD===
+[2026-03-07 16:36:50,156] INFO in routes_main: index(): rendering dashboard.html for sekcja=Zasyp
+[2026-03-07 16:36:50,227] WARNING in contexts: [DEBUG role_has_access] page='dashboard', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': False}, 'pracownik': {'access': False, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': False, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,227] WARNING in contexts: [DEBUG role_has_access] page='zasyp', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': True}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,228] WARNING in contexts: [DEBUG role_has_access] page='bufor', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': False}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': False, 'readonly': False}, 'laborant': {'access': False, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,229] WARNING in contexts: [DEBUG role_has_access] page='workowanie', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': True}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': False, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,229] WARNING in contexts: [DEBUG role_has_access] page='magazyn', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': True}, 'pracownik': {'access': False, 'readonly': False}, 'magazynier': {'access': True, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': False, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,230] WARNING in contexts: [DEBUG role_has_access] page='jakosc', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': False}, 'pracownik': {'access': False, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,231] WARNING in contexts: [DEBUG role_has_access] page='wyniki', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': True}, 'pracownik': {'access': False, 'readonly': True}, 'magazynier': {'access': True, 'readonly': False}, 'dur': {'access': False, 'readonly': True}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,231] WARNING in contexts: [DEBUG role_has_access] page='awarie', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': True, 'readonly': False}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': True, 'readonly': False}, 'dur': {'access': True, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,232] WARNING in contexts: [DEBUG role_has_access] page='planista', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': True, 'readonly': False}, 'pracownik': {'access': False, 'readonly': False}, 'magazynier': {'access': False, 'readonly': True}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': False, 'readonly': True}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,232] WARNING in contexts: [DEBUG role_has_access] page='moje_godziny', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': True, 'readonly': False}, 'pracownik': {'access': True, 'readonly': False}, 'magazynier': {'access': True, 'readonly': False}, 'dur': {'access': True, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': True, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,233] WARNING in contexts: [DEBUG role_has_access] page='ustawienia', role='admin', result=True, page_perms={'admin': {'access': True, 'readonly': False}, 'planista': {'access': False, 'readonly': False}, 'pracownik': {'access': False, 'readonly': False}, 'magazynier': {'access': False, 'readonly': False}, 'dur': {'access': False, 'readonly': False}, 'zarzad': {'access': True, 'readonly': False}, 'laborant': {'access': False, 'readonly': False}, 'lider': {'access': False, 'readonly': False}}
+[2026-03-07 16:36:50,376] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:57,295] DEBUG in middleware: Incoming request (pid=40848): GET /api/notifications?limit=20
+[2026-03-07 16:36:57,998] DEBUG in middleware: Incoming request (pid=40848): GET /?sekcja=Zasyp
+[2026-03-07 16:36:58,003] DEBUG in middleware: Incoming request (pid=40848): GET /login?

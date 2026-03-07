@@ -53,7 +53,10 @@ def get_chart_data(d_od, d_do):
     
     # Wykres Produkcji
     cursor.execute("""
-        SELECT data_planu, SUM(tonaz), SUM(COALESCE(tonaz_rzeczywisty, 0)) 
+        SELECT data_planu, 
+               SUM(CASE WHEN sekcja = 'Zasyp' THEN tonaz ELSE 0 END), 
+               SUM(CASE WHEN sekcja = 'Zasyp' THEN COALESCE(tonaz_rzeczywisty, 0) ELSE 0 END), 
+               SUM(CASE WHEN sekcja = 'Workowanie' THEN COALESCE(tonaz_rzeczywisty, 0) ELSE 0 END)
         FROM plan_produkcji 
         WHERE data_planu BETWEEN %s AND %s AND COALESCE(typ_zlecenia, '') != 'jakosc'
         GROUP BY data_planu ORDER BY data_planu
@@ -74,6 +77,7 @@ def get_chart_data(d_od, d_do):
         'labels': [str(r[0]) for r in ch],
         'plan': [float(r[1]) for r in ch],
         'wyk': [float(r[2]) for r in ch],
+        'work': [float(r[3]) for r in ch],
         'pie_labels': [r[0] for r in dt],
         'pie_values': [float(r[1]) for r in dt],
         'total_downtime': sum([float(r[1]) for r in dt])

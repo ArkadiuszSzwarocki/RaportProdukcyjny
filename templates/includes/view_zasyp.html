@@ -2,40 +2,42 @@
 
     {% set aktywne = [] %}
     {% for p in plan if p[3] == 'w toku' %}
-        {% do aktywne.append(p) %}
+    {% do aktywne.append(p) %}
     {% endfor %}
 
     {% if aktywne %}
-        <div class="plan-box">
-            <h3 class="header-title">🚀 Trwa Realizacja</h3>
+    <div class="plan-box">
+        <h3 class="header-title">🚀 Trwa Realizacja</h3>
 
-            {% for p in aktywne %}
-            <div class="plan-item plan-active">
-                <div>
-                    <h1 class="header-title header-lg">{{ p[1] }}</h1>
-                    <div class="small lh-14">
-                        Plan: <strong>{{ p[2] }} kg</strong>
-                        {% if p[7] and p[7]|int > 0 %}<br>Wykonanie: <strong class="text-success">{{ p[7]|int }} kg</strong>{% endif %}
-                        <br><span class="status-badge">🕒 Start: {{ p[4] }}</span>
-                    </div>
-                </div>
-
-                <div>
-                    {% if rola in ['lider', 'admin'] %}
-                    <form action="/koniec_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirm('Czy na pewno ZAKOŃCZYĆ to zlecenie?');">
-                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                        <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
-                        <button type="submit" class="btn-stop">■ ZAKOŃCZ ZLECENIE</button>
-                    </form>
-                    {% else %}
-                        {# hidden for other roles (e.g., laborant) per request #}
-                    {% endif %}
+        {% for p in aktywne %}
+        <div class="plan-item plan-active">
+            <div>
+                <h1 class="header-title header-lg">{{ p[1] }}</h1>
+                <div class="small lh-14">
+                    Plan: <strong>{{ p[2] }} kg</strong>
+                    {% if p[7] and p[7]|int > 0 %}<br>Wykonanie: <strong class="text-success">{{ p[7]|int }}
+                        kg</strong>{% endif %}
+                    <br><span class="status-badge">🕒 Start: {{ p[4] }}</span>
                 </div>
             </div>
-            {% endfor %}
+
+            <div>
+                {% if rola in ['lider', 'admin'] %}
+                <form action="/koniec_zlecenie/{{ p[0] }}" method="POST"
+                    onsubmit="return confirm('Czy na pewno ZAKOŃCZYĆ to zlecenie?');">
+                    <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                    <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                    <button type="submit" class="btn-stop">■ ZAKOŃCZ ZLECENIE</button>
+                </form>
+                {% else %}
+                {# hidden for other roles (e.g., laborant) per request #}
+                {% endif %}
+            </div>
         </div>
+        {% endfor %}
+    </div>
     {% else %}
-        <h4 class="plan-title">📉 PLAN PRODUKCJI</h4>
+    <h4 class="plan-title">📉 PLAN PRODUKCJI</h4>
     {% endif %}
 
     {% if aktywne %}
@@ -44,121 +46,132 @@
             <span>🔽 POKAŻ / UKRYJ KOLEJKĘ ZLECEŃ</span>
         </summary>
         {% if rola in ['lider', 'admin'] %}
-            <div>
-                <form action="{{ url_for('api.manual_rollover') }}" method="POST" class="inline-block">
-                    <input type="hidden" name="from_date" value="{{ dzisiaj }}">
-                    <input type="hidden" name="to_date" value="{{ next_date }}">
-                    <button type="submit" onclick="return confirm('Na pewno przenieść niezakończone zlecenia? To usunie oryginały.')" class="btn-action btn-delete">Przenieś zlecenia</button>
-                </form>
-            </div>
+        <div>
+            <form action="{{ url_for('api.manual_rollover') }}" method="POST" class="inline-block">
+                <input type="hidden" name="from_date" value="{{ dzisiaj }}">
+                <input type="hidden" name="to_date" value="{{ next_date }}">
+                <button type="submit"
+                    onclick="return confirm('Na pewno przenieść niezakończone zlecenia? To usunie oryginały.')"
+                    class="btn-action btn-delete">Przenieś zlecenia</button>
+            </form>
+        </div>
         {% endif %}
         <div class="p-15 p-15-white-top">
-    {% else %}
-        <div>
-    {% endif %}
+            {% else %}
+            <div>
+                {% endif %}
 
-            {% if not plan %}
-            <p class="text-muted text-muted-italic text-center">Brak planu na dziś.</p>
-        {% else %}
-            <div class="cards">
-            {% for p in plan if p[3] != 'w toku' %}
-                <div class="card {% if p[3] == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}">
-                    <div class="card-header">
-                        {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">OCZEKUJE</span>{% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">GOTOWE</span>{% endif %}
-                        <strong class="card-title">{{ p[1] }}</strong>
-                    </div>
+                {% if not plan %}
+                <p class="text-muted text-muted-italic text-center">Brak planu na dziś.</p>
+                {% else %}
+                <div class="cards">
+                    {% for p in plan if p[3] != 'w toku' %}
+                    <div class="card {% if p[3] == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}">
+                        <div class="card-header">
+                            {% if p[3] == 'zaplanowane' %}<span class="status-badge status-plan">OCZEKUJE</span>{% elif
+                            p[3] == 'zakonczone' %}<span class="status-badge status-koniec">GOTOWE</span>{% endif %}
+                            <strong class="card-title">{{ p[1] }}</strong>
+                        </div>
 
-                    <div class="card-body">
-                        <div class="card-row"><strong>Plan:</strong> {{ p[2] }} kg</div>
-                        {% if p[3] == 'zakonczone' %}<div class="card-row"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7] }} kg</span></div>{% endif %}
-                        <div class="card-row"><strong>Czas:</strong> {{ p[6] }} min</div>
+                        <div class="card-body">
+                            <div class="card-row"><strong>Plan:</strong> {{ p[2] }} kg</div>
+                            {% if p[3] == 'zakonczone' %}<div class="card-row"><strong>✅ Wykonanie:</strong> <span
+                                    class="text-success">{{ p[7] }} kg</span></div>{% endif %}
+                            <div class="card-row"><strong>Czas:</strong> {{ p[6] }} min</div>
 
-                        {% if p[3] == 'zakonczone' and p|length > 15 and p[15] %}
+                            {% if p[3] == 'zakonczone' and p|length > 15 and p[15] %}
                             <div class="card-row">
                                 <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle">
                                     ⏺️ {{ p[15] }} szarż
                                 </button>
                             </div>
-                        {% endif %}
+                            {% endif %}
 
-                        {% if p[3] == 'zakonczone' and rola in ['lider', 'admin', 'produkcja'] %}
+                            {% if p[3] == 'zakonczone' and rola in ['lider', 'admin', 'produkcja'] %}
                             <form action="/zapisz_tonaz/{{ p[0] }}" method="POST" class="card-form">
                                 <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
-                                <input type="number" step="0.01" name="tonaz_rzeczywisty" placeholder="Waga (kg)" value="{{ p[7] if p[7] else '' }}" class="input-sm">
+                                <input type="number" step="0.01" name="tonaz_rzeczywisty" placeholder="Waga (kg)"
+                                    value="{{ p[7] if p[7] else '' }}" class="input-sm">
                                 <button type="submit" class="btn-icon" title="Zapisz">💾</button>
                             </form>
-                        {% endif %}
-                    </div>
+                            {% endif %}
+                        </div>
 
-                    <div class="card-actions">
-                        {% if p[3] == 'zaplanowane' and rola in ['admin', 'lider', 'produkcja'] %}
+                        <div class="card-actions">
+                            {% if p[3] == 'zaplanowane' and rola in ['admin', 'lider', 'produkcja'] %}
                             <form action="/start_zlecenie/{{ p[0] }}" method="POST">
                                 <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                                 <button type="submit" class="btn-start">▶ START</button>
                             </form>
-                        {% endif %}
-                        {% if p[3] != 'zakonczone' and rola in ['admin', 'lider'] %}
-                            <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                            {% endif %}
+                            {% if p[3] != 'zakonczone' and rola in ['admin', 'lider'] %}
+                            <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST"
+                                onsubmit="return confirm('Wznowić {{ p[1] }}?');">
                                 <button type="submit" class="btn-action btn-outline-warning">↻ Wznów</button>
                             </form>
-                        {% endif %}
-                    </div>
-                </div>
-            {% endfor %}
-            </div>
-        {% endif %}
-
-        </div>
-    {% if aktywne %}</details>{% endif %}
-
-    <!-- Szczegóły szarż (ukryty wiersz) -->
-    {% if plan and palety_mapa %}
-        {% for p in plan if p[3] != 'w toku' and palety_mapa[p[0]] %}
-        <div id="details-{{ p[0] }}" class="details-row" style="display:none;">
-            <div class="p-15" style="background:#f8f9fa; border-top:1px solid #e0e0e0;">
-                <h4 class="m-0 mb-10">Detale szarż</h4>
-                <div class="cards-details">
-                    {% for pal in palety_mapa[p[0]] %}
-                    <div class="card-detail">
-                        <div class="detail-header">
-                            <span class="detail-badge">Szarża #{{ loop.index }}</span>
-                        </div>
-                        <div class="detail-body">
-                            <div class="detail-row">
-                                <span class="detail-label">🕒 Godzina:</span>
-                                <span class="detail-value">{{ pal[1] }}</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Typ:</span>
-                                <span class="detail-value"><span class="badge-sekcja">{{ pal[4]|upper }}</span></span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">⚖️ Waga:</span>
-                                <span class="detail-value"><strong class="text-primary">{{ pal[0]|int }} kg</strong></span>
-                            </div>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
                 </div>
+                {% endif %}
+
+            </div>
+            {% if aktywne %}
+    </details>{% endif %}
+
+    <!-- Szczegóły szarż (ukryty wiersz) -->
+    {% if plan and palety_mapa %}
+    {% for p in plan if p[3] != 'w toku' and palety_mapa[p[0]] %}
+    <div id="details-{{ p[0] }}" class="details-row" style="display:none;">
+        <div class="p-15" style="background:#f8f9fa; border-top:1px solid #e0e0e0;">
+            <h4 class="m-0 mb-10">Detale szarż</h4>
+            <div class="cards-details">
+                {% for pal in palety_mapa[p[0]] %}
+                <div class="card-detail">
+                    <div class="detail-header">
+                        <span class="detail-badge">Szarża #{{ loop.index }}</span>
+                    </div>
+                    <div class="detail-body">
+                        <div class="detail-row">
+                            <span class="detail-label">🕒 Godzina:</span>
+                            <span class="detail-value">{{ pal[1] }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Typ:</span>
+                            <span class="detail-value"><span class="badge-sekcja">{{ pal[4]|upper }}</span></span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">⚖️ Waga:</span>
+                            <span class="detail-value"><strong class="text-primary">{{ pal[0]|int }} kg</strong></span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">👤 Autor:</span>
+                            <span class="detail-value">{{ pal[5] or '-' }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
         </div>
-        {% endfor %}
+    </div>
+    {% endfor %}
     {% endif %}
 
-<script>
-    function toggleDetails(id) {
-        var row = document.getElementById('details-' + id);
-        if (!row) return;
-        var isHidden = row.style.display === 'none';
-        row.style.display = isHidden ? 'block' : 'none';
-    }
-</script>
+    <script>
+        function toggleDetails(id) {
+            var row = document.getElementById('details-' + id);
+            if (!row) return;
+            var isHidden = row.style.display === 'none';
+            row.style.display = isHidden ? 'block' : 'none';
+        }
+    </script>
 
     {% if plan and rola != 'planista' and not aktywne %}
-        <form action="/start_przejscie" method="POST" onsubmit="return confirm('Rozpocząć PRZEJŚCIE?');">
-            <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
-            <button type="submit" class="btn-changeover">🔁 ZACZNIJ PRZEJŚCIE</button>
-        </form>
+    <form action="/start_przejscie" method="POST" onsubmit="return confirm('Rozpocząć PRZEJŚCIE?');">
+        <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+        <button type="submit" class="btn-changeover">🔁 ZACZNIJ PRZEJŚCIE</button>
+    </form>
     {% endif %}
 
     {% if rola in ['planista', 'admin', 'lider'] %}
@@ -166,7 +179,8 @@
     <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="form-flex">
         <input type="date" name="data_planu" value="{{ dzisiaj }}" required class="input-sm" aria-label="Data planu">
         <input type="text" name="produkt" placeholder="Produkt" required class="select-flex" aria-label="Produkt">
-        <input type="number" step="0.1" name="tonaz" placeholder="Waga (kg)" required class="input-sm w-70" aria-label="Waga (kg)">
+        <input type="number" step="0.1" name="tonaz" placeholder="Waga (kg)" required class="input-sm w-70"
+            aria-label="Waga (kg)">
         <button type="submit" class="btn-add-plan">DODAJ</button>
     </form>
     {% endif %}

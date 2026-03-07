@@ -75,11 +75,16 @@ def panel_wnioski_page():
         
         print(f"[DEBUG panel_wnioski_page] Loaded {len(wnioski)} wnioski as dicts for role={user_role}")
         
+        pending_nadgodziny = []
+        if user_role in ['lider', 'admin']:
+            pending_nadgodziny = OvertimeService.get_pending_requests()
+            
     except Exception as e:
         print(f"[ERROR] Exception in panel_wnioski_page: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         current_app.logger.error(f'Failed loading wnioski for full page: {e}', exc_info=True)
+        pending_nadgodziny = []
     finally:
         if conn:
             try:
@@ -88,8 +93,8 @@ def panel_wnioski_page():
                 pass
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('fragment') == 'true':
-        return render_template('panels/wnioski_panel.html', wnioski=wnioski)
-    return render_template('panels_full/wnioski_full.html', wnioski=wnioski)
+        return render_template('panels/wnioski_panel.html', wnioski=wnioski, pending_nadgodziny=pending_nadgodziny)
+    return render_template('panels_full/wnioski_full.html', wnioski=wnioski, pending_nadgodziny=pending_nadgodziny)
 
 
 @panels_bp.route('/panel/planowane')
@@ -241,12 +246,12 @@ def moje_godziny():
 
     # Pobierz wnioski złożone przez właściciela (do listy pod tabelą)
     try:
-        cursor.execute("SELECT id, typ, data_od, data_do, czas_od, czas_do, powod, status, zlozono FROM wnioski_wolne WHERE pracownik_id=%s ORDER BY zlozono DESC", (owner_pid,))
+        cursor.execute("SELECT id, typ, data_od, data_do, czas_od, czas_do, powod, status, zlozono, pracownik_id FROM wnioski_wolne WHERE pracownik_id=%s ORDER BY zlozono DESC", (owner_pid,))
         raw = cursor.fetchall()
         wnioski = []
         for r in raw:
             wnioski.append({
-                'id': r[0], 'typ': r[1], 'data_od': r[2], 'data_do': r[3], 'czas_od': r[4], 'czas_do': r[5], 'powod': r[6], 'status': r[7], 'zlozono': r[8]
+                'id': r[0], 'typ': r[1], 'data_od': r[2], 'data_do': r[3], 'czas_od': r[4], 'czas_do': r[5], 'powod': r[6], 'status': r[7], 'zlozono': r[8], 'pracownik_id': r[9]
             })
     except Exception:
         wnioski = []
@@ -262,13 +267,34 @@ def moje_godziny():
 
     # Pobierz oczekujące nadgodziny dla lidera
     pending_nadgodziny = []
+    pending_wnioski = []
     try:
         if role in ['lider', 'admin']:
             pending_nadgodziny = OvertimeService.get_pending_requests()
             current_app.logger.info(f"[DEBUG] moje_godziny: pending_nadgodziny count={len(pending_nadgodziny)}")
+            
+            # Pobierz wnioski urlopowe do zatwierdzenia
+            cursor.execute(
+                """SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, 
+                          w.czas_od, w.czas_do, w.powod, w.zlozono, w.pracownik_id 
+                   FROM wnioski_wolne w 
+                   JOIN pracownicy p ON w.pracownik_id = p.id 
+                   WHERE w.status = 'pending' 
+                   ORDER BY w.zlozono DESC 
+                   LIMIT 100"""
+            )
+            raw = cursor.fetchall()
+            for r in raw:
+                # Nie pokazuj wniosków samego lidera (do własnego zatwierdzenia)
+                if r[9] != owner_pid:
+                    pending_wnioski.append({
+                        'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3], 'data_do': r[4],
+                        'czas_od': r[5], 'czas_do': r[6], 'powod': r[7], 'zlozono': r[8], 'pracownik_id': r[9]
+                    })
     except Exception as e:
-        current_app.logger.error(f"[DEBUG] Error fetching pending_nadgodziny: {e}")
+        current_app.logger.error(f"[DEBUG] Error fetching pending requests: {e}")
         pending_nadgodziny = []
+        pending_wnioski = []
 
     # Przygotuj dane kalendarza miesiąca: suma godzin na dzień, flaga HR, flaga zatwierdzenia
     try:
@@ -355,9 +381,10 @@ def moje_godziny():
     return render_template('moje_godziny.html', mapped=True,
         owner_summary=owner_summary,
         viewed_summary=viewed_summary,
-        d_od=d_od, d_do=d_do, wnioski=wnioski,
+        d_od=d_od, d_do=d_do,        wnioski=wnioski,
         user_nadgodziny=user_nadgodziny,
         pending_nadgodziny=pending_nadgodziny,
+        pending_wnioski=pending_wnioski,
         calendar_days_owner=calendar_days_owner,
         calendar_days_viewed=calendar_days_viewed,
         pracownicy_list=pracownicy_list, selected_pid=selected_pid,

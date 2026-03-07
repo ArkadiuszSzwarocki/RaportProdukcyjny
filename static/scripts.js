@@ -137,11 +137,6 @@
         const checkedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
         if (checkedCheckboxes.length > 0) return true;
 
-        // --- PREVENT REFRESH IF BULK ADDITION ROWS EXIST ---
-        // In planista_bulk.html, if there are any rows added to the bulk table, block the refresh
-        const bulkRows = document.querySelectorAll('#bulkTable tbody tr');
-        if (bulkRows.length > 0) return true;
-
         if (!active) return false;
         if (active.matches && active.matches('input, textarea, select')) return true;
         return !!(active.closest && active.closest('[contenteditable="true"]'));
