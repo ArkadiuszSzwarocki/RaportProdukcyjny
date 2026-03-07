@@ -223,7 +223,7 @@ def index() -> str:
                 SELECT d.plan_id, d.nazwa, d.kg, d.data_zlecenia, d.data_potwierdzenia, d.szarza_id
                 FROM dosypki d
                 JOIN plan_produkcji p ON d.plan_id = p.id
-                WHERE d.potwierdzone = 1 AND DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp'
+                WHERE d.potwierdzone = 1 AND COALESCE(d.anulowana, 0) = 0 AND DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp'
                 ORDER BY d.data_potwierdzenia ASC
             """, (dzisiaj,))
             for row in cursor.fetchall():
@@ -241,7 +241,7 @@ def index() -> str:
                 SELECT d.plan_id, COUNT(*)
                 FROM dosypki d
                 JOIN plan_produkcji p ON d.plan_id = p.id
-                WHERE d.potwierdzone = 0 AND DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp'
+                WHERE d.potwierdzone = 0 AND COALESCE(d.anulowana, 0) = 0 AND DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp'
                 GROUP BY d.plan_id
             """, (dzisiaj,))
             for plan_id, pending_count in cursor.fetchall():

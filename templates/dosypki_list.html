@@ -69,6 +69,12 @@
         display: none
     }
 
+    .dosypka-confirm-btn {
+        padding: 4px 6px;
+        font-size: 0.75em;
+        min-width: 50px;
+    }
+
     @keyframes spin {
         to {
             transform: rotate(360deg);
@@ -107,7 +113,11 @@
                     <td>{% if d.nazwa %}{{ d.nazwa }}{% else %}<em>— brak nazwy —</em>{% endif %}</td>
                     <td>{{ d.kg }} kg</td>
                     <td>{{ d.data_zlecenia }}</td>
-                    <td><button class=\"btn-action btn-save\" data-id=\"{{ d.id }}\" style=\"padding: 4px 6px; font-size: 0.75em; min-width: 50px;{% if rola == 'laborant' %} opacity: 0.5; cursor: not-allowed;{% endif %}\"{% if rola == 'laborant' %} disabled{% endif %}>✓ Potwierdź</button></td>
+                    <td>
+                        {% if rola in ['pracownik', 'produkcja', 'lider', 'admin'] %}
+                        <button class="btn-action btn-save dosypka-confirm-btn" data-id="{{ d.id }}">✓ Potwierdź</button>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
                 <script>

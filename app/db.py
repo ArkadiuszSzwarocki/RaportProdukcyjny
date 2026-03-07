@@ -146,6 +146,9 @@ def _create_tables(cursor):
             potwierdzone BOOLEAN DEFAULT 0,
             potwierdzil_pracownik_id INT NULL,
             data_potwierdzenia DATETIME NULL,
+            anulowana BOOLEAN DEFAULT 0,
+            data_anulowania DATETIME NULL,
+            anulowal_login VARCHAR(100) NULL,
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE,
             FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL,
             FOREIGN KEY (potwierdzil_pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
@@ -255,6 +258,9 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji", "is_deleted", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'is_deleted' dla soft delete")
     _add_column_if_missing(cursor, "plan_produkcji", "deleted_at", "DATETIME NULL", "Dodawanie kolumny 'deleted_at' dla soft delete")
     _add_column_if_missing(cursor, "dosypki", "szarza_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'szarza_id' do dosypek")
+    _add_column_if_missing(cursor, "dosypki", "anulowana", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'anulowana' do dosypek")
+    _add_column_if_missing(cursor, "dosypki", "data_anulowania", "DATETIME NULL", "Dodawanie kolumny 'data_anulowania' do dosypek")
+    _add_column_if_missing(cursor, "dosypki", "anulowal_login", "VARCHAR(100) NULL", "Dodawanie kolumny 'anulowal_login' do dosypek")
     
     # Update typ_zlecenia for known quality orders
     try:
@@ -680,11 +686,19 @@ def insert_dosypka(plan_id, nazwa, kg, pracownik_id=None):
 
 
 def list_unconfirmed_dosypki():
-    """Return list of unconfirmed dosypki (potwierdzone=0)."""
+    """Return list of active unconfirmed dosypki."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, plan_id, nazwa, kg, data_zlecenia, pracownik_id FROM dosypki WHERE potwierdzone=0 ORDER BY data_zlecenia ASC")
+        cursor.execute(
+            """
+            SELECT id, plan_id, nazwa, kg, data_zlecenia, pracownik_id,
+                   COALESCE(anulowana, 0), anulowal_login, data_anulowania
+            FROM dosypki
+            WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0
+            ORDER BY data_zlecenia ASC
+            """
+        )
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -716,7 +730,7 @@ def confirm_dosypka(dosypka_id, potwierdzil_pracownik_id=None):
             cursor.execute(
                 "UPDATE plan_produkcji SET tonaz_rzeczywisty = "
                 "COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) + "
-                "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) "
+                "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
                 "WHERE id = %s",
                 (plan_id, plan_id, plan_id)
             )

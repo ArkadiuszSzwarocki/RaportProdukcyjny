@@ -1,5 +1,0 @@
-Testowy raport dla daty 2026-02-28
-Uwagi: 
-Lider: Admin
-Wygenerowano: 2026-02-28T17:00:07.252647Z
-To jest fallback stub generujący przykładowe pliki raportów dla testów.

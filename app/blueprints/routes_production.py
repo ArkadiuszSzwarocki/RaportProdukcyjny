@@ -396,7 +396,55 @@ def dosypka_page(plan_id):
             return redirect(bezpieczny_powrot())
         
         szarza_id = request.args.get('szarza_id')
-        return render_template('dodaj_dosypke_popup.html', plan_id=plan_id, produkt=produkt, typ=typ_produkcji, szarza_id=szarza_id)
+        szarza_id_int = None
+        if szarza_id:
+            try:
+                szarza_id_int = int(szarza_id)
+            except ValueError:
+                szarza_id_int = None
+
+        if szarza_id_int:
+            cursor.execute(
+                """
+                SELECT id, nazwa, kg, data_zlecenia, COALESCE(anulowana, 0), anulowal_login, data_anulowania
+                FROM dosypki
+                WHERE plan_id=%s AND szarza_id=%s
+                ORDER BY COALESCE(anulowana, 0) ASC, data_zlecenia DESC
+                """,
+                (plan_id, szarza_id_int)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT id, nazwa, kg, data_zlecenia, COALESCE(anulowana, 0), anulowal_login, data_anulowania
+                FROM dosypki
+                WHERE plan_id=%s
+                ORDER BY COALESCE(anulowana, 0) ASC, data_zlecenia DESC
+                """,
+                (plan_id,)
+            )
+
+        existing_dosypki = [
+            {
+                'id': row[0],
+                'nazwa': row[1],
+                'kg': float(row[2]) if row[2] is not None else 0,
+                'data_zlecenia': str(row[3]) if row[3] is not None else '',
+                'anulowana': bool(row[4]),
+                'anulowal_login': row[5],
+                'data_anulowania': str(row[6]) if row[6] is not None else '',
+            }
+            for row in cursor.fetchall()
+        ]
+
+        return render_template(
+            'dodaj_dosypke_popup.html',
+            plan_id=plan_id,
+            produkt=produkt,
+            typ=typ_produkcji,
+            szarza_id=szarza_id,
+            existing_dosypki=existing_dosypki,
+        )
     except Exception as e:
         current_app.logger.error(f'Error in dosypka_page: {e}', exc_info=True)
         flash('Błąd pobierania danych planu', 'error')
@@ -516,7 +564,7 @@ def potwierdz_dosypke(dosypka_id):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM dosypki WHERE id=%s AND potwierdzone=0", (dosypka_id,))
+        cursor.execute("SELECT id FROM dosypki WHERE id=%s AND potwierdzone=0 AND COALESCE(anulowana, 0)=0", (dosypka_id,))
         r = cursor.fetchone()
         if not r:
             if is_ajax:
@@ -538,7 +586,7 @@ def potwierdz_dosypke(dosypka_id):
             cursor.execute(
                 "UPDATE plan_produkcji SET tonaz_rzeczywisty = "
                 "COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) + "
-                "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) "
+                "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
                 "WHERE id = %s",
                 (plan_id, plan_id, plan_id)
             )
@@ -565,19 +613,87 @@ def potwierdz_dosypke(dosypka_id):
     return redirect(bezpieczny_powrot())
 
 
+@production_bp.route('/anuluj_dosypke/<int:dosypka_id>', methods=['POST'])
+@roles_required('laborant', 'admin')
+def anuluj_dosypke(dosypka_id):
+    """Mark dosypka as anulowana instead of deleting it."""
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, plan_id FROM dosypki WHERE id=%s AND potwierdzone=0 AND COALESCE(anulowana, 0)=0",
+            (dosypka_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Pozycja nie istnieje, została już potwierdzona albo anulowana'}), 404
+            flash('Pozycja nie istnieje, została już potwierdzona albo anulowana', 'warning')
+            return redirect(bezpieczny_powrot())
+
+        anulowal_login = session.get('login') or session.get('imie_nazwisko') or 'unknown'
+        cursor.execute(
+            "UPDATE dosypki SET anulowana=1, data_anulowania=NOW(), anulowal_login=%s WHERE id=%s",
+            (anulowal_login, dosypka_id)
+        )
+        conn.commit()
+        if is_ajax:
+            return jsonify({
+                'success': True,
+                'message': 'Dosypka została anulowana.',
+                'plan_id': row[1],
+                'anulowal_login': anulowal_login,
+            })
+        flash('Dosypka została anulowana.', 'success')
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        current_app.logger.error(f'Failed to cancel dosypka: {e}', exc_info=True)
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Błąd podczas anulowania'}), 500
+        flash('Błąd podczas anulowania', 'error')
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    return redirect(bezpieczny_powrot())
+
+
 @production_bp.route('/api/dosypki', methods=['GET'])
 @roles_required('laborant', 'pracownik', 'produkcja', 'lider', 'admin')
 def api_dosypki():
-    """Return JSON of unconfirmed dosypki for operators (potwierdzone=0), optionally filtered by plan_id."""
+    """Return JSON of active unconfirmed dosypki for operators."""
     current_app.logger.info(f"[api_dosypki] Endpoint reached by user role: {session.get('rola')}")
     plan_id = request.args.get('plan_id', None)
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         if plan_id:
-            cursor.execute("SELECT id, plan_id, nazwa, kg, data_zlecenia FROM dosypki WHERE potwierdzone=0 AND plan_id=%s ORDER BY data_zlecenia ASC", (plan_id,))
+            cursor.execute(
+                """
+                SELECT id, plan_id, nazwa, kg, data_zlecenia,
+                       COALESCE(anulowana, 0), anulowal_login, data_anulowania
+                FROM dosypki
+                WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0 AND plan_id = %s
+                ORDER BY data_zlecenia ASC
+                """,
+                (plan_id,)
+            )
         else:
-            cursor.execute("SELECT id, plan_id, nazwa, kg, data_zlecenia FROM dosypki WHERE potwierdzone=0 ORDER BY data_zlecenia ASC")
+            cursor.execute(
+                """
+                SELECT id, plan_id, nazwa, kg, data_zlecenia,
+                       COALESCE(anulowana, 0), anulowal_login, data_anulowania
+                FROM dosypki
+                  WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0
+                  ORDER BY data_zlecenia ASC
+                """
+            )
         rows = cursor.fetchall()
         role = session.get('rola', '')
         result = []
@@ -588,7 +704,16 @@ def api_dosypki():
                 nazwa = r[2]
             else:
                 nazwa = None
-            result.append({'id': r[0], 'plan_id': r[1], 'nazwa': nazwa, 'kg': float(r[3]), 'data_zlecenia': str(r[4])})
+            result.append({
+                'id': r[0],
+                'plan_id': r[1],
+                'nazwa': nazwa,
+                'kg': float(r[3]),
+                'data_zlecenia': str(r[4]),
+                'anulowana': bool(r[5]),
+                'anulowal_login': r[6],
+                'data_anulowania': str(r[7]) if r[7] is not None else '',
+            })
         return jsonify({'success': True, 'dosypki': result})
     except Exception as e:
         current_app.logger.error(f'api/dosypki failed: {e}', exc_info=True)
@@ -603,7 +728,7 @@ def api_dosypki():
 @production_bp.route('/dosypki_list', methods=['GET'])
 @roles_required('laborant', 'pracownik', 'produkcja', 'lider', 'admin')
 def dosypki_list():
-    """Render slide-over page with list of unconfirmed dosypki for operators, optionally filtered by plan."""
+    """Render slide-over page with list of active unconfirmed dosypki for operators."""
     # Accept optional plan_id to filter dosypki for a specific zlecenie
     plan_id = request.args.get('plan_id', None)
     # Fetch unconfirmed dosypki server-side so fragment shows data even if client JS doesn't run

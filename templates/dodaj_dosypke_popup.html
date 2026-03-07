@@ -1,4 +1,395 @@
-<div class="dosypka-popup-container" data-popup-title="Dodaj Dosypkę">
+<div class="dosypka-popup-container" data-popup-title="Dodaj Dosypkę" data-plan-id="{{ plan_id }}" data-szarza-id="{{ szarza_id or '' }}">
+    <style>
+        .dosypka-popup-container {
+            padding: 2px 6px 8px;
+            color: #1f3347;
+        }
+
+        .dosypka-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+            gap: 12px;
+            align-items: start;
+        }
+
+        .dosypka-panel {
+            border: 1px solid #dfe8f1;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            box-shadow: 0 8px 20px rgba(21, 52, 78, 0.05);
+            overflow: hidden;
+        }
+
+        .dosypka-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #e4ebf2;
+            background: linear-gradient(135deg, #f9fcff 0%, #f1f7fc 100%);
+        }
+
+        .dosypka-panel-title {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            color: #24415d;
+        }
+
+        .dosypka-panel-subtitle {
+            font-size: 0.74rem;
+            color: #678198;
+            font-weight: 600;
+        }
+
+        .dosypka-panel-body {
+            padding: 12px;
+        }
+
+        .dosypka-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 0 2px 8px;
+            border-bottom: 1px solid #e4ebf2;
+        }
+
+        .dosypka-title {
+            margin: 0;
+            font-size: 1.16rem;
+            font-weight: 800;
+            color: #19344f;
+            letter-spacing: -0.02em;
+        }
+
+        .dosypka-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .dosypka-info {
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #f7fbff 0%, #eef5fb 100%);
+            border: 1px solid #dce8f2;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+
+        .info-item {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: baseline;
+            margin-bottom: 6px;
+        }
+
+        .info-label {
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #5f778c;
+        }
+
+        .info-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1e3a56;
+        }
+
+        .info-product {
+            margin-left: 6px;
+        }
+
+        .info-type {
+            color: #627a90;
+            font-weight: 600;
+        }
+
+        .dosypka-description {
+            margin: 0;
+            font-size: 0.88rem;
+            line-height: 1.4;
+            color: #496075;
+        }
+
+        .dosypka-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px;
+            border-radius: 12px;
+            background: #fbfdff;
+            border: 1px solid #e3ebf3;
+        }
+
+        .dosypka-field-group {
+            padding: 10px;
+            border-radius: 10px;
+            background: #ffffff;
+            border: 1px solid #e6edf4;
+            box-shadow: 0 3px 10px rgba(26, 56, 84, 0.04);
+        }
+
+        .dosypka-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #24415d;
+        }
+
+        .field-number {
+            color: #2873b8;
+        }
+
+        .dosypka-row {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(110px, 0.9fr);
+            gap: 8px;
+        }
+
+        .dosypka-input {
+            width: 100%;
+            min-height: 38px;
+            border: 1px solid #ccd8e4;
+            border-radius: 10px;
+            padding: 0 12px;
+            font-size: 0.9rem;
+            color: #1f3347;
+            background: #fff;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+            box-sizing: border-box;
+        }
+
+        .dosypka-input:focus {
+            outline: none;
+            border-color: #3a8ad3;
+            box-shadow: 0 0 0 4px rgba(58, 138, 211, 0.16);
+        }
+
+        .dosypka-input::placeholder {
+            color: #8a9caf;
+        }
+
+        .dosypka-add-field {
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .dosypka-btn,
+        .dosypka-btn-add {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 38px;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            padding: 0 14px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease, background 0.16s ease;
+            text-decoration: none;
+            box-sizing: border-box;
+        }
+
+        .dosypka-btn:hover,
+        .dosypka-btn-add:hover {
+            transform: translateY(-1px);
+        }
+
+        .dosypka-btn-add {
+            background: #eff5fb;
+            color: #1f4568;
+            border-color: #d6e2ee;
+            box-shadow: 0 4px 12px rgba(26, 56, 84, 0.05);
+        }
+
+        .dosypka-btn-add .btn-icon {
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .dosypka-btn-remove {
+            border: none;
+            background: transparent;
+            color: #8da1b4;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 8px;
+        }
+
+        .dosypka-btn-remove:hover {
+            color: #a12b2b;
+            background: rgba(161, 43, 43, 0.08);
+        }
+
+        .dosypka-existing {
+            height: 100%;
+        }
+
+        .dosypka-existing-title {
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: #284560;
+            margin-bottom: 8px;
+        }
+
+        .dosypka-existing-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 180px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .dosypka-existing-item {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid #dbe4ec;
+            border-radius: 10px;
+            background: #ffffff;
+            box-shadow: 0 4px 12px rgba(26, 56, 84, 0.04);
+        }
+
+        .dosypka-existing-item.is-cancelled {
+            opacity: 0.75;
+            background: linear-gradient(180deg, #fff8f8 0%, #faf4f4 100%);
+            border-color: #ead2d2;
+        }
+
+        .dosypka-existing-item.is-cancelled .dosypka-existing-main {
+            text-decoration: line-through;
+        }
+
+        .dosypka-existing-main {
+            font-weight: 600;
+            color: #29445c;
+            line-height: 1.45;
+            font-size: 0.9rem;
+        }
+
+        .dosypka-existing-meta {
+            margin-top: 4px;
+            font-size: 0.78em;
+            color: #5d7286;
+        }
+
+        .dosypka-existing-cancel-meta {
+            margin-top: 4px;
+            font-size: 0.78em;
+            color: #8b1e1e;
+        }
+
+        .dosypka-existing-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .dosypka-existing-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: rgba(139, 30, 30, 0.12);
+            color: #8b1e1e;
+            font-size: 0.72em;
+            font-weight: 700;
+        }
+
+        .dosypka-btn-confirm {
+            background: linear-gradient(135deg, #2d8cd3 0%, #1f78be 100%);
+            color: #fff;
+            box-shadow: 0 10px 22px rgba(45, 140, 211, 0.24);
+        }
+
+        .dosypka-btn-none {
+            background: #f4f7fa;
+            color: #29445c;
+            border-color: #dbe4ec;
+        }
+
+        .dosypka-btn-cancel {
+            background: #fff;
+            color: #273c52;
+            border-color: #d6e0ea;
+        }
+
+        .dosypka-actions {
+            position: sticky;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 0 2px;
+            margin-top: 2px;
+            background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.92) 22%, #fff 100%);
+            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(4px);
+        }
+
+        .dosypka-actions-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        @media (max-width: 760px) {
+            .dosypka-popup-container {
+                padding: 2px 2px 10px;
+            }
+
+            .dosypka-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .dosypka-title {
+                font-size: 1.06rem;
+            }
+
+            .info-value {
+                font-size: 0.94rem;
+            }
+
+            .dosypka-row {
+                grid-template-columns: 1fr;
+            }
+
+            .dosypka-existing-item {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .dosypka-existing-actions,
+            .dosypka-actions,
+            .dosypka-actions-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .dosypka-btn,
+            .dosypka-btn-add {
+                width: 100%;
+            }
+        }
+    </style>
+
     <div class="dosypka-header">
         <h4 class="dosypka-title">🧪 Dodaj Dosypkę</h4>
     </div>
@@ -20,24 +411,69 @@
             <p class="dosypka-description">Dodaj pozycje dosypki (nazwa surowca + ilość w kg). Maksymalnie 10 pól.<br>Pola puste będą zignorowane.</p>
         </div>
 
-        <div class="dosypka-fields" id="dosypka-fields">
-            {% for i in range(1,2) %}
-            <div class="dosypka-field-group" data-field-index="{{ i }}">
-                <label class="dosypka-label">
-                    Pozycja <span class="field-number">{{ i }}</span>
-                </label>
-                <div class="dosypka-row">
-                    <input type="text" name="nazwa_{{ i }}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Nazwa surowca, składnika...">
-                    <input type="number" name="kg_{{ i }}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
+        <div class="dosypka-layout">
+            <section class="dosypka-panel">
+                <div class="dosypka-panel-header">
+                    <div>
+                        <div class="dosypka-panel-title">Nowa dosypka</div>
+                        <div class="dosypka-panel-subtitle">Wprowadzenie korekty dla aktywnej szarży</div>
+                    </div>
                 </div>
-            </div>
-            {% endfor %}
-        </div>
+                <div class="dosypka-panel-body">
+                    <div class="dosypka-fields" id="dosypka-fields">
+                        {% for i in range(1,2) %}
+                        <div class="dosypka-field-group" data-field-index="{{ i }}">
+                            <label class="dosypka-label">
+                                Pozycja <span class="field-number">{{ i }}</span>
+                            </label>
+                            <div class="dosypka-row">
+                                <input type="text" name="nazwa_{{ i }}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Nazwa surowca, składnika...">
+                                <input type="number" name="kg_{{ i }}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
 
-        <div class="dosypka-add-field">
-            <button type="button" class="dosypka-btn-add" onclick="addDosypkaField()" id="add-field-btn">
-                <span class="btn-icon">+</span> Dodaj pole (maks. 10)
-            </button>
+                    <div class="dosypka-add-field">
+                        <button type="button" class="dosypka-btn-add" onclick="addDosypkaField()" id="add-field-btn">
+                            <span class="btn-icon">+</span> Dodaj pole (maks. 10)
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            {% if existing_dosypki %}
+            <aside class="dosypka-panel dosypka-existing">
+                <div class="dosypka-panel-header">
+                    <div>
+                        <div class="dosypka-panel-title">Historia dosypek</div>
+                        <div class="dosypka-panel-subtitle">{% if szarza_id %}Pozycje przypisane do tej szarży{% else %}Pozycje przypisane do tego zlecenia{% endif %}</div>
+                    </div>
+                </div>
+                <div class="dosypka-panel-body">
+                    <div class="dosypka-existing-list">
+                        {% for item in existing_dosypki %}
+                        <div class="dosypka-existing-item{% if item.anulowana %} is-cancelled{% endif %}" data-dosypka-id="{{ item.id }}">
+                            <div>
+                                <div class="dosypka-existing-main">{{ item.nazwa }} • {{ item.kg }} kg</div>
+                                <div class="dosypka-existing-meta">Dodano: {{ item.data_zlecenia }}</div>
+                                {% if item.anulowana %}
+                                <div class="dosypka-existing-cancel-meta">Anulował: {{ item.anulowal_login or '—' }}{% if item.data_anulowania %} • {{ item.data_anulowania }}{% endif %}</div>
+                                {% endif %}
+                            </div>
+                            <div class="dosypka-existing-actions">
+                                {% if item.anulowana %}
+                                <span class="dosypka-existing-badge">Anulowana</span>
+                                {% else %}
+                                <button type="button" class="dosypka-btn dosypka-btn-cancel js-cancel-existing-dosypka" data-id="{{ item.id }}">✕ Anuluj wpis</button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </aside>
+            {% endif %}
         </div>
 
         <div class="dosypka-actions">
@@ -59,6 +495,118 @@
 </div>
 
 <script>
+function initDosypkaPopup() {
+    updateAddFieldButton();
+
+    document.querySelectorAll('.js-cancel-existing-dosypka').forEach(function (btn) {
+        if (btn.dataset.boundCancel === '1') return;
+        btn.dataset.boundCancel = '1';
+        btn.addEventListener('click', async function () {
+            const dosypkaId = btn.getAttribute('data-id');
+            if (!dosypkaId) return;
+            if (!confirm('Anulować tę dosypkę?')) return;
+
+            const container = document.querySelector('.dosypka-popup-container');
+            const planId = container ? container.getAttribute('data-plan-id') : '';
+            const szarzaId = container ? container.getAttribute('data-szarza-id') : '';
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳...';
+
+            try {
+                const res = await fetch('/anuluj_dosypke/' + dosypkaId, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                    alert((data && data.message) || 'Błąd podczas anulowania');
+                    return;
+                }
+
+                await refreshDosypkaPopup(planId, szarzaId);
+                await refreshPlanDosypkiView(planId);
+            } catch (error) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                alert('Błąd sieci');
+            }
+        });
+    });
+}
+
+async function refreshDosypkaPopup(planId, szarzaId) {
+    if (!planId) return;
+    let refreshUrl = '/dosypka_page/' + encodeURIComponent(planId);
+    if (szarzaId) refreshUrl += '?szarza_id=' + encodeURIComponent(szarzaId);
+
+    const resp = await fetch(refreshUrl, {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        cache: 'no-store'
+    });
+    if (!resp.ok) throw new Error('refresh popup failed');
+
+    const html = await resp.text();
+    const popup = document.getElementById('quickPopup') || document.querySelector('.quick-popup');
+    const body = document.getElementById('quickPopupBody') || (popup && popup.querySelector('.qp-body'));
+    if (!body) return;
+
+    body.innerHTML = html;
+    body.querySelectorAll('script').forEach(function (s) {
+        try {
+            if (s.src) {
+                const sc = document.createElement('script');
+                sc.src = s.src;
+                sc.async = false;
+                document.body.appendChild(sc);
+            } else {
+                window.eval(s.textContent);
+            }
+        } catch (e) {
+            console.warn('exec refreshed dosypka popup script failed', e);
+        }
+    });
+}
+
+async function refreshPlanDosypkiView(planId) {
+    if (!planId) return;
+    const resp = await fetch(window.location.href, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+    });
+    if (!resp.ok) throw new Error('refresh plan failed');
+
+    const text = await resp.text();
+    const tmp = document.createElement('div');
+    tmp.innerHTML = text;
+
+    const currentBadge = document.querySelector('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+    const freshBadge = tmp.querySelector('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+    if (currentBadge && freshBadge) {
+        currentBadge.outerHTML = freshBadge.outerHTML;
+    }
+
+    const detailId = 'details-' + String(planId);
+    const currentDetails = document.getElementById(detailId);
+    const freshDetails = tmp.querySelector('#' + detailId);
+    if (currentDetails && freshDetails) {
+        const wasVisible = currentDetails.style.display !== 'none';
+        currentDetails.outerHTML = freshDetails.outerHTML;
+        if (wasVisible) {
+            const replaced = document.getElementById(detailId);
+            if (replaced) replaced.style.display = 'block';
+        }
+    }
+}
+
 function addDosypkaField() {
     const fieldsContainer = document.getElementById('dosypka-fields');
     const currentFields = fieldsContainer.querySelectorAll('.dosypka-field-group');
@@ -147,8 +695,9 @@ function submitNoDosypki(event) {
     document.getElementById('dosypka-form').submit();
 }
 
-// Initialize on load
-document.addEventListener('DOMContentLoaded', function() {
-    updateAddFieldButton();
-});
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDosypkaPopup, { once: true });
+} else {
+    initDosypkaPopup();
+}
 </script>

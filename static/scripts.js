@@ -6,10 +6,33 @@
 
 
     // --- Stałe konfiguracyjne ---
-    const REFRESH_INTERVAL_MS = 60_000; // Auto-odświeżanie co 60s
+    const DEFAULT_REFRESH_INTERVAL_MS = 60_000; // Domyślne auto-odświeżanie co 60s
+    const SLOW_REFRESH_INTERVAL_MS = 180_000; // Spokojniejsze odświeżanie dla Zasyp/Workowanie co 3 min
     const MIN_VALID_CHARS = 50; // Walidacja opisu awarii
     const ACTIVE_BG = '#d32f2f';
     const INACTIVE_BG = 'gray';
+
+    function getCurrentSection() {
+        try {
+            const dayTile = document.querySelector('.day-tile[data-sekcja]');
+            if (dayTile) {
+                return String(dayTile.getAttribute('data-sekcja') || '').trim();
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            return String(params.get('sekcja') || '').trim();
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function getRefreshIntervalMs() {
+        const section = getCurrentSection().toLowerCase();
+        if (section === 'zasyp' || section === 'workowanie') {
+            return SLOW_REFRESH_INTERVAL_MS;
+        }
+        return DEFAULT_REFRESH_INTERVAL_MS;
+    }
 
     // --- ZACHOWYWANIE POZYCJI PRZEWIJANIA (Scroll Preservation) ---
     // Ta funkcja działa na każdej podstronie systemu
@@ -104,6 +127,92 @@
         } catch (e) {
             return false;
         }
+    }
+
+    function hasFocusedEditableElement() {
+        const active = document.activeElement;
+
+        // --- PREVENT REFRESH IF BULK CHECKBOXES ARE SELECTED ---
+        // If there are checked checkboxes for bulk actions (like planista_bulk), we must not reload and lose them.
+        const checkedCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+        if (checkedCheckboxes.length > 0) return true;
+
+        // --- PREVENT REFRESH IF BULK ADDITION ROWS EXIST ---
+        // In planista_bulk.html, if there are any rows added to the bulk table, block the refresh
+        const bulkRows = document.querySelectorAll('#bulkTable tbody tr');
+        if (bulkRows.length > 0) return true;
+
+        if (!active) return false;
+        if (active.matches && active.matches('input, textarea, select')) return true;
+        return !!(active.closest && active.closest('[contenteditable="true"]'));
+    }
+
+    function hasBlockingOverlayOpen() {
+        return !!(
+            document.hidden ||
+            document.body.classList.contains('slide-over-open') ||
+            document.body.classList.contains('sidebar-open') ||
+            document.querySelector('.quick-popup.open, .drawer.open, .bottom-sheet.open, .fullscreen-modal.open, .wizard-modal') ||
+            document.querySelector('.modal.show, dialog[open]') ||
+            // --- NEW: Block refresh if a Select2 or standard select dropdown is open ---
+            document.querySelector('.select2-container--open') ||
+            // --- NEW: Block refresh if standard dropdown menus (.show) are open ---
+            document.querySelector('.dropdown-menu.show') ||
+            // --- NEW: Block refresh if the language or notifications menu is open ---
+            document.querySelector('#languageMenu[style*="display: flex"]') ||
+            document.querySelector('#notificationsMenu[style*="display: block"]') ||
+            document.querySelector('#notificationsMenu[aria-hidden="false"]')
+        );
+    }
+
+    function captureExpandedDetails() {
+        try {
+            return Array.from(document.querySelectorAll('[id^="details-"]'))
+                .filter(el => el.style.display !== 'none' && getComputedStyle(el).display !== 'none')
+                .map(el => el.id);
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function restoreExpandedDetails(expandedIds) {
+        if (!Array.isArray(expandedIds) || expandedIds.length === 0) return;
+        expandedIds.forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'block';
+        });
+    }
+
+    function showRefreshIndicator(message) {
+        try {
+            const text = message || 'Dane odświeżone';
+            let indicator = document.getElementById('refreshIndicator');
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'refreshIndicator';
+                indicator.className = 'refresh-indicator';
+                document.body.appendChild(indicator);
+            }
+
+            if (indicator._hideTimer) {
+                clearTimeout(indicator._hideTimer);
+            }
+
+            indicator.textContent = text;
+            indicator.classList.add('show');
+            indicator._hideTimer = setTimeout(function () {
+                indicator.classList.remove('show');
+            }, 1800);
+        } catch (e) {
+            console.warn('showRefreshIndicator failed', e);
+        }
+    }
+
+    function shouldSkipAutoRefresh() {
+        if (skipOpenStopActive()) return true;
+        if (hasFocusedEditableElement()) return true;
+        if (hasBlockingOverlayOpen()) return true;
+        return false;
     }
 
     // --- INICJALIZACJA ---
@@ -223,21 +332,30 @@
         } catch (err) { console.error('Click delegation error:', err); }
     }, false);
 
-    // Auto-refresh: odśwież gdy nikt nic nie wpisuje przez określony czas
+    let partialReloadInFlight = false;
+
+    // Auto-refresh: odśwież tylko zawartość główną, bez resetowania całej aplikacji.
     setInterval(function () {
-        const aktywne = document.querySelectorAll('input:focus, textarea:focus, select:focus');
-        if (aktywne.length === 0 && !skipOpenStopActive()) window.location.reload();
-    }, REFRESH_INTERVAL_MS);
+        if (partialReloadInFlight) return;
+        if (shouldSkipAutoRefresh()) return;
+        performPartialReload({ preserveScroll: false, source: 'auto-refresh' });
+    }, getRefreshIntervalMs());
 
     // Partial reload: fetch current page and replace main content silently
-    async function performPartialReload() {
+    async function performPartialReload(options) {
+        options = options || {};
         try {
+            partialReloadInFlight = true;
             // Save current scroll position before reloading
             const scrollKey = 'system_scroll_pos';
-            localStorage.setItem(scrollKey, window.scrollY);
+            if (options.preserveScroll !== false) {
+                localStorage.setItem(scrollKey, window.scrollY);
+            }
+
+            const expandedDetails = captureExpandedDetails();
 
             const resp = await fetch(window.location.href, { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
-            if (!resp.ok) return window.location.reload();
+            if (!resp.ok) return;
             const txt = await resp.text();
             const tmp = document.createElement('div'); tmp.innerHTML = txt;
             const newMain = tmp.querySelector('#mainContent');
@@ -259,11 +377,14 @@
 
                 // Restore scroll position after content update
                 setTimeout(() => {
-                    const savedPos = localStorage.getItem(scrollKey);
-                    if (savedPos) {
-                        window.scrollTo(0, parseInt(savedPos));
-                        localStorage.removeItem(scrollKey);
+                    if (options.preserveScroll !== false) {
+                        const savedPos = localStorage.getItem(scrollKey);
+                        if (savedPos) {
+                            window.scrollTo(0, parseInt(savedPos));
+                            localStorage.removeItem(scrollKey);
+                        }
                     }
+                    restoreExpandedDetails(expandedDetails);
                 }, 50);
 
                 // call update timer function if available
@@ -272,13 +393,19 @@
                 // Dispatch event so other parts of app know content changed
                 try { window.dispatchEvent(new CustomEvent('app:partialReload')); } catch (e) { }
 
+                if (options.source === 'auto-refresh') {
+                    showRefreshIndicator('Dane odświeżone');
+                }
+
                 console.info('[partialReload] Content updated successfully');
                 return;
             }
-            // fallback full reload
-            console.warn('[partialReload] Could not find #mainContent, falling back to full reload');
-            window.location.reload();
-        } catch (e) { console.error('performPartialReload failed', e); window.location.reload(); }
+            console.warn('[partialReload] Could not find #mainContent, refresh skipped');
+        } catch (e) {
+            console.error('performPartialReload failed', e);
+        } finally {
+            partialReloadInFlight = false;
+        }
     }
 
     /* ================= Additional popups: toast, drawer, bottom-sheet, popover, fullscreen, wizard ================= */

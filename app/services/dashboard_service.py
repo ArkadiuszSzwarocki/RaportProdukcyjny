@@ -294,7 +294,7 @@ class DashboardService:
                     cursor = conn.cursor()
                     cursor.execute(
                         """SELECT s.id, 
-                                  s.waga + COALESCE((SELECT SUM(kg) FROM dosypki d WHERE d.szarza_id = s.id AND d.potwierdzone = 1), 0) as waga_total, 
+                                  s.waga + COALESCE((SELECT SUM(kg) FROM dosypki d WHERE d.szarza_id = s.id AND d.potwierdzone = 1 AND COALESCE(d.anulowana, 0) = 0), 0) as waga_total, 
                                   s.godzina, s.data_dodania, s.pracownik_id, s.status 
                            FROM szarze s 
                            WHERE s.plan_id = %s AND s.status = 'zarejestowana' 
@@ -309,7 +309,7 @@ class DashboardService:
                         szarza_id = r[0]
                         # Fetch dosypki for this szarża with timestamp
                         cursor.execute(
-                            """SELECT nazwa, kg, data_zlecenia FROM dosypki WHERE szarza_id = %s AND potwierdzone = 1 ORDER BY data_zlecenia ASC""",
+                            """SELECT nazwa, kg, data_zlecenia FROM dosypki WHERE szarza_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0 ORDER BY data_zlecenia ASC""",
                             (szarza_id,)
                         )
                         dosypki_rows = cursor.fetchall()

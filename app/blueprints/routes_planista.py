@@ -119,7 +119,7 @@ def panel_planisty():
         wykonanie_rzeczywiste = 0
         if sekcja != 'czyszczenie':
             cursor.execute(
-                "SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) FROM szarze WHERE plan_id = %s",
+                "SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM szarze WHERE plan_id = %s",
                 (plan_id, plan_id)
             )
             szarze_result = cursor.fetchone()
@@ -185,7 +185,7 @@ def panel_planisty():
 
             # Zasyp = SUM(szarże) + SUM(dosypki potwierdzone) - co faktycznie wyjechało z Zasypu
             cursor.execute("""
-                SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) FROM szarze
+                SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM szarze
                 WHERE plan_id = %s
             """, (zasyp_id, zasyp_id))
             row = cursor.fetchone()
@@ -267,7 +267,7 @@ def panel_planisty():
 
             # Wykonanie
             cursor_agro.execute(
-                "SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) FROM szarze WHERE plan_id = %s",
+                "SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM szarze WHERE plan_id = %s",
                 (p[0], p[0])
             )
             sz = cursor_agro.fetchone()

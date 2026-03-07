@@ -279,7 +279,7 @@ def dodaj_plan():
                 cursor.execute(
                     "UPDATE plan_produkcji SET tonaz_rzeczywisty = "
                     "COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) + "
-                    "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1), 0) "
+                    "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
                     "WHERE id = %s",
                     (zasyp_plan_id, zasyp_plan_id, zasyp_plan_id)
                 )

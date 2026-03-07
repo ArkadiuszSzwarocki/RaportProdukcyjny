@@ -2,6 +2,56 @@
 (function () {
     'use strict';
 
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function updateDosypkiBadge(planId, delta) {
+        if (!planId || !delta) return;
+        const trigger = document.querySelector('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+        if (!trigger) return;
+        let badge = trigger.querySelector('.action-badge');
+        const current = badge ? parseInt(badge.textContent, 10) || 0 : 0;
+        const next = Math.max(0, current + delta);
+        if (next <= 0) {
+            if (badge) badge.remove();
+            return;
+        }
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'action-badge';
+            trigger.appendChild(badge);
+        }
+        badge.textContent = String(next);
+    }
+
+    function renderActionCell(d) {
+        const role = window._currentRole;
+        if (role === 'pracownik' || role === 'produkcja' || role === 'lider' || role === 'admin') {
+            return '<button class="btn-action btn-save dosypka-confirm-btn" data-id="' + d.id + '" data-action="confirm">✓ Potwierdź</button>';
+        }
+        return '';
+    }
+
+    function buildRowHtml(d, idx) {
+        const nameHtml = d.nazwa ? escapeHtml(d.nazwa) : '<em>— brak nazwy —</em>';
+        return `
+            <tr data-plan-id="${escapeHtml(d.plan_id)}">
+                <td class="text-muted">${idx + 1}</td>
+                <td>${escapeHtml(d.plan_id)}</td>
+                <td>${nameHtml}</td>
+                <td>${escapeHtml(d.kg)} kg</td>
+                <td>${escapeHtml(d.data_zlecenia)}</td>
+                <td>${renderActionCell(d)}</td>
+            </tr>
+        `;
+    }
+
     async function fetchDosypki(container) {
         console.log('[dosypki.fetch] Starting fetch for container:', container);
         const statusEl = container.querySelector('#dosypki-status');
@@ -40,7 +90,7 @@
             const list = data.dosypki || [];
             console.log('[dosypki.fetch] Dosypki list:', list);
             if (list.length === 0) {
-                if (statusEl) statusEl.textContent = 'Brak niepotwierdzonych dosypek.';
+                if (statusEl) statusEl.textContent = 'Brak dosypek.';
                 if (table) table.style.display = 'none';
                 return;
             }
@@ -49,19 +99,7 @@
             if (tbody) tbody.innerHTML = '';
             list.forEach(function (d, idx) {
                 if (!tbody) return;
-                const tr = document.createElement('tr');
-                const isLaborant = window._currentRole === 'laborant';
-                const btnDisabled = isLaborant ? 'disabled' : '';
-                const btnStyle = isLaborant ? 'opacity: 0.5; cursor: not-allowed;' : '';
-                tr.innerHTML = `
-                    <td class=\"text-muted\">${idx + 1}</td>
-                    <td>${d.plan_id}</td>
-                    <td>${d.nazwa ? d.nazwa : '<em>— brak nazwy —</em>'}</td>
-                    <td>${d.kg} kg</td>
-                    <td>${d.data_zlecenia}</td>
-                    <td><button class=\"btn-action btn-save\" data-id=\"${d.id}\" style=\"padding: 4px 6px; font-size: 0.75em; min-width: 50px; ${btnStyle}\" ${btnDisabled}>✓ Potwierdź</button></td>
-                `;
-                tbody.appendChild(tr);
+                tbody.insertAdjacentHTML('beforeend', buildRowHtml(d, idx));
             });
             console.log('[dosypki.fetch] Populated tbody with', list.length, 'rows');
         } catch (e) {
