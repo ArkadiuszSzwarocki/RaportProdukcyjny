@@ -321,7 +321,7 @@ def dur_zatwierdz_awarię(awaria_id):
         # Aktualizuj status
         status_zmieniony = False
         if status and stary_status != status:
-            current_app.logger.info(f"  ✓ Status się zmienił: '{stary_status}' → '{status}'")
+            current_app.logger.info(f"  [OK] Status changed: '{stary_status}' -> '{status}'")
             cursor.execute("UPDATE dziennik_zmiany SET status = %s WHERE id = %s", (status, awaria_id))
             conn.commit()
             status_zmieniony = True
@@ -331,7 +331,7 @@ def dur_zatwierdz_awarię(awaria_id):
                 cursor.execute("UPDATE dziennik_zmiany SET data_zakonczenia = %s WHERE id = %s", (date.today(), awaria_id))
                 conn.commit()
         else:
-            current_app.logger.info(f"  ✗ Status nie zmienił się: status='{status}', stary_status='{stary_status}'")
+            current_app.logger.info(f"  [SKIP] Status did not change: status='{status}', stary_status='{stary_status}'")
         
         # Dodaj automatyczny komentarz jeśli zmienił się status
         if status_zmieniony:

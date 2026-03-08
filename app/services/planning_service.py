@@ -88,20 +88,20 @@ class PlanningService:
         Returns:
             Tuple (success: bool, message: str)
         """
-        print(f'\n🔥 [SERVICE-1] delete_plan({plan_id}) START - HARD DELETE')
+        print(f'\n[SERVICE-DELETE] delete_plan({plan_id}) START - HARD DELETE')
         try:
-            print(f'🔥 [SERVICE-2] Łączę się z bazą...')
+            print(f'[SERVICE-DELETE] Connecting to database...')
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Check if plan exists and its status
-            print(f'🔥 [SERVICE-3] Szukam planu ID={plan_id}...')
+            print(f'[SERVICE-DELETE] Finding plan ID={plan_id}...')
             cursor.execute("SELECT status, produkt, sekcja FROM plan_produkcji WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
-            print(f'🔥 [SERVICE-4] Wynik SELECT: {res}')
+            print(f'[SERVICE-DELETE] Result: {res}')
 
             if not res:
-                print(f'🔥 [SERVICE-5] Plan nie znaleziony!')
+                print(f'[SERVICE-DELETE] Plan not found!')
                 conn.close()
                 return (False, 'Zlecenie nie istnieje.')
 
@@ -109,19 +109,19 @@ class PlanningService:
             status = res[0] if len(res) > 0 else None
             produkt = res[1] if len(res) > 1 else None
             sekcja = res[2] if len(res) > 2 else None
-            print(f'🔥 [SERVICE-6] Plan znaleziony: status={status}, produkt={produkt}, sekcja={sekcja}')
+            print(f'[SERVICE-DELETE] Found plan: status={status}, produkt={produkt}, sekcja={sekcja}')
             
             # Cannot delete if in progress or completed
             if status in ['w toku', 'zakonczone']:
-                print(f'🔥 [SERVICE-7] Plan ma status zabroniony do usunięcia: {status}')
+                print(f'[SERVICE-DELETE] Plan has protected status: {status}')
                 conn.close()
                 # Use ascii form 'zakonczone' to match test expectations
                 return (False, 'Nie można usunąć zlecenia w toku lub zakonczone.')
             
             # Hard delete: DELETE FROM plan_produkcji
-            print(f'🔥 [SERVICE-8] Wykonuję DELETE...')
+            print(f'[SERVICE-DELETE] Executing DELETE...')
             cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (plan_id,))
-            print(f'🔥 [SERVICE-9] DELETE zakończony, rowcount={cursor.rowcount}')
+            print(f'[SERVICE-DELETE] DELETE finished, rowcount={cursor.rowcount}')
 
             # Jeśli kasujemy Zasyp, usuń też powiązane zlecenie Workowanie (które jeszcze nie startowało)
             # Zapobiega to powstawaniu osieroconych zleceń w kolejce produkcyjnej.
@@ -132,12 +132,12 @@ class PlanningService:
                     (plan_id,)
                 )
                 linked_deleted = cursor.rowcount
-                print(f'🔥 [SERVICE-9b] Kaskada: usunięto {linked_deleted} powiązanych zlecen Workowanie (zasyp_id={plan_id})')
+                print(f'[SERVICE-DELETE] Cascade: removed {linked_deleted} linked Workowanie (zasyp_id={plan_id})')
 
             conn.commit()
-            print(f'🔥 [SERVICE-10] COMMIT wykonany')
+            print(f'[SERVICE-DELETE] COMMIT success')
             conn.close()
-            print(f'🔥 [SERVICE-11] Połączenie zamknięte')
+            print(f'[SERVICE-DELETE] Connection closed')
 
             if linked_deleted > 0:
                 current_app.logger.info(
@@ -147,19 +147,19 @@ class PlanningService:
             else:
                 current_app.logger.info(f'Plan deleted (hard delete): id={plan_id}, produkt={produkt}, sekcja={sekcja}')
             msg = f'Zlecenie {produkt or plan_id} zostało usunięte z planu.'
-            print(f'🔥 [SERVICE-12] Zwracam sukces: {msg}')
+            print(f'[SERVICE-DELETE] Success: {msg}')
             return (True, msg)
             
         except Exception as e:
-            print(f'🔥 [SERVICE-13] EXCEPTION: {str(e)}')
-            print(f'🔥 [SERVICE-14] Exception type: {type(e).__name__}')
+            print(f'[SERVICE-DELETE] EXCEPTION: {str(e)}')
+            print(f'[SERVICE-DELETE] Exception type: {type(e).__name__}')
             import traceback
-            print(f'🔥 [SERVICE-15] Traceback: {traceback.format_exc()}')
+            print(f'[SERVICE-DELETE] Traceback: {traceback.format_exc()}')
             try:
                 conn.rollback()
-                print(f'🔥 [SERVICE-16] ROLLBACK wykonany')
+                print(f'[SERVICE-DELETE] ROLLBACK done')
             except Exception as rb_err:
-                print(f'🔥 [SERVICE-17] Błąd rollback: {rb_err}')
+                print(f'[SERVICE-DELETE] Rollback error: {rb_err}')
             current_app.logger.exception(f'Error deleting plan {plan_id}')
             return (False, f'Błąd przy usuwaniu: {str(e)}')
 
@@ -428,60 +428,60 @@ class PlanningService:
         Returns:
             (success: bool, message: str)
         """
-        print(f'\n📅 [SERVICE-1] reschedule_plan({plan_id}, {nowa_data}) START')
+        print(f'\n[SERVICE-RESCHEDULE] reschedule_plan({plan_id}, {nowa_data}) START')
         try:
-            print(f'📅 [SERVICE-2] Connecting to DB...')
+            print(f'[SERVICE-RESCHEDULE] Connecting to DB...')
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Validate plan exists and check status
-            print(f'📅 [SERVICE-3] Fetching plan {plan_id}...')
+            print(f'[SERVICE-RESCHEDULE] Fetching plan {plan_id}...')
             cursor.execute("SELECT status FROM plan_produkcji WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
-            print(f'📅 [SERVICE-4] Result: {res}')
+            print(f'[SERVICE-RESCHEDULE] Result: {res}')
             
             if not res:
-                print(f'📅 [SERVICE-5] Plan not found!')
+                print(f'[SERVICE-RESCHEDULE] Plan not found!')
                 return False, 'Plan nie istnieje.'
             
             status = res[0]
-            print(f'📅 [SERVICE-6] Current status: {status}')
+            print(f'[SERVICE-RESCHEDULE] Current status: {status}')
             
             # Only block if plan is currently being unpacked (w toku)
             # Allow reschedule for "zakonczone" (closed, ready to unpack) or other statuses
             if status == 'w toku':
-                print(f'📅 [SERVICE-7] Plan is currently being unpacked - cannot reschedule!')
+                print(f'[SERVICE-RESCHEDULE] Plan is currently being unpacked - cannot reschedule!')
                 return False, 'Nie można przesunąć planu, który jest rozpakowania (w toku).'
             
             # Get max sequence for target date
-            print(f'📅 [SERVICE-8] Fetching max sequence for date {nowa_data}...')
+            print(f'[SERVICE-RESCHEDULE] Fetching max sequence for date {nowa_data}...')
             cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (nowa_data,))
             max_seq = cursor.fetchone()
             nowa_kolejnosc = (max_seq[0] if max_seq and max_seq[0] else 0) + 1
-            print(f'📅 [SERVICE-9] New sequence: {nowa_kolejnosc}')
+            print(f'[SERVICE-RESCHEDULE] New sequence: {nowa_kolejnosc}')
             
             # Update date and reset sequence
-            print(f'📅 [SERVICE-10] Executing UPDATE...')
+            print(f'[SERVICE-RESCHEDULE] Executing UPDATE...')
             cursor.execute(
                 "UPDATE plan_produkcji SET data_planu=%s, kolejnosc=%s WHERE id=%s",
                 (nowa_data, nowa_kolejnosc, plan_id)
             )
-            print(f'📅 [SERVICE-11] UPDATE rowcount: {cursor.rowcount}')
+            print(f'[SERVICE-RESCHEDULE] UPDATE rowcount: {cursor.rowcount}')
             conn.commit()
-            print(f'📅 [SERVICE-12] COMMIT done')
+            print(f'[SERVICE-RESCHEDULE] COMMIT done')
             conn.close()
-            print(f'📅 [SERVICE-13] Connection closed - SUCCESS\n')
+            print(f'[SERVICE-RESCHEDULE] Connection closed - SUCCESS\n')
             return True, 'Plan przesunięte na nową datę.'
             
         except Exception as e:
-            print(f'📅 [SERVICE-14] EXCEPTION: {str(e)}')
-            print(f'📅 [SERVICE-15] Traceback: {traceback.format_exc()}')
+            print(f'[SERVICE-RESCHEDULE] EXCEPTION: {str(e)}')
+            print(f'[SERVICE-RESCHEDULE] Traceback: {traceback.format_exc()}')
             current_app.logger.exception(f'Error rescheduling plan {plan_id}')
             try:
                 conn.rollback()
-                print(f'📅 [SERVICE-16] ROLLBACK done')
+                print(f'[SERVICE-RESCHEDULE] ROLLBACK done')
             except Exception as rb_err:
-                print(f'📅 [SERVICE-17] ROLLBACK error: {rb_err}')
+                print(f'[SERVICE-RESCHEDULE] ROLLBACK error: {rb_err}')
                 pass
             return False, 'Błąd przy przesuwaniu planu.'
 
@@ -510,7 +510,7 @@ class PlanningService:
             fixed_count = 0
             
             if anomalies:
-                current_app.logger.warning(f'🔧 Found {len(anomalies)} anomalies to fix')
+                current_app.logger.warning(f'Found {len(anomalies)} anomalies to fix')
                 
                 for anomaly in anomalies:
                     plan_id = anomaly['id']
@@ -530,7 +530,7 @@ class PlanningService:
                         
                         fixed_count += 1
                         current_app.logger.info(
-                            f'✓ Fixed anomaly: ID={plan_id}, {produkt} '
+                            f'Fixed anomaly: ID={plan_id}, {produkt} '
                             f'(tonaz_rz={tonaz_rz}kg, status: zaplanowane->zakonczone)'
                         )
                     except Exception as e:
@@ -596,7 +596,7 @@ class PlanningService:
                 
                 conn.commit()
                 current_app.logger.info(
-                    f'✓ Auto-corrected plan {plan_id}: status zaplanowane->w toku '
+                    f'Auto-corrected plan {plan_id}: status zaplanowane->w toku '
                     f'(tonaz_rzeczywisty={tonaz_rz})'
                 )
                 return (True, f'Status automatycznie zmieniony na "w toku" (tonaz={tonaz_rz}kg)')
@@ -731,10 +731,10 @@ class PlanningService:
                     
                     if success:
                         created_count += 1
-                        print(f'[PRZENIES SERVICE] ✓ CREATE_PLAN SUCCESS: new_id={new_id}, ={plan_data["sekcja"]}, produkt={plan_data["produkt"]}', 
+                        print(f'[PRZENIES SERVICE] [OK] CREATE_PLAN SUCCESS: new_id={new_id}, ={plan_data["sekcja"]}, produkt={plan_data["produkt"]}', 
                               file=sys.stderr, flush=True)
                         current_app.logger.critical(
-                            f'[PRZENIES SERVICE] ✓ CREATE_PLAN SUCCESS: new_id={new_id}, sekcja={plan_data["sekcja"]}'
+                            f'[PRZENIES SERVICE] [OK] CREATE_PLAN SUCCESS: new_id={new_id}, sekcja={plan_data["sekcja"]}'
                         )
                         current_app.logger.info(
                             f'✓ Przeniesiono: {plan_data["produkt"]} ({plan_data["plan"]}kg) '
@@ -787,9 +787,9 @@ class PlanningService:
                                 if insert_rowcount > 0:
                                     buffer_insert_count += 1
                                     current_app.logger.info(
-                                        f'✓ Dodano do bufora: {plan_data["produkt"]} na {next_date.strftime("%Y-%m-%d")}'
+                                        f'Added to buffer: {plan_data["produkt"]} on {next_date.strftime("%Y-%m-%d")}'
                                     )
-                                    print(f'[PRZENIES SERVICE] ✓ BUFFER INSERT: plan_id={new_id}, produkt={plan_data["produkt"]}, data={next_data_str}', 
+                                    print(f'[PRZENIES SERVICE] [OK] BUFFER INSERT: plan_id={new_id}, produkt={plan_data["produkt"]}, data={next_data_str}', 
                                           file=sys.stderr, flush=True)
                                 else:
                                     current_app.logger.warning(f'Buffer insert failed for plan {new_id}')
@@ -807,7 +807,7 @@ class PlanningService:
                             (tonaz_value, new_id)
                         )
                         conn.commit()  # COMMIT immediately so daemon reads correct value
-                        print(f'[PRZENIES SERVICE] ✓ UPDATE COMMITTED: plan_id={new_id}, sekcja={plan_data["sekcja"]}, tonaz_rzeczywisty={tonaz_value}',
+                        print(f'[PRZENIES SERVICE] [OK] UPDATE COMMITTED: plan_id={new_id}, sekcja={plan_data["sekcja"]}, tonaz_rzeczywisty={tonaz_value}',
                               file=sys.stderr, flush=True)
                     else:
                         current_app.logger.warning(f'Failed to create plan: {msg}')
@@ -825,7 +825,7 @@ class PlanningService:
                       file=sys.stderr, flush=True)
                 conn.commit()
                 current_app.logger.critical(f'[PRZENIES SERVICE] *** BUFFER COMMIT SUCCESSFUL ***')
-                current_app.logger.info(f'✓ Committed {buffer_insert_count} buffer inserts for {next_date.strftime("%Y-%m-%d")}')
+                current_app.logger.info(f'Committed {buffer_insert_count} buffer inserts for {next_date.strftime("%Y-%m-%d")}')
                 print(f'[PRZENIES SERVICE] BUFFER COMMIT: inserted {buffer_insert_count} records', file=sys.stderr, flush=True)
             except Exception as e:
                 current_app.logger.critical(f'[PRZENIES SERVICE] *** ERROR IN BUFFER COMMIT: {str(e)} ***')
@@ -881,7 +881,7 @@ class PlanningService:
                 current_app.logger.critical(f'[PRZENIES SERVICE] VERIFY: count_after={count_after}')
                 current_app.logger.info(f'[PRZENIES SERVICE] Verification: COUNT after DELETE = {count_after}')
                 verify_cursor.close()
-                current_app.logger.info(f'✓ Usunięto {buffer_deleted} zapisów z buforu na dzień {current_data}')
+                current_app.logger.info(f'Removed {buffer_deleted} recordings from buffer for day {current_data}')
             except Exception as e:
                 current_app.logger.warning(f'Error moving buffer: {str(e)}')
                 try:

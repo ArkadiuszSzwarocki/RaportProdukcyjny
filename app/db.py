@@ -242,9 +242,9 @@ def _add_column_if_missing(cursor, table, column, definition, description=""):
                 if description:
                     print(f"[MIGRATE] {description}")
             except Exception as e:
-                print(f"[WARN] Nie udało się dodać kolumny {table}.{column}: {e}")
+                print(f"[WARN] Failed to add column {table}.{column}: {e}")
     except Exception as e:
-        print(f"[WARN] Błąd sprawdzania kolumny {table}.{column}: {e}")
+        print(f"[WARN] Error checking column {table}.{column}: {e}")
 
 
 def _migrate_columns(cursor):
@@ -314,7 +314,7 @@ def _seed_default_users(cursor):
                 migrated += 1
     
     if migrated:
-        print(f"🔐 Zhashowano {migrated} istniejących haseł użytkowników.")
+        print(f"[AUTH] Hashed {migrated} existing user passwords.")
     
     # Create default admin account if needed
     cursor.execute("SELECT id FROM uzytkownicy WHERE login='admin'")
@@ -465,7 +465,7 @@ def refresh_bufor_queue(conn=None):
         """)
         
         conn.commit()
-        print(f"[BUFOR] Odświeżono bufor: usunięto {deleted}, dodano {added}")
+        print(f"[BUFOR] Refreshed buffer: deleted {deleted}, added {added}")
         
     except Exception as e:
         print(f"[ERROR] refresh_bufor_queue: {e}")

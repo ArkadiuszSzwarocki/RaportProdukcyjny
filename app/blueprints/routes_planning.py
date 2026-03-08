@@ -916,54 +916,52 @@ def update_uszkodzone_worki():
 @roles_required('planista', 'admin')
 def przenies_zlecenie_ajax():
     """Move a plan to different date via AJAX - delegated to PlanningService."""
-    print(f'\n📅 [PRZENIES-1] /api/przenies_zlecenie_ajax CALLED')
+    print(f'\n[PRZENIES-API] /api/przenies_zlecenie_ajax CALLED')
     try:
         data = request.get_json(force=True)
-        print(f'📅 [PRZENIES-2] JSON data received: {data}')
+        print(f'[PRZENIES-API] JSON data received: {data}')
     except Exception as e:
-        print(f'📅 [PRZENIES-3] JSON parse error: {e}')
+        print(f'[PRZENIES-API] JSON parse error: {e}')
         data = request.form.to_dict()
-        print(f'📅 [PRZENIES-4] Falling back to form data: {data}')
+        print(f'[PRZENIES-API] Falling back to form data: {data}')
     
     id = data.get('id')
-    to_date = data.get('to_date')
-    print(f'📅 [PRZENIES-5] id={id}, to_date={to_date}')
+    to_date = data.get('data')
+    print(f'[PRZENIES-API] id={id}, to_date={to_date}')
     
     if not id or not to_date:
-        print(f'📅 [PRZENIES-6] Missing parameters!')
+        print(f'[PRZENIES-API] Missing parameters!')
         return jsonify({'success': False, 'message': 'Brak parametrów'}), 400
     
     try:
         pid = int(id)
-        print(f'📅 [PRZENIES-7] Converted id to int: {pid}')
+        print(f'[PRZENIES-API] Converted id to int: {pid}')
     except Exception as e:
-        print(f'📅 [PRZENIES-8] ID conversion error: {e}')
-        return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
-
-    print(f'📅 [PRZENIES-9] Calling PlanningService.reschedule_plan({pid}, {to_date})')
-    success, message = PlanningService.reschedule_plan(pid, to_date)
-    print(f'📅 [PRZENIES-10] Result: success={success}, message={message}')
+        print(f'[PRZENIES-API] ID conversion error: {e}')
+        return jsonify({'success': False, 'message': 'Błąd ID'}), 400
     
+    print(f'[PRZENIES-API] Calling PlanningService.reschedule_plan({pid}, {to_date})')
+    success, message = PlanningService.reschedule_plan(pid, to_date)
+    print(f'[PRZENIES-API] Result: success={success}, message={message}')
+    
+    status_code = 200 if success else 400
     if success:
-        # Get old date and log history
         try:
-            print(f'📅 [PRZENIES-11] Logging history...')
+            print(f'[PRZENIES-API] Logging history...')
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT data_planu FROM plan_produkcji WHERE id=%s", (pid,))
-            row = cursor.fetchone()
+            old_date = cursor.fetchone()[0]
             conn.close()
             
-            if row:
-                old_date = row[0]
-                user_login = session.get('login') or session.get('imie_nazwisko')
-                print(f'📅 [PRZENIES-12] Logged: from={old_date}, to={to_date}, user={user_login}')
-                log_plan_history(pid, 'move', json.dumps({'from': str(old_date), 'to': to_date}, ensure_ascii=False), user_login)
+            user_login = session.get('login') or session.get('imie_nazwisko') or 'System'
+            log_plan_history(pid, 'przeniesienie', f"Z {old_date} na {to_date}", user_login)
+            print(f'[PRZENIES-API] Logged: from={old_date}, to={to_date}, user={user_login}')
         except Exception as e:
-            print(f'📅 [PRZENIES-13] History logging error: {e}')
+            # Non-critical history error
+            print(f'[PRZENIES-API] History logging error: {e}')
     
-    status_code = 200 if success else 400
-    print(f'📅 [PRZENIES-14] Returning status {status_code}\n')
+    print(f'[PRZENIES-API] Returning status {status_code}\n')
     return jsonify({'success': success, 'message': message}), status_code
 
 
@@ -1005,51 +1003,51 @@ def przesun_zlecenie_ajax():
 def api_usun_plan(id):
     """Soft delete plan via AJAX - delegated to PlanningService."""
     import traceback
-    print(f'\n🔥 [1] DELETE PLAN ENDPOINT CALLED - ID: {id}')
-    print(f'🔥 [2] Request method: {request.method}')
-    print(f'🔥 [3] Session login: {session.get("login")}')
-    print(f'🔥 [4] Session roles: {session.get("role")}')
-    print(f'🔥 [5] User info: {session.get("imie_nazwisko")}')
-    current_app.logger.info(f'🔥 DELETE PLAN ENDPOINT CALLED - ID: {id}')
+    print(f'\n[API-DELETE] DELETE PLAN ENDPOINT CALLED - ID: {id}')
+    print(f'[API-DELETE] Request method: {request.method}')
+    print(f'[API-DELETE] Session login: {session.get("login")}')
+    print(f'[API-DELETE] Session roles: {session.get("role")}')
+    print(f'[API-DELETE] User info: {session.get("imie_nazwisko")}')
+    current_app.logger.info(f'[API-DELETE] DELETE PLAN ENDPOINT CALLED - ID: {id}')
     
     try:
-        print(f'🔥 [6] Wywołuję PlanningService.delete_plan({id})...')
+        print(f'[API-DELETE] Calling PlanningService.delete_plan({id})...')
         success, message = PlanningService.delete_plan(id)
-        print(f'🔥 [7] DELETE result: success={success}, message={message}')
-        current_app.logger.info(f'🔥 DELETE result: success={success}, message={message}')
+        print(f'[API-DELETE] DELETE result: success={success}, message={message}')
+        current_app.logger.info(f'[API-DELETE] DELETE result: success={success}, message={message}')
         
         if success:
-            print(f'🔥 [8] Usunięcie udane - logowanie do historii...')
+            print(f'[API-DELETE] Deletion success - logging to history...')
             # Log history if deletion was successful
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                print(f'🔥 [9] Szukam danych planu z bazy...')
+                print(f'[API-DELETE] Searching for plan details...')
                 cursor.execute("SELECT produkt, data_planu, tonaz FROM plan_produkcji WHERE id=%s", (id,))
                 res = cursor.fetchone()
-                print(f'🔥 [10] Wynik query: {res}')
+                print(f'[API-DELETE] SQL Result: {res}')
                 conn.close()
                 
                 if res:
                     details = {'produkt': res[0], 'data_planu': str(res[1]), 'tonaz': res[2]}
                     user_login = session.get('login') or session.get('imie_nazwisko')
-                    print(f'🔥 [11] Logowanie historii: user={user_login}, details={details}')
+                    print(f'[API-DELETE] Logging history: user={user_login}, details={details}')
                     log_plan_history(id, 'soft_delete', json.dumps(details, ensure_ascii=False), user_login)
-                    print(f'🔥 [12] Historia zalogowana')
+                    print(f'[API-DELETE] History logged')
             except Exception as hist_err:
-                print(f'🔥 [13] BŁĄD przy logowaniu historii: {str(hist_err)}')
+                print(f'[API-DELETE] ERROR logging history: {str(hist_err)}')
                 traceback.print_exc()
         else:
-            print(f'🔥 [14] Usunięcie NIE POWIODŁO SIĘ')
+            print(f'[API-DELETE] Deletion FAILED')
         
         response = {'success': success, 'message': message}
-        print(f'🔥 [15] Wysyłam response: {response}')
-        print(f'🔥 [16] Status code: {200 if success else 400}\n')
+        print(f'[API-DELETE] Sending response: {response}')
+        print(f'[API-DELETE] Status code: {200 if success else 400}\n')
         return jsonify(response), 200 if success else 400
         
     except Exception as e:
-        print(f'🔥 [17] EXCEPTION: {str(e)}')
-        print(f'🔥 [18] Traceback: {traceback.format_exc()}')
+        print(f'[API-DELETE] EXCEPTION: {str(e)}')
+        print(f'[API-DELETE] Traceback: {traceback.format_exc()}')
         current_app.logger.exception(f'Error deleting plan {id} via AJAX')
         return jsonify({'success': False, 'message': 'Błąd przy usuwaniu zlecenia.'}), 500
 

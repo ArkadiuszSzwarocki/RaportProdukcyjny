@@ -82,7 +82,7 @@ def dodaj_palete(plan_id):
                 pass
         
         try:
-            current_app.logger.info(f'✓ Added paleta to Workowanie: plan_id={plan_id}, waga={waga_input}kg')
+            current_app.logger.info(f'[OK] Added paleta to Workowanie: plan_id={plan_id}, waga={waga_input}kg')
         except Exception:
             pass
         
@@ -286,19 +286,6 @@ def potwierdz_palete(paleta_id):
                 current_app.logger.error(f'Simple status update also failed for paleta {paleta_id}: {e2}', exc_info=True)
                 try: conn.rollback()
                 except: pass
-        
-        # Step 7: Log the result
-        try:
-            cursor.execute("SELECT id, COALESCE(status,''), data_potwierdzenia, czas_potwierdzenia_s FROM palety_workowanie WHERE id=%s", (paleta_id,))
-            res = cursor.fetchone()
-            current_app.logger.info(f'potwierdz_palete {paleta_id} result: {res}')
-        except Exception as e:
-            current_app.logger.warning(f'Failed to fetch result for paleta {paleta_id}: {e}')
-        
-        # Step 8: Update Magazyn (warehouse) aggregates if not already confirmed
-        try:
-            cursor.execute("SELECT plan_id, COALESCE(waga,0) FROM palety_workowanie WHERE id=%s", (paleta_id,))
-            r = cursor.fetchone()
             if r:
                 plan_id = r[0]
                 stored_netto = int(r[1] or 0)
