@@ -1,8 +1,9 @@
 """Middleware functions for request/response processing and session management."""
 
 import re
+import time
 from flask import request, session
-from app.db import get_db_connection
+from app.db import get_db_connection, ensure_session_tracking_id, touch_active_session
 
 
 def register_middleware(app):
@@ -14,6 +15,7 @@ def register_middleware(app):
     app.before_request(log_request_info(app))
     app.before_request(ensure_default_language(app))
     app.before_request(ensure_pracownik_mapping(app))
+    app.before_request(track_active_session(app))
     app.after_request(add_cache_headers(app))
 
 
@@ -154,6 +156,37 @@ def ensure_default_language(app):
         except Exception:
             try:
                 app.logger.exception('Failed to set default app_language in session')
+            except Exception:
+                pass
+    return middleware
+
+
+def track_active_session(app):
+    """Persist lightweight online presence for logged-in users."""
+    def middleware():
+        try:
+            if not session.get('zalogowany') or not session.get('user_id') or not session.get('login'):
+                return
+
+            session['session_tracking_id'] = ensure_session_tracking_id(session.get('session_tracking_id'))
+            now_ts = time.time()
+            last_ping = float(session.get('last_presence_ping') or 0)
+            if now_ts - last_ping < 20:
+                return
+
+            touch_active_session(
+                session_id=session.get('session_tracking_id'),
+                user_id=session.get('user_id'),
+                login=session.get('login'),
+                role=session.get('rola'),
+                pracownik_id=session.get('pracownik_id'),
+                display_name=session.get('imie_nazwisko') or session.get('login'),
+                last_path=request.path,
+            )
+            session['last_presence_ping'] = now_ts
+        except Exception:
+            try:
+                app.logger.exception('Failed to update active session heartbeat')
             except Exception:
                 pass
     return middleware

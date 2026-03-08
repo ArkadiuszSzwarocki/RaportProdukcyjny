@@ -1,10 +1,86 @@
-<form action="{{ url_for('warehouse.potwierdz_palete', paleta_id=paleta_id) }}" method="POST">
+<form id="potwierdz-form" onsubmit="submitForm(event)" style="display:flex; flex-direction:column; gap:12px;">
   <div class="form-field">
-    <label for="waga_palety">{{ _('waga_netto_palety') }}</label>
-    <input id="waga_palety" name="waga_palety" type="number" min="0" step="1" value="" required class="input-sm">
+    <label for="waga_palety">Waga rzeczywista (kg)</label>
+    <input id="waga_palety" name="waga_palety" type="number" min="0" step="0.1" value="" required class="input-sm" placeholder="Zważ paletę i wpisz wagę">
   </div>
-  <div class="btn-row">
-    <button type="submit" class="btn-action btn-success">{{ _('zatwierdz_btn') }}</button>
-    <button type="button" class="btn-action btn-action-cancel" onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)">ANULUJ</button>
+  <div style="display:flex; gap:8px;">
+    <button type="submit" class="btn-action btn-success" style="flex:1;">{{ _('zatwierdz_btn') }}</button>
+    <button type="button" class="btn-action btn-action-cancel" style="flex:1;" onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)">ANULUJ</button>
   </div>
 </form>
+
+<!-- Modal popup dla różnic -->
+<div id="difference-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:white; border-radius:16px; padding:32px; max-width:500px; width:100%; box-shadow:0 20px 60px rgba(15,23,42,0.3); text-align:center; position:relative; z-index:100000;">
+    <div style="font-size:48px; margin-bottom:16px;">⚠️</div>
+    <h3 style="margin:0 0 12px 0; color:#dc2626; font-size:20px; font-weight:700;">Różnica w wadze palety</h3>
+    <p style="margin:0 0 24px 0; color:#666; font-size:16px; line-height:1.5;">
+      Zarejestrowana waga palety różni się od deklaracji o <strong id="modal-diff"></strong> kg.
+    </p>
+    <p style="margin:0 0 24px 0; color:#999; font-size:14px;">Paleta została przyjęta. Różnica jest zarejestrowana w systemie.</p>
+    <button type="button" onclick="closeDifferenceModal()" style="background:#2563eb; color:white; border:none; padding:12px 32px; border-radius:10px; font-weight:600; cursor:pointer; font-size:16px;">OK, zamknij</button>
+  </div>
+</div>
+
+<script>
+  function submitForm(event) {
+    event.preventDefault();
+    var wagaInput = document.getElementById('waga_palety');
+    var waga = parseFloat(wagaInput.value);
+    
+    if (!waga) {
+      alert('Wpisz wagę');
+      return;
+    }
+    
+    fetch('{{ url_for("warehouse.potwierdz_palete", paleta_id=paleta_id) }}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: 'waga_palety=' + encodeURIComponent(waga)
+    })
+    .then(r => r.json())
+    .then(j => {
+      if (j && j.success) {
+        if (j.has_difference) {
+          document.getElementById('modal-diff').textContent = j.difference;
+          showDifferenceModal();
+        } else {
+          // Brak różnicy - zamknij popup i odśwież
+          try {
+            var qp = document.querySelector('.quick-popup');
+            if (qp && qp.parentNode) {
+              var closeBtn = qp.parentNode.querySelector('.qp-close');
+              if (closeBtn) closeBtn.click();
+            }
+          } catch(e) {}
+          setTimeout(() => location.reload(), 500);
+        }
+      } else {
+        alert('Błąd: ' + (j && j.message ? j.message : 'Nie udało się zatwierdzić'));
+      }
+    })
+    .catch(e => {
+      alert('Błąd sieci: ' + e.message);
+    });
+  }
+  
+  function showDifferenceModal() {
+    document.getElementById('difference-modal').style.display = 'flex';
+  }
+  
+  function closeDifferenceModal() {
+    document.getElementById('difference-modal').style.display = 'none';
+    // Zamknij quick-popup
+    try {
+      var qp = document.querySelector('.quick-popup');
+      if (qp && qp.parentNode) {
+        var closeBtn = qp.parentNode.querySelector('.qp-close');
+        if (closeBtn) closeBtn.click();
+      }
+    } catch(e) {}
+    setTimeout(() => location.reload(), 500);
+  }
+</script>

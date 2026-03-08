@@ -120,6 +120,35 @@
             font-size: 13px;
             text-align: center;
         }
+
+        @media (max-width: 768px) {
+            .notifications-wrapper {
+                position: static;
+            }
+
+            .notifications-menu {
+                position: fixed;
+                top: 58px;
+                left: 8px;
+                right: 8px;
+                width: auto;
+                max-width: none;
+                max-height: calc(100vh - 70px);
+                border-radius: 16px;
+            }
+
+            .notifications-header {
+                padding: 12px 14px;
+            }
+
+            .notifications-list {
+                max-height: calc(100vh - 132px);
+            }
+
+            .notification-item {
+                padding: 12px 14px;
+            }
+        }
     </style>
 </head>
 
@@ -189,8 +218,18 @@
 
         {# top users button removed per UI change request #}
 
-        <span class="user-role">{{ _('zalogowany') }}: <strong>{{ session.get('imie_nazwisko') or
-                session.get('login') or 'N/A' }}</strong></span>
+        <div class="top-user-meta">
+            <span class="user-role">
+                <span class="user-role-label">{{ _('zalogowany') }}:</span>
+                <strong class="user-role-name">{{ session.get('imie_nazwisko') or session.get('login') or 'N/A' }}</strong>
+            </span>
+            {% if session.get('zalogowany') %}
+            <a href="/logout" class="mobile-logout-inline" title="{{ _('logout') }}" aria-label="{{ _('logout') }}">
+                <span class="material-icons">logout</span>
+                <span class="mobile-logout-label">{{ _('logout') }}</span>
+            </a>
+            {% endif %}
+        </div>
     </div>
     </div>
 
@@ -457,7 +496,7 @@
                 }
 
                 fetchNotifications();
-                window.setInterval(fetchNotifications, 15000);
+                window.setInterval(fetchNotifications, 5000);
 
                 elements.toggle.addEventListener('click', function (event) {
                     event.preventDefault();
@@ -512,6 +551,37 @@
             });
 
             window.closeNotificationsMenu = closeNotificationsMenu;
+        })();
+    </script>
+    <script>
+        (function () {
+            async function pingSession() {
+                try {
+                    await fetch('/api/session/ping', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-Current-Path': window.location.pathname + window.location.search
+                        }
+                    });
+                } catch (error) {
+                    console.debug('session ping skipped', error);
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                pingSession();
+                window.setInterval(pingSession, 45000);
+            });
+
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden) {
+                    pingSession();
+                }
+            });
+
+            window.addEventListener('focus', pingSession);
         })();
     </script>
     <script>

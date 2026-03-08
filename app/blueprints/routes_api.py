@@ -8,9 +8,9 @@ import zipfile
 import mysql.connector
 from datetime import date, datetime, timedelta, time
 from io import BytesIO
-from app.db import get_db_connection, rollover_unfinished, log_plan_history, list_unread_notifications, mark_all_notifications_read, mark_notification_read
+from app.db import get_db_connection, rollover_unfinished, log_plan_history, list_unread_notifications, mark_all_notifications_read, mark_notification_read, ensure_session_tracking_id, touch_active_session
 from app.dto.paleta import PaletaDTO
-from app.decorators import login_required, roles_required
+from app.decorators import login_required, roles_required, dynamic_role_required
 from app.services.raport_service import RaportService
 # Import test wrappers (used by admin UI test buttons)
 try:
@@ -112,107 +112,6 @@ def get_email_config():
 
 # ================= MAGAZYN - AJAX ENDPOINTS =================
 
-@api_bp.route('/edytuj_palete_ajax', methods=['POST'])
-@login_required
-def edytuj_palete_ajax():
-    """Edytuj wagę palet w magazynie via AJAX"""
-    try:
-        data = request.get_json() or {}
-        palete_id = data.get('id')
-        nowa_waga = data.get('waga')
-        data_planu = data.get('data_planu') or data.get('data_powrotu') or str(date.today())
-        
-        if not palete_id or nowa_waga is None:
-            return jsonify({"success": False, "message": "Brakuje id lub wagi"}), 400
-        
-        nowa_waga = float(nowa_waga)
-        if nowa_waga <= 0:
-            return jsonify({"success": False, "message": "Waga musi być większa od 0"}), 400
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Pobierz plan_id, sekcję i status palety
-        cursor.execute("SELECT plan_id, sekcja, COALESCE(status,'') FROM palety_workowanie WHERE id=%s", (palete_id,))
-        result = cursor.fetchone()
-        if not result:
-            cursor.close()
-            conn.close()
-            return jsonify({"success": False, "message": "Paleta nie znaleziona"}), 404
-        plan_id, sekcja, status = result
-
-        # Jeśli paleta jest już przyjęta do magazynu, nie nadpisujemy oryginalnej kolumny `waga`.
-        # Zamiast tego zapisujemy skorygowaną/ potwierdzoną wagę do `waga_potwierdzona`.
-        if status == 'przyjeta':
-            cursor.execute("UPDATE palety_workowanie SET waga_potwierdzona=%s WHERE id=%s", (nowa_waga, palete_id))
-        else:
-            # Aktualizuj wagę (Workowanie - do przyjęcia)
-            cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (nowa_waga, palete_id))
-            # Przelicz buffer (tonaz_rzeczywisty) dla Workowania
-            if sekcja == 'Workowanie':
-                cursor.execute(
-                    "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s",
-                    (plan_id, plan_id)
-                )
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        return jsonify({"success": True, "message": "Paleta edytowana"}), 200
-    
-    except Exception as e:
-        logger = logging.getLogger('werkzeug')
-        logger.error(f"Error in edytuj_palete_ajax: {str(e)}")
-        return jsonify({"success": False, "message": f"Błąd: {str(e)}"}), 500
-
-
-@api_bp.route('/usun_palete_ajax', methods=['POST'])
-@login_required
-def usun_palete_ajax():
-    """Usuń paletę z magazynu via AJAX"""
-    try:
-        data = request.get_json() or {}
-        palete_id = data.get('id')
-        data_planu = data.get('data_planu') or data.get('data_powrotu') or str(date.today())
-        
-        if not palete_id:
-            return jsonify({"success": False, "message": "Brakuje id palet"}), 400
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Pobierz plan_id i sekcję palet
-        cursor.execute("SELECT plan_id, sekcja FROM palety_workowanie WHERE id=%s", (palete_id,))
-        result = cursor.fetchone()
-        if not result:
-            cursor.close()
-            conn.close()
-            return jsonify({"success": False, "message": "Paleta nie znaleziona"}), 404
-        
-        plan_id, sekcja = result
-        
-        # Usuń paletę
-        cursor.execute("DELETE FROM palety_workowanie WHERE id=%s", (palete_id,))
-        
-        # Przelicz buffer (tonaz_rzeczywisty) dla Workowania
-        if sekcja == 'Workowanie':
-            cursor.execute(
-                "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s",
-                (plan_id, plan_id)
-            )
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        return jsonify({"success": True, "message": "Paleta usunięta"}), 200
-    
-    except Exception as e:
-        logger = logging.getLogger('werkzeug')
-        logger.error(f"Error in usun_palete_ajax: {str(e)}")
-        return jsonify({"success": False, "message": f"Błąd: {str(e)}"}), 500
-
 
 # ================= NOTATKI/WPISY NA DASHBOARD =================
 
@@ -257,6 +156,7 @@ def wpisy_na_date():
 
 # Compatibility endpoints used by frontend admin test buttons
 @api_bp.route('/test-generate-report')
+@dynamic_role_required('ustawienia')
 def api_test_generate_report():
     if _test_generate_report is None:
         return jsonify({'success': False, 'message': 'Test generator unavailable'}), 503
@@ -264,6 +164,7 @@ def api_test_generate_report():
 
 
 @api_bp.route('/test-download-zip')
+@dynamic_role_required('ustawienia')
 def api_test_download_zip():
     if _test_download_zip is None:
         return jsonify({'success': False, 'message': 'Test ZIP unavailable'}), 503
@@ -370,6 +271,31 @@ def read_all_notifications():
 
     if not mark_all_notifications_read(user_id, role):
         return jsonify({'success': False, 'message': 'Nie udało się oznaczyć powiadomień'}), 500
+
+    return jsonify({'success': True})
+
+
+@api_bp.route('/session/ping', methods=['POST'])
+@login_required
+def session_ping():
+    """Heartbeat endpoint used by the frontend to keep session presence fresh."""
+    user_id = session.get('user_id')
+    login = session.get('login')
+    if not user_id or not login:
+        return jsonify({'success': False, 'message': 'Brak danych użytkownika'}), 400
+
+    session['session_tracking_id'] = ensure_session_tracking_id(session.get('session_tracking_id'))
+    ok = touch_active_session(
+        session_id=session.get('session_tracking_id'),
+        user_id=user_id,
+        login=login,
+        role=session.get('rola'),
+        pracownik_id=session.get('pracownik_id'),
+        display_name=session.get('imie_nazwisko') or login,
+        last_path=request.headers.get('X-Current-Path') or request.path,
+    )
+    if not ok:
+        return jsonify({'success': False, 'message': 'Nie udało się odświeżyć sesji'}), 500
 
     return jsonify({'success': True})
 

@@ -408,11 +408,13 @@ def bufor_page():
         
         # Czytaj z nowej tabeli bufor - posortowane po kolejce
         cursor.execute("""
-            SELECT b.id, b.zasyp_id, b.data_planu, b.produkt, b.nazwa_zlecenia, 
-                   b.typ_produkcji, b.tonaz_rzeczywisty, b.spakowano, b.kolejka,
-                   z.real_start, z.status
+             SELECT b.id, b.zasyp_id, b.data_planu, b.produkt, b.nazwa_zlecenia,
+                 b.typ_produkcji, b.kolejka,
+                 z.tonaz, z.tonaz_rzeczywisty, z.real_start, z.status,
+                 w.tonaz, w.tonaz_rzeczywisty
             FROM bufor b
             LEFT JOIN plan_produkcji z ON z.id = b.zasyp_id
+             LEFT JOIN plan_produkcji w ON w.zasyp_id = b.zasyp_id AND w.sekcja = 'Workowanie'
             WHERE b.data_planu = %s AND b.status = 'aktywny'
             ORDER BY b.kolejka ASC
         """, (wybrana_data,))
@@ -421,11 +423,12 @@ def bufor_page():
         app_logger.info(f"[BUFOR] Loaded {len(rows)} active bufor entries for date {wybrana_data}")
         
         for row in rows:
-            (buf_id, z_id, z_data, z_produkt, z_nazwa, z_typ, z_tonaz, z_spakowano, 
-             z_kolejka, z_real_start, z_status) = row
+            (buf_id, z_id, z_data, z_produkt, z_nazwa, z_typ, z_kolejka,
+             zasyp_plan_tonaz, zasyp_rzeczywisty_tonaz, z_real_start, z_status,
+             workowanie_plan_tonaz, workowanie_rzeczywisty_tonaz) = row
             
-            pozostalo_w_silosie = (z_tonaz or 0) - (z_spakowano or 0)
-            needs_reconciliation = round((z_spakowano or 0) - (z_tonaz or 0), 1) != 0
+            pozostalo_do_spakowania = (zasyp_rzeczywisty_tonaz or 0) - (workowanie_rzeczywisty_tonaz or 0)
+            needs_reconciliation = round(pozostalo_do_spakowania, 1) != 0
             start_time = z_real_start.strftime('%H:%M') if z_real_start else 'N/A'
             
             bufor_list.append({
@@ -433,13 +436,13 @@ def bufor_page():
                 'data': str(z_data),
                 'produkt': z_produkt,
                 'nazwa': z_nazwa or '',
-                'w_silosie': round(max(pozostalo_w_silosie, 0), 1),
                 'typ_produkcji': z_typ or '',
-                'zasyp_total': z_tonaz or 0,
-                'spakowano_total': z_spakowano or 0,
+                'plan_zasypu': zasyp_plan_tonaz or 0,
+                'do_spakowania': zasyp_rzeczywisty_tonaz or 0,
+                'spakowane': workowanie_rzeczywisty_tonaz or 0,
+                'pozostalo_do_spakowania': round(pozostalo_do_spakowania, 1),
                 'kolejka': z_kolejka,
                 'needs_reconciliation': needs_reconciliation,
-                'raw_pozostalo': round(pozostalo_w_silosie, 1),
                 'status': z_status or 'zaplanowane',
                 'real_start': z_real_start,
                 'start_time': start_time

@@ -4,6 +4,7 @@ import os
 from werkzeug.security import generate_password_hash
 import time
 from datetime import date, timedelta
+import uuid
 
 def get_db_connection(retries=3):
     """Get database connection with retry logic"""
@@ -182,6 +183,25 @@ def _create_tables(cursor):
             PRIMARY KEY (notification_id, user_id),
             FOREIGN KEY (notification_id) REFERENCES powiadomienia(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES uzytkownicy(id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS aktywne_sesje (
+            session_id VARCHAR(64) PRIMARY KEY,
+            user_id INT NOT NULL,
+            login VARCHAR(50) NOT NULL,
+            rola VARCHAR(20) DEFAULT '',
+            pracownik_id INT NULL,
+            display_name VARCHAR(100) NULL,
+            last_path VARCHAR(255) NULL,
+            logged_in_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            is_active BOOLEAN DEFAULT 1,
+            INDEX idx_aktywne_sesje_seen (is_active, last_seen),
+            INDEX idx_aktywne_sesje_user (user_id, is_active),
+            FOREIGN KEY (user_id) REFERENCES uzytkownicy(id) ON DELETE CASCADE,
+            FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
         )
     """)
     
@@ -958,3 +978,348 @@ def mark_all_notifications_read(user_id, role):
         except Exception:
             pass
         return False
+
+
+def replace_active_notifications(typ, recipient_roles, tytul, tresc, link_url=None, plan_id=None, created_by_user_id=None, conn=None, cursor=None):
+    """Replace active notifications of a given type/plan for the provided roles."""
+    if not recipient_roles:
+        return []
+
+    if isinstance(recipient_roles, str):
+        recipient_roles = [recipient_roles]
+
+    normalized_roles = []
+    for role in recipient_roles:
+        role_value = str(role or '').strip().lower()
+        if role_value and role_value not in normalized_roles:
+            normalized_roles.append(role_value)
+
+    if not normalized_roles:
+        return []
+
+    own_conn = conn is None
+    own_cursor = cursor is None
+    local_conn = conn
+    local_cursor = cursor
+
+    try:
+        if own_conn:
+            local_conn = get_db_connection()
+        if own_cursor:
+            local_cursor = local_conn.cursor()
+
+        placeholders = ','.join(['%s'] * len(normalized_roles))
+        query = (
+            "UPDATE powiadomienia SET is_active = 0 "
+            "WHERE is_active = 1 AND typ = %s AND odbiorca_rola IN (" + placeholders + ")"
+        )
+        params = [typ] + normalized_roles
+        if plan_id is None:
+            query += " AND plan_id IS NULL"
+        else:
+            query += " AND plan_id = %s"
+            params.append(plan_id)
+
+        local_cursor.execute(query, tuple(params))
+        created_ids = create_notifications(
+            typ=typ,
+            tytul=tytul,
+            tresc=tresc,
+            recipient_roles=normalized_roles,
+            link_url=link_url,
+            plan_id=plan_id,
+            created_by_user_id=created_by_user_id,
+            conn=local_conn,
+            cursor=local_cursor,
+        )
+
+        if own_conn:
+            local_conn.commit()
+
+        return created_ids
+    except Exception:
+        if own_conn and local_conn:
+            try:
+                local_conn.rollback()
+            except Exception:
+                pass
+        return []
+    finally:
+        if own_cursor and local_cursor:
+            try:
+                local_cursor.close()
+            except Exception:
+                pass
+        if own_conn and local_conn:
+            try:
+                local_conn.close()
+            except Exception:
+                pass
+
+
+def deactivate_notifications(typ, recipient_roles=None, plan_id=None, conn=None, cursor=None):
+    """Deactivate active notifications matching provided filters."""
+    own_conn = conn is None
+    own_cursor = cursor is None
+    local_conn = conn
+    local_cursor = cursor
+
+    try:
+        if own_conn:
+            local_conn = get_db_connection()
+        if own_cursor:
+            local_cursor = local_conn.cursor()
+
+        query = "UPDATE powiadomienia SET is_active = 0 WHERE is_active = 1 AND typ = %s"
+        params = [typ]
+
+        if recipient_roles:
+            if isinstance(recipient_roles, str):
+                recipient_roles = [recipient_roles]
+            normalized_roles = [str(role or '').strip().lower() for role in recipient_roles if str(role or '').strip()]
+            if normalized_roles:
+                placeholders = ','.join(['%s'] * len(normalized_roles))
+                query += " AND odbiorca_rola IN (" + placeholders + ")"
+                params.extend(normalized_roles)
+
+        if plan_id is None:
+            query += " AND plan_id IS NULL"
+        else:
+            query += " AND plan_id = %s"
+            params.append(plan_id)
+
+        local_cursor.execute(query, tuple(params))
+        if own_conn:
+            local_conn.commit()
+        return True
+    except Exception:
+        if own_conn and local_conn:
+            try:
+                local_conn.rollback()
+            except Exception:
+                pass
+        return False
+    finally:
+        if own_cursor and local_cursor:
+            try:
+                local_cursor.close()
+            except Exception:
+                pass
+        if own_conn and local_conn:
+            try:
+                local_conn.close()
+            except Exception:
+                pass
+
+
+def sync_dosypka_notifications(plan_id, author_name=None, created_by_user_id=None, conn=None, cursor=None):
+    """Keep dosypka notifications aligned with current unconfirmed rows for a plan."""
+    if not plan_id:
+        return []
+
+    own_conn = conn is None
+    own_cursor = cursor is None
+    local_conn = conn
+    local_cursor = cursor
+    recipient_roles = ('pracownik', 'produkcja', 'lider', 'laborant', 'admin')
+
+    try:
+        if own_conn:
+            local_conn = get_db_connection()
+        if own_cursor:
+            local_cursor = local_conn.cursor(dictionary=True)
+
+        local_cursor.execute(
+            """
+            SELECT id, produkt, data_planu
+            FROM plan_produkcji
+            WHERE id = %s
+            """,
+            (plan_id,)
+        )
+        plan_context = local_cursor.fetchone()
+        if not plan_context:
+            deactivate_notifications('dosypka', recipient_roles=recipient_roles, plan_id=plan_id, conn=local_conn, cursor=local_cursor)
+            if own_conn:
+                local_conn.commit()
+            return []
+
+        local_cursor.execute(
+            """
+            SELECT nazwa, kg
+            FROM dosypki
+            WHERE plan_id = %s AND potwierdzone = 0 AND COALESCE(anulowana, 0) = 0
+            ORDER BY data_zlecenia ASC, id ASC
+            """,
+            (plan_id,)
+        )
+        pending_rows = local_cursor.fetchall()
+
+        if not pending_rows:
+            deactivate_notifications('dosypka', recipient_roles=recipient_roles, plan_id=plan_id, conn=local_conn, cursor=local_cursor)
+            if own_conn:
+                local_conn.commit()
+            return []
+
+        produkt = plan_context.get('produkt') or 'Zasyp'
+        data_planu = plan_context.get('data_planu')
+        author_display = str(author_name or '').strip() or 'Użytkownik'
+        total_kg = sum(float(row.get('kg') or 0) for row in pending_rows)
+        pending_count = len(pending_rows)
+        only_no_dosypka = pending_count == 1 and str((pending_rows[0].get('nazwa') or '')).strip().lower() == 'brak dosypki'
+
+        if only_no_dosypka:
+            tytul = f'Brak dosypki: {produkt}'
+            tresc = f'{author_display} oznaczył brak dosypki dla {produkt}.'
+        elif pending_count == 1:
+            tytul = f'Nowa dosypka: {produkt}'
+            tresc = f'{author_display} dodał dosypkę {total_kg:.1f} kg dla {produkt}.'
+        else:
+            tytul = f'Dosypki oczekujące: {produkt}'
+            tresc = f'{author_display} dodał {pending_count} pozycji dosypki, razem {total_kg:.1f} kg, dla {produkt}.'
+
+        link_url = f'/?sekcja=Zasyp&data={data_planu}' if data_planu else '/?sekcja=Zasyp'
+        created_ids = replace_active_notifications(
+            typ='dosypka',
+            recipient_roles=recipient_roles,
+            tytul=tytul,
+            tresc=tresc,
+            link_url=link_url,
+            plan_id=plan_id,
+            created_by_user_id=created_by_user_id,
+            conn=local_conn,
+            cursor=local_cursor,
+        )
+
+        if own_conn:
+            local_conn.commit()
+
+        return created_ids
+    except Exception:
+        if own_conn and local_conn:
+            try:
+                local_conn.rollback()
+            except Exception:
+                pass
+        return []
+    finally:
+        if own_cursor and local_cursor:
+            try:
+                local_cursor.close()
+            except Exception:
+                pass
+        if own_conn and local_conn:
+            try:
+                local_conn.close()
+            except Exception:
+                pass
+
+
+def ensure_session_tracking_id(current_session_id=None):
+    """Return a stable session tracking id."""
+    value = str(current_session_id or '').strip()
+    if value:
+        return value
+    return uuid.uuid4().hex
+
+
+def touch_active_session(session_id, user_id, login, role, pracownik_id=None, display_name=None, last_path=None):
+    """Upsert active session heartbeat for online users view."""
+    if not session_id or not user_id or not login:
+        return False
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO aktywne_sesje (
+                session_id, user_id, login, rola, pracownik_id, display_name, last_path, logged_in_at, last_seen, is_active
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), 1)
+            ON DUPLICATE KEY UPDATE
+                user_id = VALUES(user_id),
+                login = VALUES(login),
+                rola = VALUES(rola),
+                pracownik_id = VALUES(pracownik_id),
+                display_name = VALUES(display_name),
+                last_path = VALUES(last_path),
+                last_seen = NOW(),
+                is_active = 1
+            """,
+            (session_id, user_id, login, str(role or '').lower(), pracownik_id, display_name, last_path)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return False
+
+
+def deactivate_active_session(session_id):
+    """Mark a session as logged out."""
+    if not session_id:
+        return False
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE aktywne_sesje SET is_active = 0, last_seen = NOW() WHERE session_id = %s",
+            (session_id,)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return False
+
+
+def list_online_users(active_within_minutes=30):
+    """Return recent or active sessions for online users view."""
+    minutes = max(1, min(int(active_within_minutes or 30), 240))
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT session_id, user_id, login, rola, pracownik_id, display_name, last_path, logged_in_at, last_seen,
+                   is_active,
+                   TIMESTAMPDIFF(SECOND, last_seen, NOW()) AS idle_seconds
+            FROM aktywne_sesje
+            WHERE last_seen >= DATE_SUB(NOW(), INTERVAL %s MINUTE)
+            ORDER BY is_active DESC, last_seen DESC, login ASC
+            """,
+            (minutes,)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return rows
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return []

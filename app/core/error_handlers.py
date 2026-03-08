@@ -39,7 +39,9 @@ def setup_logging(app):
     Args:
         app: Flask application instance
     """
-    logs_dir = os.path.join(os.path.dirname(app.root_path), 'logs')
+    # Get project root: app.root_path points to app/core, so go up 2 levels
+    project_root = os.path.dirname(os.path.dirname(app.root_path))
+    logs_dir = os.path.join(project_root, 'logs')
     if not os.path.exists(logs_dir):
         os.makedirs(logs_dir)
     

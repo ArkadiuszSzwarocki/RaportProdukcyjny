@@ -559,7 +559,9 @@
         try {
             const qpBody = m.querySelector('.qp-body');
             if (qpBody) {
-                qpBody.style.maxHeight = qpBody.style.maxHeight || '60vh';
+                const mobileMaxHeight = 'calc(100vh - 88px)';
+                const desktopMaxHeight = '60vh';
+                qpBody.style.maxHeight = qpBody.style.maxHeight || (window.innerWidth <= 768 ? mobileMaxHeight : desktopMaxHeight);
                 qpBody.style.overflow = qpBody.style.overflow || 'auto';
                 console.log('[popup] qpBody dimensions:', {
                     offsetHeight: qpBody.offsetHeight,

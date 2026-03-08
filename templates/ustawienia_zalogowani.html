@@ -1,0 +1,120 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+    <div class="section-header">
+        <h2>Aktualnie zalogowani</h2>
+        <div><a href="/admin/ustawienia" class="btn">Powrót</a></div>
+    </div>
+
+    <div class="card mb-15">
+        <strong>Status online</strong>
+        <div class="muted">Widok pokazuje aktywne i ostatnio widziane sesje z ostatnich {{ active_window_minutes }} minut. Lista odświeża się automatycznie.</div>
+    </div>
+
+    <div class="table-container premium-card settings-online-table">
+        <table class="modern-table" id="online-users-table">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Użytkownik</th>
+                    <th>Rola</th>
+                    <th>Login</th>
+                    <th>Zalogowany od</th>
+                    <th>Ostatnia aktywność</th>
+                    <th>Bezczynność</th>
+                    <th>Ostatnia ścieżka</th>
+                </tr>
+            </thead>
+            <tbody id="online-users-body">
+                {% for user in online_users %}
+                <tr>
+                    <td><span class="online-state-badge {% if user.is_active %}is-active{% else %}is-recent{% endif %}">{% if user.is_active %}Aktywny{% else %}Ostatnio widziany{% endif %}</span></td>
+                    <td>{{ user.display_name or user.login }}</td>
+                    <td><span class="role-badge role-{{ (user.rola or '')|replace(' ','') }}">{{ user.rola or 'brak' }}</span></td>
+                    <td>{{ user.login }}</td>
+                    <td>{{ user.logged_in_at.strftime('%Y-%m-%d %H:%M:%S') if user.logged_in_at else '—' }}</td>
+                    <td>{{ user.last_seen.strftime('%Y-%m-%d %H:%M:%S') if user.last_seen else '—' }}</td>
+                    <td>{{ user.idle_seconds or 0 }} s</td>
+                    <td>{{ user.last_path or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="muted">Brak aktywnych użytkowników.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const tbody = document.getElementById('online-users-body');
+
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function renderRows(users) {
+            if (!tbody) {
+                return;
+            }
+
+            if (!Array.isArray(users) || users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="muted">Brak aktywnych użytkowników.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = users.map(function (user) {
+                const role = escapeHtml(user.rola || 'brak');
+                const roleClass = role.replace(/\s+/g, '');
+                const statusLabel = user.is_active ? 'Aktywny' : 'Ostatnio widziany';
+                const statusClass = user.is_active ? 'is-active' : 'is-recent';
+                return [
+                    '<tr>',
+                    '<td><span class="online-state-badge ', statusClass, '">', statusLabel, '</span></td>',
+                    '<td>', escapeHtml(user.display_name || user.login), '</td>',
+                    '<td><span class="role-badge role-', roleClass, '">', role, '</span></td>',
+                    '<td>', escapeHtml(user.login), '</td>',
+                    '<td>', escapeHtml(user.logged_in_at || '—'), '</td>',
+                    '<td>', escapeHtml(user.last_seen || '—'), '</td>',
+                    '<td>', escapeHtml(user.idle_seconds || 0), ' s</td>',
+                    '<td>', escapeHtml(user.last_path || '—'), '</td>',
+                    '</tr>'
+                ].join('');
+            }).join('');
+        }
+
+        async function refreshOnlineUsers() {
+            try {
+                const response = await fetch('/admin/api/online-users', {
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                if (!response.ok) {
+                    return;
+                }
+                const payload = await response.json();
+                if (!payload || !payload.success) {
+                    return;
+                }
+                renderRows(payload.online_users || []);
+            } catch (error) {
+                console.error('online-users refresh error', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            window.setInterval(refreshOnlineUsers, 10000);
+        });
+    })();
+</script>
+{% endblock %}

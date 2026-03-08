@@ -1,3 +1,106 @@
+<style>
+  .panel--wnioski {
+    display: grid;
+    gap: 14px;
+  }
+
+  .panel--wnioski .wniosek-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid rgba(32, 52, 73, 0.08);
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .panel--wnioski .wniosek-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .panel--wnioski .badge {
+    white-space: nowrap;
+  }
+
+  .panel--wnioski .date-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 768px) {
+    .quick-popup .panel--wnioski {
+      gap: 10px;
+      font-size: 0.9rem;
+    }
+
+    .quick-popup .panel--wnioski h6 {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.25;
+    }
+
+    .quick-popup .panel--wnioski .wnioski-list,
+    .quick-popup .panel--wnioski .nadgodziny-list {
+      margin-bottom: 8px !important;
+    }
+
+    .quick-popup .panel--wnioski .wniosek-item {
+      display: grid;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 10px;
+    }
+
+    .quick-popup .panel--wnioski .wniosek-item > div:first-child {
+      min-width: 0;
+    }
+
+    .quick-popup .panel--wnioski strong {
+      display: inline-block;
+      font-size: 0.95rem;
+      line-height: 1.25;
+      margin-bottom: 4px;
+    }
+
+    .quick-popup .panel--wnioski .separator {
+      display: none;
+    }
+
+    .quick-popup .panel--wnioski .date-info,
+    .quick-popup .panel--wnioski span,
+    .quick-popup .panel--wnioski .text-muted {
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .quick-popup .panel--wnioski .date-info,
+    .quick-popup .panel--wnioski .badge,
+    .quick-popup .panel--wnioski .badge-warning,
+    .quick-popup .panel--wnioski .badge-info {
+      margin-left: 0 !important;
+      font-size: 0.75rem !important;
+    }
+
+    .quick-popup .panel--wnioski .wniosek-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      width: 100%;
+      gap: 8px;
+    }
+
+    .quick-popup .panel--wnioski .wniosek-actions .btn {
+      width: 100%;
+      min-height: 38px;
+      font-size: 0.85rem;
+    }
+  }
+</style>
+
 <div class="panel panel--wnioski">
   {% if not wnioski and not pending_nadgodziny %}
   <p>Brak wniosków do zatwierdzenia.</p>

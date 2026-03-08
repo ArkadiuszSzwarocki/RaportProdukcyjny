@@ -1,66 +1,441 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<style>
+    .admin-page {
+        display: grid;
+        gap: 24px;
+    }
+
+    .admin-hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 24px;
+        padding: 28px 30px;
+        border-radius: 22px;
+        border: 1px solid rgba(32, 52, 73, 0.08);
+        background: linear-gradient(135deg, #ffffff 0%, #f4f8fc 58%, #eef6ff 100%);
+        box-shadow: 0 18px 42px rgba(28, 44, 60, 0.08);
+    }
+
+    .admin-eyebrow {
+        margin-bottom: 10px;
+        color: #2f7dd1;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+    }
+
+    .admin-title {
+        margin: 0;
+        color: #203449;
+        font-size: 2rem;
+        line-height: 1.05;
+    }
+
+    .admin-description {
+        max-width: 820px;
+        margin: 14px 0 0;
+        color: #5e7184;
+        font-size: 1rem;
+        line-height: 1.65;
+    }
+
+    .admin-actions {
+        min-width: 180px;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .admin-actions .btn {
+        min-width: 190px;
+        border-radius: 12px;
+        font-weight: 700;
+    }
+
+    .admin-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 18px;
+    }
+
+    .admin-stat-card {
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%);
+        border: 1px solid rgba(32, 52, 73, 0.08);
+        border-radius: 18px;
+        padding: 20px 22px;
+        box-shadow: 0 12px 28px rgba(28, 44, 60, 0.06);
+    }
+
+    .admin-stat-label {
+        color: #6b7c8d;
+        font-size: 0.82rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+
+    .admin-stat-value {
+        color: #203449;
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .admin-stat-note {
+        margin-top: 10px;
+        color: #607284;
+        font-size: 0.92rem;
+    }
+
+    .admin-card {
+        background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+        border: 1px solid rgba(32, 52, 73, 0.08);
+        border-radius: 22px;
+        padding: 24px;
+        box-shadow: 0 16px 38px rgba(28, 44, 60, 0.08);
+    }
+
+    .admin-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .admin-card-title {
+        margin: 0;
+        color: #203449;
+        font-size: 1.25rem;
+        font-weight: 800;
+    }
+
+    .admin-card-copy {
+        margin: 8px 0 0;
+        color: #617486;
+        line-height: 1.55;
+    }
+
+    .admin-form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 14px;
+        align-items: end;
+    }
+
+    .admin-field {
+        display: grid;
+        gap: 8px;
+    }
+
+    .admin-field label {
+        color: #425466;
+        font-size: 0.92rem;
+        font-weight: 700;
+    }
+
+    .admin-form-note {
+        grid-column: 1 / -1;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: #f5f9fd;
+        color: #567086;
+        font-size: 0.93rem;
+    }
+
+    .admin-inline-check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 42px;
+        color: #425466;
+        font-weight: 700;
+    }
+
+    .admin-submit {
+        min-height: 42px;
+        border-radius: 12px;
+        font-weight: 800;
+    }
+
+    .records-grid {
+        display: grid;
+        gap: 16px;
+    }
+
+    .record-card {
+        position: relative;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: start;
+        padding: 20px;
+        border-radius: 18px;
+        border: 1px solid rgba(32, 52, 73, 0.08);
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%);
+        box-shadow: 0 12px 28px rgba(28, 44, 60, 0.06);
+    }
+
+    .record-avatar {
+        width: 54px;
+        height: 54px;
+        display: grid;
+        place-items: center;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #2f7dd1, #69b7ff);
+        color: #fff;
+        font-size: 1.2rem;
+        font-weight: 800;
+        box-shadow: 0 10px 24px rgba(47, 125, 209, 0.22);
+    }
+
+    .record-main {
+        min-width: 0;
+    }
+
+    .record-top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .record-title {
+        color: #203449;
+        font-size: 1.12rem;
+        font-weight: 800;
+    }
+
+    .record-subtitle {
+        color: #607284;
+        line-height: 1.5;
+    }
+
+    .record-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .record-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: #eef5ff;
+        color: #24599d;
+        font-size: 0.84rem;
+        font-weight: 700;
+    }
+
+    .record-actions {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .record-actions details {
+        width: min(540px, 100%);
+    }
+
+    .record-actions summary.btn {
+        list-style: none;
+    }
+
+    .record-actions summary.btn::-webkit-details-marker {
+        display: none;
+    }
+
+    .record-edit-panel {
+        margin-top: 12px;
+        padding: 16px;
+        border-radius: 14px;
+        background: #f7fafc;
+        border: 1px solid rgba(32, 52, 73, 0.08);
+    }
+
+    .record-empty {
+        padding: 34px 24px;
+        text-align: center;
+        color: #6b7c8d;
+        border-radius: 18px;
+        border: 1px dashed rgba(32, 52, 73, 0.18);
+        background: #fbfdff;
+    }
+
+    @media (max-width: 900px) {
+        .admin-hero {
+            flex-direction: column;
+            padding: 24px 22px;
+        }
+
+        .admin-actions,
+        .admin-actions .btn {
+            width: 100%;
+            min-width: unset;
+        }
+
+        .record-card {
+            grid-template-columns: 1fr;
+        }
+
+        .record-actions {
+            justify-content: stretch;
+        }
+    }
+</style>
 <div class="section-box">
-    <div class="section-header">
-        <h2>{{ _('uzytkownicy') }}</h2>
-        <div><a href="/admin/ustawienia" class="btn">{{ _('powrot') }}</a></div>
-    </div>
+    <div class="admin-page">
+        <div class="admin-hero">
+            <div>
+                <div class="admin-eyebrow">Ustawienia</div>
+                <h2 class="admin-title">{{ _('uzytkownicy') }}</h2>
+                <p class="admin-description">Twórz konta, przypisuj role, spinaj użytkowników z pracownikami i porządkuj dostęp do systemu bez przeszukiwania surowej listy.</p>
+            </div>
+            <div class="admin-actions">
+                <a href="/admin/ustawienia" class="btn">{{ _('powrot') }}</a>
+            </div>
+        </div>
 
-    <form action="/admin/konto/dodaj" method="POST" class="form-flex">
-        <input name="login" placeholder="{{ _('login') }}" required class="input-sm" aria-label="Login">
-        <input name="haslo" placeholder="{{ _('haslo_opcjonalnie') }}" class="input-sm" aria-label="Hasło (opcjonalnie)">
-        <input name="imie_nazwisko" placeholder="{{ _('imie_nazwisko_opt') }}" class="input-sm" aria-label="Imię i nazwisko">
-        <input name="grupa" placeholder="{{ _('grupa_opcjonalnie') }}" class="input-sm" aria-label="Grupa (opcjonalnie)">
-        {% if suggested_prac_id is defined %}
-            <div class="muted">Sugerowane ID pracownika: {{ suggested_prac_id }}</div>
-        {% endif %}
-        <label class="label-inline"><input type="checkbox" id="assign_prac" name="assign_prac" value="1" onchange="document.getElementById('assign_prac_id').disabled = !this.checked" aria-controls="assign_prac_id"> Przypisz pracownika</label>
-        <input type="number" id="assign_prac_id" name="assign_prac_id" min="1" value="{{ suggested_prac_id if suggested_prac_id is defined else 1 }}" class="input-sm assign-prac-id" title="{{ _('id_pracownika') }}" placeholder="{{ _('id_pracownika') }}" aria-label="ID pracownika" disabled>
-        <select name="rola" class="input-sm" title="{{ _('rola_konta') }}" aria-label="Rola konta">
-            {% for r in roles %}
-                <option value="{{ r[0] }}">{{ r[1] }}</option>
-            {% endfor %}
-        </select>
-        <button class="btn btn-primary" type="submit">Dodaj konto</button>
-    </form>
+        <div class="admin-stats">
+            <div class="admin-stat-card">
+                <div class="admin-stat-label">Łącznie kont</div>
+                <div class="admin-stat-value">{{ konta|length }}</div>
+                <div class="admin-stat-note">Aktywne rekordy użytkowników widoczne w systemie.</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="admin-stat-label">Dostępne role</div>
+                <div class="admin-stat-value">{{ roles|length }}</div>
+                <div class="admin-stat-note">Role, które możesz przypisać przy zakładaniu lub edycji konta.</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="admin-stat-label">Sugestia powiązania</div>
+                <div class="admin-stat-value">{{ suggested_prac_id if suggested_prac_id is defined else 1 }}</div>
+                <div class="admin-stat-note">Najbliższe wolne ID pracownika do spięcia z nowym kontem.</div>
+            </div>
+        </div>
 
-    <div class="list-view">
-        {% for k in konta %}
-            {% set initial = k[1][:1].upper() %}
-            <div class="list-row">
-                <div class="avatar">{{ initial }}</div>
-                <div class="user-main">
-                    <div class="user-top">
-                        <div class="user-name">{{ k[1] }}</div>
-                        {% set role = k[2] %}
-                        <div class="ml-5">
-                            <span class="role-badge role-{{ role|replace(' ','') }}">{{ role }}</span>
-                        </div>
-                    </div>
-                    <div class="user-sub">ID: {{ k[0] }}</div>
-                </div>
-                <div class="list-actions">
-                    <details><summary class="btn">{{ _('edytuj') }}</summary>
-                        <form action="/admin/konto/edytuj" method="POST" class="form-flex">
-                            <input type="hidden" name="id" value="{{ k[0] }}">
-                            <input name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login (edycja)">
-                            <input name="haslo" placeholder="{{ _('nowe_haslo') }}" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
-                            <input name="grupa" placeholder="{{ _('grupa_opcjonalnie') }}" value="{{ k[3] if k|length > 3 else '' }}" class="input-sm" aria-label="Grupa (opcjonalnie)">
-                            <select name="rola" class="input-sm" title="{{ _('rola_konta') }}" aria-label="Rola konta">
-                                {% for r in roles %}
-                                    <option value="{{ r[0] }}" {% if k[2]==r[0] %}selected{% endif %}>{{ r[1] }}</option>
-                                {% endfor %}
-                            </select>
-                            <button type="submit" class="btn">{{ _('zapisz') }}</button>
-                        </form>
-                    </details>
-                    <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto?');"><button type="submit" class="delete-button" aria-label="Usuń konto">🗑️</button></form>
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <div>
+                    <h3 class="admin-card-title">Dodaj nowe konto</h3>
+                    <p class="admin-card-copy">Wypełnij podstawowe dane logowania, opcjonalnie przypisz konto do konkretnego pracownika i od razu nadaj rolę.</p>
                 </div>
             </div>
-        {% else %}
-            <div class="card">{{ _('brak_kont') }}</div>
-        {% endfor %}
+
+            <form action="/admin/konto/dodaj" method="POST" class="admin-form-grid">
+                <div class="admin-field">
+                    <label for="new-login">{{ _('login') }}</label>
+                    <input id="new-login" name="login" placeholder="{{ _('login') }}" required class="input-sm" aria-label="Login">
+                </div>
+                <div class="admin-field">
+                    <label for="new-password">{{ _('haslo_opcjonalnie') }}</label>
+                    <input id="new-password" name="haslo" placeholder="{{ _('haslo_opcjonalnie') }}" class="input-sm" aria-label="Hasło (opcjonalnie)">
+                </div>
+                <div class="admin-field">
+                    <label for="new-fullname">{{ _('imie_nazwisko_opt') }}</label>
+                    <input id="new-fullname" name="imie_nazwisko" placeholder="{{ _('imie_nazwisko_opt') }}" class="input-sm" aria-label="Imię i nazwisko">
+                </div>
+                <div class="admin-field">
+                    <label for="new-group">{{ _('grupa_opcjonalnie') }}</label>
+                    <input id="new-group" name="grupa" placeholder="{{ _('grupa_opcjonalnie') }}" class="input-sm" aria-label="Grupa (opcjonalnie)">
+                </div>
+                <div class="admin-field">
+                    <label for="new-role">{{ _('rola_konta') }}</label>
+                    <select id="new-role" name="rola" class="input-sm" title="{{ _('rola_konta') }}" aria-label="Rola konta">
+                        {% for r in roles %}
+                            <option value="{{ r[0] }}">{{ r[1] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field">
+                    <label for="assign_prac_id">{{ _('id_pracownika') }}</label>
+                    <input type="number" id="assign_prac_id" name="assign_prac_id" min="1" value="{{ suggested_prac_id if suggested_prac_id is defined else 1 }}" class="input-sm assign-prac-id" title="{{ _('id_pracownika') }}" placeholder="{{ _('id_pracownika') }}" aria-label="ID pracownika" disabled>
+                </div>
+                <div class="admin-inline-check">
+                    <input type="checkbox" id="assign_prac" name="assign_prac" value="1" onchange="document.getElementById('assign_prac_id').disabled = !this.checked" aria-controls="assign_prac_id">
+                    <label for="assign_prac">Przypisz pracownika do konta</label>
+                </div>
+                <button class="btn btn-primary admin-submit" type="submit">Dodaj konto</button>
+                <div class="admin-form-note">Sugerowane ID pracownika: <strong>{{ suggested_prac_id if suggested_prac_id is defined else 1 }}</strong>. Pozostaw hasło puste, jeśli konto ma zostać dokończone później.</div>
+            </form>
+        </div>
+
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <div>
+                    <h3 class="admin-card-title">Lista kont</h3>
+                    <p class="admin-card-copy">Każde konto ma czytelny skrót danych, szybką edycję i osobną akcję usunięcia.</p>
+                </div>
+            </div>
+
+            <div class="records-grid">
+                {% for k in konta %}
+                    {% set initial = k[1][:1].upper() %}
+                    {% set role = k[2] %}
+                    <div class="record-card">
+                        <div class="record-avatar">{{ initial }}</div>
+                        <div class="record-main">
+                            <div class="record-top">
+                                <div class="record-title">{{ k[1] }}</div>
+                                <span class="role-badge role-{{ role|replace(' ','') }}">{{ role }}</span>
+                            </div>
+                            <div class="record-subtitle">Konto użytkownika o identyfikatorze <strong>#{{ k[0] }}</strong>{% if k|length > 3 and k[3] %}, przypisane do grupy <strong>{{ k[3] }}</strong>{% endif %}.</div>
+                            <div class="record-meta">
+                                <span class="record-pill">ID: {{ k[0] }}</span>
+                                <span class="record-pill">Rola: {{ role }}</span>
+                                {% if k|length > 3 and k[3] %}<span class="record-pill">Grupa: {{ k[3] }}</span>{% endif %}
+                            </div>
+                        </div>
+                        <div class="record-actions">
+                            <details>
+                                <summary class="btn">{{ _('edytuj') }}</summary>
+                                <div class="record-edit-panel">
+                                    <form action="/admin/konto/edytuj" method="POST" class="admin-form-grid">
+                                        <input type="hidden" name="id" value="{{ k[0] }}">
+                                        <div class="admin-field">
+                                            <label for="login-{{ k[0] }}">{{ _('login') }}</label>
+                                            <input id="login-{{ k[0] }}" name="login" value="{{ k[1] }}" required class="input-sm" aria-label="Login (edycja)">
+                                        </div>
+                                        <div class="admin-field">
+                                            <label for="haslo-{{ k[0] }}">{{ _('nowe_haslo') }}</label>
+                                            <input id="haslo-{{ k[0] }}" name="haslo" placeholder="{{ _('nowe_haslo') }}" class="input-sm" aria-label="Nowe hasło (opcjonalnie)">
+                                        </div>
+                                        <div class="admin-field">
+                                            <label for="grupa-{{ k[0] }}">{{ _('grupa_opcjonalnie') }}</label>
+                                            <input id="grupa-{{ k[0] }}" name="grupa" placeholder="{{ _('grupa_opcjonalnie') }}" value="{{ k[3] if k|length > 3 else '' }}" class="input-sm" aria-label="Grupa (opcjonalnie)">
+                                        </div>
+                                        <div class="admin-field">
+                                            <label for="rola-{{ k[0] }}">{{ _('rola_konta') }}</label>
+                                            <select id="rola-{{ k[0] }}" name="rola" class="input-sm" title="{{ _('rola_konta') }}" aria-label="Rola konta">
+                                                {% for r in roles %}
+                                                    <option value="{{ r[0] }}" {% if k[2]==r[0] %}selected{% endif %}>{{ r[1] }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary admin-submit">{{ _('zapisz') }}</button>
+                                    </form>
+                                </div>
+                            </details>
+                            <form action="/admin/konto/usun/{{ k[0] }}" method="POST" onsubmit="return confirm('Usuń konto?');">
+                                <button type="submit" class="delete-button" aria-label="Usuń konto">🗑️</button>
+                            </form>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="record-empty">{{ _('brak_kont') }}</div>
+                {% endfor %}
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

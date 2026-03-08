@@ -12,20 +12,34 @@
     }
 
     function updateDosypkiBadge(planId, delta) {
-        if (!planId || !delta) return;
+        if (!planId) return;
+        console.log('[dosypki.badge] Updating badge for plan:', planId, 'delta:', delta);
         const trigger = document.querySelector('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
-        if (!trigger) return;
+        if (!trigger) {
+            console.warn('[dosypki.badge] Trigger button not found for plan:', planId);
+            return;
+        }
         let badge = trigger.querySelector('.action-badge');
         const current = badge ? parseInt(badge.textContent, 10) || 0 : 0;
         const next = Math.max(0, current + delta);
+
+        console.log('[dosypki.badge] Current:', current, 'Next:', next);
+
         if (next <= 0) {
-            if (badge) badge.remove();
+            if (badge) {
+                badge.style.opacity = '0';
+                setTimeout(() => badge.remove(), 300);
+            }
             return;
         }
         if (!badge) {
             badge = document.createElement('span');
             badge.className = 'action-badge';
+            badge.style.opacity = '0';
             trigger.appendChild(badge);
+            // Trigger reflow for animation
+            badge.offsetHeight;
+            badge.style.opacity = '1';
         }
         badge.textContent = String(next);
     }
@@ -115,9 +129,13 @@
     async function confirmDosypka(id, btn) {
         let originalText = null;
         try {
+            const row = btn.closest('tr');
+            const planId = row ? row.getAttribute('data-plan-id') : null;
+
             btn.disabled = true;
             originalText = btn.textContent;
             btn.textContent = '⏳...';
+
             const res = await fetch('/potwierdz_dosypke/' + id, {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -127,11 +145,27 @@
                 }
             });
             const data = await res.json().catch(() => ({}));
+
             if (res.ok) {
-                const row = btn.closest('tr');
-                if (row) row.parentNode.removeChild(row);
-                // force window reload to show confirmed dosypki on the dashboard
-                setTimeout(() => { window.location.reload(); }, 300);
+                // 1. Dynamic UI update: remove row and update badge
+                if (row) {
+                    row.style.opacity = '0.5';
+                    row.style.pointerEvents = 'none';
+                    setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 300);
+                }
+
+                if (planId) {
+                    updateDosypkiBadge(planId, -1);
+                }
+
+                // 2. Refresh dashboard data if available, otherwise fallback to reload
+                if (typeof window.performPartialReload === 'function') {
+                    console.log('[dosypki] Using performPartialReload for sync');
+                    window.performPartialReload();
+                } else {
+                    console.log('[dosypki] performPartialReload not found, falling back to location.reload');
+                    setTimeout(() => { window.location.reload(); }, 500);
+                }
             } else {
                 btn.disabled = false;
                 if (originalText) btn.textContent = originalText;

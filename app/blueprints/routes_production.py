@@ -2,9 +2,8 @@ from flask import Blueprint, request, redirect, url_for, flash, session, render_
 import os
 import glob
 from datetime import date, datetime
-from app.db import get_db_connection, rollover_unfinished
+from app.db import get_db_connection, rollover_unfinished, sync_dosypka_notifications
 from app.decorators import login_required, roles_required
-from app.services.notification_service import notify_workers_about_dosypka
 
 production_bp = Blueprint('production', __name__)
 
@@ -518,22 +517,13 @@ def dodaj_dosypke():
         for name, kg in entries:
             cursor.execute("INSERT INTO dosypki (plan_id, szarza_id, nazwa, kg, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, 0)", (plan_id, szarza_id, name, kg, pracownik_id))
 
-        if not brak_dosypki:
-            plan_context = {
-                'id': r[0],
-                'produkt': r[1],
-                'data_planu': r[2],
-                'sekcja': 'Zasyp',
-            }
-            notify_workers_about_dosypka(
-                plan_context=plan_context,
-                total_kg=sum(item[1] for item in entries),
-                entries_count=len(entries),
-                author_name=session.get('imie_nazwisko') or session.get('login'),
-                conn=conn,
-                cursor=cursor,
-                created_by_user_id=created_by_user_id,
-            )
+        sync_dosypka_notifications(
+            plan_id=plan_id,
+            author_name=session.get('imie_nazwisko') or session.get('login'),
+            created_by_user_id=created_by_user_id,
+            conn=conn,
+            cursor=cursor,
+        )
 
         conn.commit()
         if brak_dosypki:
@@ -590,6 +580,13 @@ def potwierdz_dosypke(dosypka_id):
                 "WHERE id = %s",
                 (plan_id, plan_id, plan_id)
             )
+            sync_dosypka_notifications(
+                plan_id=plan_id,
+                author_name=session.get('imie_nazwisko') or session.get('login'),
+                created_by_user_id=session.get('user_id'),
+                conn=conn,
+                cursor=cursor,
+            )
         
         conn.commit()
         if is_ajax:
@@ -636,6 +633,13 @@ def anuluj_dosypke(dosypka_id):
         cursor.execute(
             "UPDATE dosypki SET anulowana=1, data_anulowania=NOW(), anulowal_login=%s WHERE id=%s",
             (anulowal_login, dosypka_id)
+        )
+        sync_dosypka_notifications(
+            plan_id=row[1],
+            author_name=session.get('imie_nazwisko') or session.get('login'),
+            created_by_user_id=session.get('user_id'),
+            conn=conn,
+            cursor=cursor,
         )
         conn.commit()
         if is_ajax:

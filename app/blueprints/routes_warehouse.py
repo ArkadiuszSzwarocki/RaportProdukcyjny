@@ -200,7 +200,13 @@ def potwierdz_palete(paleta_id):
     """Confirm paleta acceptance with warehouse manager/lider"""
     role = session.get('rola', '')
     if role not in ['magazynier', 'lider', 'admin']:
-        return ("Brak uprawnień", 403)
+        current_app.logger.warning(f'[WAREHOUSE-AUTH] User {session.get("login")} with role={role} tried to confirm paleta {paleta_id} - insufficient permissions')
+        return jsonify({'success': False, 'message': 'Brak uprawnień do zatwierdzania palet'}), 403
+    
+    # Initialize variables that will be used in response (scope fix)
+    provided_netto = None
+    provided_brutto = None
+    deklarowana_waga = None
     
     conn = get_db_connection()
     try:
@@ -225,8 +231,6 @@ def potwierdz_palete(paleta_id):
             current_app.logger.warning(f'Failed to fetch tara for paleta {paleta_id}: {e}')
         
         # Step 3: Parse provided weights from form (netto/brutto)
-        provided_netto = None
-        provided_brutto = None
         try:
             if request.form.get('waga_palety'):
                 try:
@@ -244,6 +248,15 @@ def potwierdz_palete(paleta_id):
         except Exception as e:
             current_app.logger.error(f'Failed to parse provided weight for paleta {paleta_id}: {e}', exc_info=True)
         
+        # Step 3b: FETCH DECLARED WEIGHT BEFORE ANY UPDATES (for validation)
+        try:
+            cursor.execute("SELECT waga FROM palety_workowanie WHERE id=%s", (paleta_id,))
+            drow = cursor.fetchone()
+            if drow and drow[0] is not None:
+                deklarowana_waga = int(drow[0])
+        except Exception as e:
+            current_app.logger.debug(f'Failed to fetch declared weight for paleta {paleta_id}: {e}')
+        
         # Step 4: Persist provided weights separately
         try:
             if provided_netto is not None:
@@ -257,14 +270,19 @@ def potwierdz_palete(paleta_id):
             try: conn.rollback()
             except: pass
         
-        # Step 5: Get previous status before update
+        # Step 5: Get plan_id, previous status, and stored weights before update
         prev_status = ''
+        plan_id = None
+        stored_netto = None
         try:
-            cursor.execute("SELECT COALESCE(status,'') FROM palety_workowanie WHERE id=%s", (paleta_id,))
+            cursor.execute("SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, 0) FROM palety_workowanie WHERE id=%s", (paleta_id,))
             prev_row = cursor.fetchone()
-            prev_status = prev_row[0] if prev_row else ''
+            if prev_row:
+                plan_id = prev_row[0]
+                prev_status = prev_row[1]
+                stored_netto = int(prev_row[2] or 0)
         except Exception as e:
-            current_app.logger.warning(f'Failed to fetch previous status for paleta {paleta_id}: {e}')
+            current_app.logger.warning(f'Failed to fetch plan_id/status/weights for paleta {paleta_id}: {e}')
         
         # Step 6: Update paleta status to 'przyjeta' (accepted)
         try:
@@ -286,41 +304,42 @@ def potwierdz_palete(paleta_id):
                 current_app.logger.error(f'Simple status update also failed for paleta {paleta_id}: {e2}', exc_info=True)
                 try: conn.rollback()
                 except: pass
-            if r:
-                plan_id = r[0]
-                stored_netto = int(r[1] or 0)
-                netto_val = provided_netto if provided_netto is not None else stored_netto
-                
-                try:
-                    cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
-                    z = cursor.fetchone()
-                    if z and prev_status != 'przyjeta':
-                        # Find existing Magazyn plan id for this date+product
-                        cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (z[0], z[1]))
-                        mp = cursor.fetchone()
-                        mp_id = mp[0] if mp else None
-                        
-                        # Prevent duplicate magazyn entries
-                        cursor.execute("SELECT id FROM magazyn_palety WHERE paleta_workowanie_id=%s", (paleta_id,))
-                        exists = cursor.fetchone()
-                        if not exists:
-                            cursor.execute(
-                                "INSERT INTO magazyn_palety (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                                (paleta_id, mp_id, z[0], z[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'))
-                            )
-                        
-                        # Recalculate Magazyn aggregates
+        
+        # Step 6b: Update Magazyn table if plan_id exists
+        if plan_id:
+            netto_val = provided_netto if provided_netto is not None else stored_netto
+            
+            try:
+                cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
+                z = cursor.fetchone()
+                if z and prev_status != 'przyjeta':
+                    # Find existing Magazyn plan id for this date+product
+                    cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (z[0], z[1]))
+                    mp = cursor.fetchone()
+                    mp_id = mp[0] if mp else None
+                    
+                    # Prevent duplicate magazyn entries
+                    cursor.execute("SELECT id FROM magazyn_palety WHERE paleta_workowanie_id=%s", (paleta_id,))
+                    exists = cursor.fetchone()
+                    if not exists:
                         cursor.execute(
-                            "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto),0) FROM magazyn_palety WHERE plan_id = plan_produkcji.id) WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'",
-                            (z[0], z[1])
+                            "INSERT INTO magazyn_palety (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                            (paleta_id, mp_id, z[0], z[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'))
                         )
-                        conn.commit()
-                except Exception as e:
-                    current_app.logger.error(f'Failed to update Magazyn aggregates for paleta {paleta_id}: {e}', exc_info=True)
-                    try: conn.rollback()
-                    except: pass
-        except Exception as e:
-            current_app.logger.error(f'Failed to process Magazyn update for paleta {paleta_id}: {e}', exc_info=True)
+                        current_app.logger.info(f'[WAREHOUSE-CONFIRM] Paleta ID={paleta_id} transferred to magazyn_palety: waga_netto={netto_val}kg, plan_id={mp_id}, user={session.get("login")}')
+                    else:
+                        current_app.logger.info(f'[WAREHOUSE-CONFIRM] Paleta ID={paleta_id} already in magazyn_palety, updating waga_netto={netto_val}kg')
+                    
+                    # Recalculate Magazyn aggregates
+                    cursor.execute(
+                        "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto),0) FROM magazyn_palety WHERE plan_id = plan_produkcji.id) WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'",
+                        (z[0], z[1])
+                    )
+                    conn.commit()
+            except Exception as e:
+                current_app.logger.error(f'Failed to update Magazyn aggregates for paleta {paleta_id}: {e}', exc_info=True)
+                try: conn.rollback()
+                except: pass
     
     except Exception as e:
         current_app.logger.error(f'Failed to potwierdz palete {paleta_id}: {e}', exc_info=True)
@@ -333,7 +352,17 @@ def potwierdz_palete(paleta_id):
     # Return response (AJAX or redirect)
     try:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return ('', 204)
+            # Calculate difference for AJAX response
+            response_data = {'success': True, 'paleta_id': paleta_id}
+            current_app.logger.info(f'AJAX Response: deklarowana_waga={deklarowana_waga}, provided_netto={provided_netto}')
+            if deklarowana_waga is not None and provided_netto is not None:
+                difference = abs(provided_netto - deklarowana_waga)
+                current_app.logger.info(f'Difference calculated: {difference}')
+                if difference > 1:
+                    response_data['has_difference'] = True
+                    response_data['difference'] = round(difference, 1)
+                    current_app.logger.info(f'Returning modal response: {response_data}')
+            return jsonify(response_data), 200
     except Exception:
         pass
     return redirect(bezpieczny_powrot())
@@ -461,11 +490,13 @@ def bufor_page_html():
         
         # Read buffer entries for selected date
         cursor.execute("""
-            SELECT b.id, b.zasyp_id, b.data_planu, b.produkt, b.nazwa_zlecenia, 
-                   b.typ_produkcji, b.tonaz_rzeczywisty, b.spakowano, b.kolejka,
-                   z.real_start, z.status
+             SELECT b.id, b.zasyp_id, b.data_planu, b.produkt, b.nazwa_zlecenia,
+                 b.typ_produkcji, b.kolejka,
+                 z.tonaz, z.tonaz_rzeczywisty, z.real_start, z.status,
+                 w.tonaz, w.tonaz_rzeczywisty
             FROM bufor b
             LEFT JOIN plan_produkcji z ON z.id = b.zasyp_id
+             LEFT JOIN plan_produkcji w ON w.zasyp_id = b.zasyp_id AND w.sekcja = 'Workowanie'
             WHERE b.data_planu = %s AND b.status = 'aktywny'
             ORDER BY b.kolejka ASC
         """, (wybrana_data,))
@@ -473,11 +504,12 @@ def bufor_page_html():
         rows = cursor.fetchall()
         
         for row in rows:
-            (buf_id, z_id, z_data, z_produkt, z_nazwa, z_typ, z_tonaz, z_spakowano, 
-             z_kolejka, z_real_start, z_status) = row
+            (buf_id, z_id, z_data, z_produkt, z_nazwa, z_typ, z_kolejka,
+             zasyp_plan_tonaz, zasyp_rzeczywisty_tonaz, z_real_start, z_status,
+             workowanie_plan_tonaz, workowanie_rzeczywisty_tonaz) = row
             
-            pozostalo_w_silosie = (z_tonaz or 0) - (z_spakowano or 0)
-            needs_reconciliation = round((z_spakowano or 0) - (z_tonaz or 0), 1) != 0
+            pozostalo_do_spakowania = (zasyp_rzeczywisty_tonaz or 0) - (workowanie_rzeczywisty_tonaz or 0)
+            needs_reconciliation = round(pozostalo_do_spakowania, 1) != 0
             start_time = z_real_start.strftime('%H:%M') if z_real_start else 'N/A'
             
             bufor_list.append({
@@ -485,13 +517,13 @@ def bufor_page_html():
                 'data': str(z_data),
                 'produkt': z_produkt,
                 'nazwa': z_nazwa or '',
-                'w_silosie': round(max(pozostalo_w_silosie, 0), 1),
                 'typ_produkcji': z_typ or '',
-                'zasyp_total': z_tonaz or 0,
-                'spakowano_total': z_spakowano or 0,
+                'plan_zasypu': zasyp_plan_tonaz or 0,
+                'do_spakowania': zasyp_rzeczywisty_tonaz or 0,
+                'spakowane': workowanie_rzeczywisty_tonaz or 0,
+                'pozostalo_do_spakowania': round(pozostalo_do_spakowania, 1),
                 'kolejka': z_kolejka,
                 'needs_reconciliation': needs_reconciliation,
-                'raw_pozostalo': round(pozostalo_w_silosie, 1),
                 'status': z_status or 'zaplanowane',
                 'real_start': z_real_start,
                 'start_time': start_time
@@ -838,21 +870,46 @@ def usun_szarze(id):
 @roles_required('lider', 'admin')
 def usun_palete(id):
     """Delete paleta from buffer"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = None
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if paleta exists
         cursor.execute("SELECT plan_id FROM palety_workowanie WHERE id=%s", (id,))
         res = cursor.fetchone()
-        if res:
-            plan_id = res[0]
-            cursor.execute("DELETE FROM palety_workowanie WHERE id=%s", (id,))
-            cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
-            conn.commit()
+        
+        if not res:
+            msg = f'Paleta ID={id} nie istnieje'
+            current_app.logger.warning(f'[WAREHOUSE-DELETE] {msg}')
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'message': msg}), 404
+            flash(msg, 'warning')
+            return redirect(bezpieczny_powrot())
+        
+        plan_id = res[0]
+        cursor.execute("DELETE FROM palety_workowanie WHERE id=%s", (id,))
+        cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
+        conn.commit()
+        
+        current_app.logger.info(f'[WAREHOUSE-DELETE] Paleta ID={id} deleted from plan_id={plan_id} by user={session.get("login")}')
+        msg = 'Paleta usunięta'
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': msg}), 200
+        
+        flash(msg, 'success')
+    except Exception as e:
+        current_app.logger.error(f'[WAREHOUSE-DELETE] Error deleting paleta {id}: {e}', exc_info=True)
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
+        flash(f'Błąd przy usuwaniu palety: {str(e)}', 'danger')
     finally:
-        conn.close()
-    
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({'success': True, 'message': 'Paleta usunięta'}), 200
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
     
     return redirect(bezpieczny_powrot())
 
@@ -861,33 +918,45 @@ def usun_palete(id):
 @roles_required('lider', 'admin')
 def edytuj_palete(paleta_id):
     """Edit paleta weight (netto)"""
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
         try:
             waga = int(float(request.form.get('waga_palety', '0').replace(',', '.')))
         except Exception:
             waga = 0
 
-        # Sprawdź aktualny status palety
-        cursor.execute("SELECT COALESCE(status,'') FROM palety_workowanie WHERE id=%s", (paleta_id,))
-        s = cursor.fetchone()
-        status = s[0] if s else ''
+        # Check if paleta exists
+        cursor.execute("SELECT COALESCE(status,''), plan_id FROM palety_workowanie WHERE id=%s", (paleta_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            msg = f'Paleta ID={paleta_id} nie istnieje'
+            current_app.logger.warning(f'[WAREHOUSE-EDIT] {msg}')
+            flash(msg, 'warning')
+            return redirect(bezpieczny_powrot())
+        
+        status = row[0] if row[0] else ''
+        plan_id = row[1]
 
         if status == 'przyjeta':
             # Jeśli paleta jest już przyjęta do magazynu, nie nadpisujemy oryginalnej `waga`.
             # Zapisujemy korektę do `waga_potwierdzona`.
             cursor.execute("UPDATE palety_workowanie SET waga_potwierdzona=%s WHERE id=%s", (waga, paleta_id))
+            action = 'waga_potwierdzona'
         else:
             cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (waga, paleta_id))
-            cursor.execute("SELECT plan_id FROM palety_workowanie WHERE id=%s", (paleta_id,))
-            res = cursor.fetchone()
-            if res:
-                plan_id = res[0]
-                cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
+            cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
+            action = 'waga'
+        
         conn.commit()
+        current_app.logger.info(f'[WAREHOUSE-EDIT] Paleta ID={paleta_id} updated: {action}={waga}kg, status={status}, plan_id={plan_id}, user={session.get("login")}')
+        flash(f'Paleta zaktualizowana (waga={waga}kg)', 'success')
     except Exception as e:
-        current_app.logger.error(f'Failed to edit paleta {paleta_id}: {e}', exc_info=True)
+        current_app.logger.error(f'[WAREHOUSE-EDIT] Failed to edit paleta {paleta_id}: {e}', exc_info=True)
+        flash(f'Błąd przy edytowaniu palety: {str(e)}', 'danger')
     finally:
         if conn:
             try:
@@ -899,9 +968,9 @@ def edytuj_palete(paleta_id):
 
 
 @warehouse_bp.route('/api/edytuj_palete_ajax', methods=['POST'])
-@roles_required('lider', 'admin')
+@roles_required('produkcja', 'lider', 'admin')
 def edytuj_palete_ajax():
-    """AJAX: Edytuj wagę palety w magazyn_palety (Rejestr Przyjęć)."""
+    """AJAX: Edytuj wagę palety w magazyn_palety (tylko potwierdzone w magazynie)."""
     data = request.get_json(force=True) or {}
     paleta_id = data.get('id')
     nowa_waga = data.get('waga')
@@ -911,9 +980,21 @@ def edytuj_palete_ajax():
     except Exception:
         return jsonify({'success': False, 'message': 'Nieprawidłowe dane'}), 400
 
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Tylko edytuj palety z magazyn_palety (potwierdzone)
+        cursor.execute("SELECT plan_id FROM magazyn_palety WHERE id=%s", (paleta_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            msg = f'Paleta ID={paleta_id} nie istnieje w magazynie lub nie została potwierdzona'
+            current_app.logger.warning(f'[WAREHOUSE-AJAX-EDIT] {msg}')
+            return jsonify({'success': False, 'message': msg}), 404
+        
+        plan_id = row[0]
         cursor.execute("UPDATE magazyn_palety SET waga_netto=%s WHERE id=%s", (nowa_waga, paleta_id))
         # Zaktualizuj agregat Magazyn
         cursor.execute("""
@@ -923,20 +1004,27 @@ def edytuj_palete_ajax():
                 FROM magazyn_palety mp
                 WHERE mp.plan_id = pp.id
             )
-            WHERE pp.id = (SELECT plan_id FROM magazyn_palety WHERE id = %s LIMIT 1)
-        """, (paleta_id,))
+            WHERE pp.id = %s
+        """, (plan_id,))
+        
         conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'message': 'Waga zaktualizowana'})
+        current_app.logger.info(f'[WAREHOUSE-AJAX-EDIT] Paleta ID={paleta_id} updated: waga={nowa_waga}kg, plan_id={plan_id}, user={session.get("login")}')
+        return jsonify({'success': True, 'message': f'Waga zaktualizowana ({nowa_waga}kg)'})
     except Exception as e:
-        current_app.logger.exception('Failed to edit magazyn_paleta %s', paleta_id)
-        return jsonify({'success': False, 'message': str(e)}), 500
+        current_app.logger.exception(f'[WAREHOUSE-AJAX-EDIT] Failed to edit paleta {paleta_id}: {e}')
+        return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @warehouse_bp.route('/api/usun_palete_ajax', methods=['POST'])
-@roles_required('lider', 'admin')
+@roles_required('produkcja', 'lider', 'admin')
 def usun_palete_ajax():
-    """AJAX: Usuń paletę z magazyn_palety (Rejestr Przyjęć)."""
+    """AJAX: Usuń paletę tylko z magazyn_palety (potwierdzone w magazynie)."""
     data = request.get_json(force=True) or {}
     paleta_id = data.get('id')
     try:
@@ -944,24 +1032,37 @@ def usun_palete_ajax():
     except Exception:
         return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
 
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Pobierz plan_id przed usunięciem
+        
+        # Tylko usuń palety z magazyn_palety (potwierdzone)
         cursor.execute("SELECT plan_id FROM magazyn_palety WHERE id=%s", (paleta_id,))
         row = cursor.fetchone()
-        plan_id = row[0] if row else None
-
+        
+        if not row:
+            msg = f'Paleta ID={paleta_id} nie istnieje w magazynie lub nie została potwierdzona'
+            current_app.logger.warning(f'[WAREHOUSE-AJAX-DELETE] {msg}')
+            return jsonify({'success': False, 'message': msg}), 404
+        
+        plan_id = row[0]
         cursor.execute("DELETE FROM magazyn_palety WHERE id=%s", (paleta_id,))
         # Zaktualizuj agregat Magazyn
-        if plan_id:
-            cursor.execute(
-                "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto), 0) FROM magazyn_palety WHERE plan_id = %s) WHERE id = %s",
-                (plan_id, plan_id)
-            )
+        cursor.execute(
+            "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto), 0) FROM magazyn_palety WHERE plan_id = %s) WHERE id = %s",
+            (plan_id, plan_id)
+        )
+        
         conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'message': 'Paleta usunięta'})
+        current_app.logger.info(f'[WAREHOUSE-AJAX-DELETE] Paleta ID={paleta_id} deleted from magazyn_palety, plan_id={plan_id}, user={session.get("login")}')
+        return jsonify({'success': True, 'message': 'Paleta usunięta z magazynu'})
     except Exception as e:
-        current_app.logger.exception('Failed to delete magazyn_paleta %s', paleta_id)
-        return jsonify({'success': False, 'message': str(e)}), 500
+        current_app.logger.exception(f'[WAREHOUSE-AJAX-DELETE] Failed to delete paleta {paleta_id}: {e}')
+        return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass

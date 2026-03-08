@@ -2,21 +2,186 @@
 
 {% block content %}
 
+{% set stats = namespace(total_spakowane=0, total_w_buforze=0) %}
+{% for b in bufor_list %}
+    {% set stats.total_spakowane = stats.total_spakowane + (b.spakowane or 0) %}
+    {% set stats.total_w_buforze = stats.total_w_buforze + (b.pozostalo_do_spakowania or 0) %}
+{% endfor %}
+
 <style>
+    .bufor-shell {
+        display: grid;
+        gap: 16px;
+    }
+
+    .bufor-actions,
+    .bufor-actions-right,
+    .bufor-jump-form {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .bufor-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .bufor-actions-right {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .bufor-jump-form {
+        margin: 0;
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid rgba(32, 52, 73, 0.08);
+    }
+
+    .bufor-jump-form label {
+        margin: 0;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    .bufor-jump-form .input-sm {
+        min-width: 164px;
+    }
+
+    .bufor-action-btn {
+        min-height: 40px;
+        border-radius: 12px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-decoration: none;
+    }
+
+    .bufor-board {
+        overflow: hidden;
+    }
+
+    .bufor-table-wrap .modern-table tbody tr.bufor-row-finished {
+        background: linear-gradient(180deg, rgba(248, 251, 255, 0.95) 0%, rgba(243, 247, 252, 0.95) 100%);
+    }
+
+    .bufor-kolejka-badge {
+        min-width: 42px;
+        text-align: center;
+        font-weight: 800;
+    }
+
+    .bufor-product-cell {
+        display: grid;
+        gap: 2px;
+    }
+
+    .bufor-product-name {
+        font-size: 0.82rem;
+        color: var(--text-muted);
+    }
+
+    .bufor-date-cell {
+        display: grid;
+        gap: 2px;
+    }
+
+    .bufor-start-time {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .pozostalo-cell.negative span {
+        color: #c0392b;
+        font-weight: 700;
+    }
+
+    .badge-reconciliation {
+        display: inline-flex;
+        margin-top: 6px;
+    }
+
     .btn-move-order {
         background: #6c757d;
         color: white;
     }
 
+    .bufor-info-overlay,
     .move-modal-buffer-overlay {
         display: none;
         position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
+        inset: 0;
+        background: rgba(15, 23, 42, 0.5);
         z-index: 999;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+    }
+
+    .bufor-info-dialog,
+    .move-modal-buffer {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+        width: min(100%, 680px);
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+
+    .bufor-info-dialog {
+        padding: 24px;
+    }
+
+    .bufor-info-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .bufor-info-title,
+    .move-title-buffer {
+        margin: 0;
+        color: var(--primary-color);
+        font-size: 1.1rem;
+        font-weight: 800;
+    }
+
+    .bufor-info-close {
+        background: transparent;
+        border: none;
+        color: #6b7280;
+        font-size: 1.3rem;
+        cursor: pointer;
+    }
+
+    .bufor-info-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+    }
+
+    .bufor-info-table th,
+    .bufor-info-table td {
+        padding: 12px 10px;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid rgba(32, 52, 73, 0.08);
+    }
+
+    .bufor-info-table thead th {
+        background: rgba(78, 115, 223, 0.08);
+        color: #23407a;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
     }
 
     .move-modal-buffer {
@@ -25,73 +190,46 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        background: white;
-        padding: 30px;
-        border: 2px solid #007bff;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        padding: 24px;
+        border: 1px solid rgba(32, 52, 73, 0.12);
         z-index: 1000;
-        min-width: 400px;
-        font-family: inherit;
+        width: min(100%, 460px);
         font-size: 14px;
     }
 
-    .move-title-buffer {
-        margin-top: 0;
-        margin-bottom: 20px;
-        font-size: 18px;
-        font-weight: bold;
-        color: #007bff;
-        border-bottom: 2px solid #007bff;
-        padding-bottom: 10px;
-    }
-
     .move-modal-field {
-        margin-bottom: 15px;
+        margin-bottom: 16px;
     }
 
     .move-modal-field label {
         display: block;
         margin-bottom: 8px;
-        font-weight: 600;
-        color: #333;
+        font-weight: 700;
+        color: #334155;
     }
 
     .move-modal-field input {
         width: 100%;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 6px;
+        padding: 10px 12px;
+        border: 1px solid rgba(32, 52, 73, 0.15);
+        border-radius: 10px;
         font-size: 14px;
     }
 
-    .move-modal-field input:focus {
-        outline: none;
-        border-color: #007bff;
-        box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
-    }
-
     .quick-dates {
-        margin-bottom: 15px;
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
     }
 
     .quick-date-btn {
-        padding: 6px 12px;
-        border: 1px solid #ddd;
-        background: #f8f9fa;
-        border-radius: 4px;
+        padding: 7px 12px;
+        border: 1px solid rgba(32, 52, 73, 0.12);
+        background: #f8fafc;
+        border-radius: 10px;
         cursor: pointer;
         font-size: 12px;
-        transition: all 0.2s;
-    }
-
-    .quick-date-btn:hover {
-        background: #e9ecef;
-        border-color: #007bff;
-        color: #007bff;
+        font-weight: 700;
     }
 
     .move-modal-actions {
@@ -100,36 +238,26 @@
         justify-content: flex-end;
     }
 
-    .move-modal-actions button {
-        padding: 8px 16px;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-
-    .move-modal-actions button.btn-confirm {
-        background: #28a745;
-    }
-
-    .move-modal-actions button.btn-cancel {
-        background: #6c757d;
-    }
-
     .btn-move-order-action {
         opacity: 0.5;
     }
 
-    .btn-start-order-active {
-        opacity: 1;
-    }
-
+    .btn-start-order-active,
     .btn-create-zlecenie-active {
         opacity: 1;
     }
 
-    /* Responsive styles for button container */
-    @media (max-width: 1024px) {
+    @media (max-width: 1100px) {
+        .bufor-actions-right {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .bufor-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
         td:last-child {
             display: flex;
             flex-wrap: wrap;
@@ -147,25 +275,83 @@
         }
     }
 
+    @media (max-width: 768px) {
+        .bufor-actions-right,
+        .bufor-actions {
+            gap: 10px;
+        }
+
+        .bufor-jump-form {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr;
+            justify-items: stretch;
+        }
+
+        .bufor-jump-form .input-sm,
+        .bufor-actions .btn,
+        .bufor-actions .bufor-action-btn,
+        .bufor-actions-right .btn,
+        .bufor-actions-right .bufor-action-btn {
+            width: 100%;
+        }
+
+        .bufor-info-table {
+            font-size: 0.86rem;
+        }
+    }
+
     @media (max-width: 640px) {
+        .bufor-shell {
+            gap: 12px;
+        }
+
+        .bufor-page-header .dashboard-top-row {
+            gap: 12px;
+        }
+
+        .bufor-page-header .header-title-row,
+        .bufor-page-header .header-stats {
+            width: 100%;
+        }
+
+        .bufor-page-header .header-stats {
+            justify-content: flex-start;
+        }
+
+        .bufor-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            width: 100%;
+        }
+
+        .bufor-board {
+            border-radius: 16px;
+        }
+
         .table thead {
             display: none;
         }
 
         .table tbody tr {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            padding: 12px;
-            border-bottom: 2px solid #ddd;
-            margin-bottom: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 12px;
+            padding: 14px;
+            border: 1px solid rgba(32, 52, 73, 0.08);
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+            box-shadow: 0 8px 20px rgba(28, 44, 60, 0.05);
+            margin: 10px;
         }
 
         .table tbody td {
-            padding: 6px 0;
+            padding: 4px 0;
             display: flex;
             flex-direction: column;
             justify-content: center;
+            min-width: 0;
         }
 
         .table tbody td:before {
@@ -184,106 +370,156 @@
         }
 
         .table tbody td:nth-child(3):before {
-            content: "Produkt";
+            content: "Do spakowania";
         }
 
         .table tbody td:nth-child(4):before {
-            content: "Zasypane";
-        }
-
-        .table tbody td:nth-child(5):before {
             content: "Spakowane";
         }
 
-        .table tbody td:nth-child(6):before {
+        .table tbody td:nth-child(5):before {
             content: "Pozostało";
         }
 
-        .table tbody td:nth-child(7):before {
+        .table tbody td:nth-child(6):before {
             content: "Akcje";
         }
 
         td:last-child {
             grid-column: 1 / -1;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(32, 52, 73, 0.08);
         }
 
         td:last-child button {
-            flex: 1;
-            min-width: 60px;
-            padding: 6px 4px !important;
-            font-size: 0.7em !important;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            width: 100%;
+            min-width: 0;
+            padding: 9px 8px !important;
+            font-size: 0.74em !important;
+            min-height: 36px;
+            white-space: normal;
+            line-height: 1.2;
+            border-radius: 10px;
+        }
+
+        td:last-child button:only-child,
+        td:last-child button:nth-last-child(3):first-child,
+        td:last-child button:nth-last-child(5):first-child {
+            grid-column: 1 / -1;
+        }
+
+        .table tbody td strong {
+            line-height: 1.35;
+        }
+
+        .bufor-info-dialog,
+        .move-modal-buffer {
+            width: min(100%, 100%);
+            padding: 18px;
+        }
+    }
+
+    @media (max-width: 420px) {
+        .bufor-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .bufor-info-table thead {
+            display: none;
+        }
+
+        .bufor-info-table,
+        .bufor-info-table tbody,
+        .bufor-info-table tr,
+        .bufor-info-table td {
+            display: block;
+            width: 100%;
+        }
+
+        .bufor-info-table tr {
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(32, 52, 73, 0.08);
+        }
+
+        .bufor-info-table td {
+            border-bottom: none;
+            padding: 4px 0;
+        }
+
+        td:last-child {
+            grid-template-columns: 1fr;
         }
     }
 </style>
 
-<div class="section-header">
-    <div class="d-flex align-center gap-10">
-        <button onclick="changeDate(-1)" class="btn btn-sm" title="Poprzedni dzień">⬅️ Poprzedni</button>
-        <form action="/bufor" method="GET" class="d-flex align-center gap-10" style="margin: 0;">
-            <input type="date" id="bufor-date-input" name="data" value="{{ wybrana_data }}"
-                onchange="this.form.submit()" class="input-sm" aria-label="Wybierz datę">
-            <button type="submit" class="btn btn-primary btn-sm">🔄 Odśwież</button>
-        </form>
-        <button onclick="changeDate(1)" class="btn btn-sm" title="Następny dzień">Następny ➡️</button>
-        <a href="/planista?data={{ wybrana_data }}" class="btn">Powrót do Planisty</a>
-        <button onclick="document.getElementById('buforInfoModal').style.display='flex'"
-            style="background:#4e73df;color:white;border:none;border-radius:50%;width:28px;height:28px;font-weight:bold;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;"
-            title="Opis przycisków">i</button>
+<div class="bufor-shell">
+    <div class="section-header bufor-page-header">
+        <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-0">
+            <div class="header-title-row d-flex align-center gap-10">
+                <h2 class="header-title m-0"><strong>Bufor</strong></h2>
+                <div class="day-tile">
+                    <button type="button" class="day-nav left" onclick="changeDate(-1)" aria-label="Poprzedni dzień">◀</button>
+                    <div class="day-center">
+                        <div class="day-label">Widok dla</div>
+                        <div id="current-date-display" class="day-date">{{ wybrana_data }}</div>
+                    </div>
+                    <button type="button" class="day-nav right" onclick="changeDate(1)" aria-label="Następny dzień">▶</button>
+                    <input type="hidden" id="current-date-iso" value="{{ wybrana_data }}">
+                </div>
+            </div>
+            <div class="d-flex align-center gap-12 header-stats">
+                <div class="stat-inline stat-plan"><span class="label">Pozycje</span><strong class="value">{{ bufor_list|length }}</strong></div>
+                <div class="stat-inline stat-wykonanie"><span class="label">Spakowane</span><strong class="value text-success">{{ stats.total_spakowane|round(1) }} kg</strong></div>
+                <div class="stat-inline stat-realizacja"><span class="label">W buforze</span><strong class="value">{{ stats.total_w_buforze|round(1) }} kg</strong></div>
+            </div>
+        </div>
+        <div class="bufor-actions-right mt-10">
+            <form action="/bufor" method="GET" class="bufor-jump-form">
+                <label for="bufor-date-input">Skok do daty</label>
+                <input type="date" id="bufor-date-input" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm" aria-label="Wybierz datę">
+            </form>
+            <div class="bufor-actions">
+                <button type="button" class="btn btn-sm bufor-action-btn" onclick="openBuforInfoModal()">Opis akcji</button>
+            </div>
+        </div>
     </div>
-</div>
 
 
 <!-- Info Modal -->
-<div id="buforInfoModal"
-    style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;"
-    onclick="if(event.target===this)this.style.display='none'">
-    <div
-        style="background:white;border-radius:12px;padding:30px;max-width:560px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-            <h3 style="margin:0;color:#4e73df;">ℹ️ Opis przycisków – Bufor</h3>
-            <button onclick="document.getElementById('buforInfoModal').style.display='none'"
-                style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">✕</button>
+<div id="buforInfoModal" class="bufor-info-overlay" onclick="if(event.target===this)closeBuforInfoModal()">
+    <div class="bufor-info-dialog">
+        <div class="bufor-info-header">
+            <h3 class="bufor-info-title">Opis akcji w Buforze</h3>
+            <button type="button" class="bufor-info-close" onclick="closeBuforInfoModal()" aria-label="Zamknij">✕</button>
         </div>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <table class="bufor-info-table">
             <thead>
-                <tr style="background:#f0f4ff;">
-                    <th style="padding:10px;text-align:left;border-bottom:2px solid #4e73df;">Przycisk</th>
-                    <th style="padding:10px;text-align:left;border-bottom:2px solid #4e73df;">Działanie</th>
-                    <th style="padding:10px;text-align:left;border-bottom:2px solid #4e73df;">Kiedy aktywny</th>
+                <tr>
+                    <th>Przycisk</th>
+                    <th>Działanie</th>
+                    <th>Kiedy aktywny</th>
                 </tr>
             </thead>
             <tbody>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:10px;white-space:nowrap;">▶️ <strong>Startuj</strong></td>
-                    <td style="padding:10px;">Uruchamia zlecenie Workowanie z kolejki</td>
-                    <td style="padding:10px;color:#777;">Status: <code>w toku</code></td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;background:#fafafa;">
-                    <td style="padding:10px;white-space:nowrap;">➕ <strong>Utwórz</strong></td>
-                    <td style="padding:10px;">Tworzy nowe zlecenie Workowanie z towaru bufora</td>
-                    <td style="padding:10px;color:#777;">Status: <code>zakonczone</code></td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:10px;white-space:nowrap;">🚀 <strong>NA DZISIAJ</strong></td>
-                    <td style="padding:10px;">Tworzy zlecenie Workowanie na bieżący dzień (z towaru z innej daty)</td>
-                    <td style="padding:10px;color:#777;">Status: <code>zakonczone</code> + wpis z innego dnia</td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;background:#fafafa;">
-                    <td style="padding:10px;white-space:nowrap;">📦 <strong>Przenieś</strong></td>
-                    <td style="padding:10px;">Przenosi szarżę na wybraną datę (popup z kalendarzem)</td>
-                    <td style="padding:10px;color:#777;">Zawsze dostępny</td>
+                <tr>
+                    <td>➕ <strong>Utwórz</strong></td>
+                    <td>Tworzy nowe zlecenie Workowanie z towaru pozostałego w buforze.</td>
+                    <td>Status: <code>zakonczone</code></td>
                 </tr>
                 <tr>
-                    <td style="padding:10px;white-space:nowrap;">📁 <strong>Archiwizuj</strong></td>
-                    <td style="padding:10px;">Ukrywa zlecenie z widoku bufora</td>
-                    <td style="padding:10px;color:#777;">Zawsze dostępny</td>
+                    <td>🚀 <strong>Na dzisiaj</strong></td>
+                    <td>Tworzy zlecenie Workowanie na bieżący dzień z materiału z innej daty.</td>
+                    <td>Status: <code>zakonczone</code> i wpis z innego dnia</td>
                 </tr>
+                <tr>
+                    <td>📦 <strong>Przenieś</strong></td>
+                    <td>Przenosi szarżę na inną datę z użyciem kalendarza.</td>
+                    <td>Zawsze dostępny</td>
+                </tr>
+
             </tbody>
         </table>
     </div>
@@ -291,27 +527,46 @@
 
 
 <script>
-    function changeDate(days) {
-        const input = document.getElementById('bufor-date-input');
-        const currentDate = new Date(input.value);
-        currentDate.setDate(currentDate.getDate() + days);
-        const newDate = currentDate.toISOString().split('T')[0];
+    function formatDateDisplay(isoDate) {
+        const date = new Date(isoDate + 'T00:00:00');
+        return date.toLocaleDateString('pl-PL');
+    }
+
+    function openBuforInfoModal() {
+        const modal = document.getElementById('buforInfoModal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeBuforInfoModal() {
+        const modal = document.getElementById('buforInfoModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function navigateToDate(newDate) {
         window.location.href = '/bufor?data=' + newDate;
     }
+
+    function changeDate(days) {
+        const isoInput = document.getElementById('current-date-iso');
+        const currentDate = new Date((isoInput ? isoInput.value : document.getElementById('bufor-date-input').value) + 'T00:00:00');
+        currentDate.setDate(currentDate.getDate() + days);
+        const newDate = currentDate.toISOString().split('T')[0];
+        navigateToDate(newDate);
+    }
+
 </script>
 
-<div class="section-box">
-    <div class="card-body p-0">
+<div class="section-box bufor-board">
+    <div class="card-body p-0 bufor-table-wrap">
         {% if bufor_list and bufor_list|length > 0 %}
         <table class="table modern-table mb-0">
             <thead>
                 <tr>
                     <th class="th-kolejka">{{ _('kolejka') }}</th>
                     <th>{{ _('data_zasypu') }}</th>
-                    <th>{{ _('produkt') }}</th>
-                    <th>{{ _('zrobiono_zasypie') }}</th>
-                    <th>Spakowane palety</th>
-                    <th>{{ _('pozostalo_do_spakowania') }}</th>
+                    <th>Do spakowania</th>
+                    <th>Spakowane</th>
+                    <th>Pozostało</th>
                     <th>{{ _('akcja') }}</th>
                 </tr>
             </thead>
@@ -321,29 +576,20 @@
                     <td>
                         <span class="badge badge-primary bufor-kolejka-badge">{{ b.kolejka }}</span>
                     </td>
-                    <td>
+                    <td class="bufor-date-cell">
                         {{ b.data }}
-                        <br><small class="text-muted">{{ b.start_time }}</small>
+                        <small class="bufor-start-time">Start: {{ b.start_time }}</small>
                     </td>
-                    <td><strong>{{ b.produkt }}</strong> <small class="text-muted">{{ b.nazwa }}</small></td>
-                    <td>{{ b.zasyp_total }} kg</td>
-                    <td>{{ b.spakowano_total }} kg</td>
+                    <td>{{ '%.1f'|format(b.do_spakowania) }} kg</td>
+                    <td>{{ '%.1f'|format(b.spakowane) }} kg</td>
                     <td
-                        class="pozostalo-cell {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %}negative{% else %}positive{% endif %}">
-                        {% if b.raw_pozostalo is defined and b.raw_pozostalo < 0 %} <span
-                            title="{{ _('nadmiar_spakowany') }}">{{ b.raw_pozostalo }} kg</span>
-                            {% else %}
-                            {{ b.w_silosie }} kg
-                            {% endif %}
+                        class="pozostalo-cell {% if b.pozostalo_do_spakowania < 0 %}negative{% else %}positive{% endif %}">
+                        {{ '%.1f'|format(b.pozostalo_do_spakowania) }} kg
                             {% if b.needs_reconciliation %}
                             <small class="badge badge-warning badge-reconciliation">Do rozliczenia</small>
                             {% endif %}
                     </td>
                     <td>
-                        <button
-                            class="btn btn-success btn-sm js-start-order{% if b.status != 'w toku' %} btn-move-order-action{% else %} btn-start-order-active{% endif %}"
-                            data-kolejka="{{ b.kolejka }}" data-produkt="{{ b.produkt }}@"
-                            data-status="{{ b.status }}">▶️ Startuj</button>
                         <button
                             class="btn btn-info btn-sm js-create-zlecenie{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
                             data-zasyp-id="{{ b.id }}" data-produkt="{{ b.produkt }}" data-status="{{ b.status }}"
@@ -359,8 +605,7 @@
                         <button class="btn btn-sm js-move-order btn-move-order" data-plan-id="{{ b.id }}"
                             data-produkt="{{ b.produkt }}" title="{{ _('przenies_zlecenie') }}">📦 {{
                             _('przenies_zlecenie') }}</button>
-                        <button class="btn btn-outline-danger btn-sm js-archive-order" data-plan-id="{{ b.id }}">📁
-                            Archiwizuj</button>
+
                     </td>
                     </tr>
                     {% endfor %}
@@ -370,6 +615,7 @@
         <div class="p-15 text-muted">{{ _('brak_towaru_bufor') }}</div>
         {% endif %}
     </div>
+</div>
 </div>
 
 <script>
@@ -509,76 +755,16 @@
             });
     }
 
-    // Uruchom zlecenie na Workowaniu
-    function startujZlecenie(kolejka, produkt) {
-        if (!confirm(`Czy na pewno chcesz uruchomić zlecenie ${produkt.replace('@', '')} (kolejka ${kolejka})?`)) {
-            return;
-        }
-
-        fetch(`/api/start_from_queue/${kolejka}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        })
-            .then(r => r.json())
-            .then(j => {
-                if (j && j.success) {
-                    alert(`✅ ${j.message}`);
-                    location.reload();
-                } else {
-                    alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się uruchomić'));
-                }
-            })
-            .catch(e => {
-                alert('❌ Błąd sieci: ' + e.message);
-            });
-    }
-
     // Zarchiwizuj zlecenie
-    function archiwizujZlecenie(planId) {
-        if (!confirm('Czy na pewno chcesz zarchiwizować to zlecenie?')) {
-            return;
-        }
 
-        fetch('/bufor/archiwizuj', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan_id: planId })
-        })
-            .then(r => r.json())
-            .then(j => {
-                if (j && j.ok) {
-                    location.reload();
-                } else {
-                    alert('Błąd: ' + (j && j.message ? j.message : 'Nie udało się zarchiwizować'));
-                }
-            })
-            .catch(e => {
-                alert('Błąd sieci: ' + e.message);
-            });
-    }
 
     // Event listeners - załadowane gdy DOM jest gotowy
     document.addEventListener('DOMContentLoaded', () => {
-        // Przyciski Startuj (Workowanie)
-        document.querySelectorAll('.js-start-order').forEach((button) => {
-            button.addEventListener('click', () => {
-                const kolejka = button.dataset.kolejka;
-                const produkt = button.dataset.produkt || '';
-                const status = button.dataset.status || '';
-
-                if (!kolejka) {
-                    alert('❌ Brak numeru kolejki');
-                    return;
-                }
-
-                if (status && status !== 'w toku') {
-                    alert('⚠️ Zlecenie musi być w trakcie (status: w toku)\n\nAktualny status: ' + status);
-                    return;
-                }
-
-                startujZlecenie(kolejka, produkt);
-            });
-        });
+        const currentDateDisplay = document.getElementById('current-date-display');
+        const currentDateIso = document.getElementById('current-date-iso');
+        if (currentDateDisplay && currentDateIso) {
+            currentDateDisplay.textContent = formatDateDisplay(currentDateIso.value);
+        }
 
         // Przyciski Utwórz Workowanie (zwykły)
         document.querySelectorAll('.js-create-zlecenie').forEach((button) => {
@@ -626,15 +812,7 @@
             });
         });
 
-        // Przyciski Archiwizuj
-        document.querySelectorAll('.js-archive-order').forEach((button) => {
-            button.addEventListener('click', () => {
-                const planId = button.dataset.planId;
-                if (planId) {
-                    archiwizujZlecenie(planId);
-                }
-            });
-        });
+
 
         // Przyciski Przenieś (Modal)
         document.querySelectorAll('.js-move-order').forEach((button) => {

@@ -1,9 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, flash, current_app, session, jsonify
 from datetime import date
-from app.db import get_db_connection
+from app.db import get_db_connection, list_online_users
 from werkzeug.security import generate_password_hash
 # Importujemy dekorator
-from app.decorators import admin_required, login_required
+from app.decorators import admin_required, login_required, dynamic_role_required
 
 
 def _load_roles(cursor):
@@ -64,14 +64,44 @@ def admin_users():
 
 
 @admin_bp.route('/admin/ustawienia')
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_ustawienia():
     # Show selection tiles (Użytkownicy / Pracownicy)
     return render_template('ustawienia_index.html')
 
 
+@admin_bp.route('/admin/ustawienia/zalogowani')
+@dynamic_role_required('ustawienia')
+def admin_ustawienia_zalogowani():
+    online_users = list_online_users(active_within_minutes=30)
+    return render_template('ustawienia_zalogowani.html', online_users=online_users, active_window_minutes=30)
+
+
+@admin_bp.route('/admin/api/online-users')
+@dynamic_role_required('ustawienia')
+def admin_online_users_api():
+    online_users = list_online_users(active_within_minutes=30)
+    result = []
+    for row in online_users:
+        logged_in_at = row.get('logged_in_at')
+        last_seen = row.get('last_seen')
+        result.append({
+            'session_id': row.get('session_id'),
+            'user_id': row.get('user_id'),
+            'login': row.get('login'),
+            'rola': row.get('rola'),
+            'display_name': row.get('display_name') or row.get('login'),
+            'last_path': row.get('last_path') or '',
+            'logged_in_at': logged_in_at.strftime('%Y-%m-%d %H:%M:%S') if logged_in_at else '',
+            'last_seen': last_seen.strftime('%Y-%m-%d %H:%M:%S') if last_seen else '',
+            'idle_seconds': int(row.get('idle_seconds') or 0),
+            'is_active': bool(row.get('is_active')),
+        })
+    return jsonify({'success': True, 'online_users': result, 'active_window_minutes': 30})
+
+
 @admin_bp.route('/admin/ustawienia/uzytkownicy')
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_ustawienia_uzytkownicy():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -97,7 +127,7 @@ def admin_ustawienia_uzytkownicy():
 
 
 @admin_bp.route('/admin/ustawienia/pracownicy')
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_ustawienia_pracownicy():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -120,7 +150,7 @@ def admin_ustawienia_pracownicy():
 
 
 @admin_bp.route('/admin/ustawienia/roles')
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_ustawienia_roles():
     # pages and roles
     pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','bufor','moje_godziny','awarie','wyniki']
@@ -190,7 +220,7 @@ def admin_ustawienia_roles():
 
 
 @admin_bp.route('/admin/ustawienia/roles/users')
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_ustawienia_roles_users():
     """Show effective permissions per user (for admin verification)."""
     try:
@@ -369,7 +399,7 @@ def admin_ustawienia_roles_save():
         return (jsonify({'error': str(e)}), 500)
 
 @admin_bp.route('/admin/ustawienia/roles/add', methods=['POST'])
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_ustawienia_roles_add():
     """Dodaj nową rolę"""
     import os, json
@@ -447,7 +477,7 @@ def admin_ustawienia_roles_add():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @admin_bp.route('/admin/pracownik/dodaj', methods=['POST'])
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_dodaj_pracownika():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -528,7 +558,7 @@ def admin_dodaj_pracownika():
     return redirect('/admin')
 
 @admin_bp.route('/admin/pracownik/edytuj', methods=['POST'])
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_edytuj_pracownika():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -546,7 +576,7 @@ def admin_edytuj_pracownika():
     return redirect('/admin')
 
 @admin_bp.route('/admin/pracownik/usun/<int:id>', methods=['POST'])
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_usun_pracownika(id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -560,7 +590,7 @@ def admin_usun_pracownika(id):
     return redirect('/admin')
 
 @admin_bp.route('/admin/konto/dodaj', methods=['POST'])
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_dodaj_konto():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -679,7 +709,7 @@ def admin_dodaj_konto():
 
 
 @admin_bp.route('/admin/konto/edytuj', methods=['POST'])
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_edytuj_konto():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -702,7 +732,7 @@ def admin_edytuj_konto():
     return redirect('/admin?tab=users')
 
 @admin_bp.route('/admin/konto/usun/<int:id>', methods=['POST'])
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_usun_konto(id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -716,7 +746,7 @@ def admin_usun_konto(id):
 # ============= WORKOWANIE PROCESSING TIMES =============
 
 @admin_bp.route('/admin/ustawienia/workowanie_times', methods=['GET'])
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_workowanie_times():
     """Wyświetl ustawienia czasów przetwarzania dla Workowania"""
     import os, json
@@ -749,7 +779,7 @@ def admin_workowanie_times():
 
 
 @admin_bp.route('/admin/ustawienia/workowanie_times/update', methods=['POST'])
-@admin_required
+@dynamic_role_required('ustawienia')
 def admin_workowanie_times_update():
     """Zaktualizuj czasy przetwarzania dla Workowania"""
     import os, json, shutil, re

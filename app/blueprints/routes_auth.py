@@ -6,7 +6,7 @@ from werkzeug.security import check_password_hash
 import os
 
 from app.decorators import login_required
-from app.db import get_db_connection
+from app.db import get_db_connection, ensure_session_tracking_id, touch_active_session, deactivate_active_session
 from app.utils.validation import require_field
 
 auth_bp = Blueprint('auth', __name__)
@@ -43,6 +43,7 @@ def login():
                 # Zapisz login i powiązanie pracownika w sesji (może być None)
                 session['login'] = login_field
                 session['pracownik_id'] = int(pracownik_id) if pracownik_id is not None else None
+                session['session_tracking_id'] = ensure_session_tracking_id(session.get('session_tracking_id'))
                 
                 # Log login with current process PID
                 from flask import current_app
@@ -63,6 +64,15 @@ def login():
                     except Exception:
                         pass
                 session['imie_nazwisko'] = imie_nazwisko or login_field
+                touch_active_session(
+                    session_id=session.get('session_tracking_id'),
+                    user_id=session.get('user_id'),
+                    login=login_field,
+                    role=session.get('rola'),
+                    pracownik_id=session.get('pracownik_id'),
+                    display_name=session.get('imie_nazwisko'),
+                    last_path=request.path,
+                )
                 
                 # Use location.replace on client to avoid keeping login page in history
                 target = '/planista' if rola == 'planista' else '/'
@@ -94,6 +104,7 @@ def login():
 @auth_bp.route('/logout')
 def logout():
     """Clear session and redirect to login."""
+    deactivate_active_session(session.get('session_tracking_id'))
     session.clear()
     return redirect('/login')
 

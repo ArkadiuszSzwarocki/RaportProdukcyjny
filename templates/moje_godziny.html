@@ -133,6 +133,144 @@
     color: #007bff;
   }
 
+  .requests-calendar-layout {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr);
+    gap: 28px;
+    align-items: start;
+    margin-bottom: 32px;
+  }
+
+  .request-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: sticky;
+    top: 92px;
+  }
+
+  .request-card {
+    margin-bottom: 0;
+  }
+
+  .request-card .content-card-header {
+    margin-bottom: 18px;
+    font-size: 1.2rem;
+  }
+
+  .request-lead {
+    margin: 0 0 18px;
+    color: #5c6773;
+    font-size: 0.96rem;
+    line-height: 1.5;
+  }
+
+  .request-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 16px;
+  }
+
+  .request-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: #eef5ff;
+    color: #24599d;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  .request-note {
+    background: linear-gradient(135deg, #fffdf5 0%, #fff8dc 100%);
+    border: 1px solid #f5e4a8;
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: #735c12;
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+
+  .request-time-field {
+    display: none;
+  }
+
+  .request-time-field.is-visible {
+    display: block;
+  }
+
+  .calendar-card {
+    margin-bottom: 0;
+  }
+
+  .calendar-shell {
+    background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+    border: 1px solid #edf2f7;
+    border-radius: 14px;
+    padding: 18px;
+  }
+
+  .calendar-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+
+  .calendar-meta-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #344054;
+  }
+
+  .calendar-meta-caption {
+    color: #667085;
+    font-size: 0.9rem;
+  }
+
+  .calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .calendar-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #52606d;
+    font-size: 0.83rem;
+    font-weight: 600;
+  }
+
+  .calendar-legend-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .calendar-legend-dot.pending {
+    background: #ffe8a1;
+  }
+
+  .calendar-legend-dot.approved {
+    background: #bbf7d0;
+  }
+
+  .calendar-legend-dot.assigned {
+    background: #cce5ff;
+  }
+
+  .calendar-legend-dot.overtime {
+    background: #ffc9c9;
+  }
+
   /* Form and Select styling */
   .modern-form-row {
     display: flex;
@@ -223,6 +361,404 @@
     color: #856404;
   }
 
+  @media (max-width: 1200px) {
+    .requests-calendar-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .request-sidebar {
+      position: static;
+    }
+  }
+
+  @media (max-width: 768px) {
+    html,
+    body {
+      overflow-x: hidden;
+    }
+
+    .dashboard-title {
+      font-size: 1.45rem;
+    }
+
+    .dashboard-header {
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      gap: 10px;
+    }
+
+    .dashboard-period {
+      width: 100%;
+      justify-content: center;
+      font-size: 0.88rem;
+      padding: 8px 12px;
+    }
+
+    .summary-cards-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat-card {
+      padding: 14px;
+      min-width: 0;
+    }
+
+    .stat-icon {
+      font-size: 2rem;
+      margin-right: 14px;
+    }
+
+    .stat-title {
+      font-size: 0.72rem;
+    }
+
+    .stat-value {
+      font-size: 1.45rem;
+    }
+
+    .content-card {
+      padding: 14px;
+      margin-bottom: 18px;
+      min-width: 0;
+    }
+
+    .calendar-shell {
+      padding: 8px;
+    }
+
+    .content-card-header {
+      font-size: 1.05rem;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+    }
+
+    .request-chip {
+      font-size: 0.74rem;
+      padding: 6px 10px;
+    }
+
+    .request-note,
+    .request-lead,
+    .calendar-meta-caption {
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+
+    .modern-form-row {
+      gap: 10px;
+    }
+
+    .modern-form-row > div {
+      min-width: 0;
+      width: 100%;
+      flex-basis: 100%;
+    }
+
+    .modern-form-control,
+    .btn-modern {
+      font-size: 0.92rem;
+    }
+
+    .calendar-meta {
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .calendar-meta-title {
+      font-size: 0.92rem;
+    }
+
+    .calendar-legend {
+      gap: 6px;
+    }
+
+    .calendar-legend-item {
+      gap: 6px;
+      font-size: 0.68rem;
+    }
+
+    .calendar-legend-dot {
+      width: 9px;
+      height: 9px;
+    }
+
+    .mp-cal-row,
+    .mp-cal-col-main {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .mp-cal-col-main {
+      overflow-x: visible !important;
+      padding-bottom: 0 !important;
+    }
+
+    .cal-grid {
+      width: 100%;
+      max-width: 100%;
+      table-layout: fixed;
+      border-spacing: 2px;
+      margin-top: 6px;
+    }
+
+    .cal-grid th {
+      padding: 5px 2px;
+      font-size: 0.56rem;
+      letter-spacing: 0;
+      border-radius: 6px;
+    }
+
+    .cal-grid td {
+      width: auto;
+      height: 74px;
+      padding: 4px 3px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .cal-day {
+      margin-bottom: 4px;
+      font-size: 0.82rem;
+      line-height: 1;
+    }
+
+    .cal-hours {
+      font-size: 0.58rem;
+      line-height: 1.15;
+      margin-bottom: 4px;
+    }
+
+    .cal-type,
+    .badge-cal {
+      max-width: 100%;
+      font-size: 0.5rem;
+      line-height: 1.1;
+      padding: 2px 4px;
+      gap: 3px;
+      margin-top: 3px;
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .cal-day .fa-mug-hot,
+    .cal-type .fas,
+    .badge-cal .fas,
+    .cal-hours .fas,
+    .cal-hours .far {
+      font-size: 0.52rem !important;
+    }
+
+    .mobile-day-sheet-btn {
+      white-space: normal;
+      line-height: 1.15;
+    }
+
+    .quick-popup {
+      top: 1vh;
+      width: calc(100% - 10px);
+      max-width: calc(100% - 10px);
+      max-height: 98vh;
+    }
+
+    .quick-popup .dashboard-period {
+      width: 100%;
+      justify-content: center;
+      padding: 8px 10px;
+      font-size: 0.86rem;
+    }
+
+    .quick-popup .summary-cards-grid,
+    .quick-popup .requests-calendar-layout {
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .quick-popup .stat-card,
+    .quick-popup .content-card {
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+    }
+
+    .quick-popup .content-card-header {
+      font-size: 1rem;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+    }
+
+    .quick-popup .request-lead,
+    .quick-popup .request-note,
+    .quick-popup .calendar-meta-caption {
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+
+    .quick-popup .request-chip-row,
+    .quick-popup .calendar-legend {
+      gap: 6px;
+    }
+
+    .quick-popup .request-chip,
+    .quick-popup .calendar-legend-item {
+      font-size: 0.72rem;
+    }
+
+    .quick-popup .modern-form-row {
+      gap: 10px;
+    }
+
+    .quick-popup .modern-form-row > div {
+      min-width: 100%;
+    }
+
+    .quick-popup .modern-form-control,
+    .quick-popup .btn-modern,
+    .quick-popup .btn-primary-modern,
+    .quick-popup .btn-secondary-modern,
+    .quick-popup .btn,
+    .quick-popup button,
+    .quick-popup select,
+    .quick-popup input,
+    .quick-popup textarea {
+      font-size: 0.92rem;
+    }
+
+    .quick-popup .calendar-shell {
+      padding: 8px;
+    }
+
+    .quick-popup .calendar-meta {
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .quick-popup .mp-cal-col-main {
+      overflow-x: auto;
+      padding-bottom: 6px !important;
+    }
+
+    .quick-popup .cal-grid {
+      min-width: 560px;
+    }
+
+    .quick-popup .cal-grid th {
+      font-size: 0.7rem;
+      padding: 6px 4px;
+    }
+
+    .quick-popup .cal-grid td {
+      height: 88px;
+      min-width: 72px;
+      padding: 5px 4px;
+    }
+
+    .quick-popup .cal-day {
+      font-size: 0.88rem;
+    }
+
+    .quick-popup .cal-hours {
+      font-size: 0.72rem;
+      line-height: 1.2;
+    }
+
+    .quick-popup .cal-type,
+    .quick-popup .badge-cal {
+      font-size: 0.62rem;
+      padding: 2px 5px;
+      gap: 4px;
+    }
+
+    .quick-popup .panel--wnioski {
+      font-size: 0.9rem;
+    }
+
+    .quick-popup .wniosek-item {
+      display: grid;
+      gap: 10px;
+    }
+
+    .quick-popup .wniosek-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .quick-popup .wniosek-actions .btn {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .dashboard-title {
+      font-size: 1.28rem;
+    }
+
+    .content-card {
+      padding: 12px;
+    }
+
+    .stat-card {
+      padding: 12px;
+    }
+
+    .stat-icon {
+      font-size: 1.75rem;
+      margin-right: 12px;
+    }
+
+    .stat-value {
+      font-size: 1.28rem;
+    }
+
+    .quick-popup .qp-body {
+      padding: 7px;
+    }
+
+    .calendar-shell {
+      padding: 6px;
+    }
+
+    .cal-grid {
+      border-spacing: 1px;
+    }
+
+    .cal-grid th {
+      padding: 4px 1px;
+      font-size: 0.5rem;
+    }
+
+    .cal-grid td {
+      height: 68px;
+      padding: 3px 2px;
+    }
+
+    .cal-day {
+      font-size: 0.74rem;
+    }
+
+    .cal-hours {
+      font-size: 0.52rem;
+    }
+
+    .quick-popup .request-chip,
+    .quick-popup .calendar-legend-item,
+    .quick-popup .badge-cal,
+    .quick-popup .cal-type {
+      font-size: 0.58rem;
+    }
+
+    .cal-type,
+    .badge-cal,
+    .calendar-legend-item,
+    .request-chip {
+      font-size: 0.46rem;
+    }
+  }
+
   /* Utilities */
   .mb-4 {
     margin-bottom: 24px;
@@ -239,6 +775,144 @@
 
   .d-none {
     display: none !important;
+  }
+
+  .mobile-day-sheet {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    .mobile-day-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 21000;
+      background: rgba(15, 23, 42, 0.48);
+      align-items: flex-end;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .mobile-day-sheet.is-open {
+      display: flex;
+    }
+
+    .mobile-day-sheet-card {
+      width: 100%;
+      max-height: 84vh;
+      overflow: auto;
+      background: #fff;
+      border-radius: 18px 18px 0 0;
+      padding: 14px 14px 18px;
+      box-shadow: 0 -14px 34px rgba(15, 23, 42, 0.24);
+    }
+
+    .mobile-day-sheet-handle {
+      width: 44px;
+      height: 5px;
+      border-radius: 999px;
+      background: #d5dbe3;
+      margin: 0 auto 12px;
+    }
+
+    .mobile-day-sheet-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .mobile-day-sheet-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #1f2937;
+    }
+
+    .mobile-day-sheet-date {
+      margin-top: 4px;
+      font-size: 0.82rem;
+      color: #667085;
+    }
+
+    .mobile-day-sheet-close {
+      border: none;
+      background: #f3f4f6;
+      color: #374151;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      font-size: 1rem;
+      flex: 0 0 auto;
+    }
+
+    .mobile-day-sheet-section {
+      border: 1px solid #e8edf3;
+      background: #fbfcfe;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .mobile-day-sheet-label {
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #667085;
+      margin-bottom: 6px;
+    }
+
+    .mobile-day-sheet-value {
+      font-size: 0.92rem;
+      color: #1f2937;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .mobile-day-sheet-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .mobile-day-sheet-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #eef5ff;
+      color: #24599d;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .mobile-day-sheet-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .mobile-day-sheet-btn {
+      min-height: 42px;
+      border-radius: 12px;
+      border: none;
+      font-weight: 700;
+      font-size: 0.92rem;
+      padding: 10px 12px;
+    }
+
+    .mobile-day-sheet-btn.primary {
+      background: #0d6efd;
+      color: #fff;
+    }
+
+    .mobile-day-sheet-btn.secondary {
+      background: #eef2f7;
+      color: #344054;
+    }
   }
 </style>
 
@@ -366,47 +1040,359 @@
   </div>
 </div>
 {% endif %}
-<div class="content-card">
-  <h3 class="content-card-header"><i class="fas fa-file-signature"></i> {{ _('zloz_wniosek_o_wolne') }}</h3>
-  <form action="{{ url_for('leaves.submit_wniosek') }}" method="post" class="mb-0">
-    <div class="modern-form-row">
-      <div>
-        <label for="typ_select">{{ _('typ') }}</label>
-        <select id="typ_select" name="typ" class="modern-form-control" title="{{ _('wybierz_typ_wniosku') }}">
-          <option>{{ _('urlop') }}</option>
-          <option>{{ _('nieobecnosc') }}</option>
-          <option>{{ _('wyjscie_prywatne') }}</option>
-        </select>
+
+<div class="requests-calendar-layout">
+  <div class="request-sidebar">
+    <div class="content-card request-card" id="request-center-card">
+      <h3 class="content-card-header"><i class="fas fa-paper-plane"></i> Centrum zgłoszeń</h3>
+      <p class="request-lead">Z tego panelu zgłosisz urlop, dzień wolny, wyjście prywatne albo nadgodziny. Kalendarz obok pokazuje od razu, jak wnioski wpływają na miesiąc.</p>
+      <div class="request-chip-row">
+        <span class="request-chip"><i class="fas fa-umbrella-beach"></i> Urlop</span>
+        <span class="request-chip"><i class="fas fa-calendar-day"></i> Dzień wolny</span>
+        <span class="request-chip"><i class="fas fa-person-walking-arrow-right"></i> Wyjście prywatne</span>
+        <span class="request-chip"><i class="fas fa-business-time"></i> Nadgodziny</span>
       </div>
-      <div>
-        <label>{{ _('od') }}</label>
-        <input id="data_od" type="date" name="data_od" class="modern-form-control" required title="{{ _('data_od') }}"
-          placeholder="RRRR-MM-DD">
-      </div>
-      <div>
-        <label>{{ _('do') }}</label>
-        <input id="data_do" type="date" name="data_do" class="modern-form-control" title="{{ _('data_do') }}"
-          placeholder="RRRR-MM-DD">
+      <div class="request-note">
+        <i class="fas fa-circle-info"></i>
+        Wyjście prywatne pokaże pola godzin. Dla urlopu, dnia wolnego i nieobecności możesz wskazać zakres dat oraz krótki powód.
       </div>
     </div>
 
-    <div class="modern-form-row mt-4">
-      <div id="timeColOd" class="d-none">
-        <label for="czas_od">{{ _('czas_od') }}</label>
-        <input id="czas_od" type="time" name="czas_od" title="{{ _('czas_od') }}" placeholder="{{ _('hh_mm') }}"
-          class="modern-form-control">
+    <div class="content-card request-card" id="leave-request-card">
+      <h3 class="content-card-header"><i class="fas fa-file-signature"></i> {{ _('zloz_wniosek_o_wolne') }}</h3>
+      <form action="{{ url_for('leaves.submit_wniosek') }}" method="post" class="mb-0">
+        <div class="modern-form-row">
+          <div>
+            <label for="typ_select">{{ _('typ') }}</label>
+            <select id="typ_select" name="typ" class="modern-form-control" title="{{ _('wybierz_typ_wniosku') }}">
+              <option>{{ _('urlop') }}</option>
+              <option>Dzień wolny</option>
+              <option>{{ _('nieobecnosc') }}</option>
+              <option>{{ _('wyjscie_prywatne') }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modern-form-row mt-3">
+          <div>
+            <label for="data_od">{{ _('od') }}</label>
+            <input id="data_od" type="date" name="data_od" class="modern-form-control" required title="{{ _('data_od') }}"
+              placeholder="RRRR-MM-DD">
+          </div>
+          <div>
+            <label for="data_do">{{ _('do') }}</label>
+            <input id="data_do" type="date" name="data_do" class="modern-form-control" title="{{ _('data_do') }}"
+              placeholder="RRRR-MM-DD">
+          </div>
+        </div>
+
+        <div class="modern-form-row mt-3">
+          <div id="timeColOd" class="request-time-field">
+            <label for="czas_od">{{ _('czas_od') }}</label>
+            <input id="czas_od" type="time" name="czas_od" title="{{ _('czas_od') }}" placeholder="{{ _('hh_mm') }}"
+              class="modern-form-control">
+          </div>
+          <div id="timeColDo" class="request-time-field">
+            <label for="czas_do">{{ _('czas_do') }}</label>
+            <input id="czas_do" type="time" name="czas_do" title="{{ _('czas_do') }}" placeholder="{{ _('hh_mm') }}"
+              class="modern-form-control">
+          </div>
+        </div>
+
+        <div class="modern-form-row mt-3">
+          <div>
+            <label for="powod">Powód</label>
+            <input id="powod" type="text" name="powod" class="modern-form-control"
+              placeholder="Opcjonalnie: np. urząd, lekarz, sprawy prywatne">
+          </div>
+        </div>
+
+        <div class="modern-form-row action-row">
+          <button type="submit" class="btn-modern btn-primary-modern"><i class="fas fa-paper-plane"></i> {{ _('zloz_wniosek') }}</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="content-card request-card">
+      <h3 class="content-card-header"><i class="fas fa-business-time"></i> Zgłoś nadgodziny</h3>
+      <form method="POST" action="{{ url_for('overtime.submit_nadgodziny') }}" class="mb-0">
+        <div class="modern-form-row">
+          <div>
+            <label for="ng-data">Data</label>
+            <input type="date" id="ng-data" name="data" class="modern-form-control" required>
+          </div>
+        </div>
+        <div class="modern-form-row mt-3">
+          <div>
+            <label for="ng-ilosc">Liczba godzin</label>
+            <input type="number" id="ng-ilosc" name="ilosc_nadgodzin" min="0.25" step="0.25" class="modern-form-control"
+              required>
+          </div>
+        </div>
+        <div class="modern-form-row mt-3">
+          <div>
+            <label for="ng-powod">Powód</label>
+            <input type="text" id="ng-powod" name="powod" class="modern-form-control"
+              placeholder="np. dokończenie produkcji, awaria, pilny załadunek">
+          </div>
+        </div>
+        <div class="modern-form-row action-row">
+          <button type="submit" class="btn-modern btn-primary-modern"><i class="fas fa-paper-plane"></i> Zgłoś nadgodziny</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="content-card calendar-card">
+    <h3 class="content-card-header"><i class="far fa-calendar-alt"></i> {{ _('kalendarz_godzin') }}</h3>
+    <style>
+      .cal-grid {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 6px;
+        margin-top: 10px;
+      }
+
+      .cal-grid th {
+        text-align: center;
+        padding: 12px 8px;
+        background: #f8f9fa;
+        font-weight: 700;
+        color: #495057;
+        border-radius: 8px;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+      }
+
+      .cal-grid td {
+        width: 14.28%;
+        vertical-align: top;
+        padding: 12px;
+        height: 130px;
+        background-color: #ffffff;
+        border: 1px solid #e9ecef;
+        border-radius: 10px;
+        position: relative;
+        transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+      }
+
+      .cal-grid td.day-cell:hover {
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06);
+        border-color: #007bff;
+        transform: translateY(-2px);
+        z-index: 2;
+      }
+
+      .cal-day {
+        font-weight: 800;
+        margin-bottom: 8px;
+        font-size: 1.25rem;
+        color: #2b2b2b;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+
+      .cal-hours {
+        font-size: 0.95rem;
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .cal-type {
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-top: 4px;
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: #f1f3f5;
+        color: #495057;
+      }
+
+      .cal-hr {
+        background: #fff5f5 !important;
+        border-color: #ffc9c9 !important;
+      }
+
+      .cal-approved {
+        box-shadow: inset 0 0 0 3px #28a745;
+      }
+
+      .cal-leave-pending {
+        background-color: #fff8e6 !important;
+        border-color: #ffe8a1 !important;
+      }
+
+      .cal-leave-approved {
+        background-color: #f0fdf4 !important;
+        border-color: #bbf7d0 !important;
+      }
+
+      .cal-assigned {
+        background-color: #f0f7ff !important;
+        border-color: #cce5ff !important;
+      }
+
+      .badge-cal {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        margin-top: 6px;
+        font-weight: 600;
+        gap: 6px;
+        width: fit-content;
+      }
+
+      .badge-cal.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .badge-cal.danger {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      @media (max-width: 768px) {
+        .cal-grid td {
+          height: 110px;
+          padding: 8px 6px;
+        }
+
+        .cal-day {
+          font-size: 1rem;
+        }
+
+        .cal-hours {
+          font-size: 0.85rem;
+        }
+
+        .cal-type,
+        .badge-cal {
+          font-size: 0.7rem;
+          padding: 3px 6px;
+        }
+      }
+    </style>
+
+    <div class="calendar-shell">
+      <div class="calendar-meta">
+        <div>
+          <div class="calendar-meta-title">Widok miesiąca i statusów</div>
+          <div class="calendar-meta-caption">Kliknij dzień, aby podejrzeć wnioski i wpisy przypisane do tej daty.</div>
+        </div>
+        <div class="calendar-legend">
+          <span class="calendar-legend-item"><span class="calendar-legend-dot pending"></span> Oczekuje</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot approved"></span> Zatwierdzone wolne</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot assigned"></span> Zaplanowana praca</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot overtime"></span> HR</span>
+        </div>
       </div>
-      <div id="timeColDo" class="d-none">
-        <label for="czas_do">{{ _('czas_do') }}</label>
-        <input id="czas_do" type="time" name="czas_do" title="{{ _('czas_do') }}" placeholder="{{ _('hh_mm') }}"
-          class="modern-form-control">
-      </div>
-      <div class="action-row">
-        <button type="submit" class="btn-modern btn-primary-modern"><i class="fas fa-paper-plane"></i> {{
-          _('zloz_wniosek') }}</button>
+
+      <div class="mp-cal-row">
+        {% set show_viewed = (calendar_days_viewed is defined and calendar_days_viewed) or (selected_pid) %}
+        {% if show_viewed %}
+        {% set display_days = calendar_days_viewed if (calendar_days_viewed is defined and calendar_days_viewed) else calendar_days_owner %}
+        {% set display_pid = viewed_pid or selected_pid or owner_pid %}
+        {% else %}
+        {% set display_days = calendar_days_owner %}
+        {% set display_pid = owner_pid %}
+        {% endif %}
+
+        <div class="mp-cal-col-main" style="overflow-x: auto; padding-bottom: 10px;">
+          <table class="cal-grid">
+            <tr>
+              <th>{{ _('pon') }}</th>
+              <th>{{ _('wt') }}</th>
+              <th>{{ _('sr') }}</th>
+              <th>{{ _('czw') }}</th>
+              <th>{{ _('pt') }}</th>
+              <th>{{ _('sob') }}</th>
+              <th>{{ _('nd') }}</th>
+            </tr>
+            <tr>
+              {% for d in display_days %}
+              {% set wd = d.date.weekday() %}
+              {% if loop.first and wd > 0 %}
+              {% for i in range(wd) %}
+              <td style="background: transparent; border: none; box-shadow: none;"></td>
+              {% endfor %}
+              {% endif %}
+
+              {% set classes = ['day-cell'] %}
+              {% if d.hr %}{% do classes.append('cal-hr') %}{% endif %}
+              {% if d.approved %}{% do classes.append('cal-approved') %}{% endif %}
+              {% if d.leave_status == 'pending' %}{% do classes.append('cal-leave-pending') %}{% endif %}
+              {% if d.leave_status == 'approved' %}{% do classes.append('cal-leave-approved') %}{% endif %}
+              {% if d.assigned %}{% do classes.append('cal-assigned') %}{% endif %}
+
+              <td data-date="{{ d.date }}" data-pid="{{ display_pid }}" class="{{ ' '.join(classes) }}" style="cursor: pointer;">
+                <div class="cal-day">
+                  <span>{{ d.date.day }}</span>
+                  {% if wd == 5 or wd == 6 %}<i class="fas fa-mug-hot" style="font-size: 0.8rem; color:#adb5bd;"></i>{% endif %}
+                </div>
+                <div class="cal-hours">
+                  {% if d.nadgodziny > 0 %}
+                  {{ '%.2f'|format(d.hours) }}h <br><span class="text-success"><i class="fas fa-plus-circle"></i> {{ '%.2f'|format(d.nadgodziny) }}h OT</span>
+                  {% else %}
+                  <i class="far fa-clock"></i> {{ '%.2f'|format(d.hours) }} h
+                  {% endif %}
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 4px; margin-top: auto;">
+                  {% if d.typ_label %}<div class="cal-type"><i class="fas fa-tag text-primary"></i> {{ d.typ_label }}</div>{% endif %}
+                  {% if d.approved %}<div class="badge-cal success"><i class="fas fa-check-circle"></i> Zatwierdzony</div>{% endif %}
+                  {% if d.hr %}<div class="badge-cal danger"><i class="fas fa-exclamation-triangle"></i> {{ _('hr') }}</div>{% endif %}
+                </div>
+              </td>
+
+              {% if wd == 6 and not loop.last %}
+            </tr>
+            <tr>
+              {% endif %}
+              {% endfor %}
+            </tr>
+          </table>
+        </div>
       </div>
     </div>
-  </form>
+  </div>
+</div>
+
+<div id="mobileDaySheet" class="mobile-day-sheet" onclick="if(event.target===this)closeMobileDaySheet()">
+  <div class="mobile-day-sheet-card">
+    <div class="mobile-day-sheet-handle"></div>
+    <div class="mobile-day-sheet-header">
+      <div>
+        <h4 class="mobile-day-sheet-title">Szczegóły dnia</h4>
+        <div id="mobileDaySheetDate" class="mobile-day-sheet-date"></div>
+      </div>
+      <button type="button" class="mobile-day-sheet-close" onclick="closeMobileDaySheet()" aria-label="Zamknij">✕</button>
+    </div>
+    <div class="mobile-day-sheet-section">
+      <div class="mobile-day-sheet-label">Godziny</div>
+      <div id="mobileDaySheetHours" class="mobile-day-sheet-value">Brak danych</div>
+    </div>
+    <div class="mobile-day-sheet-section">
+      <div class="mobile-day-sheet-label">Typ / status</div>
+      <div id="mobileDaySheetBadges" class="mobile-day-sheet-badges"></div>
+    </div>
+    <div class="mobile-day-sheet-section">
+      <div class="mobile-day-sheet-label">Szybka akcja</div>
+      <div class="mobile-day-sheet-value">Ustaw ten dzień w formularzu i przejdź od razu do zgłoszenia wolnego lub wyjścia prywatnego.</div>
+      <div class="mobile-day-sheet-actions">
+        <button type="button" class="mobile-day-sheet-btn primary" onclick="applyMobileDayToForm()">Ustaw tę datę w formularzu</button>
+        <button type="button" class="mobile-day-sheet-btn secondary" onclick="closeMobileDaySheet()">Zamknij</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="content-card">
@@ -532,219 +1518,6 @@
   </div>
 </div>
 
-<div class="content-card">
-  <h3 class="content-card-header"><i class="far fa-calendar-alt"></i> {{ _('kalendarz_godzin') }}</h3>
-  <style>
-    .cal-grid {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 6px;
-      margin-top: 10px;
-    }
-
-    .cal-grid th {
-      text-align: center;
-      padding: 12px 8px;
-      background: #f8f9fa;
-      font-weight: 700;
-      color: #495057;
-      border-radius: 8px;
-      text-transform: uppercase;
-      font-size: 0.85rem;
-      letter-spacing: 0.5px;
-    }
-
-    .cal-grid td {
-      width: 14.28%;
-      vertical-align: top;
-      padding: 12px;
-      height: 130px;
-      background-color: #ffffff;
-      border: 1px solid #e9ecef;
-      border-radius: 10px;
-      position: relative;
-      transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
-    }
-
-    .cal-grid td.day-cell:hover {
-      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06);
-      border-color: #007bff;
-      transform: translateY(-2px);
-      z-index: 2;
-    }
-
-    .cal-day {
-      font-weight: 800;
-      margin-bottom: 8px;
-      font-size: 1.25rem;
-      color: #2b2b2b;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-    }
-
-    .cal-hours {
-      font-size: 0.95rem;
-      color: #495057;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-
-    .cal-type {
-      font-size: 0.75rem;
-      font-weight: 700;
-      margin-top: 4px;
-      display: inline-block;
-      padding: 4px 8px;
-      border-radius: 6px;
-      background: #f1f3f5;
-      color: #495057;
-    }
-
-    .cal-hr {
-      background: #fff5f5 !important;
-      border-color: #ffc9c9 !important;
-    }
-
-    .cal-approved {
-      box-shadow: inset 0 0 0 3px #28a745;
-    }
-
-    .cal-leave-pending {
-      background-color: #fff8e6 !important;
-      border-color: #ffe8a1 !important;
-    }
-
-    .cal-leave-approved {
-      background-color: #f0fdf4 !important;
-      border-color: #bbf7d0 !important;
-    }
-
-    .cal-assigned {
-      background-color: #f0f7ff !important;
-      border-color: #cce5ff !important;
-    }
-
-    .badge-cal {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      margin-top: 6px;
-      font-weight: 600;
-      gap: 6px;
-      width: fit-content;
-    }
-
-    .badge-cal.success {
-      background: #d4edda;
-      color: #155724;
-      border: 1px solid #c3e6cb;
-    }
-
-    .badge-cal.danger {
-      background: #f8d7da;
-      color: #721c24;
-      border: 1px solid #f5c6cb;
-    }
-
-    @media (max-width: 768px) {
-      .cal-grid td {
-        height: 110px;
-        padding: 8px 6px;
-      }
-
-      .cal-day {
-        font-size: 1rem;
-      }
-
-      .cal-hours {
-        font-size: 0.85rem;
-      }
-
-      .cal-type,
-      .badge-cal {
-        font-size: 0.7rem;
-        padding: 3px 6px;
-      }
-    }
-  </style>
-
-  <div class="mp-cal-row">
-    {% set show_viewed = (calendar_days_viewed is defined and calendar_days_viewed) or (selected_pid) %}
-    {% if show_viewed %}
-    {% set display_days = calendar_days_viewed if (calendar_days_viewed is defined and calendar_days_viewed) else
-    calendar_days_owner %}
-    {% set display_pid = viewed_pid or selected_pid or owner_pid %}
-    {% else %}
-    {% set display_days = calendar_days_owner %}
-    {% set display_pid = owner_pid %}
-    {% endif %}
-
-    <div class="mp-cal-col-main" style="overflow-x: auto; padding-bottom: 10px;">
-      <table class="cal-grid">
-        <tr>
-          <th>{{ _('pon') }}</th>
-          <th>{{ _('wt') }}</th>
-          <th>{{ _('sr') }}</th>
-          <th>{{ _('czw') }}</th>
-          <th>{{ _('pt') }}</th>
-          <th>{{ _('sob') }}</th>
-          <th>{{ _('nd') }}</th>
-        </tr>
-        <tr>
-          {% for d in display_days %}
-          {% set wd = d.date.weekday() %}
-          {% if loop.first and wd > 0 %}
-          {% for i in range(wd) %}
-          <td style="background: transparent; border: none; box-shadow: none;"></td>
-          {% endfor %}
-          {% endif %}
-
-          {% set classes = ['day-cell'] %}
-          {% if d.hr %}{% do classes.append('cal-hr') %}{% endif %}
-          {% if d.approved %}{% do classes.append('cal-approved') %}{% endif %}
-          {% if d.leave_status == 'pending' %}{% do classes.append('cal-leave-pending') %}{% endif %}
-          {% if d.leave_status == 'approved' %}{% do classes.append('cal-leave-approved') %}{% endif %}
-          {% if d.assigned %}{% do classes.append('cal-assigned') %}{% endif %}
-
-          <td data-date="{{ d.date }}" data-pid="{{ display_pid }}" class="{{ ' '.join(classes) }}"
-            style="cursor: pointer;">
-            <div class="cal-day">
-              <span>{{ d.date.day }}</span>
-              {% if wd == 5 or wd == 6 %}<i class="fas fa-mug-hot" style="font-size: 0.8rem; color:#adb5bd;"></i>{%
-              endif %}
-            </div>
-            <div class="cal-hours">
-              {% if d.nadgodziny > 0 %}
-              {{ '%.2f'|format(d.hours) }}h <br><span class="text-success"><i class="fas fa-plus-circle"></i> {{
-                '%.2f'|format(d.nadgodziny) }}h OT</span>
-              {% else %}
-              <i class="far fa-clock"></i> {{ '%.2f'|format(d.hours) }} h
-              {% endif %}
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: auto;">
-              {% if d.typ_label %}<div class="cal-type"><i class="fas fa-tag text-primary"></i> {{ d.typ_label }}</div>
-              {% endif %}
-              {% if d.approved %}<div class="badge-cal success"><i class="fas fa-check-circle"></i> Zatwierdzony</div>{%
-              endif %}
-              {% if d.hr %}<div class="badge-cal danger"><i class="fas fa-exclamation-triangle"></i> {{ _('hr') }}</div>
-              {% endif %}
-            </div>
-          </td>
-
-          {% if wd == 6 and not loop.last %}
-        </tr>
-        <tr>
-          {% endif %}
-          {% endfor %}
-        </tr>
-      </table>
-    </div>
-  </div>
-</div>
 
 <!-- DO ZATWIERDZENIA SECTION -->
 {% if (session.get('rola') or '')|lower in ['lider', 'admin'] %}
@@ -829,34 +1602,9 @@
 {% endif %}
 
 <div class="content-card">
-  <h3 class="content-card-header"><i class="fas fa-business-time"></i> Zgłoś nadgodziny</h3>
+  <h3 class="content-card-header"><i class="fas fa-business-time"></i> Moje wnioski o nadgodziny</h3>
   <div class="panel panel--moje-nadgodziny">
-    <form method="POST" action="{{ url_for('overtime.submit_nadgodziny') }}" class="mb-4">
-      <div class="modern-form-row">
-        <div>
-          <label for="ng-data">Data:</label>
-          <input type="date" id="ng-data" name="data" class="modern-form-control" required>
-        </div>
-        <div>
-          <label for="ng-ilosc">Liczba godzin:</label>
-          <input type="number" id="ng-ilosc" name="ilosc_nadgodzin" min="0.25" step="0.25" class="modern-form-control"
-            required>
-        </div>
-        <div style="flex: 2;">
-          <label for="ng-powod">Powód (opcjonalnie):</label>
-          <input type="text" id="ng-powod" name="powod" class="modern-form-control"
-            placeholder="np. Dokończenie produkcji, naprawa maszyny...">
-        </div>
-      </div>
-      <div class="modern-form-row action-row">
-        <button type="submit" class="btn-modern btn-primary-modern"><i class="fas fa-paper-plane"></i> Zgłoś
-          nadgodziny</button>
-      </div>
-    </form>
-
     {% if user_nadgodziny %}
-    <h4 style="margin-top:24px; font-size:1.1rem; color:#495057; border-bottom:1px solid #eee; padding-bottom:8px;"><i
-        class="fas fa-history"></i> Moje wnioski o nadgodziny</h4>
     <div style="overflow-x: auto;">
       <table class="modern-table" style="width: 100%;">
         <thead>
@@ -875,8 +1623,7 @@
             <td>{{ ng['powód'] or '<span class="text-muted">-</span>'|safe }}</td>
             <td class="text-center">
               {% if ng['status'] == 'pending' %}
-              <span class="badge" style="background:#ffc107; color:#212529;"><i class="fas fa-hourglass-half"></i>
-                Oczekuje</span>
+              <span class="badge" style="background:#ffc107; color:#212529;"><i class="fas fa-hourglass-half"></i> Oczekuje</span>
               {% elif ng['status'] == 'approved' %}
               <span class="badge badge-success"><i class="fas fa-check"></i> Zatwierdzone</span>
               {% elif ng['status'] == 'rejected' %}
@@ -902,6 +1649,79 @@
   // showToast() provided by static/js/toasts.js
 
   /* Modal UI removed — podgląd wniosków przeniesiony lub wyłączony. */
+
+  function isMobileDaySheetMode() {
+    return window.innerWidth <= 768;
+  }
+
+  function formatDaySheetDate(dateStr) {
+    try {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('pl-PL', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  function closeMobileDaySheet() {
+    const sheet = document.getElementById('mobileDaySheet');
+    if (!sheet) return;
+    sheet.classList.remove('is-open');
+    document.body.classList.remove('slide-over-open');
+  }
+
+  function openMobileDaySheet(cell) {
+    const sheet = document.getElementById('mobileDaySheet');
+    if (!sheet || !cell) return;
+
+    const dateStr = cell.getAttribute('data-date') || '';
+    const hoursText = (cell.querySelector('.cal-hours')?.innerText || '').trim() || 'Brak danych dla tego dnia';
+    const typeText = (cell.querySelector('.cal-type')?.innerText || '').trim();
+    const badgeTexts = Array.from(cell.querySelectorAll('.badge-cal')).map((el) => (el.innerText || '').trim()).filter(Boolean);
+
+    const dateEl = document.getElementById('mobileDaySheetDate');
+    const hoursEl = document.getElementById('mobileDaySheetHours');
+    const badgesEl = document.getElementById('mobileDaySheetBadges');
+
+    if (dateEl) dateEl.textContent = formatDaySheetDate(dateStr);
+    if (hoursEl) hoursEl.textContent = hoursText.replace(/\s+/g, ' ').trim();
+    if (badgesEl) {
+      const allBadges = [];
+      if (typeText) allBadges.push(typeText);
+      badgeTexts.forEach((text) => allBadges.push(text));
+      if (!allBadges.length) allBadges.push('Brak dodatkowych oznaczeń');
+      badgesEl.innerHTML = allBadges.map((text) => '<span class="mobile-day-sheet-badge">' + text + '</span>').join('');
+    }
+
+    sheet.dataset.date = dateStr;
+    sheet.classList.add('is-open');
+    document.body.classList.add('slide-over-open');
+  }
+
+  function applyMobileDayToForm() {
+    const sheet = document.getElementById('mobileDaySheet');
+    const dateStr = sheet ? sheet.dataset.date : '';
+    const dataOd = document.getElementById('data_od');
+    const dataDo = document.getElementById('data_do');
+    const typSelect = document.getElementById('typ_select');
+    const formCard = document.getElementById('leave-request-card') || document.getElementById('request-center-card');
+
+    if (dateStr && dataOd) dataOd.value = dateStr;
+    if (dateStr && dataDo && typSelect && typSelect.value !== 'Wyjście prywatne') dataDo.value = dateStr;
+    if (dateStr && dataDo && typSelect && typSelect.value === 'Wyjście prywatne') dataDo.value = dateStr;
+
+    closeMobileDaySheet();
+
+    if (typeof updateWniosekFields === 'function') updateWniosekFields();
+    if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => {
+      if (dataOd) dataOd.focus();
+    }, 250);
+  }
 
   // Edit hours helpers
   function submitEditHours() {
@@ -942,16 +1762,14 @@
       if (!timeColOd || !timeColDo || !dataOd) return;
       if (typ === 'Wyjście prywatne') {
         // Wyjście prywatne — jedno wyjście w danym dniu. Pokaż pola czasowe, ukryj pole data_do (ale zostaw w formularzu).
-        timeColOd.style.display = '';
-        timeColDo.style.display = '';
+        timeColOd.classList.add('is-visible');
+        timeColDo.classList.add('is-visible');
         if (czasOd) czasOd.required = true;
         if (czasDo) czasDo.required = true;
         if (dataDoWrapper) { dataDoWrapper.style.display = 'none'; dataDoWrapper.value = dataOd.value || ''; }
-        // sync values
-        if (dataOd) { dataOd.addEventListener('change', function () { if (document.getElementById('typ_select').value === 'Wyjście prywatne') { if (dataDoWrapper) dataDoWrapper.value = dataOd.value; } }); }
       } else {
-        timeColOd.style.display = 'none';
-        timeColDo.style.display = 'none';
+        timeColOd.classList.remove('is-visible');
+        timeColDo.classList.remove('is-visible');
         if (czasOd) { czasOd.required = false; czasOd.value = ''; }
         if (czasDo) { czasDo.required = false; czasDo.value = ''; }
         if (dataDoWrapper) { dataDoWrapper.style.display = ''; }
@@ -967,6 +1785,10 @@
         // Open panel with leave requests for the selected date
         const dateStr = c.getAttribute('data-date');
         if (dateStr) {
+          if (isMobileDaySheetMode()) {
+            openMobileDaySheet(c);
+            return;
+          }
           fetch('{{ url_for("panels.panel_wnioski_page", fragment="true") }}', {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
           })
@@ -984,6 +1806,15 @@
     // wire up type selector to toggle fields
     const typSel = document.getElementById('typ_select');
     if (typSel) { typSel.addEventListener('change', updateWniosekFields); updateWniosekFields(); }
+    const dataOdInput = document.getElementById('data_od');
+    const dataDoInput = document.getElementById('data_do');
+    if (dataOdInput && dataDoInput) {
+      dataOdInput.addEventListener('change', function () {
+        if ((document.getElementById('typ_select') || {}).value === 'Wyjście prywatne') {
+          dataDoInput.value = dataOdInput.value;
+        }
+      });
+    }
     // initial refresh of summaries
     try { refreshSummary('{{ owner_pid }}', 'owner'); } catch (e) { }
     /*{% if viewed_summary %}*/
