@@ -1,0 +1,696 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .struct-page {
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 24px 12px 56px;
+    }
+
+    .struct-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 28px;
+        flex-wrap: wrap;
+    }
+
+    .struct-header h2 {
+        margin: 0 0 6px;
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .struct-header p {
+        margin: 0;
+        color: #64748b;
+    }
+
+    .struct-header-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .struct-link-btn,
+    .struct-btn,
+    .struct-btn-secondary,
+    .struct-btn-danger {
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+    }
+
+    .struct-link-btn,
+    .struct-btn-secondary {
+        background: #f1f5f9 !important;
+        color: #475569 !important;
+        border: 1px solid #cbd5e1 !important;
+    }
+
+    .struct-btn {
+        background: #334155 !important;
+        color: #f8fafc !important;
+    }
+
+    .struct-btn-danger {
+        background: #f8fafc !important;
+        color: #64748b !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+
+    .struct-btn-danger:hover {
+        background: #fee2e2 !important;
+        color: #b91c1c !important;
+        border-color: #fca5a5 !important;
+    }
+
+    .struct-link-btn:hover,
+    .struct-btn:hover,
+    .struct-btn-secondary:hover,
+    .struct-btn-danger:hover {
+        opacity: 0.92;
+        transform: translateY(-1px);
+    }
+
+    .org-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        margin-top: 14px;
+        background: #fff;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(15, 23, 42, 0.05);
+        overflow-x: auto;
+        /* Zapewnia suwak tylko tam gdzie to ogromne horyzontalnie */
+    }
+
+    /* Główny kontener drzewa, aby umożliwić horyzontalne rozwijanie */
+    .tree-root {
+        display: flex;
+        flex-direction: row;
+        /* Główny kierunek drzewa jest poziomy */
+        align-items: flex-start;
+        gap: 20px;
+        /* Odstęp między węzłami na tym samym poziomie */
+    }
+
+    /* Wyświetlanie akordeonu od lewej do prawej poziomo */
+    details {
+        display: flex;
+        flex-direction: row;
+        /* Domyślnie details jest blokiem, zmieniamy na flex row */
+        align-items: flex-start;
+        position: relative;
+        /* Dla pozycjonowania linii */
+    }
+
+    /* Usuwanie domyślnego trójkąta z details */
+    details>summary {
+        list-style: none;
+        flex-shrink: 0;
+        margin-right: 16px;
+        /* Odstęp od gałęzi rozwijanych */
+        display: flex;
+        /* Aby summary mogło zawierać ikonę i węzeł */
+        align-items: center;
+        gap: 8px;
+        position: relative;
+        /* Dla linii łączących */
+    }
+
+    details>summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .tree-node {
+        display: flex;
+        flex-direction: column;
+        /* Zawartość kafelka summary pod sobą jesli chcemy */
+        justify-content: center;
+        padding: 12px 16px;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        transition: background 0.15s, border-color 0.15s;
+        position: relative;
+        cursor: pointer;
+        min-width: 240px;
+        background: #fff;
+    }
+
+    .tree-node:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+    }
+
+    .tree-node-content {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+    }
+
+    /* Główny kontener dzieci po prawej stronie */
+    .tree-children {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        position: relative;
+    }
+
+    /* Wizualna linia łączenia - pozioma kreska doczepiona do the tree-node z lewej */
+    .tree-children::before {
+        content: "";
+        position: absolute;
+        top: 24px;
+        bottom: 24px;
+        left: -16px;
+        width: 2px;
+        background: #cbd5e1;
+    }
+
+    /* Podłączenia do każdego elementu dziecka z linii głównej */
+    .tree-children>details::before,
+    .tree-children>.tree-node::before,
+    .tree-children>div::before {
+        content: "";
+        position: absolute;
+        left: -16px;
+        top: 24px;
+        width: 16px;
+        height: 2px;
+        background: #cbd5e1;
+    }
+
+    /* Ikony rozwijanego akordeonu */
+    .expand-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        background: #f1f5f9;
+        border-radius: 6px;
+        color: #64748b;
+        font-size: 0.8rem;
+        transition: transform 0.2s ease, background 0.2s;
+    }
+
+    /* Strzałka wskazuje domyślnie 'prawo', po rozwinięciu może zmienić kolor albo obracać w górę lub tracić kolor */
+    details[open]>summary .expand-icon {
+        transform: rotate(180deg);
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    /* Mała strzałeczka statyczna dla samego bycia węzłem */
+    .bullet-icon {
+        display: inline-flex;
+        color: #94a3b8;
+        font-size: 0.7rem;
+        margin-right: 4px;
+    }
+
+    /* Elementy w wizytówce */
+    .person-name {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #1e293b;
+    }
+
+    .person-meta {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-left: auto;
+        /* Spychanie do prawej */
+        margin-right: 12px;
+    }
+
+    .role-badge {
+        display: inline-flex;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.65rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        color: #fff;
+        background: #64748b;
+        min-width: 60px;
+        justify-content: center;
+    }
+
+    .role-badge-department {
+        background: #3b82f6;
+    }
+
+    .role-badge-board {
+        background: #334155;
+    }
+
+    .role-badge-leader {
+        background: #475569;
+    }
+
+    .role-badge-member {
+        background: #94a3b8;
+    }
+
+    .role-badge-free {
+        background: #cbd5e1;
+        color: #475569;
+    }
+
+    /* Ukryte menu hamburgerowe */
+    .person-menu-btn {
+        background: none;
+        border: none;
+        color: #94a3b8;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: background 0.2s, color 0.2s;
+    }
+
+    .person-menu-btn:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .person-card-actions {
+        display: none;
+        position: absolute;
+        top: 36px;
+        right: 8px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.1);
+        border-radius: 8px;
+        padding: 6px;
+        z-index: 10;
+        min-width: 140px;
+    }
+
+    .tree-node:hover .person-card-actions,
+    .person-card-actions:hover {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .person-card-actions form {
+        margin: 0;
+        width: 100%;
+    }
+
+    .person-card-actions button {
+        width: 100%;
+        text-align: left;
+        background: none !important;
+        border: none !important;
+        padding: 8px 10px !important;
+        font-size: 0.85rem !important;
+        border-radius: 6px !important;
+        color: #64748b !important;
+        font-weight: 500 !important;
+    }
+
+    .person-card-actions button:hover {
+        background: #fee2e2 !important;
+        color: #ef4444 !important;
+    }
+
+    /* Pusty guzik inline służący dodawaniu */
+    .inline-add-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #64748b;
+        font-size: 0.85rem;
+        background: none;
+        border: 1px dashed #cbd5e1;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        width: fit-content;
+        transition: color 0.2s, background 0.2s;
+        margin-top: 4px;
+        margin-bottom: 4px;
+    }
+
+    .inline-add-btn:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+        border-color: #94a3b8;
+    }
+
+    /* Ukryty po załadowaniu formularz inline */
+    .inline-form {
+        display: none;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        background: #f8fafc;
+        padding: 6px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        margin-top: 4px;
+        width: fit-content;
+    }
+
+    .inline-form.active {
+        display: flex;
+    }
+
+    .inline-form select {
+        padding: 6px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        outline: none;
+    }
+</style>
+
+<div class="struct-page">
+    <div class="struct-header">
+        <div>
+            <h2>Struktura organizacyjna</h2>
+            <p>Zarząd jest nadrzędny, a niżej znajdują się piony: Handel, Laboratorium, Produkcja i Transport.</p>
+        </div>
+        <div class="struct-header-actions" style="align-items: center;">
+            <div class="zoom-controls"
+                style="display: flex; gap: 4px; align-items: center; background: #f1f5f9; padding: 4px; border-radius: 8px;">
+                <button type="button" onclick="zoomOrg(-0.1)" class="struct-btn-secondary"
+                    style="padding: 4px 10px; font-size: 1.1rem; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
+                    title="Pomniejsz">➖</button>
+                <span id="zoom-level"
+                    style="font-weight: bold; font-size: 0.9rem; min-width: 48px; text-align: center; color: #475569;">100%</span>
+                <button type="button" onclick="zoomOrg(0.1)" class="struct-btn-secondary"
+                    style="padding: 4px 10px; font-size: 1.1rem; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
+                    title="Powiększ">➕</button>
+            </div>
+            {% if can_manage %}
+            <a href="/admin/ustawienia/pracownicy" class="struct-link-btn">Zarządzaj pracownikami</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if can_manage %}
+    <div
+        style="background: #fff; padding: 14px 18px; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 6px rgba(15, 23, 42, 0.05);">
+        <form action="/struktura/dzialy/dodaj" method="POST"
+            style="margin: 0; display: flex; align-items: center; gap: 10px; width: 100%;">
+            <strong style="color: #0f172a; font-size: 0.95rem;">Własny nowy pion:</strong>
+            <input type="text" name="nazwa" placeholder="Np. Utrzymanie Ruchu" required
+                style="flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline:none;">
+            <button type="submit" class="struct-btn">➕ Dodaj dział</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="org-container">
+
+        <!-- ZARZĄD -->
+        <details open>
+            <summary class="tree-node">
+                <div class="tree-node-content">
+                    <span class="expand-icon">▶</span>
+                    <span class="role-badge role-badge-board">ZARZĄD</span>
+                    <span class="person-name">Dyrektorzy Pionu</span>
+                </div>
+            </summary>
+            <div class="tree-children">
+                {% for osoba in zarzad %}
+                <div class="tree-node">
+                    <div class="tree-node-content">
+                        <span class="bullet-icon">●</span>
+                        <span class="person-name">{{ osoba.imie_nazwisko }}</span>
+                        <span class="person-meta">Zarząd</span>
+                    </div>
+                    {% if can_manage %}
+                    <button class="person-menu-btn" title="Opcje zarządzania">⋮</button>
+                    <div class="person-card-actions">
+                        <form action="/struktura/pracownik/{{ osoba.id }}/odlacz" method="POST">
+                            <button type="submit">Usuń z zarządu</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </details>
+
+        <!-- DZIAŁY -->
+        {% for department in departments %}
+        <details>
+            <summary class="tree-node">
+                <div class="tree-node-content">
+                    <span class="expand-icon">▶</span>
+                    <span class="role-badge role-badge-department">DZIAŁ</span>
+                    <span class="person-name">{{ department.nazwa }}</span>
+                </div>
+                {% if can_manage %}
+                <button class="person-menu-btn details-prevent" title="Opcje zarządzania">⋮</button>
+                <div class="person-card-actions details-prevent">
+                    <button type="button" class="details-prevent"
+                        onclick='edytujDzial({{ department.id }}, {{ department.nazwa|tojson|safe }})'>Edytuj
+                        nazwę pionu</button>
+                    <form action="/struktura/dzialy/usun/{{ department.id }}" method="POST"
+                        onsubmit="return confirm('Pewny?');">
+                        <button type="submit">Usuń cały dział</button>
+                    </form>
+                </div>
+                {% endif %}
+            </summary>
+
+            <div class="tree-children">
+
+                <!-- Zespoły (Liderzy w dziale) -->
+                {% for zespol in department.zespoly %}
+                <details>
+                    <summary class="tree-node">
+                        <div class="tree-node-content">
+                            <span class="expand-icon">▶</span>
+                            <span class="role-badge role-badge-leader">ZESPÓŁ</span>
+                            <span class="person-name">
+                                {% for l in zespol.liderzy %}{{ l.imie_nazwisko }}{% if not loop.last %} & {% endif %}{%
+                                endfor %}
+                            </span>
+                            <span class="person-meta">{{ zespol.members|length }} podwładnych</span>
+                        </div>
+                        <!-- Akcje liderów -->
+                        {% if can_manage %}
+                        <button class="person-menu-btn details-prevent" title="Opcje lidera">⋮</button>
+                        <div class="person-card-actions details-prevent">
+                            {% for l in zespol.liderzy %}
+                            <form action="/struktura/lider/{{ l.id }}/odlacz" method="POST">
+                                <button type="submit">Usuń {{ l.imie_nazwisko }} z liderów</button>
+                            </form>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </summary>
+
+                    <div class="tree-children">
+                        <!-- Pracownicy Zespołu -->
+                        {% for member in zespol.members %}
+                        <div class="tree-node">
+                            <div class="tree-node-content">
+                                <span class="bullet-icon">●</span>
+                                <span class="person-name">{{ member.imie_nazwisko }}</span>
+                                <span class="person-meta">{{ member.rola }}</span>
+                            </div>
+                            {% if can_manage %}
+                            <button class="person-menu-btn" title="Opcje pracownika">⋮</button>
+                            <div class="person-card-actions">
+                                <form action="/struktura/pracownik/{{ member.id }}/odlacz" method="POST">
+                                    <button type="submit">Odepnij z zespołu</button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        <!-- Formularz dodawania pracownika do lidera -->
+                        {% if can_manage %}
+                        <div>
+                            <button class="inline-add-btn" onclick="toggleForm(this)">
+                                ➕ Przydziel pracownika
+                            </button>
+                            <form class="inline-form"
+                                action="/struktura/lider/{{ zespol.glowny_lider_id }}/pracownicy/dodaj" method="POST">
+                                <select name="pracownik_id" required>
+                                    <option value="">-- wybierz pracownika bloku --</option>
+                                    {% for option in zespol.member_options %}
+                                    <option value="{{ option.id }}">{{ option.imie_nazwisko }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="struct-btn-secondary">Zapisz</button>
+                                <button type="button" class="struct-btn-danger" style="padding: 4px 8px;"
+                                    onclick="toggleForm(this, true)">❌</button>
+                            </form>
+                        </div>
+                        {% endif %}
+                        <!-- Formularz dodawania współlidera -->
+                        {% if can_manage %}
+                        <div>
+                            <button class="inline-add-btn" onclick="toggleForm(this)">
+                                ➕ Przydziel współlidera
+                            </button>
+                            <form class="inline-form"
+                                action="/struktura/lider/{{ zespol.glowny_lider_id }}/wspollider/dodaj" method="POST">
+                                <select name="wspollider_id" required>
+                                    <option value="">-- wybierz współpracownika --</option>
+                                    {% for option in department.leader_options %}
+                                    <option value="{{ option.id }}">{{ option.imie_nazwisko }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="struct-btn-secondary">Zapisz wsparcie</button>
+                                <button type="button" class="struct-btn-danger" style="padding: 4px 8px;"
+                                    onclick="toggleForm(this, true)">❌</button>
+                            </form>
+                        </div>
+                        {% endif %}
+
+                    </div>
+                </details>
+                {% endfor %}
+
+                <!-- Dodaj Nowy Zespół (Lidera do działu) -->
+                {% if can_manage %}
+                <div>
+                    <button class="inline-add-btn" onclick="toggleForm(this)">
+                        ➕ Ustanów nowego Lidera
+                    </button>
+                    <form class="inline-form" action="/struktura/dzial/{{ department.id }}/lider/dodaj" method="POST">
+                        <select name="lider_id" required>
+                            <option value="">-- z osób wolnych lub przypisanych --</option>
+                            {% for option in department.leader_options %}
+                            <option value="{{ option.id }}">{{ option.imie_nazwisko }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="struct-btn-secondary">Dodaj nowy pion</button>
+                        <button type="button" class="struct-btn-danger" style="padding: 4px 8px;"
+                            onclick="toggleForm(this, true)">❌</button>
+                    </form>
+                </div>
+                {% endif %}
+
+                <!-- Pracownicy wolni w dziale (bez zespołu) -->
+                {% if department.nieprzypisani|length > 0 %}
+                <details>
+                    <summary class="tree-node" style="color: #64748b;">
+                        <div class="tree-node-content">
+                            <span class="expand-icon">▶</span>
+                            <span class="role-badge role-badge-free">LUZEM W DZIALE</span>
+                            <span class="person-name">Bez przydziału do kierownictwa</span>
+                            <span class="person-meta">{{ department.nieprzypisani|length }} osób</span>
+                        </div>
+                    </summary>
+                    <div class="tree-children">
+                        {% for p in department.nieprzypisani %}
+                        <div class="tree-node">
+                            <div class="tree-node-content">
+                                <span class="bullet-icon">●</span>
+                                <span class="person-name" style="color: #64748b;">{{ p.imie_nazwisko }}</span>
+                                <span class="person-meta">{{ p.rola }}</span>
+                            </div>
+                            {% if can_manage %}
+                            <button class="person-menu-btn" title="Opcje pracownika">⋮</button>
+                            <div class="person-card-actions">
+                                <form action="/struktura/pracownik/{{ p.id }}/odlacz" method="POST">
+                                    <input type="hidden" name="calkowite_usuniecie" value="1">
+                                    <button type="submit">Wyrzuć całkiem na stół (Brak przypisania do
+                                        struktury)</button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </details>
+                {% endif %}
+
+            </div>
+        </details>
+        {% endfor %}
+
+    </div>
+</div>
+
+<script>
+    let currentZoom = 1.0;
+    function zoomOrg(step) {
+        const tree = document.querySelector('.org-container');
+        const zoomLabel = document.getElementById('zoom-level');
+        currentZoom += step;
+
+        if (currentZoom < 0.3) currentZoom = 0.3;
+        if (currentZoom > 2.0) currentZoom = 2.0;
+
+        zoomLabel.textContent = Math.round(currentZoom * 100) + '%';
+        tree.style.zoom = currentZoom;
+        tree.style.MozTransform = `scale(${currentZoom})`;
+        tree.style.MozTransformOrigin = 'top center';
+    }
+
+    // Obsługa włączania i wyłączania formularzy na listach dodających osobę
+    function toggleForm(btn, close = false) {
+        // Zatrzymujemy bąbelkowanie kliknięcia, by nie zwinąć Accordiona (tag details)
+        event.stopPropagation();
+        event.preventDefault();
+
+        let container = btn.parentElement;
+        let form = container.querySelector('.inline-form');
+        let addBtn = container.querySelector('.inline-add-btn');
+
+        if (close) {
+            form.classList.remove('active');
+            addBtn.style.display = 'inline-flex';
+        } else {
+            form.classList.add('active');
+            addBtn.style.display = 'none';
+        }
+    }
+
+    // Rozwiązanie zablokowania zwijania Accordionu z wewnątrz formularza / przycisku
+    document.addEventListener("DOMContentLoaded", function () {
+        const preventElements = document.querySelectorAll('.details-prevent');
+        preventElements.forEach(el => {
+            el.addEventListener('click', function (event) {
+                event.stopPropagation();
+                // Omijanie wstrzymania dla przycisków typu Edycja które de-facto potrzebują defaultowych działań czasem
+                if (el.tagName !== 'BUTTON') {
+                    event.preventDefault();
+                }
+            });
+        });
+    });
+
+    function edytujDzial(id, staraNazwa) {
+        var nowa = prompt("Podaj nową nazwę działu:", staraNazwa);
+        if (nowa !== null && nowa.trim() !== "" && nowa !== staraNazwa) {
+            var form = document.createElement("form");
+            form.method = "POST";
+            form.action = "/struktura/dzialy/edytuj/" + id;
+            var inp = document.createElement("input");
+            inp.type = "hidden";
+            inp.name = "nazwa";
+            inp.value = nowa;
+            form.appendChild(inp);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+</script>
+{% endblock %}
