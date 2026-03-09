@@ -1,5 +1,5 @@
 # routes_zarzad.py
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, jsonify
 from datetime import datetime, date, timedelta
 from app.decorators import zarzad_required, dynamic_role_required
 from app.services.stats_service import get_date_range, get_kpi_data, get_chart_data, get_worker_stats
@@ -63,6 +63,54 @@ def zarzad_panel():
         pracownicy_stats=pracownicy_stats,
         next_date=next_date
     )
+
+@zarzad_bp.route('/zarzad/dzien_szczegoly')
+@dynamic_role_required('wyniki')
+def dzien_szczegoly():
+    """Zwraca JSON ze zleceniami produkcyjnymi dla podanej daty i sekcji."""
+    data_str = request.args.get('data', str(date.today()))
+    sekcja = request.args.get('sekcja', 'Zasyp')
+    try:
+        data_obj = date.fromisoformat(data_str)
+    except ValueError:
+        return jsonify({'error': 'Nieprawidłowy format daty'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """SELECT id, produkt, tonaz, tonaz_rzeczywisty, status,
+                      real_start, real_stop, typ_zlecenia
+               FROM plan_produkcji
+               WHERE data_planu = %s AND sekcja = %s
+               ORDER BY real_start, id""",
+            (data_obj, sekcja)
+        )
+        rows = cursor.fetchall()
+        zlecenia = []
+        for r in rows:
+            plan_id, produkt, tonaz, tonaz_rz, status, real_start, real_stop, typ_zl = r
+            cursor.execute(
+                "SELECT COUNT(1), COALESCE(SUM(waga),0) FROM palety_workowanie WHERE plan_id=%s",
+                (plan_id,)
+            )
+            pal = cursor.fetchone()
+            zlecenia.append({
+                'id': plan_id,
+                'produkt': produkt or '',
+                'tonaz_plan': float(tonaz or 0),
+                'tonaz_rz': float(tonaz_rz or 0),
+                'status': status or '',
+                'start': real_start.strftime('%H:%M') if real_start else None,
+                'stop': real_stop.strftime('%H:%M') if real_stop else None,
+                'typ': typ_zl or '',
+                'palety_ilosc': int(pal[0] or 0),
+                'palety_waga': float(pal[1] or 0),
+            })
+        return jsonify({'data': data_str, 'sekcja': sekcja, 'zlecenia': zlecenia})
+    finally:
+        conn.close()
+
 
 @zarzad_bp.route('/raporty_okresowe')
 @dynamic_role_required('wyniki')

@@ -295,6 +295,54 @@ class LeaveRequestService:
     # Private helper methods
 
     @staticmethod
+    def revoke_leave_request(request_id: int) -> tuple:
+        """
+        Revoke an already-approved leave request.
+        Sets status to 'revoked', removes auto-created absence records,
+        and decrements the leave counter.
+
+        Returns:
+            (success: bool, message: str)
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "SELECT pracownik_id, data_od, data_do, typ, status FROM wnioski_wolne WHERE id=%s",
+                    (request_id,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return False, "Wniosek nie istnieje."
+                pracownik_id, data_od, data_do, typ, status = row
+                if status != 'approved':
+                    return False, f"Można anulować tylko zatwierdzone wnioski (aktualny status: {status})."
+
+                # Change status
+                cursor.execute(
+                    "UPDATE wnioski_wolne SET status='revoked', decyzja_dnia=NOW() WHERE id=%s",
+                    (request_id,)
+                )
+                # Remove auto-created absence records
+                cursor.execute(
+                    "DELETE FROM obecnosc WHERE pracownik_id=%s AND komentarz=%s",
+                    (pracownik_id, f'Auto z wniosku #{request_id}')
+                )
+                conn.commit()
+
+                # Decrement leave counter
+                LeaveRequestService._decrement_leave_counters(
+                    cursor, conn, pracownik_id, data_od, data_do, typ
+                )
+                return True, "Wniosek anulowany."
+            finally:
+                conn.close()
+        except Exception as e:
+            current_app.logger.exception("Error revoking leave request: %s", str(e))
+            return False, "Błąd przy anulowaniu wniosku."
+
+    @staticmethod
     def _update_leave_counters(cursor, conn, pracownik_id: int, data_od: date, 
                                data_do: date, typ: str):
         """
@@ -404,6 +452,39 @@ class LeaveRequestService:
 
         except Exception as e:
             current_app.logger.exception("Error creating absence records: %s", str(e))
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _decrement_leave_counters(cursor, conn, pracownik_id: int, data_od: date,
+                                   data_do: date, typ: str):
+        """Reverse of _update_leave_counters — subtract days used by a revoked request."""
+        try:
+            try:
+                days = (data_do - data_od).days + 1 if (data_od and data_do) else 0
+            except (TypeError, AttributeError):
+                days = 0
+            if days <= 0:
+                return
+            if typ and 'zaleg' in typ.lower():
+                cursor.execute(
+                    """UPDATE pracownicy
+                       SET urlop_zalegly = GREATEST(0, COALESCE(urlop_zalegly,0) - %s)
+                       WHERE id=%s""",
+                    (days, pracownik_id)
+                )
+            else:
+                cursor.execute(
+                    """UPDATE pracownicy
+                       SET urlop_biezacy = GREATEST(0, COALESCE(urlop_biezacy,0) - %s)
+                       WHERE id=%s""",
+                    (days, pracownik_id)
+                )
+            conn.commit()
+        except Exception as e:
+            current_app.logger.exception("Error decrementing leave counters: %s", str(e))
             try:
                 conn.rollback()
             except Exception:

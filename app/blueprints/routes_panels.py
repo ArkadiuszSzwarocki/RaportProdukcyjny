@@ -24,6 +24,7 @@ panels_bp = Blueprint('panels', __name__)
 def panel_wnioski_page():
     """Panel widok wniosków o wolne - dla liderów/adminów pokazuje wszystkie pending, dla pracowników - swoje."""
     wnioski = []
+    approved_wnioski = []
     conn = None
     try:
         # Use AttendanceService instead of QueryHelper for consistency
@@ -72,6 +73,26 @@ def panel_wnioski_page():
                 'powod': r[7],
                 'zlozono': r[8]
             })
+
+        # For lider/admin: also load recently approved requests (last 30 days) to allow revocation
+        approved_wnioski = []
+        if user_role in ['lider', 'admin']:
+            cursor.execute(
+                """SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do,
+                          w.czas_od, w.czas_do, w.powod, w.zlozono
+                   FROM wnioski_wolne w
+                   JOIN pracownicy p ON w.pracownik_id = p.id
+                   WHERE w.status = 'approved' AND w.data_do >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                   ORDER BY w.zlozono DESC
+                   LIMIT 100"""
+            )
+            for r in cursor.fetchall():
+                approved_wnioski.append({
+                    'id': r[0], 'pracownik': r[1], 'typ': r[2],
+                    'data_od': r[3], 'data_do': r[4],
+                    'czas_od': r[5], 'czas_do': r[6],
+                    'powod': r[7], 'zlozono': r[8]
+                })
         
         print(f"[DEBUG panel_wnioski_page] Loaded {len(wnioski)} wnioski as dicts for role={user_role}")
         
@@ -93,8 +114,8 @@ def panel_wnioski_page():
                 pass
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('fragment') == 'true':
-        return render_template('panels/wnioski_panel.html', wnioski=wnioski, pending_nadgodziny=pending_nadgodziny)
-    return render_template('panels_full/wnioski_full.html', wnioski=wnioski, pending_nadgodziny=pending_nadgodziny)
+        return render_template('panels/wnioski_panel.html', wnioski=wnioski, pending_nadgodziny=pending_nadgodziny, approved_wnioski=approved_wnioski)
+    return render_template('panels_full/wnioski_full.html', wnioski=wnioski, pending_nadgodziny=pending_nadgodziny, approved_wnioski=approved_wnioski)
 
 
 @panels_bp.route('/panel/planowane')

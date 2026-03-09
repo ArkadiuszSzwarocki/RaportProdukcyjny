@@ -133,6 +133,17 @@
                     enabled: true,
                     easing: 'easeinout',
                     speed: 800
+                },
+                events: {
+                    dataPointSelection: function(event, chartContext, config) {
+                        const seriesIndex = config.seriesIndex; // 0=Plan, 1=Zasyp, 2=Workowanie
+                        const dataIndex = config.dataPointIndex;
+                        const label = chartLabels[dataIndex];
+                        const sekcjaMap = {0: null, 1: 'Zasyp', 2: 'Workowanie'};
+                        const sekcja = sekcjaMap[seriesIndex];
+                        if (!sekcja || !label) return;
+                        showDayDetails(label, sekcja);
+                    }
                 }
             },
             colors: ['#bdc3c7', '#3498db', '#2ecc71'],
@@ -239,6 +250,84 @@
     } else {
         document.querySelector("#chartIssues").innerHTML = "<div class='text-muted text-center p-20'>Brak zgłoszonych awarii.</div>";
     }
+</script>
+
+<!-- Modal szczegółów dnia produkcji -->
+<dialog id="dayDetailsDialog" style="border:none; border-radius:14px; padding:0; box-shadow:0 8px 40px rgba(0,0,0,.22); width:min(700px,95vw); max-height:88vh; overflow:hidden;">
+  <div style="background:#2d3748; color:#fff; padding:16px 20px; display:flex; justify-content:space-between; align-items:center;">
+    <strong id="dayDetailsTitle" style="font-size:1.1rem;"></strong>
+    <button onclick="document.getElementById('dayDetailsDialog').close()" style="background:none; border:none; color:#fff; font-size:1.4rem; cursor:pointer; line-height:1;">✕</button>
+  </div>
+  <div id="dayDetailsBody" style="padding:20px; overflow-y:auto; max-height:calc(88vh - 60px);">
+    <p class="text-muted text-center">Ładowanie…</p>
+  </div>
+</dialog>
+
+<script>
+function showDayDetails(dataStr, sekcja) {
+  const dialog = document.getElementById('dayDetailsDialog');
+  const title  = document.getElementById('dayDetailsTitle');
+  const body   = document.getElementById('dayDetailsBody');
+  title.textContent = sekcja + ' — ' + dataStr;
+  body.innerHTML = '<p style="text-align:center;color:#888;">Ładowanie…</p>';
+  dialog.showModal();
+
+  fetch('/zarzad/dzien_szczegoly?data=' + encodeURIComponent(dataStr) + '&sekcja=' + encodeURIComponent(sekcja))
+    .then(r => r.json())
+    .then(json => {
+      if (json.error) { body.innerHTML = '<p style="color:red">' + json.error + '</p>'; return; }
+      const zlecenia = json.zlecenia;
+      if (!zlecenia.length) { body.innerHTML = '<p style="color:#888;text-align:center;">Brak zleceń w tej sekcji w wybranym dniu.</p>'; return; }
+
+      const statusColor = {zakonczone:'#38a169', 'w toku':'#d69e2e', zaplanowane:'#718096'};
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:.93rem;">';
+      html += '<thead><tr style="background:#f7fafc;">'
+            + '<th style="padding:8px 10px;text-align:left;">Produkt</th>'
+            + '<th style="padding:8px 10px;text-align:right;">Plan kg</th>'
+            + '<th style="padding:8px 10px;text-align:right;">Wykonanie kg</th>'
+            + '<th style="padding:8px 10px;text-align:center;">Godziny</th>'
+            + '<th style="padding:8px 10px;text-align:center;">Status</th>'
+            + '</tr></thead><tbody>';
+      zlecenia.forEach((z, i) => {
+        const bg = i % 2 === 0 ? '#fff' : '#f9fafb';
+        const sc = statusColor[z.status] || '#718096';
+        const proc = z.tonaz_plan > 0 ? Math.round(z.tonaz_rz / z.tonaz_plan * 100) : 0;
+        const czas = (z.start || '?') + ' – ' + (z.stop || '?');
+        html += `<tr style="background:${bg}; border-top:1px solid #edf2f7;">
+          <td style="padding:8px 10px;font-weight:600;">${z.produkt || '—'}</td>
+          <td style="padding:8px 10px;text-align:right;">${z.tonaz_plan.toFixed(0)}</td>
+          <td style="padding:8px 10px;text-align:right;color:${z.tonaz_rz > 0 ? '#2b6cb0' : '#aaa'};font-weight:600;">
+            ${z.tonaz_rz.toFixed(0)}
+            ${z.tonaz_plan > 0 ? '<br><small style="color:#aaa;">' + proc + '%</small>' : ''}
+          </td>
+          <td style="padding:8px 10px;text-align:center;white-space:nowrap;">${czas}</td>
+          <td style="padding:8px 10px;text-align:center;">
+            <span style="background:${sc};color:#fff;border-radius:99px;padding:2px 8px;font-size:.8rem;">${z.status}</span>
+            ${z.palety_ilosc > 0 ? '<br><small style="color:#888;">🧺 ' + z.palety_ilosc + ' szt.</small>' : ''}
+          </td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+
+      const suma = zlecenia.reduce((a, z) => a + z.tonaz_rz, 0);
+      const plan_suma = zlecenia.reduce((a, z) => a + z.tonaz_plan, 0);
+      html += `<div style="margin-top:12px;padding:10px 14px;background:#ebf8ff;border-radius:8px;font-weight:600;">
+        Łącznie: <span style="color:#2c5282;">${suma.toFixed(0)} kg</span>
+        z planu <span style="color:#718096;">${plan_suma.toFixed(0)} kg</span>
+        (${plan_suma > 0 ? Math.round(suma/plan_suma*100) : 0}%)
+      </div>`;
+      body.innerHTML = html;
+    })
+    .catch(err => { body.innerHTML = '<p style="color:red">Błąd ładowania danych.</p>'; console.error(err); });
+}
+
+// Zamknij modal kliknięciem w tło
+document.getElementById('dayDetailsDialog').addEventListener('click', function(e) {
+  const rect = this.getBoundingClientRect();
+  if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+    this.close();
+  }
+});
 </script>
 
 {% endblock %}

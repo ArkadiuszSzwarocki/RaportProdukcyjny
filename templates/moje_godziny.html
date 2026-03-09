@@ -1493,6 +1493,8 @@
               data-action="reject"><i class="fas fa-times"></i> Odrzuć</button>
             {% else %}
             <span class="text-success" style="font-weight:600;"><i class="fas fa-check-circle"></i> Gotowe</span>
+            <button type="button" class="btn btn-sm btn-outline-danger wn-action ml-2" data-id="{{ w.id }}"
+              data-action="revoke" title="Anuluj zatwierdzony wniosek"><i class="fas fa-ban"></i> Anuluj</button>
             {% endif %}
             {% endif %}
           </td>
@@ -1778,12 +1780,13 @@
     try { refreshSummary('{{ viewed_pid }}', 'viewed'); } catch (e) { }
     /*{% endif %}*/
 
-    // Handle approve/reject actions
+    // Handle approve/reject/revoke actions
     const wnBtns = document.querySelectorAll('.wn-action');
     wnBtns.forEach(btn => btn.addEventListener('click', function (e) {
       e.preventDefault();
       const id = this.getAttribute('data-id');
       const action = this.getAttribute('data-action');
+      if (action === 'revoke' && !confirm('Na pewno anulować ten zatwierdzony wniosek? Powiązane wpisy nieobecności zostaną usunięte.')) return;
       fetch('/wnioski/' + id + '/' + action, {
         method: 'POST',
         headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }

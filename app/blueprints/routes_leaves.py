@@ -128,6 +128,17 @@ def reject_wniosek(wid):
         raise
 
 
+@leaves_bp.route('/wnioski/<int:wid>/revoke', methods=['POST'])
+@roles_required('lider', 'admin', 'zarzad')
+def revoke_wniosek(wid):
+    """Revoke (cancel) an already-approved leave request."""
+    success, message = LeaveRequestService.revoke_leave_request(wid)
+    flash(message, 'success' if success else 'warning')
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': success, 'message': message}), 200
+    return redirect(bezpieczny_powrot())
+
+
 @leaves_bp.route('/wnioski/day', methods=['GET'])
 @roles_required('lider', 'admin')
 def wnioski_for_day():

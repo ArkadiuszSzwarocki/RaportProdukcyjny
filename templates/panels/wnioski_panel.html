@@ -102,7 +102,7 @@
 </style>
 
 <div class="panel panel--wnioski">
-  {% if not wnioski and not pending_nadgodziny %}
+  {% if not wnioski and not pending_nadgodziny and not (approved_wnioski is defined and approved_wnioski) %}
   <p>Brak wniosków do zatwierdzenia.</p>
   {% else %}
 
@@ -162,6 +162,30 @@
         <button type="button" class="btn btn-sm btn-success ng-approve-btn" data-ngid="{{ n.id }}">✓ Zatwierdź</button>
         <button type="button" class="btn btn-sm btn-danger ng-reject-btn" data-ngid="{{ n.id }}">✕ Odrzuć</button>
         {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if approved_wnioski is defined and approved_wnioski %}
+  <hr style="margin: 8px 0;">
+  <h6 style="margin-top:8px; color:#495057;"><i class="fas fa-check-circle text-success"></i> Zatwierdzone (ostatnie 30 dni)</h6>
+  <div class="wnioski-list">
+    {% for w in approved_wnioski %}
+    <div class="wniosek-item" data-wniosek-id="{{ w.id }}">
+      <div>
+        <strong>{{ w.pracownik }}</strong>
+        <span class="separator">—</span>
+        <span><span class="badge badge-success">{{ w.typ }}</span></span>
+        <span class="date-info" style="margin-left: 8px;">
+          <i class="far fa-calendar-alt text-success"></i>
+          {{ w.data_od }}{% if w.data_do and w.data_do != w.data_od %} &rarr; {{ w.data_do }}{% endif %}
+        </span>
+      </div>
+      <div class="wniosek-actions">
+        <button type="button" class="btn btn-sm btn-outline-danger wn-revoke-btn" data-wid="{{ w.id }}"
+          title="Anuluj zatwierdzony wniosek"><i class="fas fa-ban"></i> Anuluj</button>
       </div>
     </div>
     {% endfor %}
@@ -351,6 +375,15 @@
       });
       rejectNgBtns.forEach(btn => {
         btn.addEventListener('click', function (e) { e.preventDefault(); handleNadgodzinyAction(this, 'reject'); });
+      });
+
+      // REVOKE (anulowanie zatwierdzonych wniosków)
+      document.querySelectorAll('.wn-revoke-btn').forEach(btn => {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          if (!confirm('Na pewno anulować ten zatwierdzony wniosek? Powiązane wpisy nieobecności zostaną usunięte.')) return;
+          handleWniosekAction(this, 'revoke');
+        });
       });
     }
 
