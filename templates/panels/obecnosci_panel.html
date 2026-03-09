@@ -1,53 +1,285 @@
-{% macro fmt_date(d) -%}
-{%- if d is none -%}
--
-{%- else -%}
-{{ d.strftime('%Y-%m-%d') if d.__class__.__name__ == 'date' else d }}
+{# ===== MAKRA POMOCNICZE ===== #}
+{% macro abs_class(typ) -%}
+{%- if typ == 'L4' -%}abs-l4
+{%- elif typ == 'Urlop' or typ == 'urlop' -%}abs-urlop
+{%- elif 'Nieo' in typ or 'nieo' in typ -%}abs-nieob
+{%- elif typ == 'Opieka' or typ == 'opieka' -%}abs-opieka
+{%- elif 'Wyj' in typ or 'wyj' in typ -%}abs-wyjscie
+{%- elif typ == 'Nadgodziny' -%}abs-nadgodz
+{%- else -%}abs-other
+{%- endif -%}
+{%- endmacro %}
+
+{% macro abs_label(typ) -%}
+{%- if typ == 'L4' -%}L4
+{%- elif typ == 'Urlop' or typ == 'urlop' -%}Url
+{%- elif 'Nieo' in typ or 'nieo' in typ -%}Nob
+{%- elif typ == 'Opieka' or typ == 'opieka' -%}Op
+{%- elif 'Wyj' in typ or 'wyj' in typ -%}Wyj
+{%- elif typ == 'Nadgodziny' -%}Ndg
+{%- else -%}{{ typ[:3] }}
 {%- endif -%}
 {%- endmacro %}
 
 <div class="panel panel-obecnosci">
-  <h3>Dodaj wpis</h3>
-  <div class="mb-5 p-10" style="background:#f9f9f9; border:1px solid #ddd; border-radius:5px;">
-    <form action="{{ url_for('schedule.dodaj_obecnosc') }}" method="post"
-      class="d-flex flex-wrap gap-10 align-center form-inline" data-stay-open="true"
+
+  {# ===== SZYBKIE L4 ===== #}
+  <div class="quick-l4-card">
+    <div class="quick-l4-header">
+      <span class="material-icons" style="vertical-align:middle;font-size:20px;">local_hospital</span>
+      <strong>Szybkie L4</strong>
+      <span class="quick-l4-sub">Zaznacz pracownika jako na zwolnieniu lekarskim</span>
+    </div>
+    <form action="{{ url_for('schedule.dodaj_l4_zakres') }}" method="post" class="quick-l4-form"
+      data-stay-open="true"
       data-refresh-target=".panel-obecnosci"
       data-refresh-url="{{ url_for('panels.panel_obecnosci_page') }}?fragment=true">
-      <label>Data: <input type="date" name="data" value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}"
-          class="input-sm" required></label>
-      <label>Pracownik:
+      <label class="quick-l4-field">
+        <span>Pracownik</span>
         <select name="pracownik_id" class="input-sm" required>
-          <option value="">- wybierz -</option>
+          <option value="">— wybierz —</option>
           {% for p in pracownicy %}
           <option value="{{ p[0] }}">{{ p[1] }}</option>
           {% endfor %}
         </select>
       </label>
-      <label>Typ:
-        <select name="typ" id="abs_typ_select_panel" class="input-sm" required onchange="toggleAbsTimePanel()">
-          <option value="Nieobecnosc">Nieobecność</option>
-          <option value="Urlop">Urlop</option>
-          <option value="Wyjscie prywatne">Wyjście prywatne</option>
-          <option value="Opieka">Opieka</option>
-          <option value="L4">L4</option>
-          <option value="Nadgodziny">Nadgodziny</option>
-        </select>
+      <label class="quick-l4-field">
+        <span>Od</span>
+        <input type="date" name="data_od" value="{{ dzisiaj.strftime('%Y-%m-%d') }}" class="input-sm" required>
       </label>
-      <label id="abs_wyjscie_label_from_panel" class="hidden" style="display:none;">Od: <input type="time"
-          name="wyjscie_od" id="abs_wyjscie_from_panel" class="input-sm" onchange="calculateAbsHoursPanel()"
-          oninput="calculateAbsHoursPanel()" style="width:105px;"></label>
-      <label id="abs_wyjscie_label_to_panel" class="hidden" style="display:none;">Do: <input type="time"
-          name="wyjscie_do" id="abs_wyjscie_to_panel" class="input-sm" onchange="calculateAbsHoursPanel()"
-          oninput="calculateAbsHoursPanel()" style="width:105px;"></label>
-      <label>Godziny: <input type="text" id="abs_godziny_panel" name="godziny" value="8" class="input-sm"
-          style="width:70px;" oninput="this.value = this.value.replace(/[^0-9.,]/g, '')"></label>
-      <label>Uwagi: <input type="text" name="komentarz" class="input-sm" placeholder="Opcjonalnie..."
-          style="flex-grow:1; min-width:150px;"></label>
-      <button type="submit" class="btn btn-primary btn-sm">Zapisz wpis</button>
+      <label class="quick-l4-field">
+        <span>Do</span>
+        <input type="date" name="data_do" value="{{ dzisiaj.strftime('%Y-%m-%d') }}" class="input-sm" required>
+      </label>
+      <label class="quick-l4-field" style="flex:1 1 160px;">
+        <span>Uwagi</span>
+        <input type="text" name="komentarz" class="input-sm" placeholder="np. zwolnienie lekarskie">
+      </label>
+      <button type="submit" class="btn btn-danger btn-sm" style="align-self:flex-end;padding:6px 14px;">
+        <span class="material-icons" style="font-size:15px;vertical-align:middle;">add</span> Dodaj L4
+      </button>
     </form>
   </div>
 
+  {# ===== LEGENDA ===== #}
+  <div class="abs-legend">
+    <span class="abs-badge abs-l4">L4</span> Zwol. lekarskie &nbsp;
+    <span class="abs-badge abs-urlop">Url</span> Urlop &nbsp;
+    <span class="abs-badge abs-nieob">Nob</span> Nieobecność &nbsp;
+    <span class="abs-badge abs-opieka">Op</span> Opieka &nbsp;
+    <span class="abs-badge abs-wyjscie">Wyj</span> Wyjście prywatne &nbsp;
+    <span class="abs-badge abs-nadgodz">Ndg</span> Nadgodziny &nbsp;&nbsp;
+    <span class="abs-src-badge abs-src-w" title="Zatwierdzony wniosek urlopowy">W</span> z wniosku
+  </div>
+
+  {# ===== KALENDARZ NIEOBECNOŚCI ===== #}
+  {% if calendar_dates %}
+  <div class="abs-calendar-wrap">
+    <table class="abs-calendar-table" cellspacing="0" cellpadding="0">
+      <thead>
+        <tr>
+          <th class="abs-emp-col">Pracownik</th>
+          {% for d in calendar_dates %}
+          {% set is_today = (d == dzisiaj) %}
+          {% set is_weekend = (d.weekday() >= 5) %}
+          <th class="abs-day-th{% if is_today %} abs-today{% elif is_weekend %} abs-weekend{% endif %}">
+            <span class="abs-dayname">{{ ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'][d.weekday()] }}</span>
+            <span class="abs-daydate">{{ d.day }}.{{ '%02d' % d.month }}</span>
+          </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for emp_id, emp_name in pracownicy %}
+        {# Sprawdź czy pracownik ma jakąkolwiek nieobecność w oknie kalendarza #}
+        {% set row_has_abs = namespace(v=false) %}
+        {% for d in calendar_dates %}
+          {% if calendar_data.get(d.strftime('%Y-%m-%d'), {}).get(emp_id) %}
+            {% set row_has_abs.v = true %}
+          {% endif %}
+        {% endfor %}
+        <tr class="abs-emp-row{% if row_has_abs.v %} abs-row-marked{% endif %}" data-emp-id="{{ emp_id }}" data-emp-name="{{ emp_name }}">
+          <td class="abs-emp-col" title="{{ emp_name }}">
+            <span class="abs-emp-name">{{ emp_name }}</span>
+          </td>
+          {% for d in calendar_dates %}
+          {% set ds = d.strftime('%Y-%m-%d') %}
+          {% set entries = calendar_data.get(ds, {}).get(emp_id, []) %}
+          {% set is_today = (d == dzisiaj) %}
+          {% set is_weekend = (d.weekday() >= 5) %}
+          <td class="abs-day-cell{% if is_today %} abs-today{% elif is_weekend %} abs-weekend{% endif %}" data-date="{{ ds }}" title="Kliknij, aby dodać nieobecność — {{ emp_name }}, {{ d.day }}.{{ '%02d' % d.month }}" style="cursor:pointer">
+            {% for e in entries %}
+            <span class="abs-badge {{ abs_class(e.typ) }}"
+              title="{{ e.typ }}{% if e.zrodlo == 'wniosek' %} • z wniosku{% endif %}{% if e.komentarz %} — {{ e.komentarz }}{% endif %}{% if e.godz %} ({{ e.godz }}h){% endif %}">
+              {{ abs_label(e.typ) }}{% if e.zrodlo == 'wniosek' %}<span class="abs-src-badge abs-src-w">W</span>{% endif %}
+            </span>
+            {% endfor %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {# ===== DIALOG: SZYBKIE DODANIE NIEOBECNOŚCI (kliknięcie w komórkę) ===== #}
+  <dialog id="absQuickAddDialog" class="abs-quick-dialog">
+    <form id="absQuickAddForm" method="post" action="{{ url_for('schedule.dodaj_obecnosc_zakres') }}"
+      data-stay-open="true"
+      data-refresh-target=".panel-obecnosci"
+      data-refresh-url="{{ url_for('panels.panel_obecnosci_page') }}?fragment=true">
+      <div class="abs-qd-header">
+        <span class="material-icons" style="font-size:18px;color:#3182ce;">edit_calendar</span>
+        <strong id="absQdTitle">Dodaj nieobecność</strong>
+        <button type="button" class="abs-qd-close" onclick="document.getElementById('absQuickAddDialog').close()">✕</button>
+      </div>
+      <div class="abs-qd-body">
+        <input type="hidden" name="pracownik_id" id="absQdPracownikId">
+        <div class="abs-qd-row">
+          <label>Pracownik</label>
+          <span id="absQdPracownikName" class="abs-qd-val"></span>
+        </div>
+        <div class="abs-qd-row">
+          <label>Typ nieobecności <span style="color:#e53e3e">*</span></label>
+          <select name="typ" id="absQdTyp" class="input-sm" required style="width:100%">
+            <option value="Nieobecnosc">Nieobecność</option>
+            <option value="Urlop">Urlop</option>
+            <option value="L4">L4 – Zwolnienie lekarskie</option>
+            <option value="Opieka">Opieka</option>
+            <option value="Wyjscie prywatne">Wyjście prywatne</option>
+            <option value="Nadgodziny">Nadgodziny</option>
+          </select>
+        </div>
+        <div class="abs-qd-row abs-qd-dates">
+          <label>Od <span style="color:#e53e3e">*</span></label>
+          <input type="date" name="data_od" id="absQdDataOd" class="input-sm" required style="width:140px">
+        </div>
+        <div class="abs-qd-row abs-qd-dates">
+          <label>Do <span style="color:#e53e3e">*</span></label>
+          <input type="date" name="data_do" id="absQdDataDo" class="input-sm" required style="width:140px">
+          <small class="text-muted" style="font-size:11px;margin-left:6px;">Zakres dni do 365</small>
+        </div>
+        <div class="abs-qd-row">
+          <label>Godziny / dzień</label>
+          <input type="text" name="godziny" value="8" class="input-sm" style="width:70px"
+            oninput="this.value=this.value.replace(/[^0-9.,]/g,'')">
+        </div>
+        <div class="abs-qd-row">
+          <label>Uwagi</label>
+          <input type="text" name="komentarz" class="input-sm" placeholder="Opcjonalnie..." style="width:100%">
+        </div>
+      </div>
+      <div class="abs-qd-footer">
+        <button type="button" class="btn btn-sm" style="background:#f0f0f0;color:#333;" onclick="document.getElementById('absQuickAddDialog').close()">Anuluj</button>
+        <button type="submit" class="btn btn-primary btn-sm">Zapisz wpis</button>
+      </div>
+    </form>
+  </dialog>
+
+  {# ===== DODAJ WPIS (zwinięte) ===== #}
+  <details class="abs-add-details" style="margin-top:16px;">
+    <summary class="abs-add-summary">
+      <span class="material-icons" style="vertical-align:middle;font-size:18px;">add_circle_outline</span>
+      Dodaj wpis ręcznie (inny typ)
+    </summary>
+    <div class="abs-add-body">
+      <form action="{{ url_for('schedule.dodaj_obecnosc') }}" method="post"
+        class="d-flex flex-wrap gap-10 align-center form-inline" data-stay-open="true"
+        data-refresh-target=".panel-obecnosci"
+        data-refresh-url="{{ url_for('panels.panel_obecnosci_page') }}?fragment=true">
+        <label>Data: <input type="date" name="data" value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}"
+            class="input-sm" required></label>
+        <label>Pracownik:
+          <select name="pracownik_id" class="input-sm" required>
+            <option value="">— wybierz —</option>
+            {% for p in pracownicy %}
+            <option value="{{ p[0] }}">{{ p[1] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Typ:
+          <select name="typ" id="abs_typ_select_panel" class="input-sm" required onchange="toggleAbsTimePanel()">
+            <option value="Nieobecnosc">Nieobecność</option>
+            <option value="Urlop">Urlop</option>
+            <option value="Wyjscie prywatne">Wyjście prywatne</option>
+            <option value="Opieka">Opieka</option>
+            <option value="L4">L4</option>
+            <option value="Nadgodziny">Nadgodziny</option>
+          </select>
+        </label>
+        <label id="abs_wyjscie_label_from_panel" style="display:none;">Od:
+          <input type="time" name="wyjscie_od" id="abs_wyjscie_from_panel" class="input-sm"
+            onchange="calculateAbsHoursPanel()" oninput="calculateAbsHoursPanel()" style="width:105px;"></label>
+        <label id="abs_wyjscie_label_to_panel" style="display:none;">Do:
+          <input type="time" name="wyjscie_do" id="abs_wyjscie_to_panel" class="input-sm"
+            onchange="calculateAbsHoursPanel()" oninput="calculateAbsHoursPanel()" style="width:105px;"></label>
+        <label>Godziny: <input type="text" id="abs_godziny_panel" name="godziny" value="8" class="input-sm"
+            style="width:70px;" oninput="this.value = this.value.replace(/[^0-9.,]/g, '')"></label>
+        <label style="flex-grow:1;">Uwagi: <input type="text" name="komentarz" class="input-sm"
+            placeholder="Opcjonalnie..." style="min-width:150px;width:100%;"></label>
+        <button type="submit" class="btn btn-primary btn-sm">Zapisz wpis</button>
+      </form>
+    </div>
+  </details>
+
   <script>
+    /* ---- Klikalne komórki kalendarza → dialog ---- */
+    (function () {
+      var panel = document.querySelector('.panel-obecnosci');
+      if (!panel) return;
+      panel.addEventListener('click', function (e) {
+        var cell = e.target.closest('td.abs-day-cell');
+        if (!cell) return;
+        var date = cell.dataset.date;
+        if (!date) return;
+        var row = cell.closest('tr[data-emp-id]');
+        if (!row) return;
+        var empId = row.dataset.empId;
+        var empName = row.dataset.empName;
+        // Populate dialog
+        document.getElementById('absQdPracownikId').value = empId;
+        document.getElementById('absQdPracownikName').textContent = empName;
+        document.getElementById('absQdDataOd').value = date;
+        document.getElementById('absQdDataDo').value = date;
+        document.getElementById('absQdTitle').textContent = 'Dodaj nieobecność — ' + empName;
+        // Wire form submit via fetch (manual, since dialog is outside popup rebind scope)
+        var form = document.getElementById('absQuickAddForm');
+        form.onsubmit = null; // reset previous
+        form.addEventListener('submit', function handleQdSubmit(evt) {
+          evt.preventDefault();
+          form.removeEventListener('submit', handleQdSubmit);
+          var btn = form.querySelector('button[type="submit"]');
+          if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
+          var body = new URLSearchParams(new FormData(form));
+          fetch(form.action, {
+            method: 'POST', body: body,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            redirect: 'manual'
+          }).then(function (resp) {
+            document.getElementById('absQuickAddDialog').close();
+            // Refresh the panel in-place
+            return fetch('{{ url_for('panels.panel_obecnosci_page') }}?fragment=true', {
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+          }).then(function (r) { return r.text(); })
+            .then(function (html) {
+              var target = document.querySelector('.panel-obecnosci');
+              if (target) {
+                var tmp = document.createElement('div'); tmp.innerHTML = html;
+                var fresh = tmp.querySelector('.panel-obecnosci');
+                if (fresh) target.outerHTML = fresh.outerHTML;
+              }
+            }).catch(function (err) {
+              console.error('absQuickAddDialog submit error', err);
+              if (btn) { btn.disabled = false; btn.textContent = 'Zapisz wpis'; }
+            });
+        });
+        document.getElementById('absQuickAddDialog').showModal();
+      });
+    })();
+
     function toggleAbsTimePanel() {
       const sel = document.getElementById('abs_typ_select_panel');
       const fromL = document.getElementById('abs_wyjscie_label_from_panel');
@@ -69,7 +301,6 @@
         if (godzI) { godzI.value = 8; godzI.readOnly = false; }
       }
     }
-
     function calculateAbsHoursPanel() {
       const fromI = document.getElementById('abs_wyjscie_from_panel');
       const toI = document.getElementById('abs_wyjscie_to_panel');
@@ -84,40 +315,331 @@
     }
   </script>
 
-  <h3 class="mt-4">Ostatnie wpisy obecności / nieobecności (30 dni)</h3>
-  {% if recent_absences and recent_absences|length > 0 %}
-  <table class="table table-small">
-    <thead>
-      <tr>
-        <th>Data</th>
-        <th>Pracownik</th>
-        <th>Typ</th>
-        <th>Godziny</th>
-        <th>Komentarz</th>
-        <th>Akcje</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in recent_absences %}
-      <tr>
-        <td>{{ fmt_date(r.data) }}</td>
-        <td>{{ r.pracownik }}</td>
-        <td>{{ r.typ }}</td>
-        <td>{{ r.godziny }}</td>
-        <td>{{ r.komentarz }}</td>
-        <td>
-          <form method="post" action="{{ url_for('leaves.usun_obecnosc', id=r.id) }}" class="form-inline"
-            data-confirm="Czy na pewno chcesz usunąć ten wpis?" data-stay-open="true"
-            data-refresh-target=".panel-obecnosci"
-            data-refresh-url="{{ url_for('panels.panel_obecnosci_page') }}?fragment=true">
-            <button class="btn btn-link btn-sm text-danger" type="submit">Usuń</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p>Brak wpisów za ostatnie 30 dni.</p>
+  {# ===== OSTATNIE WPISY (zwinięte) ===== #}
+  {% if recent_absences %}
+  <details class="abs-add-details" style="margin-top:12px;">
+    <summary class="abs-add-summary">
+      <span class="material-icons" style="vertical-align:middle;font-size:18px;">history</span>
+      Ostatnie wpisy — ostatnie 14 dni + zaplanowane ({{ recent_absences|length }})
+    </summary>
+    <div class="abs-add-body" style="overflow-x:auto;padding:0;">
+      <table class="table table-small" style="margin:0;">
+        <thead>
+          <tr><th>Data</th><th>Pracownik</th><th>Typ</th><th>Godziny</th><th>Komentarz</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for r in recent_absences %}
+          <tr>
+            <td>{{ r.data.strftime('%d.%m.%Y') if r.data and r.data.__class__.__name__ == 'date' else r.data }}</td>
+            <td>{{ r.pracownik }}</td>
+            <td><span class="abs-badge {{ abs_class(r.typ) }}" style="font-size:11px;">{{ r.typ }}</span></td>
+            <td>{{ r.godziny }}</td>
+            <td>{{ r.komentarz }}</td>
+            <td>
+              <form method="post" action="{{ url_for('leaves.usun_obecnosc', id=r.id) }}" class="form-inline"
+                data-confirm="Czy na pewno chcesz usunąć ten wpis?" data-stay-open="true"
+                data-refresh-target=".panel-obecnosci"
+                data-refresh-url="{{ url_for('panels.panel_obecnosci_page') }}?fragment=true">
+                <button class="btn btn-link btn-sm text-danger" type="submit">Usuń</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
   {% endif %}
+
 </div>
+
+<style>
+/* ======================================================
+   KALENDARZ NIEOBECNOŚCI — style
+   ====================================================== */
+
+/* Rozszerz quick-popup do pełnej strony gdy zawiera kalendarz nieobecności */
+.quick-popup:has(.panel-obecnosci) {
+    width: 97vw !important;
+    max-width: 97vw !important;
+    left: 50% !important;
+    top: 1.5vh !important;
+    max-height: 97vh !important;
+    transform: translateX(-50%) translateY(-8px) scale(0.98) !important;
+}
+.quick-popup:has(.panel-obecnosci).open {
+    transform: translateX(-50%) translateY(0) scale(1) !important;
+}
+.quick-popup:has(.panel-obecnosci) .qp-body {
+    max-height: calc(97vh - 56px) !important;
+    overflow-y: auto !important;
+    padding: 12px 16px !important;
+}
+
+.quick-l4-card {
+  background: #fff5f5;
+  border: 2px solid #e53e3e;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.quick-l4-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #c53030;
+  font-size: 15px;
+}
+.quick-l4-header .material-icons { color: #e53e3e; }
+.quick-l4-sub { font-size: 12px; color: #718096; font-weight: normal; }
+.quick-l4-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+.quick-l4-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: #4a5568;
+  font-weight: 600;
+}
+.quick-l4-field input, .quick-l4-field select { font-size: 13px; }
+
+/* LEGENDA */
+.abs-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f7fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+/* BADGE KOLORY */
+.abs-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #fff;
+  cursor: default;
+  white-space: nowrap;
+}
+.abs-l4       { background: #e53e3e; }
+.abs-urlop    { background: #3182ce; }
+.abs-nieob    { background: #dd6b20; }
+.abs-opieka   { background: #38a169; }
+.abs-wyjscie  { background: #718096; }
+.abs-nadgodz  { background: #805ad5; }
+.abs-other    { background: #a0aec0; }
+
+.abs-src-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+  margin-left: 2px;
+  cursor: default;
+}
+.abs-src-w {
+  background: #fefcbf;
+  color: #744210;
+  border: 1px solid #d69e2e;
+}
+
+/* WRAPPER KALENDARZA */
+.abs-calendar-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.abs-calendar-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+  font-size: 12px;
+  background: #fff;
+}
+
+/* NAGŁÓWEK */
+.abs-calendar-table thead th {
+  background: #2d3748;
+  color: #fff;
+  text-align: center;
+  border-right: 1px solid #4a5568;
+  white-space: nowrap;
+  padding: 0;
+}
+.abs-emp-col {
+  min-width: 140px;
+  max-width: 190px;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #2d3748 !important;
+  text-align: left !important;
+  padding: 6px 10px !important;
+  font-size: 12px;
+  border-right: 2px solid #4a5568 !important;
+}
+.abs-day-th {
+  padding: 4px 3px;
+  text-align: center;
+  border-right: 1px solid #4a5568;
+  min-width: 38px;
+}
+.abs-day-th.abs-today  { background: #c53030 !important; }
+.abs-day-th.abs-weekend { background: #4a5568 !important; }
+.abs-dayname {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  opacity: 0.8;
+  letter-spacing: 0.03em;
+}
+.abs-daydate {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* WIERSZE */
+.abs-emp-row td {
+  padding: 2px 3px;
+  border-bottom: 1px solid #edf2f7;
+  border-right: 1px solid #edf2f7;
+  text-align: center;
+  vertical-align: middle;
+  height: 28px;
+}
+tbody .abs-emp-col {
+  background: #f7fafc !important;
+  color: #2d3748;
+  font-weight: 600;
+  text-align: left !important;
+  border-right: 2px solid #cbd5e0 !important;
+}
+.abs-emp-row:hover td { background: #ebf8ff !important; }
+.abs-emp-row.abs-row-marked .abs-emp-col { color: #2b6cb0 !important; }
+
+.abs-day-cell:hover { background: #eef6ff !important; }
+.abs-day-cell.abs-today:hover  { background: #fde8e8 !important; }
+.abs-day-cell.abs-weekend:hover { background: #e8f0f8 !important; }
+
+/* DIALOG SZYBKIEGO DODAWANIA */
+dialog.abs-quick-dialog {
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.22);
+  padding: 0;
+  width: min(400px, calc(100vw - 24px));
+  background: #fff;
+  color: #2d3748;
+}
+dialog.abs-quick-dialog::backdrop {
+  background: rgba(0,0,0,0.35);
+}
+.abs-qd-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f7fafc;
+  border-radius: 10px 10px 0 0;
+}
+.abs-qd-header strong { flex: 1; font-size: 14px; }
+.abs-qd-close {
+  background: none; border: none; font-size: 16px; cursor: pointer;
+  color: #718096; padding: 2px 6px; border-radius: 4px;
+}
+.abs-qd-close:hover { background: #e2e8f0; color: #1a202c; }
+.abs-qd-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.abs-qd-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.abs-qd-row label {
+  min-width: 120px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a5568;
+}
+.abs-qd-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2d3748;
+}
+.abs-qd-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.abs-emp-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+  font-size: 12px;
+}
+
+/* DETAILS — zwijane sekcje */
+.abs-add-details > summary.abs-add-summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d3748;
+  user-select: none;
+  list-style: none;
+}
+.abs-add-details > summary.abs-add-summary::-webkit-details-marker { display: none; }
+.abs-add-details[open] > summary.abs-add-summary {
+  border-radius: 6px 6px 0 0;
+  border-bottom: 1px solid #bee3f8;
+  background: #ebf8ff;
+}
+.abs-add-body {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  background: #fff;
+}
+</style>

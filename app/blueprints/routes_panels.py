@@ -115,25 +115,92 @@ def panel_planowane_page():
 @panels_bp.route('/panel/obecnosci')
 @login_required
 def panel_obecnosci_page():
-    """Panel niedawnych nieobecności."""
+    """Panel nieobecności z widokiem kalendarza (obecnosc + zatwierdzone wnioski)."""
     recent = []
     pracownicy = []
+    calendar_dates = []
+    calendar_data = {}  # {date_str: {pracownik_id: [{'typ','imie_nazwisko','zrodlo','id','godz','komentarz'}]}}
+    today = date.today()
+    # Calendar window: Monday of current week → Sunday + 2 weeks (21 days aligned)
+    cal_start = today - timedelta(days=today.weekday())
+    cal_end = cal_start + timedelta(days=20)
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko")
+        cursor.execute(
+            "SELECT id, imie_nazwisko FROM pracownicy "
+            "WHERE id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad') AND pracownik_id IS NOT NULL) "
+            "ORDER BY imie_nazwisko"
+        )
         pracownicy = cursor.fetchall()
+
+        # Build list of calendar dates
+        d = cal_start
+        while d <= cal_end:
+            calendar_dates.append(d)
+            d += timedelta(days=1)
+
+        # --- Query obecnosc for calendar window ---
+        cursor.execute(
+            "SELECT o.id, o.pracownik_id, p.imie_nazwisko, o.typ, o.data_wpisu, o.komentarz, o.ilosc_godzin "
+            "FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id "
+            "WHERE o.data_wpisu BETWEEN %s AND %s "
+            "AND LOWER(TRIM(COALESCE(o.typ,''))) NOT LIKE 'obec%%' "
+            "ORDER BY o.data_wpisu, p.imie_nazwisko",
+            (cal_start, cal_end)
+        )
+        for row in cursor.fetchall():
+            oid, pid, name, typ, dw, kom, godz = row
+            ds = dw.strftime('%Y-%m-%d') if hasattr(dw, 'strftime') else str(dw)
+            calendar_data.setdefault(ds, {}).setdefault(pid, []).append(
+                {'typ': typ, 'imie_nazwisko': name, 'zrodlo': 'manual', 'id': oid,
+                 'godz': godz or 0, 'komentarz': kom or ''}
+            )
+
+        # --- Query approved wnioski_wolne for calendar window ---
+        cursor.execute(
+            "SELECT w.id, w.pracownik_id, p.imie_nazwisko, w.typ, w.data_od, w.data_do "
+            "FROM wnioski_wolne w JOIN pracownicy p ON w.pracownik_id = p.id "
+            "WHERE w.status = 'approved' AND w.data_od <= %s AND w.data_do >= %s "
+            "ORDER BY w.data_od, p.imie_nazwisko",
+            (cal_end, cal_start)
+        )
+        for row in cursor.fetchall():
+            wid, pid, name, typ, d_od, d_do = row
+            if hasattr(d_od, 'strftime'):
+                cur_d = max(d_od, cal_start)
+                end_d = min(d_do, cal_end)
+            else:
+                from datetime import datetime as _dt
+                cur_d = max(_dt.strptime(str(d_od), '%Y-%m-%d').date(), cal_start)
+                end_d = min(_dt.strptime(str(d_do), '%Y-%m-%d').date(), cal_end)
+            while cur_d <= end_d:
+                ds = cur_d.strftime('%Y-%m-%d')
+                # Add wniosek marker only if no manual obecnosc entry exists for this day
+                day_entries = calendar_data.get(ds, {}).get(pid, [])
+                if not day_entries:
+                    calendar_data.setdefault(ds, {}).setdefault(pid, []).append(
+                        {'typ': typ, 'imie_nazwisko': name, 'zrodlo': 'wniosek', 'id': wid,
+                         'godz': 0, 'komentarz': ''}
+                    )
+                cur_d += timedelta(days=1)
+
         conn.close()
 
         if QueryHelper:
-            raw_recent = QueryHelper.get_recent_absences(days=30, limit=500)
-            # Convert keys to match template: data_wpisu -> data, ilosc_godzin -> godziny
-            recent = [{'id': r['id'], 'pracownik': r['pracownik'], 'typ': r['typ'], 'data': r['data_wpisu'], 'godziny': r['ilosc_godzin'], 'komentarz': r['komentarz']} for r in raw_recent]
+            raw_recent = QueryHelper.get_recent_absences(days=14, limit=300)
+            recent = [{'id': r['id'], 'pracownik': r['pracownik'], 'typ': r['typ'],
+                       'data': r['data_wpisu'], 'godziny': r['ilosc_godzin'], 'komentarz': r['komentarz']}
+                      for r in raw_recent]
     except Exception:
         current_app.logger.exception('Failed loading absences for full page')
+    ctx = dict(
+        recent_absences=recent, pracownicy=pracownicy, dzisiaj=today,
+        calendar_dates=calendar_dates, calendar_data=calendar_data
+    )
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('fragment') == 'true':
-        return render_template('panels/obecnosci_panel.html', recent_absences=recent, pracownicy=pracownicy, dzisiaj=date.today())
-    return render_template('panels_full/obecnosci_full.html', recent_absences=recent, pracownicy=pracownicy, dzisiaj=date.today())
+        return render_template('panels/obecnosci_panel.html', **ctx)
+    return render_template('panels_full/obecnosci_full.html', **ctx)
 
 
 @panels_bp.route('/panel/obsada')
@@ -149,14 +216,60 @@ def panel_obsada_page():
 
     obsady_map = {}
     wszyscy = []
+    all_pracownicy = []
+    lider_psd_id = None
+    lider_agro_id = None
+    conn = None
     try:
-        if QueryHelper:
-            obsady_map = QueryHelper.get_obsada_for_date(qdate)
-            wszyscy = QueryHelper.get_unassigned_pracownicy(qdate)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # obsada for given date
+        cursor.execute(
+            "SELECT oz.sekcja, oz.id, p.imie_nazwisko, p.id FROM obsada_zmiany oz "
+            "JOIN pracownicy p ON oz.pracownik_id = p.id "
+            "WHERE oz.data_wpisu = %s ORDER BY oz.sekcja, p.imie_nazwisko",
+            (qdate,)
+        )
+        for r in cursor.fetchall():
+            obsady_map.setdefault(r[0], []).append((r[1], r[2], r[3]))
+        # unassigned workers
+        cursor.execute(
+            "SELECT id, imie_nazwisko FROM pracownicy "
+            "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) "
+            "AND id NOT IN (SELECT pracownik_id FROM obecnosc WHERE data_wpisu=%s AND typ IN ('Nieobecnosc','Urlop','L4','Opieka')) "
+            "AND id NOT IN (SELECT pracownik_id FROM wnioski_wolne WHERE status='approved' AND data_od <= %s AND data_do >= %s) "
+            "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad') AND pracownik_id IS NOT NULL) "
+            "ORDER BY imie_nazwisko",
+            (qdate, qdate, qdate, qdate)
+        )
+        wszyscy = cursor.fetchall()
+        # liderzy list for selection
+        cursor.execute(
+            "SELECT p.id, p.imie_nazwisko FROM pracownicy p "
+            "JOIN uzytkownicy u ON p.id = u.pracownik_id WHERE u.rola='lider' ORDER BY p.imie_nazwisko"
+        )
+        all_pracownicy = cursor.fetchall()
+        # current leaders for this date
+        cursor.execute("SELECT lider_psd_id, lider_agro_id FROM obsada_liderzy WHERE data_wpisu=%s", (qdate,))
+        lider_row = cursor.fetchone()
+        lider_psd_id = lider_row[0] if lider_row else None
+        lider_agro_id = lider_row[1] if lider_row else None
     except Exception:
         current_app.logger.exception('Failed loading obsada for panel page')
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
-    return render_template('panels_full/obsada_full.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'))
+    return render_template(
+        'panels_full/obsada_full.html',
+        sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy,
+        rola=session.get('rola'), qdate=qdate,
+        all_pracownicy=all_pracownicy,
+        lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id,
+    )
 
 
 @panels_bp.route('/test-download')
@@ -178,7 +291,7 @@ def moje_godziny():
     role = (session.get('rola') or '').lower()
     # If leader/admin and explicit pracownik_id given, allow viewing another pracownik
     viewed_pid = owner_pid
-    if role in ['lider', 'admin', 'planista'] and request.args.get('pracownik_id'):
+    if role in ['lider', 'admin', 'planista', 'zarzad'] and request.args.get('pracownik_id'):
         try:
             viewed_pid = int(request.args.get('pracownik_id'))
         except Exception:
@@ -187,7 +300,7 @@ def moje_godziny():
     # Jeśli konto nie ma powiązanego `pracownik_id`, pozwól liderowi/adminowi
     # zobaczyć stronę (wybór pracownika). Tylko zwykli użytkownicy bez mapowania
     # zobaczą komunikat o braku powiązania.
-    if not owner_pid and role not in ['lider', 'admin', 'planista']:
+    if not owner_pid and role not in ['lider', 'admin', 'planista', 'zarzad']:
         # Brak mapowania właściciela — poproś administratora o powiązanie konta
         fallback_summary = {'obecnosci': 0, 'typy': {}, 'wyjscia_hours': 0.0}
         return render_template('moje_godziny.html', mapped=False, owner_summary=fallback_summary, viewed_summary=None, d_od=None, d_do=None, wnioski=[], calendar_days_owner=[], calendar_days_viewed=None, pracownicy_list=None, selected_pid=None, owner_pid=None, viewed_pid=None)
@@ -204,8 +317,12 @@ def moje_godziny():
     pracownicy_list = None
     selected_pid = viewed_pid if viewed_pid != owner_pid else None
     try:
-        if role in ['lider', 'admin']:
-            cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko")
+        if role in ['lider', 'admin', 'zarzad']:
+            cursor.execute(
+                "SELECT id, imie_nazwisko FROM pracownicy "
+                "WHERE id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad') AND pracownik_id IS NOT NULL) "
+                "ORDER BY imie_nazwisko"
+            )
             pracownicy_list = cursor.fetchall()
     except Exception:
         pracownicy_list = None
@@ -230,13 +347,49 @@ def moje_godziny():
             s['wyjscia_hours'] = 0.0
         # Load leave counters from pracownicy if present
         try:
-            cursor.execute("SELECT COALESCE(urlop_biezacy,0), COALESCE(urlop_zalegly,0) FROM pracownicy WHERE id=%s", (prac_id,))
+            cursor.execute("SELECT COALESCE(urlop_biezacy,0), COALESCE(urlop_zalegly,0), COALESCE(imie_nazwisko,'') FROM pracownicy WHERE id=%s", (prac_id,))
             r = cursor.fetchone()
             s['urlop_biezacy'] = int(r[0] or 0) if r else 0
             s['urlop_zalegly'] = int(r[1] or 0) if r else 0
+            s['imie_nazwisko'] = r[2] if r else ''
         except Exception:
             s['urlop_biezacy'] = 0
             s['urlop_zalegly'] = 0
+            s['imie_nazwisko'] = ''
+        # Total working hours (sum from obecnosc)
+        try:
+            cursor.execute("SELECT COALESCE(SUM(ilosc_godzin),0) FROM obecnosc WHERE pracownik_id=%s AND data_wpisu BETWEEN %s AND %s", (prac_id, d_od, d_do))
+            s['total_work_hours'] = float(cursor.fetchone()[0] or 0)
+        except Exception:
+            s['total_work_hours'] = 0.0
+        # Approved overtime hours
+        try:
+            cursor.execute("SELECT COALESCE(SUM(ilosc_nadgodzin),0) FROM nadgodziny WHERE pracownik_id=%s AND data BETWEEN %s AND %s AND status='approved'", (prac_id, d_od, d_do))
+            s['nadgodziny_hours'] = float(cursor.fetchone()[0] or 0)
+        except Exception:
+            s['nadgodziny_hours'] = 0.0
+        # Absence (nieobecność / L4) distinct days
+        try:
+            cursor.execute(
+                "SELECT COUNT(DISTINCT data_wpisu) FROM obecnosc "
+                "WHERE pracownik_id=%s AND data_wpisu BETWEEN %s AND %s "
+                "AND (typ LIKE %s OR typ LIKE %s OR typ LIKE %s)",
+                (prac_id, d_od, d_do, '%Nieobec%', '%L4%', '%Opieka%')
+            )
+            s['nieobecnosc_days'] = int(cursor.fetchone()[0] or 0)
+        except Exception:
+            s['nieobecnosc_days'] = 0
+        # Approved urlop days used in the current period
+        try:
+            cursor.execute(
+                "SELECT COALESCE(SUM(DATEDIFF(LEAST(data_do,%s), GREATEST(data_od,%s)) + 1), 0) "
+                "FROM wnioski_wolne WHERE pracownik_id=%s AND status='approved' "
+                "AND typ LIKE %s AND data_do >= %s AND data_od <= %s",
+                (d_do, d_od, prac_id, '%Urlop%', d_od, d_do)
+            )
+            s['urlop_days_used'] = int(cursor.fetchone()[0] or 0)
+        except Exception:
+            s['urlop_days_used'] = 0
         return s
 
     owner_summary = fetch_summary(owner_pid) if owner_pid else {'obecnosci': 0, 'typy': {}, 'wyjscia_hours': 0.0}
@@ -244,9 +397,10 @@ def moje_godziny():
     if viewed_pid and viewed_pid != owner_pid:
         viewed_summary = fetch_summary(viewed_pid)
 
-    # Pobierz wnioski złożone przez właściciela (do listy pod tabelą)
+    # Pobierz wnioski — dla lidera/admina przeglądającego innego pracownika: pokaż jego wnioski
+    wnioski_pid = viewed_pid if (viewed_pid and viewed_pid != owner_pid) else owner_pid
     try:
-        cursor.execute("SELECT id, typ, data_od, data_do, czas_od, czas_do, powod, status, zlozono, pracownik_id FROM wnioski_wolne WHERE pracownik_id=%s ORDER BY zlozono DESC", (owner_pid,))
+        cursor.execute("SELECT id, typ, data_od, data_do, czas_od, czas_do, powod, status, zlozono, pracownik_id FROM wnioski_wolne WHERE pracownik_id=%s ORDER BY zlozono DESC", (wnioski_pid,))
         raw = cursor.fetchall()
         wnioski = []
         for r in raw:
@@ -306,8 +460,12 @@ def moje_godziny():
             cal = []
             for day in range(1, days_in_month + 1):
                 day_date = date(year, month, day)
-                # suma godzin dla dnia
-                cursor.execute("SELECT COALESCE(SUM(ilosc_godzin),0) FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s", (prac_id, day_date))
+                # suma godzin dla dnia — wyjście prywatne odejmowane (to czas poza stanowiskiem)
+                cursor.execute(
+                    "SELECT COALESCE(SUM(CASE WHEN typ='Wyjscie prywatne' THEN -ilosc_godzin ELSE ilosc_godzin END),0) "
+                    "FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s",
+                    (prac_id, day_date)
+                )
                 s = float(cursor.fetchone()[0] or 0)
                 # czy są wpisy HR na ten dzień (typy HR/nieobecnosci)
                 cursor.execute("SELECT COUNT(1) FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s AND (typ LIKE '%%Nieobecno%%' OR typ LIKE '%%Urlop%%' OR typ LIKE '%%L4%%' OR typ LIKE '%%Nieobecnosc%%')", (prac_id, day_date))
@@ -338,6 +496,9 @@ def moje_godziny():
                 cursor.execute("SELECT COUNT(1) FROM wnioski_wolne WHERE pracownik_id=%s AND status='approved' AND data_od <= %s AND data_do >= %s", (prac_id, day_date, day_date))
                 approved_wn = int(cursor.fetchone()[0] or 0) > 0
                 approved = approved_report or approved_wn
+                # Zatwierdzony urlop = pracownik nie świadczył pracy tego dnia
+                if approved_wn:
+                    s = 0.0
                 
                 # Pobierz status urlopu na ten dzień (pending, approved, rejected, lub None)
                 leave_status = None
@@ -444,7 +605,11 @@ def zarzad_panel():
     # Personnel stats
     p_stats = []
     if tryb == 'dzien':
-        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko")
+        cursor.execute(
+            "SELECT id, imie_nazwisko FROM pracownicy "
+            "WHERE id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad') AND pracownik_id IS NOT NULL) "
+            "ORDER BY imie_nazwisko"
+        )
         all_p = cursor.fetchall()
         p_dict = {p[1]: {'zasyp':'-','workowanie':'-','magazyn':'-','hr':'-'} for p in all_p}
         cursor.execute("SELECT p.imie_nazwisko, o.sekcja FROM obsada_zmiany o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu=%s", (d_od,)) 

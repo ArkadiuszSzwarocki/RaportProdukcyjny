@@ -389,11 +389,12 @@
                                 <div class="record-title">{{ k[1] }}</div>
                                 <span class="role-badge role-{{ role|replace(' ','') }}">{{ role }}</span>
                             </div>
-                            <div class="record-subtitle">Konto użytkownika o identyfikatorze <strong>#{{ k[0] }}</strong>{% if k|length > 3 and k[3] %}, przypisane do grupy <strong>{{ k[3] }}</strong>{% endif %}.</div>
+                            <div class="record-subtitle">Konto użytkownika o identyfikatorze <strong>#{{ k[0] }}</strong>{% if k|length > 3 and k[3] %}, przypisane do grupy <strong>{{ k[3] }}</strong>{% endif %}{% if k|length > 5 and k[5] %}, powiązane z pracownikiem <strong>{{ k[5] }}</strong>{% endif %}.</div>
                             <div class="record-meta">
                                 <span class="record-pill">ID: {{ k[0] }}</span>
                                 <span class="record-pill">Rola: {{ role }}</span>
                                 {% if k|length > 3 and k[3] %}<span class="record-pill">Grupa: {{ k[3] }}</span>{% endif %}
+                                {% if k|length > 5 and k[5] %}<span class="record-pill">Pracownik #{{ k[4] }}: {{ k[5] }}</span>{% endif %}
                             </div>
                         </div>
                         <div class="record-actions">

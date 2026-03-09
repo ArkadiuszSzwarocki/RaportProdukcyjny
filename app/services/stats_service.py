@@ -90,7 +90,11 @@ def get_worker_stats(d_od, d_do, tryb):
     p_stats = []
 
     if tryb == 'dzien':
-        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko")
+        cursor.execute(
+            "SELECT id, imie_nazwisko FROM pracownicy "
+            "WHERE id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad') AND pracownik_id IS NOT NULL) "
+            "ORDER BY imie_nazwisko"
+        )
         all_p = cursor.fetchall()
         p_dict = {p[1]: {'zasyp':'-','workowanie':'-','magazyn':'-','hr':'-'} for p in all_p}
         

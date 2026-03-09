@@ -213,7 +213,7 @@ class TestShiftNotes:
             ]
             mock_conn.return_value.cursor.return_value = mock_cursor
             
-            result = DashboardService.get_shift_notes()
+            result = DashboardService.get_shift_notes(date.today())
             
             assert isinstance(result, list)
             if result:  # If any notes

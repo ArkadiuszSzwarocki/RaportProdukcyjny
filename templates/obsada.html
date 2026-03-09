@@ -1,43 +1,99 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<style>
+/* ─── Obsada visual improvements ─── */
+.obsada-top-bar {
+  background: linear-gradient(135deg, #f4f8ff, #eef2f9);
+  border: 1px solid #cfe0f7;
+  border-radius: 12px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 8px rgba(52,152,219,.07);
+}
+.obsada-field-group { display: flex; flex-direction: column; gap: 3px; }
+.obsada-field-label {
+  font-size: .7em; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-muted); font-weight: 700; white-space: nowrap;
+}
+.obsada-section:nth-child(1) { border-top: 4px solid #3498db !important; }
+.obsada-section:nth-child(2) { border-top: 4px solid #2ecc71 !important; }
+.obsada-section:nth-child(3) { border-top: 4px solid #e67e22 !important; }
+.obsada-section:nth-child(4) { border-top: 4px solid #9b59b6 !important; }
+.obsada-section:nth-child(5) { border-top: 4px solid #e74c3c !important; }
+.obsada-section:nth-child(6) { border-top: 4px solid #f39c12 !important; }
+.obsada-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.obsada-section-head h4 { margin: 0; flex: 1; }
+.obsada-section-icon { font-size: 1.2em; line-height: 1; }
+.obsada-count-badge {
+  background: rgba(52,152,219,.1); color: var(--accent-color);
+  border-radius: 20px; padding: 2px 9px; font-size: .75em; font-weight: 700;
+}
+.obsada-select-wrap {
+  background: rgba(52,152,219,.04);
+  border: 1px dashed rgba(52,152,219,.35);
+  border-radius: 8px; padding: 8px 10px;
+  margin-bottom: 10px; gap: 8px !important;
+}
+.obsada-select-wrap select,
+.obsada-select-wrap .obsada-select { flex: 1; min-width: 0; }
+.obsada-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 16px 10px; color: var(--text-muted); font-size: .86em; text-align: center;
+}
+.obsada-empty-icon { font-size: 1.4em; opacity: .4; }
+/* chip delete button compact */
+.chip .delete-button { width: 22px !important; height: 22px !important; font-size: .75em !important; }
+</style>
 <div class="section-box">
     <div class="section-header">
         <h2>{{ _('obsada') }}</h2>
     </div>
 
     <div class="mt-10">
-        <div class="obsada-toolbar d-flex gap-10 align-center mb-8 obsada-toolbar-wrap">
-            <label for="obsada-date" class="obsada-label">Data:</label>
-            <input type="date" id="obsada-date" value="{{ qdate.strftime('%Y-%m-%d') if qdate is defined else '' }}"
-                class="input-sm">
+        <div class="obsada-toolbar obsada-top-bar">
+            <div class="obsada-field-group">
+                <label for="obsada-date" class="obsada-field-label">Data</label>
+                <input type="date" id="obsada-date" value="{{ qdate.strftime('%Y-%m-%d') if qdate is defined else '' }}"
+                    class="input-sm">
+            </div>
             {% if rola in ['lider','admin'] %}
-            <label for="lider_psd" class="obsada-label obsada-label-ml">{{ _('lider_psd_label') }}</label>
-            <select id="lider_psd" class="input-sm">
-                <option value="">- brak -</option>
-                {% for p in all_pracownicy %}
-                <option value="{{ p[0] }}" {% if lider_psd_id and lider_psd_id==p[0] %}selected{% endif %}>{{ p[1] }}
-                </option>
-                {% endfor %}
-            </select>
-            <label for="lider_agro" class="obsada-label obsada-label-ml">{{ _('lider_agro_label') }}</label>
-            <select id="lider_agro" class="input-sm">
-                <option value="">- brak -</option>
-                {% for p in all_pracownicy %}
-                <option value="{{ p[0] }}" {% if lider_agro_id and lider_agro_id==p[0] %}selected{% endif %}>{{ p[1] }}
-                </option>
-                {% endfor %}
-            </select>
+            <div class="obsada-field-group">
+                <label for="lider_psd" class="obsada-field-label">{{ _('lider_psd_label') }}</label>
+                <select id="lider_psd" class="input-sm">
+                    <option value="">- brak -</option>
+                    {% for p in all_pracownicy %}
+                    <option value="{{ p[0] }}" {% if lider_psd_id and lider_psd_id==p[0] %}selected{% endif %}>{{ p[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="obsada-field-group">
+                <label for="lider_agro" class="obsada-field-label">{{ _('lider_agro_label') }}</label>
+                <select id="lider_agro" class="input-sm">
+                    <option value="">- brak -</option>
+                    {% for p in all_pracownicy %}
+                    <option value="{{ p[0] }}" {% if lider_agro_id and lider_agro_id==p[0] %}selected{% endif %}>{{ p[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <button type="button" id="btnSaveLiderzy" class="btn btn-primary">{{ _('zapisz_liderow') }}</button>
             {% endif %}
         </div>
-        <!-- sześć niezależnych kolumn: Zasyp / Workowanie / Magazyn / Hala Agro / Laboratorium / Handel -->
         <div class="obsada-sections">
             {% set sections = ['Zasyp','Workowanie','Magazyn','Hala Agro','Laboratorium','Handel'] %}
+            {% set section_icons = {'Zasyp': '🌾', 'Workowanie': '📦', 'Magazyn': '🏭', 'Hala Agro': '🌱', 'Laboratorium': '🔬', 'Handel': '🛒'} %}
             {% for s in sections %}
             <div class="obsada-section" data-sekcja="{{ s }}">
-                <h4>{{ s }}</h4>
-                <!-- wybór pracownika + przycisk przeniesione na górę pod nazwą sekcji -->
+                {% set cnt = (obsady_map.get(s, []) if obsady_map is defined else []) | length %}
+                <div class="obsada-section-head">
+                    <span class="obsada-section-icon">{{ section_icons.get(s, '👤') }}</span>
+                    <h4>{{ s }}</h4>
+                    {% if cnt > 0 %}<span class="obsada-count-badge">{{ cnt }}</span>{% endif %}
+                </div>
                 {% if rola in ['lider', 'admin', 'pracownik'] %}
                 <div class="d-flex gap-5 align-center mb-8 obsada-select-wrap">
                     <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">
@@ -54,7 +110,7 @@
                     {% set current = obsady_map.get(s, []) if obsady_map is defined else [] %}
                     {% if current %}
                     {% for o in current %}
-                    <div class="chip">
+                    <div class="chip" data-pracownik-id="{{ o[2] }}" data-pracownik-name="{{ o[1] }}">
                         {{ o[1] }}
                         {% if rola in ['lider', 'admin', 'pracownik'] %}
                         <form action="{{ url_for('leaves.usun_z_obsady', id=o[0]) }}" method="POST"
@@ -64,6 +120,8 @@
                         {% endif %}
                     </div>
                     {% endfor %}
+                    {% else %}
+                    <div class="obsada-empty"><span class="obsada-empty-icon">👤</span><span>{{ _('brak_przypisanych') }}</span></div>
                     {% endif %}
                 </div>
 
@@ -120,7 +178,7 @@
                                 if (dateVal) fd.append('date', dateVal);
 
                                 const resp = await fetch('{{ url_for("leaves.dodaj_do_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                                if (!resp.ok) { const txt = await resp.text(); showToast && showToast('Błąd: ' + (txt || resp.status), 'error'); addBtn.disabled = false; return; }
+                                if (!resp.ok) { showToast && showToast('Błąd: ' + resp.status, 'error'); addBtn.disabled = false; return; }
                                 let j = null;
                                 try { j = await resp.json(); } catch (e) { j = null; }
                                 const newId = j && j.id ? j.id : null;
@@ -138,6 +196,8 @@
                                         rem.addEventListener('click', function () { chip.remove(); });
                                         chip.appendChild(rem);
                                     }
+                                    const emptyEl = current.querySelector('.obsada-empty');
+                                    if (emptyEl) emptyEl.remove();
                                     current.appendChild(chip);
                                 }
                                 // remove option from select
@@ -158,11 +218,21 @@
                             if (frm) {
                                 ev.preventDefault();
                                 const url = frm.getAttribute('action') || window.location.href;
+                                const chip = t.closest('.chip');
+                                const pracownikId = chip ? chip.getAttribute('data-pracownik-id') : null;
+                                const pracownikName = chip ? chip.getAttribute('data-pracownik-name') : null;
                                 fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                                     .then(async function (resp) {
                                         if (resp.status === 401) { window.location.href = '/login'; return; }
-                                        if (!resp.ok) { const txt = await resp.text(); showToast && showToast('Błąd: ' + (txt || resp.status), 'error'); return; }
-                                        const chip = t.closest('.chip'); if (chip) chip.remove();
+                                        if (!resp.ok) { showToast && showToast('Błąd usuwania: ' + resp.status, 'error'); return; }
+                                        if (chip) chip.remove();
+                                        // zwroć pracownika na listę wyboru
+                                        if (pracownikId && select) {
+                                            const opt = document.createElement('option');
+                                            opt.value = pracownikId;
+                                            opt.textContent = pracownikName || pracownikId;
+                                            select.appendChild(opt);
+                                        }
                                         showToast && showToast('Usunięto pracownika', 'success');
                                     }).catch(function (err) { console.error('delete obsada failed', err); showToast && showToast('Błąd sieci', 'error'); });
                             }
@@ -171,6 +241,18 @@
 
                     // no pending list in immediate-add mode
                 });
+
+                // Date selector: nawiguj do tej samej strony z nową datą
+                const obsadaDateEl = document.querySelector('#obsada-date:not([data-obsada-init="true"])');
+                if (obsadaDateEl) {
+                    obsadaDateEl.dataset.obsadaInit = 'true';
+                    obsadaDateEl.addEventListener('change', function () {
+                        if (!this.value) return;
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('date', this.value);
+                        window.location.href = url.toString();
+                    });
+                }
 
                 // save leaders handler (bind once, avoid conflicts)
                 const uninitSaveBtns = document.querySelectorAll('#btnSaveLiderzy:not([data-obsada-init="true"])');
@@ -186,7 +268,7 @@
                         try {
                             const fd = new URLSearchParams(); if (dateVal) fd.append('date', dateVal); fd.append('lider_psd', lpsd); fd.append('lider_agro', lagro);
                             const resp = await fetch('{{ url_for("leaves.zapisz_liderow_obsady") }}', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                            if (!resp.ok) { const txt = await resp.text(); showToast && showToast('Błąd zapisu liderów: ' + (txt || resp.status), 'error'); saveBtn.disabled = false; return; }
+                            if (!resp.ok) { showToast && showToast('Błąd zapisu liderów: ' + resp.status, 'error'); saveBtn.disabled = false; return; }
                             showToast && showToast('Zapisano liderów', 'success');
                         } catch (e) { console.error(e); showToast && showToast('Błąd sieci', 'error'); }
                         saveBtn.disabled = false;

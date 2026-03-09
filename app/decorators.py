@@ -85,9 +85,16 @@ def roles_required(*roles, groups=None):
       @roles_required('planista', 'lider')
       def view(): ...
 
+      @roles_required(['planista', 'lider'])   # forma listowa też obsługiwana
+      def view(): ...
+
       @roles_required('produkcja', groups=['linia1','linia2'])
       def view(): ...
     """
+    # Normalize: allow passing a single list/tuple as first arg
+    if len(roles) == 1 and isinstance(roles[0], (list, tuple)):
+        roles = tuple(roles[0])
+
     def wrapper(f):
         @wraps(f)
         def decorated(*args, **kwargs):

@@ -138,6 +138,14 @@ class AttendanceService:
                            WHERE pracownik_id=%s AND data_wpisu=%s AND sekcja=%s""",
                         (pracownik_id, data_wpisu, sekcja)
                     )
+                    # Also remove obecnosc presence records for this worker/date
+                    # so the calendar does not show stale "Obecny" status
+                    cursor.execute(
+                        """DELETE FROM obecnosc
+                           WHERE pracownik_id=%s AND data_wpisu=%s
+                             AND LOWER(TRIM(COALESCE(typ,''))) LIKE 'obec%%'""",
+                        (pracownik_id, data_wpisu)
+                    )
                     conn.commit()
                     return True
                 # Record not found - treat as idempotent success

@@ -218,7 +218,9 @@ class DashboardService:
                             (dzisiaj, produkt)
                         )
                         row = cursor.fetchone()
-                        if row and row[0] is not None:
+                        # Only override when Zasyp was actually realized (>0).
+                        # If Zasyp hasn't started yet, keep the plan's original tonaz.
+                        if row and row[0] is not None and row[0] > 0:
                             p[2] = row[0]
                     except Exception:
                         continue

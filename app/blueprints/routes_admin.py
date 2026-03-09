@@ -105,9 +105,14 @@ def admin_online_users_api():
 def admin_ustawienia_uzytkownicy():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, login, rola, grupa, haslo FROM uzytkownicy ORDER BY login")
+    cursor.execute(
+        "SELECT u.id, u.login, u.rola, u.grupa, u.haslo, u.pracownik_id, p.imie_nazwisko "
+        "FROM uzytkownicy u "
+        "LEFT JOIN pracownicy p ON u.pracownik_id = p.id "
+        "ORDER BY u.login"
+    )
     rows = cursor.fetchall()
-    konta = [(r[0], r[1], r[2], r[3]) for r in rows]
+    konta = [(r[0], r[1], r[2], r[3], r[5], r[6]) for r in rows]
     needs_reset = [r[1] for r in rows if r[4] and (str(r[4]).startswith('scrypt:') or not str(r[4]).startswith('pbkdf2:'))]
     # Compute suggested free pracownik id to help admin create/match accounts
     try:

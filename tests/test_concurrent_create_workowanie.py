@@ -69,9 +69,14 @@ def test_concurrent_create_workowanie():
         assert cnt == 1, f"Expected exactly 1 Workowanie for zasyp_id={zasyp_id}, found {cnt}, results={results}"
 
     finally:
-        # Cleanup
+        # Cleanup: delete both the Workowanie records (linked via zasyp_id FK column)
+        # AND the original Zasyp record (by its id). Previously only Workowanie rows
+        # were deleted, leaving the Zasyp test record for date.today() in the real DB.
         try:
-            cur.execute("DELETE FROM plan_produkcji WHERE zasyp_id=%s", (zasyp_id,))
+            cur.execute(
+                "DELETE FROM plan_produkcji WHERE zasyp_id=%s OR id=%s",
+                (zasyp_id, zasyp_id)
+            )
             conn.commit()
         except Exception:
             pass

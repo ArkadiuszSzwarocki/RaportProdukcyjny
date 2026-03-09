@@ -926,7 +926,8 @@ def przenies_zlecenie_ajax():
         print(f'[PRZENIES-API] Falling back to form data: {data}')
     
     id = data.get('id')
-    to_date = data.get('data')
+    # Support both 'to_date' (AJAX from bufor/workowanie views) and 'data' (form POST)
+    to_date = data.get('to_date') or data.get('data')
     print(f'[PRZENIES-API] id={id}, to_date={to_date}')
     
     if not id or not to_date:

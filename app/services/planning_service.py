@@ -418,8 +418,9 @@ class PlanningService:
             return []
 
     @staticmethod
+    @staticmethod
     def reschedule_plan(plan_id, nowa_data):
-        """Move a plan to a different date.
+        """Move a plan to a different date. Also moves buffer entries if they exist.
         
         Args:
             plan_id: Plan ID to reschedule
@@ -428,61 +429,139 @@ class PlanningService:
         Returns:
             (success: bool, message: str)
         """
-        print(f'\n[SERVICE-RESCHEDULE] reschedule_plan({plan_id}, {nowa_data}) START')
+        import sys
+        from datetime import date
+        
+        print(f'\n[SERVICE-RESCHEDULE] reschedule_plan({plan_id}, {nowa_data}) START', file=sys.stderr, flush=True)
         try:
-            print(f'[SERVICE-RESCHEDULE] Connecting to DB...')
+            # Convert both dates to ISO string format for safe comparison
+            if hasattr(nowa_data, 'isoformat'):
+                nowa_data_str = nowa_data.isoformat()
+            else:
+                nowa_data_str = str(nowa_data)
+            
+            print(f'[SERVICE-RESCHEDULE] Connecting to DB...', file=sys.stderr, flush=True)
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Validate plan exists and check status
-            print(f'[SERVICE-RESCHEDULE] Fetching plan {plan_id}...')
-            cursor.execute("SELECT status FROM plan_produkcji WHERE id=%s", (plan_id,))
+            print(f'[SERVICE-RESCHEDULE] Fetching plan {plan_id}...', file=sys.stderr, flush=True)
+            cursor.execute("SELECT status, data_planu, produkt, tonaz_rzeczywisty FROM plan_produkcji WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
-            print(f'[SERVICE-RESCHEDULE] Result: {res}')
+            print(f'[SERVICE-RESCHEDULE] Result: {res}', file=sys.stderr, flush=True)
             
             if not res:
-                print(f'[SERVICE-RESCHEDULE] Plan not found!')
+                print(f'[SERVICE-RESCHEDULE] Plan not found!', file=sys.stderr, flush=True)
                 return False, 'Plan nie istnieje.'
             
             status = res[0]
-            print(f'[SERVICE-RESCHEDULE] Current status: {status}')
+            stara_data = res[1]
+            produkt = res[2]
+            tonaz_rzeczywisty = res[3]
+            
+            # Convert date object to string for safe comparison
+            if hasattr(stara_data, 'isoformat'):
+                stara_data_str = stara_data.isoformat()
+            else:
+                stara_data_str = str(stara_data)
+            
+            print(f'[SERVICE-RESCHEDULE] Plan {plan_id}: status={status}, stara_data={stara_data_str}, produkt={produkt}, tonaz_rz={tonaz_rzeczywisty}', file=sys.stderr, flush=True)
+            print(f'[SERVICE-RESCHEDULE] Moving from {stara_data_str} to {nowa_data_str}', file=sys.stderr, flush=True)
             
             # Only block if plan is currently being unpacked (w toku)
-            # Allow reschedule for "zakonczone" (closed, ready to unpack) or other statuses
             if status == 'w toku':
-                print(f'[SERVICE-RESCHEDULE] Plan is currently being unpacked - cannot reschedule!')
-                return False, 'Nie można przesunąć planu, który jest rozpakowania (w toku).'
+                print(f'[SERVICE-RESCHEDULE] Plan is w toku - cannot reschedule!', file=sys.stderr, flush=True)
+                return False, 'Nie można przesunąć planu, który jest w rozpakowania (w toku).'
             
             # Get max sequence for target date
-            print(f'[SERVICE-RESCHEDULE] Fetching max sequence for date {nowa_data}...')
-            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (nowa_data,))
+            print(f'[SERVICE-RESCHEDULE] Fetching max sequence for target date {nowa_data_str}...', file=sys.stderr, flush=True)
+            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (nowa_data_str,))
             max_seq = cursor.fetchone()
             nowa_kolejnosc = (max_seq[0] if max_seq and max_seq[0] else 0) + 1
-            print(f'[SERVICE-RESCHEDULE] New sequence: {nowa_kolejnosc}')
+            print(f'[SERVICE-RESCHEDULE] New sequence: {nowa_kolejnosc}', file=sys.stderr, flush=True)
             
-            # Update date and reset sequence
-            print(f'[SERVICE-RESCHEDULE] Executing UPDATE...')
+            # Update date and reset sequence FOR PLAN
+            print(f'[SERVICE-RESCHEDULE] Updating plan_produkcji: id={plan_id}, nowa_data={nowa_data_str}...', file=sys.stderr, flush=True)
             cursor.execute(
                 "UPDATE plan_produkcji SET data_planu=%s, kolejnosc=%s WHERE id=%s",
-                (nowa_data, nowa_kolejnosc, plan_id)
+                (nowa_data_str, nowa_kolejnosc, plan_id)
             )
-            print(f'[SERVICE-RESCHEDULE] UPDATE rowcount: {cursor.rowcount}')
+            print(f'[SERVICE-RESCHEDULE] UPDATE plan_produkcji rowcount: {cursor.rowcount}', file=sys.stderr, flush=True)
+            
+            # NOW HANDLE BUFFER ENTRIES
+            # Look for all active buffer entries by zasyp_id (no date restriction —
+            # carry-over buffers may be on a different date than the plan itself)
+            print(f'[SERVICE-RESCHEDULE] === BUFFER LOOKUP === Checking for buffer entries: zasyp_id={plan_id}', file=sys.stderr, flush=True)
+            cursor.execute("""
+                SELECT id, tonaz_rzeczywisty, spakowano, produkt, typ_produkcji
+                FROM bufor
+                WHERE zasyp_id=%s AND status='aktywny'
+            """, (plan_id,))
+            
+            buffer_entries = cursor.fetchall()
+            print(f'[SERVICE-RESCHEDULE] === BUFFER RESULT === Found {len(buffer_entries)} buffer entries', file=sys.stderr, flush=True)
+            
+            if buffer_entries:
+                print(f'[SERVICE-RESCHEDULE] Found buffer entries! Moving them...', file=sys.stderr, flush=True)
+                
+                # Get max kolejka for target date in buffer
+                cursor.execute(
+                    "SELECT MAX(kolejka) FROM bufor WHERE data_planu=%s",
+                    (nowa_data_str,)
+                )
+                max_buf_seq = cursor.fetchone()
+                next_buf_kolejka = (max_buf_seq[0] if max_buf_seq and max_buf_seq[0] else 0) + 1
+                print(f'[SERVICE-RESCHEDULE] Buffer next kolejka: {next_buf_kolejka}', file=sys.stderr, flush=True)
+                
+                for buf_entry in buffer_entries:
+                    buf_id = buf_entry[0]
+                    tonaz_rz = buf_entry[1]
+                    spakowano = buf_entry[2]
+                    produkt_buf = buf_entry[3]
+                    typ_prod = buf_entry[4]
+                    
+                    print(f'[SERVICE-RESCHEDULE] Moving buffer entry {buf_id}: {produkt_buf} ({tonaz_rz}kg) spakowano={spakowano}...', file=sys.stderr, flush=True)
+                    
+                    # Update buffer entry with new date and new kolejka
+                    cursor.execute("""
+                        UPDATE bufor
+                        SET data_planu=%s, kolejka=%s
+                        WHERE id=%s
+                    """, (nowa_data_str, next_buf_kolejka, buf_id))
+                    
+                    print(f'[SERVICE-RESCHEDULE] Buffer entry {buf_id} updated: rowcount={cursor.rowcount}', file=sys.stderr, flush=True)
+                    next_buf_kolejka += 1
+                    
+                    current_app.logger.critical(
+                        f'[RESCHEDULE] ✓ Moved buffer entry {buf_id}: {produkt_buf} '
+                        f'from {stara_data_str} to {nowa_data_str} with {tonaz_rz}kg spakowano={spakowano}'
+                    )
+            else:
+                print(f'[SERVICE-RESCHEDULE] NO buffer entries found - plan has no buffer entries yet', file=sys.stderr, flush=True)
+            
+            # Commit ALL changes
             conn.commit()
-            print(f'[SERVICE-RESCHEDULE] COMMIT done')
+            print(f'[SERVICE-RESCHEDULE] COMMIT done', file=sys.stderr, flush=True)
             conn.close()
-            print(f'[SERVICE-RESCHEDULE] Connection closed - SUCCESS\n')
-            return True, 'Plan przesunięte na nową datę.'
+            print(f'[SERVICE-RESCHEDULE] SUCCESS - Plan moved successfully\n', file=sys.stderr, flush=True)
+            
+            if buffer_entries:
+                msg = f'Plan i bufor przesunięte na nową datę ({len(buffer_entries)} wpisów: {", ".join([str(e[3]) for e in buffer_entries])}).'
+                current_app.logger.critical(f'[RESCHEDULE-SUCCESS] {msg}')
+            else:
+                msg = 'Plan przesunięty na nową datę (bez wpisów w buforze).'
+            
+            return True, msg
             
         except Exception as e:
-            print(f'[SERVICE-RESCHEDULE] EXCEPTION: {str(e)}')
-            print(f'[SERVICE-RESCHEDULE] Traceback: {traceback.format_exc()}')
+            print(f'[SERVICE-RESCHEDULE] *** EXCEPTION: {str(e)}', file=sys.stderr, flush=True)
+            print(f'[SERVICE-RESCHEDULE] Traceback: {traceback.format_exc()}', file=sys.stderr, flush=True)
             current_app.logger.exception(f'Error rescheduling plan {plan_id}')
             try:
                 conn.rollback()
-                print(f'[SERVICE-RESCHEDULE] ROLLBACK done')
+                print(f'[SERVICE-RESCHEDULE] ROLLBACK done', file=sys.stderr, flush=True)
             except Exception as rb_err:
-                print(f'[SERVICE-RESCHEDULE] ROLLBACK error: {rb_err}')
-                pass
+                print(f'[SERVICE-RESCHEDULE] ROLLBACK error: {rb_err}', file=sys.stderr, flush=True)
             return False, 'Błąd przy przesuwaniu planu.'
 
     @staticmethod
@@ -685,6 +764,17 @@ class PlanningService:
                 print(f'[PRZENIES] DEBUG: plan_id={plan_id}, tonaz={plan_tonaz}, real_tonaz={real_tonaz}, remaining={remaining}', 
                       file=sys.stderr, flush=True)
                 
+                # Skip if carry-over already exists on next_date for this source plan
+                cursor.execute(
+                    "SELECT id FROM bufor WHERE zasyp_id=%s AND DATE(data_planu)=%s",
+                    (plan_id, next_data_str)
+                )
+                if cursor.fetchone():
+                    print(f'[PRZENIES] Plan {plan_id} already has carry-over on {next_data_str}, skipping duplicate',
+                          file=sys.stderr, flush=True)
+                    current_app.logger.info(f'[PRZENIES] Plan {plan_id} already has carry-over on {next_data_str}, skipping')
+                    continue
+
                 # Only create new plans if there's remaining work
                 if remaining > 0:
                     # Create both Zasyp and Workowanie for this product
@@ -711,6 +801,7 @@ class PlanningService:
             created_count = 0
             buffer_insert_count = 0
             buffer_insert_cursor = conn.cursor()
+            last_new_zasyp_id = None  # tracks new Zasyp plan created in this loop iteration pair
             
             for plan_data in plans_to_create:
                 try:
@@ -744,6 +835,21 @@ class PlanningService:
                         # Check section FIRST (before using it)
                         sekcja_lower = plan_data['sekcja'].lower()
                         
+                        # If this is a Zasyp plan, remember its ID so we can link the paired Workowanie
+                        if sekcja_lower == 'zasyp':
+                            last_new_zasyp_id = new_id
+                        elif sekcja_lower == 'workowanie' and last_new_zasyp_id:
+                            # Link this Workowanie plan to the newly created Zasyp plan
+                            cursor.execute(
+                                "UPDATE plan_produkcji SET zasyp_id = %s WHERE id = %s",
+                                (last_new_zasyp_id, new_id)
+                            )
+                            conn.commit()
+                            current_app.logger.info(
+                                f'[PRZENIES SERVICE] Linked Workowanie {new_id} -> Zasyp {last_new_zasyp_id}'
+                            )
+                            last_new_zasyp_id = None  # reset for next pair
+                        
                         # If this is a Zasyp plan, add it to buffer for next day
                         # Do this IMMEDIATELY after create, BEFORE updating tonaz_rzeczywisty
                         if sekcja_lower == 'zasyp':
@@ -768,12 +874,19 @@ class PlanningService:
                                 print(f'[PRZENIES SERVICE] *** BEFORE BUFFER INSERT *** plan_id={new_id}, data={next_data_str}, real_tonaz_value={real_tonaz_value}, kolejka={next_kolejka}', 
                                       file=sys.stderr, flush=True)
                                 
+                                # CRITICAL: Use SOURCE plan ID (old plan with tonaz_rz=actual_done),
+                                # NOT new_id (new plan starts at tonaz_rz=0).
+                                # refresh_bufor_queue step 5 syncs bufor.tonaz_rz = plan.tonaz_rz,
+                                # so we must link to the plan that has the correct tonaz_rz.
+                                buf_zasyp_id = plan_data['source_plan_id']
+                                print(f'[PRZENIES SERVICE] Using buf_zasyp_id={buf_zasyp_id} (source) instead of new_id={new_id} (new plan with tonaz_rz=0)',
+                                      file=sys.stderr, flush=True)
                                 # Insert into buffer with what Zasyp actually did (to be packed)
                                 buffer_insert_cursor.execute("""
                                     INSERT INTO bufor 
                                     (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'aktywny')
-                                """, (new_id, next_data_str, plan_data['produkt'], '', 
+                                """, (buf_zasyp_id, next_data_str, plan_data['produkt'], '', 
                                       plan_data['typ_produkcji'], real_tonaz_value, 0, next_kolejka))
                                 
                                 insert_rowcount = buffer_insert_cursor.rowcount

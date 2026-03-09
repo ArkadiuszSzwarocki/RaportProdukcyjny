@@ -28,6 +28,16 @@ def bezpieczny_powrot():
 def submit_wniosek():
     """Submit leave request - delegated to LeaveRequestService."""
     pracownik_id = session.get('pracownik_id') or request.form.get('pracownik_id')
+
+    # Lider/admin/zarząd mogą złożyć wniosek w imieniu innego pracownika
+    role = (session.get('rola') or '').lower()
+    target_pid = request.form.get('target_pracownik_id')
+    if target_pid and role in ['lider', 'admin', 'zarzad']:
+        try:
+            pracownik_id = int(target_pid)
+        except (ValueError, TypeError):
+            pass
+
     if not pracownik_id:
         flash('Brak przypisanego pracownika do konta.', 'warning')
         return redirect(bezpieczny_powrot())
@@ -71,9 +81,6 @@ def approve_wniosek(wid):
         lider_id = session.get('pracownik_id')
         current_app.logger.info(f"[APPROVE] lider_id={lider_id}")
         
-        if not lider_id:
-            raise ValueError("Brak ID lidera w sesji")
-        
         success, message = LeaveRequestService.approve_leave_request(wid, lider_id)
         current_app.logger.info(f"[APPROVE] success={success}, message={message}")
         
@@ -102,9 +109,6 @@ def reject_wniosek(wid):
         current_app.logger.info(f"[REJECT] wid={wid}")
         lider_id = session.get('pracownik_id')
         current_app.logger.info(f"[REJECT] lider_id={lider_id}")
-        
-        if not lider_id:
-            raise ValueError("Brak ID lidera w sesji")
         
         success, message = LeaveRequestService.reject_leave_request(wid, lider_id)
         current_app.logger.info(f"[REJECT] success={success}, message={message}")
@@ -191,7 +195,10 @@ def usun_obecnosc(id):
     
     if not success:
         flash('Błąd przy usuwaniu wpisu.', 'warning')
-    AttendanceService.delete_absence_record(id)
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Błąd przy usuwaniu wpisu'})
+        return redirect(bezpieczny_powrot())
+
     flash('Wpis został usunięty.', 'success')
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':

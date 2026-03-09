@@ -102,6 +102,9 @@ class LeaveRequestService:
                     LeaveRequestService._update_leave_counters(
                         cursor, conn, pracownik_id, data_od, data_do, typ
                     )
+                    LeaveRequestService._create_absence_records(
+                        cursor, conn, pracownik_id, data_od, data_do, typ, request_id
+                    )
 
                 return True, "Wniosek zatwierdzony."
             finally:
@@ -344,6 +347,63 @@ class LeaveRequestService:
 
         except Exception as e:
             current_app.logger.exception("Error updating leave counters: %s", str(e))
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _create_absence_records(cursor, conn, pracownik_id: int, data_od: date,
+                                data_do: date, typ: str, wniosek_id: int):
+        """
+        Automatically insert prezence records of absence type into `obecnosc`
+        for each day of an approved leave request.
+        Skips L4 and Wyjście prywatne (partial-day absences).
+        """
+        try:
+            if not typ:
+                return
+            typ_lower = typ.strip().lower()
+            # L4 i wyjście prywatne nie trafiają automatycznie na listę nieobecnych
+            if typ_lower in ('l4', 'wyjscie prywatne', 'wyjście prywatne',
+                             'wyjście prywatne'):
+                return
+
+            # Mapowanie typu wniosku → typ w tabeli obecnosc
+            if 'urlop' in typ_lower:
+                obecnosc_typ = 'Urlop'
+            elif 'nieobecno' in typ_lower:
+                obecnosc_typ = 'Nieobecnosc'
+            elif 'opieka' in typ_lower:
+                obecnosc_typ = 'Opieka'
+            else:
+                # Nieznany typ — użyj oryginalnej wartości (max 50 znaków)
+                obecnosc_typ = typ[:50]
+
+            if not data_od or not data_do:
+                return
+
+            current = data_od
+            while current <= data_do:
+                # Wstaw tylko jeśli nie istnieje już rekord tego samego typu w tym dniu
+                cursor.execute(
+                    """SELECT COUNT(1) FROM obecnosc
+                       WHERE pracownik_id=%s AND data_wpisu=%s AND typ=%s""",
+                    (pracownik_id, current, obecnosc_typ)
+                )
+                if cursor.fetchone()[0] == 0:
+                    cursor.execute(
+                        """INSERT INTO obecnosc
+                               (pracownik_id, data_wpisu, typ, ilosc_godzin, komentarz)
+                           VALUES (%s, %s, %s, 0, %s)""",
+                        (pracownik_id, current, obecnosc_typ,
+                         f'Auto z wniosku #{wniosek_id}')
+                    )
+                current += timedelta(days=1)
+            conn.commit()
+
+        except Exception as e:
+            current_app.logger.exception("Error creating absence records: %s", str(e))
             try:
                 conn.rollback()
             except Exception:

@@ -424,15 +424,18 @@ class TestReschedulePlan:
             mock_conn.cursor.return_value = mock_cursor
             
             # Mock plan exists with 'zaplanowane' status
+            # SELECT status, data_planu, produkt, tonaz_rzeczywisty
             mock_cursor.fetchone.side_effect = [
-                ('zaplanowane',),  # Status check
-                (3,),  # MAX(kolejnosc) for new date
+                ('zaplanowane', '2025-02-14', 'TEST PRODUCT', 0),  # Status check (4 cols)
+                (3,),   # MAX(kolejnosc) for new date
+                (None,),  # MAX(kolejka) for buffer seq
             ]
+            mock_cursor.fetchall.return_value = []  # no buffer entries
             
             success, message = PlanningService.reschedule_plan(123, '2025-02-15')
             
             assert success is True
-            assert 'data' in message.lower() or 'przesunięte' in message.lower()
+            assert 'przesunięty' in message.lower() or 'dat' in message.lower()
             mock_conn.commit.assert_called_once()
 
     @patch('app.services.planning_service.get_db_connection')
@@ -444,7 +447,8 @@ class TestReschedulePlan:
             mock_get_conn.return_value = mock_conn
             mock_conn.cursor.return_value = mock_cursor
             
-            mock_cursor.fetchone.return_value = ('w toku',)
+            # SELECT status, data_planu, produkt, tonaz_rzeczywisty
+            mock_cursor.fetchone.return_value = ('w toku', '2025-02-14', 'TEST PRODUCT', 100)
             
             success, message = PlanningService.reschedule_plan(123, '2025-02-15')
             

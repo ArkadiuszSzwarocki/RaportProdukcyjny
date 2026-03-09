@@ -535,12 +535,14 @@ class QueryHelper:
         conn = get_db_connection()
         cursor = conn.cursor()
         since = date.today() - timedelta(days=days)
+        # Include future dates (approved leaves may be ahead) — look 30 days forward too
+        until = date.today() + timedelta(days=30)
         cursor.execute(
             "SELECT o.id, p.imie_nazwisko, o.typ, o.data_wpisu, o.ilosc_godzin, o.komentarz "
             "FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id "
             "WHERE o.data_wpisu BETWEEN %s AND %s AND LOWER(TRIM(COALESCE(o.typ,''))) NOT LIKE 'obec%' "
             "ORDER BY o.data_wpisu DESC LIMIT %s",
-            (since, date.today(), limit)
+            (since, until, limit)
         )
         raw = cursor.fetchall()
         result = []
@@ -597,6 +599,7 @@ class QueryHelper:
         cursor.execute(
             "SELECT id, imie_nazwisko FROM pracownicy "
             "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) "
+            "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad') AND pracownik_id IS NOT NULL) "
             "ORDER BY imie_nazwisko",
             (data_wpisu,)
         )

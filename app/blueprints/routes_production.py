@@ -342,14 +342,23 @@ def obsada_page():
     cursor = conn.cursor()
     try:
         # all obsada entries for given date (grouped by sekcja)
-        cursor.execute("SELECT oz.sekcja, oz.id, p.imie_nazwisko FROM obsada_zmiany oz JOIN pracownicy p ON oz.pracownik_id = p.id WHERE oz.data_wpisu = %s ORDER BY oz.sekcja, p.imie_nazwisko", (qdate,))
+        cursor.execute("SELECT oz.sekcja, oz.id, p.imie_nazwisko, p.id FROM obsada_zmiany oz JOIN pracownicy p ON oz.pracownik_id = p.id WHERE oz.data_wpisu = %s ORDER BY oz.sekcja, p.imie_nazwisko", (qdate,))
         rows = cursor.fetchall()
         obsady_map = {}
         for r in rows:
-            sekc, oz_id, name = r[0], r[1], r[2]
-            obsady_map.setdefault(sekc, []).append((oz_id, name))
-        # available employees: exclude those already assigned for that date (any sekcja)
-        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) ORDER BY imie_nazwisko", (qdate,))
+            sekc, oz_id, name, pracownik_id = r[0], r[1], r[2], r[3]
+            obsady_map.setdefault(sekc, []).append((oz_id, name, pracownik_id))
+        # available employees: exclude those already assigned for that date (any sekcja),
+        # those marked absent in obecnosc, and those on approved leave (wnioski_wolne)
+        cursor.execute(
+            "SELECT id, imie_nazwisko FROM pracownicy "
+            "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) "
+            "AND id NOT IN (SELECT pracownik_id FROM obecnosc WHERE data_wpisu=%s AND typ IN ('Nieobecnosc','Urlop','L4','Opieka')) "
+            "AND id NOT IN (SELECT pracownik_id FROM wnioski_wolne WHERE status='approved' AND data_od <= %s AND data_do >= %s) "
+            "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad') AND pracownik_id IS NOT NULL) "
+            "ORDER BY imie_nazwisko",
+            (qdate, qdate, qdate, qdate)
+        )
         wszyscy = cursor.fetchall()
         # pełna lista pracowników (dla wyboru liderów) - tylko liderzy
         cursor.execute("SELECT p.id, p.imie_nazwisko FROM pracownicy p JOIN uzytkownicy u ON p.id = u.pracownik_id WHERE u.rola='lider' ORDER BY p.imie_nazwisko")

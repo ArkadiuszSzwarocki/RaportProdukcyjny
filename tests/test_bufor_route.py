@@ -1,5 +1,5 @@
 import sys
-from app import create_app
+from app.core.factory import create_app
 from app.db import get_db_connection
 from unittest.mock import patch
 
