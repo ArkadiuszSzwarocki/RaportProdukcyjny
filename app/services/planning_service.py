@@ -689,330 +689,240 @@ class PlanningService:
     @staticmethod
     def przenies_niezrealizowane(current_data, plan_ids_to_move=None):
         """
-        Move incomplete plans to next day.
-        Creates new Zasyp and Workowanie plans for incomplete work.
-        Moves buffer entries to next day.
-        
+        Move incomplete work to next day.
+
+        Decision basis — BUFFER (remaining to pack), not Zasyp shortfall alone:
+          1. If Workowanie packed less than was zasypane → create Workowanie carryover for next day.
+             A companion "ghost" Zasyp plan (already done) is created so that refresh_bufor_queue
+             can auto-populate the buffer with the correct remaining amount.
+          2. If Zasyp itself didn't meet its plan → also create a new Zasyp plan for next day
+             (+ empty Workowanie linked to it).
+
+        Buffer entries for the current day are NOT deleted — they persist as history.
+
         Args:
             current_data: Date string (YYYY-MM-DD)
-            plan_ids_to_move: Optional list of plan IDs to move (if None, moves all incomplete)
-            
+            plan_ids_to_move: Optional list of Zasyp plan IDs to process (None = all)
+
         Returns:
             Tuple (success: bool, message: str, count: int)
         """
-        import sys
         try:
-            # ULTRA DEBUG on stderr and file log
-            print(f'[PRZENIES SERVICE] *** FUNCTION CALLED *** current_data={current_data}, plan_ids_to_move={plan_ids_to_move}', file=sys.stderr, flush=True)
-            current_app.logger.critical(f'[PRZENIES SERVICE] *** FUNCTION CALLED *** current_data={current_data}, plan_ids_to_move={plan_ids_to_move}')
-            current_app.logger.info(f'[PRZENIES SERVICE] START - received current_data={current_data} (type={type(current_data).__name__})')
-            
-            conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
-            
-            # Validate date
             try:
                 current_date = datetime.strptime(current_data, '%Y-%m-%d').date()
-                current_app.logger.info(f'[PRZENIES SERVICE] Parsed current_date={current_date}, next_date will be={current_date + timedelta(days=1)}')
             except Exception as e:
-                current_app.logger.error(f'[PRZENIES SERVICE] Date parse ERROR: {str(e)}')
-                return (False, f'Nieprawidłowy format daty: {str(e)}')
-            
-            # Calculate next date (add 1 day)
+                return (False, f'Nieprawidłowy format daty: {str(e)}', 0)
+
             next_date = current_date + timedelta(days=1)
             next_data_str = next_date.isoformat()
-            
-            # Get all incomplete plans on current date (status 'zakonczone' but not fully executed)
-            # Only Zasyp - is the source of work
+
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+
+            # Fetch all closed Zasyp plans for the date, with their paired Workowanie plan
             if plan_ids_to_move:
-                # Move only selected plans
                 placeholders = ','.join(['%s'] * len(plan_ids_to_move))
                 cursor.execute(f"""
-                    SELECT id, sekcja, produkt, tonaz, tonaz_rzeczywisty, typ_produkcji
-                    FROM plan_produkcji
-                    WHERE DATE(data_planu) = %s AND status = 'zakonczone'
-                      AND LOWER(sekcja) = 'zasyp'
-                      AND id IN ({placeholders})
-                      AND (tonaz_rzeczywisty IS NULL OR tonaz_rzeczywisty < tonaz)
-                    ORDER BY id
-                """, [current_data] + plan_ids_to_move)
+                    SELECT z.id AS zasyp_id, z.produkt, z.typ_produkcji,
+                           COALESCE(z.tonaz, 0) AS z_plan,
+                           COALESCE(z.tonaz_rzeczywisty, 0) AS z_real,
+                           w.id AS workowanie_id,
+                           COALESCE(w.tonaz, 0) AS w_plan,
+                           COALESCE(w.tonaz_rzeczywisty, 0) AS w_real
+                    FROM plan_produkcji z
+                    LEFT JOIN plan_produkcji w
+                        ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'
+                    WHERE DATE(z.data_planu) = %s
+                      AND z.status = 'zakonczone'
+                      AND LOWER(z.sekcja) = 'zasyp'
+                      AND z.id IN ({placeholders})
+                    ORDER BY z.id
+                """, [current_data] + list(plan_ids_to_move))
             else:
-                # Move all incomplete plans
                 cursor.execute("""
-                    SELECT id, sekcja, produkt, tonaz, tonaz_rzeczywisty, typ_produkcji
-                    FROM plan_produkcji
-                    WHERE DATE(data_planu) = %s AND status = 'zakonczone'
-                      AND LOWER(sekcja) = 'zasyp'
-                      AND (tonaz_rzeczywisty IS NULL OR tonaz_rzeczywisty < tonaz)
-                    ORDER BY id
+                    SELECT z.id AS zasyp_id, z.produkt, z.typ_produkcji,
+                           COALESCE(z.tonaz, 0) AS z_plan,
+                           COALESCE(z.tonaz_rzeczywisty, 0) AS z_real,
+                           w.id AS workowanie_id,
+                           COALESCE(w.tonaz, 0) AS w_plan,
+                           COALESCE(w.tonaz_rzeczywisty, 0) AS w_real
+                    FROM plan_produkcji z
+                    LEFT JOIN plan_produkcji w
+                        ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'
+                    WHERE DATE(z.data_planu) = %s
+                      AND z.status = 'zakonczone'
+                      AND LOWER(z.sekcja) = 'zasyp'
+                    ORDER BY z.id
                 """, (current_data,))
-            
-            incomplete_plans = cursor.fetchall()
-            plans_to_create = []
-            
-            # Process each incomplete Zasyp plan
-            for plan in incomplete_plans:
-                plan_id = plan['id']
+
+            plans = cursor.fetchall()
+            update_cursor = conn.cursor()
+            created_count = 0
+
+            for plan in plans:
+                zasyp_id = plan['zasyp_id']
                 produkt = plan['produkt']
-                plan_tonaz = plan['tonaz'] or 0
-                real_tonaz = plan['tonaz_rzeczywisty'] or 0
                 typ_prod = plan['typ_produkcji'] or 'worki_zgrzewane_25'
-                
-                # Calculate remaining
-                remaining = plan_tonaz - real_tonaz
-                
-                print(f'[PRZENIES] DEBUG: plan_id={plan_id}, tonaz={plan_tonaz}, real_tonaz={real_tonaz}, remaining={remaining}', 
-                      file=sys.stderr, flush=True)
-                
-                # Skip if carry-over already exists on next_date for this source plan
-                cursor.execute(
-                    "SELECT id FROM bufor WHERE zasyp_id=%s AND DATE(data_planu)=%s",
-                    (plan_id, next_data_str)
-                )
-                if cursor.fetchone():
-                    print(f'[PRZENIES] Plan {plan_id} already has carry-over on {next_data_str}, skipping duplicate',
-                          file=sys.stderr, flush=True)
-                    current_app.logger.info(f'[PRZENIES] Plan {plan_id} already has carry-over on {next_data_str}, skipping')
+                z_plan = plan['z_plan']
+                z_real = plan['z_real']
+                w_plan = plan['w_plan']
+                w_real = plan['w_real']
+
+                # Rule 1: remaining to pack = what Zasyp produced minus what was already packed
+                # If no Workowanie plan exists, all zasypane goods need packing
+                if plan['workowanie_id'] is not None:
+                    workowanie_remaining = max(0.0, w_plan - w_real)
+                else:
+                    workowanie_remaining = max(0.0, z_real)
+
+                # Rule 2: Zasyp shortfall = how much Zasyp still needs to do
+                zasyp_remaining = max(0.0, z_plan - z_real)
+
+                if workowanie_remaining <= 0 and zasyp_remaining <= 0:
                     continue
 
-                # Only create new plans if there's remaining work
-                if remaining > 0:
-                    # Create both Zasyp and Workowanie for this product
-                    plans_to_create.append({
-                        'sekcja': 'Zasyp',
-                        'produkt': produkt,
-                        'plan': remaining,  # 5905 kg - remaining to do in Zasyp
-                        'real_tonaz': real_tonaz,  # 1095 kg - already done
-                        'typ_produkcji': typ_prod,
-                        'source_plan_id': plan_id
-                    })
-                    plans_to_create.append({
-                        'sekcja': 'Workowanie',
-                        'produkt': produkt,
-                        'plan': real_tonaz,  # 1095 kg - what Zasyp already did (to pack)
-                        'real_tonaz': real_tonaz,  # 1095 kg - for buffer
-                        'typ_produkcji': typ_prod,
-                        'source_plan_id': plan_id
-                    })
-                    print(f'[PRZENIES] ADDING BOTH PLANS: sekcja=Zasyp (plan={remaining}), sekcja=Workowanie (plan={real_tonaz}, real_tonaz={real_tonaz})', 
-                          file=sys.stderr, flush=True)
-            
-            # Create new plans on next day and add Zasyp plans to buffer
-            created_count = 0
-            buffer_insert_count = 0
-            buffer_insert_cursor = conn.cursor()
-            last_new_zasyp_id = None  # tracks new Zasyp plan created in this loop iteration pair
-            
-            for plan_data in plans_to_create:
-                try:
-                    print(f'[PRZENIES] PROCESSING PLAN DATA: sekcja={plan_data["sekcja"]}, produkt={plan_data["produkt"]}, plan={plan_data["plan"]}, real_tonaz={plan_data.get("real_tonaz", "MISSING")}',
-                          file=sys.stderr, flush=True)
-                    current_app.logger.info(
-                        f'[PRZENIES LOOP] plan_data keys: {list(plan_data.keys())}, real_tonaz value: {plan_data.get("real_tonaz")}'
-                    )
-                    
-                    success, msg, new_id = PlanningService.create_plan(
-                        data_planu=next_data_str,
-                        produkt=plan_data['produkt'],
-                        tonaz=plan_data['plan'],
-                        sekcja=plan_data['sekcja'],
-                        typ_produkcji=plan_data['typ_produkcji'],
-                        status='zaplanowane'
-                    )
-                    
-                    if success:
-                        created_count += 1
-                        print(f'[PRZENIES SERVICE] [OK] CREATE_PLAN SUCCESS: new_id={new_id}, ={plan_data["sekcja"]}, produkt={plan_data["produkt"]}', 
-                              file=sys.stderr, flush=True)
-                        current_app.logger.critical(
-                            f'[PRZENIES SERVICE] [OK] CREATE_PLAN SUCCESS: new_id={new_id}, sekcja={plan_data["sekcja"]}'
-                        )
+                # --- Rule 1: Workowanie carryover ---
+                if workowanie_remaining > 0:
+                    # Check for duplicate on next_date (same produkt + workowanie + zaplanowane)
+                    cursor.execute("""
+                        SELECT id FROM plan_produkcji
+                        WHERE DATE(data_planu) = %s AND produkt = %s
+                          AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'
+                          AND zasyp_id IN (
+                              SELECT id FROM plan_produkcji
+                              WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'zasyp' AND status = 'zakonczone'
+                                AND tonaz_rzeczywisty = %s
+                          )
+                    """, (next_data_str, produkt, next_data_str, workowanie_remaining))
+                    if cursor.fetchone():
                         current_app.logger.info(
-                            f'✓ Przeniesiono: {plan_data["produkt"]} ({plan_data["plan"]}kg) '
-                            f'z planu {plan_data["source_plan_id"]} na {next_data_str}'
+                            f'[PRZENIES] Carryover Workowanie already exists for {produkt} on {next_data_str}, skipping'
                         )
-                        
-                        # Check section FIRST (before using it)
-                        sekcja_lower = plan_data['sekcja'].lower()
-                        
-                        # If this is a Zasyp plan, remember its ID so we can link the paired Workowanie
-                        if sekcja_lower == 'zasyp':
-                            last_new_zasyp_id = new_id
-                        elif sekcja_lower == 'workowanie' and last_new_zasyp_id:
-                            # Link this Workowanie plan to the newly created Zasyp plan
-                            cursor.execute(
-                                "UPDATE plan_produkcji SET zasyp_id = %s WHERE id = %s",
-                                (last_new_zasyp_id, new_id)
+                    else:
+                        # Create "ghost" Zasyp carryover directly (goods physically in buffer already)
+                        # Use direct INSERT on outer conn so typ_zlecenia is set atomically — no
+                        # separate UPDATE needed.  typ_zlecenia='carry_over_ghost' hides this record
+                        # from the planista Zasyp view.
+                        update_cursor.execute(
+                            "SELECT COALESCE(MAX(kolejnosc), 0) FROM plan_produkcji WHERE data_planu = %s",
+                            (next_data_str,)
+                        )
+                        nk_ghost = update_cursor.fetchone()[0] + 1
+                        update_cursor.execute("""
+                            INSERT INTO plan_produkcji
+                            (data_planu, produkt, tonaz, status, sekcja, kolejnosc,
+                             typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia)
+                            VALUES (%s, %s, %s, 'zakonczone', 'Zasyp', %s,
+                                    %s, %s, %s, 'carry_over_ghost')
+                        """, (next_data_str, produkt, workowanie_remaining, nk_ghost,
+                              typ_prod, workowanie_remaining,
+                              f'[carry-over z {current_data}]'))
+                        ghost_zasyp_id = update_cursor.lastrowid
+                        if ghost_zasyp_id:
+                            # Create Workowanie plan for packing
+                            s_w, _, new_work_id = PlanningService.create_plan(
+                                data_planu=next_data_str,
+                                produkt=produkt,
+                                tonaz=workowanie_remaining,
+                                sekcja='Workowanie',
+                                typ_produkcji=typ_prod,
+                                status='zaplanowane'
                             )
-                            conn.commit()
-                            current_app.logger.info(
-                                f'[PRZENIES SERVICE] Linked Workowanie {new_id} -> Zasyp {last_new_zasyp_id}'
-                            )
-                            last_new_zasyp_id = None  # reset for next pair
-                        
-                        # If this is a Zasyp plan, add it to buffer for next day
-                        # Do this IMMEDIATELY after create, BEFORE updating tonaz_rzeczywisty
-                        if sekcja_lower == 'zasyp':
-                            try:
-                                # Get next kolejka number for this date
-                                buffer_insert_cursor.execute(
-                                    "SELECT MAX(kolejka) FROM bufor WHERE data_planu = %s",
+                            if s_w and new_work_id:
+                                update_cursor.execute(
+                                    "UPDATE plan_produkcji SET zasyp_id = %s WHERE id = %s",
+                                    (ghost_zasyp_id, new_work_id)
+                                )
+                                conn.commit()
+                                created_count += 2
+                                current_app.logger.info(
+                                    f'[PRZENIES] Workowanie carryover: {produkt} {workowanie_remaining}kg'
+                                    f' -> Zasyp ghost #{ghost_zasyp_id}, Workowanie #{new_work_id}'
+                                )
+
+                                # --- CRITICAL FIX: insert bufor entry directly ---
+                                # refresh_bufor_queue only covers yesterday-today range, so the ghost
+                                # Zasyp on next_date would never be added to bufor by the daemon until
+                                # the server date catches up. We insert it here to make Workowanie
+                                # immediately startable from the queue.
+                                update_cursor.execute(
+                                    "SELECT COALESCE(MAX(kolejka), 0) FROM bufor"
+                                    " WHERE data_planu = %s AND status = 'aktywny'",
                                     (next_data_str,)
                                 )
-                                result = buffer_insert_cursor.fetchone()
-                                next_kolejka = (result[0] if result and result[0] else 0) + 1
-                                
-                                # Use real_tonaz value from dict (what Zasyp already did)
-                                real_tonaz_value = plan_data.get('real_tonaz')
-                                if real_tonaz_value is None:
-                                    real_tonaz_value = 0
-                                
-                                current_app.logger.critical(
-                                    f'[PRZENIES BUFFER] About to insert to buffer: plan_id={new_id}, sekcja={plan_data["sekcja"]}, real_tonaz_value from dict={plan_data.get("real_tonaz")}, final_value={real_tonaz_value}'
+                                max_kol = update_cursor.fetchone()[0]
+                                update_cursor.execute("""
+                                    INSERT INTO bufor
+                                    (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji,
+                                     tonaz_rzeczywisty, spakowano, kolejka, status)
+                                    VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny')
+                                    ON DUPLICATE KEY UPDATE id = id
+                                """, (ghost_zasyp_id, next_data_str, produkt,
+                                      f'carry-over z {current_data}', typ_prod,
+                                      workowanie_remaining, max_kol + 1))
+                                conn.commit()
+                                current_app.logger.info(
+                                    f'[PRZENIES] Bufor entry inserted for {produkt} on {next_data_str}'
+                                    f' (kolejka {max_kol + 1})'
                                 )
-                                
-                                print(f'[PRZENIES SERVICE] *** BEFORE BUFFER INSERT *** plan_id={new_id}, data={next_data_str}, real_tonaz_value={real_tonaz_value}, kolejka={next_kolejka}', 
-                                      file=sys.stderr, flush=True)
-                                
-                                # CRITICAL: Use SOURCE plan ID (old plan with tonaz_rz=actual_done),
-                                # NOT new_id (new plan starts at tonaz_rz=0).
-                                # refresh_bufor_queue step 5 syncs bufor.tonaz_rz = plan.tonaz_rz,
-                                # so we must link to the plan that has the correct tonaz_rz.
-                                buf_zasyp_id = plan_data['source_plan_id']
-                                print(f'[PRZENIES SERVICE] Using buf_zasyp_id={buf_zasyp_id} (source) instead of new_id={new_id} (new plan with tonaz_rz=0)',
-                                      file=sys.stderr, flush=True)
-                                # Insert into buffer with what Zasyp actually did (to be packed)
-                                buffer_insert_cursor.execute("""
-                                    INSERT INTO bufor 
-                                    (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'aktywny')
-                                """, (buf_zasyp_id, next_data_str, plan_data['produkt'], '', 
-                                      plan_data['typ_produkcji'], real_tonaz_value, 0, next_kolejka))
-                                
-                                insert_rowcount = buffer_insert_cursor.rowcount
-                                conn.commit()  # ← COMMITTING BUFFER INSERT!
-                                print(f'[PRZENIES SERVICE] *** AFTER BUFFER INSERT + COMMIT (rowcount={insert_rowcount}) *** plan_id={new_id}', 
-                                      file=sys.stderr, flush=True)
-                                current_app.logger.critical(
-                                    f'[PRZENIES SERVICE] BUFFER INSERT RESULT: new_id={new_id}, rowcount={insert_rowcount}'
-                                )
-                                
-                                if insert_rowcount > 0:
-                                    buffer_insert_count += 1
-                                    current_app.logger.info(
-                                        f'Added to buffer: {plan_data["produkt"]} on {next_date.strftime("%Y-%m-%d")}'
-                                    )
-                                    print(f'[PRZENIES SERVICE] [OK] BUFFER INSERT: plan_id={new_id}, produkt={plan_data["produkt"]}, data={next_data_str}', 
-                                          file=sys.stderr, flush=True)
-                                else:
-                                    current_app.logger.warning(f'Buffer insert failed for plan {new_id}')
-                            except Exception as be:
-                                current_app.logger.warning(
-                                    f'Error adding plan {new_id} to buffer: {str(be)}'
-                                )
-                        
-                        # NOW update newly created plan with tonaz_rzeczywisty
-                        # NEW DAY = ALWAYS START WITH 0 EXECUTION
-                        # Real tonnage (1095kg) goes to BUFFER, not to plan execution
-                        tonaz_value = 0
-                        cursor.execute(
-                            "UPDATE plan_produkcji SET tonaz_rzeczywisty = %s WHERE id = %s",
-                            (tonaz_value, new_id)
+
+                # --- Rule 2: Zasyp shortfall ---
+                if zasyp_remaining > 0:
+                    # Check for duplicate Zasyp shortfall on next_date
+                    cursor.execute("""
+                        SELECT id FROM plan_produkcji
+                        WHERE DATE(data_planu) = %s AND produkt = %s
+                          AND LOWER(sekcja) = 'zasyp' AND status = 'zaplanowane'
+                    """, (next_data_str, produkt))
+                    if cursor.fetchone():
+                        current_app.logger.info(
+                            f'[PRZENIES] Zasyp shortfall plan already exists for {produkt} on {next_data_str}, skipping'
                         )
-                        conn.commit()  # COMMIT immediately so daemon reads correct value
-                        print(f'[PRZENIES SERVICE] [OK] UPDATE COMMITTED: plan_id={new_id}, sekcja={plan_data["sekcja"]}, tonaz_rzeczywisty={tonaz_value}',
-                              file=sys.stderr, flush=True)
                     else:
-                        current_app.logger.warning(f'Failed to create plan: {msg}')
-                except Exception as e:
-                    print(f'[PRZENIES SERVICE] *** EXCEPTION IN PLAN CREATION LOOP *** {str(e)}', file=sys.stderr, flush=True)
-                    current_app.logger.critical(f'[PRZENIES SERVICE] *** EXCEPTION: {str(e)}')
-                    current_app.logger.warning(f'Error creating plan for {plan_data["produkt"]}: {str(e)}')
-                    import traceback
-                    traceback.print_exc(file=sys.stderr)
-                    continue
-            
-            # Commit buffer inserts IMMEDIATELY before any other operations
-            try:
-                print(f'[PRZENIES SERVICE] *** ABOUT TO COMMIT BUFFER INSERTS (count={buffer_insert_count}) ***', 
-                      file=sys.stderr, flush=True)
-                conn.commit()
-                current_app.logger.critical(f'[PRZENIES SERVICE] *** BUFFER COMMIT SUCCESSFUL ***')
-                current_app.logger.info(f'Committed {buffer_insert_count} buffer inserts for {next_date.strftime("%Y-%m-%d")}')
-                print(f'[PRZENIES SERVICE] BUFFER COMMIT: inserted {buffer_insert_count} records', file=sys.stderr, flush=True)
-            except Exception as e:
-                current_app.logger.critical(f'[PRZENIES SERVICE] *** ERROR IN BUFFER COMMIT: {str(e)} ***')
-                current_app.logger.warning(f'Error committing buffer inserts: {str(e)}')
-                conn.rollback()
-                print(f'[PRZENIES SERVICE] ROLLBACK EXECUTED: {str(e)}', file=sys.stderr, flush=True)
-            
-            buffer_insert_cursor.close()
-            
-            # Delete buffer entries (not needed after creating new plans on next day)
-            buffer_deleted = 0
-            try:
-                import sys
-                # Create separate cursor for DELETE (dictionary=True has issues with UPDATE/DELETE)
-                delete_cursor = conn.cursor()
-                
-                # BEFORE: List all records that will be deleted
-                delete_cursor.execute("SELECT id, zasyp_id, produkt FROM bufor WHERE DATE(data_planu) = %s", (current_data,))
-                before_delete = delete_cursor.fetchall()
-                print(f'[PRZENIES SERVICE] BEFORE DELETE: {len(before_delete)} rekordy: {before_delete}', file=sys.stderr, flush=True)
-                current_app.logger.critical(f'[PRZENIES SERVICE] BEFORE DELETE: {len(before_delete)} rekordy: {before_delete}')
-                
-                print(f'[PRZENIES SERVICE] ABOUT TO DELETE FROM bufor WHERE DATE(data_planu) = {current_data}', file=sys.stderr, flush=True)
-                current_app.logger.critical(f'[PRZENIES SERVICE] ABOUT TO DELETE FROM bufor WHERE DATE(data_planu) = {current_data}')
-                current_app.logger.info(f'[PRZENIES SERVICE] Executing DELETE FROM bufor WHERE DATE(data_planu) = {current_data}')
-                
-                delete_cursor.execute("""
-                    DELETE FROM bufor
-                    WHERE DATE(data_planu) = %s
-                """, (current_data,))
-                
-                buffer_deleted = delete_cursor.rowcount
-                print(f'[PRZENIES SERVICE] DELETE rowcount={buffer_deleted}', file=sys.stderr, flush=True)
-                current_app.logger.critical(f'[PRZENIES SERVICE] DELETE rowcount={buffer_deleted}')
-                current_app.logger.info(f'[PRZENIES SERVICE] DELETE executed: rowcount={buffer_deleted}')
-                
-                delete_cursor.close()
-                
-                # Commit BEFORE verification to ensure changes are visible
-                conn.commit()
-                print(f'[PRZENIES SERVICE] COMMIT DONE', file=sys.stderr, flush=True)
-                current_app.logger.critical(f'[PRZENIES SERVICE] COMMIT DONE')
-                current_app.logger.info(f'[PRZENIES SERVICE] COMMIT executed')
-                
-                # Verify delete worked - SELECT AFTER
-                verify_cursor = conn.cursor()
-                verify_cursor.execute('SELECT id, zasyp_id, produkt FROM bufor WHERE DATE(data_planu) = %s', (current_data,))
-                after_delete = verify_cursor.fetchall()
-                count_after = len(after_delete)
-                print(f'[PRZENIES SERVICE] AFTER DELETE: {count_after} rekordy: {after_delete}', file=sys.stderr, flush=True)
-                current_app.logger.critical(f'[PRZENIES SERVICE] AFTER DELETE: {count_after} rekordy: {after_delete}')
-                print(f'[PRZENIES SERVICE] VERIFY: count_after={count_after}', file=sys.stderr, flush=True)
-                current_app.logger.critical(f'[PRZENIES SERVICE] VERIFY: count_after={count_after}')
-                current_app.logger.info(f'[PRZENIES SERVICE] Verification: COUNT after DELETE = {count_after}')
-                verify_cursor.close()
-                current_app.logger.info(f'Removed {buffer_deleted} recordings from buffer for day {current_data}')
-            except Exception as e:
-                current_app.logger.warning(f'Error moving buffer: {str(e)}')
-                try:
-                    conn.rollback()
-                except:
-                    pass
-            
+                        s_z2, _, new_zasyp_id = PlanningService.create_plan(
+                            data_planu=next_data_str,
+                            produkt=produkt,
+                            tonaz=zasyp_remaining,
+                            sekcja='Zasyp',
+                            typ_produkcji=typ_prod,
+                            status='zaplanowane'
+                        )
+                        if s_z2 and new_zasyp_id:
+                            # Companion empty Workowanie plan (tonaz will be synced by refresh_bufor_queue)
+                            s_w2, _, new_work2_id = PlanningService.create_plan(
+                                data_planu=next_data_str,
+                                produkt=produkt,
+                                tonaz=0,
+                                sekcja='Workowanie',
+                                typ_produkcji=typ_prod,
+                                status='zaplanowane'
+                            )
+                            if s_w2 and new_work2_id:
+                                update_cursor.execute(
+                                    "UPDATE plan_produkcji SET zasyp_id = %s WHERE id = %s",
+                                    (new_zasyp_id, new_work2_id)
+                                )
+                                conn.commit()
+                                created_count += 2
+                                current_app.logger.info(
+                                    f'[PRZENIES] Zasyp shortfall: {produkt} {zasyp_remaining}kg'
+                                    f' -> Zasyp #{new_zasyp_id}, Workowanie #{new_work2_id}'
+                                )
+
+            update_cursor.close()
             conn.close()
-            
-            # created_count is total number of plans (both Zasyp and Workowanie)
+
+            if created_count == 0:
+                return (True, 'Brak planów do przeniesienia na następny dzień.', 0)
+
             product_count = created_count // 2
-            message = f'✓ Utworzono {product_count} nowych par planów (Zasyp + Workowanie) na dzień {next_date.strftime("%d.%m.%Y")} ({created_count} planów łącznie)'
-            
-            print(f'[PRZENIES SERVICE] *** RETURNING SUCCESS *** message={message}, created_count={created_count}', file=sys.stderr, flush=True)
-            current_app.logger.critical(f'[PRZENIES SERVICE] *** RETURNING SUCCESS *** created_count={created_count}')
-            
+            message = (
+                f'✓ Przeniesiono na {next_date.strftime("%d.%m.%Y")}: '
+                f'{product_count} produktów ({created_count} planów)'
+            )
+            current_app.logger.info(f'[PRZENIES] {message}')
             return (True, message, created_count)
-            
+
         except Exception as e:
             try:
                 conn.rollback()

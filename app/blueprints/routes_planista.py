@@ -66,10 +66,12 @@ def panel_planisty():
     wybrana_data = request.args.get('data', str(date.today()))
 
     # Include both Zasyp and Czyszczenie entries so planner sees cleaning slots
+    # Exclude ghost carry-over Zasyp records (technical records linked to bufor, not real production)
     cursor.execute("""
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
         FROM plan_produkcji 
         WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
+          AND COALESCE(typ_zlecenia, '') != 'carry_over_ghost'
         ORDER BY kolejnosc
     """, (wybrana_data,))
     
@@ -786,50 +788,70 @@ def api_check_niezrealizowane():
         except Exception as e:
             return jsonify({'success': False, 'message': f'Nieprawidłowy format daty: {str(e)}'}), 400
         
-        # Find incomplete plans
+        # Find closed Zasyp plans with their Workowanie counterparts.
+        # Remaining to pack = Workowanie.tonaz - Workowanie.tonaz_rzeczywisty
+        # Zasyp shortfall   = Zasyp.tonaz    - Zasyp.tonaz_rzeczywisty
         cursor.execute("""
-            SELECT id, produkt, tonaz, tonaz_rzeczywisty, typ_produkcji
-            FROM plan_produkcji
-            WHERE DATE(data_planu) = %s AND status = 'zakonczone'
-              AND LOWER(sekcja) = 'zasyp'
-              AND (tonaz_rzeczywisty IS NULL OR tonaz_rzeczywisty < tonaz)
-            ORDER BY id
+            SELECT z.id AS zasyp_id, z.produkt,
+                   COALESCE(z.tonaz, 0) AS z_plan,
+                   COALESCE(z.tonaz_rzeczywisty, 0) AS z_real,
+                   w.id AS workowanie_id,
+                   COALESCE(w.tonaz, 0) AS w_plan,
+                   COALESCE(w.tonaz_rzeczywisty, 0) AS w_real
+            FROM plan_produkcji z
+            LEFT JOIN plan_produkcji w
+                ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'
+            WHERE DATE(z.data_planu) = %s
+              AND z.status = 'zakonczone'
+              AND LOWER(z.sekcja) = 'zasyp'
+            ORDER BY z.id
         """, (current_data,))
         
-        incomplete_plans = cursor.fetchall()
+        all_plans = cursor.fetchall()
         conn.close()
         
-        # Prepare summary
-        if not incomplete_plans:
+        details = []
+        total_remaining = 0
+        
+        for plan in all_plans:
+            z_plan = plan['z_plan']
+            z_real = plan['z_real']
+            w_plan = plan['w_plan']
+            w_real = plan['w_real']
+            
+            # Remaining to pack (buffer-based)
+            if plan['workowanie_id'] is not None:
+                workowanie_remaining = max(0.0, w_plan - w_real)
+            else:
+                workowanie_remaining = max(0.0, z_real)  # no Workowanie plan yet
+            
+            # Zasyp shortfall
+            zasyp_remaining = max(0.0, z_plan - z_real)
+            
+            if workowanie_remaining <= 0 and zasyp_remaining <= 0:
+                continue
+            
+            total_remaining += workowanie_remaining
+            details.append({
+                'plan_id': plan['zasyp_id'],
+                'produkt': plan['produkt'],
+                'plan_kg': w_plan if plan['workowanie_id'] is not None else z_real,
+                'wykonanie_kg': w_real,
+                'remaining_kg': workowanie_remaining,
+                'zasyp_shortfall_kg': zasyp_remaining,
+            })
+        
+        if not details:
             return jsonify({
                 'success': False,
                 'message': 'Brak niezrealizowanych planów do przeniesienia'
             }), 400
         
-        details = []
-        total_remaining = 0
-        
-        for plan in incomplete_plans:
-            plan_id = plan['id']
-            produkt = plan['produkt']
-            plan_tonaz = plan['tonaz'] or 0
-            real_tonaz = plan['tonaz_rzeczywisty'] or 0
-            remaining = plan_tonaz - real_tonaz
-            total_remaining += remaining
-            
-            details.append({
-                'plan_id': plan_id,
-                'produkt': produkt,
-                'plan_kg': plan_tonaz,
-                'wykonanie_kg': real_tonaz,
-                'remaining_kg': remaining
-            })
-        
         return jsonify({
             'success': True,
             'current_date': current_data,
             'next_date': next_data_str,
-            'current_date_formatted': datetime.strptime(current_data, '%Y-%m-%d').strftime('%d.%m.%Y'),
+            'current_date_formatted': current_date.strftime('%d.%m.%Y'),
             'next_date_formatted': next_date.strftime('%d.%m.%Y'),
             'plans': details,
             'total_remaining_kg': total_remaining,
@@ -865,9 +887,19 @@ def api_przenies_wybrane_zlecenia():
         )
         
         if success:
+            from datetime import datetime, timedelta
+            try:
+                next_date_str = (datetime.strptime(current_data, '%Y-%m-%d') + timedelta(days=1)).strftime('%d.%m.%Y')
+            except Exception:
+                next_date_str = '?'
+            product_count = count // 2 if count >= 2 else count
+            if product_count == 0:
+                resp_msg = f'Zlecenia były już wcześniej przeniesione na {next_date_str} — brak duplikatów do dodania.'
+            else:
+                resp_msg = f'✓ Przeniesiono {product_count} {"zlecenie" if product_count == 1 else "zlecenia" if product_count in (2,3,4) else "zleceń"} na {next_date_str}'
             return jsonify({
                 'success': True,
-                'message': f'Przeniesiono {count} zleceń na dzień {current_data}'
+                'message': resp_msg
             }), 200
         else:
             return jsonify({

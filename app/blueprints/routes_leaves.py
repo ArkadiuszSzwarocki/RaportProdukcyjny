@@ -386,74 +386,40 @@ def zamknij_zmiane():
 @login_required
 @roles_required('lider', 'admin')
 def zamknij_zmiane_global():
+    """Zamknij zmianę i pobierz ZIP z raportami.
+    Cała logika zakończenia zmiany żyje w app.services.shift_close_service.
     """
-    Endpoint to close shift and download reports as ZIP.
-    Orchestrates the report generation workflow.
-    """
-    import sys
-    from app.services.report_service import (
-        load_shift_notes, 
-        get_leader_name, 
-        generate_and_download_reports
-    )
-    
-    print("\n[ROUTE] ################# ROUTE HANDLER CALLED #################", file=sys.stderr)
-    sys.stderr.flush()
-    
-    # Parse date from request
-    date_str = request.values.get('data') or request.args.get('data')
-    if date_str:
-        try:
-            dzisiaj = datetime.strptime(date_str, '%Y-%m-%d').date()
-        except Exception:
-            dzisiaj = date.today()
-    else:
-        dzisiaj = date.today()
-    
-    date_str = dzisiaj.strftime('%Y-%m-%d')
-    
-    print("\n" + "="*60)
-    print("[ROUTE] /zamknij-zmiane-global called")
-    print(f"[ROUTE] Method: {request.method}")
-    print(f"[ROUTE] Date: {date_str}")
-    print("="*60)
-    
+    from app.services.shift_close_service import close_shift_and_get_zip
+
+    raw = request.values.get('data') or request.args.get('data') or ''
     try:
-        # Load shift notes
-        uwagi = load_shift_notes(dzisiaj)
-        
-        # Get leader name
-        session_data = {
-            'pracownik_id': session.get('pracownik_id'),
-            'login': session.get('login', 'nieznany')
-        }
-        form_data = {
-            'lider_id': request.form.get('lider_id') or request.values.get('lider_id'),
-            'lider_prowadzacy_id': request.form.get('lider_prowadzacy_id') or request.values.get('lider_prowadzacy_id')
-        }
-        lider_name, uwagi_addition = get_leader_name(session_data, form_data)
-        uwagi = (uwagi or '') + uwagi_addition
-        
-        # Generate reports and create ZIP
-        zip_buffer, zip_filename = generate_and_download_reports(date_str, uwagi, lider_name)
-        
-        # Return ZIP for download
+        date_str = datetime.strptime(raw, '%Y-%m-%d').strftime('%Y-%m-%d')
+    except Exception:
+        date_str = date.today().strftime('%Y-%m-%d')
+
+    session_data = {
+        'pracownik_id': session.get('pracownik_id'),
+        'login': session.get('login', 'nieznany'),
+    }
+    form_data = {
+        'lider_id': request.form.get('lider_id') or request.values.get('lider_id'),
+        'lider_prowadzacy_id': (
+            request.form.get('lider_prowadzacy_id')
+            or request.values.get('lider_prowadzacy_id')
+        ),
+    }
+
+    try:
+        zip_buffer, zip_filename = close_shift_and_get_zip(date_str, session_data, form_data)
         return send_file(
             zip_buffer,
             mimetype='application/zip',
             as_attachment=True,
-            download_name=zip_filename
+            download_name=zip_filename,
         )
-        
     except Exception as e:
-        print(f"[ROUTE] EXCEPTION CAUGHT IN MAIN HANDLER: {str(e)}", file=sys.stderr)
-        sys.stderr.flush()
-        print(f"[ROUTE] ERROR {str(e)}")
-        import traceback
-        traceback.print_exc()
-        flash(f'ERROR Blad przy generowaniu raportow: {str(e)}', 'error')
-        print("="*60 + "\n")
-        return redirect('/')
+        current_app.logger.exception('[SHIFT_CLOSE] Blad zakończenia zmiany: %s', e)
+        return jsonify({'error': str(e)}), 500
 
 
 @leaves_bp.route('/obsada-for-date')

@@ -37,10 +37,68 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
     logger.info(f"[GENERATOR] Issues data: {len(df_awarie)} rows")
     print(f"[GENERATOR] OK Issues data: {len(df_awarie)} rows")
     
-    # HR / obecności
+    # HR / obecności — wszyscy wpisani (w tym nieobecni)
     df_hr = pd.read_sql("SELECT p.imie_nazwisko as pracownik, o.typ, o.ilosc_godzin FROM obecnosc o JOIN pracownicy p ON o.pracownik_id=p.id WHERE o.data_wpisu = %s", conn, params=(data_raportu,))
     logger.info(f"[GENERATOR] HR data: {len(df_hr)} rows")
     print(f"[GENERATOR] OK HR data: {len(df_hr)} rows")
+
+    # Obsada — kto był przydzielony do jakiej sekcji
+    try:
+        df_obsada = pd.read_sql("""
+            SELECT oz.sekcja, p.imie_nazwisko AS pracownik
+            FROM obsada_zmiany oz
+            JOIN pracownicy p ON oz.pracownik_id = p.id
+            WHERE oz.data_wpisu = %s
+            ORDER BY oz.sekcja, p.imie_nazwisko
+        """, conn, params=(data_raportu,))
+    except Exception as _e:
+        logger.warning(f"[GENERATOR] Nie mozna pobrac obsady: {_e}")
+        df_obsada = pd.DataFrame(columns=['sekcja', 'pracownik'])
+    logger.info(f"[GENERATOR] Obsada data: {len(df_obsada)} rows")
+
+    # Nieobecni — typ inny niż 'obecny'
+    try:
+        df_nieobecni = pd.read_sql("""
+            SELECT p.imie_nazwisko AS pracownik, o.typ, COALESCE(o.komentarz, '') AS komentarz
+            FROM obecnosc o
+            JOIN pracownicy p ON o.pracownik_id = p.id
+            WHERE o.data_wpisu = %s AND o.typ != 'obecny'
+            ORDER BY o.typ, p.imie_nazwisko
+        """, conn, params=(data_raportu,))
+    except Exception as _e:
+        logger.warning(f"[GENERATOR] Nie mozna pobrac nieobecnych: {_e}")
+        df_nieobecni = pd.DataFrame(columns=['pracownik', 'typ', 'komentarz'])
+    logger.info(f"[GENERATOR] Nieobecni data: {len(df_nieobecni)} rows")
+
+    # Bufor — co zostało do spakowania
+    try:
+        df_bufor = pd.read_sql("""
+            SELECT produkt, COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
+                   tonaz_rzeczywisty, spakowano,
+                   GREATEST(tonaz_rzeczywisty - spakowano, 0) AS pozostalo
+            FROM bufor
+            WHERE data_planu = %s AND status = 'aktywny' AND tonaz_rzeczywisty > 0
+            ORDER BY kolejka
+        """, conn, params=(data_raportu,))
+    except Exception as _e:
+        logger.warning(f"[GENERATOR] Nie mozna pobrac bufora: {_e}")
+        df_bufor = pd.DataFrame(columns=['produkt', 'nazwa_zlecenia', 'tonaz_rzeczywisty', 'spakowano', 'pozostalo'])
+    logger.info(f"[GENERATOR] Bufor data: {len(df_bufor)} rows")
+
+    # Nadgodziny — kto zostawał po zmianie i dlaczego
+    try:
+        df_nadgodziny = pd.read_sql("""
+            SELECT p.imie_nazwisko AS pracownik, n.ilosc_nadgodzin,
+                   COALESCE(n.powod, '') AS powod, n.status
+            FROM nadgodziny n
+            JOIN pracownicy p ON n.pracownik_id = p.id
+            WHERE n.data = %s
+            ORDER BY p.imie_nazwisko
+        """, conn, params=(data_raportu,))
+    except Exception as _e:
+        logger.warning(f"[GENERATOR] Nie mozna pobrac nadgodzin: {_e}")
+        df_nadgodziny = pd.DataFrame(columns=['pracownik', 'ilosc_nadgodzin', 'powod', 'status'])
+    logger.info(f"[GENERATOR] Nadgodziny data: {len(df_nadgodziny)} rows")
 
     folder = 'raporty_temp'
     if not os.path.exists(folder): os.makedirs(folder)
@@ -53,7 +111,15 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
     with pd.ExcelWriter(xls_path, engine='openpyxl') as writer:
         df_plan.to_excel(writer, sheet_name='Produkcja', index=False)
         df_awarie.to_excel(writer, sheet_name='Awarie', index=False)
-        df_hr.to_excel(writer, sheet_name='HR', index=False)
+        df_hr.to_excel(writer, sheet_name='HR - Obecnosc', index=False)
+        if not df_obsada.empty:
+            df_obsada.to_excel(writer, sheet_name='Obsada - Sekcje', index=False)
+        if not df_nieobecni.empty:
+            df_nieobecni.to_excel(writer, sheet_name='Nieobecni', index=False)
+        if not df_bufor.empty:
+            df_bufor.to_excel(writer, sheet_name='Bufor', index=False)
+        if not df_nadgodziny.empty:
+            df_nadgodziny.to_excel(writer, sheet_name='Nadgodziny', index=False)
     xls_exists = os.path.exists(xls_path)
     logger.info(f"[GENERATOR] Excel file created: {xls_exists}")
     print(f"[GENERATOR] OK Excel created: {xls_exists} | Path: {os.path.abspath(xls_path)}")
@@ -107,12 +173,19 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
         for _, row in df_hr.iterrows():
             hr_rows.append((row.get('pracownik', ''), row.get('typ', ''), row.get('ilosc_godzin', None)))
 
+        bufor_rows = [(r.get('produkt', ''), r.get('nazwa_zlecenia', ''), r.get('tonaz_rzeczywisty', 0), r.get('spakowano', 0), r.get('pozostalo', 0)) for _, r in df_bufor.iterrows()]
+        obsada_rows = [(r.get('sekcja', ''), r.get('pracownik', '')) for _, r in df_obsada.iterrows()]
+        nieobecni_rows = [(r.get('pracownik', ''), r.get('typ', ''), r.get('komentarz', '')) for _, r in df_nieobecni.iterrows()]
+        nadgodziny_rows = [(r.get('pracownik', ''), r.get('ilosc_nadgodzin', 0), r.get('powod', ''), r.get('status', '')) for _, r in df_nadgodziny.iterrows()]
+
         print(f"[GENERATOR] About to call generuj_pdf with data={data_raportu}, prod_rows count={len(prod_rows)}, awarie_rows count={len(awarie_rows)}, hr_rows count={len(hr_rows)}")
         import sys
         sys.stdout.flush()
         sys.stderr.flush()
         
-        pdf_name = generuj_pdf(data_raportu, uwagi_lidera, lider_name, prod_rows, awarie_rows, hr_rows)
+        pdf_name = generuj_pdf(data_raportu, uwagi_lidera, lider_name, prod_rows, awarie_rows, hr_rows,
+                               obsada_rows=obsada_rows, nieobecni_rows=nieobecni_rows,
+                               bufor_rows=bufor_rows, nadgodziny_rows=nadgodziny_rows)
         
         print(f"[GENERATOR] generuj_pdf returned: {pdf_name}")
         sys.stdout.flush()

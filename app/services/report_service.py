@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, date
 import logging
 
 from app.db import get_db_connection
-from generator_raportow import generuj_paczke_raportow
+from scripts.generator_raportow import generuj_paczke_raportow
 
 logger = logging.getLogger(__name__)
 

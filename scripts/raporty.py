@@ -71,7 +71,8 @@ def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows):
 
     return nazwa_excel
 
-def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
+def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
+                obsada_rows=None, nieobecni_rows=None, bufor_rows=None, nadgodziny_rows=None):
     """Generuje plik PDF z tabelami"""
     nazwa_pdf = f"Raport_{dzisiaj}.pdf"
     
@@ -322,6 +323,133 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows):
             pdf.cell(60, 7, polskie_znaki_pdf(str(r[1])), 1, 0, 'L', fill)
             pdf.cell(60, 7, format_godziny(r[2]), 1, 1, 'C', fill)
             fill = not fill
+
+    # --- SEKCJA: OBSADA ---
+    obsada_rows = obsada_rows or []
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(26, 82, 118)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(0, 8, "OBSADA ZMIANY - SEKCJE", ln=1, fill=True)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", size=9)
+    pdf.ln(2)
+    if not obsada_rows:
+        pdf.cell(0, 7, "Brak danych o obsadzie.", 1, 1)
+    else:
+        # Grupuj po sekcji
+        from collections import defaultdict
+        sekcje_obsady = defaultdict(list)
+        for sec, osoba in obsada_rows:
+            sekcje_obsady[sec].append(osoba)
+        for sec in sorted(sekcje_obsady.keys()):
+            pdf.set_font("Arial", 'B', 10)
+            pdf.set_fill_color(200, 220, 240)
+            pdf.cell(0, 7, polskie_znaki_pdf(f"  {sec} ({len(sekcje_obsady[sec])} os.)"), 1, 1, 'L', True)
+            pdf.set_font("Arial", size=9)
+            for osoba in sekcje_obsady[sec]:
+                pdf.cell(0, 6, polskie_znaki_pdf(f"      - {osoba}"), 0, 1, 'L')
+    pdf.ln(4)
+
+    # --- SEKCJA: NIEOBECNI ---
+    nieobecni_rows = nieobecni_rows or []
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(142, 68, 173)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(0, 8, "NIEOBECNOSCI", ln=1, fill=True)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", size=9)
+    pdf.ln(2)
+    if not nieobecni_rows:
+        pdf.cell(0, 7, "Brak nieobecnosci.", 1, 1)
+    else:
+        pdf.set_fill_color(220, 220, 220)
+        pdf.set_font("Arial", 'B', 9)
+        pdf.cell(75, 7, "Pracownik", 1, 0, 'L', True)
+        pdf.cell(45, 7, "Typ nieobecnosci", 1, 0, 'C', True)
+        pdf.cell(70, 7, "Komentarz", 1, 1, 'L', True)
+        pdf.set_font("Arial", size=9)
+        fill = False
+        for r in nieobecni_rows:
+            pdf.set_fill_color(245, 245, 245) if fill else pdf.set_fill_color(255, 255, 255)
+            pdf.cell(75, 7, polskie_znaki_pdf(str(r[0])), 1, 0, 'L', fill)
+            pdf.cell(45, 7, polskie_znaki_pdf(str(r[1])), 1, 0, 'C', fill)
+            pdf.cell(70, 7, polskie_znaki_pdf(str(r[2])[:40]), 1, 1, 'L', fill)
+            fill = not fill
+    pdf.ln(4)
+
+    # --- SEKCJA: BUFOR ---
+    bufor_rows = bufor_rows or []
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(211, 84, 0)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(0, 8, "BUFOR - POZOSTALO DO SPAKOWANIA", ln=1, fill=True)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", size=9)
+    pdf.ln(2)
+    if not bufor_rows:
+        pdf.cell(0, 7, "Bufor pusty - wszystko spakowane.", 1, 1)
+    else:
+        pdf.set_fill_color(220, 220, 220)
+        pdf.set_font("Arial", 'B', 9)
+        pdf.cell(55, 7, "Produkt", 1, 0, 'L', True)
+        pdf.cell(65, 7, "Zlecenie", 1, 0, 'L', True)
+        pdf.cell(25, 7, "Zasypano", 1, 0, 'C', True)
+        pdf.cell(25, 7, "Spakowano", 1, 0, 'C', True)
+        pdf.cell(20, 7, "Zostalo", 1, 1, 'C', True)
+        pdf.set_font("Arial", size=9)
+        fill = False
+        total_pozostalo = 0.0
+        for r in bufor_rows:
+            pdf.set_fill_color(255, 237, 210) if fill else pdf.set_fill_color(255, 248, 240)
+            pozostalo_val = float(r[4]) if r[4] is not None else 0.0
+            total_pozostalo += pozostalo_val
+            pdf.cell(55, 7, polskie_znaki_pdf(str(r[0])[:25]), 1, 0, 'L', fill)
+            pdf.cell(65, 7, polskie_znaki_pdf(str(r[1])[:35]), 1, 0, 'L', fill)
+            pdf.cell(25, 7, _fmt_kg(r[2]), 1, 0, 'C', fill)
+            pdf.cell(25, 7, _fmt_kg(r[3]), 1, 0, 'C', fill)
+            pdf.cell(20, 7, _fmt_kg(pozostalo_val), 1, 1, 'C', fill)
+            fill = not fill
+        # Podsumowanie
+        pdf.set_font("Arial", 'B', 9)
+        pdf.set_fill_color(255, 200, 150)
+        pdf.set_text_color(150, 50, 0)
+        pdf.cell(170, 7, polskie_znaki_pdf(f"RAZEM pozostalo w buforze:"), 1, 0, 'R', True)
+        pdf.cell(20, 7, _fmt_kg(total_pozostalo), 1, 1, 'C', True)
+        pdf.set_text_color(0, 0, 0)
+    pdf.ln(4)
+
+    # --- SEKCJA: NADGODZINY ---
+    nadgodziny_rows = nadgodziny_rows or []
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(23, 32, 42)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(0, 8, "NADGODZINY", ln=1, fill=True)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", size=9)
+    pdf.ln(2)
+    if not nadgodziny_rows:
+        pdf.cell(0, 7, "Brak nadgodzin w tej zmianie.", 1, 1)
+    else:
+        pdf.set_fill_color(220, 220, 220)
+        pdf.set_font("Arial", 'B', 9)
+        pdf.cell(70, 7, "Pracownik", 1, 0, 'L', True)
+        pdf.cell(20, 7, "Godz.", 1, 0, 'C', True)
+        pdf.cell(30, 7, "Status", 1, 0, 'C', True)
+        pdf.cell(70, 7, "Powod", 1, 1, 'L', True)
+        pdf.set_font("Arial", size=9)
+        fill = False
+        for r in nadgodziny_rows:
+            pdf.set_fill_color(245, 245, 245) if fill else pdf.set_fill_color(255, 255, 255)
+            try:
+                godz = f"{float(r[1]):.1f}h"
+            except Exception:
+                godz = str(r[1])
+            pdf.cell(70, 7, polskie_znaki_pdf(str(r[0])), 1, 0, 'L', fill)
+            pdf.cell(20, 7, godz, 1, 0, 'C', fill)
+            pdf.cell(30, 7, polskie_znaki_pdf(str(r[3])), 1, 0, 'C', fill)
+            pdf.cell(70, 7, polskie_znaki_pdf(str(r[2])[:45]), 1, 1, 'L', fill)
+            fill = not fill
+    pdf.ln(4)
 
     # Jeśli plik już istnieje (np. otwarty w czytniku), spróbuj go usunąć przed zapisem.
     try:

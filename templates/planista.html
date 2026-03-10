@@ -793,10 +793,13 @@
             var planId = 'plan_' + plan.plan_id;
             html += '<div style="padding: 10px; margin-bottom: 8px; background: #f5f5f5; border-radius: 4px; border-left: 4px solid #ff9800;">';
             html += '  <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">';
-            html += '    <input type="checkbox" id="' + planId + '" class="select-plan-checkbox" data-plan-id="' + plan.plan_id + '" style="margin-right: 10px; cursor: pointer;" checked>';
+            html += '    <input type="checkbox" id="' + planId + '" class="select-plan-checkbox" data-plan-id="' + plan.plan_id + '" data-remaining-kg="' + plan.remaining_kg + '" style="margin-right: 10px; cursor: pointer;" checked>';
             html += '    <div style="flex: 1;">';
             html += '      <strong style="color: #333;">' + plan.produkt + '</strong><br>';
-            html += '      <span style="font-size: 12px; color: #666;">Plan: ' + plan.plan_kg + ' kg | Wykonanie: ' + plan.wykonanie_kg + ' kg | Zostało: <strong style="color: #d9534f;">' + plan.remaining_kg + ' kg</strong></span>';
+            html += '      <span style="font-size: 12px; color: #666;">Zasypano: ' + plan.plan_kg + ' kg | Spakowano: ' + plan.wykonanie_kg + ' kg | Do spakowania jutro: <strong style="color: #d9534f;">' + plan.remaining_kg + ' kg</strong></span>';
+            if (plan.zasyp_shortfall_kg && plan.zasyp_shortfall_kg > 0) {
+                html += '<br><span style="font-size: 12px; color: #e67e22;">⚠ Niedobór Zasypu: <strong>' + plan.zasyp_shortfall_kg + ' kg</strong> → dodatkowe zlecenie Zasyp jutro</span>';
+            }
             html += '    </div>';
             html += '  </label>';
             html += '</div>';
@@ -852,10 +855,16 @@
         
         console.log('[SELECT MODAL] Wybrane plany:', selectedIds);
         
+        // Oblicz sumę kg tylko dla zaznaczonych planów
+        var selectedTotalKg = 0;
+        document.querySelectorAll('.select-plan-checkbox:checked').forEach(function(cb) {
+            selectedTotalKg += parseFloat(cb.dataset.remainingKg) || 0;
+        });
+
         // Summary message
         var msg = '📦 PRZENIESIENIE WYBRANYCH ZLECEŃ\n\n';
         msg += 'Liczba wybranych: ' + selectedIds.length + '\n';
-        msg += 'Razem do przeniesienia: ' + window.currentMoveData.total_remaining_kg + ' kg\n\n';
+        msg += 'Razem do przeniesienia: ' + selectedTotalKg + ' kg\n\n';
         msg += 'Czy potwierdzasz?';
         
         if (confirm(msg)) {
