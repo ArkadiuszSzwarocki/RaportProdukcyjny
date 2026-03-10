@@ -116,7 +116,8 @@ def dodaj_l4_zakres():
         current_app.logger.info(
             f"[L4] Dodano L4 dla pracownik_id={pid} od {d_od} do {d_do}, dodano {added} wpisów"
         )
-        flash(f'Dodano L4: {added} {'dzień' if added == 1 else 'dni'}.', 'success')
+        dzien_str = 'dzień' if added == 1 else 'dni'
+        flash(f'Dodano L4: {added} {dzien_str}.', 'success')
     except Exception as e:
         conn.rollback()
         current_app.logger.exception('Error in dodaj_l4_zakres')
