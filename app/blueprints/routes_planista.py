@@ -562,7 +562,7 @@ def bufor_archiwizuj():
 
 
 @planista_bp.route('/bufor/create_zlecenie', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider')
 def bufor_create_zlecenie():
     """Create new Workowanie zlecenie based on buffer remainder (Zasyp.tonaz_rzeczywisty - spakowano).
     
@@ -721,7 +721,7 @@ def bufor_create_zlecenie():
 
 
 @planista_bp.route('/api/przenies_niezrealizowane', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider')
 def api_przenies_niezrealizowane():
     """Move incomplete plans to next day, creating new Zasyp and Workowanie plans."""
     import traceback
@@ -764,7 +764,7 @@ def api_przenies_niezrealizowane():
 
 
 @planista_bp.route('/api/check_niezrealizowane', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider')
 def api_check_niezrealizowane():
     """Check what incomplete plans exist and would be moved."""
     try:
@@ -842,7 +842,7 @@ def api_check_niezrealizowane():
 
 
 @planista_bp.route('/api/przenies_wybrane_zlecenia', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider')
 def api_przenies_wybrane_zlecenia():
     """Move selected incomplete plans to next day."""
     try:
@@ -881,7 +881,7 @@ def api_przenies_wybrane_zlecenia():
 
 
 @planista_bp.route('/planista/bulk', methods=['GET'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider')
 def planista_bulk_page():
     """Render page for bulk adding plans."""
     wybrana_data = request.args.get('data', str(date.today()))

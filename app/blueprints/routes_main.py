@@ -575,8 +575,9 @@ def zamknij_zmiane() -> Union[Response, Tuple[str, int]]:
     if zip_path:
         return send_file(zip_path, as_attachment=True, mimetype=mime_type)
     
-    # Fallback: redirect to login if nothing to download
-    return redirect('/login')
+    # Fallback: generacja raportu nie powiodła się, wróć na stronę główną
+    flash('⚠️ Nie udało się wygenerować raportu. Sprawdź logi serwera.', 'warning')
+    return redirect(url_for('main.index'))
 
 
 @main_bp.route('/wyslij_raport_email', methods=['POST'])

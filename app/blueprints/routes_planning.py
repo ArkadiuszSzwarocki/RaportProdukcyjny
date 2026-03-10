@@ -127,7 +127,7 @@ def usun_plan(id):
 
 
 @planning_bp.route('/dodaj_plan_zaawansowany', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider')
 def dodaj_plan_zaawansowany():
     """Add plan with advanced options - delegated to PlanningService."""
     data_planu = request.form.get('data_planu')
@@ -430,7 +430,7 @@ def dodaj_plan():
 
 
 @planning_bp.route('/dodaj_plany_batch', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider')
 def dodaj_plany_batch():
     """Add multiple plans in batch."""
     try:

@@ -340,7 +340,13 @@
                     {% endif %}
                     {% elif p[3] == 'zakonczone' %}
                     {% if sekcja == 'Zasyp' %}
-                    {# Brak przycisków dla statusu zamknięte #}
+                    {% set szarze_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]]) else 0 %}
+                    <button type="button" class="btn-action btn-outline-secondary"
+                        onclick="toggleDetails('{{ p[0] }}')">Szarże ({{ szarze_count }}) 👁</button>
+                    {% elif sekcja == 'Workowanie' %}
+                    {% set palety_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]]) else 0 %}
+                    <button type="button" class="btn-action btn-outline-secondary"
+                        onclick="toggleDetails('{{ p[0] }}')">Palety ({{ palety_count }}) 👁</button>
                     {% endif %}
                     {% endif %}
                     {% endif %}
@@ -360,7 +366,7 @@
                                     <strong class="text-primary">{{ pal[0]|int }} kg</strong>
                                     <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-'
                                         }}</span>
-                                    {% if rola != 'pracownik' %}
+                                    {% if rola != 'pracownik' and p[3] != 'zakonczone' %}
                                     <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2]) }}"
                                         class="btn-action btn-green"
                                         style="font-size: 11px; padding: 4px 8px; white-space: nowrap;" data-slide>+

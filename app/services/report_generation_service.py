@@ -100,9 +100,12 @@ class ReportGenerationService:
         """
         # Import report generators (may not be available in test/dev environment)
         try:
-            from generator_raportow import generuj_excel_zmiany  # type: ignore
+            from app.generator_raportow import generuj_paczke_raportow  # type: ignore
         except (ImportError, ModuleNotFoundError):
-            return None, None, None
+            try:
+                from generator_raportow import generuj_paczke_raportow  # type: ignore
+            except (ImportError, ModuleNotFoundError):
+                return None, None, None
         
         xls_path = None
         txt_path = None
@@ -110,7 +113,7 @@ class ReportGenerationService:
         
         try:
             # Generator returns tuple of (xls, txt, pdf)
-            xls_path, txt_path, pdf_path = generuj_excel_zmiany(date.today())
+            xls_path, txt_path, pdf_path = generuj_paczke_raportow(str(date.today()), '', '')
         except Exception as e:
             from flask import current_app
             current_app.logger.exception('Report generation failed: %s', e)

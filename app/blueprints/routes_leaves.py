@@ -715,7 +715,7 @@ def zapisz_raport_koncowy_global():
         conn.commit()
         current_app.logger.info(f'Global shift report saved on {dzisiaj}')
         flash(f"✅ Zmiana została zamknięta dla wszystkich sekcji!", 'success')
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
     
     except Exception as e:
         current_app.logger.error(f'Error in zapisz_raport_koncowy_global: {e}', exc_info=True)
@@ -724,7 +724,7 @@ def zapisz_raport_koncowy_global():
         except Exception:
             pass
         flash(f"❌ Błąd: {str(e)}", 'danger')
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
     
     finally:
         if conn:
@@ -732,7 +732,6 @@ def zapisz_raport_koncowy_global():
                 conn.close()
             except Exception:
                 pass
-        return redirect(url_for('index'))
 
 @leaves_bp.route('/pobierz-raport', methods=['GET', 'POST'])
 @login_required
