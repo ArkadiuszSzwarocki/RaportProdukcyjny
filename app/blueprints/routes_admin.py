@@ -918,3 +918,94 @@ def admin_workowanie_times_update():
     return redirect('/admin/ustawienia/workowanie_times')
 
 
+# Admin log viewer
+@admin_bp.route('/admin/ustawienia/logs')
+@admin_required
+def admin_ustawienia_logs():
+    """Admin-only view: show tail of application logs (`app.log` and `palety.log`)."""
+    from collections import deque
+    import os, time, re, html
+
+    # simple rate limit (per-session): at most 1 request per 1.5s
+    try:
+        last = float(session.get('_logs_last_at') or 0)
+    except Exception:
+        last = 0
+    now = time.time()
+    if now - last < 1.5:
+        return (jsonify({'error': 'Too many requests'}), 429)
+    session['_logs_last_at'] = now
+
+    # number of lines to show (query param), bound to reasonable limits
+    try:
+        lines = int(request.args.get('lines', '500'))
+    except Exception:
+        lines = 500
+    if lines < 10:
+        lines = 10
+    if lines > 2000:
+        lines = 2000
+
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    logs_dir = os.path.join(project_root, 'logs')
+    app_log_path = os.path.join(logs_dir, 'app.log')
+    palety_log_path = os.path.join(logs_dir, 'palety.log')
+
+    # If a log file is very large, reduce the requested lines to avoid heavy IO
+    def cap_lines_by_size(path, requested):
+        try:
+            if not os.path.exists(path):
+                return requested, False
+            size = os.path.getsize(path)
+            # if >10MB, cap lines to max 1000; if >50MB, cap to 300
+            if size > 50 * 1024 * 1024:
+                return min(requested, 300), True
+            if size > 10 * 1024 * 1024:
+                return min(requested, 1000), True
+            return requested, False
+        except Exception:
+            return requested, False
+
+    def tail_text(path, n):
+        if not os.path.exists(path):
+            return ''
+        try:
+            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                return ''.join(deque(f, maxlen=n))
+        except Exception as e:
+            current_app.logger.exception('Failed to read log %s: %s', path, e)
+            return f'Error reading log: {e}'
+
+    def redact(text):
+        if not text:
+            return text
+        # redact emails
+        text = re.sub(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", '[REDACTED_EMAIL]', text)
+        # redact Authorization Bearer tokens
+        text = re.sub(r"(Authorization:\s*Bearer\s+)[A-Za-z0-9\-\._~\+/=]+", r"\1[REDACTED_TOKEN]", text, flags=re.IGNORECASE)
+        # redact common secret-like keys (hex strings >= 32 chars)
+        text = re.sub(r"\b[0-9a-fA-F]{32,}\b", '[REDACTED_KEY]', text)
+        # redact tokens that look like JWTs (xxx.yyy.zzz)
+        text = re.sub(r"\b[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b", '[REDACTED_JWT]', text)
+        # redact urls with basic auth
+        text = re.sub(r"https?://[^\s/]+:[^@\s]+@", 'https://[REDACTED_AUTH]@', text)
+        return text
+
+    app_lines, app_trunc = cap_lines_by_size(app_log_path, lines)
+    pal_lines, pal_trunc = cap_lines_by_size(palety_log_path, lines)
+
+    app_log = tail_text(app_log_path, app_lines)
+    palety_log = tail_text(palety_log_path, pal_lines)
+
+    # redact sensitive fragments before rendering
+    try:
+        app_log = redact(app_log)
+        palety_log = redact(palety_log)
+    except Exception:
+        # if redaction fails, fall back to safe escaping
+        app_log = html.escape(app_log or '')
+        palety_log = html.escape(palety_log or '')
+
+    return render_template('ustawienia_logs.html', app_log=app_log, palety_log=palety_log, lines=lines, app_trunc=app_trunc, pal_trunc=pal_trunc)
+
+
