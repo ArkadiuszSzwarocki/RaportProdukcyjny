@@ -7,6 +7,52 @@ from app.services.planning_service import PlanningService
 
 warehouse_bp = Blueprint('warehouse', __name__)
 
+
+def _update_paleta_workowanie(cursor, paleta_id, waga):
+    """Helper: update palety_workowanie weight or confirmed weight.
+
+    Returns dict: {'found': bool, 'action': str, 'plan_id': int, 'status': str}
+    """
+    cursor.execute("SELECT COALESCE(status,''), plan_id FROM palety_workowanie WHERE id=%s", (paleta_id,))
+    row = cursor.fetchone()
+    if not row:
+        return {'found': False}
+    status = row[0] if row[0] else ''
+    plan_id = row[1]
+
+    if status == 'przyjeta':
+        cursor.execute("UPDATE palety_workowanie SET waga_potwierdzona=%s WHERE id=%s", (waga, paleta_id))
+        action = 'waga_potwierdzona'
+    else:
+        cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (waga, paleta_id))
+        cursor.execute(
+            "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s",
+            (plan_id, plan_id)
+        )
+        action = 'waga'
+
+    return {'found': True, 'action': action, 'plan_id': plan_id, 'status': status}
+
+
+def _update_paleta_magazyn(cursor, paleta_id, nowa_waga):
+    """Helper: update magazyn_palety weight and refresh plan aggregate."""
+    cursor.execute("SELECT plan_id FROM magazyn_palety WHERE id=%s", (paleta_id,))
+    row = cursor.fetchone()
+    if not row:
+        return {'found': False}
+    plan_id = row[0]
+    cursor.execute("UPDATE magazyn_palety SET waga_netto=%s WHERE id=%s", (nowa_waga, paleta_id))
+    cursor.execute("""
+            UPDATE plan_produkcji pp
+            SET tonaz_rzeczywisty = (
+                SELECT COALESCE(SUM(mp.waga_netto), 0)
+                FROM magazyn_palety mp
+                WHERE mp.plan_id = pp.id
+            )
+            WHERE pp.id = %s
+        """, (plan_id,))
+    return {'found': True, 'plan_id': plan_id}
+
 def bezpieczny_powrot():
     """Default return path: planner view or dashboard"""
     if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
@@ -915,44 +961,28 @@ def usun_palete(id):
 
 
 @warehouse_bp.route('/edytuj_palete/\u003cint:paleta_id\u003e', methods=['POST'])
-@roles_required('lider', 'admin')
+@roles_required('magazynier', 'lider', 'admin')
 def edytuj_palete(paleta_id):
     """Edit paleta weight (netto)"""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             waga = int(float(request.form.get('waga_palety', '0').replace(',', '.')))
         except Exception:
             waga = 0
 
-        # Check if paleta exists
-        cursor.execute("SELECT COALESCE(status,''), plan_id FROM palety_workowanie WHERE id=%s", (paleta_id,))
-        row = cursor.fetchone()
-        
-        if not row:
+        result = _update_paleta_workowanie(cursor, paleta_id, waga)
+        if not result.get('found'):
             msg = f'Paleta ID={paleta_id} nie istnieje'
             current_app.logger.warning(f'[WAREHOUSE-EDIT] {msg}')
             flash(msg, 'warning')
             return redirect(bezpieczny_powrot())
-        
-        status = row[0] if row[0] else ''
-        plan_id = row[1]
 
-        if status == 'przyjeta':
-            # Jeśli paleta jest już przyjęta do magazynu, nie nadpisujemy oryginalnej `waga`.
-            # Zapisujemy korektę do `waga_potwierdzona`.
-            cursor.execute("UPDATE palety_workowanie SET waga_potwierdzona=%s WHERE id=%s", (waga, paleta_id))
-            action = 'waga_potwierdzona'
-        else:
-            cursor.execute("UPDATE palety_workowanie SET waga=%s WHERE id=%s", (waga, paleta_id))
-            cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
-            action = 'waga'
-        
         conn.commit()
-        current_app.logger.info(f'[WAREHOUSE-EDIT] Paleta ID={paleta_id} updated: {action}={waga}kg, status={status}, plan_id={plan_id}, user={session.get("login")}')
+        current_app.logger.info(f"[WAREHOUSE-EDIT] Paleta ID={paleta_id} updated: {result.get('action')}={waga}kg, status={result.get('status')}, plan_id={result.get('plan_id')}, user={session.get('login')}")
         flash(f'Paleta zaktualizowana (waga={waga}kg)', 'success')
     except Exception as e:
         current_app.logger.error(f'[WAREHOUSE-EDIT] Failed to edit paleta {paleta_id}: {e}', exc_info=True)
@@ -963,12 +993,12 @@ def edytuj_palete(paleta_id):
                 conn.close()
             except Exception:
                 pass
-    
+
     return redirect(bezpieczny_powrot())
 
 
 @warehouse_bp.route('/api/edytuj_palete_ajax', methods=['POST'])
-@roles_required('produkcja', 'lider', 'admin')
+@roles_required('magazynier', 'produkcja', 'lider', 'admin')
 def edytuj_palete_ajax():
     """AJAX: Edytuj wagę palety w magazyn_palety (tylko potwierdzone w magazynie)."""
     data = request.get_json(force=True) or {}
@@ -984,30 +1014,15 @@ def edytuj_palete_ajax():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Tylko edytuj palety z magazyn_palety (potwierdzone)
-        cursor.execute("SELECT plan_id FROM magazyn_palety WHERE id=%s", (paleta_id,))
-        row = cursor.fetchone()
-        
-        if not row:
+
+        result = _update_paleta_magazyn(cursor, paleta_id, nowa_waga)
+        if not result.get('found'):
             msg = f'Paleta ID={paleta_id} nie istnieje w magazynie lub nie została potwierdzona'
             current_app.logger.warning(f'[WAREHOUSE-AJAX-EDIT] {msg}')
             return jsonify({'success': False, 'message': msg}), 404
-        
-        plan_id = row[0]
-        cursor.execute("UPDATE magazyn_palety SET waga_netto=%s WHERE id=%s", (nowa_waga, paleta_id))
-        # Zaktualizuj agregat Magazyn
-        cursor.execute("""
-            UPDATE plan_produkcji pp
-            SET tonaz_rzeczywisty = (
-                SELECT COALESCE(SUM(mp.waga_netto), 0)
-                FROM magazyn_palety mp
-                WHERE mp.plan_id = pp.id
-            )
-            WHERE pp.id = %s
-        """, (plan_id,))
-        
+
         conn.commit()
+        plan_id = result.get('plan_id')
         current_app.logger.info(f'[WAREHOUSE-AJAX-EDIT] Paleta ID={paleta_id} updated: waga={nowa_waga}kg, plan_id={plan_id}, user={session.get("login")}')
         return jsonify({'success': True, 'message': f'Waga zaktualizowana ({nowa_waga}kg)'})
     except Exception as e:

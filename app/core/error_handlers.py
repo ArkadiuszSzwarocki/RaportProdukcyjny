@@ -2,7 +2,7 @@
 
 import os
 import logging
-from logging.handlers import RotatingFileHandler
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from flask import render_template, flash, request
 
 
@@ -64,8 +64,9 @@ def setup_logging(app):
         handler.addFilter(noise_filter)
         logging.getLogger('werkzeug').addFilter(noise_filter)
     else:
+        # Use time-based rotation: rotate daily and keep 30 days of logs
         # Use delay=True so file is opened on first emit (reduces rotate race on Windows)
-        handler = RotatingFileHandler(log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8', delay=True)
+        handler = TimedRotatingFileHandler(log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True)
         handler.setLevel(logging.DEBUG)
         formatter = logging.Formatter('%(asctime)s %(levelname)s [pid=%(process)d]: %(message)s [in %(pathname)s:%(lineno)d]')
         handler.setFormatter(formatter)
@@ -81,7 +82,8 @@ def setup_logging(app):
     palety_logger = logging.getLogger('palety_logger')
     palety_logger.setLevel(logging.INFO)
     palety_log_path = os.path.join(logs_dir, 'palety.log')
-    palety_handler = RotatingFileHandler(palety_log_path, maxBytes=2 * 1024 * 1024, backupCount=3, encoding='utf-8', delay=True)
+    # Rotate palety log daily and keep 30 days
+    palety_handler = TimedRotatingFileHandler(palety_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True)
     palety_handler.setLevel(logging.INFO)
     palety_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
     palety_handler.setFormatter(palety_formatter)

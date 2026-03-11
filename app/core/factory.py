@@ -113,8 +113,12 @@ def create_app(config_secret_key=None, init_db=True):
     # Register context processors (inject helpers into templates)
     register_contexts(app)
     
-    # Start background daemon threads
-    start_daemon_threads(app, cleanup_enabled=False)
+    # Start background daemon threads (skip when running under pytest to avoid
+    # background DB connections during test collection)
+    if 'PYTEST_CURRENT_TEST' not in os.environ:
+        start_daemon_threads(app, cleanup_enabled=False)
+    else:
+        app.logger.debug('Skipping start_daemon_threads() under pytest')
     
     # Initialize database (skip during pytest to allow monkeypatching)
     if init_db:
