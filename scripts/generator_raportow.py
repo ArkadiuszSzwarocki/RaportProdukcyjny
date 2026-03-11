@@ -58,12 +58,16 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
 
     # Nieobecni — typ inny niż 'obecny'
     try:
+        # Normalizujemy pole `typ` po stronie bazy (trim + lower),
+        # by uniknąć dopasowań z powodu wielkości liter lub nadmiarowych spacji.
         df_nieobecni = pd.read_sql("""
-            SELECT p.imie_nazwisko AS pracownik, o.typ, COALESCE(o.komentarz, '') AS komentarz
+            SELECT p.imie_nazwisko AS pracownik,
+                   COALESCE(TRIM(LOWER(o.typ)), '') AS typ,
+                   COALESCE(o.komentarz, '') AS komentarz
             FROM obecnosc o
             JOIN pracownicy p ON o.pracownik_id = p.id
-            WHERE o.data_wpisu = %s AND o.typ != 'obecny'
-            ORDER BY o.typ, p.imie_nazwisko
+            WHERE o.data_wpisu = %s AND COALESCE(LOWER(TRIM(o.typ)), '') != 'obecny'
+            ORDER BY typ, p.imie_nazwisko
         """, conn, params=(data_raportu,))
     except Exception as _e:
         logger.warning(f"[GENERATOR] Nie mozna pobrac nieobecnych: {_e}")
