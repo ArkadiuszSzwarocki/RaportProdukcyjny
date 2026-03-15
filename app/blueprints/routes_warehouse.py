@@ -676,42 +676,8 @@ def podsumowanie_szarz():
                     if it.get('plan_id') == plan_id:
                         plan_real_start = it.get('real_start')
                         break
-                # compute szarza_start (prefer previous confirmed +4min, fallback to plan_real_start)
-                szarza_start_dt = None
-                try:
-                    if idx == 0:
-                        if plan_real_start:
-                            if isinstance(plan_real_start, str):
-                                szarza_start_dt = datetime.fromisoformat(plan_real_start)
-                            else:
-                                szarza_start_dt = plan_real_start
-                    else:
-                        try:
-                            prev_id = szarze_rows[idx-1][0]
-                            cursor.execute("SELECT MAX(data_potwierdzenia) FROM dosypki WHERE plan_id=%s AND szarza_id=%s AND potwierdzone=1 AND COALESCE(anulowana,0)=0", (plan_id, prev_id))
-                            pv = cursor.fetchone()
-                            prev_conf = pv[0] if pv else None
-                        except Exception:
-                            prev_conf = None
-                        if prev_conf:
-                            if isinstance(prev_conf, str):
-                                pc = datetime.fromisoformat(prev_conf)
-                            else:
-                                pc = prev_conf
-                            szarza_start_dt = pc + timedelta(minutes=4)
-                        else:
-                            if plan_real_start:
-                                if isinstance(plan_real_start, str):
-                                    szarza_start_dt = datetime.fromisoformat(plan_real_start)
-                                else:
-                                    szarza_start_dt = plan_real_start
-                except Exception:
-                    szarza_start_dt = None
-
-                if dosypki_order_times and szarza_start_dt:
-                    # start -> first (use szarza_start if available)
-                    start_to_first_s = secs_between(szarza_start_dt, dosypki_order_times[0])
-                elif dosypki_order_times:
+                if dosypki_order_times:
+                    # start -> first
                     start_to_first_s = secs_between(plan_real_start, dosypki_order_times[0])
                     # between dosypki
                     for i in range(1, len(dosypki_order_times)):
