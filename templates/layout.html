@@ -250,6 +250,10 @@
                         class="text-capitalize">{{ _('zasyp') }}</span></a>
                 {% endif %}
 
+                {% if role_has_access('zasyp') %}
+                <a href="{{ url_for('warehouse.podsumowanie_szarz') }}" class="nav-item {% if request.path.startswith('/podsumowanie_szarz') %}active{% endif %}">📈 <span class="text-capitalize">Podsumowanie szarż</span></a>
+                {% endif %}
+
                 {% if role_has_access('bufor') %}
                 <a href="{{ url_for('planista.bufor_page') }}"
                     class="nav-item {% if request.path.startswith('/bufor') %}active{% endif %}">🗂️ <span

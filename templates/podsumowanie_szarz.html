@@ -1,0 +1,369 @@
+<h2>Podsumowanie szarż i dosypek</h2>
+<!-- Tippy.js CSS -->
+<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
+<style>
+  body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; }
+  form { margin: 12px 0 18px; display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+  form label { font-size:14px; color:#333 }
+  input[type=date], select { padding:6px 8px; border:1px solid #ccc; border-radius:4px }
+  button { background:#1976d2;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer }
+  button:hover{background:#135ea6}
+  table{border-collapse:collapse;width:100%;max-width:1100px}
+  th{background:#f5f5f7;padding:8px;text-align:left}
+  td{padding:8px}
+  .negative-time{color:#c62828;font-weight:700}
+  #rangeDisplay{margin:8px 0 12px;color:#444;font-weight:600}
+</style>
+<form method="get" action="/podsumowanie_szarz">
+  <input type="hidden" name="start" id="startInput" value="">
+  <input type="hidden" name="end" id="endInput" value="">
+  <label>Data: <input type="date" name="date" value="{{ qdate }}"></label>
+  <label>Okres:
+    <select name="period">
+      <option value="day" {% if period=='day' %}selected{% endif %}>Dzień</option>
+      <option value="week" {% if period=='week' %}selected{% endif %}>Tydzień</option>
+      <option value="month" {% if period=='month' %}selected{% endif %}>Miesiąc</option>
+      <option value="quarter" {% if period=='quarter' %}selected{% endif %}>Kwartał</option>
+      <option value="year" {% if period=='year' %}selected{% endif %}>Rok</option>
+    </select>
+  </label>
+  <label>Grupuj:
+    <select name="group_by">
+      <option value="plan">Zlecenie</option>
+      <option value="produkt" {% if request.args.get('group_by')=='produkt' %}selected{% endif %}>Produkt</option>
+    </select>
+  </label>
+  <button type="submit">Filtruj</button>
+</form>
+
+<div id="rangeDisplay">Zakres: —</div>
+
+<table border="1" cellspacing="0" cellpadding="6">
+    <tr>
+    <th>Data planu</th>
+    <th>Zlecenie</th>
+    <th>Produkt</th>
+    <th>Czas startu zlecenia</th>
+    <th>Czas rozpoczęcia szarży</th>
+    <th>Szarża ID</th>
+    <th>Czas dodania szarży</th>
+    <th>Dosypki (zlecenie)</th>
+    <th>Potwierdzenie dosypki</th>
+    <th>Czas mieszania</th>
+    <th>Czas całej szarży (HH:MM:SS)</th>
+  </tr>
+  {% if results %}
+    {% for r in results %}
+      {% if loop.first or (results[loop.index0 -1].data_planu != r.data_planu) %}
+        <tr style="background:#eef;padding:6px">
+          <td colspan="10"><strong>Data: {{ r.data_planu.strftime('%d.%m.%Y') if r.data_planu else (r.data_planu|string) }}</strong></td>
+        </tr>
+      {% endif %}
+      {% if r.szarze_times %}
+        {% for sz in r.szarze_times %}
+          <tr>
+            <td>{{ r.data_planu }}</td>
+            <td>{{ r.plan_id }}</td>
+            <td>{{ r.produkt }}</td>
+            <td>{{ r.real_start_hms or '-' }}</td>
+            <td>{{ sz.szarza_start_hms or '-' }}</td>
+            <td>ID{{ sz.id }}</td>
+            <td>{{ sz.time_hms or sz.time or '-' }}</td>
+            <td>
+              {% if sz.dosypki %}
+                <ul style="margin:4px 0 0 18px;padding:0;font-size:0.9em">
+                  {% for d in sz.dosypki %}
+                    <li style="list-style:disc">ID{{ d.id }}: {{ d.order_time_hms or '-' }}</li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>
+              {% if sz.dosypki %}
+                <ul style="margin:4px 0 0 18px;padding:0;font-size:0.9em;color:#333">
+                  {% for d in sz.dosypki %}
+                    <li style="list-style:disc">ID{{ d.id }}: {{ d.confirm_time_hms or '-' }}</li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>04:00</td>
+            <td>{{ sz.whole_szarza_hms or '-' }}</td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td>{{ r.data_planu }}</td>
+          <td>{{ r.plan_id }}</td>
+          <td>{{ r.produkt }}</td>
+          <td>{{ r.real_start_hms or '-' }}</td>
+          <td colspan="6" style="text-align:center">-</td>
+        </tr>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    <tr><td colspan="10" style="text-align:center;padding:12px">Brak danych dla wybranego okresu.</td></tr>
+  {% endif %}
+</table>
+ 
+<p>
+  <a href="/podsumowanie_szarz.csv?period={{ period }}&date={{ qdate }}">Pobierz CSV</a>
+</p>
+
+{% if szarze_details %}
+  <h3>Szczegóły szarż</h3>
+  <form id="szarzeFilters" method="get" action="/podsumowanie_szarz" style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input type="hidden" name="start" id="sz_start" value="{{ request.args.get('start','') }}">
+    <input type="hidden" name="end" id="sz_end" value="{{ request.args.get('end','') }}">
+    <input type="hidden" name="period" value="{{ period }}">
+    <input type="hidden" name="date" value="{{ qdate }}">
+    <label style="font-size:13px">Szukaj Zlecenie: <input type="text" name="sz_filter_plan" value="{{ szarze_filter_plan or '' }}" placeholder="ID lub fragment" style="padding:6px;border:1px solid #ccc;border-radius:4px"></label>
+    <label style="font-size:13px">Szukaj Produkt: <input type="text" name="sz_filter_product" value="{{ szarze_filter_product or '' }}" placeholder="nazwa produktu" style="padding:6px;border:1px solid #ccc;border-radius:4px"></label>
+    <label style="font-size:13px">Na stronie:
+      <select name="sz_per_page" onchange="document.getElementById('szarzeFilters').submit()">
+        {% for opt in [10,25,50,100] %}
+          <option value="{{ opt }}" {% if szarze_per_page|int==opt %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Filtruj szczegóły</button>
+  </form>
+  <table border="1" cellspacing="0" cellpadding="4">
+    <tr><th>Zlecenie</th><th>Produkt</th><th>Szarża ID</th><th>Czas dodania szarży</th><th>Czas trwania szarży [mm:ss]</th><th>Sz->dodanie dosypki [mm:ss]</th><th>Dodanie->potwierdzenie [mm:ss]</th><th>Potwierdzenie dosypki</th><th>Całkowity do końca mieszania [mm:ss]</th></tr>
+    {% for s in szarze_details %}
+    <tr>
+      <td>{{ s.plan_id }}</td>
+      <td>{{ s.produkt }}</td>
+      <td>{{ s.szarza_id }}</td>
+      <td>{{ s.szarza_time_fmt or (s.szarza_time if s.szarza_time else '-') }}</td>
+      <td>
+        {% if s.szarza_duration_s is not none %}
+          {% set ss = s.szarza_duration_s %}
+          {% if ss < 0 %}{% set ssabs = -ss %}{% set sign='-' %}{% else %}{% set ssabs = ss %}{% set sign='' %}{% endif %}
+          {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+        {% else %}-{% endif %}
+      </td>
+      <td>
+        {% if s.start_to_first_dosypka_s is not none %}
+          {% set ss = s.start_to_first_dosypka_s %}
+          {% if ss < 0 %}{% set ssabs = -ss %}{% set sign='-' %}{% else %}{% set ssabs = ss %}{% set sign='' %}{% endif %}
+          {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+        {% else %}-{% endif %}
+        <div style="font-size:0.9em;color:#444;margin-top:6px">Dodania dosypek:</div>
+        {% if s.dosypki_order_times %}
+          <ul style="margin:4px 0 0 18px;padding:0;font-size:0.9em">
+            {% for dt in s.dosypki_order_times %}
+              <li style="list-style:disc">ID{{ loop.index }}: {{ dt }}{% if s.dosypki_intervals_s and loop.index0>0 %} — odstęp: {% set inter = s.dosypki_intervals_s[loop.index0-1] %}{% if inter is not none %}{{ (inter // 60) }}:{{ '%02d' % (inter % 60) }}{% else %}-{% endif %}{% endif %}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          -
+        {% endif %}
+      </td>
+      <td>
+        {% if s.dosypka_add_to_confirm_s is not none %}
+          {% set ss = s.dosypka_add_to_confirm_s %}
+          {% if ss < 0 %}{% set ssabs = -ss %}{% set sign='-' %}{% else %}{% set ssabs = ss %}{% set sign='' %}{% endif %}
+          {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+        {% else %}-{% endif %}
+      </td>
+      <td>{{ s.dosypka_confirm_time_fmt or (s.dosypka_confirm_time if s.dosypka_confirm_time else '-') }}</td>
+      <td>
+        {% if s.total_to_end_of_mixing_s is not none %}
+          {% set ss = s.total_to_end_of_mixing_s %}
+          {% if ss < 0 %}{% set ssabs = -ss %}{% set sign='-' %}{% else %}{% set ssabs = ss %}{% set sign='' %}{% endif %}
+          {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+        {% else %}-{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <div style="margin-top:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div>Wszystkich: <strong>{{ szarze_total if szarze_total is not none else szarze_details|length }}</strong></div>
+    <div>Strona: <strong>{{ szarze_page if szarze_page is not none else 1 }}</strong> / <strong>{{ szarze_total_pages if szarze_total_pages is not none else 1 }}</strong></div>
+    <div>
+      <form id="pagerForm" method="get" action="/podsumowanie_szarz" style="display:inline">
+        <input type="hidden" name="start" value="{{ request.args.get('start','') }}">
+        <input type="hidden" name="end" value="{{ request.args.get('end','') }}">
+        <input type="hidden" name="period" value="{{ period }}">
+        <input type="hidden" name="date" value="{{ qdate }}">
+        <input type="hidden" name="sz_filter_plan" value="{{ szarze_filter_plan or '' }}">
+        <input type="hidden" name="sz_filter_product" value="{{ szarze_filter_product or '' }}">
+        <input type="hidden" name="sz_per_page" value="{{ szarze_per_page if szarze_per_page is not none else 10 }}">
+        <button type="submit" name="sz_page" value="{{ (szarze_page|int -1) if (szarze_page|int)>1 else 1 }}">← Prev</button>
+        <button type="submit" name="sz_page" value="{{ (szarze_page|int +1) if (szarze_page|int) < (szarze_total_pages|int) else (szarze_total_pages|int if szarze_total_pages is not none else 1) }}">Next →</button>
+      </form>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">Przejdź do strony:
+      <form id="gotoForm" method="get" action="/podsumowanie_szarz" style="display:inline">
+        <input type="hidden" name="start" value="{{ request.args.get('start','') }}">
+        <input type="hidden" name="end" value="{{ request.args.get('end','') }}">
+        <input type="hidden" name="period" value="{{ period }}">
+        <input type="hidden" name="date" value="{{ qdate }}">
+        <input type="hidden" name="sz_filter_plan" value="{{ szarze_filter_plan or '' }}">
+        <input type="hidden" name="sz_filter_product" value="{{ szarze_filter_product or '' }}">
+        <input type="hidden" name="sz_per_page" value="{{ szarze_per_page if szarze_per_page is not none else 10 }}">
+        <input type="number" name="sz_page" min="1" max="{{ szarze_total_pages if szarze_total_pages is not none else 1 }}" value="{{ szarze_page if szarze_page is not none else 1 }}" style="width:72px;padding:6px;border:1px solid #ccc;border-radius:4px">
+        <button type="submit">Idź</button>
+      </form>
+    </div>
+  </div>
+{% endif %}
+
+<p style="font-size:0.9em;color:#555;margin-top:8px">📌 <span title="Ujemne wartości (np. gdy real_start > pierwsza szarża) są ignorowane przy obliczaniu średnich">Uwaga: ujemne czasy są ignorowane w obliczeniach średnich. Najedź na czerwony czas, aby zobaczyć szczegóły.</span></p>
+
+{% if grouped_summary %}
+  <h3>Podsumowanie grup</h3>
+  <table border="1" cellspacing="0" cellpadding="4">
+    <tr><th>Grupa</th><th>Ilość</th><th>Średnio: start->szarża [min]</th><th>Średnio: szarża->dodanie dosypki [min]</th><th>Średnio: dodanie->potwierdzenie [min]</th><th>Średnio: lab [min]</th><th>Średnio: do następnej szarży [min]</th></tr>
+    {% for g in grouped_summary %}
+    <tr>
+      <td>{{ g.group }}</td>
+      <td>{{ g.count }}</td>
+      <td>{{ g.szarza_minutes if g.szarza_minutes is not none else '-' }}</td>
+      <td>{{ g.szarza_to_dosypka_minutes if g.szarza_to_dosypka_minutes is not none else '-' }}</td>
+      <td>{{ g.dosypka_add_to_confirm_minutes if g.dosypka_add_to_confirm_minutes is not none else '-' }}</td>
+      <td>{{ g.lab_minutes if g.lab_minutes is not none else '-' }}</td>
+      <td>{{ g.wait_to_next_szarza if g.wait_to_next_szarza is not none else '-' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+{% endif %}
+
+<!-- Chart.js wykres prosty -->
+<canvas id="szarzeChart" width="800" height="300"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const data = {
+    labels: [
+      {% for r in results %}'{{ r.plan_id }}',{% endfor %}
+    ],
+    datasets: [{
+      label: 'Czas oczekiwania lab [min]',
+      data: [ {% for r in results %}{{ r.lab_minutes or 'null' }},{% endfor %} ],
+      borderColor: 'rgb(75, 192, 192)',
+      backgroundColor: 'rgba(75, 192, 192, 0.2)'
+    },{
+      label: 'Czas od start->pierwsza szarża [min]',
+      data: [ {% for r in results %}{{ r.szarza_minutes or 'null' }},{% endfor %} ],
+      borderColor: 'rgb(255, 99, 132)',
+      backgroundColor: 'rgba(255, 99, 132, 0.2)'
+    }]
+  };
+
+  const config = {
+    type: 'bar',
+    data: data,
+    options: { responsive: true }
+  };
+
+  new Chart(document.getElementById('szarzeChart'), config);
+</script>
+<!-- Tippy.js (popper + tippy) and init -->
+<script src="https://unpkg.com/@popperjs/core@2"></script>
+<script src="https://unpkg.com/tippy.js@6"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof tippy !== 'undefined') {
+      tippy('.has-tooltip', { delay: 80, placement: 'top', theme: 'light' });
+    }
+  });
+</script>
+<script>
+  function parseInputDate(v){
+    if(!v) return null;
+    const parts = v.split('-');
+    if(parts.length===3){
+      return new Date(parseInt(parts[0],10), parseInt(parts[1],10)-1, parseInt(parts[2],10));
+    }
+    return new Date(v);
+  }
+  function fmt(d){
+    if(!d) return '-';
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const yyyy = d.getFullYear();
+    return dd + '.' + mm + '.' + yyyy;
+  }
+  function computeRange(){
+    const dateEl = document.querySelector('input[name=date]');
+    const periodEl = document.querySelector('select[name=period]');
+    const v = parseInputDate(dateEl.value);
+    if(!v){ document.getElementById('rangeDisplay').innerText = 'Zakres: -'; return }
+    let start = new Date(v.getTime()), end = new Date(v.getTime());
+    const period = periodEl.value;
+    if(period==='day'){
+      // same day
+    } else if(period==='week'){
+      const day = (v.getDay()+6)%7; // Monday=0
+      start.setDate(v.getDate()-day);
+      end = new Date(start); end.setDate(start.getDate()+6);
+    } else if(period==='month'){
+      start = new Date(v.getFullYear(), v.getMonth(), 1);
+      end = new Date(v.getFullYear(), v.getMonth()+1, 0);
+    } else if(period==='quarter'){
+      const q = Math.floor(v.getMonth()/3);
+      const sm = q*3;
+      start = new Date(v.getFullYear(), sm, 1);
+      end = new Date(v.getFullYear(), sm+3, 0);
+    } else if(period==='year'){
+      start = new Date(v.getFullYear(), 0, 1);
+      end = new Date(v.getFullYear(), 11, 31);
+    }
+    document.getElementById('rangeDisplay').innerText = 'Zakres: ' + fmt(start) + ' — ' + fmt(end);
+    // set hidden inputs (ISO yyyy-mm-dd)
+    const si = start.getFullYear() + '-' + String(start.getMonth()+1).padStart(2,'0') + '-' + String(start.getDate()).padStart(2,'0');
+    const ei = end.getFullYear() + '-' + String(end.getMonth()+1).padStart(2,'0') + '-' + String(end.getDate()).padStart(2,'0');
+    const startInput = document.getElementById('startInput');
+    const endInput = document.getElementById('endInput');
+    if(startInput) startInput.value = si;
+    if(endInput) endInput.value = ei;
+    // update CSV href
+    const gb = document.querySelector('select[name=group_by]');
+    const csvLink = document.getElementById('csvLink');
+    try{
+      const params = new URLSearchParams();
+      params.set('period', periodEl.value);
+      if(dateEl && dateEl.value) params.set('date', dateEl.value);
+      if(si) params.set('start', si);
+      if(ei) params.set('end', ei);
+      if(gb && gb.value) params.set('group_by', gb.value);
+      if(csvLink) csvLink.href = '/podsumowanie_szarz.csv?' + params.toString();
+    }catch(e){console.debug(e)}
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    const dateEl = document.querySelector('input[name=date]');
+    const periodEl = document.querySelector('select[name=period]');
+    const startInput = document.getElementById('startInput');
+    const endInput = document.getElementById('endInput');
+    const csvLink = document.getElementById('csvLink');
+    function updateCsvHref(startIso, endIso){
+      try{
+        const params = new URLSearchParams();
+        params.set('period', periodEl.value);
+        if(dateEl && dateEl.value) params.set('date', dateEl.value);
+        if(startIso) params.set('start', startIso);
+        if(endIso) params.set('end', endIso);
+        const gb = document.querySelector('select[name=group_by]');
+        if(gb && gb.value) params.set('group_by', gb.value);
+        if(csvLink) csvLink.href = '/podsumowanie_szarz.csv?' + params.toString();
+      }catch(e){console.debug(e)}
+    }
+
+    if(dateEl) dateEl.addEventListener('change', computeRange);
+    if(periodEl) periodEl.addEventListener('change', computeRange);
+    computeRange();
+    // ensure CSV link exists
+    if(!document.getElementById('csvLink')){
+      const p = document.querySelector('p');
+      if(p){
+        const a = document.createElement('a'); a.id='csvLink'; a.href = '/podsumowanie_szarz.csv?period={{ period }}&date={{ qdate }}'; a.innerText='Pobierz CSV';
+        p.innerHTML=''; p.appendChild(a);
+      }
+    }
+  });
+</script>

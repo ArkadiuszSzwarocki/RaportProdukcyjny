@@ -217,6 +217,770 @@ def confirm_delete_szarze_page(szarza_id):
     return render_template('confirm_delete_szarze.html', szarza_id=szarza_id)
 
 
+@warehouse_bp.route('/podsumowanie_szarz', methods=['GET'])
+@roles_required('planista', 'lider', 'admin')
+def podsumowanie_szarz():
+    """Page: summary of szarze and dosypki durations per zlecenie with period filters."""
+    # Parse filters
+    period = request.args.get('period', 'day')
+    qdate_str = request.args.get('date')
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    qdate = None
+    # prefer explicit start/end if provided (start/end are inclusive dates in ISO YYYY-MM-DD)
+    start = None
+    end = None
+    if start_str and end_str:
+        for fmt in ('%Y-%m-%d', '%d.%m.%Y'):
+            try:
+                start = datetime.strptime(start_str, fmt).date()
+                break
+            except Exception:
+                continue
+        for fmt in ('%Y-%m-%d', '%d.%m.%Y'):
+            try:
+                end = datetime.strptime(end_str, fmt).date()
+                break
+            except Exception:
+                continue
+        if start and end:
+            qdate = start
+    if not qdate:
+        if qdate_str:
+            for fmt in ('%Y-%m-%d', '%d.%m.%Y'):
+                try:
+                    qdate = datetime.strptime(qdate_str, fmt).date()
+                    break
+                except Exception:
+                    continue
+        if not qdate:
+            qdate = date.today()
+
+    # Compute date range (end is exclusive)
+    from datetime import timedelta
+    if start and end:
+        # user provided inclusive end -> convert to exclusive by adding one day
+        end = end + timedelta(days=1)
+    else:
+        if period == 'day':
+            start = qdate
+            end = qdate + timedelta(days=1)
+        elif period == 'week':
+            start = qdate - timedelta(days=qdate.weekday())
+            end = start + timedelta(days=7)
+        elif period == 'month':
+            start = qdate.replace(day=1)
+            if start.month == 12:
+                end = start.replace(year=start.year + 1, month=1)
+            else:
+                end = start.replace(month=start.month + 1)
+        elif period == 'quarter':
+            q = (qdate.month - 1) // 3
+            start_month = q * 3 + 1
+            start = qdate.replace(month=start_month, day=1)
+            if start_month + 3 > 12:
+                end = start.replace(year=start.year + 1, month=1)
+            else:
+                end = start.replace(month=start_month + 3)
+        elif period == 'year':
+            start = qdate.replace(month=1, day=1)
+            end = start.replace(year=start.year + 1)
+        else:
+            start = qdate
+            end = qdate + timedelta(days=1)
+
+    group_by = request.args.get('group_by', 'plan')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT p.id, p.produkt, p.data_planu, p.real_start,
+                (SELECT s.id FROM szarze s WHERE s.plan_id=p.id ORDER BY s.data_dodania ASC LIMIT 1) AS first_szarza_id,
+                (SELECT s.data_dodania FROM szarze s WHERE s.plan_id=p.id ORDER BY s.data_dodania ASC LIMIT 1) AS first_szarza_time,
+                (SELECT d.data_potwierdzenia FROM dosypki d WHERE d.plan_id=p.id AND d.szarza_id = (SELECT s2.id FROM szarze s2 WHERE s2.plan_id=p.id ORDER BY s2.data_dodania ASC LIMIT 1) AND d.potwierdzone=1 AND COALESCE(d.anulowana,0)=0 ORDER BY d.data_potwierdzenia ASC LIMIT 1) AS first_dosypka_confirmed_time,
+                    (SELECT d.data_zlecenia FROM dosypki d WHERE d.plan_id=p.id AND d.szarza_id = (SELECT s2.id FROM szarze s2 WHERE s2.plan_id=p.id ORDER BY s2.data_dodania ASC LIMIT 1) AND COALESCE(d.anulowana,0)=0 ORDER BY d.data_zlecenia ASC LIMIT 1) AS first_dosypka_order_time,
+                (SELECT MIN(s3.data_dodania) FROM szarze s3 WHERE s3.plan_id=p.id AND s3.data_dodania > (SELECT s4.data_dodania FROM szarze s4 WHERE s4.plan_id=p.id ORDER BY s4.data_dodania ASC LIMIT 1)) AS next_szarza_time
+            FROM plan_produkcji p
+            WHERE p.sekcja='Zasyp' AND p.data_planu >= %s AND p.data_planu < %s
+            ORDER BY p.data_planu, p.kolejnosc
+            """,
+            (start, end)
+        )
+
+        rows = cursor.fetchall()
+        try:
+            current_app.logger.info('[podsumowanie_szarz] fetched rows=%s', len(rows))
+        except Exception:
+            pass
+        results = []
+        for r in rows:
+            plan_id = r[0]
+            produkt = r[1]
+            data_planu = r[2]
+            real_start = r[3]
+            first_szarza_time = r[5]
+            first_dosypka_confirmed_time = r[6]
+            first_dosypka_order_time = r[7]
+            next_szarza_time = r[8]
+
+            def minutes_between(a, b):
+                if not a or not b:
+                    return None
+                try:
+                    if isinstance(a, str):
+                        a = datetime.fromisoformat(a)
+                    if isinstance(b, str):
+                        b = datetime.fromisoformat(b)
+                    delta = b - a
+                    return round(delta.total_seconds() / 60.0, 1)
+                except Exception:
+                    return None
+
+            def seconds_between(a, b):
+                if not a or not b:
+                    return None
+                try:
+                    if isinstance(a, str):
+                        a = datetime.fromisoformat(a)
+                    if isinstance(b, str):
+                        b = datetime.fromisoformat(b)
+                    delta = b - a
+                    return int(round(delta.total_seconds()))
+                except Exception:
+                    return None
+
+            # Rule 1: time from real_start to first szarza
+            szarza_minutes = minutes_between(real_start, first_szarza_time)
+            szarza_seconds = seconds_between(real_start, first_szarza_time)
+
+            # Rule 2a: time from first szarza to dosypka order (when lab requested dosypka)
+            szarza_to_dosypka_minutes = minutes_between(first_szarza_time, first_dosypka_order_time)
+            szarza_to_dosypka_seconds = seconds_between(first_szarza_time, first_dosypka_order_time)
+
+            # Rule 2b: time from dosypka order to dosypka confirmation (lab processing)
+            dosypka_add_to_confirm_minutes = minutes_between(first_dosypka_order_time, first_dosypka_confirmed_time)
+            dosypka_add_to_confirm_seconds = seconds_between(first_dosypka_order_time, first_dosypka_confirmed_time)
+
+            # Traditional lab_minutes: total from szarza to confirmation (kept for compatibility)
+            lab_minutes = minutes_between(first_szarza_time, first_dosypka_confirmed_time)
+            lab_seconds = seconds_between(first_szarza_time, first_dosypka_confirmed_time)
+
+            # Rule 4: mixing time fixed
+            mixing_minutes = 5.0
+
+            # Rule 5: time from end of mixing (dosypka confirmed + mixing) to next szarza
+            end_of_mixing = None
+            if first_dosypka_confirmed_time:
+                try:
+                    dt = first_dosypka_confirmed_time
+                    if isinstance(dt, str):
+                        dt = datetime.fromisoformat(dt)
+                    end_of_mixing = dt + timedelta(minutes=mixing_minutes)
+                except Exception:
+                    end_of_mixing = None
+
+            wait_to_next_szarza = minutes_between(end_of_mixing, next_szarza_time) if end_of_mixing else None
+
+            # format real_start for display
+            def format_dt(dt):
+                if not dt:
+                    return None
+                try:
+                    if isinstance(dt, str):
+                        dt = datetime.fromisoformat(dt)
+                    return dt.strftime('%d.%m.%Y %H:%M')
+                except Exception:
+                    try:
+                        return str(dt)
+                    except Exception:
+                        return None
+
+            results.append({
+                'plan_id': plan_id,
+                'produkt': produkt,
+                'data_planu': data_planu,
+                'real_start': real_start,
+                'real_start_fmt': format_dt(real_start),
+                'real_start_hms': (datetime.fromisoformat(real_start).strftime('%H:%M:%S') if isinstance(real_start, str) else (real_start.strftime('%H:%M:%S') if real_start else None)),
+                'szarza_seconds': szarza_seconds,
+                'first_szarza_time': first_szarza_time,
+                'szarze_times': None,
+                'szarza_minutes': szarza_minutes,
+                'szarza_to_dosypka_minutes': szarza_to_dosypka_minutes,
+                'szarza_to_dosypka_seconds': szarza_to_dosypka_seconds,
+                'first_dosypka_confirmed_time': first_dosypka_confirmed_time,
+                'lab_minutes': lab_minutes,
+                'lab_seconds': lab_seconds,
+                'dosypka_add_to_confirm_minutes': dosypka_add_to_confirm_minutes,
+                'dosypka_add_to_confirm_seconds': dosypka_add_to_confirm_seconds,
+                'mixing_minutes': mixing_minutes,
+                'next_szarza_time': next_szarza_time,
+                'wait_to_next_szarza': wait_to_next_szarza,
+            })
+
+        # Compute averages (only over non-null values)
+        def avg(field):
+            # exclude None and negative durations from averages
+            vals = [x[field] for x in results if x[field] is not None and isinstance(x[field], (int, float)) and x[field] >= 0]
+            return round(sum(vals) / len(vals), 1) if vals else None
+
+        averages = {
+            'szarza_minutes': avg('szarza_minutes'),
+            'lab_minutes': avg('lab_minutes'),
+            'szarza_to_dosypka_minutes': avg('szarza_to_dosypka_minutes'),
+            'dosypka_add_to_confirm_minutes': avg('dosypka_add_to_confirm_minutes'),
+            'mixing_minutes': avg('mixing_minutes'),
+            'wait_to_next_szarza': avg('wait_to_next_szarza'),
+        }
+
+        # Grouping
+        grouped = {}
+        if group_by == 'produkt':
+            for item in results:
+                key = item['produkt'] or 'UNKNOWN'
+                grouped.setdefault(key, []).append(item)
+        else:
+            for item in results:
+                key = f"Z{item['plan_id']}"
+                grouped.setdefault(key, []).append(item)
+
+        grouped_summary = []
+        for key, items in grouped.items():
+            def avg_items(field):
+                vals = [x[field] for x in items if x[field] is not None and isinstance(x[field], (int, float)) and x[field] >= 0]
+                return round(sum(vals) / len(vals), 1) if vals else None
+            grouped_summary.append({
+                'group': key,
+                'count': len(items),
+                'szarza_minutes': avg_items('szarza_minutes'),
+                'lab_minutes': avg_items('lab_minutes'),
+                'szarza_to_dosypka_minutes': avg_items('szarza_to_dosypka_minutes'),
+                'dosypka_add_to_confirm_minutes': avg_items('dosypka_add_to_confirm_minutes'),
+                'wait_to_next_szarza': avg_items('wait_to_next_szarza')
+            })
+
+        # Details per szarza (each batch) and its dosypki
+        szarze_details = []
+        for r in rows:
+            plan_id = r[0]
+            produkt = r[1]
+            # fetch szarze for this plan
+            try:
+                cursor.execute("SELECT id, data_dodania FROM szarze WHERE plan_id=%s ORDER BY data_dodania ASC", (plan_id,))
+                szarze_rows = cursor.fetchall()
+            except Exception:
+                szarze_rows = []
+
+            # attach full list of szarze times to corresponding result entry
+            try:
+                # find the result dict for this plan and set szarze_times
+                for item in results:
+                    if item.get('plan_id') == plan_id:
+                        times = []
+                        for idx, srow in enumerate(szarze_rows):
+                            sid = srow[0]
+                            dt = srow[1]
+                            formatted = None
+                            formatted_hms = None
+                            try:
+                                if isinstance(dt, str):
+                                    dt = datetime.fromisoformat(dt)
+                                formatted = dt.strftime('%d.%m.%Y %H:%M')
+                                formatted_hms = dt.strftime('%H:%M:%S')
+                            except Exception:
+                                try:
+                                    formatted = str(dt)
+                                except Exception:
+                                    formatted = None
+                                formatted_hms = None
+                            # fetch dosypki for this szarza to attach as list
+                            dosypki_list = []
+                            try:
+                                cursor.execute("SELECT id, data_zlecenia, data_potwierdzenia FROM dosypki WHERE plan_id=%s AND szarza_id=%s AND COALESCE(anulowana,0)=0 ORDER BY data_zlecenia ASC", (plan_id, sid))
+                                drows = cursor.fetchall()
+                                for d in drows:
+                                    did = d[0]
+                                    dz = d[1]
+                                    dconf = d[2] if len(d) > 2 else None
+                                    try:
+                                        if isinstance(dz, str):
+                                            dz_dt = datetime.fromisoformat(dz)
+                                        else:
+                                            dz_dt = dz
+                                        dz_hms = dz_dt.strftime('%H:%M:%S') if dz_dt else None
+                                    except Exception:
+                                        dz_hms = (str(dz) if dz is not None else None)
+                                    try:
+                                        if isinstance(dconf, str):
+                                            dc_dt = datetime.fromisoformat(dconf)
+                                        else:
+                                            dc_dt = dconf
+                                        dconf_hms = dc_dt.strftime('%H:%M:%S') if dc_dt else None
+                                    except Exception:
+                                        dconf_hms = (str(dconf) if dconf is not None else None)
+                                    dosypki_list.append({'id': did, 'order_time_hms': dz_hms, 'confirm_time_hms': dconf_hms})
+                            except Exception:
+                                dosypki_list = []
+                            # compute szarza start: for first szarza -> plan_real_start, otherwise -> previous szarza last confirmation + 4min
+                            szarza_start_hms = None
+                            szarza_start_dt = None
+                            try:
+                                # plan real start
+                                plan_real_start = None
+                                for it in results:
+                                    if it.get('plan_id') == plan_id:
+                                        plan_real_start = it.get('real_start')
+                                        break
+                                if idx == 0:
+                                    if plan_real_start:
+                                        if isinstance(plan_real_start, str):
+                                            prs = datetime.fromisoformat(plan_real_start)
+                                        else:
+                                            prs = plan_real_start
+                                        szarza_start_dt = prs
+                                        szarza_start_hms = prs.strftime('%H:%M:%S')
+                                else:
+                                    try:
+                                        prev_id = szarze_rows[idx-1][0]
+                                        cursor.execute("SELECT MAX(data_potwierdzenia) FROM dosypki WHERE plan_id=%s AND szarza_id=%s AND potwierdzone=1 AND COALESCE(anulowana,0)=0", (plan_id, prev_id))
+                                        pv = cursor.fetchone()
+                                        prev_conf = pv[0] if pv else None
+                                    except Exception:
+                                        prev_conf = None
+                                    if prev_conf:
+                                        if isinstance(prev_conf, str):
+                                            pc = datetime.fromisoformat(prev_conf)
+                                        else:
+                                            pc = prev_conf
+                                        start_next = pc + timedelta(minutes=4)
+                                        szarza_start_dt = start_next
+                                        try:
+                                            szarza_start_hms = start_next.strftime('%H:%M:%S')
+                                        except Exception:
+                                            szarza_start_hms = None
+
+                            except Exception:
+                                szarza_start_hms = None
+                                szarza_start_dt = None
+
+                            # compute whole szarza duration: from szarza_start -> first confirmation + 4 minutes
+                            whole_szarza_hms = None
+                            whole_szarza_seconds = None
+                            try:
+                                # find first confirmation datetime from drows
+                                first_conf = None
+                                if drows:
+                                    for d in drows:
+                                        if d and len(d) > 2 and d[2]:
+                                            first_conf = d[2]
+                                            break
+                                if szarza_start_dt and first_conf:
+                                    if isinstance(first_conf, str):
+                                        fc = datetime.fromisoformat(first_conf)
+                                    else:
+                                        fc = first_conf
+                                    end_mix = fc + timedelta(minutes=4)
+                                    whole_szarza_seconds = int(round((end_mix - szarza_start_dt).total_seconds()))
+                                    # format as HH:MM:SS
+                                    if whole_szarza_seconds is not None:
+                                        sec = abs(whole_szarza_seconds)
+                                        h = sec // 3600
+                                        m = (sec % 3600) // 60
+                                        s = sec % 60
+                                        fmt = f"{h:02d}:{m:02d}:{s:02d}"
+                                        whole_szarza_hms = f"-{fmt}" if whole_szarza_seconds < 0 else fmt
+                            except Exception:
+                                whole_szarza_hms = None
+                                whole_szarza_seconds = None
+                            # (szarza_start already computed above)
+
+                            times.append({'id': sid, 'time': formatted, 'time_hms': formatted_hms, 'dosypki': dosypki_list, 'whole_szarza_hms': whole_szarza_hms, 'whole_szarza_seconds': whole_szarza_seconds, 'szarza_start_hms': szarza_start_hms})
+                        item['szarze_times'] = times
+                        break
+            except Exception:
+                pass
+
+            for idx, srow in enumerate(szarze_rows):
+                szarza_id = srow[0]
+                szarza_time = srow[1]
+                # formatted time for display
+                try:
+                    if isinstance(szarza_time, str):
+                        sz_dt = datetime.fromisoformat(szarza_time)
+                    else:
+                        sz_dt = szarza_time
+                    szarza_time_fmt = sz_dt.strftime('%d.%m.%Y %H:%M') if sz_dt else None
+                except Exception:
+                    try:
+                        szarza_time_fmt = str(szarza_time)
+                    except Exception:
+                        szarza_time_fmt = None
+                # next szarza time
+                try:
+                    cursor.execute("SELECT MIN(data_dodania) FROM szarze WHERE plan_id=%s AND data_dodania > %s", (plan_id, szarza_time))
+                    ns = cursor.fetchone()
+                    next_s = ns[0] if ns else None
+                except Exception:
+                    next_s = None
+
+
+                # fetch all dosypki for this szarza (order times) to compute intervals
+                try:
+                    cursor.execute("SELECT id, data_zlecenia, data_potwierdzenia FROM dosypki WHERE plan_id=%s AND szarza_id=%s AND COALESCE(anulowana,0)=0 ORDER BY data_zlecenia ASC", (plan_id, szarza_id))
+                    dos_rows = cursor.fetchall()
+                except Exception:
+                    dos_rows = []
+
+                dosypki_order_times = [dr[1] for dr in dos_rows if dr and dr[1]]
+                dosypki_order_times_fmt = []
+                for dt in dosypki_order_times:
+                    try:
+                        if isinstance(dt, str):
+                            dtt = datetime.fromisoformat(dt)
+                        else:
+                            dtt = dt
+                        dosypki_order_times_fmt.append(dtt.strftime('%d.%m.%Y %H:%M'))
+                    except Exception:
+                        try:
+                            dosypki_order_times_fmt.append(str(dt))
+                        except Exception:
+                            dosypki_order_times_fmt.append(None)
+
+                # first dosypka times (for compatibility)
+                dosypka_order_time = dosypki_order_times[0] if dosypki_order_times else None
+                dosypka_confirm_time = None
+                if dos_rows and dos_rows[0] and len(dos_rows[0]) > 2:
+                    dosypka_confirm_time = dos_rows[0][2]
+
+                # helper to compute seconds between two datetimes
+                def secs_between(a, b):
+                    if not a or not b:
+                        return None
+                    try:
+                        if isinstance(a, str):
+                            a = datetime.fromisoformat(a)
+                        if isinstance(b, str):
+                            b = datetime.fromisoformat(b)
+                        return int(round((b - a).total_seconds()))
+                    except Exception:
+                        return None
+
+                # compute intervals: start->first, then between successive dosypki
+                start_to_first_s = None
+                dosypki_intervals_s = []
+                # find plan real_start from results
+                plan_real_start = None
+                for it in results:
+                    if it.get('plan_id') == plan_id:
+                        plan_real_start = it.get('real_start')
+                        break
+                # compute szarza_start (prefer previous confirmed +4min, fallback to plan_real_start)
+                szarza_start_dt = None
+                try:
+                    if idx == 0:
+                        if plan_real_start:
+                            if isinstance(plan_real_start, str):
+                                szarza_start_dt = datetime.fromisoformat(plan_real_start)
+                            else:
+                                szarza_start_dt = plan_real_start
+                    else:
+                        try:
+                            prev_id = szarze_rows[idx-1][0]
+                            cursor.execute("SELECT MAX(data_potwierdzenia) FROM dosypki WHERE plan_id=%s AND szarza_id=%s AND potwierdzone=1 AND COALESCE(anulowana,0)=0", (plan_id, prev_id))
+                            pv = cursor.fetchone()
+                            prev_conf = pv[0] if pv else None
+                        except Exception:
+                            prev_conf = None
+                        if prev_conf:
+                            if isinstance(prev_conf, str):
+                                pc = datetime.fromisoformat(prev_conf)
+                            else:
+                                pc = prev_conf
+                            szarza_start_dt = pc + timedelta(minutes=4)
+                        else:
+                            if plan_real_start:
+                                if isinstance(plan_real_start, str):
+                                    szarza_start_dt = datetime.fromisoformat(plan_real_start)
+                                else:
+                                    szarza_start_dt = plan_real_start
+                except Exception:
+                    szarza_start_dt = None
+
+                if dosypki_order_times and szarza_start_dt:
+                    # start -> first (use szarza_start if available)
+                    start_to_first_s = secs_between(szarza_start_dt, dosypki_order_times[0])
+                elif dosypki_order_times:
+                    start_to_first_s = secs_between(plan_real_start, dosypki_order_times[0])
+                    # between dosypki
+                    for i in range(1, len(dosypki_order_times)):
+                        s = secs_between(dosypki_order_times[i-1], dosypki_order_times[i])
+                        dosypki_intervals_s.append(s)
+                try:
+                    if dosypka_confirm_time:
+                        if isinstance(dosypka_confirm_time, str):
+                            dc_dt = datetime.fromisoformat(dosypka_confirm_time)
+                        else:
+                            dc_dt = dosypka_confirm_time
+                        dosypka_confirm_time_fmt = dc_dt.strftime('%d.%m.%Y %H:%M')
+                    else:
+                        dosypka_confirm_time_fmt = None
+                except Exception:
+                    try:
+                        dosypka_confirm_time_fmt = str(dosypka_confirm_time)
+                    except Exception:
+                        dosypka_confirm_time_fmt = None
+
+                szarza_duration_s = secs_between(szarza_time, next_s)
+                szarza_to_dosypka_s = secs_between(szarza_time, dosypka_order_time)
+                dosypka_add_to_confirm_s = secs_between(dosypka_order_time, dosypka_confirm_time)
+                total_to_end_of_mixing_s = None
+                if dosypka_confirm_time:
+                    try:
+                        dt = dosypka_confirm_time
+                        if isinstance(dt, str):
+                            dt = datetime.fromisoformat(dt)
+                        end_of_mixing = dt + timedelta(minutes=5.0)
+                        total_to_end_of_mixing_s = secs_between(szarza_time, end_of_mixing)
+                    except Exception:
+                        total_to_end_of_mixing_s = None
+
+                szarze_details.append({
+                    'plan_id': plan_id,
+                    'produkt': produkt,
+                    'szarza_id': szarza_id,
+                    'szarza_time': szarza_time,
+                    'szarza_time_fmt': szarza_time_fmt,
+                    'szarza_duration_s': szarza_duration_s,
+                    'szarza_to_dosypka_s': szarza_to_dosypka_s,
+                    'dosypka_add_to_confirm_s': dosypka_add_to_confirm_s,
+                    'dosypka_confirm_time': dosypka_confirm_time,
+                    'dosypka_confirm_time_fmt': dosypka_confirm_time_fmt,
+                    'total_to_end_of_mixing_s': total_to_end_of_mixing_s
+                })
+
+                # extend last appended dict with dosypki sequence info
+                try:
+                    szarze_details[-1].update({
+                        'dosypki_order_times': dosypki_order_times_fmt,
+                        'dosypki_intervals_s': dosypki_intervals_s,
+                        'start_to_first_dosypka_s': start_to_first_s
+                    })
+                except Exception:
+                    pass
+
+        # Filtering and pagination for szarze_details
+        page = 1
+        per_page = 20
+        try:
+            page = int(request.args.get('sz_page', 1))
+        except Exception:
+            page = 1
+        try:
+            per_page = int(request.args.get('sz_per_page', 20))
+        except Exception:
+            per_page = 20
+
+        filter_plan = request.args.get('sz_filter_plan')
+        filter_product = request.args.get('sz_filter_product')
+
+        filtered_details = szarze_details
+        if filter_plan:
+            try:
+                pid = int(filter_plan)
+                filtered_details = [s for s in filtered_details if s.get('plan_id') == pid]
+            except Exception:
+                pass
+        if filter_product:
+            fp = filter_product.strip().lower()
+            filtered_details = [s for s in filtered_details if s.get('produkt') and fp in s.get('produkt').lower()]
+
+        total_items = len(filtered_details)
+        total_pages = max(1, (total_items + per_page - 1) // per_page)
+        if page < 1: page = 1
+        if page > total_pages: page = total_pages
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        paged_szarze = filtered_details[start_idx:end_idx]
+
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    return render_template('podsumowanie_szarz.html', results=results, averages=averages, period=period, qdate=qdate, grouped_summary=grouped_summary, szarze_details=paged_szarze, szarze_total=total_items, szarze_page=page, szarze_per_page=per_page, szarze_total_pages=total_pages, szarze_filter_plan=filter_plan, szarze_filter_product=filter_product)
+
+
+@warehouse_bp.route('/podsumowanie_szarz.csv', methods=['GET'])
+@roles_required('planista', 'lider', 'admin')
+def podsumowanie_szarz_csv():
+    """Return CSV export for the same query as podsumowanie_szarz."""
+    period = request.args.get('period', 'day')
+    qdate_str = request.args.get('date')
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    qdate = None
+    start = None
+    end = None
+    if start_str and end_str:
+        for fmt in ('%Y-%m-%d', '%d.%m.%Y'):
+            try:
+                start = datetime.strptime(start_str, fmt).date()
+                break
+            except Exception:
+                continue
+        for fmt in ('%Y-%m-%d', '%d.%m.%Y'):
+            try:
+                end = datetime.strptime(end_str, fmt).date()
+                break
+            except Exception:
+                continue
+        if start:
+            qdate = start
+    if not qdate:
+        if qdate_str:
+            for fmt in ('%Y-%m-%d', '%d.%m.%Y'):
+                try:
+                    qdate = datetime.strptime(qdate_str, fmt).date()
+                    break
+                except Exception:
+                    continue
+        if not qdate:
+            qdate = date.today()
+
+    from datetime import timedelta
+    if start and end:
+        end = end + timedelta(days=1)
+    else:
+        if period == 'day':
+            start = qdate
+            end = qdate + timedelta(days=1)
+        elif period == 'week':
+            start = qdate - timedelta(days=qdate.weekday())
+            end = start + timedelta(days=7)
+        elif period == 'month':
+            start = qdate.replace(day=1)
+            if start.month == 12:
+                end = start.replace(year=start.year + 1, month=1)
+            else:
+                end = start.replace(month=start.month + 1)
+        elif period == 'quarter':
+            q = (qdate.month - 1) // 3
+            start_month = q * 3 + 1
+            start = qdate.replace(month=start_month, day=1)
+            if start_month + 3 > 12:
+                end = start.replace(year=start.year + 1, month=1)
+            else:
+                end = start.replace(month=start_month + 3)
+        elif period == 'year':
+            start = qdate.replace(month=1, day=1)
+            end = start.replace(year=start.year + 1)
+        else:
+            start = qdate
+            end = qdate + timedelta(days=1)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT p.id, p.produkt, p.data_planu, p.real_start,
+                (SELECT s.data_dodania FROM szarze s WHERE s.plan_id=p.id ORDER BY s.data_dodania ASC LIMIT 1) AS first_szarza_time,
+                (SELECT d.data_potwierdzenia FROM dosypki d WHERE d.plan_id=p.id AND d.szarza_id = (SELECT s2.id FROM szarze s2 WHERE s2.plan_id=p.id ORDER BY s2.data_dodania ASC LIMIT 1) AND d.potwierdzone=1 AND COALESCE(d.anulowana,0)=0 ORDER BY d.data_potwierdzenia ASC LIMIT 1) AS first_dosypka_confirmed_time,
+                (SELECT d.data_zlecenia FROM dosypki d WHERE d.plan_id=p.id AND d.szarza_id = (SELECT s2.id FROM szarze s2 WHERE s2.plan_id=p.id ORDER BY s2.data_dodania ASC LIMIT 1) AND COALESCE(d.anulowana,0)=0 ORDER BY d.data_zlecenia ASC LIMIT 1) AS first_dosypka_order_time,
+                (SELECT MIN(s3.data_dodania) FROM szarze s3 WHERE s3.plan_id=p.id AND s3.data_dodania > (SELECT s4.data_dodania FROM szarze s4 WHERE s4.plan_id=p.id ORDER BY s4.data_dodania ASC LIMIT 1)) AS next_szarza_time
+            FROM plan_produkcji p
+            WHERE p.sekcja='Zasyp' AND p.data_planu >= %s AND p.data_planu < %s
+            ORDER BY p.data_planu, p.kolejnosc
+            """,
+            (start, end)
+        )
+        rows = cursor.fetchall()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    # Build CSV
+    import io, csv
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(['plan_id', 'produkt', 'data_planu', 'real_start', 'first_szarza_time', 'first_dosypka_order_time', 'szarza_to_dosypka', 'dosypka_add_to_confirm', 'first_dosypka_confirmed_time', 'lab_total_from_szarza', 'mixing_minutes', 'wait_to_next_szarza'])
+    for r in rows:
+        plan_id = r[0]
+        produkt = r[1]
+        data_planu = r[2]
+        real_start = r[3]
+        first_szarza_time = r[4]
+        first_dosypka_confirmed_time = r[5]
+        first_dosypka_order_time = r[6]
+        next_szarza_time = r[7]
+
+        def to_minutes(a, b):
+            try:
+                if not a or not b:
+                    return ''
+                if isinstance(a, str):
+                    a = datetime.fromisoformat(a)
+                if isinstance(b, str):
+                    b = datetime.fromisoformat(b)
+                return round((b - a).total_seconds() / 60.0, 1)
+            except Exception:
+                return ''
+
+        def minutes_to_mmss(m):
+            if m is None or m == '':
+                return ''
+            try:
+                secs = int(round(float(m) * 60))
+                neg = secs < 0
+                secs = abs(secs)
+                mins = secs // 60
+                s = secs % 60
+                fmt = f"{mins}:{s:02d}"
+                return f"-{fmt}" if neg else fmt
+            except Exception:
+                return ''
+
+        szarza_minutes = to_minutes(real_start, first_szarza_time)
+        szarza_to_dosypka = to_minutes(first_szarza_time, first_dosypka_order_time)
+        dosypka_add_to_confirm = to_minutes(first_dosypka_order_time, first_dosypka_confirmed_time)
+        lab_minutes = to_minutes(first_szarza_time, first_dosypka_confirmed_time)
+        mixing_minutes = 5.0
+        wait_to_next_szarza = ''
+        if first_dosypka_confirmed_time and next_szarza_time:
+            try:
+                dt = first_dosypka_confirmed_time
+                if isinstance(dt, str):
+                    dt = datetime.fromisoformat(dt)
+                end_of_mixing = dt + timedelta(minutes=mixing_minutes)
+                if isinstance(next_szarza_time, str):
+                    ns = datetime.fromisoformat(next_szarza_time)
+                else:
+                    ns = next_szarza_time
+                wait_to_next_szarza = round((ns - end_of_mixing).total_seconds() / 60.0, 1)
+            except Exception:
+                wait_to_next_szarza = ''
+
+        # Format minute values to mm:ss for CSV export
+        szarza_mmss = minutes_to_mmss(szarza_minutes)
+        szarza_to_dosypka_mmss = minutes_to_mmss(szarza_to_dosypka)
+        dosypka_add_to_confirm_mmss = minutes_to_mmss(dosypka_add_to_confirm)
+        lab_mmss = minutes_to_mmss(lab_minutes)
+        mixing_mmss = minutes_to_mmss(mixing_minutes)
+        wait_mmss = minutes_to_mmss(wait_to_next_szarza)
+
+        w.writerow([plan_id, produkt, data_planu, real_start or '', first_szarza_time or '', first_dosypka_order_time or '', szarza_to_dosypka_mmss, dosypka_add_to_confirm_mmss, first_dosypka_confirmed_time or '', lab_mmss, mixing_mmss, wait_mmss])
+
+    csv_data = out.getvalue()
+    return current_app.response_class(csv_data, mimetype='text/csv', headers={
+        'Content-Disposition': f'attachment; filename=podsumowanie_szarz_{period}_{qdate}.csv'
+    })
+
+
 @warehouse_bp.route('/potwierdz_palete_page/<int:paleta_id>', methods=['GET'])
 @login_required
 def potwierdz_palete_page(paleta_id):
