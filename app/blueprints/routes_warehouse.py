@@ -296,7 +296,7 @@ def podsumowanie_szarz():
     try:
         cursor.execute(
             """
-            SELECT p.id, p.produkt, p.data_planu, p.real_start,
+            SELECT p.id, p.produkt, p.data_planu, p.real_start, p.tonaz,
                 (SELECT s.id FROM szarze s WHERE s.plan_id=p.id ORDER BY s.data_dodania ASC LIMIT 1) AS first_szarza_id,
                 (SELECT s.data_dodania FROM szarze s WHERE s.plan_id=p.id ORDER BY s.data_dodania ASC LIMIT 1) AS first_szarza_time,
                 (SELECT d.data_potwierdzenia FROM dosypki d WHERE d.plan_id=p.id AND d.szarza_id = (SELECT s2.id FROM szarze s2 WHERE s2.plan_id=p.id ORDER BY s2.data_dodania ASC LIMIT 1) AND d.potwierdzone=1 AND COALESCE(d.anulowana,0)=0 ORDER BY d.data_potwierdzenia ASC LIMIT 1) AS first_dosypka_confirmed_time,
@@ -320,10 +320,11 @@ def podsumowanie_szarz():
             produkt = r[1]
             data_planu = r[2]
             real_start = r[3]
-            first_szarza_time = r[5]
-            first_dosypka_confirmed_time = r[6]
-            first_dosypka_order_time = r[7]
-            next_szarza_time = r[8]
+            plan_tonaz = r[4]
+            first_szarza_time = r[6]
+            first_dosypka_confirmed_time = r[7]
+            first_dosypka_order_time = r[8]
+            next_szarza_time = r[9]
 
             def minutes_between(a, b):
                 if not a or not b:
@@ -596,7 +597,29 @@ def podsumowanie_szarz():
                                 whole_szarza_seconds = None
                             # (szarza_start already computed above)
 
-                            times.append({'id': sid, 'time': formatted, 'time_hms': formatted_hms, 'dosypki': dosypki_list, 'whole_szarza_hms': whole_szarza_hms, 'whole_szarza_seconds': whole_szarza_seconds, 'szarza_start_hms': szarza_start_hms})
+                            # compute time from szarza start -> szarza added (seconds and formatted HH:MM:SS)
+                            start_to_add_seconds = None
+                            start_to_add_hms = None
+                            try:
+                                added_dt = None
+                                if srow and len(srow) > 1:
+                                    added_raw = srow[1]
+                                    if added_raw:
+                                        added_dt = datetime.fromisoformat(added_raw) if isinstance(added_raw, str) else added_raw
+                                if szarza_start_dt and added_dt:
+                                    delta = int(round((added_dt - szarza_start_dt).total_seconds()))
+                                    start_to_add_seconds = delta
+                                    sec = abs(delta)
+                                    h = sec // 3600
+                                    m = (sec % 3600) // 60
+                                    s = sec % 60
+                                    fmt = f"{h:02d}:{m:02d}:{s:02d}"
+                                    start_to_add_hms = f"-{fmt}" if delta < 0 else fmt
+                            except Exception:
+                                start_to_add_seconds = None
+                                start_to_add_hms = None
+
+                            times.append({'id': sid, 'time': formatted, 'time_hms': formatted_hms, 'dosypki': dosypki_list, 'whole_szarza_hms': whole_szarza_hms, 'whole_szarza_seconds': whole_szarza_seconds, 'szarza_start_hms': szarza_start_hms, 'start_to_add_seconds': start_to_add_seconds, 'start_to_add_hms': start_to_add_hms})
                         item['szarze_times'] = times
                         break
             except Exception:
@@ -699,6 +722,19 @@ def podsumowanie_szarz():
                         dosypka_confirm_time_fmt = None
 
                 szarza_duration_s = secs_between(szarza_time, next_s)
+                # If there is no next szarza and plan tonaz == 1000, measure duration from plan start
+                try:
+                    if not next_s and plan_tonaz is not None and abs((plan_tonaz or 0) - 1000) < 0.01:
+                        # find plan real_start
+                        plan_real_start = None
+                        for it in results:
+                            if it.get('plan_id') == plan_id:
+                                plan_real_start = it.get('real_start')
+                                break
+                        if plan_real_start:
+                            szarza_duration_s = secs_between(plan_real_start, szarza_time)
+                except Exception:
+                    pass
                 szarza_to_dosypka_s = secs_between(szarza_time, dosypka_order_time)
                 dosypka_add_to_confirm_s = secs_between(dosypka_order_time, dosypka_confirm_time)
                 total_to_end_of_mixing_s = None

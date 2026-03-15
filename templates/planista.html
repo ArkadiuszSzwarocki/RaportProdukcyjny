@@ -80,6 +80,7 @@
     <table class="modern-table">
         <thead>
             <tr>
+                <th>Lp.</th>
                 <th>📦 Produkt</th>
                 <th>🏷️ Typ</th>
                 <th>📋 Plan</th>
@@ -92,6 +93,7 @@
         <tbody id="plans-agro-tbody">
             {% for p in plany_agro %}
             <tr data-plan-id="{{ p[0] }}">
+                <td class="text-muted font-bold">{{ loop.index }}</td>
                 <td><strong class="text-primary">{{ p[2] }}</strong></td>
                 <td><span class="badge-sekcja">{{ (p[9] or '-')|upper }}</span></td>
                 <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
@@ -180,15 +182,10 @@
         <div class="d-flex gap-10 align-center">
             <a href="{{ url_for('planista.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan"
                 class="btn-action btn-action-success">+ DODAJ PLAN</a>
-            <!-- Quick add cleaning form -->
-            <form action="/planista/add_czyszczenie" method="POST" class="d-flex align-center gap-5 czyszczenie-form">
-                <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-                <label class="small text-muted">{{ _('czyszczenie') }}:</label>
-                <input type="number" name="tonaz" min="0" step="1" placeholder="kg" class="input-sm input-width-80">
-                <input type="number" name="kolejnosc" min="1" step="1" placeholder="poz."
-                    class="input-sm input-width-80">
-                <button type="submit" class="btn-action btn-small btn-warning">{{ _('dodaj') }}</button>
-            </form>
+            <!-- Quick add cleaning popup trigger (styled like + DODAJ PLAN) -->
+            <div style="display:flex;align-items:center;gap:8px;">
+                <button id="openAddCleaningBtn" class="btn-action btn-action-success" type="button">+ DODAJ CZYSZCZENIE</button>
+            </div>
         </div>
     </div>
     {% if has_incomplete_plans %}
@@ -203,6 +200,7 @@
     <table class="modern-table">
         <thead>
             <tr>
+                <th>Lp.</th>
                 <th>📦 {{ _('produkt') }}</th>
                 <th>🏷️ {{ _('typ') }}</th>
                 <th>📋 {{ _('plan') }}</th>
@@ -217,6 +215,7 @@
         <tbody id="plans-tbody" class="sortable-tbody">
             {% for p in plany %}
             <tr data-plan-id="{{ p[0] }}" {% if p[4] in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
+                <td class="text-muted font-bold">{{ loop.index }}</td>
                 <td><strong class="text-primary">{{ p[2] }}</strong></td>
                 <td><span class="badge-sekcja">{{ p[9]|upper }}</span></td>
                 <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
@@ -280,7 +279,7 @@
 
             {% if palety_mapa[p[0]] %}
             <tr id="details-{{ p[0] }}" class="details-row">
-                <td colspan="8" class="p-0">
+                <td colspan="10" class="p-0">
                     <div class="p-10">
                         <table class="modern-table small">
                             <thead>
@@ -309,7 +308,7 @@
             </tr>
             {% endif %}
             {% else %}<tr>
-                <td colspan="8" class="text-center p-20">Brak planu.</td>
+                <td colspan="10" class="text-center p-20">Brak planu.</td>
             </tr>{% endfor %}
         </tbody>
     </table>
@@ -366,6 +365,22 @@
     };
 
     function toggleDetails(id) { var row = document.getElementById('details-' + id); row.classList.toggle('hidden'); }
+
+    function toggleDetails(id) {
+        var detailsRow = document.getElementById('details-' + id);
+        if (!detailsRow) return;
+        var mainRow = document.querySelector('tr[data-plan-id="' + id + '"]');
+        var isHidden = detailsRow.classList.toggle('hidden');
+        // If hidden class is present -> details now hidden (toggle returned true for add)
+        // We want `.expanded` on main row when details are visible
+        if (mainRow) {
+            if (detailsRow.classList.contains('hidden')) {
+                mainRow.classList.remove('expanded');
+            } else {
+                mainRow.classList.add('expanded');
+            }
+        }
+    }
 
     function openMoveModal(id, nazwa) {
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
@@ -1103,7 +1118,108 @@
     .select-modal.active {
         display: block;
     }
+
+    /* When a plan row is expanded, keep its cells top-aligned so action
+       buttons remain at the top instead of appearing vertically centered. */
+    .modern-table tr.expanded > td {
+        vertical-align: top;
+    }
+    /* Ensure flex containers inside action cells align to top when row expanded */
+    .modern-table tr.expanded td .d-flex.align-center { align-items: flex-start; }
+    /* Stronger override in case other styles force centering */
+    .modern-table tr.expanded td .d-flex { align-items: flex-start !important; }
 </style>
 
 {% endif %}{# koniec bloku PSD / else AGRO #}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('form.czyszczenie-form').forEach(function(form){
+        form.addEventListener('submit', function(e){
+            e.preventDefault();
+            try{
+                const action = form.action || window.location.href;
+                const data = {};
+                Array.from(form.elements).forEach(function(el){
+                    if(!el.name) return;
+                    if(el.type === 'submit') return;
+                    data[el.name] = el.value;
+                });
+                fetch(action, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(data)
+                }).then(function(resp){
+                    if(resp.redirected){ window.location = resp.url; return; }
+                    if(resp.ok){ window.location.reload(); return; }
+                    // on error fallback to normal submit
+                    form.submit();
+                }).catch(function(){
+                    form.submit();
+                });
+            }catch(err){
+                form.submit();
+            }
+        });
+    });
+});
+</script>
+
+<script>
+// Add cleaning popup and submit logic
+document.addEventListener('DOMContentLoaded', function(){
+    var btn = document.getElementById('openAddCleaningBtn');
+    if(!btn) return;
+    btn.addEventListener('click', function(){
+        var html = '';
+        html += '<form id="addCleaningForm">';
+        html += '<input type="hidden" name="data_planu" value="{{ wybrana_data }}">';
+        html += '<div class="form-group"><label>Tonaz (kg)</label><input name="tonaz" type="number" min="0" step="1" class="input-sm" placeholder="kg"></div>';
+        html += '<div class="form-group"><label>Poz. (kolejność) - opcjonalnie</label><input name="kolejnosc" type="number" min="1" step="1" class="input-sm" placeholder="poz."></div>';
+        html += '<div class="d-flex gap-10 mt-15">';
+        html += '<button type="button" class="btn-action btn-success" id="submitAddCleaning">Dodaj</button>';
+        html += '<button type="button" class="btn-action btn-cancel" id="cancelAddCleaning">Anuluj</button>';
+        html += '</div></form>';
+
+        var popup = showQuickPopup('Dodaj Czyszczenie', html, {});
+        if (!popup) return;
+
+        // Hook buttons
+        var submitBtn = document.getElementById('submitAddCleaning');
+        var cancelBtn = document.getElementById('cancelAddCleaning');
+        cancelBtn && cancelBtn.addEventListener('click', function(){ if(window.createQuickPopup && window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close(); else closeQuickPopup(); });
+
+        submitBtn && submitBtn.addEventListener('click', function(){
+            var form = document.getElementById('addCleaningForm');
+            if(!form) return;
+            var ton = form.elements['tonaz'] ? form.elements['tonaz'].value : '';
+            var kol = form.elements['kolejnosc'] ? form.elements['kolejnosc'].value : '';
+
+            var payload = {
+                data_planu: '{{ wybrana_data }}',
+                tonaz: ton ? Number(ton) : 0
+            };
+            if(kol && kol.trim() !== '') payload.kolejnosc = Number(kol);
+            // If kolejnosc is omitted, backend will place the cleaning at the end (uses 9999 fallback)
+
+            fetch('/planista/add_czyszczenie', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+            }).then(function(resp){
+                if(resp.redirected){ window.location = resp.url; return; }
+                if(resp.ok){ window.location.reload(); return; }
+                return resp.text().then(function(t){ throw new Error(t || 'Błąd serwera'); });
+            }).catch(function(err){
+                alert('Błąd dodawania: ' + (err && err.message ? err.message : err));
+            });
+        });
+    });
+});
+</script>
+
 {% endblock %}

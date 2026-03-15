@@ -1686,6 +1686,19 @@ button[type="submit"]:hover {
     gap: 16px;
     padding: 16px;
     box-sizing: border-box;
+
+/* Ensure card layout keeps action buttons at the top regardless of
+   body/details height. We change cards to use column flex layout and
+   define visual ordering so `.card-actions` renders above the body. */
+.cards .card {
+    display: flex;
+    flex-direction: column;
+    min-height: 180px;
+}
+.cards .card-header { order: 0; }
+.cards .card-actions { order: 1; margin-top: 8px; }
+.cards .card-body { order: 2; flex: 1 1 auto; }
+.cards .card .details-row { order: 3; }
 }
 
 .card {

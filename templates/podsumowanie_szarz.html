@@ -1,3 +1,55 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+{% if grouped_summary %}
+  <h3>Podsumowanie grup</h3>
+  <table border="1" cellspacing="0" cellpadding="4">
+    <tr><th>Grupa</th><th>Ilość</th><th>Średnio: start->szarża [min]</th><th>Średnio: szarża->dodanie dosypki [min]</th><th>Średnio: dodanie->potwierdzenie [min]</th><th>Średnio: lab [min]</th><th>Średnio: do następnej szarży [min]</th></tr>
+    {% for g in grouped_summary %}
+    <tr>
+      <td>{{ g.group }}</td>
+      <td>{{ g.count }}</td>
+      <td>{{ g.szarza_minutes if g.szarza_minutes is not none else '-' }}</td>
+      <td>{{ g.szarza_to_dosypka_minutes if g.szarza_to_dosypka_minutes is not none else '-' }}</td>
+      <td>{{ g.dosypka_add_to_confirm_minutes if g.dosypka_add_to_confirm_minutes is not none else '-' }}</td>
+      <td>{{ g.lab_minutes if g.lab_minutes is not none else '-' }}</td>
+      <td>{{ g.wait_to_next_szarza if g.wait_to_next_szarza is not none else '-' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+{% endif %}
+
+<!-- Chart.js wykres prosty -->
+<canvas id="szarzeChart" width="800" height="300"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const data = {
+    labels: [
+      {% for r in results %}'{{ r.plan_id }}',{% endfor %}
+    ],
+    datasets: [{
+      label: 'Czas oczekiwania lab [min]',
+      data: [ {% for r in results %}{{ r.lab_minutes or 'null' }},{% endfor %} ],
+      borderColor: 'rgb(75, 192, 192)',
+      backgroundColor: 'rgba(75, 192, 192, 0.2)'
+    },{
+      label: 'Czas od start->pierwsza szarża [min]',
+      data: [ {% for r in results %}{{ r.szarza_minutes or 'null' }},{% endfor %} ],
+      borderColor: 'rgb(255, 99, 132)',
+      backgroundColor: 'rgba(255, 99, 132, 0.2)'
+    }]
+  };
+
+  const config = {
+    type: 'bar',
+    data: data,
+    options: { responsive: true }
+  };
+
+  new Chart(document.getElementById('szarzeChart'), config);
+</script>
+
 <h2>Podsumowanie szarż i dosypek</h2>
 <!-- Tippy.js CSS -->
 <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
@@ -38,25 +90,28 @@
 
 <div id="rangeDisplay">Zakres: —</div>
 
+ 
+
 <table border="1" cellspacing="0" cellpadding="6">
     <tr>
-    <th>Data planu</th>
-    <th>Zlecenie</th>
-    <th>Produkt</th>
-    <th>Czas startu zlecenia</th>
-    <th>Czas rozpoczęcia szarży</th>
-    <th>Szarża ID</th>
-    <th>Czas dodania szarży</th>
-    <th>Dosypki (zlecenie)</th>
-    <th>Potwierdzenie dosypki</th>
-    <th>Czas mieszania</th>
-    <th>Czas całej szarży (HH:MM:SS)</th>
-  </tr>
+      <th>Data planu</th>
+      <th>Zlecenie</th>
+      <th>Produkt</th>
+      <th>Czas startu zlecenia</th>
+      <th>Czas rozpoczęcia szarży</th>
+      <th>Czas start→dodanie</th>
+      <th>Szarża ID</th>
+      <th>Czas dodania szarży</th>
+      <th>Dosypki (zlecenie)</th>
+      <th>Potwierdzenie dosypki</th>
+      <th>Czas mieszania</th>
+      <th>Czas całej szarży (HH:MM:SS)</th>
+    </tr>
   {% if results %}
     {% for r in results %}
       {% if loop.first or (results[loop.index0 -1].data_planu != r.data_planu) %}
         <tr style="background:#eef;padding:6px">
-          <td colspan="10"><strong>Data: {{ r.data_planu.strftime('%d.%m.%Y') if r.data_planu else (r.data_planu|string) }}</strong></td>
+          <td colspan="12"><strong>Data: {{ r.data_planu.strftime('%d.%m.%Y') if r.data_planu else (r.data_planu|string) }}</strong></td>
         </tr>
       {% endif %}
       {% if r.szarze_times %}
@@ -67,6 +122,15 @@
             <td>{{ r.produkt }}</td>
             <td>{{ r.real_start_hms or '-' }}</td>
             <td>{{ sz.szarza_start_hms or '-' }}</td>
+            <td>
+              {% if sz.start_to_add_seconds is not none %}
+                {% if sz.start_to_add_seconds < 0 %}
+                  <span class="negative-time">{{ sz.start_to_add_hms or '-' }}</span>
+                {% else %}
+                  {{ sz.start_to_add_hms or '-' }}
+                {% endif %}
+              {% else %}-{% endif %}
+            </td>
             <td>ID{{ sz.id }}</td>
             <td>{{ sz.time_hms or sz.time or '-' }}</td>
             <td>
@@ -96,17 +160,17 @@
           </tr>
         {% endfor %}
       {% else %}
-        <tr>
-          <td>{{ r.data_planu }}</td>
-          <td>{{ r.plan_id }}</td>
-          <td>{{ r.produkt }}</td>
-          <td>{{ r.real_start_hms or '-' }}</td>
-          <td colspan="6" style="text-align:center">-</td>
-        </tr>
+          <tr>
+            <td>{{ r.data_planu }}</td>
+            <td>{{ r.plan_id }}</td>
+            <td>{{ r.produkt }}</td>
+            <td>{{ r.real_start_hms or '-' }}</td>
+            <td colspan="8" style="text-align:center">-</td>
+          </tr>
       {% endif %}
     {% endfor %}
   {% else %}
-    <tr><td colspan="10" style="text-align:center;padding:12px">Brak danych dla wybranego okresu.</td></tr>
+    <tr><td colspan="12" style="text-align:center;padding:12px">Brak danych dla wybranego okresu.</td></tr>
   {% endif %}
 </table>
  
@@ -144,14 +208,22 @@
         {% if s.szarza_duration_s is not none %}
           {% set ss = s.szarza_duration_s %}
           {% if ss < 0 %}{% set ssabs = -ss %}{% set sign='-' %}{% else %}{% set ssabs = ss %}{% set sign='' %}{% endif %}
-          {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+          {% if ss < 0 %}
+            <span class="negative-time">{{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}</span>
+          {% else %}
+            {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+          {% endif %}
         {% else %}-{% endif %}
       </td>
       <td>
         {% if s.start_to_first_dosypka_s is not none %}
           {% set ss = s.start_to_first_dosypka_s %}
           {% if ss < 0 %}{% set ssabs = -ss %}{% set sign='-' %}{% else %}{% set ssabs = ss %}{% set sign='' %}{% endif %}
-          {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+          {% if ss < 0 %}
+            <span class="negative-time">{{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}</span>
+          {% else %}
+            {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+          {% endif %}
         {% else %}-{% endif %}
         <div style="font-size:0.9em;color:#444;margin-top:6px">Dodania dosypek:</div>
         {% if s.dosypki_order_times %}
@@ -168,7 +240,11 @@
         {% if s.dosypka_add_to_confirm_s is not none %}
           {% set ss = s.dosypka_add_to_confirm_s %}
           {% if ss < 0 %}{% set ssabs = -ss %}{% set sign='-' %}{% else %}{% set ssabs = ss %}{% set sign='' %}{% endif %}
-          {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+          {% if ss < 0 %}
+            <span class="negative-time">{{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}</span>
+          {% else %}
+            {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+          {% endif %}
         {% else %}-{% endif %}
       </td>
       <td>{{ s.dosypka_confirm_time_fmt or (s.dosypka_confirm_time if s.dosypka_confirm_time else '-') }}</td>
@@ -176,7 +252,11 @@
         {% if s.total_to_end_of_mixing_s is not none %}
           {% set ss = s.total_to_end_of_mixing_s %}
           {% if ss < 0 %}{% set ssabs = -ss %}{% set sign='-' %}{% else %}{% set ssabs = ss %}{% set sign='' %}{% endif %}
-          {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+          {% if ss < 0 %}
+            <span class="negative-time">{{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}</span>
+          {% else %}
+            {{ sign }}{{ (ssabs // 60) }}:{{ '%02d' % (ssabs % 60) }}
+          {% endif %}
         {% else %}-{% endif %}
       </td>
     </tr>
@@ -215,24 +295,6 @@
 {% endif %}
 
 <p style="font-size:0.9em;color:#555;margin-top:8px">📌 <span title="Ujemne wartości (np. gdy real_start > pierwsza szarża) są ignorowane przy obliczaniu średnich">Uwaga: ujemne czasy są ignorowane w obliczeniach średnich. Najedź na czerwony czas, aby zobaczyć szczegóły.</span></p>
-
-{% if grouped_summary %}
-  <h3>Podsumowanie grup</h3>
-  <table border="1" cellspacing="0" cellpadding="4">
-    <tr><th>Grupa</th><th>Ilość</th><th>Średnio: start->szarża [min]</th><th>Średnio: szarża->dodanie dosypki [min]</th><th>Średnio: dodanie->potwierdzenie [min]</th><th>Średnio: lab [min]</th><th>Średnio: do następnej szarży [min]</th></tr>
-    {% for g in grouped_summary %}
-    <tr>
-      <td>{{ g.group }}</td>
-      <td>{{ g.count }}</td>
-      <td>{{ g.szarza_minutes if g.szarza_minutes is not none else '-' }}</td>
-      <td>{{ g.szarza_to_dosypka_minutes if g.szarza_to_dosypka_minutes is not none else '-' }}</td>
-      <td>{{ g.dosypka_add_to_confirm_minutes if g.dosypka_add_to_confirm_minutes is not none else '-' }}</td>
-      <td>{{ g.lab_minutes if g.lab_minutes is not none else '-' }}</td>
-      <td>{{ g.wait_to_next_szarza if g.wait_to_next_szarza is not none else '-' }}</td>
-    </tr>
-    {% endfor %}
-  </table>
-{% endif %}
 
 <!-- Chart.js wykres prosty -->
 <canvas id="szarzeChart" width="800" height="300"></canvas>
@@ -367,3 +429,5 @@
     }
   });
 </script>
+
+{% endblock %}

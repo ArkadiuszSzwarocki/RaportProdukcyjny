@@ -107,10 +107,12 @@ def panel_planisty():
             if work_result:
                 p[11] = work_result[0]  # Zastąp uszkodzone_worki z Zasyp wartością z Workowania
 
-        # Jeśli to nie jest wpis "Czyszczenie", wliczamy do planu wydajnościowego
+        # Jeśli to nie jest wpis "Czyszczenie", wliczamy do planu wagowego.
+        # Suma minut planu powinna obejmować także wpisy "Czyszczenie",
+        # bo zajmują czas zmiany, dlatego dodajemy `suma_minut_plan` zawsze.
         if sekcja != 'czyszczenie':
             suma_plan += waga_plan
-            suma_minut_plan += czas_trwania_min
+        suma_minut_plan += czas_trwania_min
 
         # 2. POBIERANIE WYKONANIA
         # Dla planów Zasyp: oblicz z szarży (rzeczywistych wpisów) + dosypki potwierdzone
@@ -336,9 +338,11 @@ def add_czyszczenie():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        data_planu = request.form.get('data_planu') or (request.json.get('data_planu') if request.json else None)
-        tonaz = request.form.get('tonaz') or (request.json.get('tonaz') if request.json else None)
-        kolejnosc = request.form.get('kolejnosc') or (request.json.get('kolejnosc') if request.json else None)
+        # prefer form data; if not present, try JSON payload (silently)
+        json_body = request.get_json(silent=True) or {}
+        data_planu = request.form.get('data_planu') or (json_body.get('data_planu') if json_body else None)
+        tonaz = request.form.get('tonaz') or (json_body.get('tonaz') if json_body else None)
+        kolejnosc = request.form.get('kolejnosc') or (json_body.get('kolejnosc') if json_body else None)
         try:
             tonaz_val = float(str(tonaz).replace(',', '.')) if tonaz is not None and tonaz != '' else 0
         except Exception:
