@@ -3,13 +3,13 @@
     "version": "1.0",
     "layout": {
       "header": {
-        "fontSize": "18px",
-        "padding": "10px",
+        "fontSize": "24px",
+        "padding": "20px",
         "show": true
       },
       "stats": {
-        "fontSize": "16px",
-        "gap": "30px",
+        "fontSize": "12px",
+        "gap": "12px",
         "show": true
       },
       "table": {

@@ -39,6 +39,24 @@ def debug_modal_move() -> Tuple[str, int]:
     return ('', 204)
 
 
+@main_bp.route('/debug/whoami')
+def debug_whoami():
+    """Temporary debug endpoint: returns session role and session keys.
+    Only responds when request comes from localhost (127.0.0.1 or ::1).
+    """
+    from flask import current_app, jsonify
+    ip = request.remote_addr
+    if ip not in ('127.0.0.1', '::1', 'localhost'):
+        return 'Forbidden', 403
+    role = session.get('rola')
+    data = {
+        'remote_addr': ip,
+        'session_role': role,
+        'session_keys': list(session.keys())
+    }
+    return jsonify(data)
+
+
 @main_bp.route('/')
 @login_required
 def index() -> str:
@@ -88,7 +106,6 @@ def index() -> str:
                 '<p>Nie masz uprawnień do tej sekcji.<br>Skontaktuj się z administratorem.</p>'
                 '<a href="/logout">Wyloguj się</a></div></body></html>'
             ), 403
-    # --- End dynamic section access check ---
     
     # Log open_stop param if present
     try:

@@ -1,187 +1,371 @@
-{% extends "layout.html" %}
+<!DOCTYPE html>
+<html lang="pl">
 
-{% block content %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>system_produkcyjny</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+    <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css?v=">
+    <link rel="stylesheet" href="/static/css/inline-styles.css?v=">
+    <style>
+        .notifications-wrapper {
+            position: relative;
+        }
+
+        .notifications-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: #d9342b;
+            color: #fff;
+            font-size: 11px;
+            line-height: 18px;
+            text-align: center;
+            font-weight: 700;
+            display: none;
+        }
+
+        .notifications-menu {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            width: min(420px, 88vw);
+            max-height: 70vh;
+            overflow: hidden;
+            background: #fff;
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+            z-index: 1200;
+            display: none;
+        }
+
+        .notifications-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        }
+
+        .notifications-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .notifications-actions button {
+            border: 0;
+            background: transparent;
+            color: #2563eb;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .notifications-list {
+            max-height: 52vh;
+            overflow-y: auto;
+        }
+
+        .notification-item {
+            width: 100%;
+            border: 0;
+            background: #fff;
+            text-align: left;
+            padding: 14px 16px;
+            display: block;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+        }
+
+        .notification-item:hover {
+            background: #f8fafc;
+        }
+
+        .notification-item-title {
+            display: block;
+            font-size: 14px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .notification-item-message {
+            display: block;
+            font-size: 13px;
+            color: #334155;
+            line-height: 1.4;
+            margin-bottom: 6px;
+        }
+
+        .notification-item-meta {
+            display: block;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .notifications-empty {
+            padding: 20px 16px;
+            color: #64748b;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .notifications-wrapper {
+                position: static;
+            }
+
+            .notifications-menu {
+                position: fixed;
+                top: 58px;
+                left: 8px;
+                right: 8px;
+                width: auto;
+                max-width: none;
+                max-height: calc(100vh - 70px);
+                border-radius: 16px;
+            }
+
+            .notifications-header {
+                padding: 12px 14px;
+            }
+
+            .notifications-list {
+                max-height: calc(100vh - 132px);
+            }
+
+            .notification-item {
+                padding: 12px 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="top-bar">
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
+            <span class="material-icons">menu</span>
+        </button>
+
+        <!-- Page title in top bar (desktop only) -->
+        <span id="topBarPageTitle"
+            style="font-size:16px;font-weight:700;color:var(--text-secondary,#e2e8f0);margin-right:auto;padding-left:16px;display:none;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
+
+
+        
+
+        
+
+        
+
+        <!-- Language selector dropdown -->
+        <div class="language-selector">
+            <button type="button" class="btn-icon language-toggle" title="zmien_jezyk"
+                onclick="toggleLanguageMenu(); return false;">
+                <span class="material-icons">language</span>
+            </button>
+            <div id="languageMenu" class="language-menu hidden">
+                <a href="/api/set_language?language=pl" class="language-option">
+                    <span>🇵🇱</span> Polski
+                </a>
+                <a href="/api/set_language?language=uk" class="language-option">
+                    <span>🇺🇦</span> Українська
+                </a>
+                <a href="/api/set_language?language=en" class="language-option">
+                    <span>🇬🇧</span> English
+                </a>
+            </div>
+        </div>
+
+        
+
+        
+
+        <div class="top-user-meta">
+            <span class="user-role">
+                <span class="user-role-label">zalogowany:</span>
+                <strong class="user-role-name">N/A</strong>
+            </span>
+            
+        </div>
+    </div>
+    </div>
+
+    <div class="app-layout">
+        <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+        <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
+            <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
+            <nav class="sidebar-nav">
+                
+                <a href="/"
+                    class="nav-item ">📊
+                    <span class="text-capitalize">dashboard</span></a>
+                
+
+                
+                <a href="/?sekcja=Zasyp"
+                    class="nav-item ">📥 <span
+                        class="text-capitalize">zasyp</span></a>
+                
+
+                
+                <a href="/podsumowanie_szarz" class="nav-item ">📈 <span class="text-capitalize">Podsumowanie szarż</span></a>
+                
+
+                
+                <a href="/bufor"
+                    class="nav-item ">🗂️ <span
+                        class="text-capitalize">bufor</span></a>
+                
+
+                
+                <a href="/?sekcja=Workowanie"
+                    class="nav-item ">⚙️ <span
+                        class="text-capitalize">workowanie</span></a>
+                
+
+                
+                <a href="/?sekcja=Magazyn"
+                    class="nav-item ">📦 <span
+                        class="text-capitalize">magazyn</span></a>
+                
+
+                
+                <a href="/jakosc"
+                    class="nav-item ">✅ <span
+                        class="text-capitalize">jakosc</span></a>
+                
+
+                
+                <a href="/zarzad" class="nav-item ">📊 <span
+                        class="text-capitalize">wyniki</span></a>
+                
+
+                
+                <a href="/dur/awarie"
+                    class="nav-item ">⚠️ <span
+                        class="text-capitalize">awarie</span></a>
+                
+
+                
+                <a href="/planista" class="nav-item active">📋
+                    <span class="text-capitalize">plan</span></a>
+                
+
+                
+                <a href="/moje_godziny"
+                    class="nav-item ">🕐 <span
+                        class="text-capitalize">moje_godziny</span></a>
+                
+
+                
+                <a href="/admin/ustawienia"
+                    class="nav-item ">⚙️ <span
+                        class="text-capitalize">ustawienia</span></a>
+                
+            </nav>
+            <div class="sidebar-footer">
+                
+            </div>
+        </aside>
+
+        <main class="main-content" id="mainContent">
+            
+            
+            
+
+            
+            
 
 <!-- Sortable.js for drag-and-drop reordering -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
 <div class="section-header">
     <div>
-        <h2 class="header-title">📅 {{ _('panel_planisty') }}</h2>
-        <p class="text-muted">{{ _('zarzadzanie_produkcja') }}</p>
+        <h2 class="header-title">📅 panel_planisty</h2>
+        <p class="text-muted">zarzadzanie_produkcja</p>
     </div>
     <form action="/planista" method="GET" class="d-flex align-center gap-10">
-        <input type="hidden" name="tab" value="{{ aktywna_zakladka }}">
-        <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm"
+        <input type="hidden" name="tab" value="psd">
+        <input type="date" name="data" value="2026-03-16" onchange="this.form.submit()" class="input-sm"
             aria-label="Wybierz datę">
-        <a href="/planista?data={{ wybrana_data }}&tab={{ aktywna_zakladka }}" class="btn btn-primary">{{ _('odswiez')
-            }}</a>
-        <!-- Przycisk 'Sprawdź niezrealizowane' usunięty na życzenie -->
+        <a href="/planista?data=2026-03-16&tab=psd" class="btn btn-primary">odswiez</a>
+        <button type="button" class="btn btn-secondary" onclick="checkIncomplete('2026-03-16')">🔎 Sprawdź niezrealizowane</button>
     </form>
 </div>
 
 <!-- Zakładki PSD / AGRO -->
 <div class="plan-tabs" style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--border-color);">
-    <a href="/planista?data={{ wybrana_data }}&tab=psd"
-        class="plan-tab {% if aktywna_zakladka == 'psd' %}plan-tab-active{% endif %}" style="padding:10px 24px;font-weight:700;text-decoration:none;border-radius:8px 8px 0 0;
-              border:1px solid var(--border-color);border-bottom:{% if aktywna_zakladka == 'psd' %}2px solid white{% else %}none{% endif %};
-              background:{% if aktywna_zakladka == 'psd' %}white{% else %}#f4f6f9{% endif %};
-              color:{% if aktywna_zakladka == 'psd' %}var(--primary-color){% else %}var(--text-muted){% endif %};
+    <a href="/planista?data=2026-03-16&tab=psd"
+        class="plan-tab plan-tab-active" style="padding:10px 24px;font-weight:700;text-decoration:none;border-radius:8px 8px 0 0;
+              border:1px solid var(--border-color);border-bottom:2px solid white;
+              background:white;
+              color:var(--primary-color);
               margin-bottom:-2px;">
         🏭 PSD
     </a>
-    <a href="/planista?data={{ wybrana_data }}&tab=agro"
-        class="plan-tab {% if aktywna_zakladka == 'agro' %}plan-tab-active{% endif %}" style="padding:10px 24px;font-weight:700;text-decoration:none;border-radius:8px 8px 0 0;
-              border:1px solid var(--border-color);border-bottom:{% if aktywna_zakladka == 'agro' %}2px solid white{% else %}none{% endif %};
-              background:{% if aktywna_zakladka == 'agro' %}white{% else %}#f4f6f9{% endif %};
-              color:{% if aktywna_zakladka == 'agro' %}var(--primary-color){% else %}var(--text-muted){% endif %};
+    <a href="/planista?data=2026-03-16&tab=agro"
+        class="plan-tab " style="padding:10px 24px;font-weight:700;text-decoration:none;border-radius:8px 8px 0 0;
+              border:1px solid var(--border-color);border-bottom:none;
+              background:#f4f6f9;
+              color:var(--text-muted);
               margin-bottom:-2px;">
         🌿 AGRO
     </a>
 </div>
 
-{% if aktywna_zakladka == 'agro' %}
-{# ===== ZAKŁADKA AGRO ===== #}
-<div class="stat-grid">
-    <div
-        class="stat-card {% if suma_minut_plan_agro > 450 %}border-danger-left{% else %}border-success-left{% endif %}">
-        <span class="label">Obłożenie zmiany (AGRO)</span>
-        <div class="header-title header-lg">{{ suma_minut_plan_agro }} min</div>
-        <div class="small text-muted">{% if suma_minut_plan_agro > 450 %}⚠️ Przekroczono o {{ suma_minut_plan_agro - 450
-            }} min!{% else %}Zapas: {{ 450 - suma_minut_plan_agro }} min{% endif %}</div>
-    </div>
-    <div class="stat-card border-primary-left">
-        <span class="label">Plan Wagowy (AGRO)</span>
-        <div class="header-title header-lg">{{ suma_plan_agro|int }} kg</div>
-    </div>
-    <div class="stat-card border-warning-left">
-        <span class="label">Realizacja Planu (AGRO)</span>
-        <div class="header-title header-lg {% if procent_agro >= 100 %}text-success{% else %}text-warning{% endif %}">{{
-            procent_agro|int }}%</div>
-        <div class="small text-muted">Wykonano: {{ suma_wyk_agro|int }} kg</div>
-    </div>
-</div>
 
-<div class="section-box section-box-no-pad">
-    <div class="d-flex justify-between align-center p-15 p-15-bg">
-        <h3 class="m-0">🌿 Plan AGRO: <strong>{{ wybrana_data }}</strong></h3>
-        <div class="d-flex gap-10 align-center">
-            <a href="{{ url_for('planista.planista_bulk_page', data=wybrana_data, sekcja='Agro') }}"
-                class="btn-action btn-action-success">+ DODAJ PLAN AGRO</a>
-        </div>
-    </div>
-    {% if has_incomplete_plans %}
-    <div style="padding: 10px 15px; background-color: #fff3cd; border-bottom: 1px solid #ddd; display: flex; gap: 10px;">
-        <button type="button" class="btn btn-warning btn-sm" onclick="przeniesNiezrealizowane('{{ wybrana_data }}')">
-            ⚠️ Przenieś niezrealizowane zlecenia na następny dzień
-        </button>
-        <span class="text-muted small" style="margin-top: 6px;">Automatycznie przeniesie niezrealizowaną pracę ze zasypu i workowania na następny dzień</span>
-    </div>
-    {% endif %}
-    <table class="modern-table">
-        <thead>
-            <tr>
-                <th>Lp.</th>
-                <th>📦 Produkt</th>
-                <th>🏷️ Typ</th>
-                <th>📋 Plan</th>
-                <th>⏱️ Estymacja</th>
-                <th>✅ Wykonanie</th>
-                <th>📊 Status</th>
-                <th class="text-right">⚙️ Akcje</th>
-            </tr>
-        </thead>
-        <tbody id="plans-agro-tbody">
-            {% for p in plany_agro %}
-            <tr data-plan-id="{{ p[0] }}">
-                <td class="text-muted font-bold">{{ loop.index }}</td>
-                <td><strong class="text-primary">{{ p[2] }}</strong></td>
-                <td><span class="badge-sekcja">{{ (p[9] or '-')|upper }}</span></td>
-                <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
-                <td><span class="duration-badge">{{ p[12]|default(0) }} min</span></td>
-                <td>
-                    {% if (p[8]|default(0, true)) > 0 %}
-                    <strong class="text-success">{{ p[8]|int }} kg</strong>
-                    {% else %}<span class="text-muted">-</span>{% endif %}
-                </td>
-                <td>
-                    {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
-                    {% elif p[4] == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
-                    {% else %}<span class="status-badge status-zaplanowane">ZAPLANOWANE</span>{% endif %}
-                </td>
-                <td class="text-right">
-                    <div class="d-flex gap-5 align-center justify-end">
-                        {% if p[4] not in ['w toku', 'zakonczone'] %}
-                        <form action="{{ url_for('planning.usun_plan_agro', plan_id=p[0]) }}" method="POST"
-                            class="inline-form" onsubmit="return confirm('Usunąć zlecenie AGRO?');">
-                            <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-                            <button type="submit" class="btn-icon text-danger" title="Usuń">🗑️</button>
-                        </form>
-                        {% else %}
-                        <span class="text-muted" title="Zablokowane">🔒</span>
-                        {% endif %}
-                    </div>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="7" class="text-center p-20">Brak planu AGRO na ten dzień.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
 
-{% else %}
-{# ===== ZAKŁADKA PSD (domyślna) ===== #}
 
-{% if quality_count and quality_count > 0 %}
-<div class="plan-box d-flex justify-between align-center">
-    <div class="text-warning"><strong>🔔 Laboratorium zgłosiło {{ quality_count }}</strong> zleceń dezynfekcji na {{
-        wybrana_data }} — sprawdź Jakość i dodaj do planów.</div>
-    {% if session.get('rola') == 'planista' %}
-    <div>
-        <button type="button" class="btn-action btn-warning">{{ _('szczegoly_dezynfekcji') }}</button>
-    </div>
-    {% endif %}
-</div>
-{% endif %}
+
 
 <div class="stat-grid">
 
-    <div class="stat-card {% if suma_minut_plan > 450 %}border-danger-left{% else %}border-success-left{% endif %}">
-        <span class="label">{{ _('oblegenie_zmiany') }}</span>
-        <div class="header-title header-lg">{{ suma_minut_plan }} min</div>
-        <div class="small text-muted">{% if suma_minut_plan > 450 %}⚠️ Przekroczono o {{ suma_minut_plan - 450 }} min!{%
-            else %}Zapas: {{ 450 - suma_minut_plan }} min{% endif %}</div>
+    <div class="stat-card border-success-left">
+        <span class="label">oblegenie_zmiany</span>
+        <div class="header-title header-lg">60 min</div>
+        <div class="small text-muted">Zapas: 390 min</div>
         <div class="progress">
             <div
-                class="progress-bar {% if suma_minut_plan > 450 %}progress-bar-danger{% else %}progress-bar-success{% endif %} progress-w-{{ [procent_czasu, 100]|min|round(0)|int }}">
+                class="progress-bar progress-bar-success progress-w-13">
             </div>
         </div>
     </div>
 
     <div class="stat-card border-primary-left">
         <span class="label">Plan Wagowy</span>
-        <div class="header-title header-lg">{{ suma_plan|int }} kg</div>
+        <div class="header-title header-lg">1000 kg</div>
         <div class="small text-muted">Cel: min 21 000 kg</div>
     </div>
 
     <div class="stat-card border-warning-left">
         <span class="label">Realizacja Planu</span>
-        <div class="header-title header-lg {% if procent >= 100 %}text-success{% else %}text-warning{% endif %}">{{
-            procent|int }}%</div>
-        <div class="small text-muted">Wykonano: {{ suma_wyk|int }} kg</div>
+        <div class="header-title header-lg text-warning">80%</div>
+        <div class="small text-muted">Wykonano: 800 kg</div>
     </div>
 </div>
 
-{# BUFOR przeniesiony na osobną stronę /bufor — patrz templates/bufor.html #}
+
 
 <div class="section-box section-box-no-pad">
     <div class="d-flex justify-between align-center p-15 p-15-bg">
-        <h3 class="m-0">📋 {{ _('glowny_plan') }}: <strong>{{ wybrana_data }}</strong></h3>
+        <h3 class="m-0">📋 glowny_plan: <strong>2026-03-16</strong></h3>
         <div class="d-flex gap-10 align-center">
-            <a href="{{ url_for('planista.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan"
+            <a href="/planista/bulk?data=2026-03-16" id="btnDodajPlan"
                 class="btn-action btn-action-success">+ DODAJ PLAN</a>
             <!-- Quick add cleaning popup trigger (styled like + DODAJ PLAN) -->
             <div style="display:flex;align-items:center;gap:8px;">
@@ -189,136 +373,88 @@
             </div>
         </div>
     </div>
-    {% if has_incomplete_plans %}
+    
     <div style="padding: 10px 15px; background-color: #fff3cd; border-bottom: 1px solid #ddd; display: flex; gap: 10px;">
-        <button type="button" class="btn btn-warning btn-sm" onclick="przeniesNiezrealizowane('{{ wybrana_data }}')">
+        <button type="button" class="btn btn-warning btn-sm" onclick="przeniesNiezrealizowane('2026-03-16')">
             ⚠️ Przenieś niezrealizowane zlecenia na następny dzień
         </button>
         <span class="text-muted small" style="margin-top: 6px;">Automatycznie przeniesie niezrealizowaną pracę ze zasypu i workowania na następny dzień</span>
     </div>
-    {% endif %}
+    
 
     <table class="modern-table">
         <thead>
             <tr>
                 <th>Lp.</th>
-                <th>📦 {{ _('produkt') }}</th>
-                <th>🏷️ {{ _('typ') }}</th>
-                <th>📋 {{ _('plan') }}</th>
+                <th>📦 produkt</th>
+                <th>🏷️ typ</th>
+                <th>📋 plan</th>
                 <th>⏱️ Estymacja</th>
-                <th>✅ {{ _('wykonanie') }}</th>
-                <th>📚 {{ _('palet') }}</th>
-                <th>🧵 {{ _('uszkodzone_worki') }}</th>
-                <th>📊 {{ _('status') }}</th>
-                <th class="text-right">⚙️ {{ _('akcje') }}</th>
+                <th>✅ wykonanie</th>
+                <th>📚 palet</th>
+                <th>🧵 uszkodzone_worki</th>
+                <th>📊 status</th>
+                <th class="text-right">⚙️ akcje</th>
             </tr>
         </thead>
         <tbody id="plans-tbody" class="sortable-tbody">
-            {% for p in plany %}
-            <tr data-plan-id="{{ p[0] }}" {% if p[4] in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
-                <td class="text-muted font-bold">{{ loop.index }}</td>
-                <td><strong class="text-primary">{{ p[2] }}</strong></td>
-                <td><span class="badge-sekcja">{{ p[9]|upper }}</span></td>
-                <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
+            
+            <tr data-plan-id="9999" class="plan-locked">
+                <td class="text-muted font-bold">1</td>
+                <td><strong class="text-primary">TEST PRODUCT</strong></td>
+                <td><span class="badge-sekcja">WORKI_ZGRZEWANE_20</span></td>
+                <td><strong class="text-success">1000 kg</strong></td>
                 <td>
-                    <span class="duration-badge">{{ p[12]|default(0) }} min</span>
+                    <span class="duration-badge">0 min</span>
                 </td>
                 <td>
-                    {% if (p[8]|default(0, true)) > 0 %}
-                    <strong class="text-success">{{ p[8]|int }} kg</strong>
-                    {% if p[10] %}<br><span class="small text-danger-color">⚠️ {{ p[10] }}</span>{% endif %}
-                    {% else %}<span class="text-muted">-</span>{% endif %}
+                    
+                    <strong class="text-success">800 kg</strong>
+                    
+                    
                 </td>
                 <td>
-                    {% if palety_mapa[p[0]] %}
-                    <button type="button" data-action="toggle-details" data-plan-id="{{ p[0] }}" class="btn-toggle">📦
-                        {{ palety_mapa[p[0]]|length }} szt.</button>
-                    {% else %}<span class="text-muted">-</span>{% endif %}
+                    <span class="text-muted">-</span>
                 </td>
                 <td>
-                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p[0] }}"
-                        value="{{ p[11]|default(0, true)|int }}" min="0" max="999999"
+                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="9999"
+                        value="0" min="0" max="999999"
                         title="Liczba uszkodzonych worków" />
                 </td>
                 <td>
-                    {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
-                    {% elif p[4] == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
-                    {% else %}<span class="status-badge status-zaplanowane">{{ _('zaplanowane_btn') }}</span>{% endif %}
+                    <span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
+                    
                 </td>
                 <td>
                     <div class="d-flex gap-5 align-center">
-                        {% if p[4] not in ['w toku', 'zakonczone'] %}
-                        <!-- Zaplanowane - można reorderować -->
-                        <button type="button" data-action="move-up" data-plan-id="{{ p[0] }}" class="btn-icon"
-                            aria-label="Przenieś w górę">⬆</button>
-                        <button type="button" data-action="move-down" data-plan-id="{{ p[0] }}" class="btn-icon"
-                            aria-label="Przenieś w dół">⬇</button>
-                        <button type="button" data-action="open-move-modal" data-plan-id="{{ p[0] }}"
-                            data-plan-day="{{ p[2] }}" class="btn-icon text-primary"
-                            aria-label="Przenieś plan">📅</button>
-                        <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p[0] }}"
-                            title="{{ _('edytuj') }}">✎</button>
-                        {% elif p[4] == 'zakonczone' %}
-                        {# Compute remaining explicitly to avoid type issues #}
-                        {% set plan_kg = (p[3] or 0) | float %}
-                        {% set wykonanie_kg = (p[8] or 0) | float %}
-                        {% set remaining = plan_kg - wykonanie_kg %}
-                        {% if remaining > 0 %}
-                            <span class="badge badge-warning">Niezrealizowane: {{ remaining|round(1) }} kg</span>
-                            {% if (session.get('rola') or '')|lower in ['planista', 'admin', 'zarzad'] %}
-                            <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ p[0] }}, '{{ p[2] }}')"
+                        
+                        
+                        
+                        
+                        
+                        
+                            <span class="badge badge-warning">Niezrealizowane: 200.0 kg</span>
+                            
+                            <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay(9999, 'TEST PRODUCT')"
                                 title="Przenieś niezrealizowane zlecenie na następny dzień">📦➡️</button>
-                            {% endif %}
-                        {% endif %}
-                        {% endif %}
-                        <form action="{{ url_for('planning.usun_plan', id=p[0]) }}" method="POST" class="inline-form"
+                            
+                        
+                        
+                        <form action="/api/usun_plan/9999" method="POST" class="inline-form"
                             onsubmit="return confirm('Usunąć zlecenie?');">
-                            <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-                            <button type="submit" class="btn-icon text-danger" title="{{ _('usun_plan') }}">🗑️</button>
+                            <input type="hidden" name="data_planu" value="2026-03-16">
+                            <button type="submit" class="btn-icon text-danger" title="usun_plan">🗑️</button>
                         </form>
-                        {% if session.get('rola') in ['planista', 'admin'] %}
+                        
                         <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
-                            data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
-                        {% else %}
-                        <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
-                        {% endif %}
+                            data-plan-id="9999" title="Edytuj tonaż">📝</button>
+                        
                     </div>
                 </td>
             </tr>
 
-            {% if palety_mapa[p[0]] %}
-            <tr id="details-{{ p[0] }}" class="details-row">
-                <td colspan="10" class="p-0">
-                    <div class="p-10">
-                        <table class="modern-table small">
-                            <thead>
-                                <tr>
-                                    <th>{{ _('nr') }}</th>
-                                    <th>🕒 Godzina</th>
-                                    <th>📦 Netto</th>
-                                    <th>⚖️ Brutto</th>
-                                    <th>📌 Tara</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for pal in palety_mapa[p[0]] %}
-                                <tr>
-                                    <td class="text-muted font-bold">{{ loop.index }}</td>
-                                    <td class="time-display">{{ pal[1] }}</td>
-                                    <td><strong class="text-primary">{{ pal[0]|int }} kg</strong></td>
-                                    <td class="text-success">{{ pal[3]|int }} kg</td>
-                                    <td class="text-muted">{{ pal[2]|int }} kg</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </td>
-            </tr>
-            {% endif %}
-            {% else %}<tr>
-                <td colspan="10" class="text-center p-20">Brak planu.</td>
-            </tr>{% endfor %}
+            
+            
         </tbody>
     </table>
 </div>
@@ -327,7 +463,7 @@
 <div class="section-box mt-20">
     <div class="d-flex justify-between align-center p-15 p-15-bg">
         <h3 class="m-0">📊 Rozliczenie</h3>
-        <div class="small text-muted">Dane: {{ wybrana_data }} — zawiera bufor</div>
+        <div class="small text-muted">Dane: 2026-03-16 — zawiera bufor</div>
     </div>
     <table class="modern-table">
         <thead>
@@ -343,25 +479,11 @@
             </tr>
         </thead>
         <tbody>
-            {% if rozliczenia and rozliczenia|length > 0 %}
-            {% for r in rozliczenia %}
-            <tr
-                class="{% if r.status == 'w toku' %}bg-success-light{% elif r.status == 'zakonczone' %}bg-dark-light{% elif r.status == 'zaplanowane' %}bg-warning-light{% endif %}">
-                <td><strong class="text-primary">{{ r.produkt }}</strong></td>
-                <td>{{ r.planowany_zasyp|float }} kg</td>
-                <td>{{ r.zasyp_kg|float }} kg</td>
-                <td>{{ r.plan_workowanie|float }} kg</td>
-                <td>{{ r.spakowano_palety|float }} kg</td>
-                <td>{{ r.bufor_spakowano|float }} kg</td>
-                <td>{{ r.diff_no_buf }} kg</td>
-                <td>{{ r.diff_with_buf }} kg</td>
-            </tr>
-            {% endfor %}
-            {% else %}
+            
             <tr>
                 <td colspan="8" class="text-center text-muted">Brak danych rozliczeniowych dla wybranej daty.</td>
             </tr>
-            {% endif %}
+            
         </tbody>
     </table>
 </div>
@@ -369,29 +491,9 @@
 <script>
     // Translation messages for Planista view
     var pnMsgs = {
-        zapisz: '{{ _("zapisz") }}',
-        anuluj: '{{ _("anuluj") }}'
+        zapisz: 'zapisz',
+        anuluj: 'anuluj'
     };
-
-    // Helper to handle fetch responses: prefer JSON.message, fallback to text without HTML/CSS
-    function handleFetchResponse(resp) {
-        if (resp.ok) {
-            return resp.json().catch(function(){ throw new Error('Nieprawidłowa odpowiedź JSON'); });
-        }
-        // Try JSON error first
-        return resp.clone().json().then(function(j){
-            var m = (j && j.message) ? j.message : JSON.stringify(j);
-            throw new Error(m);
-        }).catch(function(){
-            return resp.text().then(function(t){
-                // Strip HTML tags and excessive whitespace
-                var s = t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-                if (!s) s = 'Błąd serwera';
-                if (s.length > 800) s = s.slice(0,800) + '...';
-                throw new Error(s);
-            });
-        });
-    }
 
     function toggleDetails(id) { var row = document.getElementById('details-' + id); row.classList.toggle('hidden'); }
 
@@ -454,13 +556,16 @@
     function checkIncomplete(currentDate) {
         if (!currentDate) currentDate = document.querySelector('input[name="data"]').value;
         var payload = { data: currentDate };
-        fetch('/api/check_niezrealizowane', {
+        fetch('/planista/api/check_niezrealizowane', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
-            credentials: 'same-origin'
+            credentials: 'include'
         })
-        .then(handleFetchResponse)
+        .then(function (r) {
+            if (!r.ok) return r.text().then(function(t){ throw new Error(t); });
+            return r.json();
+        })
         .then(function (j) {
             if (!j || !j.success) {
                 alert('Brak niezrealizowanych planów do przeniesienia');
@@ -515,15 +620,15 @@
                         var method = (form.getAttribute('method') || 'POST').toUpperCase();
                         var fd = new FormData(form);
                         fetch(action, { method: method, body: fd, credentials: 'same-origin' })
-                                .then(handleFetchResponse).then(function (j) {
-                                    // If backend returns JSON with success flag, reload
-                                    if (j && j.success !== false) {
-                                        closeQuickPopup();
-                                        location.reload();
-                                    } else {
-                                        throw new Error((j && j.message) || 'Błąd');
-                                    }
-                                }).catch(function (err) { alert('Błąd: ' + (err.message || err)); });
+                            .then(function (r) {
+                                if (r.ok) {
+                                    closeQuickPopup();
+                                    // odśwież stronę aby zaktualizować listy i bufor
+                                    location.reload();
+                                } else {
+                                    return r.text().then(function (t) { throw new Error(t || 'Błąd serwera'); });
+                                }
+                            }).catch(function (err) { alert('Błąd: ' + (err.message || err)); });
                     });
                 }
             }).catch(function () { alert('Błąd ładowania formularza'); closeQuickPopup(); });
@@ -535,8 +640,8 @@
 
 <script>
     function moveUp(id) {
-        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'gora', data: '{{ wybrana_data }}' }) })
-            .then(handleFetchResponse)
+        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'gora', data: '2026-03-16' }) })
+            .then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error(t || 'Błąd serwera'); }); return r.json().catch(function () { throw new Error('Nieprawidłowa odpowiedź JSON'); }); })
             .then(function (j) {
                 if (j && j.success) {
                     // Swap rows in table without reload
@@ -551,8 +656,8 @@
             .catch(function (err) { alert(err && err.message ? err.message : 'Błąd sieci'); });
     }
     function moveDown(id) {
-        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'dol', data: '{{ wybrana_data }}' }) })
-            .then(handleFetchResponse)
+        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'dol', data: '2026-03-16' }) })
+            .then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error(t || 'Błąd serwera'); }); return r.json().catch(function () { throw new Error('Nieprawidłowa odpowiedź JSON'); }); })
             .then(function (j) {
                 if (j && j.success) {
                     // Swap rows in table without reload
@@ -570,7 +675,16 @@
     function deletePlan(id, data) {
         fetch('/api/usun_plan_ajax/' + id, { method: 'POST' })
             .then(function (r) {
-                    return handleFetchResponse(r);
+                if (r.ok) {
+                    // Remove row from table without reload
+                    var row = document.querySelector('tr[data-plan-id="' + id + '"]');
+                    if (row) row.remove();
+                    // Also remove details row if exists
+                    var detailsRow = document.getElementById('details-' + id);
+                    if (detailsRow) detailsRow.remove();
+                    return null;
+                }
+                return r.text().then(function (t) { throw new Error(t || 'Błąd serwera'); });
             })
             .then(function (j) { if (j && !j.success) { alert(j.message || 'Błąd'); } })
             .catch(function () { alert('Błąd sieci'); });
@@ -588,7 +702,7 @@
         html += '<div class="form-group"><label>Produkt:</label><input id="e_prod_' + id + '" name="produkt" value="' + produkt + '" required></div>';
         html += '<div class="form-group"><label>Typ:</label><input id="e_typ_' + id + '" name="typ" value="' + typ + '" readonly disabled></div>';
         html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_' + id + '" name="tonaz" type="number" step="0.1" value="' + tonaz + '" required></div>';
-        html += '<div class="form-group"><label>Data:</label><input id="e_date_' + id + '" name="data_planu" type="date" value="{{ wybrana_data }}"></div>';
+        html += '<div class="form-group"><label>Data:</label><input id="e_date_' + id + '" name="data_planu" type="date" value="2026-03-16"></div>';
         html += '<div class="d-flex gap-10 mt-15">';
         html += '  <button type="button" class="btn-action btn-success" onclick="submitEdit(' + id + ')">Zapisz</button>';
         html += '  <button type="button" class="btn-action btn-cancel" onclick="if(window.createQuickPopup && window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close()">Anuluj</button>';
@@ -761,7 +875,7 @@
                 // Show message that reordering is disabled
                 var msg = document.createElement('div');
                 msg.className = 'alert alert-warning mt-2 mb-2';
-                msg.innerHTML = '⚠️ {{ _("Reorderowanie wyłączone - na tym dniu jest plan w toku lub zakończony") }}';
+                msg.innerHTML = '⚠️ Reorderowanie wyłączone - na tym dniu jest plan w toku lub zakończony';
                 plansTbody.parentNode.parentNode.insertAdjacentElement('afterend', msg);
             } else {
                 Sortable.create(plansTbody, {
@@ -791,7 +905,7 @@
                             // Send reorder request to backend
                             var data = {
                                 plan_ids: newOrder,
-                                data: '{{ wybrana_data }}',
+                                data: '2026-03-16',
                                 sekcja: 'zasyp'
                             };
 
@@ -800,8 +914,11 @@
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(data)
                             })
-                                .then(handleFetchResponse)
-                                    .then(function (j) {
+                                .then(function (r) {
+                                    if (!r.ok) return r.text().then(function (t) { throw new Error(t || 'Błąd serwera'); });
+                                    return r.json().catch(function () { throw new Error('Nieprawidłowa odpowiedź JSON'); });
+                                })
+                                .then(function (j) {
                                     if (j && j.success) {
                                         // Silently update UI without reload
                                         console.log('Reorder success - no reload needed');
@@ -827,9 +944,13 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: data }),
-            credentials: 'same-origin'
+            credentials: 'include'
         })
-            .then(handleFetchResponse)
+            .then(function (r) {
+                console.log('[PRZENIES] check_niezrealizowane response status:', r.status);
+                if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+                return r.json();
+            })
             .then(function (j) {
                 console.log('[PRZENIES] check_niezrealizowane response:', j);
                 if (j && j.success) {
@@ -956,9 +1077,13 @@
                 data: currentDate,
                 plan_ids: planIds 
             }),
-            credentials: 'same-origin'
+            credentials: 'include'
         })
-            .then(handleFetchResponse)
+            .then(function (r) {
+                console.log('[MOVE] Response status:', r.status);
+                if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+                return r.json();
+            })
             .then(function (j) {
                 console.log('[MOVE] Response:', j);
                 if (j && j.success) {
@@ -981,9 +1106,13 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: data }),
-            credentials: 'same-origin'
+            credentials: 'include'
         })
-            .then(handleFetchResponse)
+            .then(function (r) {
+                console.log('[PRZENIES] przenies_niezrealizowane response status:', r.status);
+                if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+                return r.json();
+            })
             .then(function (j) {
                 console.log('[PRZENIES] przenies_niezrealizowane response:', j);
                 if (j && j.success) {
@@ -1019,9 +1148,13 @@
                 data: currentDate,
                 plan_ids: [planId]
             }),
-            credentials: 'same-origin'
+            credentials: 'include'
         })
-            .then(handleFetchResponse)
+            .then(function (r) {
+                console.log('[MOVE SINGLE] Response status:', r.status);
+                if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+                return r.json();
+            })
             .then(function (j) {
                 console.log('[MOVE SINGLE] Response:', j);
                 if (j && j.success) {
@@ -1043,10 +1176,10 @@
 <div id="quickBackdrop" class="quick-backdrop" data-action="close-popup"></div>
 <div id="quickPopup" class="quick-popup" aria-hidden="true">
     <div class="qp-header d-flex justify-between align-center p-10">
-        <div class="header-title">{{ _('panel') }}</div>
+        <div class="header-title">panel</div>
         <div><button type="button" class="btn-action btn-small" data-action="close-popup">✖</button></div>
     </div>
-    <div id="quickPopupBody" class="qp-body p-10">{{ _('ladowanie') }}</div>
+    <div id="quickPopupBody" class="qp-body p-10">ladowanie</div>
 </div>
 
 <!-- Modal: Wybiór zleceń do przeniesienia -->
@@ -1176,7 +1309,7 @@
     .modern-table tr.expanded td .d-flex { align-items: flex-start !important; }
 </style>
 
-{% endif %}{# koniec bloku PSD / else AGRO #}
+
 <script>
 document.addEventListener('DOMContentLoaded', function(){
     document.querySelectorAll('form.czyszczenie-form').forEach(function(form){
@@ -1222,7 +1355,7 @@ document.addEventListener('DOMContentLoaded', function(){
     btn.addEventListener('click', function(){
         var html = '';
         html += '<form id="addCleaningForm">';
-        html += '<input type="hidden" name="data_planu" value="{{ wybrana_data }}">';
+        html += '<input type="hidden" name="data_planu" value="2026-03-16">';
         html += '<div class="form-group"><label>Tonaz (kg)</label><input name="tonaz" type="number" min="0" step="1" class="input-sm" placeholder="kg"></div>';
         html += '<div class="form-group"><label>Poz. (kolejność) - opcjonalnie</label><input name="kolejnosc" type="number" min="1" step="1" class="input-sm" placeholder="poz."></div>';
         html += '<div class="d-flex gap-10 mt-15">';
@@ -1245,7 +1378,7 @@ document.addEventListener('DOMContentLoaded', function(){
             var kol = form.elements['kolejnosc'] ? form.elements['kolejnosc'].value : '';
 
             var payload = {
-                data_planu: '{{ wybrana_data }}',
+                data_planu: '2026-03-16',
                 tonaz: ton ? Number(ton) : 0
             };
             if(kol && kol.trim() !== '') payload.kolejnosc = Number(kol);
@@ -1268,4 +1401,417 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
-{% endblock %}
+
+            
+        </main>
+    </div>
+
+    <script src="/static/js/toasts.js?v="></script>
+    <script src="/static/scripts.js?v="></script>
+    <script src="/static/quick_debug.js?v="></script>
+    <script>
+        (function () {
+            const state = {
+                initialized: false,
+                shownIds: new Set(),
+                notifications: []
+            };
+
+            function getNotificationElements() {
+                return {
+                    toggle: document.getElementById('notificationsToggle'),
+                    menu: document.getElementById('notificationsMenu'),
+                    badge: document.getElementById('notificationsBadge'),
+                    list: document.getElementById('notificationsList'),
+                    markAll: document.getElementById('notificationsMarkAll')
+                };
+            }
+
+            function closeNotificationsMenu() {
+                const elements = getNotificationElements();
+                if (elements.menu) {
+                    elements.menu.style.display = 'none';
+                    elements.menu.setAttribute('aria-hidden', 'true');
+                }
+                if (elements.toggle) {
+                    elements.toggle.setAttribute('aria-expanded', 'false');
+                }
+            }
+
+            function toggleNotificationsMenu() {
+                const elements = getNotificationElements();
+                if (!elements.menu || !elements.toggle) {
+                    return;
+                }
+                const shouldOpen = elements.menu.style.display !== 'block';
+                elements.menu.style.display = shouldOpen ? 'block' : 'none';
+                elements.menu.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+                elements.toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+            }
+
+            function escapeHtml(value) {
+                return String(value || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function renderNotifications() {
+                const elements = getNotificationElements();
+                if (!elements.list || !elements.badge) {
+                    return;
+                }
+
+                const notifications = state.notifications || [];
+                if (notifications.length === 0) {
+                    elements.list.innerHTML = '<div class="notifications-empty">Brak nowych powiadomień.</div>';
+                    elements.badge.style.display = 'none';
+                    elements.badge.textContent = '0';
+                    return;
+                }
+
+                elements.badge.style.display = 'inline-block';
+                elements.badge.textContent = notifications.length > 99 ? '99+' : String(notifications.length);
+                elements.list.innerHTML = notifications.map(function (item) {
+                    const title = escapeHtml(item.title || 'Powiadomienie');
+                    const message = escapeHtml(item.message || '');
+                    const createdAt = escapeHtml(item.created_at || '');
+                    const safeLink = escapeHtml(item.link_url || '');
+                    return [
+                        '<button type="button" class="notification-item" data-id="', item.id, '" data-link="', safeLink, '">',
+                        '<span class="notification-item-title">', title, '</span>',
+                        '<span class="notification-item-message">', message, '</span>',
+                        '<span class="notification-item-meta">', createdAt, '</span>',
+                        '</button>'
+                    ].join('');
+                }).join('');
+            }
+
+            async function markNotificationRead(notificationId) {
+                const response = await fetch('/api/notifications/' + encodeURIComponent(notificationId) + '/read', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                return response.ok;
+            }
+
+            async function markAllNotificationsRead() {
+                const response = await fetch('/api/notifications/read-all', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                return response.ok;
+            }
+
+            async function fetchNotifications() {
+                const elements = getNotificationElements();
+                if (!elements.toggle) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/notifications?limit=20', {
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const payload = await response.json();
+                    if (!payload || !payload.success) {
+                        return;
+                    }
+
+                    const notifications = Array.isArray(payload.notifications) ? payload.notifications : [];
+                    if (state.initialized) {
+                        notifications.forEach(function (item) {
+                            if (!state.shownIds.has(item.id)) {
+                                state.shownIds.add(item.id);
+                                if (typeof showToast === 'function') {
+                                    showToast(item.title + ': ' + item.message, 'info');
+                                }
+                            }
+                        });
+                    } else {
+                        notifications.forEach(function (item) {
+                            state.shownIds.add(item.id);
+                        });
+                        state.initialized = true;
+                    }
+
+                    state.notifications = notifications;
+                    renderNotifications();
+                } catch (error) {
+                    console.error('notifications fetch error', error);
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                const elements = getNotificationElements();
+                if (!elements.toggle) {
+                    return;
+                }
+
+                fetchNotifications();
+                window.setInterval(fetchNotifications, 5000);
+
+                elements.toggle.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    toggleNotificationsMenu();
+                });
+
+                if (elements.markAll) {
+                    elements.markAll.addEventListener('click', async function () {
+                        const ok = await markAllNotificationsRead();
+                        if (!ok) {
+                            if (typeof showToast === 'function') {
+                                showToast('Nie udało się oznaczyć powiadomień.', 'warning');
+                            }
+                            return;
+                        }
+
+                        state.notifications = [];
+                        renderNotifications();
+                        closeNotificationsMenu();
+                    });
+                }
+
+                if (elements.list) {
+                    elements.list.addEventListener('click', async function (event) {
+                        const button = event.target.closest('.notification-item');
+                        if (!button) {
+                            return;
+                        }
+
+                        const notificationId = button.getAttribute('data-id');
+                        const linkUrl = button.getAttribute('data-link');
+                        const ok = await markNotificationRead(notificationId);
+                        if (!ok) {
+                            if (typeof showToast === 'function') {
+                                showToast('Nie udało się zapisać odczytu powiadomienia.', 'warning');
+                            }
+                            return;
+                        }
+
+                        state.notifications = state.notifications.filter(function (item) {
+                            return String(item.id) !== String(notificationId);
+                        });
+                        renderNotifications();
+                        closeNotificationsMenu();
+
+                        if (linkUrl) {
+                            window.location.href = linkUrl;
+                        }
+                    });
+                }
+            });
+
+            window.closeNotificationsMenu = closeNotificationsMenu;
+        })();
+    </script>
+    <script>
+        (function () {
+            async function pingSession() {
+                try {
+                    await fetch('/api/session/ping', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-Current-Path': window.location.pathname + window.location.search
+                        }
+                    });
+                } catch (error) {
+                    console.debug('session ping skipped', error);
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                pingSession();
+                window.setInterval(pingSession, 45000);
+            });
+
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden) {
+                    pingSession();
+                }
+            });
+
+            window.addEventListener('focus', pingSession);
+        })();
+    </script>
+    <script>
+        // Ensure language menu is always closed on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            const menu = document.getElementById('languageMenu');
+            if (menu) {
+                menu.style.display = 'none';
+            }
+        });
+
+        function handleLogoError(img) {
+            try {
+                if (img.src.indexOf('agro_logo.png') !== -1) {
+                    img.src = '/static/logo.png';
+                } else {
+                    img.onerror = null;
+                    img.src = 'https://agronetzwerk.de/wp-content/uploads/2021/04/Agronetzwerk-Logo.png';
+                }
+            } catch (e) {
+                img.onerror = null;
+            }
+        }
+
+        // Przełączanie widoczności menu języków
+        function toggleLanguageMenu() {
+            const menu = document.getElementById('languageMenu');
+            if (menu) {
+                menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+            }
+        }
+
+        // Zamykanie menu ponad innymi klikami w dokumencie
+        document.addEventListener('click', function (event) {
+            const selector = document.querySelector('.language-selector');
+            const menu = document.getElementById('languageMenu');
+            if (selector && menu && !selector.contains(event.target)) {
+                menu.style.display = 'none';
+            }
+
+            const notificationsWrapper = document.querySelector('.notifications-wrapper');
+            if (notificationsWrapper && !notificationsWrapper.contains(event.target) && typeof window.closeNotificationsMenu === 'function') {
+                window.closeNotificationsMenu();
+            }
+        });
+
+        // Przełączanie języka aplikacji
+        function switchLanguage(lang) {
+            const setLangCookie = function () {
+                try {
+                    const maxAge = 365 * 24 * 60 * 60;
+                    document.cookie = 'app_language=' + encodeURIComponent(lang) + '; path=/; max-age=' + maxAge;
+                } catch (e) {
+                    /* ignore */
+                }
+            };
+
+            fetch('/api/set_language', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ language: lang })
+            })
+                .then(r => {
+                    if (!r.ok) {
+                        throw new Error('HTTP ' + r.status);
+                    }
+                    return r.json();
+                })
+                .then(data => {
+                    if (data && data.success) {
+                        const langNames = { uk: 'Ukrainski', pl: 'Polski', en: 'English' };
+                        if (typeof showToast === 'function') {
+                            showToast('✓ Jezyk zmieniony na ' + (langNames[lang] || lang), 'success');
+                        }
+                        setTimeout(() => location.reload(), 300);
+                        return;
+                    }
+                    throw new Error((data && data.message) || 'Blad zmiany jezyka');
+                })
+                .catch(err => {
+                    setLangCookie();
+                    if (typeof showToast === 'function') {
+                        showToast('✓ Jezyk zmieniony (cookie). ' + (err && err.message ? err.message : ''), 'warning');
+                    }
+                    setTimeout(() => location.reload(), 300);
+                });
+        }
+    </script>
+
+    <!-- Zabezpieczenie przed double-click (duplikaty) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Dla każdego formularza - czuwaj na duplikaty
+            const forms = document.querySelectorAll('form');
+            forms.forEach(form => {
+                let isSubmitting = false;
+                form.addEventListener('submit', function (e) {
+                    if (isSubmitting) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    isSubmitting = true;
+
+                    // Wyłącz wszystkie submit buttony w form
+                    const buttons = form.querySelectorAll('button[type="submit"]');
+                    buttons.forEach(btn => {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                        const originalText = btn.textContent;
+                        btn.textContent = '⏳ Przetwarzanie...';
+
+                        // Reset po 30 sekundach (na wypadek błędu)
+                        setTimeout(() => {
+                            btn.disabled = false;
+                            btn.style.opacity = '1';
+                            btn.style.cursor = 'pointer';
+                            btn.textContent = originalText;
+                            isSubmitting = false;
+                        }, 30000);
+                    });
+                });
+            });
+        });
+    </script>
+
+    <script src="/static/js/dosypki.js?v="></script>
+
+    <script>
+        // Show current page name in top bar on desktop
+        (function () {
+            function updateTopBarTitle() {
+                var titleEl = document.getElementById('topBarPageTitle');
+                if (!titleEl) return;
+                // Find the active nav item in sidebar
+                var activeItem = document.querySelector('.sidebar .nav-item.active');
+                if (!activeItem) return;
+                // Get only the text part (strip emoji by using the <span> text if present)
+                var textSpan = activeItem.querySelector('span.text-capitalize');
+                var label = textSpan ? textSpan.textContent.trim() : activeItem.textContent.replace(/[\u{1F300}-\u{1FFFF}]/gu, '').trim();
+                // Find emoji at start (first char if emoji)
+                var raw = activeItem.textContent.trim();
+                var emojiMatch = raw.match(/^([\p{Extended_Pictographic}\uFE0F\u200D]+)/u);
+                var emoji = emojiMatch ? emojiMatch[1] : '';
+                titleEl.textContent = (emoji ? emoji + ' ' : '') + label;
+                // Show only on desktop
+                if (window.innerWidth >= 960) {
+                    titleEl.style.display = 'flex';
+                } else {
+                    titleEl.style.display = 'none';
+                }
+            }
+            updateTopBarTitle();
+            window.addEventListener('resize', updateTopBarTitle);
+        })();
+    </script>
+
+</body>
+
+</html>

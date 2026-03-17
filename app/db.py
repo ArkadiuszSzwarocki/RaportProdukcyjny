@@ -366,12 +366,14 @@ def refresh_bufor_queue(conn=None):
         # SYNC 1: Synchronizuj Workowanie.tonaz = Zasyp.tonaz_rzeczywisty (tylko dzisiaj)
         try:
             cursor.execute("""
-                UPDATE plan_produkcji w
-                JOIN plan_produkcji z ON z.id = w.zasyp_id
-                SET w.tonaz = COALESCE(z.tonaz_rzeczywisty, 0)
-                WHERE w.sekcja = 'Workowanie' AND z.sekcja = 'Zasyp' 
-                  AND w.data_planu >= %s AND w.data_planu <= %s
-            """, (yesterday, today))
+                                    UPDATE plan_produkcji w
+                                    JOIN plan_produkcji z ON z.id = w.zasyp_id
+                                    SET w.tonaz = COALESCE(z.tonaz_rzeczywisty, 0)
+                                    WHERE w.sekcja = 'Workowanie' AND z.sekcja = 'Zasyp'
+                                        AND COALESCE(z.tonaz_rzeczywisty, 0) > 0
+                                        AND COALESCE(w.tonaz, 0) = 0
+                                        AND w.data_planu >= %s AND w.data_planu <= %s
+                """, (yesterday, today))
             if cursor.rowcount > 0:
                 print(f"[SYNC] Workowanie.tonaz synchronized: {cursor.rowcount} rows")
         except Exception as e:
@@ -427,7 +429,7 @@ def refresh_bufor_queue(conn=None):
             cursor.execute("SELECT id FROM bufor WHERE zasyp_id = %s AND status = 'aktywny'", (z_id,))
             if cursor.fetchone():
                 continue
-                
+
             # Pobierz max kolejkę i ilość spakowanego w jednym zapytaniu
             cursor.execute("""
                 SELECT COALESCE(MAX(b.kolejka), 0), COALESCE(SUM(pw.waga), 0)
@@ -436,13 +438,18 @@ def refresh_bufor_queue(conn=None):
                     SELECT id FROM plan_produkcji 
                     WHERE data_planu = %s AND produkt = %s AND sekcja = 'Workowanie'
                 )
-                WHERE b.data_planu = %s AND b.status = 'aktywny'
-            """, (z_data, z_produkt, z_data))
-            
+                WHERE b.data_planu = %s AND b.produkt = %s AND b.status = 'aktywny'
+            """, (z_data, z_produkt, z_data, z_produkt))
+
             result = cursor.fetchone()
             next_kolejka = (result[0] or 0) + 1
             spakowano = result[1] or 0
-            
+
+            # Sprawdź, czy dla tej daty/produktu/kolejki już istnieje wpis
+            cursor.execute("SELECT id FROM bufor WHERE data_planu = %s AND produkt = %s AND kolejka = %s AND status = 'aktywny'", (z_data, z_produkt, next_kolejka))
+            if cursor.fetchone():
+                continue
+
             # Dodaj do bufora
             cursor.execute("""
                 INSERT INTO bufor 
@@ -472,16 +479,17 @@ def refresh_bufor_queue(conn=None):
         
         # 5. Aktualizuj tonaz_rzeczywisty i spakowano w jednym UPDATE
         cursor.execute("""
-            UPDATE bufor b
-            JOIN plan_produkcji z ON z.id = b.zasyp_id
-            SET b.tonaz_rzeczywisty = COALESCE(z.tonaz_rzeczywisty, 0),
-                b.spakowano = (
+                        UPDATE bufor b
+                        JOIN plan_produkcji z ON z.id = b.zasyp_id
+                        SET b.tonaz_rzeczywisty = COALESCE(z.tonaz_rzeczywisty, 0),
+                                b.spakowano = (
                     SELECT COALESCE(SUM(pw.waga), 0) FROM palety_workowanie pw
                     INNER JOIN plan_produkcji w ON pw.plan_id = w.id
                     WHERE w.data_planu = b.data_planu AND w.produkt = b.produkt 
                       AND w.sekcja = 'Workowanie'
                 )
-            WHERE b.status = 'aktywny'
+                        WHERE b.status = 'aktywny'
+                            AND COALESCE(z.tonaz_rzeczywisty, 0) > 0
         """)
         
         conn.commit()

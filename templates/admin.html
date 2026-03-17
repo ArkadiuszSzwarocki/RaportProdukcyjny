@@ -135,6 +135,18 @@
                                 <span class="material-icons">delete</span>
                             </button>
                         </form>
+                        {# Jeśli zlecenie jest zakończone, pokaż badge niezrealizowane + przycisk przeniesienia na następny dzień dla uprawnionych ról #}
+                        {% if z.status == 'zakonczone' %}
+                            {% set plan_kg = (z.tonaz or 0) | float %}
+                            {% set wykonanie_kg = (z.tonaz_rzeczywisty or 0) | float %}
+                            {% set remaining = plan_kg - wykonanie_kg %}
+                            {% if remaining > 0 %}
+                                <span class="badge badge-warning" style="margin-left:8px;">Niezrealizowane: {{ remaining|round(1) }} kg</span>
+                                {% if (session.get('rola') or '')|lower in ['planista','admin','zarzad'] %}
+                                <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ z.id }}, '{{ z.data_planu }}')" title="Przenieś niezrealizowane zlecenie na następny dzień">📦➡️</button>
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
                     </div>
                 </td>
             </tr>
@@ -149,4 +161,36 @@
 
 {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Local helper: handle fetch responses and sanitize error text
+    function handleFetchResponse(resp) {
+        if (resp.ok) return resp.json().catch(function(){ throw new Error('Nieprawidłowa odpowiedź JSON'); });
+        return resp.clone().json().then(function(j){ var m = (j && j.message) ? j.message : JSON.stringify(j); throw new Error(m); }).catch(function(){ return resp.text().then(function(t){ var s = t.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); if (!s) s = 'Błąd serwera'; if (s.length>800) s = s.slice(0,800)+'...'; throw new Error(s); }); });
+    }
+    function moveIncompleteToNextDay(planId, currentDate) {
+        if (!confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?')) return;
+        fetch('/api/przenies_wybrane_zlecenia', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: currentDate, plan_ids: [planId] }),
+            credentials: 'same-origin'
+        })
+        .then(handleFetchResponse)
+        .then(function (j) {
+            if (j && j.success) {
+                alert('✅ ' + (j.message || 'Zlecenie przeniesione na następny dzień'));
+                location.reload();
+            } else {
+                alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
+            }
+        })
+        .catch(function (err) {
+            console.error('MOVE ERROR', err);
+            alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
+        });
+    }
+</script>
 {% endblock %}

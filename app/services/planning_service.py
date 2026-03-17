@@ -12,7 +12,7 @@ class PlanningService:
 
     @staticmethod
     def create_plan(data_planu, produkt, tonaz, sekcja, typ_produkcji='worki_zgrzewane_25', 
-                   status='zaplanowane', wymaga_oplaty=False):
+                   status='zaplanowane', wymaga_oplaty=False, nazwa_zlecenia=None, typ_zlecenia=None, zasyp_id=None):
         """Create a new production plan.
         
         Args:
@@ -60,12 +60,12 @@ class PlanningService:
             res = cursor.fetchone()
             nk = (res[0] if res and res[0] else 0) + 1
             
-            # Insert new plan
+            # Insert new plan (include optional fields if provided)
             cursor.execute("""
                 INSERT INTO plan_produkcji 
-                (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0))
+                (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0, nazwa_zlecenia or '', typ_zlecenia or '', zasyp_id))
             
             plan_id = cursor.lastrowid
             conn.commit()
@@ -799,27 +799,21 @@ class PlanningService:
                             f'[PRZENIES] Carryover Workowanie already exists for {produkt} on {next_data_str}, skipping'
                         )
                     else:
-                        # Create "ghost" Zasyp carryover directly (goods physically in buffer already)
-                        # Use direct INSERT on outer conn so typ_zlecenia is set atomically — no
-                        # separate UPDATE needed.  typ_zlecenia='carry_over_ghost' hides this record
-                        # from the planista Zasyp view.
-                        update_cursor.execute(
-                            "SELECT COALESCE(MAX(kolejnosc), 0) FROM plan_produkcji WHERE data_planu = %s",
-                            (next_data_str,)
+                        # Create a visible Zasyp plan with 0 kg (so planner sees it), and
+                        # create companion Workowanie with the actual missing tonage.
+                        # This avoids creating hidden 'ghost' records while keeping the
+                        # buffer/workowanie behaviour intact.
+                        s_zg, _, new_zasyp_id = PlanningService.create_plan(
+                            data_planu=next_data_str,
+                            produkt=produkt,
+                            tonaz=0,
+                            sekcja='Zasyp',
+                            typ_produkcji=typ_prod,
+                            status='zaplanowane',
+                            nazwa_zlecenia=f'carry-over z {current_data}'
                         )
-                        nk_ghost = update_cursor.fetchone()[0] + 1
-                        update_cursor.execute("""
-                            INSERT INTO plan_produkcji
-                            (data_planu, produkt, tonaz, status, sekcja, kolejnosc,
-                             typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia)
-                            VALUES (%s, %s, %s, 'zakonczone', 'Zasyp', %s,
-                                    %s, %s, %s, 'carry_over_ghost')
-                        """, (next_data_str, produkt, workowanie_remaining, nk_ghost,
-                              typ_prod, workowanie_remaining,
-                              f'[carry-over z {current_data}]'))
-                        ghost_zasyp_id = update_cursor.lastrowid
-                        if ghost_zasyp_id:
-                            # Create Workowanie plan for packing
+                        if s_zg and new_zasyp_id:
+                            # Create Workowanie plan for packing the remaining amount
                             s_w, _, new_work_id = PlanningService.create_plan(
                                 data_planu=next_data_str,
                                 produkt=produkt,
@@ -831,23 +825,18 @@ class PlanningService:
                             if s_w and new_work_id:
                                 update_cursor.execute(
                                     "UPDATE plan_produkcji SET zasyp_id = %s WHERE id = %s",
-                                    (ghost_zasyp_id, new_work_id)
+                                    (new_zasyp_id, new_work_id)
                                 )
                                 conn.commit()
                                 created_count += 2
                                 current_app.logger.info(
-                                    f'[PRZENIES] Workowanie carryover: {produkt} {workowanie_remaining}kg'
-                                    f' -> Zasyp ghost #{ghost_zasyp_id}, Workowanie #{new_work_id}'
+                                    f'[PRZENIES] Workowanie carryover visible: {produkt} {workowanie_remaining}kg'
+                                    f' -> Zasyp #{new_zasyp_id}, Workowanie #{new_work_id}'
                                 )
 
-                                # --- CRITICAL FIX: insert bufor entry directly ---
-                                # refresh_bufor_queue only covers yesterday-today range, so the ghost
-                                # Zasyp on next_date would never be added to bufor by the daemon until
-                                # the server date catches up. We insert it here to make Workowanie
-                                # immediately startable from the queue.
+                                # Insert bufor entry immediately so queue reflects availability
                                 update_cursor.execute(
-                                    "SELECT COALESCE(MAX(kolejka), 0) FROM bufor"
-                                    " WHERE data_planu = %s AND status = 'aktywny'",
+                                    "SELECT COALESCE(MAX(kolejka), 0) FROM bufor WHERE data_planu = %s AND status = 'aktywny'",
                                     (next_data_str,)
                                 )
                                 max_kol = update_cursor.fetchone()[0]
@@ -857,7 +846,7 @@ class PlanningService:
                                      tonaz_rzeczywisty, spakowano, kolejka, status)
                                     VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny')
                                     ON DUPLICATE KEY UPDATE id = id
-                                """, (ghost_zasyp_id, next_data_str, produkt,
+                                """, (new_zasyp_id, next_data_str, produkt,
                                       f'carry-over z {current_data}', typ_prod,
                                       workowanie_remaining, max_kol + 1))
                                 conn.commit()
@@ -889,10 +878,12 @@ class PlanningService:
                         )
                         if s_z2 and new_zasyp_id:
                             # Companion empty Workowanie plan (tonaz will be synced by refresh_bufor_queue)
+                            # Create companion Workowanie plan with the actual missing tonage
+                            # (previously created with 0 and relied on refresh_bufor_queue to sync)
                             s_w2, _, new_work2_id = PlanningService.create_plan(
                                 data_planu=next_data_str,
                                 produkt=produkt,
-                                tonaz=0,
+                                tonaz=zasyp_remaining,
                                 sekcja='Workowanie',
                                 typ_produkcji=typ_prod,
                                 status='zaplanowane'

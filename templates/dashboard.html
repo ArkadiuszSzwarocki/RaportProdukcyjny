@@ -262,7 +262,7 @@
                         <span class="btn-icon-disabled" title="Zablokowane">🔒</span>
                         {% endif %}
                         {% elif sekcja == 'Zasyp' %}
-                        {% set zasyp_blocked = (zasyp_has_active is defined and zasyp_has_active) or product_active %}
+                        {% set zasyp_blocked = (zasyp_has_active is defined and zasyp_has_active) %}
                         {% if zasyp_blocked %}
                         <span class="btn-icon-disabled" title="Zablokowane">🔒</span>
                         {% else %}

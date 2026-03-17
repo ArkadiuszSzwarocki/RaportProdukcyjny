@@ -592,17 +592,17 @@
                     <td>
                         <button
                             class="btn btn-info btn-sm js-create-zlecenie{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
-                            data-zasyp-id="{{ b.id }}" data-produkt="{{ b.produkt }}" data-status="{{ b.status }}"
+                            data-zasyp-id="{{ b.zasyp_id }}" data-produkt="{{ b.produkt }}" data-status="{{ b.status }}"
                             title="Utwórz nowe zlecenie Workowanie z pozostałym towarem{% if b.status != 'zakonczone' %} (niedostępne - zlecenie musi być zamknięte){% endif %}">➕
                             Utwórz</button>
                         {% if b.data != wybrana_data %}
                         <button
                             class="btn btn-warning btn-sm js-create-zlecenie-dzisiaj{% if b.status != 'zakonczone' %} btn-move-order-action{% else %} btn-create-zlecenie-active{% endif %}"
-                            data-zasyp-id="{{ b.id }}" data-produkt="{{ b.produkt }}" data-status="{{ b.status }}"
+                            data-zasyp-id="{{ b.zasyp_id }}" data-produkt="{{ b.produkt }}" data-status="{{ b.status }}"
                             title="Utwórz zlecenie Workowanie na DZISIAJ ({{ wybrana_data }}) z towarem z bufora - zamiast czekać na tamtą datę">🚀
                             NA DZISIAJ</button>
                         {% endif %}
-                        <button class="btn btn-sm js-move-order btn-move-order" data-plan-id="{{ b.id }}"
+                        <button class="btn btn-sm js-move-order btn-move-order" data-plan-id="{{ b.zasyp_id }}"
                             data-produkt="{{ b.produkt }}" title="{{ _('przenies_zlecenie') }}">📦 {{
                             _('przenies_zlecenie') }}</button>
 

@@ -78,6 +78,29 @@ def panel_planisty():
     plany = cursor.fetchall()
     plany_list = [list(p) for p in plany] # Lista edytowalna
 
+    # DODATKOWO: dołącz wpisy Workowanie jako osobną grupę, tak by były widoczne w UI
+    try:
+        cursor.execute("""
+            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
+            FROM plan_produkcji
+            WHERE data_planu = %s AND LOWER(sekcja) = 'workowanie'
+            ORDER BY kolejnosc
+        """, (wybrana_data,))
+        work_rows = cursor.fetchall()
+        for w in work_rows:
+            # unikaj duplikatów gdyby rekord już wystąpił (id)
+            if any(p[0] == w[0] for p in plany_list):
+                continue
+            # jeśli istnieje odpowiadający Zasyp dla tego produktu, nie dopisuj Workowania
+            prod = (w[2] or '').strip().lower()
+            has_zasyp = any(((p[1] or '').strip().lower() == 'zasyp') and ((p[2] or '').strip().lower() == prod) for p in plany_list)
+            if has_zasyp:
+                # skip: already represented by Zasyp
+                continue
+            plany_list.append(list(w))
+    except Exception:
+        current_app.logger.exception('Error loading Workowanie entries for planner')
+
     palety_mapa = {}
     suma_plan = 0
     suma_wyk = 0
@@ -296,7 +319,37 @@ def panel_planisty():
             p[4] == 'zakonczone' and (p[8] or 0) < (p[3] or 0)
             for p in plany_agro
         )
-        has_incomplete_plans = psd_incomplete or agro_incomplete
+        # ALSO check Workowanie entries: show banner if any Workowanie is 'zakonczone' but not fully packed
+        workowanie_incomplete = False
+        try:
+            conn_w = get_db_connection()
+            cur_w = conn_w.cursor()
+            cur_w.execute("""
+                SELECT id, tonaz, tonaz_rzeczywisty, status
+                FROM plan_produkcji
+                WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie'
+            """, (wybrana_data,))
+            for rw in cur_w.fetchall():
+                try:
+                    plan_val = float(rw[1] or 0)
+                except Exception:
+                    plan_val = 0.0
+                try:
+                    real_val = float(rw[2] or 0)
+                except Exception:
+                    real_val = 0.0
+                if (rw[3] == 'zakonczone') and real_val < plan_val:
+                    workowanie_incomplete = True
+                    break
+        except Exception:
+            current_app.logger.exception('Error checking Workowanie incomplete')
+        finally:
+            try:
+                conn_w.close()
+            except Exception:
+                pass
+
+        has_incomplete_plans = psd_incomplete or agro_incomplete or workowanie_incomplete
         
         current_app.logger.info(f'DEBUG has_incomplete_plans: psd={psd_incomplete} (plany_list={len(plany_list)}), agro={agro_incomplete} (plany_agro={len(plany_agro)}), result={has_incomplete_plans}')
         for p in plany_list:
@@ -305,6 +358,23 @@ def panel_planisty():
         for p in plany_agro:
             if p[4] == 'zakonczone':
                 current_app.logger.info(f'  Agro: {p[2]} status={p[4]}, tonaz_rz={p[8]}, tonaz_plan={p[3]}, incomplete={(p[8] or 0) < (p[3] or 0)}')
+        # Dodatkowe logi: oblicz remaining i czy przycisk zostanie pokazany dla aktualnej roli
+        try:
+            role_now = (session.get('rola') or '')
+            for p in plany_list:
+                try:
+                    plan_val = float(p[3] or 0)
+                except Exception:
+                    plan_val = 0.0
+                try:
+                    wyk_val = float(p[8] or 0)
+                except Exception:
+                    wyk_val = 0.0
+                remaining = round(plan_val - wyk_val, 3)
+                show_btn = (p[4] == 'zakonczone' and remaining > 0 and role_now.lower() in ['planista', 'admin', 'zarzad'])
+                current_app.logger.info(f'[PLANISTA-LOG] id={p[0]} produkt="{p[2]}" sekcja="{p[1]}" status="{p[4]}" plan={plan_val} wyk={wyk_val} remaining={remaining} role="{role_now}" show_button={show_btn}')
+        except Exception as _:
+            current_app.logger.exception('Error logging detailed planista info')
     except Exception as e:
         current_app.logger.warning(f'Error checking incomplete plans: {e}')
 
@@ -868,7 +938,7 @@ def api_check_niezrealizowane():
 
 
 @planista_bp.route('/api/przenies_wybrane_zlecenia', methods=['POST'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'lider', 'zarzad')
 def api_przenies_wybrane_zlecenia():
     """Move selected incomplete plans to next day."""
     try:

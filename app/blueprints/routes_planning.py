@@ -2,7 +2,7 @@
 
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
 from datetime import date, datetime
-from app.db import get_db_connection, get_plan_notification_context
+from app.db import get_db_connection, get_plan_notification_context, log_plan_history
 from app.decorators import login_required, roles_required, admin_required
 from app.services.planning_service import PlanningService
 from app.services.plan_movement_service import PlanMovementService
@@ -25,25 +25,7 @@ def bezpieczny_powrot():
         return url_for('app.index')
 
 
-def log_plan_history(plan_id, action, details, user):
-    """Log changes to plan for audit trail."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO plan_history (plan_id, action, details, user_login, timestamp) VALUES (%s, %s, %s, %s, NOW())",
-            (plan_id, action, details, user)
-        )
-        conn.commit()
-    except Exception as e:
-        current_app.logger.error(f'Failed to log plan history for plan {plan_id}: {e}', exc_info=True)
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
+# Use `log_plan_history` implementation from `app.db` to avoid duplicate logic
 
 
 @planning_bp.route('/przywroc_zlecenie_page/<int:id>', methods=['GET'])
@@ -301,8 +283,8 @@ def dodaj_plan():
                 # IMPORTANT: Create or reset Workowanie plan when first szarża is added
                 # Check if Workowanie plan already exists for this product/date
                 cursor.execute(
-                    "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
-                    (data_planu, produkt, typ)
+                    "SELECT id, tonaz, zasyp_id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",
+                    (data_planu, produkt)
                 )
                 workowanie_plan = cursor.fetchone()
                 
@@ -321,14 +303,38 @@ def dodaj_plan():
                     except Exception:
                         pass
                 else:
-                    # Reset existing Workowanie plan to 'zaplanowane' and update tonaz (keep tonaz_rzeczywisty = waga palet)
+                    # Reset/sum Workowanie plan
+                    workowanie_id = workowanie_plan[0]
+                    w_existing_tonaz = workowanie_plan[1] or 0
+                    w_zasyp_id = workowanie_plan[2]
+                    debug_msg = f"[DODAJ_PLAN][DEBUG] produkt={produkt} data_planu={data_planu} zasyp_plan_id={zasyp_plan_id} w_zasyp_id={w_zasyp_id} w_existing_tonaz={w_existing_tonaz} szarza={tonaz}"
+                    try:
+                        current_app.logger.warning(debug_msg)
+                    except Exception:
+                        print(debug_msg)
+                    # Jeśli zasyp_id różne, aktualizuj w Workowaniu
+                    if w_zasyp_id != zasyp_plan_id:
+                        cursor.execute(
+                            "UPDATE plan_produkcji SET zasyp_id=%s WHERE id=%s",
+                            (zasyp_plan_id, workowanie_id)
+                        )
+                        w_zasyp_id = zasyp_plan_id
+                        debug_mode = f'UPDATE zasyp_id to {zasyp_plan_id} (was {workowanie_plan[2]})'
+                    # ZAWSZE sumuj, jeśli to carry-over (zasyp_id zgodne)
+                    new_workowanie_tonaz = w_existing_tonaz + tonaz
+                    debug_mode = f'ACCUMULATE (carry-over, always sum) [w_existing_tonaz={w_existing_tonaz} + szarza={tonaz}]'
+                    debug_msg2 = f"[DODAJ_PLAN][DEBUG] mode={debug_mode} new_workowanie_tonaz={new_workowanie_tonaz}"
+                    try:
+                        current_app.logger.warning(debug_msg2)
+                    except Exception:
+                        print(debug_msg2)
                     cursor.execute(
                         "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s "
-                        "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
-                        (tonaz, data_planu, produkt, typ)
+                        "WHERE id=%s",
+                        (new_workowanie_tonaz, workowanie_id)
                     )
                     try:
-                        current_app.logger.info(f'[DODAJ_PLAN] Reset existing Workowanie plan status to zaplanowane for produkt={produkt}')
+                        current_app.logger.info(f'[DODAJ_PLAN] Reset/sum Workowanie plan for produkt={produkt}: tonaz={new_workowanie_tonaz} (carry_over={w_existing_tonaz}, szarza={tonaz}, mode={debug_mode})')
                     except Exception:
                         pass
                 
