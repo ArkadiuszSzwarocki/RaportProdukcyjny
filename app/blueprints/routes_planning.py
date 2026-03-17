@@ -281,13 +281,20 @@ def dodaj_plan():
                 )
                 
                 # IMPORTANT: Create or reset Workowanie plan when first szarża is added
-                # Check if Workowanie plan already exists for this product/date
+                # First try to find Workowanie linked to this Zasyp via zasyp_id
                 cursor.execute(
-                    "SELECT id, tonaz, zasyp_id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",
-                    (data_planu, produkt)
+                    "SELECT id, tonaz, zasyp_id FROM plan_produkcji WHERE zasyp_id=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",
+                    (zasyp_plan_id,)
                 )
                 workowanie_plan = cursor.fetchone()
-                
+                # If not found by zasyp_id, fallback to matching by data_planu and produkt
+                if not workowanie_plan:
+                    cursor.execute(
+                        "SELECT id, tonaz, zasyp_id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",
+                        (data_planu, produkt)
+                    )
+                    workowanie_plan = cursor.fetchone()
+
                 if not workowanie_plan:
                     # Create new Workowanie plan when first szarża is added
                     cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja='Workowanie'", (data_planu,))
@@ -303,7 +310,8 @@ def dodaj_plan():
                     except Exception:
                         pass
                 else:
-                    # Reset/sum Workowanie plan
+                    # Robust handling: prefer Workowanie linked by zasyp_id if exists
+                    # If we found by product/date but its zasyp_id differs, prefer existing workowanie for this zasyp if present
                     workowanie_id = workowanie_plan[0]
                     w_existing_tonaz = workowanie_plan[1] or 0
                     w_zasyp_id = workowanie_plan[2]
@@ -312,31 +320,40 @@ def dodaj_plan():
                         current_app.logger.warning(debug_msg)
                     except Exception:
                         print(debug_msg)
-                    # Jeśli zasyp_id różne, aktualizuj w Workowaniu
-                    if w_zasyp_id != zasyp_plan_id:
+
+                    # If a Workowanie already exists that is linked to this zasyp, use it
+                    cursor.execute("SELECT id, tonaz FROM plan_produkcji WHERE zasyp_id=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1", (zasyp_plan_id,))
+                    linked = cursor.fetchone()
+                    if linked:
+                        # Use the linked one as target
+                        target_id, target_existing_tonaz = linked[0], linked[1] or 0
+                        new_workowanie_tonaz = target_existing_tonaz + tonaz
                         cursor.execute(
-                            "UPDATE plan_produkcji SET zasyp_id=%s WHERE id=%s",
-                            (zasyp_plan_id, workowanie_id)
+                            "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s",
+                            (new_workowanie_tonaz, target_id)
                         )
-                        w_zasyp_id = zasyp_plan_id
-                        debug_mode = f'UPDATE zasyp_id to {zasyp_plan_id} (was {workowanie_plan[2]})'
-                    # ZAWSZE sumuj, jeśli to carry-over (zasyp_id zgodne)
-                    new_workowanie_tonaz = w_existing_tonaz + tonaz
-                    debug_mode = f'ACCUMULATE (carry-over, always sum) [w_existing_tonaz={w_existing_tonaz} + szarza={tonaz}]'
-                    debug_msg2 = f"[DODAJ_PLAN][DEBUG] mode={debug_mode} new_workowanie_tonaz={new_workowanie_tonaz}"
-                    try:
-                        current_app.logger.warning(debug_msg2)
-                    except Exception:
-                        print(debug_msg2)
-                    cursor.execute(
-                        "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s "
-                        "WHERE id=%s",
-                        (new_workowanie_tonaz, workowanie_id)
-                    )
-                    try:
-                        current_app.logger.info(f'[DODAJ_PLAN] Reset/sum Workowanie plan for produkt={produkt}: tonaz={new_workowanie_tonaz} (carry_over={w_existing_tonaz}, szarza={tonaz}, mode={debug_mode})')
-                    except Exception:
-                        pass
+                        try:
+                            current_app.logger.info(f'[DODAJ_PLAN] Summed into linked Workowanie id={target_id}: tonaz={new_workowanie_tonaz} (was {target_existing_tonaz} + szarza {tonaz})')
+                        except Exception:
+                            pass
+                    else:
+                        # No linked Workowanie exists. If current workowanie has no zasyp_id, set it; otherwise update it to link (safe) and sum.
+                        if not w_zasyp_id:
+                            try:
+                                cursor.execute("UPDATE plan_produkcji SET zasyp_id=%s WHERE id=%s", (zasyp_plan_id, workowanie_id))
+                                w_zasyp_id = zasyp_plan_id
+                            except Exception:
+                                # If update fails (uniqueness), fallback to summing into any existing linked plan
+                                pass
+                        new_workowanie_tonaz = w_existing_tonaz + tonaz
+                        cursor.execute(
+                            "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s",
+                            (new_workowanie_tonaz, workowanie_id)
+                        )
+                        try:
+                            current_app.logger.info(f'[DODAJ_PLAN] Reset/sum Workowanie plan for produkt={produkt}: tonaz={new_workowanie_tonaz} (carry_over={w_existing_tonaz}, szarza={tonaz})')
+                        except Exception:
+                            pass
                 
                 # Zasyp and Workowanie work independently
                 # No automatic increase of buffer
