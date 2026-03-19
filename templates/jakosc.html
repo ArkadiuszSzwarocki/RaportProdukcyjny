@@ -3,6 +3,10 @@
 <h2>{{ _('jakosc_zlecenia') }}</h2>
 <p class="text-muted">{{ _('lista_zlecen_jakosc') }}</p>
 
+<div style="margin-bottom:10px;">
+  <a href="{{ url_for('quality.jakosc_podsumowanie_szarz') }}" class="btn btn-sm btn-outline-primary">Podsumowanie szarż (dla lab)</a>
+</div>
+
 {% if rola in ['laboratorium', 'lider', 'zarzad', 'admin'] %}
     <div>
   <form action="{{ url_for('quality.jakosc_dodaj') }}" method="POST" class="d-flex gap-8 align-center">

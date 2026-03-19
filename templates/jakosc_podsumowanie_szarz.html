@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="section-box p-15">
+    <h2>Podsumowanie szarż — Jakość</h2>
+    <p class="small text-muted">Lista wszystkich zarejestrowanych szarż z dosypkami, uwagami i parametrami laboratoryjnymi.</p>
+    <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center;">
+        <button id="show-current-btn" class="btn btn-sm">Pokaż bieżące</button>
+        <button id="refresh-btn" class="btn btn-sm">Odśwież</button>
+        <div id="refresh-msg" class="small text-muted" style="margin-left:8px;"></div>
+    </div>
+
+    <div id="szarze-list">
+        {% include 'jakosc_podsumowanie_szarz_fragment.html' %}
+    </div>
+</div>
+
+<script>
+try {
+function showAddParam(id){
+    document.getElementById('add-param-'+id).style.display='block';
+}
+function hideAddParam(id){
+    document.getElementById('add-param-'+id).style.display='none';
+    document.getElementById('add-param-msg-'+id).textContent='';
+}
+function addParam(id){
+    var nazwa = document.getElementById('param-nazwa-'+id).value.trim();
+    var wartosc = document.getElementById('param-wartosc-'+id).value.trim();
+    var msgEl = document.getElementById('add-param-msg-'+id);
+    if(!nazwa){ msgEl.textContent='Podaj nazwę parametru'; return; }
+    msgEl.textContent='Wysyłanie...';
+    var form = new FormData();
+    form.append('nazwa', nazwa);
+    form.append('wartosc', wartosc);
+
+    fetch('{{ url_for('quality.jakosc_dodaj_parametr', szarza_id=0) }}'.replace('/0/', '/'+id+'/' ), {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: form
+    }).then(function(r){ return r.json(); }).then(function(j){
+        if(j && j.success){
+            msgEl.textContent='Dodano';
+            // Append row to params list
+            var listEl = document.getElementById('params-list-'+id);
+            var table = listEl.querySelector('table');
+            var now = new Date();
+            var nowStr = now.getFullYear() + '-' + (now.getMonth()+1).toString().padStart(2,'0') + '-' + now.getDate().toString().padStart(2,'0') + ' ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+            if(!table){
+                listEl.innerHTML = '<table class="modern-table small"><thead><tr><th>Nazwa</th><th>Wartość</th><th>Dodane</th></tr></thead><tbody></tbody></table>';
+                table = listEl.querySelector('table');
+            }
+            var tbody = table.querySelector('tbody');
+            var tr = document.createElement('tr');
+            tr.innerHTML = '<td>'+nazwa+'</td><td>'+wartosc+'</td><td>'+nowStr+'</td>';
+            tbody.appendChild(tr);
+            // clear inputs
+            document.getElementById('param-nazwa-'+id).value='';
+            document.getElementById('param-wartosc-'+id).value='';
+        } else {
+            msgEl.textContent = (j && j.message) ? j.message : 'Błąd';
+        }
+    }).catch(function(e){ msgEl.textContent='Błąd sieci'; console.error(e); });
+}
+} catch(err) { console.error('podsumowanie_szarz inline error (addParam)', err); }
+</script>
+
+{% endblock %}
+
+<script>
+try {
+    (function(){
+        var showCurrent = false;
+        var btn = document.getElementById('show-current-btn');
+        var rbtn = document.getElementById('refresh-btn');
+        var msg = document.getElementById('refresh-msg');
+
+        function fetchFragment(){
+            msg.textContent = 'Ładowanie...';
+            var url = '/jakosc/podsumowanie_szarz/fragment';
+            if(showCurrent) url += '?today=1';
+            fetch(url, {credentials: 'same-origin'}).then(function(r){
+                if(!r.ok) throw new Error('HTTP '+r.status);
+                return r.text();
+            }).then(function(html){
+                var el = document.getElementById('szarze-list');
+                if(el) el.innerHTML = html;
+                msg.textContent = '';
+            }).catch(function(e){
+                msg.textContent = 'Błąd odświeżania';
+                console.error(e);
+            });
+        }
+
+        if(btn){
+            btn.addEventListener('click', function(){
+                showCurrent = !showCurrent;
+                btn.textContent = showCurrent ? 'Pokaż wszystkie' : 'Pokaż bieżące';
+                fetchFragment();
+            });
+        }
+        if(rbtn){
+            rbtn.addEventListener('click', function(){ fetchFragment(); });
+        }
+
+        // Optionally auto-refresh every 60s
+        // setInterval(fetchFragment, 60000);
+    })();
+} catch(e){ console.error('init podsumowanie szarz js', e); }
+</script>
+
+<script>
+try {
+function deleteParam(szarzaId, paramId){
+    if(!confirm('Usunąć parametr?')) return;
+    fetch('/jakosc/szarza/'+szarzaId+'/parametr/'+paramId+'/usun', {method:'POST', credentials:'same-origin'})
+    .then(r=>r.json()).then(j=>{ if(j && j.success){ var row=document.getElementById('param-row-'+paramId); if(row) row.remove(); } else { alert(j && j.message?j.message:'Błąd'); } }).catch(e=>{alert('Błąd sieci');});
+}
+function editParamPrompt(szarzaId, paramId, currentVal){
+    var newVal = prompt('Nowa wartość:', currentVal||'');
+    if(newVal===null) return;
+    var form = new FormData(); form.append('wartosc', newVal);
+    fetch('/jakosc/szarza/'+szarzaId+'/parametr/'+paramId+'/edytuj', {method:'POST', credentials:'same-origin', body: form})
+    .then(r=>r.json()).then(j=>{ if(j && j.success){ var el=document.getElementById('param-val-'+paramId); if(el) el.textContent=newVal; } else { alert(j && j.message?j.message:'Błąd'); } }).catch(e=>{alert('Błąd sieci');});
+}
+} catch(err) { console.error('podsumowanie_szarz inline error (edit/delete)', err); }
+</script>

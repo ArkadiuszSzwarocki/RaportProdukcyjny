@@ -22,32 +22,34 @@
 
 <!-- Chart.js wykres prosty -->
 <canvas id="szarzeChart" width="800" height="300"></canvas>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='vendor/chart.min.js') }}"></script>
 <script>
-  const data = {
-    labels: [
-      {% for r in results %}'{{ r.plan_id }}',{% endfor %}
-    ],
-    datasets: [{
-      label: 'Czas oczekiwania lab [min]',
-      data: [ {% for r in results %}{{ r.lab_minutes or 'null' }},{% endfor %} ],
-      borderColor: 'rgb(75, 192, 192)',
-      backgroundColor: 'rgba(75, 192, 192, 0.2)'
-    },{
-      label: 'Czas od start->pierwsza szarża [min]',
-      data: [ {% for r in results %}{{ r.szarza_minutes or 'null' }},{% endfor %} ],
-      borderColor: 'rgb(255, 99, 132)',
-      backgroundColor: 'rgba(255, 99, 132, 0.2)'
-    }]
-  };
+  (function(){
+    const data = {
+      labels: [
+        {% for r in results %}'{{ r.plan_id }}',{% endfor %}
+      ],
+      datasets: [{
+        label: 'Czas oczekiwania lab [min]',
+        data: [ {% for r in results %}{{ r.lab_minutes or 'null' }},{% endfor %} ],
+        borderColor: 'rgb(75, 192, 192)',
+        backgroundColor: 'rgba(75, 192, 192, 0.2)'
+      },{
+        label: 'Czas od start->pierwsza szarża [min]',
+        data: [ {% for r in results %}{{ r.szarza_minutes or 'null' }},{% endfor %} ],
+        borderColor: 'rgb(255, 99, 132)',
+        backgroundColor: 'rgba(255, 99, 132, 0.2)'
+      }]
+    };
 
-  const config = {
-    type: 'bar',
-    data: data,
-    options: { responsive: true }
-  };
+    const config = {
+      type: 'bar',
+      data: data,
+      options: { responsive: true }
+    };
 
-  new Chart(document.getElementById('szarzeChart'), config);
+    new Chart(document.getElementById('szarzeChart'), config);
+  })();
 </script>
 
 <h2>Podsumowanie szarż i dosypek</h2>
@@ -300,34 +302,37 @@
 <canvas id="szarzeChart" width="800" height="300"></canvas>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  const data = {
-    labels: [
-      {% for r in results %}'{{ r.plan_id }}',{% endfor %}
-    ],
-    datasets: [{
-      label: 'Czas oczekiwania lab [min]',
-      data: [ {% for r in results %}{{ r.lab_minutes or 'null' }},{% endfor %} ],
-      borderColor: 'rgb(75, 192, 192)',
-      backgroundColor: 'rgba(75, 192, 192, 0.2)'
-    },{
-      label: 'Czas od start->pierwsza szarża [min]',
-      data: [ {% for r in results %}{{ r.szarza_minutes or 'null' }},{% endfor %} ],
-      borderColor: 'rgb(255, 99, 132)',
-      backgroundColor: 'rgba(255, 99, 132, 0.2)'
-    }]
-  };
+  (function(){
+    const data = {
+      labels: [
+        {% for r in results %}'{{ r.plan_id }}',{% endfor %}
+      ],
+      datasets: [{
+        label: 'Czas oczekiwania lab [min]',
+        data: [ {% for r in results %}{{ r.lab_minutes or 'null' }},{% endfor %} ],
+        borderColor: 'rgb(75, 192, 192)',
+        backgroundColor: 'rgba(75, 192, 192, 0.2)'
+      },{
+        label: 'Czas od start->pierwsza szarża [min]',
+        data: [ {% for r in results %}{{ r.szarza_minutes or 'null' }},{% endfor %} ],
+        borderColor: 'rgb(255, 99, 132)',
+        backgroundColor: 'rgba(255, 99, 132, 0.2)'
+      }]
+    };
 
-  const config = {
-    type: 'bar',
-    data: data,
-    options: { responsive: true }
-  };
+    const config = {
+      type: 'bar',
+      data: data,
+      options: { responsive: true }
+    };
 
-  new Chart(document.getElementById('szarzeChart'), config);
+    new Chart(document.getElementById('szarzeChart'), config);
+  })();
 </script>
-<!-- Tippy.js (popper + tippy) and init -->
-<script src="https://unpkg.com/@popperjs/core@2"></script>
-<script src="https://unpkg.com/tippy.js@6"></script>
+<!-- Tippy.js (popper + tippy) and init (local copies) -->
+<script src="{{ url_for('static', filename='vendor/popper.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/tippy.min.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/tippy.css') }}">
 <script>
   document.addEventListener('DOMContentLoaded', function(){
     if (typeof tippy !== 'undefined') {

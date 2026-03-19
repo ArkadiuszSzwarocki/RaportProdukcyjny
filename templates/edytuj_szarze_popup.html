@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edytuj notatkę szarży</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>body{margin:0;padding:12px;font-family:sans-serif;} .box{max-width:640px;margin:8px auto;} .actions{display:flex;gap:8px;margin-top:10px}</style>
+</head>
+<body>
+  <div class="box">
+    <h3>✏️ Edytuj notatkę szarży</h3>
+    <form action="{{ url_for('warehouse.edytuj_szarze', szarza_id=szarza_id) }}" method="POST">
+      <div>
+        <label for="uwagi">Notatka:</label>
+        <textarea id="uwagi" name="uwagi" rows="6" class="input-sm" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px">{{ uwagi or '' }}</textarea>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn btn-save">Zapisz</button>
+        <button type="button" class="btn btn-outline" onclick="window.close();">Anuluj</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

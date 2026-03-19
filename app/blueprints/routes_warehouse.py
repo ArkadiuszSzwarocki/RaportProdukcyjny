@@ -217,6 +217,60 @@ def confirm_delete_szarze_page(szarza_id):
     return render_template('confirm_delete_szarze.html', szarza_id=szarza_id)
 
 
+@warehouse_bp.route('/edytuj_szarze_page/<int:szarza_id>', methods=['GET'])
+@login_required
+def edytuj_szarze_page(szarza_id):
+    """Render form for editing szarża notes (uwagi)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    uwagi = ''
+    try:
+        cursor.execute("SELECT uwagi FROM szarze WHERE id=%s", (szarza_id,))
+        row = cursor.fetchone()
+        if row:
+            uwagi = row[0] or ''
+    except Exception as e:
+        current_app.logger.error(f'Failed to load szarza {szarza_id} for edit page: {e}', exc_info=True)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    return render_template('edytuj_szarze_popup.html', szarza_id=szarza_id, uwagi=uwagi)
+
+
+@warehouse_bp.route('/edytuj_szarze/<int:szarza_id>', methods=['POST'])
+@login_required
+def edytuj_szarze(szarza_id):
+    """Save szarża notes (uwagi) to DB"""
+    new_uwagi = request.form.get('uwagi', '')
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE szarze SET uwagi=%s WHERE id=%s", (new_uwagi, szarza_id))
+        conn.commit()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': 'Zapisano notatkę', 'szarza_id': szarza_id}), 200
+        flash('Zapisano notatkę do szarży', 'success')
+    except Exception as e:
+        current_app.logger.error(f'Failed to save uwagi for szarza {szarza_id}: {e}', exc_info=True)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Błąd zapisu notatki'}), 500
+        flash('Błąd zapisu notatki', 'danger')
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    return redirect(bezpieczny_powrot())
+
+
 @warehouse_bp.route('/podsumowanie_szarz', methods=['GET'])
 @roles_required('planista', 'lider', 'admin')
 def podsumowanie_szarz():

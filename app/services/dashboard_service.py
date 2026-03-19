@@ -298,7 +298,8 @@ class DashboardService:
                         """SELECT s.id, 
                                   s.waga + COALESCE((SELECT SUM(kg) FROM dosypki d WHERE d.szarza_id = s.id AND d.potwierdzone = 1 AND COALESCE(d.anulowana, 0) = 0), 0) as waga_total, 
                                   s.godzina, s.data_dodania, s.pracownik_id, s.status,
-                                  COALESCE(prac.imie_nazwisko, '') as pracownik_name
+                                  COALESCE(prac.imie_nazwisko, '') as pracownik_name,
+                                  COALESCE(s.uwagi, '') as uwagi
                            FROM szarze s 
                            LEFT JOIN pracownicy prac ON s.pracownik_id = prac.id
                            WHERE s.plan_id = %s AND s.status = 'zarejestowana' 
@@ -330,8 +331,8 @@ class DashboardService:
                                 except:
                                     godzina_str = ''
                             dosypki_list.append((nazwa, kg, godzina_str))
-                        # Store as (waga_total, godzina, id, dosypki_list, status, pracownik_name)
-                        szarze_with_dosypki.append((r[1], r[2], r[0], dosypki_list, r[5] if len(r) > 5 else '', r[6] if len(r) > 6 else ''))
+                        # Store as (waga_total, godzina, id, dosypki_list, status, pracownik_name, uwagi)
+                        szarze_with_dosypki.append((r[1], r[2], r[0], dosypki_list, r[5] if len(r) > 5 else '', r[6] if len(r) > 6 else '', r[7] if len(r) > 7 else ''))
                     
                     cursor.close()
                     conn.close()

@@ -149,12 +149,65 @@
                 padding: 12px 14px;
             }
         }
+        /* Sidebar submenu for sections like Jakość */
+        .nav-item-group {
+            display: block;
+        }
+
+        .nav-sub {
+            display: none;
+            padding-left: 12px;
+            margin-top: 4px;
+        }
+
+        .nav-sub.open {
+            display: block;
+        }
+
+        .nav-sub-item {
+            display: block;
+            padding: 6px 8px;
+            color: var(--text-secondary, #64748b);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .nav-item { cursor: pointer; }
+    </style>
+    <style>
+        /* Global spinner overlay shown after 1s when navigation or data loads are slow */
+        #globalSpinner {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,0.65);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #globalSpinner .spinner {
+            width: 56px;
+            height: 56px;
+            border: 6px solid rgba(15,23,42,0.12);
+            border-top-color: #0f172a;
+            border-radius: 50%;
+            animation: rp-spin 1s linear infinite;
+            box-shadow: 0 6px 18px rgba(15,23,42,0.08);
+        }
+
+        @keyframes rp-spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 
 <body>
 
     <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Global spinner overlay (appears if navigation / data load exceeds 1s) -->
+    <div id="globalSpinner" aria-hidden="true">
+        <div class="spinner" role="status" aria-label="Ładowanie"></div>
+    </div>
 
     <div class="top-bar">
         <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
@@ -273,9 +326,15 @@
                 {% endif %}
 
                 {% if role_has_access('jakosc') %}
-                <a href="{{ url_for('quality.jakosc_index') }}"
-                    class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}">✅ <span
-                        class="text-capitalize">{{ _('jakosc') }}</span></a>
+                <div class="nav-item-group">
+                    <button type="button" class="nav-item {% if request.path.startswith('/jakosc') %}active{% endif %}" aria-expanded="false">
+                        ✅ <span class="text-capitalize">{{ _('jakosc') }}</span>
+                    </button>
+                    <div class="nav-sub {% if request.path.startswith('/jakosc') %}open{% endif %}">
+                        <a href="{{ url_for('quality.jakosc_index') }}" class="nav-sub-item {% if request.path == url_for('quality.jakosc_index') %}active{% endif %}">— Strona Jakość</a>
+                        <a href="{{ url_for('quality.jakosc_podsumowanie_szarz') }}" class="nav-sub-item {% if request.path.startswith('/jakosc/podsumowanie_szarz') %}active{% endif %}">— Podsumowanie szarż (dla lab)</a>
+                    </div>
+                </div>
                 {% endif %}
 
                 {% if role_has_access('wyniki') %}
@@ -745,6 +804,50 @@
             }
             updateTopBarTitle();
             window.addEventListener('resize', updateTopBarTitle);
+        })();
+    </script>
+
+    <script>
+        // Delegated sidebar submenu toggle attached to document so it survives DOM replacements
+        (function () {
+            function initAria() {
+                document.querySelectorAll('.nav-item-group').forEach(function (group) {
+                    var trigger = group.querySelector('.nav-item');
+                    var sub = group.querySelector('.nav-sub');
+                    if (!trigger || !sub) return;
+                    trigger.setAttribute('role', 'button');
+                    trigger.setAttribute('aria-expanded', sub.classList.contains('open') ? 'true' : 'false');
+                });
+            }
+
+            document.addEventListener('DOMContentLoaded', initAria);
+
+            // Also initialize immediately in case script runs after DOMContentLoaded
+            try { initAria(); } catch (e) { /* ignore */ }
+
+            document.addEventListener('click', function (e) {
+                var trigger = e.target.closest('.nav-item-group > .nav-item');
+                if (!trigger) return;
+                var group = trigger.closest('.nav-item-group');
+                var sub = group ? group.querySelector('.nav-sub') : null;
+                if (!sub) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                var now = Date.now();
+                var lastToggle = parseInt(group.getAttribute('data-last-toggle') || '0', 10);
+                if (now - lastToggle < 250) {
+                    console.log('nav toggle ignored (debounce)', { id: trigger.textContent.trim(), since: now - lastToggle });
+                    return;
+                }
+                group.setAttribute('data-last-toggle', String(now));
+
+                console.log('nav toggle click', { path: window.location.pathname, id: trigger.textContent.trim(), time: now });
+                var isOpen = sub.classList.toggle('open');
+                trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                console.log('nav toggle new state', { open: isOpen });
+            }, true);
         })();
     </script>
 

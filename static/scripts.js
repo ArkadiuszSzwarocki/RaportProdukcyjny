@@ -291,9 +291,25 @@
             if (e.key === 'Escape') closeSidebar();
         });
 
-        // close sidebar automatically when window resized to large screens
+        // close sidebar automatically when window resized to small screens
+        // and ensure sidebar is interactive on larger screens
         window.addEventListener('resize', function () {
-            if (window.innerWidth > 1200) closeSidebar();
+            try {
+                if (window.innerWidth <= 900) {
+                    // on small screens ensure sidebar closed
+                    closeSidebar();
+                } else {
+                    // on large screens ensure sidebar is visible / interactive
+                    document.body.classList.remove('sidebar-open');
+                    try {
+                        if (sidebar) { sidebar.inert = false; sidebar.removeAttribute('inert'); sidebar.setAttribute('aria-hidden', 'false'); }
+                        if (overlay) { overlay.inert = true; overlay.setAttribute('aria-hidden', 'true'); overlay.classList.remove('open'); }
+                    } catch (e) {
+                        if (sidebar) sidebar.setAttribute('aria-hidden', 'false');
+                        if (overlay) overlay.setAttribute('aria-hidden', 'true');
+                    }
+                }
+            } catch (e) { /* ignore resize errors */ }
         });
 
         // Modal management removed — modale są wyłączone w całej aplikacji.
@@ -401,6 +417,68 @@
         } finally {
             partialReloadInFlight = false;
         }
+    
+        // --- Global spinner for slow navigations / long fetches ---
+        let _spinnerTimer = null;
+        let _spinnerVisible = false;
+
+        function _showSpinnerNow() {
+            try {
+                const el = document.getElementById('globalSpinner');
+                if (!el) return;
+                el.style.display = 'flex';
+                el.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('spinner-active');
+                _spinnerVisible = true;
+            } catch (e) { /* ignore */ }
+        }
+
+        function startGlobalSpinnerWatcher() {
+            if (_spinnerTimer) return;
+            _spinnerTimer = setTimeout(_showSpinnerNow, 1000);
+        }
+
+        function endGlobalSpinnerWatcher() {
+            if (_spinnerTimer) { clearTimeout(_spinnerTimer); _spinnerTimer = null; }
+            if (_spinnerVisible) {
+                try {
+                    const el = document.getElementById('globalSpinner');
+                    if (el) { el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); }
+                    document.body.classList.remove('spinner-active');
+                } catch (e) { }
+                _spinnerVisible = false;
+            }
+        }
+
+        // Override global fetch to show spinner for long requests
+        if (window.fetch) {
+            const _origFetch = window.fetch.bind(window);
+            window.fetch = function () {
+                try { startGlobalSpinnerWatcher(); } catch (e) { }
+                const p = _origFetch.apply(this, arguments);
+                try { Promise.resolve(p).finally(() => endGlobalSpinnerWatcher()); } catch (e) { endGlobalSpinnerWatcher(); }
+                return p;
+            };
+        }
+
+        // Start spinner on form submit and on full-anchor navigations (skip AJAX/modal anchors)
+        document.addEventListener('submit', function (e) { try { startGlobalSpinnerWatcher(); } catch (e) { } }, true);
+        document.addEventListener('click', function (e) {
+            try {
+                const a = e.target.closest && e.target.closest('a[href]');
+                if (!a) return;
+                const href = a.getAttribute('href') || '';
+                if (href.indexOf('#') === 0 || href.indexOf('javascript:') === 0) return;
+                if (a.target && a.target !== '' && a.target !== '_self') return;
+                if (a.hasAttribute('data-slide') || a.hasAttribute('data-slide-html') || href.indexOf('/api/') !== -1) return;
+                startGlobalSpinnerWatcher();
+            } catch (e) { }
+        }, true);
+
+        // Ensure spinner is removed on page show/load
+        window.addEventListener('pageshow', endGlobalSpinnerWatcher);
+        window.addEventListener('load', endGlobalSpinnerWatcher);
+        document.addEventListener('DOMContentLoaded', function () { try { endGlobalSpinnerWatcher(); } catch (e) { } });
     }
 
     /* ================= Additional popups: toast, drawer, bottom-sheet, popover, fullscreen, wizard ================= */

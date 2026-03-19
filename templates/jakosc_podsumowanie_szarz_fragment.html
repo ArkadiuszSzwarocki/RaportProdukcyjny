@@ -1,0 +1,74 @@
+{% if szarze and szarze|length > 0 %}
+<div class="list">
+    {% for s in szarze %}
+    <div class="card mb-10" style="position:relative; padding:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <strong>Szara #{{ s.szarza_id }}</strong> — <strong>Zlecenie:</strong> {{ s.plan_nazwa }} (id: {{ s.plan_id }})
+                <div class="small text-muted">Dodana: {{ s.data_dodania }} {{ s.godzina or '' }} • Waga: {{ s.waga or 0 }} kg • Autor: {{ s.pracownik_name or '-' }}</div>
+            </div>
+            <div style="text-align:right;">
+                <a href="{{ url_for('warehouse.edytuj_szarze_page', szarza_id=s.szarza_id) }}" class="btn btn-sm">Edytuj notatkę</a>
+            </div>
+        </div>
+
+        {% if s.uwagi %}
+        <div class="card-row" style="margin-top:8px;"><strong>Uwagi:</strong> {{ s.uwagi }}</div>
+        {% endif %}
+
+        <div style="margin-top:8px; display:flex; gap:20px;">
+            <div style="flex:1;">
+                <div class="small text-muted">Dosypki:</div>
+                {% if s.dosypki and s.dosypki|length>0 %}
+                <ul>
+                    {% for d in s.dosypki %}
+                    <li>#{{ d.id }} — {{ d.nazwa }}: {{ d.kg }} kg {% if d.data_zlecenia %}({{ d.data_zlecenia }}){% endif %}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="small text-muted">Brak dosypek</div>
+                {% endif %}
+            </div>
+
+            <div style="width:320px;">
+                <div class="small text-muted">Parametry lab:</div>
+                <div id="params-list-{{ s.szarza_id }}">
+                    {% if s.parametry and s.parametry|length>0 %}
+                    <table class="modern-table small">
+                        <thead><tr><th>Nazwa</th><th>Wartość</th><th>Dodane</th></tr></thead>
+                        <tbody>
+                            {% for p in s.parametry %}
+                            <tr id="param-row-{{ p.id }}"><td>{{ p.nazwa }}</td><td id="param-val-{{ p.id }}">{{ p.wartosc }}</td><td>{{ p.data_dodania }}</td>
+                            <td style="white-space:nowrap;">
+                                <button class="btn btn-xs" onclick="editParamPrompt({{ s.szarza_id }}, {{ p.id }}, '{{ p.wartosc|e }}')">Edytuj</button>
+                                <button class="btn btn-xs btn-danger" onclick="deleteParam({{ s.szarza_id }}, {{ p.id }})">Usuń</button>
+                            </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="small text-muted">Brak parametrów</div>
+                    {% endif %}
+                </div>
+
+                <div style="margin-top:8px;">
+                    <button class="btn btn-sm btn-action" onclick="showAddParam({{ s.szarza_id }})">+ Dodaj parametr</button>
+                    <div id="add-param-{{ s.szarza_id }}" style="display:none;margin-top:8px;">
+                        <input type="text" id="param-nazwa-{{ s.szarza_id }}" placeholder="Nazwa (np. Białko)" style="width:48%;padding:6px;margin-right:4%;">
+                        <input type="text" id="param-wartosc-{{ s.szarza_id }}" placeholder="Wartość (np. 12.3)" style="width:48%;padding:6px;">
+                        <div style="margin-top:6px;">
+                            <button class="btn btn-sm btn-success" onclick="addParam({{ s.szarza_id }})">Zapisz</button>
+                            <button class="btn btn-sm" onclick="hideAddParam({{ s.szarza_id }})">Anuluj</button>
+                        </div>
+                        <div class="small text-muted" id="add-param-msg-{{ s.szarza_id }}" style="margin-top:6px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-muted">Brak zarejestrowanych szarż.</div>
+{% endif %}

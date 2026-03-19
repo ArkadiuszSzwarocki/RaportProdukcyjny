@@ -289,8 +289,21 @@ class LeaveRequestService:
                 conn.close()
 
         except Exception as e:
+            # Log full exception with traceback. To avoid breaking the UI with 500,
+            # return a safe empty summary so frontend can continue to operate.
             current_app.logger.exception("Error building leave summary: %s", str(e))
-            return {'error': 'server error'}
+            try:
+                detail = repr(e)
+            except Exception:
+                detail = str(e)
+            # Return safe defaults (no 'error' key) so route returns HTTP 200.
+            return {
+                'obecnosci': 0,
+                'typy': {},
+                'wyjscia_hours': 0.0,
+                'urlop_biezacy': 0,
+                'urlop_zalegly': 0,
+            }
 
     # Private helper methods
 
