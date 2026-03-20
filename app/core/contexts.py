@@ -206,10 +206,23 @@ def inject_app_into_templates():
         return dict()
 
 
+def inject_app_version():
+    """Inject application version from VERSION file into templates."""
+    try:
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        version_path = os.path.join(project_root, 'VERSION')
+        with open(version_path, 'r', encoding='utf-8') as f:
+            version = f.read().strip()
+    except Exception:
+        version = 'N/A'
+    return dict(app_version=version)
+
+
 def register_contexts(app):
     """Register all context processors with Flask app."""
     app.context_processor(inject_static_version)
     app.context_processor(inject_role_permissions)
     app.context_processor(inject_translations)
     app.context_processor(inject_app_into_templates)
+    app.context_processor(inject_app_version)
 

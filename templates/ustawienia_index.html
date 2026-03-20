@@ -205,6 +205,33 @@
             padding: 20px;
         }
     }
+
+    .settings-version-bar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 14px 30px;
+        margin-top: 8px;
+        border-top: 1px solid rgba(44, 62, 80, 0.08);
+        color: #8a9bae;
+        font-size: 0.82rem;
+    }
+
+    .settings-version-label {
+        font-weight: 500;
+    }
+
+    .settings-version-value {
+        font-family: monospace;
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #2f7dd1;
+        background: rgba(47, 125, 209, 0.08);
+        padding: 2px 10px;
+        border-radius: 20px;
+        border: 1px solid rgba(47, 125, 209, 0.15);
+    }
 </style>
 <div class="section-box">
     <div class="settings-view">
@@ -298,6 +325,11 @@
 
         </div>
     </div>
+    </div>
+
+    <div class="settings-version-bar">
+        <span class="settings-version-label">Wersja aplikacji</span>
+        <span class="settings-version-value">v{{ app_version }}</span>
     </div>
 
 {% endblock %}
