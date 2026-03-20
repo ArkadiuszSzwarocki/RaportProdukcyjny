@@ -7,6 +7,7 @@ from app.decorators import login_required, roles_required, admin_required
 from app.services.planning_service import PlanningService
 from app.services.plan_movement_service import PlanMovementService
 from app.services.notification_service import notify_laboratory_about_szarza, notify_workers_about_plan_batch, notify_workers_about_plan_change
+from app.core.audit import audit_log
 import json
 
 planning_bp = Blueprint('planning', __name__)
@@ -190,7 +191,7 @@ def dodaj_plan():
     # Validate required fields
     if not produkt:
         try:
-            current_app.logger.warning(f'[DODAJ_PLAN] MISSING produkt - redirecting')
+            current_app.logger.debug(f'[DODAJ_PLAN] MISSING produkt - redirecting')
         except Exception:
             pass
         return redirect(bezpieczny_powrot())
@@ -206,7 +207,7 @@ def dodaj_plan():
         
         if sekcja == 'Zasyp':
             try:
-                current_app.logger.warning(f'[DODAJ_PLAN] Processing ZASYP szarża')
+                current_app.logger.debug(f'[DODAJ_PLAN] Processing ZASYP szarża')
             except Exception:
                 pass
             
@@ -215,13 +216,13 @@ def dodaj_plan():
                 # Use provided plan_id
                 zasyp_plan_id = plan_id_provided
                 try:
-                    current_app.logger.warning(f'[DODAJ_PLAN] Using PROVIDED plan_id={zasyp_plan_id}')
+                    current_app.logger.debug(f'[DODAJ_PLAN] Using PROVIDED plan_id={zasyp_plan_id}')
                 except Exception:
                     pass
             else:
                 # Find ANY Zasyp plan for this product
                 try:
-                    current_app.logger.warning(f'[DODAJ_PLAN] plan_id_provided=0, searching for Zasyp plan for produkt={produkt}')
+                    current_app.logger.debug(f'[DODAJ_PLAN] plan_id_provided=0, searching for Zasyp plan for produkt={produkt}')
                 except Exception:
                     pass
                 
@@ -233,13 +234,13 @@ def dodaj_plan():
                 if szarza_plan:
                     zasyp_plan_id = szarza_plan[0]
                     try:
-                        current_app.logger.warning(f'[DODAJ_PLAN] FOUND Zasyp plan: plan_id={zasyp_plan_id}')
+                        current_app.logger.debug(f'[DODAJ_PLAN] FOUND Zasyp plan: plan_id={zasyp_plan_id}')
                     except Exception:
                         pass
             
             if zasyp_plan_id:
                 try:
-                    current_app.logger.warning(f'[DODAJ_PLAN] ADDING szarża: plan_id={zasyp_plan_id}, tonaz={tonaz}')
+                    current_app.logger.debug(f'[DODAJ_PLAN] ADDING szarża: plan_id={zasyp_plan_id}, tonaz={tonaz}')
                 except Exception:
                     pass
                 
@@ -266,7 +267,8 @@ def dodaj_plan():
                     (zasyp_plan_id, zasyp_plan_id, zasyp_plan_id)
                 )
                 try:
-                    current_app.logger.warning(f'[DODAJ_PLAN] Added szarża to plan {zasyp_plan_id}')
+                    current_app.logger.info('Dodano szarżę do zlecenia ID=%s, produkt=%s, tonaz=%s kg, użytkownik=%s', zasyp_plan_id, produkt, tonaz, session.get('login'))
+                    audit_log('Dodał szarżę', f'zlecenie_id={zasyp_plan_id}, produkt={produkt}, tonaz={tonaz} kg')
                 except Exception:
                     pass
 
@@ -306,7 +308,7 @@ def dodaj_plan():
                         (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, typ, 0, zasyp_plan_id)
                     )
                     try:
-                        current_app.logger.info(f'[DODAJ_PLAN] Created new Workowanie plan for produkt={produkt} when first szarża added')
+                        current_app.logger.debug(f'[DODAJ_PLAN] Created new Workowanie plan for produkt={produkt} when first szarża added')
                     except Exception:
                         pass
                 else:
@@ -333,7 +335,7 @@ def dodaj_plan():
                             (new_workowanie_tonaz, target_id)
                         )
                         try:
-                            current_app.logger.info(f'[DODAJ_PLAN] Summed into linked Workowanie id={target_id}: tonaz={new_workowanie_tonaz} (was {target_existing_tonaz} + szarza {tonaz})')
+                            current_app.logger.debug(f'[DODAJ_PLAN] Summed into linked Workowanie id={target_id}: tonaz={new_workowanie_tonaz} (was {target_existing_tonaz} + szarza {tonaz})')
                         except Exception:
                             pass
                     else:
@@ -351,7 +353,7 @@ def dodaj_plan():
                             (new_workowanie_tonaz, workowanie_id)
                         )
                         try:
-                            current_app.logger.info(f'[DODAJ_PLAN] Reset/sum Workowanie plan for produkt={produkt}: tonaz={new_workowanie_tonaz} (carry_over={w_existing_tonaz}, szarza={tonaz})')
+                            current_app.logger.debug(f'[DODAJ_PLAN] Reset/sum Workowanie plan for produkt={produkt}: tonaz={new_workowanie_tonaz} (carry_over={w_existing_tonaz}, szarza={tonaz})')
                         except Exception:
                             pass
                 
@@ -367,7 +369,7 @@ def dodaj_plan():
                     pass
                 conn.close()
                 try:
-                    current_app.logger.warning(f'[DODAJ_PLAN] SUCCESS: committed and returning')
+                    current_app.logger.debug(f'[DODAJ_PLAN] SUCCESS: committed and returning')
                 except Exception:
                     pass
                 return redirect(bezpieczny_powrot())
@@ -375,7 +377,7 @@ def dodaj_plan():
                 # No plan found and none provided - this is error for szarża!
                 conn.close()
                 try:
-                    current_app.logger.warning(f'[DODAJ_PLAN] ERROR: No plan found for szarża. plan_id_provided={plan_id_provided}, produkt={produkt}')
+                    current_app.logger.debug(f'[DODAJ_PLAN] ERROR: No plan found for szarża. plan_id_provided={plan_id_provided}, produkt={produkt}')
                 except Exception:
                     pass
                 flash('Nie znaleziono planu do dodania szarży', 'error')
@@ -392,7 +394,7 @@ def dodaj_plan():
             if main_plan:
                 main_plan_id, actual_typ = main_plan[0], main_plan[1]
                 try:
-                    current_app.logger.info(f'[DODAJ_PLAN] Adding paleta to Workowanie main plan {main_plan_id}, tonaz={tonaz}')
+                    current_app.logger.debug(f'[DODAJ_PLAN] Adding paleta to Workowanie main plan {main_plan_id}, tonaz={tonaz}')
                 except Exception:
                     pass
 
@@ -408,7 +410,7 @@ def dodaj_plan():
                     (tonaz, main_plan_id)
                 )
                 try:
-                    current_app.logger.info(f'[DODAJ_PLAN] Updated Workowanie plan {main_plan_id}, tonaz_rzeczywisty += {tonaz}')
+                    current_app.logger.debug(f'[DODAJ_PLAN] Updated Workowanie plan {main_plan_id}, tonaz_rzeczywisty += {tonaz}')
                 except Exception:
                     pass
                 
@@ -542,7 +544,8 @@ def dodaj_plany_batch():
             created_by_user_id=session.get('user_id'),
         )
         conn.commit()
-        current_app.logger.info(f'Batch insert successful: {len(plans)} plans for {data_planu}')
+        current_app.logger.info('Dodano %s zleceń na dzień %s przez %s', len(plans), data_planu, session.get('login'))
+        audit_log('Dodał zlecenia (bulk)', f'{len(plans)} zleceń na {data_planu}')
         return jsonify({'success': True})
     
     except Exception as e:
@@ -687,7 +690,8 @@ def edytuj_plan(id):
                 created_by_user_id=session.get('user_id'),
             )
             flash('Zlecenie zaktualizowane', 'success')
-            current_app.logger.info('Plan %s updated successfully', id)
+            current_app.logger.info('Zlecenie ID=%s zaktualizowane przez %s', id, session.get('login'))
+            audit_log('Edytował zlecenie', f'ID={id}')
     
     except Exception as e:
         current_app.logger.error(f'Failed to edit plan {id}: {e}', exc_info=True)
@@ -820,7 +824,8 @@ def edytuj_plan_ajax():
                 author_name=session.get('imie_nazwisko') or session.get('login'),
                 created_by_user_id=session.get('user_id'),
             )
-            current_app.logger.info('Plan %s updated via AJAX: %s', pid, changes)
+            current_app.logger.info('Zlecenie ID=%s zaktualizowane (AJAX) przez %s: %s', pid, session.get('login'), changes)
+            audit_log('Edytował zlecenie (AJAX)', f'ID={pid}, zmiany: {list(changes.keys())}')
             
             # If this edited plan is a Zasyp, propagate key changes to linked Workowanie entries
             try:
@@ -916,7 +921,7 @@ def update_uszkodzone_worki():
         cursor.execute("UPDATE plan_produkcji SET uszkodzone_worki=%s WHERE id=%s", (uszk_val, plan_id_int))
         conn.commit()
         
-        current_app.logger.info(f"[USZKODZONE-WORKI] Plan {plan_id_int}: uszkodzone_worki={uszk_val}")
+        current_app.logger.debug(f"[USZKODZONE-WORKI] Plan {plan_id_int}: uszkodzone_worki={uszk_val}")
         
         conn.close()
         return jsonify({'success': True, 'message': 'Zaktualizowano liczę uszkodzonych worków'})
@@ -939,53 +944,40 @@ def update_uszkodzone_worki():
 @roles_required('planista', 'admin')
 def przenies_zlecenie_ajax():
     """Move a plan to different date via AJAX - delegated to PlanningService."""
-    print(f'\n[PRZENIES-API] /api/przenies_zlecenie_ajax CALLED')
     try:
         data = request.get_json(force=True)
-        print(f'[PRZENIES-API] JSON data received: {data}')
-    except Exception as e:
-        print(f'[PRZENIES-API] JSON parse error: {e}')
+    except Exception:
         data = request.form.to_dict()
-        print(f'[PRZENIES-API] Falling back to form data: {data}')
-    
+
     id = data.get('id')
-    # Support both 'to_date' (AJAX from bufor/workowanie views) and 'data' (form POST)
     to_date = data.get('to_date') or data.get('data')
-    print(f'[PRZENIES-API] id={id}, to_date={to_date}')
-    
+    current_app.logger.debug('przenies_zlecenie_ajax: id=%s, to_date=%s', id, to_date)
+
     if not id or not to_date:
-        print(f'[PRZENIES-API] Missing parameters!')
         return jsonify({'success': False, 'message': 'Brak parametrów'}), 400
-    
+
     try:
         pid = int(id)
-        print(f'[PRZENIES-API] Converted id to int: {pid}')
-    except Exception as e:
-        print(f'[PRZENIES-API] ID conversion error: {e}')
+    except Exception:
         return jsonify({'success': False, 'message': 'Błąd ID'}), 400
-    
-    print(f'[PRZENIES-API] Calling PlanningService.reschedule_plan({pid}, {to_date})')
+
     success, message = PlanningService.reschedule_plan(pid, to_date)
-    print(f'[PRZENIES-API] Result: success={success}, message={message}')
-    
     status_code = 200 if success else 400
     if success:
+        audit_log('Przesunął zlecenie', f'ID={pid}, nowa data={to_date}')
+        current_app.logger.info('Przesunięto zlecenie ID=%s na %s przez %s', pid, to_date, session.get('login'))
         try:
-            print(f'[PRZENIES-API] Logging history...')
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT data_planu FROM plan_produkcji WHERE id=%s", (pid,))
-            old_date = cursor.fetchone()[0]
+            old_row = cursor.fetchone()
+            old_date = old_row[0] if old_row else '?'
             conn.close()
-            
             user_login = session.get('login') or session.get('imie_nazwisko') or 'System'
             log_plan_history(pid, 'przeniesienie', f"Z {old_date} na {to_date}", user_login)
-            print(f'[PRZENIES-API] Logged: from={old_date}, to={to_date}, user={user_login}')
-        except Exception as e:
-            # Non-critical history error
-            print(f'[PRZENIES-API] History logging error: {e}')
-    
-    print(f'[PRZENIES-API] Returning status {status_code}\n')
+        except Exception as hist_err:
+            current_app.logger.warning('Błąd zapisu historii dla zlecenia %s: %s', pid, hist_err)
+
     return jsonify({'success': success, 'message': message}), status_code
 
 
@@ -1026,53 +1018,34 @@ def przesun_zlecenie_ajax():
 @roles_required('planista', 'admin', 'lider')
 def api_usun_plan(id):
     """Soft delete plan via AJAX - delegated to PlanningService."""
-    import traceback
-    print(f'\n[API-DELETE] DELETE PLAN ENDPOINT CALLED - ID: {id}')
-    print(f'[API-DELETE] Request method: {request.method}')
-    print(f'[API-DELETE] Session login: {session.get("login")}')
-    print(f'[API-DELETE] Session roles: {session.get("role")}')
-    print(f'[API-DELETE] User info: {session.get("imie_nazwisko")}')
-    current_app.logger.info(f'[API-DELETE] DELETE PLAN ENDPOINT CALLED - ID: {id}')
-    
+    from app.core.audit import audit_log
+
+    current_app.logger.info('Usuwanie zlecenia ID=%s przez %s', id, session.get('login'))
+
     try:
-        print(f'[API-DELETE] Calling PlanningService.delete_plan({id})...')
         success, message = PlanningService.delete_plan(id)
-        print(f'[API-DELETE] DELETE result: success={success}, message={message}')
-        current_app.logger.info(f'[API-DELETE] DELETE result: success={success}, message={message}')
-        
+        current_app.logger.info('Wynik usunięcia zlecenia ID=%s: %s', id, message)
+
         if success:
-            print(f'[API-DELETE] Deletion success - logging to history...')
-            # Log history if deletion was successful
+            audit_log('Usunął zlecenie', f'ID={id}')
+            # Log history
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                print(f'[API-DELETE] Searching for plan details...')
                 cursor.execute("SELECT produkt, data_planu, tonaz FROM plan_produkcji WHERE id=%s", (id,))
                 res = cursor.fetchone()
-                print(f'[API-DELETE] SQL Result: {res}')
                 conn.close()
-                
                 if res:
                     details = {'produkt': res[0], 'data_planu': str(res[1]), 'tonaz': res[2]}
                     user_login = session.get('login') or session.get('imie_nazwisko')
-                    print(f'[API-DELETE] Logging history: user={user_login}, details={details}')
                     log_plan_history(id, 'soft_delete', json.dumps(details, ensure_ascii=False), user_login)
-                    print(f'[API-DELETE] History logged')
             except Exception as hist_err:
-                print(f'[API-DELETE] ERROR logging history: {str(hist_err)}')
-                traceback.print_exc()
-        else:
-            print(f'[API-DELETE] Deletion FAILED')
-        
-        response = {'success': success, 'message': message}
-        print(f'[API-DELETE] Sending response: {response}')
-        print(f'[API-DELETE] Status code: {200 if success else 400}\n')
-        return jsonify(response), 200 if success else 400
-        
+                current_app.logger.warning('Błąd zapisu historii dla zlecenia %s: %s', id, hist_err)
+
+        return jsonify({'success': success, 'message': message}), 200 if success else 400
+
     except Exception as e:
-        print(f'[API-DELETE] EXCEPTION: {str(e)}')
-        print(f'[API-DELETE] Traceback: {traceback.format_exc()}')
-        current_app.logger.exception(f'Error deleting plan {id} via AJAX')
+        current_app.logger.exception('Błąd przy usuwaniu zlecenia %s', id)
         return jsonify({'success': False, 'message': 'Błąd przy usuwaniu zlecenia.'}), 500
 
 

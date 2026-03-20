@@ -17,12 +17,22 @@
     </div>
 
     <div class="card mb-15">
-        <h3>app.log (ostatnie {{ lines }} linii){% if app_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
+        <h3>📋 Dziennik akcji użytkowników — audit.log (ostatnie {{ lines }} linii){% if audit_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
+        <div class="muted" style="margin-bottom:8px">Format: <code>DATA AUDIT: login [rola] — Akcja — Szczegóły</code></div>
+        {% if audit_log %}
+        <pre class="log-block">{{ audit_log }}</pre>
+        {% else %}
+        <div class="muted">Brak wpisów — plik audit.log jeszcze nie istnieje lub jest pusty.</div>
+        {% endif %}
+    </div>
+
+    <div class="card mb-15">
+        <h3>⚙️ app.log — logi aplikacji (ostatnie {{ lines }} linii){% if app_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
         <pre class="log-block">{{ app_log }}</pre>
     </div>
 
     <div class="card mb-15">
-        <h3>palety.log (ostatnie {{ lines }} linii){% if pal_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
+        <h3>📦 palety.log (ostatnie {{ lines }} linii){% if pal_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
         <pre class="log-block">{{ palety_log }}</pre>
     </div>
 </div>

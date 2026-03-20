@@ -5,6 +5,7 @@ from datetime import date, datetime
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required
 from app.services.overtime_service import OvertimeService
+from app.core.audit import audit_log
 
 overtime_bp = Blueprint('overtime', __name__)
 
@@ -55,23 +56,19 @@ def submit_nadgodziny():
 def approve_nadgodziny(nid):
     """Approve overtime request."""
     try:
-        current_app.logger.info(f"[OVERTIME_APPROVE] nid={nid}")
         lider_id = session.get('pracownik_id')
-        
         if not lider_id:
             raise ValueError("Brak ID lidera w sesji")
-        
         success, message = OvertimeService.approve_overtime_request(nid, lider_id)
-        current_app.logger.info(f"[OVERTIME_APPROVE] success={success}, message={message}")
-        
-        # Return JSON dla AJAX żądań
+        if success:
+            current_app.logger.info('Zatwierdzono nadgodziny ID=%s przez %s', nid, session.get('login'))
+            audit_log('Zatwierdził wniosek o nadgodziny', f'ID={nid}')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': success, 'message': message}), 200 if success else 400
-        
         flash(message, 'success' if success else 'warning')
         return redirect(bezpieczny_powrot())
     except Exception as e:
-        current_app.logger.exception(f"[OVERTIME_APPROVE] Exception: {str(e)}")
+        current_app.logger.exception('Błąd zatwierdzania nadgodzin %s', nid)
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
         raise
@@ -82,19 +79,15 @@ def approve_nadgodziny(nid):
 def reject_nadgodziny(nid):
     """Reject overtime request."""
     try:
-        current_app.logger.info(f"[OVERTIME_REJECT] nid={nid}")
         lider_id = session.get('pracownik_id')
-        
         if not lider_id:
             raise ValueError("Brak ID lidera w sesji")
-        
         success, message = OvertimeService.reject_overtime_request(nid, lider_id)
-        current_app.logger.info(f"[OVERTIME_REJECT] success={success}, message={message}")
-        
-        # Return JSON dla AJAX żądań
+        if success:
+            current_app.logger.info('Odrzucono nadgodziny ID=%s przez %s', nid, session.get('login'))
+            audit_log('Odrzucił wniosek o nadgodziny', f'ID={nid}')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': success, 'message': message}), 200 if success else 400
-        
         flash(message, 'success' if success else 'warning')
         return redirect(bezpieczny_powrot())
     except Exception as e:

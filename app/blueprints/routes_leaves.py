@@ -74,26 +74,19 @@ def submit_wniosek():
 @roles_required('lider', 'admin')
 def approve_wniosek(wid):
     """Approve leave request - delegated to LeaveRequestService."""
+    from app.core.audit import audit_log
     try:
-        import sys
-        print(f"[APPROVE_ENDPOINT_CALLED] wid={wid}", file=sys.stderr, flush=True)
-        current_app.logger.info(f"[APPROVE] wid={wid}")
         lider_id = session.get('pracownik_id')
-        current_app.logger.info(f"[APPROVE] lider_id={lider_id}")
-        
         success, message = LeaveRequestService.approve_leave_request(wid, lider_id)
-        current_app.logger.info(f"[APPROVE] success={success}, message={message}")
-        
+        if success:
+            current_app.logger.info('Zatwierdzono wniosek urlopowy ID=%s przez %s', wid, session.get('login'))
+            audit_log('Zatwierdził wniosek urlopowy', f'ID={wid}')
         flash(message, 'success' if success else 'warning')
-        
-        # Return JSON dla AJAX żądań
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': success, 'message': message}), 200
         return redirect(bezpieczny_powrot())
     except Exception as e:
-        import sys
-        print(f"[APPROVE_EXCEPTION] {type(e).__name__}: {str(e)}", file=sys.stderr, flush=True)
-        current_app.logger.exception(f"[APPROVE] Exception: {type(e).__name__}: {str(e)}")
+        current_app.logger.exception('Błąd zatwierdzania wniosku %s', wid)
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
         raise
@@ -103,26 +96,19 @@ def approve_wniosek(wid):
 @roles_required('lider', 'admin')
 def reject_wniosek(wid):
     """Reject leave request - delegated to LeaveRequestService."""
+    from app.core.audit import audit_log
     try:
-        import sys
-        print(f"[REJECT_ENDPOINT_CALLED] wid={wid}", file=sys.stderr, flush=True)
-        current_app.logger.info(f"[REJECT] wid={wid}")
         lider_id = session.get('pracownik_id')
-        current_app.logger.info(f"[REJECT] lider_id={lider_id}")
-        
         success, message = LeaveRequestService.reject_leave_request(wid, lider_id)
-        current_app.logger.info(f"[REJECT] success={success}, message={message}")
-        
+        if success:
+            current_app.logger.info('Odrzucono wniosek urlopowy ID=%s przez %s', wid, session.get('login'))
+            audit_log('Odrzucił wniosek urlopowy', f'ID={wid}')
         flash(message, 'info' if success else 'warning')
-        
-        # Return JSON dla AJAX żądań
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': success, 'message': message}), 200
         return redirect(bezpieczny_powrot())
     except Exception as e:
-        import sys
-        print(f"[REJECT_EXCEPTION] {type(e).__name__}: {str(e)}", file=sys.stderr, flush=True)
-        current_app.logger.exception(f"[REJECT] Exception: {type(e).__name__}: {str(e)}")
+        current_app.logger.exception('Błąd odrzucania wniosku %s', wid)
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'message': f'Błąd: {str(e)}'}), 500
         raise
@@ -531,7 +517,9 @@ def zapisz_raport_koncowy():
         """, (dzisiaj, sekcja))
         
         conn.commit()
-        current_app.logger.info(f'Shift report saved: {sekcja} on {dzisiaj}')
+        current_app.logger.info('Zmiana zamknięta: sekcja=%s, data=%s, użytkownik=%s', sekcja, dzisiaj, session.get('login'))
+        from app.core.audit import audit_log
+        audit_log('Zamknął zmianę', f'sekcja={sekcja}, data={dzisiaj}')
         flash(f"✅ Zmiana w sekcji {sekcja} została zamknięta!", 'success')
         return redirect(url_for('main.index', sekcja=sekcja, data=dzisiaj.isoformat()))
         
@@ -731,7 +719,7 @@ def pobierz_raport():
             dzisiaj = date.today()
         
         # NAJPIERW: Spróbuj wygenerować raport bezpośrednio z DB
-        print(f"[POBIERZ-RAPORT] Attempting to generate report for {dzisiaj}")
+        current_app.logger.debug("pobierz_raport: generating report for %s", dzisiaj)
         try:
             from app.generator_raportow import generuj_paczke_raportow
             

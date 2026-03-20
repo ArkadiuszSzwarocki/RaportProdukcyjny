@@ -94,16 +94,13 @@ def panel_wnioski_page():
                     'powod': r[7], 'zlozono': r[8]
                 })
         
-        print(f"[DEBUG panel_wnioski_page] Loaded {len(wnioski)} wnioski as dicts for role={user_role}")
+        current_app.logger.debug("panel_wnioski_page: loaded %s wnioski for role=%s", len(wnioski), user_role)
         
         pending_nadgodziny = []
         if user_role in ['lider', 'admin']:
             pending_nadgodziny = OvertimeService.get_pending_requests()
             
     except Exception as e:
-        print(f"[ERROR] Exception in panel_wnioski_page: {type(e).__name__}: {str(e)}")
-        import traceback
-        traceback.print_exc()
         current_app.logger.error(f'Failed loading wnioski for full page: {e}', exc_info=True)
         pending_nadgodziny = []
     finally:
@@ -435,7 +432,7 @@ def moje_godziny():
     user_nadgodziny = []
     try:
         user_nadgodziny = OvertimeService.get_user_requests(owner_pid) if owner_pid else []
-        current_app.logger.info(f"[DEBUG] moje_godziny: owner_pid={owner_pid}, user_nadgodziny count={len(user_nadgodziny)}")
+        current_app.logger.debug(f"[DEBUG] moje_godziny: owner_pid={owner_pid}, user_nadgodziny count={len(user_nadgodziny)}")
     except Exception as e:
         current_app.logger.error(f"[DEBUG] Error fetching user_nadgodziny: {e}")
         user_nadgodziny = []
@@ -446,7 +443,7 @@ def moje_godziny():
     try:
         if role in ['lider', 'admin']:
             pending_nadgodziny = OvertimeService.get_pending_requests()
-            current_app.logger.info(f"[DEBUG] moje_godziny: pending_nadgodziny count={len(pending_nadgodziny)}")
+            current_app.logger.debug(f"[DEBUG] moje_godziny: pending_nadgodziny count={len(pending_nadgodziny)}")
             
             # Pobierz wnioski urlopowe do zatwierdzenia
             cursor.execute(

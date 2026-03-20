@@ -29,13 +29,17 @@ class NoiseFilter(logging.Filter):
 
 def setup_logging(app):
     """Configure application logging with rotating file handlers.
-    
+
     Sets up:
-    - Main app logger to logs/app.log (10 MB, 5 backups)
-    - Dedicated palety logger to logs/palety.log (2 MB, 3 backups)
-    - Noise filter on both to suppress known harmless errors
-    - Werkzeug logger attached to app handler
-    
+    - Main app logger → logs/app.log (INFO+, daily rotation, 30 days)
+      DEBUG messages are kept for development but do NOT go to the file.
+    - Dedicated audit logger → logs/audit.log (INFO+, daily, 90 days)
+      Human-readable record of every user action (login, confirming pallets, etc.)
+    - Dedicated palety logger → logs/palety.log (INFO+, daily, 30 days)
+    - Noise filter on the main handler to suppress known harmless 404/405 probes.
+    - Werkzeug HTTP access log is intentionally NOT piped to app.log; it goes to
+      its own stderr / access stream to avoid cluttering the application log.
+
     Args:
         app: Flask application instance
     """
@@ -44,8 +48,10 @@ def setup_logging(app):
     logs_dir = os.path.join(project_root, 'logs')
     if not os.path.exists(logs_dir):
         os.makedirs(logs_dir)
-    
-    # Main app logger
+
+    # ------------------------------------------------------------------
+    # Main app logger (INFO level in production to eliminate debug noise)
+    # ------------------------------------------------------------------
     # During pytest runs avoid writing to rotating files to prevent Windows
     # permission errors when pytest/other processes rotate logs concurrently.
     use_stream = 'PYTEST_CURRENT_TEST' in os.environ
@@ -59,37 +65,68 @@ def setup_logging(app):
         # Avoid duplicate handlers in repeated create_app calls during tests
         if not any(isinstance(h, logging.StreamHandler) for h in app.logger.handlers):
             app.logger.addHandler(handler)
-        logging.getLogger('werkzeug').addHandler(handler)
         noise_filter = NoiseFilter()
         handler.addFilter(noise_filter)
-        logging.getLogger('werkzeug').addFilter(noise_filter)
     else:
         # Use time-based rotation: rotate daily and keep 30 days of logs
         # Use delay=True so file is opened on first emit (reduces rotate race on Windows)
-        handler = TimedRotatingFileHandler(log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True)
-        handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s %(levelname)s [pid=%(process)d]: %(message)s [in %(pathname)s:%(lineno)d]')
+        handler = TimedRotatingFileHandler(
+            log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
+        )
+        # INFO level: debug-trace messages stay out of the file log
+        handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
         handler.setFormatter(formatter)
-        app.logger.setLevel(logging.DEBUG)
+        app.logger.setLevel(logging.INFO)
         app.logger.addHandler(handler)
-        logging.getLogger('werkzeug').addHandler(handler)
-        # Attach noise filter to reduce log spam
+        # Noise filter suppresses known harmless 404/405 probes
         noise_filter = NoiseFilter()
         handler.addFilter(noise_filter)
-        logging.getLogger('werkzeug').addFilter(noise_filter)
-    
-    # Dedicated logger for palety (to avoid cluttering main log)
+        # Do NOT attach werkzeug to the app handler — its HTTP access lines
+        # (e.g. "GET /planista HTTP/1.1 200 –") are noise in app.log.
+        # werkzeug writes to stderr by default which is fine.
+
+    # ------------------------------------------------------------------
+    # Audit logger — human-readable record of user actions
+    # ------------------------------------------------------------------
+    audit_logger = logging.getLogger('audit')
+    audit_logger.setLevel(logging.INFO)
+    # Don't propagate to root logger (avoids duplicate lines in app.log)
+    audit_logger.propagate = False
+    if not use_stream:
+        audit_log_path = os.path.join(logs_dir, 'audit.log')
+        audit_handler = TimedRotatingFileHandler(
+            audit_log_path, when='midnight', interval=1, backupCount=90, encoding='utf-8', delay=True
+        )
+        audit_handler.setLevel(logging.INFO)
+        audit_formatter = logging.Formatter('%(asctime)s AUDIT: %(message)s')
+        audit_handler.setFormatter(audit_formatter)
+        if not audit_logger.handlers:
+            audit_logger.addHandler(audit_handler)
+    else:
+        # In tests: write audit to a stream handler so it is capturable
+        if not audit_logger.handlers:
+            audit_stream = logging.StreamHandler()
+            audit_stream.setLevel(logging.INFO)
+            audit_stream.setFormatter(logging.Formatter('%(asctime)s AUDIT: %(message)s'))
+            audit_logger.addHandler(audit_stream)
+
+    # ------------------------------------------------------------------
+    # Dedicated palety logger (unchanged)
+    # ------------------------------------------------------------------
     palety_logger = logging.getLogger('palety_logger')
     palety_logger.setLevel(logging.INFO)
     palety_log_path = os.path.join(logs_dir, 'palety.log')
     # Rotate palety log daily and keep 30 days
-    palety_handler = TimedRotatingFileHandler(palety_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True)
+    palety_handler = TimedRotatingFileHandler(
+        palety_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
+    )
     palety_handler.setLevel(logging.INFO)
     palety_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
     palety_handler.setFormatter(palety_formatter)
     if not palety_logger.handlers:
         palety_logger.addHandler(palety_handler)
-    
+
     return handler, palety_logger
 
 

@@ -262,7 +262,7 @@ def panel_planisty():
     if aktywna_zakladka not in ('psd', 'agro'):
         aktywna_zakladka = 'psd'
 
-    current_app.logger.info(f'[PLANISTA] Rendering template: current_role={rola}, tab={aktywna_zakladka}, session_keys={list(session.keys())}')
+    current_app.logger.debug(f'[PLANISTA] Rendering template: current_role={rola}, tab={aktywna_zakladka}, session_keys={list(session.keys())}')
 
     # ===== DANE DLA ZAKŁADKI AGRO =====
     plany_agro = []
@@ -351,13 +351,13 @@ def panel_planisty():
 
         has_incomplete_plans = psd_incomplete or agro_incomplete or workowanie_incomplete
         
-        current_app.logger.info(f'DEBUG has_incomplete_plans: psd={psd_incomplete} (plany_list={len(plany_list)}), agro={agro_incomplete} (plany_agro={len(plany_agro)}), result={has_incomplete_plans}')
+        current_app.logger.debug(f'DEBUG has_incomplete_plans: psd={psd_incomplete} (plany_list={len(plany_list)}), agro={agro_incomplete} (plany_agro={len(plany_agro)}), result={has_incomplete_plans}')
         for p in plany_list:
             if p[4] == 'zakonczone':
-                current_app.logger.info(f'  Zasyp: {p[2]} status={p[4]}, tonaz_rz={p[8]}, tonaz_plan={p[3]}, incomplete={(p[8] or 0) < (p[3] or 0)}')
+                current_app.logger.debug(f'  Zasyp: {p[2]} status={p[4]}, tonaz_rz={p[8]}, tonaz_plan={p[3]}, incomplete={(p[8] or 0) < (p[3] or 0)}')
         for p in plany_agro:
             if p[4] == 'zakonczone':
-                current_app.logger.info(f'  Agro: {p[2]} status={p[4]}, tonaz_rz={p[8]}, tonaz_plan={p[3]}, incomplete={(p[8] or 0) < (p[3] or 0)}')
+                current_app.logger.debug(f'  Agro: {p[2]} status={p[4]}, tonaz_rz={p[8]}, tonaz_plan={p[3]}, incomplete={(p[8] or 0) < (p[3] or 0)}')
         # Dodatkowe logi: oblicz remaining i czy przycisk zostanie pokazany dla aktualnej roli
         try:
             role_now = (session.get('rola') or '')
@@ -372,7 +372,7 @@ def panel_planisty():
                     wyk_val = 0.0
                 remaining = round(plan_val - wyk_val, 3)
                 show_btn = (p[4] == 'zakonczone' and remaining > 0 and role_now.lower() in ['planista', 'admin', 'zarzad'])
-                current_app.logger.info(f'[PLANISTA-LOG] id={p[0]} produkt="{p[2]}" sekcja="{p[1]}" status="{p[4]}" plan={plan_val} wyk={wyk_val} remaining={remaining} role="{role_now}" show_button={show_btn}')
+                current_app.logger.debug(f'[PLANISTA-LOG] id={p[0]} produkt="{p[2]}" sekcja="{p[1]}" status="{p[4]}" plan={plan_val} wyk={wyk_val} remaining={remaining} role="{role_now}" show_button={show_btn}')
         except Exception as _:
             current_app.logger.exception('Error logging detailed planista info')
     except Exception as e:
@@ -801,19 +801,15 @@ def bufor_create_zlecenie():
 def api_przenies_niezrealizowane():
     """Move incomplete plans to next day, creating new Zasyp and Workowanie plans."""
     import traceback
-    import sys
     
     # ULTRA DEBUG - Log immediately to stderr and file
-    print(f'[PRZENIES API] *** ENDPOINT CALLED ***', file=sys.stderr, flush=True)
-    current_app.logger.critical(f'[PRZENIES API] *** ENDPOINT CALLED ***')
+    current_app.logger.debug('api_przenies_niezrealizowane called')
     
     try:
         data_dict = request.get_json() or {}
         current_data = data_dict.get('data')
-        
-        print(f'[PRZENIES API] Request body: {data_dict}', file=sys.stderr, flush=True)
-        current_app.logger.info(f'[PRZENIES API] Request body: {data_dict}')
-        current_app.logger.info(f'[PRZENIES API] Extracted current_data: {current_data} (type: {type(current_data).__name__})')
+        current_app.logger.debug(f'[PRZENIES API] Request body: {data_dict}')
+        current_app.logger.debug(f'[PRZENIES API] Extracted current_data: {current_data} (type: {type(current_data).__name__})')
         
         if not current_data:
             current_app.logger.warning(f'[PRZENIES API] Data is missing!')
