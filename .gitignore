@@ -73,8 +73,10 @@ backups/
 raporty_temp/
 raporty/*.pdf
 raporty/*.html
+raporty/*.txt
 reports/
 oracleJdk-25/
+openJdk-*/
 
 # Temporary files
 temp_*.html
@@ -86,9 +88,41 @@ tmp_*.txt
 cookies.txt
 session.sql
 
+# Debug / trace output files (root-level one-offs)
+diff.txt
+trace.txt
+html_trace.txt
+error_dump.txt
+flask_err.txt
+flask_log.txt
+flask_app.txt
+
+# Temporary screenshots
+tmp_playwright.png
+*.playwright.png
+
+# Rendered HTML test outputs at root level
+test_planista_render.html
+
 # Backup files
 *.bak
 *.bak.*
+
+# Internal developer session notes (not for public repo)
+CODE_AUDIT_REPORT.md
+CODE_REPAIR_PROGRESS.md
+CODE_REPAIR_SESSION_*.md
+FINAL_REPAIR_SUMMARY.md
+OPERATIONS_CHECKLIST.md
+
+# Legacy / one-off scripts and tests
+scripts/legacy/
+tests/legacy/
+tests/playdoh/
+
+# Test artifact images generated during runs
+tests/*.png
+tests/*.jpg
 
 # Disabled tools only (active tools/ and tests/ should be tracked)
 tools/disabled/
