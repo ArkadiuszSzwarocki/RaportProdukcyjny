@@ -20,7 +20,7 @@ jobs:
 
       - name: Install cspell
         run: |
-          npm install -g cspell
+          npm install -g cspell @cspell/dict-pl-pl
 
       - name: Run cspell
         run: |

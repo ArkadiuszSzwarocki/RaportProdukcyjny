@@ -3,6 +3,8 @@ import time
 from app.db import get_db_connection
 from datetime import date
 
+import pytest
+
 
 def insert_workowanie_atomic(zasyp_id, z_data, produkt, z_typ, z_nazwa, roznicza, results, idx):
     """Worker: try to insert Workowanie using the same atomic SQL as the route."""
@@ -34,6 +36,7 @@ def insert_workowanie_atomic(zasyp_id, z_data, produkt, z_typ, z_nazwa, roznicza
         conn.close()
 
 
+@pytest.mark.require_db
 def test_concurrent_create_workowanie():
     conn = get_db_connection()
     cur = conn.cursor()

@@ -296,13 +296,13 @@ class LeaveRequestService:
                 detail = repr(e)
             except Exception:
                 detail = str(e)
-            # Return safe defaults (no 'error' key) so route returns HTTP 200.
             return {
                 'obecnosci': 0,
                 'typy': {},
                 'wyjscia_hours': 0.0,
                 'urlop_biezacy': 0,
                 'urlop_zalegly': 0,
+                'error': detail,
             }
 
     # Private helper methods
