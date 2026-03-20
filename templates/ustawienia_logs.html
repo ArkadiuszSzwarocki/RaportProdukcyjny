@@ -3,7 +3,7 @@
 {% block content %}
 <div class="section-box">
     <div class="section-header">
-        <h2>Logi aplikacji</h2>
+        <h2>📋 Dziennik akcji użytkowników</h2>
         <div><a href="/admin/ustawienia" class="btn">Powrót</a></div>
     </div>
 
@@ -13,21 +13,25 @@
             <input type="number" id="lines" name="lines" value="{{ lines }}" min="10" max="2000" />
             <button class="btn" type="submit">Odśwież</button>
         </form>
-        <div class="muted">Uwaga: tylko użytkownicy z uprawnieniami admin mogą przeglądać logi. Treść jest filtrowana i częściowo redagowana (adresy e‑mail, tokeny i klucze).</div>
+        <div class="muted">Dostęp tylko dla administratorów. Dane osobowe (e‑mail, tokeny, klucze) są automatycznie redagowane.</div>
     </div>
 
     <div class="card mb-15">
-        <h3>📋 Dziennik akcji użytkowników — audit.log (ostatnie {{ lines }} linii){% if audit_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
-        <div class="muted" style="margin-bottom:8px">Format: <code>DATA AUDIT: login [rola] — Akcja — Szczegóły</code></div>
+        <h3>📋 Dziennik akcji — audit.log (ostatnie {{ lines }} wpisów){% if audit_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
+        <div class="muted" style="margin-bottom:8px">
+            Format: <code>DATA AUDIT: login [rola] — Akcja — Szczegóły</code><br>
+            Rejestruje: logowania, wylogowania, potwierdzenia palet, dodawanie/usuwanie/edycja palet i zleceń, zatwierdzenia/odrzucenia wniosków, zmiany kont użytkowników i uprawnień, zamknięcia zmian.
+        </div>
         {% if audit_log %}
         <pre class="log-block">{{ audit_log }}</pre>
         {% else %}
-        <div class="muted">Brak wpisów — plik audit.log jeszcze nie istnieje lub jest pusty.</div>
+        <div class="muted">Brak wpisów — plik audit.log jeszcze nie istnieje lub jest pusty. Wpisy pojawiają się automatycznie po wykonaniu pierwszych akcji przez użytkowników.</div>
         {% endif %}
     </div>
 
     <div class="card mb-15">
-        <h3>⚙️ app.log — logi aplikacji (ostatnie {{ lines }} linii){% if app_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
+        <h3>⚙️ app.log — logi techniczne aplikacji (ostatnie {{ lines }} linii){% if app_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
+        <div class="muted" style="margin-bottom:8px">Błędy i ostrzeżenia systemowe. Poziom INFO — brak szumu debugowego.</div>
         <pre class="log-block">{{ app_log }}</pre>
     </div>
 

@@ -361,8 +361,11 @@
 
                 {% if role_has_access('ustawienia') %}
                 <a href="/admin/ustawienia"
-                    class="nav-item {% if request.path.startswith('/admin/ustawienia') %}active{% endif %}">⚙️ <span
+                    class="nav-item {% if request.path == '/admin/ustawienia' %}active{% endif %}">⚙️ <span
                         class="text-capitalize">{{ _('ustawienia') }}</span></a>
+                <a href="/admin/ustawienia/logs"
+                    class="nav-item {% if request.path == '/admin/ustawienia/logs' %}active{% endif %}">📋 <span
+                        class="text-capitalize">Dziennik akcji</span></a>
                 {% endif %}
             </nav>
             <div class="sidebar-footer">
