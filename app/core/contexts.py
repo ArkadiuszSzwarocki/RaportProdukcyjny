@@ -66,8 +66,6 @@ def inject_role_permissions():
                     return False
                 # Page in config -> check role access
                 result = bool(page_perms.get(r, {}).get('access', False))
-                from flask import current_app
-                current_app.logger.warning(f"[DEBUG role_has_access] page='{page}', role='{r}', result={result}, page_perms={page_perms}")
                 return result
             
             # Config empty - use fallback
