@@ -1,7 +1,6 @@
 """Production planning service for managing production plans."""
 
 from datetime import date, datetime, timedelta
-import sys
 import traceback
 from app.db import get_db_connection
 from flask import current_app
@@ -88,20 +87,20 @@ class PlanningService:
         Returns:
             Tuple (success: bool, message: str)
         """
-        print(f'\n[SERVICE-DELETE] delete_plan({plan_id}) START - HARD DELETE')
+        current_app.logger.debug(f'\n[SERVICE-DELETE] delete_plan({plan_id}) START - HARD DELETE')
         try:
-            print(f'[SERVICE-DELETE] Connecting to database...')
+            current_app.logger.debug(f'[SERVICE-DELETE] Connecting to database...')
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Check if plan exists and its status
-            print(f'[SERVICE-DELETE] Finding plan ID={plan_id}...')
+            current_app.logger.debug(f'[SERVICE-DELETE] Finding plan ID={plan_id}...')
             cursor.execute("SELECT status, produkt, sekcja FROM plan_produkcji WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
-            print(f'[SERVICE-DELETE] Result: {res}')
+            current_app.logger.debug(f'[SERVICE-DELETE] Result: {res}')
 
             if not res:
-                print(f'[SERVICE-DELETE] Plan not found!')
+                current_app.logger.debug(f'[SERVICE-DELETE] Plan not found!')
                 conn.close()
                 return (False, 'Zlecenie nie istnieje.')
 
@@ -109,19 +108,19 @@ class PlanningService:
             status = res[0] if len(res) > 0 else None
             produkt = res[1] if len(res) > 1 else None
             sekcja = res[2] if len(res) > 2 else None
-            print(f'[SERVICE-DELETE] Found plan: status={status}, produkt={produkt}, sekcja={sekcja}')
+            current_app.logger.debug(f'[SERVICE-DELETE] Found plan: status={status}, produkt={produkt}, sekcja={sekcja}')
             
             # Cannot delete if in progress or completed
             if status in ['w toku', 'zakonczone']:
-                print(f'[SERVICE-DELETE] Plan has protected status: {status}')
+                current_app.logger.debug(f'[SERVICE-DELETE] Plan has protected status: {status}')
                 conn.close()
                 # Use ascii form 'zakonczone' to match test expectations
                 return (False, 'Nie można usunąć zlecenia w toku lub zakonczone.')
             
             # Hard delete: DELETE FROM plan_produkcji
-            print(f'[SERVICE-DELETE] Executing DELETE...')
+            current_app.logger.debug(f'[SERVICE-DELETE] Executing DELETE...')
             cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (plan_id,))
-            print(f'[SERVICE-DELETE] DELETE finished, rowcount={cursor.rowcount}')
+            current_app.logger.debug(f'[SERVICE-DELETE] DELETE finished, rowcount={cursor.rowcount}')
 
             # Jeśli kasujemy Zasyp, usuń też powiązane zlecenie Workowanie (które jeszcze nie startowało)
             # Zapobiega to powstawaniu osieroconych zleceń w kolejce produkcyjnej.
@@ -132,12 +131,12 @@ class PlanningService:
                     (plan_id,)
                 )
                 linked_deleted = cursor.rowcount
-                print(f'[SERVICE-DELETE] Cascade: removed {linked_deleted} linked Workowanie (zasyp_id={plan_id})')
+                current_app.logger.debug(f'[SERVICE-DELETE] Cascade: removed {linked_deleted} linked Workowanie (zasyp_id={plan_id})')
 
             conn.commit()
-            print(f'[SERVICE-DELETE] COMMIT success')
+            current_app.logger.debug(f'[SERVICE-DELETE] COMMIT success')
             conn.close()
-            print(f'[SERVICE-DELETE] Connection closed')
+            current_app.logger.debug(f'[SERVICE-DELETE] Connection closed')
 
             if linked_deleted > 0:
                 current_app.logger.info(
@@ -147,19 +146,19 @@ class PlanningService:
             else:
                 current_app.logger.info(f'Plan deleted (hard delete): id={plan_id}, produkt={produkt}, sekcja={sekcja}')
             msg = f'Zlecenie {produkt or plan_id} zostało usunięte z planu.'
-            print(f'[SERVICE-DELETE] Success: {msg}')
+            current_app.logger.debug(f'[SERVICE-DELETE] Success: {msg}')
             return (True, msg)
             
         except Exception as e:
-            print(f'[SERVICE-DELETE] EXCEPTION: {str(e)}')
-            print(f'[SERVICE-DELETE] Exception type: {type(e).__name__}')
+            current_app.logger.debug(f'[SERVICE-DELETE] EXCEPTION: {str(e)}')
+            current_app.logger.debug(f'[SERVICE-DELETE] Exception type: {type(e).__name__}')
             import traceback
-            print(f'[SERVICE-DELETE] Traceback: {traceback.format_exc()}')
+            current_app.logger.debug(f'[SERVICE-DELETE] Traceback: {traceback.format_exc()}')
             try:
                 conn.rollback()
-                print(f'[SERVICE-DELETE] ROLLBACK done')
+                current_app.logger.debug(f'[SERVICE-DELETE] ROLLBACK done')
             except Exception as rb_err:
-                print(f'[SERVICE-DELETE] Rollback error: {rb_err}')
+                current_app.logger.debug(f'[SERVICE-DELETE] Rollback error: {rb_err}')
             current_app.logger.exception(f'Error deleting plan {plan_id}')
             return (False, f'Błąd przy usuwaniu: {str(e)}')
 
@@ -429,10 +428,7 @@ class PlanningService:
         Returns:
             (success: bool, message: str)
         """
-        import sys
-        from datetime import date
-        
-        print(f'\n[SERVICE-RESCHEDULE] reschedule_plan({plan_id}, {nowa_data}) START', file=sys.stderr, flush=True)
+        current_app.logger.debug(f'\n[SERVICE-RESCHEDULE] reschedule_plan({plan_id}, {nowa_data}) START')
         try:
             # Convert both dates to ISO string format for safe comparison
             if hasattr(nowa_data, 'isoformat'):
@@ -440,18 +436,18 @@ class PlanningService:
             else:
                 nowa_data_str = str(nowa_data)
             
-            print(f'[SERVICE-RESCHEDULE] Connecting to DB...', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Connecting to DB...')
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Validate plan exists and check status
-            print(f'[SERVICE-RESCHEDULE] Fetching plan {plan_id}...', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Fetching plan {plan_id}...')
             cursor.execute("SELECT status, data_planu, produkt, tonaz_rzeczywisty FROM plan_produkcji WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
-            print(f'[SERVICE-RESCHEDULE] Result: {res}', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Result: {res}')
             
             if not res:
-                print(f'[SERVICE-RESCHEDULE] Plan not found!', file=sys.stderr, flush=True)
+                current_app.logger.debug(f'[SERVICE-RESCHEDULE] Plan not found!')
                 return False, 'Plan nie istnieje.'
             
             status = res[0]
@@ -465,33 +461,33 @@ class PlanningService:
             else:
                 stara_data_str = str(stara_data)
             
-            print(f'[SERVICE-RESCHEDULE] Plan {plan_id}: status={status}, stara_data={stara_data_str}, produkt={produkt}, tonaz_rz={tonaz_rzeczywisty}', file=sys.stderr, flush=True)
-            print(f'[SERVICE-RESCHEDULE] Moving from {stara_data_str} to {nowa_data_str}', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Plan {plan_id}: status={status}, stara_data={stara_data_str}, produkt={produkt}, tonaz_rz={tonaz_rzeczywisty}')
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Moving from {stara_data_str} to {nowa_data_str}')
             
             # Only block if plan is currently being unpacked (w toku)
             if status == 'w toku':
-                print(f'[SERVICE-RESCHEDULE] Plan is w toku - cannot reschedule!', file=sys.stderr, flush=True)
+                current_app.logger.debug(f'[SERVICE-RESCHEDULE] Plan is w toku - cannot reschedule!')
                 return False, 'Nie można przesunąć planu, który jest w rozpakowania (w toku).'
             
             # Get max sequence for target date
-            print(f'[SERVICE-RESCHEDULE] Fetching max sequence for target date {nowa_data_str}...', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Fetching max sequence for target date {nowa_data_str}...')
             cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (nowa_data_str,))
             max_seq = cursor.fetchone()
             nowa_kolejnosc = (max_seq[0] if max_seq and max_seq[0] else 0) + 1
-            print(f'[SERVICE-RESCHEDULE] New sequence: {nowa_kolejnosc}', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] New sequence: {nowa_kolejnosc}')
             
             # Update date and reset sequence FOR PLAN
-            print(f'[SERVICE-RESCHEDULE] Updating plan_produkcji: id={plan_id}, nowa_data={nowa_data_str}...', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Updating plan_produkcji: id={plan_id}, nowa_data={nowa_data_str}...')
             cursor.execute(
                 "UPDATE plan_produkcji SET data_planu=%s, kolejnosc=%s WHERE id=%s",
                 (nowa_data_str, nowa_kolejnosc, plan_id)
             )
-            print(f'[SERVICE-RESCHEDULE] UPDATE plan_produkcji rowcount: {cursor.rowcount}', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] UPDATE plan_produkcji rowcount: {cursor.rowcount}')
             
             # NOW HANDLE BUFFER ENTRIES
             # Look for all active buffer entries by zasyp_id (no date restriction —
             # carry-over buffers may be on a different date than the plan itself)
-            print(f'[SERVICE-RESCHEDULE] === BUFFER LOOKUP === Checking for buffer entries: zasyp_id={plan_id}', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] === BUFFER LOOKUP === Checking for buffer entries: zasyp_id={plan_id}')
             cursor.execute("""
                 SELECT id, tonaz_rzeczywisty, spakowano, produkt, typ_produkcji
                 FROM bufor
@@ -499,10 +495,10 @@ class PlanningService:
             """, (plan_id,))
             
             buffer_entries = cursor.fetchall()
-            print(f'[SERVICE-RESCHEDULE] === BUFFER RESULT === Found {len(buffer_entries)} buffer entries', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] === BUFFER RESULT === Found {len(buffer_entries)} buffer entries')
             
             if buffer_entries:
-                print(f'[SERVICE-RESCHEDULE] Found buffer entries! Moving them...', file=sys.stderr, flush=True)
+                current_app.logger.debug(f'[SERVICE-RESCHEDULE] Found buffer entries! Moving them...')
                 
                 # Get max kolejka for target date in buffer
                 cursor.execute(
@@ -511,7 +507,7 @@ class PlanningService:
                 )
                 max_buf_seq = cursor.fetchone()
                 next_buf_kolejka = (max_buf_seq[0] if max_buf_seq and max_buf_seq[0] else 0) + 1
-                print(f'[SERVICE-RESCHEDULE] Buffer next kolejka: {next_buf_kolejka}', file=sys.stderr, flush=True)
+                current_app.logger.debug(f'[SERVICE-RESCHEDULE] Buffer next kolejka: {next_buf_kolejka}')
                 
                 for buf_entry in buffer_entries:
                     buf_id = buf_entry[0]
@@ -520,7 +516,7 @@ class PlanningService:
                     produkt_buf = buf_entry[3]
                     typ_prod = buf_entry[4]
                     
-                    print(f'[SERVICE-RESCHEDULE] Moving buffer entry {buf_id}: {produkt_buf} ({tonaz_rz}kg) spakowano={spakowano}...', file=sys.stderr, flush=True)
+                    current_app.logger.debug(f'[SERVICE-RESCHEDULE] Moving buffer entry {buf_id}: {produkt_buf} ({tonaz_rz}kg) spakowano={spakowano}...')
                     
                     # Update buffer entry with new date and new kolejka
                     cursor.execute("""
@@ -529,7 +525,7 @@ class PlanningService:
                         WHERE id=%s
                     """, (nowa_data_str, next_buf_kolejka, buf_id))
                     
-                    print(f'[SERVICE-RESCHEDULE] Buffer entry {buf_id} updated: rowcount={cursor.rowcount}', file=sys.stderr, flush=True)
+                    current_app.logger.debug(f'[SERVICE-RESCHEDULE] Buffer entry {buf_id} updated: rowcount={cursor.rowcount}')
                     next_buf_kolejka += 1
                     
                     current_app.logger.critical(
@@ -537,13 +533,13 @@ class PlanningService:
                         f'from {stara_data_str} to {nowa_data_str} with {tonaz_rz}kg spakowano={spakowano}'
                     )
             else:
-                print(f'[SERVICE-RESCHEDULE] NO buffer entries found - plan has no buffer entries yet', file=sys.stderr, flush=True)
+                current_app.logger.debug(f'[SERVICE-RESCHEDULE] NO buffer entries found - plan has no buffer entries yet')
             
             # Commit ALL changes
             conn.commit()
-            print(f'[SERVICE-RESCHEDULE] COMMIT done', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] COMMIT done')
             conn.close()
-            print(f'[SERVICE-RESCHEDULE] SUCCESS - Plan moved successfully\n', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] SUCCESS - Plan moved successfully\n')
             
             if buffer_entries:
                 msg = f'Plan i bufor przesunięte na nową datę ({len(buffer_entries)} wpisów: {", ".join([str(e[3]) for e in buffer_entries])}).'
@@ -554,14 +550,14 @@ class PlanningService:
             return True, msg
             
         except Exception as e:
-            print(f'[SERVICE-RESCHEDULE] *** EXCEPTION: {str(e)}', file=sys.stderr, flush=True)
-            print(f'[SERVICE-RESCHEDULE] Traceback: {traceback.format_exc()}', file=sys.stderr, flush=True)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] *** EXCEPTION: {str(e)}')
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Traceback: {traceback.format_exc()}')
             current_app.logger.exception(f'Error rescheduling plan {plan_id}')
             try:
                 conn.rollback()
-                print(f'[SERVICE-RESCHEDULE] ROLLBACK done', file=sys.stderr, flush=True)
+                current_app.logger.debug(f'[SERVICE-RESCHEDULE] ROLLBACK done')
             except Exception as rb_err:
-                print(f'[SERVICE-RESCHEDULE] ROLLBACK error: {rb_err}', file=sys.stderr, flush=True)
+                current_app.logger.debug(f'[SERVICE-RESCHEDULE] ROLLBACK error: {rb_err}')
             return False, 'Błąd przy przesuwaniu planu.'
 
     @staticmethod
