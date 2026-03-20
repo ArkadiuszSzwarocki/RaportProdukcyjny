@@ -47,7 +47,9 @@ def login():
                 
                 # Log login with current process PID
                 from flask import current_app
-                current_app.logger.info(f"[LOGIN] User '{login_field}' logged in successfully (PID: {os.getpid()})")
+                from app.core.audit import audit_log
+                current_app.logger.info("Użytkownik '%s' zalogował się (rola: %s)", login_field, (rola or '').lower())
+                audit_log('Zalogował się')
                 
                 # Pobierz imię_nazwisko z tabeli pracownicy dla wyświetlenia w belce górnej
                 imie_nazwisko = None
@@ -104,6 +106,10 @@ def login():
 @auth_bp.route('/logout')
 def logout():
     """Clear session and redirect to login."""
+    from flask import current_app
+    from app.core.audit import audit_log
+    audit_log('Wylogował się')
+    current_app.logger.info("Użytkownik '%s' wylogował się", session.get('login', '—'))
     deactivate_active_session(session.get('session_tracking_id'))
     session.clear()
     return redirect('/login')

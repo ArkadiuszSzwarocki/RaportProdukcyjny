@@ -2,8 +2,9 @@ from flask import Blueprint, render_template, request, redirect, flash, current_
 from datetime import date
 from app.db import get_db_connection, list_online_users
 from werkzeug.security import generate_password_hash
-# Importujemy dekorator
+
 from app.decorators import admin_required, login_required, dynamic_role_required
+from app.core.audit import audit_log
 
 
 def _load_roles(cursor):
@@ -213,11 +214,11 @@ def admin_ustawienia_roles():
 
     # pass JSON to template
     try:
-        current_app.logger.info('[ROLES_UI] roles from DB: %s', [r[0] for r in roles])
-        current_app.logger.info('[ROLES_UI] perms pages keys: %s', list(ordered_perms.keys()))
+        current_app.logger.debug('[ROLES_UI] roles from DB: %s', [r[0] for r in roles])
+        current_app.logger.debug('[ROLES_UI] perms pages keys: %s', list(ordered_perms.keys()))
         # also log first page perms roles keys sample
         first_page = pages[0]
-        current_app.logger.info('[ROLES_UI] sample perms for page %s: %s', first_page, list(ordered_perms.get(first_page, {}).keys()))
+        current_app.logger.debug('[ROLES_UI] sample perms for page %s: %s', first_page, list(ordered_perms.get(first_page, {}).keys()))
     except Exception:
         pass
     # pass JSON to template
@@ -229,7 +230,7 @@ def admin_ustawienia_roles():
 def admin_ustawienia_roles_users():
     """Show effective permissions per user (for admin verification)."""
     try:
-        current_app.logger.info('[ROLES_USERS] invoked by session: %s', { 'login': session.get('login'), 'rola': session.get('rola') })
+        current_app.logger.debug('[ROLES_USERS] invoked by session: %s', { 'login': session.get('login'), 'rola': session.get('rola') })
     except Exception:
         pass
     conn = get_db_connection()
@@ -285,12 +286,12 @@ def admin_ustawienia_roles_save():
     # Inline check: must be admin
     session_rola = str(session.get('rola') or '').lower()
     session_login = session.get('login') or '?'
-    current_app.logger.info('[ROLES_SAVE] Save attempt: login=%s rola=%s', session_login, session_rola)
+    current_app.logger.debug('[ROLES_SAVE] Save attempt: login=%s rola=%s', session_login, session_rola)
     if session_rola != 'admin':
         current_app.logger.warning('[ROLES_SAVE] Rejected: not admin. login=%s rola=%s', session_login, session_rola)
         return jsonify({'error': f'Brak uprawnień (twoja rola: {session_rola}, wymagana: admin)'}), 403
     try:
-        current_app.logger.info('admin_ustawienia_roles_save invoked by user=%s remote=%s', session_login, request.remote_addr)
+        current_app.logger.debug('admin_ustawienia_roles_save invoked by user=%s remote=%s', session_login, request.remote_addr)
         data = request.get_json(force=True)
     except Exception:
         data = None
@@ -367,7 +368,7 @@ def admin_ustawienia_roles_save():
             ordered_merged[p] = merged_config[p]
     merged_config = ordered_merged
     
-    current_app.logger.info('Reordered config pages: %s', list(merged_config.keys()))
+    current_app.logger.debug('Reordered config pages: %s', list(merged_config.keys()))
     
     # Make a timestamped backup if file exists
     try:
@@ -378,7 +379,7 @@ def admin_ustawienia_roles_save():
             bak_name = cfg_path + '.bak.' + _dt.now().strftime('%Y%m%d-%H%M%S')
             try:
                 shutil.copy2(cfg_path, bak_name)
-                current_app.logger.info('Created backup of role_permissions: %s', bak_name)
+                current_app.logger.debug('Created backup of role_permissions: %s', bak_name)
             except Exception:
                 current_app.logger.exception('Failed to create backup of role_permissions')
 
@@ -389,12 +390,13 @@ def admin_ustawienia_roles_save():
         with open(cfg_path, 'r', encoding='utf-8') as f:
             verify_order = json.load(f)
             saved_order = list(verify_order.keys())
-            current_app.logger.info('Verified config page order after save: %s', saved_order)
+            current_app.logger.debug('Verified config page order after save: %s', saved_order)
         
         try:
-            current_app.logger.info('Role permissions saved to %s by user=%s', cfg_path, session.get('login'))
+            current_app.logger.info('Uprawnienia ról zapisane przez %s', session.get('login'))
+            audit_log('Zmienił uprawnienia ról')
         except Exception:
-            current_app.logger.info('Role permissions saved to %s', cfg_path)
+            current_app.logger.info('Uprawnienia ról zapisane')
         return (jsonify({'ok': True, 'backup': bak_name}), 200)
     except Exception as e:
         try:
@@ -454,7 +456,7 @@ def admin_ustawienia_roles_add():
             try:
                 cur.execute("INSERT INTO roles (name, label) VALUES (%s, %s)", (role_name, role_name))
                 conn.commit()
-                current_app.logger.info('Inserted new role "%s" into roles table', role_name)
+                current_app.logger.debug('Inserted new role "%s" into roles table', role_name)
             except Exception:
                 # If insert fails (table missing or duplicate), ignore — config file is primary source
                 conn.rollback()
@@ -474,7 +476,8 @@ def admin_ustawienia_roles_add():
         with open(cfg_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
         
-        current_app.logger.info('Added new role "%s" by user=%s', role_name, session.get('login'))
+        current_app.logger.info('Dodano nową rolę "%s" przez %s', role_name, session.get('login'))
+        audit_log('Dodał rolę', f'nazwa={role_name}')
         return jsonify({'success': True, 'message': f'Rola "{role_name}" została dodana'}), 200
         
     except Exception as e:
@@ -710,6 +713,8 @@ def admin_dodaj_konto():
         flash("Login zajęty!", "error")
     conn.commit()
     conn.close()
+    audit_log('Dodał konto użytkownika', f'login={login}, rola={rola_field}')
+    current_app.logger.info('Admin %s dodał konto: login=%s, rola=%s', session.get('login'), login, rola_field)
     return redirect('/admin')
 
 
@@ -729,6 +734,9 @@ def admin_edytuj_konto():
         else:
             cursor.execute("UPDATE uzytkownicy SET login=%s, rola=%s, grupa=%s WHERE id=%s", (login, rola, grupa, uid))
         conn.commit()
+        zmiana = f'login={login}, rola={rola}' + (', zmiana hasła' if haslo else '')
+        audit_log('Edytował konto użytkownika', zmiana)
+        current_app.logger.info('Admin %s edytował konto ID=%s: %s', session.get('login'), uid, zmiana)
         flash("Zaktualizowano.", "success")
     except Exception:
         conn.rollback()
@@ -741,9 +749,15 @@ def admin_edytuj_konto():
 def admin_usun_konto(id):
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Fetch login before deletion for audit log
+    cursor.execute("SELECT login, rola FROM uzytkownicy WHERE id=%s", (id,))
+    row = cursor.fetchone()
     cursor.execute("DELETE FROM uzytkownicy WHERE id=%s", (id,))
     conn.commit()
     conn.close()
+    if row:
+        audit_log('Usunął konto użytkownika', f'login={row[0]}, rola={row[1]}')
+        current_app.logger.info('Admin %s usunął konto ID=%s (login=%s)', session.get('login'), id, row[0])
     flash("Usunięto.", "info")
     return redirect('/admin')
 
@@ -771,7 +785,7 @@ def admin_workowanie_times():
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     times_config = json.load(f)
                     loaded = True
-                    current_app.logger.info(f'Loaded workowanie_processing_times.json from {cfg_path}')
+                    current_app.logger.debug(f'Loaded workowanie_processing_times.json from {cfg_path}')
                     break
         except Exception as e:
             current_app.logger.debug(f'Failed to read {cfg_path}: {e}')
@@ -908,7 +922,7 @@ def admin_workowanie_times_update():
         with open(cfg_path, 'w', encoding='utf-8') as f:
             json.dump(times_config, f, ensure_ascii=False, indent=2)
         
-        current_app.logger.info('Updated workowanie_processing_times.json')
+        current_app.logger.debug('Updated workowanie_processing_times.json')
         flash("✓ Czasy przetwarzania Workowania zostały zaktualizowane!", "success")
     
     except Exception as e:
@@ -950,6 +964,7 @@ def admin_ustawienia_logs():
     logs_dir = os.path.join(project_root, 'logs')
     app_log_path = os.path.join(logs_dir, 'app.log')
     palety_log_path = os.path.join(logs_dir, 'palety.log')
+    audit_log_path = os.path.join(logs_dir, 'audit.log')
 
     # If a log file is very large, reduce the requested lines to avoid heavy IO
     def cap_lines_by_size(path, requested):
@@ -993,19 +1008,28 @@ def admin_ustawienia_logs():
 
     app_lines, app_trunc = cap_lines_by_size(app_log_path, lines)
     pal_lines, pal_trunc = cap_lines_by_size(palety_log_path, lines)
+    audit_lines, audit_trunc = cap_lines_by_size(audit_log_path, lines)
 
     app_log = tail_text(app_log_path, app_lines)
     palety_log = tail_text(palety_log_path, pal_lines)
+    audit_log_text = tail_text(audit_log_path, audit_lines)
 
     # redact sensitive fragments before rendering
     try:
         app_log = redact(app_log)
         palety_log = redact(palety_log)
+        audit_log_text = redact(audit_log_text)
     except Exception:
         # if redaction fails, fall back to safe escaping
         app_log = html.escape(app_log or '')
         palety_log = html.escape(palety_log or '')
+        audit_log_text = html.escape(audit_log_text or '')
 
-    return render_template('ustawienia_logs.html', app_log=app_log, palety_log=palety_log, lines=lines, app_trunc=app_trunc, pal_trunc=pal_trunc)
+    return render_template(
+        'ustawienia_logs.html',
+        app_log=app_log, palety_log=palety_log, audit_log=audit_log_text,
+        lines=lines,
+        app_trunc=app_trunc, pal_trunc=pal_trunc, audit_trunc=audit_trunc,
+    )
 
 

@@ -1,3 +1,0 @@
-[2026-03-07 21:48:19,886] INFO in daemon: Started palety monitor daemon thread
-[2026-03-07 21:48:19,887] INFO in daemon: Started periodic refresh_bufor_queue thread
-[2026-03-07 21:48:19,995] DEBUG in daemon: Periodic refresh_bufor_queue executed

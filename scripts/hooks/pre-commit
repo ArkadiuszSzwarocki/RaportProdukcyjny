@@ -1,0 +1,17 @@
+#!/bin/bash
+# Auto-increment patch version on each commit.
+# Install: cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+VERSION_FILE="VERSION"
+
+if [ -f "$VERSION_FILE" ]; then
+    CURRENT=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+    IFS='.' read -ra PARTS <<< "$CURRENT"
+    MAJOR="${PARTS[0]:-1}"
+    MINOR="${PARTS[1]:-0}"
+    PATCH="${PARTS[2]:-0}"
+    PATCH=$((PATCH + 1))
+    NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+    echo "$NEW_VERSION" > "$VERSION_FILE"
+    git add "$VERSION_FILE"
+fi

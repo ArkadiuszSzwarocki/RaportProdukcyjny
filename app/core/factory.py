@@ -17,18 +17,17 @@ from app.blueprints.routes_quality import quality_bp
 from app.blueprints.routes_shifts import shifts_bp
 from app.blueprints.routes_panels import panels_bp
 from app.blueprints.routes_production import production_bp
-from app.blueprints.routes_debug import debug_bp
 from app.blueprints.routes_warehouse import warehouse_bp
 from app.blueprints.routes_planning import planning_bp
 from app.blueprints.routes_journal import journal_bp
 from app.blueprints.routes_leaves import leaves_bp
 from app.blueprints.routes_overtime import overtime_bp
 from app.blueprints.routes_schedule import schedule_bp
-from app.blueprints.routes_testing import testing_bp
 from app.blueprints.routes_recovery import recovery_bp
 from app.blueprints.routes_zarzad import zarzad_bp
 from app.blueprints.routes_compat import compat_bp
 from app.blueprints.routes_main import main_bp
+from app.blueprints.routes_struktura import struktura_bp
 from app import db
 from app.core.middleware import register_middleware
 
@@ -88,24 +87,19 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(shifts_bp)
     app.register_blueprint(panels_bp)
     app.register_blueprint(production_bp)
-    # Debug blueprint: only enabled locally to assist troubleshooting (temporary)
-    try:
-        app.register_blueprint(debug_bp)
-    except Exception as e:
-        app.logger.exception('Failed to register debug_bp: %s', e)
     app.register_blueprint(warehouse_bp)
     app.register_blueprint(planning_bp, url_prefix='/api')
     app.register_blueprint(journal_bp)
     app.register_blueprint(leaves_bp, url_prefix='/api')
     app.register_blueprint(overtime_bp, url_prefix='/api')
     app.register_blueprint(schedule_bp)
-    app.register_blueprint(testing_bp)
     app.register_blueprint(recovery_bp, url_prefix='/api')
     app.register_blueprint(admin_bp)
     app.register_blueprint(compat_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(planista_bp)
     app.register_blueprint(zarzad_bp)
+    app.register_blueprint(struktura_bp)
     
     # Register Jinja2 filters
     app.jinja_env.filters['format_czasu'] = format_godziny

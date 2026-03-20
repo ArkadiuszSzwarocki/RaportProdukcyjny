@@ -4,6 +4,7 @@ import glob
 from datetime import date, datetime
 from app.db import get_db_connection, rollover_unfinished, sync_dosypka_notifications
 from app.decorators import login_required, roles_required
+from app.core.audit import audit_log
 
 production_bp = Blueprint('production', __name__)
 
@@ -100,6 +101,8 @@ def start_zlecenie(id):
             if status_obecny != 'w toku':
                 cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
                 cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
+                current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
+                audit_log('Uruchomił zlecenie', f'ID={id}, produkt={produkt}, sekcja={sekcja}')
                 flash(f"✅ Uruchomiono: <strong>{produkt}</strong>", 'success')
 
                 # Jeśli jest warning info - dodaj do flash message
@@ -163,6 +166,8 @@ def koniec_zlecenie(id):
         # Zasyp i Workowanie działają NIEZALEŻNIE
         # Brak automatycznego aktualizowania Workowania gdy kończy się Zasyp
         conn.commit()
+        current_app.logger.info('Zakończono zlecenie ID=%s przez %s', id, session.get('login'))
+        audit_log('Zakończył zlecenie', f'ID={id}, tonaz_rz={rzeczywista_waga} kg')
         
         # WAŻNE: Odśwież bufor teraz, żeby kolejka się przesuniała
         try:
@@ -260,7 +265,7 @@ def api_test_pobierz_raport():
 @login_required
 def szarza_page(plan_id):
     """Render form to add a szarża (charge) for Zasyp plan"""
-    current_app.logger.info(f'[SZARZA_PAGE] Called with plan_id={plan_id}')
+    current_app.logger.debug(f'[SZARZA_PAGE] Called with plan_id={plan_id}')
     
     conn = get_db_connection()
     try:
@@ -276,7 +281,7 @@ def szarza_page(plan_id):
             return redirect('/')
         
         produkt, typ_produkcji = plan[0], plan[1]
-        current_app.logger.info(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}')
+        current_app.logger.debug(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}')
         return render_template('dodaj_palete_popup.html', 
                      plan_id=plan_id, 
                      sekcja='Zasyp',
@@ -681,7 +686,7 @@ def anuluj_dosypke(dosypka_id):
 @roles_required('laborant', 'pracownik', 'produkcja', 'lider', 'admin')
 def api_dosypki():
     """Return JSON of active unconfirmed dosypki for operators."""
-    current_app.logger.info(f"[api_dosypki] Endpoint reached by user role: {session.get('rola')}")
+    current_app.logger.debug(f"[api_dosypki] Endpoint reached by user role: {session.get('rola')}")
     plan_id = request.args.get('plan_id', None)
     conn = get_db_connection()
     try:

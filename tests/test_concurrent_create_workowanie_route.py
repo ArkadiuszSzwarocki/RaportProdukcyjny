@@ -2,6 +2,8 @@ import threading
 import time
 from datetime import date
 
+import pytest
+
 from app.db import get_db_connection
 
 
@@ -18,6 +20,7 @@ def worker_post_create(client_app, zasyp_id, results, idx):
     results[idx] = (resp.status_code, resp.get_json() if resp.is_json else resp.data.decode('utf-8'))
 
 
+@pytest.mark.require_db
 def test_concurrent_create_workowanie_route(app):
     conn = get_db_connection()
     cur = conn.cursor()

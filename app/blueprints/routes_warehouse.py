@@ -4,6 +4,7 @@ from app.db import get_db_connection
 from app.decorators import login_required, roles_required, dynamic_role_required
 from app.utils.validation import require_field
 from app.services.planning_service import PlanningService
+from app.core.audit import audit_log
 
 warehouse_bp = Blueprint('warehouse', __name__)
 
@@ -71,7 +72,7 @@ def dodaj_palete(plan_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        current_app.logger.info('API dodaj_palete called plan_id=%s', plan_id)
+        current_app.logger.debug('dodaj_palete: plan_id=%s', plan_id)
     except Exception:
         pass
     
@@ -128,7 +129,8 @@ def dodaj_palete(plan_id):
                 pass
         
         try:
-            current_app.logger.info(f'[OK] Added paleta to Workowanie: plan_id={plan_id}, waga={waga_input}kg')
+            current_app.logger.info('Dodano paletę: plan_id=%s, waga=%s kg, użytkownik=%s', plan_id, waga_input, session.get('login'))
+            audit_log('Dodał paletę', f'plan_id={plan_id}, produkt={plan_produkt}, waga={waga_input} kg')
         except Exception:
             pass
         
@@ -365,7 +367,7 @@ def podsumowanie_szarz():
 
         rows = cursor.fetchall()
         try:
-            current_app.logger.info('[podsumowanie_szarz] fetched rows=%s', len(rows))
+            current_app.logger.debug('[podsumowanie_szarz] fetched rows=%s', len(rows))
         except Exception:
             pass
         results = []
@@ -1192,9 +1194,10 @@ def potwierdz_palete(paleta_id):
                             "INSERT INTO magazyn_palety (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                             (paleta_id, mp_id, z[0], z[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'))
                         )
-                        current_app.logger.info(f'[WAREHOUSE-CONFIRM] Paleta ID={paleta_id} transferred to magazyn_palety: waga_netto={netto_val}kg, plan_id={mp_id}, user={session.get("login")}')
+                        current_app.logger.info('Potwierdzono paletę ID=%s: waga_netto=%s kg, produkt=%s, użytkownik=%s', paleta_id, netto_val, z[1] if len(z) > 1 else '—', session.get('login'))
+                        audit_log('Potwierdził paletę', f'ID={paleta_id}, produkt={z[1] if len(z) > 1 else "—"}, waga_netto={netto_val} kg')
                     else:
-                        current_app.logger.info(f'[WAREHOUSE-CONFIRM] Paleta ID={paleta_id} already in magazyn_palety, updating waga_netto={netto_val}kg')
+                        current_app.logger.debug('Paleta ID=%s już jest w magazynie, aktualizacja wagi=%s kg', paleta_id, netto_val)
                     
                     # Recalculate Magazyn aggregates
                     cursor.execute(
@@ -1220,14 +1223,14 @@ def potwierdz_palete(paleta_id):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             # Calculate difference for AJAX response
             response_data = {'success': True, 'paleta_id': paleta_id}
-            current_app.logger.info(f'AJAX Response: deklarowana_waga={deklarowana_waga}, provided_netto={provided_netto}')
+            current_app.logger.debug(f'AJAX Response: deklarowana_waga={deklarowana_waga}, provided_netto={provided_netto}')
             if deklarowana_waga is not None and provided_netto is not None:
                 difference = abs(provided_netto - deklarowana_waga)
-                current_app.logger.info(f'Difference calculated: {difference}')
+                current_app.logger.debug(f'Difference calculated: {difference}')
                 if difference > 1:
                     response_data['has_difference'] = True
                     response_data['difference'] = round(difference, 1)
-                    current_app.logger.info(f'Returning modal response: {response_data}')
+                    current_app.logger.debug(f'Returning modal response: {response_data}')
             return jsonify(response_data), 200
     except Exception:
         pass
@@ -1758,7 +1761,8 @@ def usun_palete(id):
         cursor.execute("UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM palety_workowanie WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s", (plan_id, plan_id))
         conn.commit()
         
-        current_app.logger.info(f'[WAREHOUSE-DELETE] Paleta ID={id} deleted from plan_id={plan_id} by user={session.get("login")}')
+        current_app.logger.info('Usunięto paletę ID=%s, plan_id=%s, użytkownik=%s', id, plan_id, session.get('login'))
+        audit_log('Usunął paletę', f'ID={id}, plan_id={plan_id}')
         msg = 'Paleta usunięta'
         
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -1802,7 +1806,8 @@ def edytuj_palete(paleta_id):
             return redirect(bezpieczny_powrot())
 
         conn.commit()
-        current_app.logger.info(f"[WAREHOUSE-EDIT] Paleta ID={paleta_id} updated: {result.get('action')}={waga}kg, status={result.get('status')}, plan_id={result.get('plan_id')}, user={session.get('login')}")
+        current_app.logger.info('Edytowano paletę ID=%s, waga=%s kg, użytkownik=%s', paleta_id, waga, session.get('login'))
+        audit_log('Edytował paletę', f'ID={paleta_id}, waga={waga} kg')
         flash(f'Paleta zaktualizowana (waga={waga}kg)', 'success')
     except Exception as e:
         current_app.logger.error(f'[WAREHOUSE-EDIT] Failed to edit paleta {paleta_id}: {e}', exc_info=True)
@@ -1843,7 +1848,8 @@ def edytuj_palete_ajax():
 
         conn.commit()
         plan_id = result.get('plan_id')
-        current_app.logger.info(f'[WAREHOUSE-AJAX-EDIT] Paleta ID={paleta_id} updated: waga={nowa_waga}kg, plan_id={plan_id}, user={session.get("login")}')
+        current_app.logger.info('Edytowano paletę (AJAX) ID=%s, waga=%s kg, użytkownik=%s', paleta_id, nowa_waga, session.get('login'))
+        audit_log('Edytował paletę (magazyn)', f'ID={paleta_id}, waga={nowa_waga} kg, plan_id={plan_id}')
         return jsonify({'success': True, 'message': f'Waga zaktualizowana ({nowa_waga}kg)'})
     except Exception as e:
         current_app.logger.exception(f'[WAREHOUSE-AJAX-EDIT] Failed to edit paleta {paleta_id}: {e}')
@@ -1890,7 +1896,8 @@ def usun_palete_ajax():
         )
         
         conn.commit()
-        current_app.logger.info(f'[WAREHOUSE-AJAX-DELETE] Paleta ID={paleta_id} deleted from magazyn_palety, plan_id={plan_id}, user={session.get("login")}')
+        current_app.logger.info('Usunięto paletę z magazynu (AJAX) ID=%s, plan_id=%s, użytkownik=%s', paleta_id, plan_id, session.get('login'))
+        audit_log('Usunął paletę z magazynu', f'ID={paleta_id}, plan_id={plan_id}')
         return jsonify({'success': True, 'message': 'Paleta usunięta z magazynu'})
     except Exception as e:
         current_app.logger.exception(f'[WAREHOUSE-AJAX-DELETE] Failed to delete paleta {paleta_id}: {e}')
