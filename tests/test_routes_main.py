@@ -253,41 +253,6 @@ class TestBackwardCompatibility:
         assert response.status_code == 204
 
 
-class TestTestingRoutes:
-    """Tests for testing/development endpoints."""
-    
-    def test_test_download_page(self, client):
-        """Test download page endpoint."""
-        # Health endpoint should work without errors
-        response = client.get('/health')
-        
-        # Should complete successfully
-        assert response.status_code in [200, 503]
-    
-    def test_test_slide_endpoints(self, client):
-        """Test slide modal testing endpoints."""
-        response = client.get('/_test/slide/form')
-        
-        # Should return HTML or 404
-        assert response.status_code in [200, 404]
-    
-    def test_test_center_endpoints(self, client):
-        """Test center modal testing endpoints."""
-        response = client.get('/_test/center/notice')
-        
-        # Should return HTML or 404
-        assert response.status_code in [200, 404]
-    
-    def test_test_slide_submit(self, client):
-        """Test slide submit endpoint."""
-        response = client.post('/_test/slide/submit')
-        
-        # Should return JSON response or 404
-        assert response.status_code in [200, 404, 405, 500]
-        if response.status_code == 200:
-            assert response.content_type in ['application/json', 'text/json']
-
-
 class TestErrorHandling:
     """Tests for error handling in routes."""
     

@@ -20,7 +20,6 @@ def inject_static_version():
         candidates = [
             os.path.join(current_app.root_path, 'static', 'css', 'style.css'),
             os.path.join(current_app.root_path, 'static', 'scripts.js'),
-            os.path.join(current_app.root_path, 'static', 'quick_debug.js')
         ]
         mtimes = []
         for p in candidates:
