@@ -961,6 +961,12 @@ def admin_ustawienia_logs():
     if lines > 2000:
         lines = 2000
 
+    # optional search query across log files
+    q = request.args.get('q', '').strip()
+    q_file = request.args.get('file', '').strip()  # optional file filter: 'audit','palety','app' or empty for all
+    since_raw = request.args.get('since', '').strip()
+    until_raw = request.args.get('until', '').strip()
+
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     logs_dir = os.path.join(project_root, 'logs')
     app_log_path = os.path.join(logs_dir, 'app.log')
@@ -1026,11 +1032,220 @@ def admin_ustawienia_logs():
         palety_log = html.escape(palety_log or '')
         audit_log_text = html.escape(audit_log_text or '')
 
+    # If a search query is provided, perform a simple case-insensitive search across rotated log files
+    search_results = None
+    raw_files_content = None
+    # parse optional time range
+    from datetime import datetime
+
+    def _parse_dt(s):
+        if not s:
+            return None
+        # support ISO (YYYY-MM-DD...) and user-friendly Polish format (dd.mm.yyyy gg:hh)
+        fmts = [
+            '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M', '%Y-%m-%d',
+            '%d.%m.%Y %H:%M:%S', '%d.%m.%Y %H:%M', '%d.%m.%Y'
+        ]
+        for f in fmts:
+            try:
+                dt = datetime.strptime(s, f)
+                # if only date provided (format '%Y-%m-%d'), caller will interpret accordingly
+                return dt
+            except Exception:
+                continue
+        # try parsing with milliseconds comma/point
+        try:
+            s2 = s.replace('T', ' ')
+            # accept fractional seconds with comma or dot
+            return datetime.strptime(s2, '%Y-%m-%d %H:%M:%S,%f')
+        except Exception:
+            try:
+                s2 = s.replace('T', ' ')
+                return datetime.strptime(s2, '%Y-%m-%d %H:%M:%S.%f')
+            except Exception:
+                return None
+
+    since_dt = _parse_dt(since_raw)
+    until_dt = _parse_dt(until_raw)
+
+    # If q is empty but user requested a specific file or date range, return file contents
+    if not q and (q_file or since_dt or until_dt):
+        raw_files_content = []
+        try:
+            patterns = []
+            if q_file == 'audit':
+                patterns = ['audit.log']
+            elif q_file == 'palety':
+                patterns = ['palety.log']
+            elif q_file == 'app':
+                patterns = ['app.log']
+            else:
+                patterns = ['audit.log', 'palety.log', 'app.log']
+
+            from datetime import timedelta
+            # helper to add file if exists
+            def _try_add(fp, name):
+                try:
+                    if os.path.exists(fp) and os.path.isfile(fp):
+                        # limit read size to 2MB per file
+                        max_bytes = 2 * 1024 * 1024
+                        with open(fp, 'r', encoding='utf-8', errors='replace') as fh:
+                            content = fh.read(max_bytes)
+                            truncated = False
+                            # check if file longer than read
+                            try:
+                                extra = fh.read(1)
+                                if extra:
+                                    truncated = True
+                            except Exception:
+                                pass
+                        raw_files_content.append({'name': name, 'path': fp, 'content': content, 'truncated': truncated})
+                except Exception:
+                    return
+
+            # If both since and until point to same date, prefer that dated rotated file
+            if since_dt and until_dt and since_dt.date() == until_dt.date():
+                date_str = since_dt.strftime('%Y-%m-%d')
+                for p in patterns:
+                    cand = os.path.join(logs_dir, f"{p}.{date_str}")
+                    _try_add(cand, os.path.basename(cand))
+            elif since_dt and until_dt and since_dt.date() != until_dt.date():
+                # range spans multiple days — include files for each date in range
+                cur = since_dt.date()
+                end = until_dt.date()
+                while cur <= end:
+                    ds = cur.strftime('%Y-%m-%d')
+                    for p in patterns:
+                        cand = os.path.join(logs_dir, f"{p}.{ds}")
+                        _try_add(cand, os.path.basename(cand))
+                    cur = cur + timedelta(days=1)
+            elif since_dt and not until_dt:
+                ds = since_dt.strftime('%Y-%m-%d')
+                for p in patterns:
+                    cand = os.path.join(logs_dir, f"{p}.{ds}")
+                    _try_add(cand, os.path.basename(cand))
+            elif not since_dt and until_dt:
+                ds = until_dt.strftime('%Y-%m-%d')
+                for p in patterns:
+                    cand = os.path.join(logs_dir, f"{p}.{ds}")
+                    _try_add(cand, os.path.basename(cand))
+            else:
+                # No dates provided — show current file + up to 3 rotated files per pattern
+                for p in patterns:
+                    main_fp = os.path.join(logs_dir, p)
+                    _try_add(main_fp, p)
+                    # rotated: pattern.YYYY-MM-DD
+                    rotated = [n for n in os.listdir(logs_dir) if n.startswith(p + '.')] if os.path.exists(logs_dir) else []
+                    rotated.sort(reverse=True)
+                    for name in rotated[:3]:
+                        cand = os.path.join(logs_dir, name)
+                        _try_add(cand, name)
+        except Exception:
+            raw_files_content = raw_files_content or []
+
+    if q:
+        search_results = []
+        try:
+            # choose which filename prefixes to search
+            patterns = []
+            if q_file == 'audit':
+                patterns = ['audit.log']
+            elif q_file == 'palety':
+                patterns = ['palety.log']
+            elif q_file == 'app':
+                patterns = ['app.log']
+            else:
+                patterns = ['audit.log', 'palety.log', 'app.log']
+
+            # collect matching files from logs_dir
+            files = []
+            for name in os.listdir(logs_dir):
+                for p in patterns:
+                    if name.startswith(p):
+                        files.append(name)
+            # sort newest first
+            files.sort(reverse=True)
+
+            max_files = 12
+            max_matches = 800
+            matches = 0
+            # helper: extract timestamp prefix from a log line
+            import re
+            ts_re = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:[\.,]\d{1,6})?)')
+
+            for fname in files[:max_files]:
+                fpath = os.path.join(logs_dir, fname)
+                if not os.path.isfile(fpath):
+                    continue
+                try:
+                    with open(fpath, 'r', encoding='utf-8', errors='replace') as fh:
+                        for i, line in enumerate(fh, start=1):
+                            if q.lower() not in line.lower():
+                                continue
+                            # if time filters provided, try extract timestamp and compare
+                            if since_dt or until_dt:
+                                m = ts_re.match(line)
+                                if not m:
+                                    # skip lines without timestamp when time filter is active
+                                    continue
+                                ts_str = m.group(1)
+                                # normalize comma to dot for microseconds
+                                ts_norm = ts_str.replace(',', '.')
+                                try:
+                                    line_dt = datetime.strptime(ts_norm, '%Y-%m-%d %H:%M:%S.%f')
+                                except Exception:
+                                    try:
+                                        line_dt = datetime.strptime(ts_norm, '%Y-%m-%d %H:%M:%S')
+                                    except Exception:
+                                        # if can't parse, skip
+                                        continue
+                                if since_dt:
+                                    # if since_dt provided as date only, interpret as midnight
+                                    if since_dt.hour == 0 and since_dt.minute == 0 and since_dt.second == 0 and len(since_raw) == 10:
+                                        lower_ok = line_dt >= since_dt
+                                    else:
+                                        lower_ok = line_dt >= since_dt
+                                    if not lower_ok:
+                                        continue
+                                if until_dt:
+                                    # if until_dt provided as date only, interpret as end of day
+                                    if until_dt.hour == 0 and until_dt.minute == 0 and until_dt.second == 0 and len(until_raw) == 10:
+                                        # set to 23:59:59.999999
+                                        from datetime import timedelta
+                                        until_bound = until_dt + timedelta(days=1) - timedelta(microseconds=1)
+                                    else:
+                                        until_bound = until_dt
+                                    if line_dt > until_bound:
+                                        continue
+                            # matched query and time filters passed
+                            search_results.append({'file': fname, 'line_no': i, 'line': line.rstrip()})
+                            matches += 1
+                            if matches >= max_matches:
+                                break
+                except Exception:
+                    continue
+                if matches >= max_matches:
+                    break
+        except Exception:
+            search_results = search_results or []
+
+    # If requested via AJAX slide-over, return only the inner fragment (no layout)
+    is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest') or (request.args.get('fragment') == 'true')
+    if is_ajax:
+        return render_template(
+            'ustawienia_logs_fragment.html',
+            palety_log=palety_log, audit_log=audit_log_text,
+            lines=lines,
+            pal_trunc=pal_trunc, audit_trunc=audit_trunc,
+            q=q, q_file=q_file, search_results=search_results, raw_files_content=raw_files_content,
+        )
+    # Normal full-page render
     return render_template(
         'ustawienia_logs.html',
-        app_log=app_log, palety_log=palety_log, audit_log=audit_log_text,
+        palety_log=palety_log, audit_log=audit_log_text,
         lines=lines,
-        app_trunc=app_trunc, pal_trunc=pal_trunc, audit_trunc=audit_trunc,
+        pal_trunc=pal_trunc, audit_trunc=audit_trunc,
+        q=q, q_file=q_file, search_results=search_results, raw_files_content=raw_files_content,
     )
 
 

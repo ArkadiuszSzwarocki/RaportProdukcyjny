@@ -530,7 +530,12 @@ def dodaj_dosypke():
         created_by_user_id = session.get('user_id') if 'user_id' in session else None
         for name, kg in entries:
             cursor.execute("INSERT INTO dosypki (plan_id, szarza_id, nazwa, kg, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, 0)", (plan_id, szarza_id, name, kg, pracownik_id))
-
+            try:
+                # Log individual dosypka creation to audit log
+                audit_log('Dodał dosypkę', f'nazwa={name}, kg={kg}, plan_id={plan_id}')
+            except Exception:
+                # don't break on audit logging failure
+                current_app.logger.debug('audit_log failed for dosypka insert', exc_info=True)
         sync_dosypka_notifications(
             plan_id=plan_id,
             author_name=session.get('imie_nazwisko') or session.get('login'),
@@ -606,6 +611,10 @@ def potwierdz_dosypke(dosypka_id):
         if is_ajax:
             return jsonify({'success': True, 'message': 'Potwierdzono dosypkę.', 'plan_id': plan_id})
         flash('Potwierdzono dosypkę.', 'success')
+        try:
+            audit_log('Potwierdził dosypkę', f'id={dosypka_id}, plan_id={plan_id}')
+        except Exception:
+            current_app.logger.debug('audit_log failed for dosypka confirm', exc_info=True)
     except Exception as e:
         try:
             conn.rollback()
@@ -664,6 +673,10 @@ def anuluj_dosypke(dosypka_id):
                 'anulowal_login': anulowal_login,
             })
         flash('Dosypka została anulowana.', 'success')
+        try:
+            audit_log('Anulował dosypkę', f'id={dosypka_id}, plan_id={row[1]}, anulowal={anulowal_login}')
+        except Exception:
+            current_app.logger.debug('audit_log failed for dosypka cancel', exc_info=True)
     except Exception as e:
         try:
             conn.rollback()

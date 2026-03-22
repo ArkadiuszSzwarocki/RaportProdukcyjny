@@ -383,6 +383,11 @@
     window.addEventListener('beforeunload', function () {
         try {
             // Prefer an endpoint designed for closing session
+            // Skip sending close signal for intentional in-app navigations like file downloads
+            try {
+                if (window._skipSessionClose) return;
+            } catch (e) { }
+
             const url = '/api/session/close';
             if (navigator.sendBeacon) {
                 try {
@@ -397,6 +402,21 @@
             } catch (e) { /* ignore */ }
         } catch (e) { /* ignore */ }
     });
+
+    // Avoid closing session when user clicks a download link or navigates within app intentionally.
+    // Set a short-lived flag when an anchor pointing to a file-download is clicked so beforeunload skips closing.
+    document.addEventListener('click', function (ev) {
+        try {
+            const a = ev.target.closest && ev.target.closest('a');
+            if (!a) return;
+            const href = a.getAttribute('href') || '';
+            const isDownloadLink = href.indexOf('/admin/ustawienia/backups/download') === 0 || a.hasAttribute('download') || (a.target && a.target !== '_self');
+            if (isDownloadLink) {
+                window._skipSessionClose = true;
+                setTimeout(function () { window._skipSessionClose = false; }, 1500);
+            }
+        } catch (e) { }
+    }, false);
 
     // Partial reload: fetch current page and replace main content silently
     async function performPartialReload(options) {
