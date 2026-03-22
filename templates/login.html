@@ -62,6 +62,12 @@
         {% endif %}
     {% endwith %}
 
+    {% if request.args.get('timeout') %}
+        <div class="alert alert-warning">
+            Zostałeś wylogowany z powodu bezczynności.
+        </div>
+    {% endif %}
+
     <form method="POST">
         <div class="form-group">
             <label for="login" class="form-label">{{ _('login') }}</label>

@@ -118,7 +118,7 @@ def jakosc_detail(plan_id):
 @quality_bp.route('/jakosc/podsumowanie_szarz')
 @roles_required('laborant', 'lider', 'admin')
 def jakosc_podsumowanie_szarz():
-    """Podsumowanie szarż dla laboratorium: lista szarż z dosypkami, uwagami i parametrami."""
+    """Podsumowanie szarż dla laboratorium: lista szarż z dosypkami i uwagami."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -134,30 +134,50 @@ def jakosc_podsumowanie_szarz():
         """)
         szarze = [dict(szarza_id=r[0], plan_id=r[1], plan_nazwa=r[2], data_dodania=r[3], godzina=r[4], waga=r[5], pracownik_id=r[6], pracownik_name=r[7], uwagi=r[8]) for r in cursor.fetchall()]
 
-        # Dla każdej szarży dołącz dosypki i parametry
+        # Dla każdej szarży dołącz dosypki
         for s in szarze:
             sid = s['szarza_id']
             # dosypki
             cursor.execute("SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana FROM dosypki WHERE szarza_id = %s ORDER BY data_zlecenia ASC", (sid,))
             s['dosypki'] = [dict(id=r[0], nazwa=r[1], kg=r[2], data_zlecenia=r[3], potwierdzone=r[4], anulowana=r[5]) for r in cursor.fetchall()]
-            # parametry (stwórz tabelę jeśli nie istnieje)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS szarze_parametry (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    szarza_id INT NOT NULL,
-                    nazwa VARCHAR(100) NOT NULL,
-                    wartosc VARCHAR(255) NULL,
-                    autor_id INT NULL,
-                    data_dodania TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """)
-            conn.commit()
-            cursor.execute("SELECT id, nazwa, wartosc, autor_id, data_dodania FROM szarze_parametry WHERE szarza_id = %s ORDER BY data_dodania ASC", (sid,))
-            s['parametry'] = [dict(id=r[0], nazwa=r[1], wartosc=r[2], autor_id=r[3], data_dodania=r[4]) for r in cursor.fetchall()]
+
+        # Apply optional filters passed via query params (same param names as podsumowanie_szarz)
+        filter_has_dosypki = request.args.get('sz_filter_has_dosypki')
+        filter_no_dosypki = request.args.get('sz_filter_no_dosypki')
+        filter_has_uwagi = request.args.get('sz_filter_has_uwagi')
+        filter_surowiec = request.args.get('sz_filter_surowiec')
+
+        def match_filters(s):
+            # has dosypki
+            if filter_has_dosypki == '1' and (not s.get('dosypki') or len(s.get('dosypki')) == 0):
+                return False
+            if filter_no_dosypki == '1' and s.get('dosypki') and len(s.get('dosypki')) > 0:
+                return False
+            if filter_has_uwagi == '1' and not s.get('uwagi'):
+                return False
+            if filter_surowiec:
+                fs = filter_surowiec.strip().lower()
+                if fs:
+                    found = False
+                    for d in s.get('dosypki') or []:
+                        try:
+                            if d.get('nazwa') and fs in d.get('nazwa').lower():
+                                found = True
+                                break
+                        except Exception:
+                            continue
+                    if not found:
+                        return False
+            return True
+
+        try:
+            filtered = [s for s in szarze if match_filters(s)]
+        except Exception:
+            filtered = szarze
 
         cursor.close()
         conn.close()
-        return render_template('jakosc_podsumowanie_szarz.html', szarze=szarze, rola=session.get('rola'))
+        return render_template('jakosc_podsumowanie_szarz.html', szarze=filtered, rola=session.get('rola'))
     except Exception as e:
         current_app.logger.exception('Failed to render jakosc podsumowanie szarz: %s', e)
         return redirect(url_for('quality.jakosc_index'))
@@ -191,127 +211,54 @@ def jakosc_podsumowanie_szarz_fragment():
         cursor.execute(q, tuple(params))
         szarze = [dict(szarza_id=r[0], plan_id=r[1], plan_nazwa=r[2], data_dodania=r[3], godzina=r[4], waga=r[5], pracownik_id=r[6], pracownik_name=r[7], uwagi=r[8]) for r in cursor.fetchall()]
 
-        # attach dosypki and params for each
+        # attach dosypki for each
         for s in szarze:
             sid = s['szarza_id']
             cursor.execute("SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana FROM dosypki WHERE szarza_id = %s ORDER BY data_zlecenia ASC", (sid,))
             s['dosypki'] = [dict(id=r[0], nazwa=r[1], kg=r[2], data_zlecenia=r[3], potwierdzone=r[4], anulowana=r[5]) for r in cursor.fetchall()]
-            cursor.execute("SELECT id, nazwa, wartosc, autor_id, data_dodania FROM szarze_parametry WHERE szarza_id = %s ORDER BY data_dodania ASC", (sid,))
-            s['parametry'] = [dict(id=r[0], nazwa=r[1], wartosc=r[2], autor_id=r[3], data_dodania=r[4]) for r in cursor.fetchall()]
+
+        # Apply same optional filters as main view
+        filter_has_dosypki = request.args.get('sz_filter_has_dosypki')
+        filter_no_dosypki = request.args.get('sz_filter_no_dosypki')
+        filter_has_uwagi = request.args.get('sz_filter_has_uwagi')
+        filter_surowiec = request.args.get('sz_filter_surowiec')
+
+        def match_filters(s):
+            if filter_has_dosypki == '1' and (not s.get('dosypki') or len(s.get('dosypki')) == 0):
+                return False
+            if filter_no_dosypki == '1' and s.get('dosypki') and len(s.get('dosypki')) > 0:
+                return False
+            if filter_has_uwagi == '1' and not s.get('uwagi'):
+                return False
+            if filter_surowiec:
+                fs = filter_surowiec.strip().lower()
+                if fs:
+                    found = False
+                    for d in s.get('dosypki') or []:
+                        try:
+                            if d.get('nazwa') and fs in d.get('nazwa').lower():
+                                found = True
+                                break
+                        except Exception:
+                            continue
+                    if not found:
+                        return False
+            return True
+
+        try:
+            filtered = [s for s in szarze if match_filters(s)]
+        except Exception:
+            filtered = szarze
 
         cursor.close()
         conn.close()
-        return render_template('jakosc_podsumowanie_szarz_fragment.html', szarze=szarze)
+        return render_template('jakosc_podsumowanie_szarz_fragment.html', szarze=filtered)
     except Exception as e:
         current_app.logger.exception('Failed to build fragment jakosc podsumowanie szarz: %s', e)
         return ("", 500)
 
 
-@quality_bp.route('/jakosc/szarza/<int:szarza_id>/parametr', methods=['POST'])
-@roles_required('laborant', 'lider', 'admin')
-def jakosc_dodaj_parametr(szarza_id):
-    """Dodaj parametr jakościowy do szarży (AJAX).
-    Form fields: `nazwa`, `wartosc`.
-    """
-    nazwa = request.form.get('nazwa', '').strip()
-    wartosc = request.form.get('wartosc', '').strip()
-    autor_id = session.get('pracownik_id')
-    if not nazwa:
-        return jsonify({'success': False, 'message': 'Nazwa parametru nie może być pusta'}), 400
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS szarze_parametry (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                szarza_id INT NOT NULL,
-                nazwa VARCHAR(100) NOT NULL,
-                wartosc VARCHAR(255) NULL,
-                autor_id INT NULL,
-                data_dodania TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """)
-        cursor.execute("INSERT INTO szarze_parametry (szarza_id, nazwa, wartosc, autor_id) VALUES (%s, %s, %s, %s)", (szarza_id, nazwa, wartosc, autor_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return jsonify({'success': True, 'message': 'Parametr dodany'}), 200
-    except Exception as e:
-        current_app.logger.exception('Failed to add parameter for szarza %s: %s', szarza_id, e)
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        try:
-            cursor.close()
-        except Exception:
-            pass
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return jsonify({'success': False, 'message': 'Błąd dodawania parametru'}), 500
-
-
-@quality_bp.route('/jakosc/szarza/<int:szarza_id>/parametr/<int:param_id>/usun', methods=['POST'])
-@roles_required('laborant', 'lider', 'admin')
-def jakosc_usun_parametr(szarza_id, param_id):
-    """Usuń parametr jakościowy"""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM szarze_parametry WHERE id=%s AND szarza_id=%s", (param_id, szarza_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return jsonify({'success': True, 'message': 'Parametr usunięty'}), 200
-    except Exception as e:
-        current_app.logger.exception('Failed to delete parameter %s for szarza %s: %s', param_id, szarza_id, e)
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        try:
-            cursor.close()
-        except Exception:
-            pass
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return jsonify({'success': False, 'message': 'Błąd usuwania parametru'}), 500
-
-
-@quality_bp.route('/jakosc/szarza/<int:szarza_id>/parametr/<int:param_id>/edytuj', methods=['POST'])
-@roles_required('laborant', 'lider', 'admin')
-def jakosc_edytuj_parametr(szarza_id, param_id):
-    """Edytuj wartość parametru jakościowego"""
-    wartosc = request.form.get('wartosc', '').strip()
-    if wartosc is None:
-        return jsonify({'success': False, 'message': 'Brak wartości'}), 400
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE szarze_parametry SET wartosc=%s WHERE id=%s AND szarza_id=%s", (wartosc, param_id, szarza_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return jsonify({'success': True, 'message': 'Zaktualizowano'}), 200
-    except Exception as e:
-        current_app.logger.exception('Failed to edit parameter %s for szarza %s: %s', param_id, szarza_id, e)
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        try:
-            cursor.close()
-        except Exception:
-            pass
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return jsonify({'success': False, 'message': 'Błąd edycji parametru'}), 500
+# Usunięto backendowe endpointy do tworzenia/edycji/usuwania parametrów.
 
 
 @quality_bp.route('/jakosc/download/<int:plan_id>/<path:filename>')

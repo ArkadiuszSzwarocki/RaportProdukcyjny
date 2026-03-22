@@ -276,6 +276,30 @@ def session_ping():
     return jsonify({'success': True})
 
 
+@api_bp.route('/session/close', methods=['POST'])
+@login_required
+def session_close():
+    """Close/deactivate current session (used by client-side unload/beacon).
+
+    Marks the tracked session as inactive in DB and clears server session.
+    Returns 204 No Content on success.
+    """
+    try:
+        sid = session.get('session_tracking_id')
+        try:
+            from app.db import deactivate_active_session
+            if sid:
+                deactivate_active_session(sid)
+        except Exception:
+            pass
+        # clear flask session server-side
+        session.clear()
+        return ('', 204)
+    except Exception as e:
+        current_app.logger.exception('Failed to close session: %s', e)
+        return jsonify({'success': False, 'message': 'Nie udało się zamknąć sesji'}), 500
+
+
 @api_bp.route('/update_uszkodzone_worki', methods=['POST'])
 @login_required
 def update_uszkodzone_worki():

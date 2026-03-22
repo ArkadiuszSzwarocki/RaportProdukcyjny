@@ -2,69 +2,34 @@
 {% block content %}
 <div class="section-box p-15">
     <h2>Podsumowanie szarż — Jakość</h2>
-    <p class="small text-muted">Lista wszystkich zarejestrowanych szarż z dosypkami, uwagami i parametrami laboratoryjnymi.</p>
+    <p class="small text-muted">Lista wszystkich zarejestrowanych szarż z dosypkami i uwagami.</p>
     <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center;">
         <button id="show-current-btn" class="btn btn-sm">Pokaż bieżące</button>
         <button id="refresh-btn" class="btn btn-sm">Odśwież</button>
         <div id="refresh-msg" class="small text-muted" style="margin-left:8px;"></div>
     </div>
 
+    <form id="jakoscFilters" method="get" action="/jakosc/podsumowanie_szarz" style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label class="small">Data: <input type="date" name="date" value="{{ request.args.get('date','') }}"></label>
+        <label class="small">Okres:
+            <select name="period">
+                <option value="day" {% if request.args.get('period','day')=='day' %}selected{% endif %}>Dzień</option>
+                <option value="week" {% if request.args.get('period')=='week' %}selected{% endif %}>Tydzień</option>
+                <option value="month" {% if request.args.get('period')=='month' %}selected{% endif %}>Miesiąc</option>
+            </select>
+        </label>
+        <label class="small"><input type="checkbox" name="sz_filter_has_dosypki" value="1" {% if request.args.get('sz_filter_has_dosypki')=='1' %}checked{% endif %}> Z dosypką</label>
+        <label class="small"><input type="checkbox" name="sz_filter_no_dosypki" value="1" {% if request.args.get('sz_filter_no_dosypki')=='1' %}checked{% endif %}> Bez dosypki</label>
+        <label class="small"><input type="checkbox" name="sz_filter_has_uwagi" value="1" {% if request.args.get('sz_filter_has_uwagi')=='1' %}checked{% endif %}> Z notatką</label>
+        <label class="small">Surowiec: <input type="text" name="sz_filter_surowiec" value="{{ request.args.get('sz_filter_surowiec','') }}" placeholder="nazwa surowca"></label>
+        <button type="submit" class="btn btn-sm btn-primary">Filtruj</button>
+    </form>
+
     <div id="szarze-list">
         {% include 'jakosc_podsumowanie_szarz_fragment.html' %}
     </div>
 </div>
 
-<script>
-try {
-function showAddParam(id){
-    document.getElementById('add-param-'+id).style.display='block';
-}
-function hideAddParam(id){
-    document.getElementById('add-param-'+id).style.display='none';
-    document.getElementById('add-param-msg-'+id).textContent='';
-}
-function addParam(id){
-    var nazwa = document.getElementById('param-nazwa-'+id).value.trim();
-    var wartosc = document.getElementById('param-wartosc-'+id).value.trim();
-    var msgEl = document.getElementById('add-param-msg-'+id);
-    if(!nazwa){ msgEl.textContent='Podaj nazwę parametru'; return; }
-    msgEl.textContent='Wysyłanie...';
-    var form = new FormData();
-    form.append('nazwa', nazwa);
-    form.append('wartosc', wartosc);
-
-    fetch('{{ url_for('quality.jakosc_dodaj_parametr', szarza_id=0) }}'.replace('/0/', '/'+id+'/' ), {
-        method: 'POST',
-        credentials: 'same-origin',
-        body: form
-    }).then(function(r){ return r.json(); }).then(function(j){
-        if(j && j.success){
-            msgEl.textContent='Dodano';
-            // Append row to params list
-            var listEl = document.getElementById('params-list-'+id);
-            var table = listEl.querySelector('table');
-            var now = new Date();
-            var nowStr = now.getFullYear() + '-' + (now.getMonth()+1).toString().padStart(2,'0') + '-' + now.getDate().toString().padStart(2,'0') + ' ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-            if(!table){
-                listEl.innerHTML = '<table class="modern-table small"><thead><tr><th>Nazwa</th><th>Wartość</th><th>Dodane</th></tr></thead><tbody></tbody></table>';
-                table = listEl.querySelector('table');
-            }
-            var tbody = table.querySelector('tbody');
-            var tr = document.createElement('tr');
-            tr.innerHTML = '<td>'+nazwa+'</td><td>'+wartosc+'</td><td>'+nowStr+'</td>';
-            tbody.appendChild(tr);
-            // clear inputs
-            document.getElementById('param-nazwa-'+id).value='';
-            document.getElementById('param-wartosc-'+id).value='';
-        } else {
-            msgEl.textContent = (j && j.message) ? j.message : 'Błąd';
-        }
-    }).catch(function(e){ msgEl.textContent='Błąd sieci'; console.error(e); });
-}
-} catch(err) { console.error('podsumowanie_szarz inline error (addParam)', err); }
-</script>
-
-{% endblock %}
 
 <script>
 try {
@@ -77,7 +42,13 @@ try {
         function fetchFragment(){
             msg.textContent = 'Ładowanie...';
             var url = '/jakosc/podsumowanie_szarz/fragment';
-            if(showCurrent) url += '?today=1';
+            // preserve current query params (filters) when fetching fragment
+            var qs = window.location.search || '';
+            if(showCurrent){
+                // ensure today=1 present
+                if(qs && qs.length>1) qs += '&today=1'; else qs = '?today=1';
+            }
+            if(qs && qs.length>0) url += qs;
             fetch(url, {credentials: 'same-origin'}).then(function(r){
                 if(!r.ok) throw new Error('HTTP '+r.status);
                 return r.text();
@@ -108,19 +79,4 @@ try {
 } catch(e){ console.error('init podsumowanie szarz js', e); }
 </script>
 
-<script>
-try {
-function deleteParam(szarzaId, paramId){
-    if(!confirm('Usunąć parametr?')) return;
-    fetch('/jakosc/szarza/'+szarzaId+'/parametr/'+paramId+'/usun', {method:'POST', credentials:'same-origin'})
-    .then(r=>r.json()).then(j=>{ if(j && j.success){ var row=document.getElementById('param-row-'+paramId); if(row) row.remove(); } else { alert(j && j.message?j.message:'Błąd'); } }).catch(e=>{alert('Błąd sieci');});
-}
-function editParamPrompt(szarzaId, paramId, currentVal){
-    var newVal = prompt('Nowa wartość:', currentVal||'');
-    if(newVal===null) return;
-    var form = new FormData(); form.append('wartosc', newVal);
-    fetch('/jakosc/szarza/'+szarzaId+'/parametr/'+paramId+'/edytuj', {method:'POST', credentials:'same-origin', body: form})
-    .then(r=>r.json()).then(j=>{ if(j && j.success){ var el=document.getElementById('param-val-'+paramId); if(el) el.textContent=newVal; } else { alert(j && j.message?j.message:'Błąd'); } }).catch(e=>{alert('Błąd sieci');});
-}
-} catch(err) { console.error('podsumowanie_szarz inline error (edit/delete)', err); }
-</script>
+{% endblock %}

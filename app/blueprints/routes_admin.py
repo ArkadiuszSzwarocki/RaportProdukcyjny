@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, flash, current_app, session, jsonify
+from flask import send_from_directory, abort
 from datetime import date
 from app.db import get_db_connection, list_online_users
 from werkzeug.security import generate_password_hash
@@ -1031,5 +1032,48 @@ def admin_ustawienia_logs():
         lines=lines,
         app_trunc=app_trunc, pal_trunc=pal_trunc, audit_trunc=audit_trunc,
     )
+
+
+# Backups viewer
+@admin_bp.route('/admin/ustawienia/backups')
+@dynamic_role_required('ustawienia')
+def admin_ustawienia_backups():
+    import os, datetime
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    backups_dir = os.path.join(project_root, 'backups')
+    files = []
+    try:
+        if os.path.exists(backups_dir):
+            for name in os.listdir(backups_dir):
+                if not name.startswith('db-backup-'):
+                    continue
+                full = os.path.join(backups_dir, name)
+                if os.path.isfile(full):
+                    stat = os.stat(full)
+                    files.append({
+                        'name': name,
+                        'size': stat.st_size,
+                        'mtime': datetime.datetime.fromtimestamp(stat.st_mtime),
+                    })
+        # sort by mtime desc
+        files.sort(key=lambda x: x['mtime'], reverse=True)
+    except Exception:
+        files = []
+    return render_template('ustawienia_backups.html', backups=files)
+
+
+@admin_bp.route('/admin/ustawienia/backups/download/<path:filename>')
+@dynamic_role_required('ustawienia')
+def admin_ustawienia_backups_download(filename):
+    import os
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    backups_dir = os.path.join(project_root, 'backups')
+    # prevent path traversal
+    requested = os.path.normpath(os.path.join(backups_dir, filename))
+    if not requested.startswith(os.path.normpath(backups_dir) + os.sep):
+        abort(404)
+    if not os.path.exists(requested) or not os.path.isfile(requested):
+        abort(404)
+    return send_from_directory(backups_dir, filename, as_attachment=True)
 
 

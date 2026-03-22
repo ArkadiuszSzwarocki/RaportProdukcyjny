@@ -38,3 +38,6 @@ MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', 'Raport Produkcyjny <nore
 # Folder raportów
 if not os.path.exists('raporty'):
     os.makedirs('raporty')
+
+# Session timeout (minutes) - use env var to override. Default: 40 minutes
+SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', 40))

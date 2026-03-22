@@ -275,6 +275,7 @@
         <input type="hidden" name="date" value="{{ qdate }}">
         <input type="hidden" name="sz_filter_plan" value="{{ szarze_filter_plan or '' }}">
         <input type="hidden" name="sz_filter_product" value="{{ szarze_filter_product or '' }}">
+        
         <input type="hidden" name="sz_per_page" value="{{ szarze_per_page if szarze_per_page is not none else 10 }}">
         <button type="submit" name="sz_page" value="{{ (szarze_page|int -1) if (szarze_page|int)>1 else 1 }}">← Prev</button>
         <button type="submit" name="sz_page" value="{{ (szarze_page|int +1) if (szarze_page|int) < (szarze_total_pages|int) else (szarze_total_pages|int if szarze_total_pages is not none else 1) }}">Next →</button>
@@ -288,6 +289,7 @@
         <input type="hidden" name="date" value="{{ qdate }}">
         <input type="hidden" name="sz_filter_plan" value="{{ szarze_filter_plan or '' }}">
         <input type="hidden" name="sz_filter_product" value="{{ szarze_filter_product or '' }}">
+        
         <input type="hidden" name="sz_per_page" value="{{ szarze_per_page if szarze_per_page is not none else 10 }}">
         <input type="number" name="sz_page" min="1" max="{{ szarze_total_pages if szarze_total_pages is not none else 1 }}" value="{{ szarze_page if szarze_page is not none else 1 }}" style="width:72px;padding:6px;border:1px solid #ccc;border-radius:4px">
         <button type="submit">Idź</button>

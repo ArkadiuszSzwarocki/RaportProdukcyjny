@@ -2,6 +2,7 @@
 
 from flask import Blueprint, render_template, request, redirect, session, flash, make_response
 from datetime import datetime
+import time
 from werkzeug.security import check_password_hash
 import os
 
@@ -75,6 +76,11 @@ def login():
                     display_name=session.get('imie_nazwisko'),
                     last_path=request.path,
                 )
+                # record last activity timestamp for server-side inactivity logout
+                try:
+                    session['last_activity'] = time.time()
+                except Exception:
+                    pass
                 
                 # Use location.replace on client to avoid keeping login page in history
                 target = '/planista' if rola == 'planista' else '/'

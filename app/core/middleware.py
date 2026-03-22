@@ -2,8 +2,9 @@
 
 import re
 import time
-from flask import request, session
-from app.db import get_db_connection, ensure_session_tracking_id, touch_active_session
+from datetime import timedelta
+from flask import request, session, redirect, current_app, url_for
+from app.db import get_db_connection, ensure_session_tracking_id, touch_active_session, deactivate_active_session
 
 
 def register_middleware(app):
@@ -15,6 +16,7 @@ def register_middleware(app):
     app.before_request(log_request_info(app))
     app.before_request(ensure_default_language(app))
     app.before_request(ensure_pracownik_mapping(app))
+    app.before_request(enforce_session_timeout(app))
     app.before_request(track_active_session(app))
     app.after_request(add_cache_headers(app))
 
@@ -187,6 +189,51 @@ def track_active_session(app):
         except Exception:
             try:
                 app.logger.exception('Failed to update active session heartbeat')
+            except Exception:
+                pass
+    return middleware
+
+
+def enforce_session_timeout(app):
+    """Middleware: enforce server-side inactivity logout based on `app.config['SESSION_TIMEOUT_MINUTES']`.
+
+    If user's last activity (stored in `session['last_activity']`) is older than the configured
+    timeout, the session is cleared and the active session is deactivated in the DB.
+    Returns a redirect to `/login` when timed out.
+    """
+    def middleware():
+        try:
+            timeout_min = int(app.config.get('SESSION_TIMEOUT_MINUTES', 40))
+            if not session.get('zalogowany'):
+                return
+
+            now_ts = time.time()
+            last_activity = float(session.get('last_activity') or 0)
+            # If last_activity is missing, set it now so we don't immediately logout newly logged users
+            if last_activity == 0:
+                session['last_activity'] = now_ts
+                return
+
+            idle_seconds = now_ts - last_activity
+            if idle_seconds > (timeout_min * 60):
+                try:
+                    current_app.logger.info('Session timeout: logging out %s after %s seconds idle', session.get('login'), int(idle_seconds))
+                except Exception:
+                    pass
+                # Deactivate tracked session in DB
+                try:
+                    deactivate_active_session(session.get('session_tracking_id'))
+                except Exception:
+                    pass
+                session.clear()
+                # Redirect to login with a timeout flag so the login page can show a message
+                return redirect(url_for('auth.login', timeout=1))
+
+            # Otherwise refresh last_activity
+            session['last_activity'] = now_ts
+        except Exception:
+            try:
+                app.logger.exception('Error enforcing session timeout')
             except Exception:
                 pass
     return middleware

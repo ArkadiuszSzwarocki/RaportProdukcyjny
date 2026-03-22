@@ -346,11 +346,57 @@
     let partialReloadInFlight = false;
 
     // Auto-refresh: odśwież tylko zawartość główną, bez resetowania całej aplikacji.
-    setInterval(function () {
-        if (partialReloadInFlight) return;
-        if (shouldSkipAutoRefresh()) return;
-        performPartialReload({ preserveScroll: false, source: 'auto-refresh' });
-    }, getRefreshIntervalMs());
+    let autoRefreshTimer = null;
+
+    function startAutoRefresh() {
+        try {
+            stopAutoRefresh();
+            const ms = getRefreshIntervalMs();
+            autoRefreshTimer = setInterval(function () {
+                if (partialReloadInFlight) return;
+                if (shouldSkipAutoRefresh()) return;
+                performPartialReload({ preserveScroll: false, source: 'auto-refresh' });
+            }, ms);
+        } catch (e) { console.warn('startAutoRefresh failed', e); }
+    }
+
+    function stopAutoRefresh() {
+        try { if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; } } catch (e) { }
+    }
+
+    // Start immediately
+    startAutoRefresh();
+
+    // Pause auto-refresh when the page is hidden to avoid keeping sessions alive via polling
+    document.addEventListener('visibilitychange', function () {
+        try {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                // restart with possibly updated interval
+                startAutoRefresh();
+            }
+        } catch (e) { console.warn('visibilitychange handler failed', e); }
+    });
+
+    // On unload, try to inform server to close session using navigator.sendBeacon or fetch keepalive
+    window.addEventListener('beforeunload', function () {
+        try {
+            // Prefer an endpoint designed for closing session
+            const url = '/api/session/close';
+            if (navigator.sendBeacon) {
+                try {
+                    navigator.sendBeacon(url);
+                    return;
+                } catch (e) { /* fallthrough to fetch */ }
+            }
+
+            // Fallback - use keepalive fetch
+            try {
+                fetch(url, { method: 'POST', keepalive: true, credentials: 'same-origin' });
+            } catch (e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
+    });
 
     // Partial reload: fetch current page and replace main content silently
     async function performPartialReload(options) {

@@ -525,7 +525,7 @@ def podsumowanie_szarz():
             produkt = r[1]
             # fetch szarze for this plan
             try:
-                cursor.execute("SELECT id, data_dodania FROM szarze WHERE plan_id=%s ORDER BY data_dodania ASC", (plan_id,))
+                cursor.execute("SELECT id, data_dodania, uwagi FROM szarze WHERE plan_id=%s ORDER BY data_dodania ASC", (plan_id,))
                 szarze_rows = cursor.fetchall()
             except Exception:
                 szarze_rows = []
@@ -555,12 +555,13 @@ def podsumowanie_szarz():
                             # fetch dosypki for this szarza to attach as list
                             dosypki_list = []
                             try:
-                                cursor.execute("SELECT id, data_zlecenia, data_potwierdzenia FROM dosypki WHERE plan_id=%s AND szarza_id=%s AND COALESCE(anulowana,0)=0 ORDER BY data_zlecenia ASC", (plan_id, sid))
+                                cursor.execute("SELECT id, data_zlecenia, data_potwierdzenia, nazwa FROM dosypki WHERE plan_id=%s AND szarza_id=%s AND COALESCE(anulowana,0)=0 ORDER BY data_zlecenia ASC", (plan_id, sid))
                                 drows = cursor.fetchall()
                                 for d in drows:
                                     did = d[0]
                                     dz = d[1]
                                     dconf = d[2] if len(d) > 2 else None
+                                    dnazwa = d[3] if len(d) > 3 else None
                                     try:
                                         if isinstance(dz, str):
                                             dz_dt = datetime.fromisoformat(dz)
@@ -577,7 +578,7 @@ def podsumowanie_szarz():
                                         dconf_hms = dc_dt.strftime('%H:%M:%S') if dc_dt else None
                                     except Exception:
                                         dconf_hms = (str(dconf) if dconf is not None else None)
-                                    dosypki_list.append({'id': did, 'order_time_hms': dz_hms, 'confirm_time_hms': dconf_hms})
+                                    dosypki_list.append({'id': did, 'order_time_hms': dz_hms, 'confirm_time_hms': dconf_hms, 'nazwa': dnazwa})
                             except Exception:
                                 dosypki_list = []
                             # compute szarza start: for first szarza -> plan_real_start, otherwise -> previous szarza last confirmation + 4min
@@ -681,9 +682,10 @@ def podsumowanie_szarz():
             except Exception:
                 pass
 
-            for idx, srow in enumerate(szarze_rows):
-                szarza_id = srow[0]
-                szarza_time = srow[1]
+                for idx, srow in enumerate(szarze_rows):
+                    szarza_id = srow[0]
+                    szarza_time = srow[1]
+                    szarza_uwagi = srow[2] if len(srow) > 2 else None
                 # formatted time for display
                 try:
                     if isinstance(szarza_time, str):
@@ -707,12 +709,12 @@ def podsumowanie_szarz():
 
                 # fetch all dosypki for this szarza (order times) to compute intervals
                 try:
-                    cursor.execute("SELECT id, data_zlecenia, data_potwierdzenia FROM dosypki WHERE plan_id=%s AND szarza_id=%s AND COALESCE(anulowana,0)=0 ORDER BY data_zlecenia ASC", (plan_id, szarza_id))
+                    cursor.execute("SELECT id, data_zlecenia, data_potwierdzenia, nazwa FROM dosypki WHERE plan_id=%s AND szarza_id=%s AND COALESCE(anulowana,0)=0 ORDER BY data_zlecenia ASC", (plan_id, szarza_id))
                     dos_rows = cursor.fetchall()
                 except Exception:
                     dos_rows = []
-
                 dosypki_order_times = [dr[1] for dr in dos_rows if dr and dr[1]]
+                dosypki_nazwy = [dr[3] for dr in dos_rows if dr and len(dr) > 3 and dr[3]]
                 dosypki_order_times_fmt = []
                 for dt in dosypki_order_times:
                     try:
@@ -809,6 +811,7 @@ def podsumowanie_szarz():
                     'produkt': produkt,
                     'szarza_id': szarza_id,
                     'szarza_time': szarza_time,
+                    'uwagi': szarza_uwagi,
                     'szarza_time_fmt': szarza_time_fmt,
                     'szarza_duration_s': szarza_duration_s,
                     'szarza_to_dosypka_s': szarza_to_dosypka_s,
@@ -823,7 +826,8 @@ def podsumowanie_szarz():
                     szarze_details[-1].update({
                         'dosypki_order_times': dosypki_order_times_fmt,
                         'dosypki_intervals_s': dosypki_intervals_s,
-                        'start_to_first_dosypka_s': start_to_first_s
+                        'start_to_first_dosypka_s': start_to_first_s,
+                        'dosypki_nazwy': dosypki_nazwy
                     })
                 except Exception:
                     pass
@@ -842,6 +846,10 @@ def podsumowanie_szarz():
 
         filter_plan = request.args.get('sz_filter_plan')
         filter_product = request.args.get('sz_filter_product')
+        filter_has_dosypki = request.args.get('sz_filter_has_dosypki')
+        filter_no_dosypki = request.args.get('sz_filter_no_dosypki')
+        filter_has_uwagi = request.args.get('sz_filter_has_uwagi')
+        filter_surowiec = request.args.get('sz_filter_surowiec')
 
         filtered_details = szarze_details
         if filter_plan:
@@ -853,6 +861,28 @@ def podsumowanie_szarz():
         if filter_product:
             fp = filter_product.strip().lower()
             filtered_details = [s for s in filtered_details if s.get('produkt') and fp in s.get('produkt').lower()]
+        # Filter: has dosypki / no dosypki
+        if filter_has_dosypki == '1':
+            filtered_details = [s for s in filtered_details if s.get('dosypki_order_times') and len(s.get('dosypki_order_times')) > 0]
+        if filter_no_dosypki == '1':
+            filtered_details = [s for s in filtered_details if not s.get('dosypki_order_times') or len(s.get('dosypki_order_times')) == 0]
+        # Filter: has uwagi (notes)
+        if filter_has_uwagi == '1':
+            filtered_details = [s for s in filtered_details if s.get('uwagi') and str(s.get('uwagi')).strip()]
+        # Filter: surowiec name (partial, case-insensitive)
+        if filter_surowiec:
+            fs = filter_surowiec.strip().lower()
+            if fs:
+                def has_surowiec(s):
+                    names = s.get('dosypki_nazwy') or []
+                    for n in names:
+                        try:
+                            if n and fs in n.lower():
+                                return True
+                        except Exception:
+                            continue
+                    return False
+                filtered_details = [s for s in filtered_details if has_surowiec(s)]
 
         total_items = len(filtered_details)
         total_pages = max(1, (total_items + per_page - 1) // per_page)
@@ -1879,7 +1909,7 @@ def usun_palete_ajax():
         cursor = conn.cursor()
         
         # Tylko usuń palety z magazyn_palety (potwierdzone)
-        cursor.execute("SELECT plan_id FROM magazyn_palety WHERE id=%s", (paleta_id,))
+        cursor.execute("SELECT plan_id, paleta_workowanie_id FROM magazyn_palety WHERE id=%s", (paleta_id,))
         row = cursor.fetchone()
         
         if not row:
@@ -1888,7 +1918,21 @@ def usun_palete_ajax():
             return jsonify({'success': False, 'message': msg}), 404
         
         plan_id = row[0]
+        paleta_workowanie_id = row[1] if len(row) > 1 else None
         cursor.execute("DELETE FROM magazyn_palety WHERE id=%s", (paleta_id,))
+        # If this magazyn entry pointed to a palety_workowanie row, mark it as no longer confirmed
+        try:
+            if paleta_workowanie_id:
+                cursor.execute(
+                    "UPDATE palety_workowanie SET status=%s, data_potwierdzenia=NULL, czas_potwierdzenia_s=NULL, czas_rzeczywistego_potwierdzenia=NULL, waga_potwierdzona=NULL WHERE id=%s",
+                    ('zamknieta', paleta_workowanie_id)
+                )
+        except Exception:
+            # Don't block deletion if updating the workowanie row fails
+            try:
+                current_app.logger.exception('Failed to update palety_workowanie after magazyn delete for paleta_workowanie_id=%s', paleta_workowanie_id)
+            except Exception:
+                pass
         # Zaktualizuj agregat Magazyn
         cursor.execute(
             "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto), 0) FROM magazyn_palety WHERE plan_id = %s) WHERE id = %s",

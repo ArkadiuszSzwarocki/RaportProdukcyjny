@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Backupy bazy danych</h2>
+<p>Lista plików backupu w katalogu <strong>backups/</strong>.</p>
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th>Nazwa pliku</th>
+      <th>Rozmiar</th>
+      <th>Data modyfikacji</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for b in backups %}
+    <tr>
+      <td>{{ b.name }}</td>
+      <td>{{ (b.size / 1024) | round(2) }} KB</td>
+      <td>{{ b.mtime.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+      <td><a class="btn btn-sm btn-outline-primary" href="/admin/ustawienia/backups/download/{{ b.name }}">Pobierz</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">Brak plików backupu.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
