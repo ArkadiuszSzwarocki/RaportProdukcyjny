@@ -50,6 +50,7 @@ instance/
 # Logs
 *.log
 logs/
+flask_startup.log
 
 # Debug files
 debug_*.log

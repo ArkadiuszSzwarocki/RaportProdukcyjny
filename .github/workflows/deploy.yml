@@ -67,15 +67,16 @@ jobs:
       - name: Auto-bump patch version
         id: version
         run: |
-          VERSION=$(cat VERSION | tr -d '[:space:]')
+          VERSION=$(cat VERSION | tr -d '[:space:]' | cut -d' ' -f1 | cut -d'(' -f1)
           MAJOR=$(echo $VERSION | cut -d. -f1)
           MINOR=$(echo $VERSION | cut -d. -f2)
           PATCH=$(echo $VERSION | cut -d. -f3)
           NEW_PATCH=$((PATCH + 1))
           NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
-          echo $NEW_VERSION > VERSION
+          BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+          echo "${NEW_VERSION} (${BUILD_DATE})" > VERSION
           echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
-          echo "Bumped version: ${VERSION} → ${NEW_VERSION}"
+          echo "Bumped version: ${VERSION} → ${NEW_VERSION} (${BUILD_DATE})"
 
       - name: Commit version bump
         run: |
