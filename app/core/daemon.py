@@ -155,10 +155,10 @@ def start_daemon_threads(app, cleanup_enabled=False):
     global palety_logger
     
     # Configure palety logger
-        try:
-            palety_logger = app.logger  # For now, use app logger
-        except Exception:
-            palety_logger = None
+    try:
+        palety_logger = app.logger  # For now, use app logger
+    except Exception:
+        palety_logger = None
     
     # Start cleanup thread (optional)
     if cleanup_enabled:
