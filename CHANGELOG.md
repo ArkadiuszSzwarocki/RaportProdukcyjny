@@ -4,6 +4,18 @@ Wszystkie istotne zmiany w projekcie będą dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/).
 
+## [1.0.4] - 2026-03-23
+
+### 🔧 Naprawa CI/CD i konfiguracji Docker
+
+#### GitHub Actions
+- ❌ Usunięto zduplikowany workflow `docker-publish.yml` (powodował race condition przy publikacji obrazu `:latest`)
+- ✅ `deploy.yml` – testy z bazą MySQL teraz poprzedzają build; naprawiono `codeql-action@v4→v3`
+- ✅ `python-tests.yml` – dodano serwis MySQL i zmienne środowiskowe DB; usunięto błędny start `app.py` bez bazy
+- ✅ `test-and-build.yml` – dodano serwis MySQL i zmienne DB do wszystkich kroków testów
+
+---
+
 ## [1.1.1] - 2026-02-01 (Updated)
 
 ### 🎉 Wymiana Architektury Email

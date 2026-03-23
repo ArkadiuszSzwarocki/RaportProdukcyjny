@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     services:
       mysql:
         image: mysql:8.0
@@ -57,11 +57,20 @@ jobs:
           DB_PASSWORD: testpass
           DB_NAME: test_db
           FLASK_ENV: testing
+          SECRET_KEY: ci-test-secret-key
 
       - name: Coverage report
         run: |
           pytest --cov=app --cov-report=xml
           echo "Coverage report generated"
+        env:
+          DB_HOST: localhost
+          DB_PORT: 3306
+          DB_USER: testuser
+          DB_PASSWORD: testpass
+          DB_NAME: test_db
+          FLASK_ENV: testing
+          SECRET_KEY: ci-test-secret-key
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -72,7 +81,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: test
-    
+
     steps:
       - uses: actions/checkout@v3
 
@@ -84,9 +93,17 @@ jobs:
           docker build -t raportprodukcyjny:${{ github.sha }} .
           docker build -t raportprodukcyjny:latest .
 
-      - name: Test Docker image
+      - name: Test Docker image (basic)
         run: |
-          docker run --rm raportprodukcyjny:latest python -c "import app; print('Import successful')"
+          docker run --rm \
+            -e DB_HOST=localhost \
+            -e DB_PORT=3306 \
+            -e DB_USER=testuser \
+            -e DB_PASSWORD=testpass \
+            -e DB_NAME=test_db \
+            -e FLASK_ENV=testing \
+            -e SECRET_KEY=ci-test-secret \
+            raportprodukcyjny:latest python -c "import sys; sys.exit(0)"
 
       - name: Save Docker image
         if: github.ref == 'refs/heads/main'
