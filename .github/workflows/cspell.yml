@@ -18,9 +18,9 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install cspell
+      - name: Install cspell and Polish dictionary
         run: |
-          npm install -g cspell
+          npm install -g cspell @cspell/dict-pl
 
       - name: Run cspell
         run: |
