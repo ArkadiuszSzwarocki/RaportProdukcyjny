@@ -56,15 +56,21 @@ def create_app(config_secret_key=None, init_db=True):
     except Exception as e:
         app.logger.exception('Failed to enumerate templates: %s', e)
     
-    # Configure with secret key
-    app.secret_key = config_secret_key or SECRET_KEY
-    
+    # Configure with secret key – always load from environment first so
+    # container restarts (Watchtower) do not invalidate existing session cookies.
+    _secret_key = config_secret_key or os.environ.get('SECRET_KEY') or SECRET_KEY
+    app.secret_key = _secret_key
+
     # Configure session to ensure cookies are properly set
     app.config['SESSION_COOKIE_SECURE'] = False  # Allow HTTP in development
     app.config['SESSION_COOKIE_HTTPONLY'] = True  # Don't allow JS access
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cross-site requests
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
     app.config['SESSION_PERMANENT'] = True  # Make sessions survive app restarts
+
+    # Load session timeout from env/config so middleware can read it from app.config
+    from app.config import SESSION_TIMEOUT_MINUTES as _timeout_min
+    app.config['SESSION_TIMEOUT_MINUTES'] = int(os.environ.get('SESSION_TIMEOUT_MINUTES', _timeout_min))
     
     # Set up logging and error handlers BEFORE any routes or blueprints
     setup_logging(app)
