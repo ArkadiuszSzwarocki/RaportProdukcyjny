@@ -46,6 +46,7 @@ services:
       - ./logs:/app/logs
       - ./raporty:/app/raporty
       - ./config:/app/config
+      - ./backups:/app/backups
     depends_on:
       db:
         condition: service_healthy
