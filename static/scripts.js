@@ -528,7 +528,13 @@
         }
 
         // Start spinner on form submit and on full-anchor navigations (skip AJAX/modal anchors)
-        document.addEventListener('submit', function (e) { try { startGlobalSpinnerWatcher(); } catch (e) { } }, true);
+        document.addEventListener('submit', function (e) { 
+            try { 
+                // mark this as intentional in-app navigation so beforeunload doesn't close the session
+                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 2000); } catch (ee) { }
+                startGlobalSpinnerWatcher(); 
+            } catch (e) { } 
+        }, true);
         document.addEventListener('click', function (e) {
             try {
                 const a = e.target.closest && e.target.closest('a[href]');
@@ -537,6 +543,8 @@
                 if (href.indexOf('#') === 0 || href.indexOf('javascript:') === 0) return;
                 if (a.target && a.target !== '' && a.target !== '_self') return;
                 if (a.hasAttribute('data-slide') || a.hasAttribute('data-slide-html') || href.indexOf('/api/') !== -1) return;
+                // internal navigation: set short-lived skip flag to avoid beforeunload closing session
+                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 2000); } catch (ee) { }
                 startGlobalSpinnerWatcher();
             } catch (e) { }
         }, true);
