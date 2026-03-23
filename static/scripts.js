@@ -403,20 +403,22 @@
         } catch (e) { /* ignore */ }
     });
 
-    // Avoid closing session when user clicks a download link or navigates within app intentionally.
-    // Set a short-lived flag when an anchor pointing to a file-download is clicked so beforeunload skips closing.
+    // Avoid closing session when user navigates within the app or clicks a download link.
+    // Set a short-lived flag when any internal same-origin anchor is clicked so beforeunload skips closing.
     document.addEventListener('click', function (ev) {
         try {
             const a = ev.target.closest && ev.target.closest('a');
             if (!a) return;
             const href = a.getAttribute('href') || '';
-            const isDownloadLink = href.indexOf('/admin/ustawienia/backups/download') === 0 || a.hasAttribute('download') || (a.target && a.target !== '_self');
-            if (isDownloadLink) {
-                window._skipSessionClose = true;
-                setTimeout(function () { window._skipSessionClose = false; }, 1500);
-            }
+            // Skip external links, anchors, javascript: and new-tab links
+            if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+            if (a.target && a.target !== '' && a.target !== '_self') return;
+            // For all same-origin navigations and downloads: skip the session close beacon
+            window._skipSessionClose = true;
+            setTimeout(function () { window._skipSessionClose = false; }, 2000);
         } catch (e) { }
     }, false);
+
 
     // Partial reload: fetch current page and replace main content silently
     async function performPartialReload(options) {
