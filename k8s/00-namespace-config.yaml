@@ -14,6 +14,10 @@ data:
   TZ: "Europe/Warsaw"
   DB_HOST: "mysql-service"
   DB_PORT: "3306"
+  # Overridden to external DB used in production environment
+  # When deploying to cluster that should use external DB set below values
+  DB_HOST: "192.168.0.18"
+  DB_PORT: "3307"
   DB_NAME: "raportprodukcyjny"
   PORT: "8082"
   HOST: "0.0.0.0"
