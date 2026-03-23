@@ -58,35 +58,45 @@ class TestCloseShiftAndGenerateReports:
 class TestCloseInProgressOrders:
     """Tests for _close_in_progress_orders method."""
     
-    def test_close_orders_updates_database(self):
+    def test_close_orders_updates_database(self, app):
         """Test that in-progress orders are closed."""
-        with patch('app.services.report_generation_service.get_db_connection') as mock_conn:
-            mock_cursor = MagicMock()
-            mock_conn.return_value.cursor.return_value = mock_cursor
-            
-            ReportGenerationService._close_in_progress_orders('Test notes')
-            
-            # Verify UPDATE and INSERT calls
-            assert mock_cursor.execute.call_count >= 2
-            # Check first execute (UPDATE)
-            first_call = mock_cursor.execute.call_args_list[0]
-            assert 'UPDATE plan_produkcji' in first_call[0][0]
-            # Check second execute (INSERT)
-            second_call = mock_cursor.execute.call_args_list[1]
-            assert 'INSERT INTO raporty_koncowe' in second_call[0][0]
+        with app.app_context():
+            with patch('app.services.report_generation_service.get_db_connection') as mock_conn:
+                mock_cursor = MagicMock()
+                mock_cursor.fetchall.return_value = [(1,), (2,)]
+                mock_conn.return_value.cursor.return_value = mock_cursor
+                
+                ReportGenerationService._close_in_progress_orders('Test notes')
+                
+                # Verify SELECT, UPDATE and INSERT calls
+                assert mock_cursor.execute.call_count >= 2
+                
+                update_called = False
+                insert_called = False
+                
+                for call_obj in mock_cursor.execute.call_args_list:
+                    query = call_obj[0][0]
+                    if 'UPDATE plan_produkcji' in query:
+                        update_called = True
+                    if 'INSERT INTO raporty_koncowe' in query:
+                        insert_called = True
+                        
+                assert update_called, "Brak zapytania UPDATE w historii modyfikacji mocka"
+                assert insert_called, "Brak zapytania INSERT w historii modyfikacji mocka"
     
-    def test_close_orders_commits_transaction(self):
+    def test_close_orders_commits_transaction(self, app):
         """Test that transaction is committed."""
-        with patch('app.services.report_generation_service.get_db_connection') as mock_conn:
-            mock_cursor = MagicMock()
-            mock_conn_instance = MagicMock()
-            mock_conn_instance.cursor.return_value = mock_cursor
-            mock_conn.return_value = mock_conn_instance
-            
-            ReportGenerationService._close_in_progress_orders('Test notes')
-            
-            mock_conn_instance.commit.assert_called_once()
-            mock_conn_instance.close.assert_called_once()
+        with app.app_context():
+            with patch('app.services.report_generation_service.get_db_connection') as mock_conn:
+                mock_cursor = MagicMock()
+                mock_conn_instance = MagicMock()
+                mock_conn_instance.cursor.return_value = mock_cursor
+                mock_conn.return_value = mock_conn_instance
+                
+                ReportGenerationService._close_in_progress_orders('Test notes')
+                
+                mock_conn_instance.commit.assert_called_once()
+                mock_conn_instance.close.assert_called_once()
 
 
 class TestGenerateReportFiles:

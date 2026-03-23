@@ -60,6 +60,15 @@ services:
       - raportprodukcyjny_net
     restart: unless-stopped
 
+  # Auto-updater
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 60 --cleanup
+    restart: unless-stopped
+
 
 volumes:
   db_data:
