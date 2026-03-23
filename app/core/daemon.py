@@ -212,7 +212,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
     try:
         backup_thread = threading.Thread(
             target=_backup_database,
-            kwargs={'interval_seconds': 3600},
+            kwargs={'interval_seconds': 3600, 'keep_days': 1},
             daemon=True
         )
         backup_thread.start()
@@ -221,7 +221,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
         _safe_log_exception('Failed to start database backup thread')
 
 
-def _backup_database(interval_seconds=3600, keep_days=7):
+def _backup_database(interval_seconds=3600, keep_days=1):
     """Background thread: creates a MySQL dump every `interval_seconds` seconds.
 
     Connects to DB_HOST (192.168.0.18 by default) using credentials from app config.

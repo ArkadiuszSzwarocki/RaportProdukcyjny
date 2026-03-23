@@ -7,6 +7,11 @@ FROM python:3.11-slim
 WORKDIR /app
 RUN groupadd -r appgroup || true && useradd -m -u 1000 -g appgroup appuser
 
+# Install mysqldump for database backups
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    default-mysql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy Python dependencies from builder
 COPY --from=builder /root/.local /home/appuser/.local
 ENV PATH=/home/appuser/.local/bin:$PATH
