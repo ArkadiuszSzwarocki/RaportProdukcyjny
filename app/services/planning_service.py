@@ -303,6 +303,22 @@ class PlanningService:
             conn.commit()
             conn.close()
             
+            if new_status == 'zakonczone':
+                try:
+                    import traceback
+                    caller = traceback.extract_stack()[-3]
+                    caller_str = f"{caller}"
+                    current_app.logger.critical(f"[TRAP-ZAKONCZONE] Zlecenie ID={plan_id} ('{produkt}') status manualnie zmieniony na 'zakonczone' przez funkcję change_status. Caller: {caller}, user: {session.get('login') if 'session' in globals() else 'unknown'}")
+                except Exception:
+                    caller_str = "unknown"
+                    current_app.logger.critical(f"[TRAP-ZAKONCZONE] Zlecenie ID={plan_id} ('{produkt}') status manualnie zmieniony na 'zakonczone' przez funkcję change_status. Caller: unknown")
+                
+                try:
+                    from app.core.audit import audit_log
+                    audit_log('[TRAP] Zmiana Statusu Zlecenia', f'Zakończono ID={plan_id} ({produkt}). Skrypt: {caller_str}')
+                except Exception:
+                    pass
+
             current_app.logger.info(f'Plan status changed: id={plan_id}, {old_status} -> {new_status}')
             return (True, f'Status dla {produkt} zmieniony na {new_status}.')
             
@@ -604,6 +620,12 @@ class PlanningService:
                         """, (plan_id,))
                         
                         fixed_count += 1
+                        current_app.logger.critical(f'[TRAP-ZAKONCZONE] Zlecenie ID={plan_id} zostało ZAKOŃCZONE automatycznie przez funkcję validate_and_fix_anomalies (API). Endpoint: /api/admin/fix-anomalies')
+                        try:
+                            from app.core.audit import audit_log
+                            audit_log('[TRAP] Automatyczne Zamknięcie', f'Naprawa anomalii dla ID={plan_id} ({produkt}) przez API')
+                        except Exception:
+                            pass
                         current_app.logger.info(
                             f'Fixed anomaly: ID={plan_id}, {produkt} '
                             f'(tonaz_rz={tonaz_rz}kg, status: zaplanowane->zakonczone)'

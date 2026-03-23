@@ -282,6 +282,9 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "dosypki", "data_anulowania", "DATETIME NULL", "Dodawanie kolumny 'data_anulowania' do dosypek")
     _add_column_if_missing(cursor, "dosypki", "anulowal_login", "VARCHAR(100) NULL", "Dodawanie kolumny 'anulowal_login' do dosypek")
     
+    # szarze columns
+    _add_column_if_missing(cursor, "szarze", "nr_szarzy", "INT NULL", "Dodawanie kolumny 'nr_szarzy' do szarze")
+    
     # Update typ_zlecenia for known quality orders
     try:
         cursor.execute("UPDATE plan_produkcji SET typ_zlecenia='jakosc' WHERE LOWER(TRIM(produkt)) IN ('dezynfekcja linii','dezynfekcja')")

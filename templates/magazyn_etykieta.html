@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Etykieta Palety</title>
+    <!-- Google Fonts for professional look -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        @page {
+            size: 100mm 150mm; /* A6 label size */
+            margin: 0;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100mm;
+            height: 150mm;
+            box-sizing: border-box;
+            font-family: 'Roboto', Arial, sans-serif;
+            background: #fff;
+            color: #000;
+        }
+        .label-container {
+            width: 100%;
+            height: 100%;
+            padding: 8mm; /* Leave physical margin */
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 2px solid #000;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #000;
+            padding-bottom: 5mm;
+            margin-bottom: 5mm;
+        }
+        .header h1 {
+            font-size: 28px;
+            font-weight: 900;
+            margin: 0;
+            text-transform: uppercase;
+        }
+        .header .subtitle {
+            font-size: 14px;
+            color: #333;
+            margin-top: 2mm;
+        }
+        .content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6mm;
+        }
+        .data-row {
+            display: flex;
+            flex-direction: column;
+        }
+        .data-label {
+            font-size: 12px;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 1px;
+        }
+        .data-value {
+            font-size: 24px;
+            font-weight: 700;
+            word-wrap: break-word;
+        }
+        .data-value.large {
+            font-size: 32px;
+        }
+        .footer {
+            border-top: 2px solid #000;
+            padding-top: 3mm;
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #666;
+        }
+        /* Auto-print */
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body onload="window.print();">
+    <div class="label-container">
+        <div class="header">
+            <h1>KARTA PALETY ({{ nr_palety }})</h1>
+            <div class="subtitle">Zlecenie nr: {{ plan_id }}</div>
+        </div>
+        
+        <div class="content">
+            <div class="data-row">
+                <span class="data-label">Produkt</span>
+                <span class="data-value large">{{ produkt }}</span>
+            </div>
+            
+            <div class="data-row">
+                <span class="data-label">Szarża z zasypu</span>
+                <span class="data-value large">SZARŻA NR {{ nr_szarzy }}</span>
+            </div>
+            
+            <div class="data-row" style="margin-top: auto; border-top: 1px dashed #000; padding-top: 5mm;">
+                <span class="data-label">Ilość na palecie (kg)</span>
+                <span class="data-value" style="font-size: 48px; text-align: right;">{{ waga|int }} kg</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div style="display: flex; flex-direction: column;">
+                <span>Zapakowano: {{ data_workowanie }}</span>
+                <span>Wydrukowano: {{ data_wydruku }}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; text-align: right; justify-content: flex-end;">
+                <span>Wydruk z Systemu P.R.</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

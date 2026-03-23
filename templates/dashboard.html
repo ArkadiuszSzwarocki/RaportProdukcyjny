@@ -220,6 +220,9 @@
                     <td><span class="badge-info">{{ user_login or '-' }}</span></td>
                     <td><span class="status-badge status-accepted">{{ status }}</span></td>
                     <td class="text-right">
+                        <a href="{{ url_for('warehouse.drukuj_etykiete', paleta_id=id) }}" target="_blank" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę">
+                            <span class="material-icons" style="font-size:18px;">print</span>
+                        </a>
                         {% if rola in ['produkcja', 'lider', 'admin'] %}
                         <button type="button" class="btn-icon text-primary" title="{{ _('edytuj') }}"
                             onclick="editPalet('{{ id }}', '{{ waga }}')">

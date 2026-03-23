@@ -75,6 +75,20 @@ class ReportGenerationService:
         cursor = conn.cursor()
         
         try:
+            from flask import current_app, request
+            import traceback
+            
+            # Pobranie listy do logu przed updatem
+            cursor.execute("SELECT id FROM plan_produkcji WHERE status='w toku'")
+            ids_to_close = [row[0] for row in cursor.fetchall()]
+            if ids_to_close:
+                current_app.logger.critical(f"[TRAP-ZAKONCZONE] UWAGA: Zamykam hurtowo {len(ids_to_close)} zleceń: {ids_to_close} przy generowaniu raportu zmiany (close_shift_and_generate_reports) -> Caller: {traceback.extract_stack()[-3]}")
+                try:
+                    from app.core.audit import audit_log
+                    audit_log('[TRAP] Hurtowe Zamknięcie Zmiany', f'Przymusowe zamknięcie aktywnych zleceń: {ids_to_close} podczas generowania raportu lidera.')
+                except Exception:
+                    pass
+                
             # Close all in-progress orders
             cursor.execute(
                 "UPDATE plan_produkcji SET status='zakonczone', real_stop=NOW() WHERE status='w toku'"

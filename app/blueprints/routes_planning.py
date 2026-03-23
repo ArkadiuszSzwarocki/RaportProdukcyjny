@@ -244,6 +244,28 @@ def dodaj_plan():
                 except Exception:
                     pass
                 
+                # Fetch nr_szarzy
+                nr_szarzy_str = request.form.get('nr_szarzy')
+                try:
+                    nr_szarzy = int(nr_szarzy_str) if nr_szarzy_str else None
+                except ValueError:
+                    nr_szarzy = None
+                
+                if not nr_szarzy:
+                    flash('Musisz podać numer szarży!', 'error')
+                    conn.close()
+                    return redirect(bezpieczny_powrot())
+
+                # Validate sequential numbers
+                cursor.execute("SELECT MAX(nr_szarzy) FROM szarze WHERE plan_id=%s", (zasyp_plan_id,))
+                max_nr = cursor.fetchone()[0]
+                expected_nr = (max_nr or 0) + 1
+
+                if nr_szarzy != expected_nr:
+                    flash(f'BŁĄD: Podałeś błędny numer szarży ({nr_szarzy}). Wykryto naruszenie kolejności! Zweryfikuj prawidłowy numer szarży z recepturą.', 'modal_error')
+                    conn.close()
+                    return redirect(bezpieczny_powrot())
+                
                 # Insert szarża into szarze table
                 from datetime import datetime as _dt
                 now = _dt.now()
@@ -254,8 +276,8 @@ def dodaj_plan():
                     pracownik_id = session.get('pracownik_id')
                 
                 cursor.execute(
-                    "INSERT INTO szarze (plan_id, waga, data_dodania, godzina, pracownik_id, status) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (zasyp_plan_id, tonaz, now, godzina, pracownik_id, 'zarejestowana')
+                    "INSERT INTO szarze (plan_id, waga, data_dodania, godzina, pracownik_id, status, nr_szarzy) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    (zasyp_plan_id, tonaz, now, godzina, pracownik_id, 'zarejestowana', nr_szarzy)
                 )
                 
                 # Synchronize plan's tonaz_rzeczywisty = SUM(szarże) + SUM(dosypki potwierdzone)

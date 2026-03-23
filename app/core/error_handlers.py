@@ -87,6 +87,19 @@ def setup_logging(app):
         # werkzeug writes to stderr by default which is fine.
 
     # ------------------------------------------------------------------
+    # Dedicated error logger
+    # ------------------------------------------------------------------
+    if not use_stream:
+        error_log_path = os.path.join(logs_dir, 'error.log')
+        error_handler = TimedRotatingFileHandler(
+            error_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
+        )
+        error_handler.setLevel(logging.ERROR)
+        error_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+        error_handler.setFormatter(error_formatter)
+        app.logger.addHandler(error_handler)
+
+    # ------------------------------------------------------------------
     # Audit logger — human-readable record of user actions
     # ------------------------------------------------------------------
     audit_logger = logging.getLogger('audit')

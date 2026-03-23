@@ -265,13 +265,21 @@ def _backup_database(interval_seconds=3600, keep_days=1):
                 database
             ]
 
-            with open(filepath, 'w', encoding='utf-8') as f:
-                result = subprocess.run(
-                    cmd,
-                    stdout=f,
-                    stderr=subprocess.PIPE,
-                    timeout=120
-                )
+            try:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    result = subprocess.run(
+                        cmd,
+                        stdout=f,
+                        stderr=subprocess.PIPE,
+                        timeout=120
+                    )
+            except FileNotFoundError:
+                _safe_log_warning('mysqldump command not found. DB backup skipped.')
+                try:
+                    os.remove(filepath)
+                except Exception:
+                    pass
+                return
 
             if result.returncode == 0:
                 size_kb = os.path.getsize(filepath) // 1024

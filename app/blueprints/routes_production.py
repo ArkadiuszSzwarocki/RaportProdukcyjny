@@ -166,6 +166,7 @@ def koniec_zlecenie(id):
         # Zasyp i Workowanie działają NIEZALEŻNIE
         # Brak automatycznego aktualizowania Workowania gdy kończy się Zasyp
         conn.commit()
+        current_app.logger.critical(f'[TRAP-ZAKONCZONE] Zlecenie ID={id} zostało ZAKOŃCZONE przez przycisk STOP. Użytkownik: {session.get("login")}, IP: {request.remote_addr}, Endpoint: /koniec_zlecenie')
         current_app.logger.info('Zakończono zlecenie ID=%s przez %s', id, session.get('login'))
         audit_log('Zakończył zlecenie', f'ID={id}, tonaz_rz={rzeczywista_waga} kg')
         

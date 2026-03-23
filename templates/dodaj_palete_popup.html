@@ -15,6 +15,10 @@
   <form action="{{ url_for('planning.dodaj_plan') }}" method="POST">
     <input id="tonaz" name="tonaz" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="{{ _('waga_szarzy_kg') }}" title="{{ _('waga_szarzy_kg_info') }}">
     
+    <label style="margin-top: 10px; display: block; font-size: 13px;">Numer szarży:</label>
+    <input id="nr_szarzy" name="nr_szarzy" type="number" step="1" min="1" required class="input-sm popup-input" placeholder="Podaj nr szarży zaczynając od 1" title="Podaj z jakiego numeru szarży jest ten zasyp (wymagane weryfikowanie z recepturą)">
+
+    
     <!-- Produkt i typ - ukryte (brane automatycznie z systemu) -->
     <input type="hidden" name="produkt" value="{{ produkt or '' }}">
     <input type="hidden" name="typ_produkcji" value="{{ typ or 'worki_zgrzewane_25' }}">

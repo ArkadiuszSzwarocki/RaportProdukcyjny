@@ -1,0 +1,26 @@
+<div class="section-box">
+    <div class="section-header">
+        <h2>⚠️ Dziennik błędów systemu (error.log)</h2>
+        <div><a href="/admin/ustawienia" class="btn">Powrót</a></div>
+    </div>
+
+    <div class="card mb-15">
+        <form method="get" class="inline-form" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <div>
+                <label for="lines">Pokaż ostatnie linie:</label>
+                <input type="number" id="lines" name="lines" value="{{ lines }}" min="10" max="2000" />
+                <button class="btn" type="submit">Odśwież</button>
+            </div>
+        </form>
+        <div class="muted">Wyświetlane są tylko logi systemu na poziomie ERROR oraz wpisy krytyczne dotyczące aplikacji. Dane autoryzacyjne w logach (tokeny) są redagowane. Zobacz pełny plik <code>logs/error.log</code> z poziomu serwera by analizować szczegóły.</div>
+    </div>
+
+    <div class="card mb-15">
+        <h3>⚠️ Kod błędu — error.log (ostatnie {{ lines }} linii){% if trunc %} — log za duży, obcięto{% endif %}</h3>
+        {% if error_log %}
+        <pre class="log-block" style="color: #c0392b; background: #fdedec; border-color: #e6b0aa;">{{ error_log }}</pre>
+        {% else %}
+        <div class="muted"><strong>Czysto!</strong> Plik <code>error.log</code> jest pusty lub jeszcze w ogóle nie istnieje. Gratulacje! 🎉</div>
+        {% endif %}
+    </div>
+</div>

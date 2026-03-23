@@ -1,0 +1,23 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath('.'))
+from app.db import get_db_connection
+
+def run():
+    conn = get_db_connection()
+    c = conn.cursor(dictionary=True)
+    c.execute("SELECT id, plan_id, paleta_workowanie_id, waga_netto, produkt FROM magazyn_palety WHERE produkt LIKE '%testowe 45%' ORDER BY id DESC LIMIT 5")
+    print("--- MAGAZYN ---")
+    for r in c.fetchall(): print(r)
+    
+    c.execute("SELECT id, plan_id, waga FROM palety_workowanie WHERE plan_id IN (SELECT id FROM plan_produkcji WHERE produkt LIKE '%testowe 45%') ORDER BY id DESC LIMIT 5")
+    print("--- WORKOWANIE ---")
+    for r in c.fetchall(): print(r)
+    
+    c.execute("SELECT id, waga, nr_szarzy, plan_id FROM szarze WHERE plan_id IN (SELECT id FROM plan_produkcji WHERE produkt LIKE '%testowe 45%')")
+    print("--- SZARZE DLA TESTOWE 45 ---")
+    for r in c.fetchall(): print(r)
+    conn.close()
+
+if __name__ == '__main__':
+    run()
