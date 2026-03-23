@@ -12,6 +12,45 @@ _reminded_palety = set()
 palety_logger = None
 
 
+def _safe_log_info(msg, *args, **kwargs):
+    try:
+        if palety_logger:
+            palety_logger.info(msg, *args, **kwargs)
+        else:
+            print(msg % args if args else msg)
+    except Exception:
+        try:
+            print(msg)
+        except Exception:
+            pass
+
+
+def _safe_log_warning(msg, *args, **kwargs):
+    try:
+        if palety_logger:
+            palety_logger.warning(msg, *args, **kwargs)
+        else:
+            print('WARNING: ' + (msg % args if args else msg))
+    except Exception:
+        try:
+            print('WARNING: ' + msg)
+        except Exception:
+            pass
+
+
+def _safe_log_exception(msg, *args, **kwargs):
+    try:
+        if palety_logger:
+            palety_logger.exception(msg, *args, **kwargs)
+        else:
+            print('EXCEPTION: ' + (msg % args if args else msg))
+    except Exception:
+        try:
+            print('EXCEPTION: ' + msg)
+        except Exception:
+            pass
+
+
 def _cleanup_old_reports(folder='raporty', max_age_hours=24, interval_seconds=3600):
     """Background thread: removes files in `folder` older than `max_age_hours` every `interval_seconds`.
     
@@ -34,13 +73,13 @@ def _cleanup_old_reports(folder='raporty', max_age_hours=24, interval_seconds=36
                                 if now - mtime > max_age:
                                     try:
                                         os.remove(path)
-                                        current_app.logger.info('Removed old report file: %s', path)
+                                        _safe_log_info('Removed old report file: %s', path)
                                     except Exception:
-                                        current_app.logger.exception('Failed to remove file: %s', path)
+                                        _safe_log_exception('Failed to remove file: %s', path)
                         except Exception:
-                            current_app.logger.exception('Error checking file: %s', path)
+                            _safe_log_exception('Error checking file: %s', path)
             except Exception:
-                current_app.logger.exception('Error in cleanup loop')
+                _safe_log_exception('Error in cleanup loop')
             time.sleep(interval_seconds)
     except Exception:
         current_app.logger.exception('Cleanup thread terminating unexpectedly')
@@ -95,15 +134,15 @@ def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
                         msg = f"Niepotwierdzona paleta id={r[0]}, plan_id={r[1]}, produkt={r[2]}, dodana={r[3]} - brak potwierdzenia > {threshold_minutes}min"
                         if palety_logger:
                             palety_logger.warning(msg)
-                        current_app.logger.warning(msg)
+                        _safe_log_warning(msg)
                         _reminded_palety.add(pid)
                     except Exception:
-                        current_app.logger.exception('Error processing unconfirmed paleta row')
+                        _safe_log_exception('Error processing unconfirmed paleta row')
             except Exception:
-                current_app.logger.exception('Error in unconfirmed palety monitor loop')
+                _safe_log_exception('Error in unconfirmed palety monitor loop')
             time.sleep(interval_seconds)
     except Exception:
-        current_app.logger.exception('Unconfirmed palety monitor terminating unexpectedly')
+        _safe_log_exception('Unconfirmed palety monitor terminating unexpectedly')
 
 
 def start_daemon_threads(app, cleanup_enabled=False):
@@ -116,10 +155,10 @@ def start_daemon_threads(app, cleanup_enabled=False):
     global palety_logger
     
     # Configure palety logger
-    try:
-        palety_logger = app.logger  # For now, use app logger
-    except Exception:
-        palety_logger = None
+        try:
+            palety_logger = app.logger  # For now, use app logger
+        except Exception:
+            palety_logger = None
     
     # Start cleanup thread (optional)
     if cleanup_enabled:
@@ -130,9 +169,9 @@ def start_daemon_threads(app, cleanup_enabled=False):
                 daemon=True
             )
             cleanup_thread.start()
-            app.logger.info('Started cleanup daemon thread')
+            _safe_log_info('Started cleanup daemon thread')
         except Exception:
-            app.logger.exception('Failed to start cleanup thread')
+            _safe_log_exception('Failed to start cleanup thread')
     
     # Start palety monitor thread
     try:
@@ -142,9 +181,9 @@ def start_daemon_threads(app, cleanup_enabled=False):
             daemon=True
         )
         monitor_thread.start()
-        app.logger.info('Started palety monitor daemon thread')
+        _safe_log_info('Started palety monitor daemon thread')
     except Exception:
-        app.logger.exception('Failed to start palety monitor thread')
+        _safe_log_exception('Failed to start palety monitor thread')
 
     # Start periodic refresh of bufor/Workowanie sync to keep DB in sync with Zasyp
     try:
@@ -165,7 +204,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
             daemon=True
         )
         refresh_thread.start()
-        app.logger.info('Started periodic refresh_bufor_queue thread')
+        _safe_log_info('Started periodic refresh_bufor_queue thread')
     except Exception:
-        app.logger.exception('Failed to start periodic refresh_bufor_queue thread')
+        _safe_log_exception('Failed to start periodic refresh_bufor_queue thread')
 
