@@ -199,7 +199,7 @@ def enforce_session_timeout(app):
 
     If user's last activity (stored in `session['last_activity']`) is older than the configured
     timeout, the session is cleared and the active session is deactivated in the DB.
-    Returns a redirect to `/login` when timed out.
+    Returns a redirect to `/login` when timed out (or 401 JSON for AJAX requests).
     """
     def middleware():
         try:
@@ -226,6 +226,21 @@ def enforce_session_timeout(app):
                 except Exception:
                     pass
                 session.clear()
+
+                # For AJAX/JSON requests return 401 instead of redirect
+                # so the browser doesn't follow the redirect and navigate to /login
+                try:
+                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                    accepts_json = request.accept_mimetypes.best_match(
+                        ['application/json', 'text/html']) == 'application/json'
+                except Exception:
+                    is_xhr = False
+                    accepts_json = False
+
+                if is_xhr or accepts_json:
+                    from flask import jsonify as _jsonify
+                    return _jsonify({'success': False, 'error': 'session_timeout'}), 401
+
                 # Redirect to login with a timeout flag so the login page can show a message
                 return redirect(url_for('auth.login', timeout=1))
 
