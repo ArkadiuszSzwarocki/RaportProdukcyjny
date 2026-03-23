@@ -739,9 +739,10 @@ def admin_edytuj_konto():
         audit_log('Edytował konto użytkownika', zmiana)
         current_app.logger.info('Admin %s edytował konto ID=%s: %s', session.get('login'), uid, zmiana)
         flash("Zaktualizowano.", "success")
-    except Exception:
+    except Exception as e:
         conn.rollback()
-        flash("Błąd aktualizacji (login może być zajęty).", "error")
+        current_app.logger.error("Błąd aktualizacji konta ID=%s: %s", uid, e)
+        flash(f"Błąd aktualizacji: {e}", "error")
     conn.close()
     return redirect('/admin?tab=users')
 

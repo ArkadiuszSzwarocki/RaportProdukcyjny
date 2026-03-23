@@ -100,9 +100,15 @@ def ensure_pracownik_mapping(app):
                         if r[1] is not None:
                             session['pracownik_id'] = int(r[1])
                     else:
+                        # Brak mapowania w DB - wyloguj dla bezpieczenstwa
+                        from app.core.audit import audit_log
+                        audit_log('Wylogowano automatycznie', f"Nie znaleziono powiązanego loginu w bazie - inwalidacja sesji.")
+                        session.clear()
+                        
                         # Try a best-effort automatic mapping on first login: tokenize login and search pracownicy
                         try:
                             l = session.get('login').lower()
+                            import re
                             l_alpha = re.sub(r"[^a-ząćęłńóśżź ]+", ' ', l)
                             tokens = [t.strip() for t in re.split(r"\s+|[_\.\-]", l_alpha) if t.strip()]
                             if tokens:
@@ -225,6 +231,9 @@ def enforce_session_timeout(app):
                     deactivate_active_session(session.get('session_tracking_id'))
                 except Exception:
                     pass
+                    
+                from app.core.audit import audit_log
+                audit_log('Wylogowano automatycznie', f"Przekroczenie czasu bezczynności (idle {int(idle_seconds)}s) - sesja zamknięta.")
                 session.clear()
 
                 # For AJAX/JSON requests return 401 instead of redirect

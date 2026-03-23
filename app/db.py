@@ -29,6 +29,11 @@ def _create_tables(cursor):
         cursor.execute("ALTER TABLE uzytkownicy MODIFY haslo VARCHAR(255)")
     except Exception:
         pass
+        
+    try:
+        cursor.execute("ALTER TABLE uzytkownicy ADD COLUMN grupa VARCHAR(50) DEFAULT NULL")
+    except Exception:
+        pass
     
     cursor.execute("CREATE TABLE IF NOT EXISTS pracownicy (id INT AUTO_INCREMENT PRIMARY KEY, imie_nazwisko VARCHAR(100))")
     

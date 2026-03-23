@@ -293,6 +293,11 @@ def session_close():
         except Exception:
             pass
         # clear flask session server-side
+        try:
+            from app.core.audit import audit_log
+            audit_log('Zamknięto połączenie w tle', 'Klient wysłał beacon zamknięcia karty lub odłączono sesję przeglądarki')
+        except Exception:
+            pass
         session.clear()
         return ('', 204)
     except Exception as e:
