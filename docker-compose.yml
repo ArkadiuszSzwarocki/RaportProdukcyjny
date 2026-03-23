@@ -26,9 +26,7 @@ services:
 
   # Flask Application
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
     container_name: raportprodukcyjny_app
     environment:
       FLASK_ENV: ${FLASK_ENV:-production}
