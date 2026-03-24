@@ -1952,3 +1952,134 @@ def usun_palete_ajax():
                 conn.close()
             except Exception:
                 pass
+
+
+@warehouse_bp.route('/drukuj_etykiete/<int:paleta_id>', methods=['GET'])
+@login_required
+def drukuj_etykiete(paleta_id):
+    """Generates a 100x150 mm printable label for a palette in Magazyn.
+    Calculates which 'szarża' the palette belongs to based on cumulative weights.
+    """
+    from app.db import get_db_connection
+    from flask import request, abort, render_template, current_app
+    from werkzeug.exceptions import HTTPException
+    import datetime
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Checking if paleta_id belongs to magazyn_palety
+        cursor.execute('''
+            SELECT 
+                COALESCE(mp.plan_id, pw.plan_id) AS plan_id,
+                mp.waga_netto, 
+                COALESCE(p.produkt, pw_p.produkt, mp.produkt) AS produkt,
+                mp.paleta_workowanie_id,
+                pw.data_dodania
+            FROM magazyn_palety mp
+            LEFT JOIN plan_produkcji p ON mp.plan_id = p.id
+            LEFT JOIN palety_workowanie pw ON mp.paleta_workowanie_id = pw.id
+            LEFT JOIN plan_produkcji pw_p ON pw.plan_id = pw_p.id
+            WHERE mp.id = %s
+        ''', (paleta_id,))
+        row = cursor.fetchone()
+        
+        data_workowanie = None
+        
+        if row:
+            plan_id, paleta_waga, produkt, workowanie_id, pw_data = row
+            if pw_data:
+                data_workowanie = pw_data.strftime('%Y-%m-%d %H:%M:%S') if hasattr(pw_data, 'strftime') else str(pw_data)
+            if plan_id:
+                if workowanie_id:
+                    cursor.execute('''
+                        SELECT COALESCE(SUM(waga), 0) 
+                        FROM palety_workowanie 
+                        WHERE plan_id = %s AND id <= %s
+                    ''', (plan_id, workowanie_id))
+                    cumulative_paleta_waga = cursor.fetchone()[0]
+                else:
+                    cursor.execute('''
+                        SELECT COALESCE(SUM(waga_netto), 0) 
+                        FROM magazyn_palety 
+                        WHERE plan_id = %s AND id <= %s
+                    ''', (plan_id, paleta_id))
+                    cumulative_paleta_waga = cursor.fetchone()[0]
+            else:
+                cumulative_paleta_waga = paleta_waga
+        else:
+            # Fallback for palety_workowanie API calls
+            cursor.execute('''
+                SELECT pw.plan_id, pw.waga, p.produkt, pw.data_dodania, pw.id
+                FROM palety_workowanie pw
+                JOIN plan_produkcji p ON pw.plan_id = p.id
+                WHERE pw.id = %s
+            ''', (paleta_id,))
+            row = cursor.fetchone()
+            if not row:
+                abort(404, description="Paleta nie znaleziona")
+                
+            work_plan_id, paleta_waga, produkt, pw_data, wk_id = row
+            if pw_data:
+                data_workowanie = pw_data.strftime('%Y-%m-%d %H:%M:%S') if hasattr(pw_data, 'strftime') else str(pw_data)
+                
+            plan_id = work_plan_id
+            workowanie_id = wk_id
+            
+            cursor.execute('''
+                SELECT COALESCE(SUM(waga), 0) 
+                FROM palety_workowanie 
+                WHERE plan_id = %s AND id <= %s
+            ''', (plan_id, paleta_id))
+            cumulative_paleta_waga = cursor.fetchone()[0]
+
+        szarza_nr = "?"
+        zasyp_plan_id = None
+        
+        if plan_id:
+            cursor.execute('SELECT zasyp_id FROM plan_produkcji WHERE id = %s', (plan_id,))
+            zasyp_check = cursor.fetchone()
+            if zasyp_check and zasyp_check[0]:
+                zasyp_plan_id = zasyp_check[0]
+            else:
+                zasyp_plan_id = plan_id
+
+            cursor.execute('''
+                SELECT id, waga, nr_szarzy
+                FROM szarze 
+                WHERE plan_id = %s 
+                ORDER BY data_dodania ASC, id ASC
+            ''', (zasyp_plan_id,))
+            szarze_rows = cursor.fetchall()
+            
+            cumulative_szarza = 0
+            for i, s_row in enumerate(szarze_rows):
+                cumulative_szarza += s_row[1]
+                szarza_nr = s_row[2] if s_row[2] is not None else (i + 1)
+                if cumulative_szarza >= cumulative_paleta_waga:
+                    break
+
+        data_wydruku = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+
+        # Optional expiry date passed as query parameter 'termin'
+        termin_przydatnosci = request.args.get('termin') or None
+
+        return render_template('magazyn_etykieta.html',
+                       plan_id=zasyp_plan_id or 'Brak',
+                       produkt=produkt or 'Nieznany',
+                       nr_szarzy=szarza_nr,
+                       waga=paleta_waga,
+                       nr_palety=workowanie_id if workowanie_id else 'Brak',
+                       data_workowanie=data_workowanie or 'Ręczna paleta',
+                       data_wydruku=data_wydruku,
+                       termin_przydatnosci=termin_przydatnosci)
+    except HTTPException:
+        # Re-raise standard HTTP escapes, eg abort(404)
+        raise
+    except Exception as e:
+        current_app.logger.exception(f"Error generating label for paleta {paleta_id}: {e}")
+        abort(500, description="Wystąpił błąd przy generowaniu etykiety.")
+    finally:
+        cursor.close()
+        conn.close()
