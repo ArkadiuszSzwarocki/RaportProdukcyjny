@@ -23,7 +23,7 @@ def bezpieczny_powrot():
     elif role == 'admin':
         return url_for('admin.admin_panel')
     else:
-        return url_for('app.index')
+        return url_for('main.index')
 
 
 # Use `log_plan_history` implementation from `app.db` to avoid duplicate logic
@@ -146,7 +146,7 @@ def dodaj_plan_zaawansowany():
         )
     
     if not success:
-        flash(message, 'warning')
+        flash(message, 'modal_error')
         current_app.logger.warning(f'Failed to create plan: {message}')
     
     return redirect(url_for('planista.panel_planisty', data=data_planu))
@@ -446,6 +446,24 @@ def dodaj_plan():
                 return redirect(bezpieczny_powrot())
     
     # No open order found - create new planned order
+    # Prevent duplicate plans for same date+product: require editing existing plan instead
+    try:
+        cursor.execute(
+            "SELECT id, sekcja FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
+            (data_planu, produkt)
+        )
+        existing = cursor.fetchone()
+        if existing:
+            flash(f'Zlecenie dla {produkt} już istnieje na dzień {data_planu}. Zmień ilość istniejącego zlecenia zamiast tworzyć nowe.', 'modal_error')
+            conn.close()
+            return redirect(url_for('planista.panel_planisty', data=data_planu))
+    except Exception:
+        # If duplicate-check fails for any reason, continue to create (fail-open)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
     status = 'zaplanowane'
     cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja=%s", (data_planu, sekcja))
     res = cursor.fetchone()
@@ -525,6 +543,14 @@ def dodaj_plany_batch():
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: nieprawidłowy tonaż'})
             if not typ:
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: brak typu produkcji'})
+
+            # Duplicate check: do not allow creating a new plan for same product+date
+            cursor.execute(
+                "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
+                (data_planu, produkt)
+            )
+            if cursor.fetchone():
+                return jsonify({'success': False, 'message': f'Wiersz {idx}: zlecenie dla {produkt} już istnieje na {data_planu} — edytuj istniejący plan.'})
 
             # === AGRO: zapisz do dedykowanej tabeli plan_agro ===
             if sekcja == 'Agro':

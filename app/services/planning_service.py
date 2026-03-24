@@ -54,6 +54,24 @@ class PlanningService:
             conn = get_db_connection()
             cursor = conn.cursor()
             
+            # Prevent creating duplicate plans for same date+product
+            try:
+                cursor.execute(
+                    "SELECT id, sekcja FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
+                    (data_planu, produkt)
+                )
+                existing = cursor.fetchone()
+                if existing:
+                    existing_id = existing[0] if isinstance(existing, (list, tuple)) and len(existing) > 0 else existing
+                    conn.close()
+                    return (False, f'Istnieje już zlecenie dla produktu "{produkt}" na {data_planu}. Edytuj istniejący plan zamiast dodawać nowe.', existing_id)
+            except Exception:
+                # If anything goes wrong with the duplicate check, continue with insertion
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            
             # Get next sequence number for the day
             cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
             res = cursor.fetchone()

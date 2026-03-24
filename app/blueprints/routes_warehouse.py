@@ -2062,14 +2062,18 @@ def drukuj_etykiete(paleta_id):
 
         data_wydruku = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
 
+        # Optional expiry date passed as query parameter 'termin'
+        termin_przydatnosci = request.args.get('termin') or None
+
         return render_template('magazyn_etykieta.html',
-                               plan_id=zasyp_plan_id or 'Brak',
-                               produkt=produkt or 'Nieznany',
-                               nr_szarzy=szarza_nr,
-                               waga=paleta_waga,
-                               nr_palety=workowanie_id if workowanie_id else 'Brak',
-                               data_workowanie=data_workowanie or 'Ręczna paleta',
-                               data_wydruku=data_wydruku)
+                       plan_id=zasyp_plan_id or 'Brak',
+                       produkt=produkt or 'Nieznany',
+                       nr_szarzy=szarza_nr,
+                       waga=paleta_waga,
+                       nr_palety=workowanie_id if workowanie_id else 'Brak',
+                       data_workowanie=data_workowanie or 'Ręczna paleta',
+                       data_wydruku=data_wydruku,
+                       termin_przydatnosci=termin_przydatnosci)
     except HTTPException:
         # Re-raise standard HTTP escapes, eg abort(404)
         raise
