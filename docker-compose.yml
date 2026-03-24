@@ -46,7 +46,6 @@ services:
       - ./logs:/app/logs
       - ./raporty:/app/raporty
       - ./config:/app/config
-      - ./backups:/app/backups
     depends_on:
       db:
         condition: service_healthy
@@ -59,16 +58,6 @@ services:
     networks:
       - raportprodukcyjny_net
     restart: unless-stopped
-
-  # Auto-updater
-  watchtower:
-    image: containrrr/watchtower
-    container_name: watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 60 --cleanup
-    restart: unless-stopped
-
 
 volumes:
   db_data:
