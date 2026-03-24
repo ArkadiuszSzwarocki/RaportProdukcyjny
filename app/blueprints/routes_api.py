@@ -293,6 +293,9 @@ def session_close():
         except Exception:
             pass
         # clear flask session server-side
+        login = session.get('login', 'unknown')
+        path_referred = request.headers.get('Referer', 'unknown')
+        current_app.logger.critical(f"[SESSION_CLOSE] /api/session/close called by user {login} from {path_referred}")
         session.clear()
         return ('', 204)
     except Exception as e:
