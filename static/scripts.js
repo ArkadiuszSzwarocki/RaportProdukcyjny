@@ -379,32 +379,11 @@
         } catch (e) { console.warn('visibilitychange handler failed', e); }
     });
 
-    // On unload, try to inform server to close session using navigator.sendBeacon or fetch keepalive
-    window.addEventListener('beforeunload', function () {
-        try {
-            // Prefer an endpoint designed for closing session
-            // Skip sending close signal for intentional in-app navigations like file downloads
-            try {
-                if (window._skipSessionClose) return;
-            } catch (e) { }
-
-            const url = '/api/session/close';
-            if (navigator.sendBeacon) {
-                try {
-                    navigator.sendBeacon(url);
-                    return;
-                } catch (e) { /* fallthrough to fetch */ }
-            }
-
-            // Fallback - use keepalive fetch
-            try {
-                fetch(url, { method: 'POST', keepalive: true, credentials: 'same-origin' });
-            } catch (e) { /* ignore */ }
-        } catch (e) { /* ignore */ }
-    });
+    // The beforeunload session beacon has been removed due to unreliable behavior during internal navigation.
+    // Inactive sessions will now safely rely on the server-side 40-minute enforceable timeout in middleware.py 
+    // and explicit user logouts.
 
     // Avoid closing session when user clicks a download link or navigates within app intentionally.
-    // Set a short-lived flag when an anchor pointing to a file-download is clicked so beforeunload skips closing.
     document.addEventListener('click', function (ev) {
         try {
             const a = ev.target.closest && ev.target.closest('a');
@@ -543,8 +522,7 @@
                 if (href.indexOf('#') === 0 || href.indexOf('javascript:') === 0) return;
                 if (a.target && a.target !== '' && a.target !== '_self') return;
                 if (a.hasAttribute('data-slide') || a.hasAttribute('data-slide-html') || href.indexOf('/api/') !== -1) return;
-                // internal navigation: set short-lived skip flag to avoid beforeunload closing session
-                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 15000); } catch (ee) { }
+                // internal navigation
                 startGlobalSpinnerWatcher();
             } catch (e) { }
         }, true);
