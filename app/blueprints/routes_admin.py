@@ -739,10 +739,9 @@ def admin_edytuj_konto():
         audit_log('Edytował konto użytkownika', zmiana)
         current_app.logger.info('Admin %s edytował konto ID=%s: %s', session.get('login'), uid, zmiana)
         flash("Zaktualizowano.", "success")
-    except Exception as e:
+    except Exception:
         conn.rollback()
-        current_app.logger.error("Błąd aktualizacji konta ID=%s: %s", uid, e)
-        flash(f"Błąd aktualizacji: {e}", "error")
+        flash("Błąd aktualizacji (login może być zajęty).", "error")
     conn.close()
     return redirect('/admin?tab=users')
 
@@ -1240,6 +1239,7 @@ def admin_ustawienia_logs():
             pal_trunc=pal_trunc, audit_trunc=audit_trunc,
             q=q, q_file=q_file, search_results=search_results, raw_files_content=raw_files_content,
         )
+    # Normal full-page render
     return render_template(
         'ustawienia_logs.html',
         palety_log=palety_log, audit_log=audit_log_text,
@@ -1247,55 +1247,6 @@ def admin_ustawienia_logs():
         pal_trunc=pal_trunc, audit_trunc=audit_trunc,
         q=q, q_file=q_file, search_results=search_results, raw_files_content=raw_files_content,
     )
-
-@admin_bp.route('/admin/ustawienia/errors')
-@dynamic_role_required('ustawienia')
-def admin_ustawienia_errors():
-    from collections import deque
-    import os, time, html
-    try:
-        last = float(session.get('_errors_last_at') or 0)
-    except Exception:
-        last = 0
-    now = time.time()
-    if now - last < 1.0:
-        return (jsonify({'error': 'Too many requests'}), 429)
-    session['_errors_last_at'] = now
-
-    try:
-        lines = int(request.args.get('lines', '500'))
-    except Exception:
-        lines = 500
-    if lines < 10: lines = 10
-    if lines > 2000: lines = 2000
-
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    error_log_path = os.path.join(project_root, 'logs', 'error.log')
-
-    def cap_lines(path, req):
-        try:
-            if not os.path.exists(path): return req, False
-            if os.path.getsize(path) > 10 * 1024 * 1024: return min(req, 1000), True
-            return req, False
-        except Exception: return req, False
-    
-    def tail(path, n):
-        if not os.path.exists(path): return 'Log pusty lub nie istnieje.'
-        try:
-            with open(path, 'r', encoding='utf-8', errors='replace') as f:
-                return ''.join(deque(f, maxlen=n))
-        except Exception as e: return f"Error: {e}"
-
-    lines, trunc = cap_lines(error_log_path, lines)
-    content = tail(error_log_path, lines)
-    
-    # We redact it simply
-    content = html.escape(content or '')
-
-    is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest') or (request.args.get('fragment') == 'true')
-    if is_ajax:
-        return render_template('ustawienia_errors_fragment.html', error_log=content, lines=lines, trunc=trunc)
-    return render_template('ustawienia_errors.html', error_log=content, lines=lines, trunc=trunc)
 
 
 # Backups viewer

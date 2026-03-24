@@ -100,15 +100,9 @@ def ensure_pracownik_mapping(app):
                         if r[1] is not None:
                             session['pracownik_id'] = int(r[1])
                     else:
-                        # Brak mapowania w DB - wyloguj dla bezpieczenstwa
-                        from app.core.audit import audit_log
-                        audit_log('Wylogowano automatycznie', f"Nie znaleziono powiązanego loginu w bazie - inwalidacja sesji.")
-                        session.clear()
-                        
                         # Try a best-effort automatic mapping on first login: tokenize login and search pracownicy
                         try:
                             l = session.get('login').lower()
-                            import re
                             l_alpha = re.sub(r"[^a-ząćęłńóśżź ]+", ' ', l)
                             tokens = [t.strip() for t in re.split(r"\s+|[_\.\-]", l_alpha) if t.strip()]
                             if tokens:
@@ -205,7 +199,7 @@ def enforce_session_timeout(app):
 
     If user's last activity (stored in `session['last_activity']`) is older than the configured
     timeout, the session is cleared and the active session is deactivated in the DB.
-    Returns a redirect to `/login` when timed out (or 401 JSON for AJAX requests).
+    Returns a redirect to `/login` when timed out.
     """
     def middleware():
         try:
@@ -231,25 +225,7 @@ def enforce_session_timeout(app):
                     deactivate_active_session(session.get('session_tracking_id'))
                 except Exception:
                     pass
-                    
-                from app.core.audit import audit_log
-                audit_log('Wylogowano automatycznie', f"Przekroczenie czasu bezczynności (idle {int(idle_seconds)}s) - sesja zamknięta.")
                 session.clear()
-
-                # For AJAX/JSON requests return 401 instead of redirect
-                # so the browser doesn't follow the redirect and navigate to /login
-                try:
-                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-                    accepts_json = request.accept_mimetypes.best_match(
-                        ['application/json', 'text/html']) == 'application/json'
-                except Exception:
-                    is_xhr = False
-                    accepts_json = False
-
-                if is_xhr or accepts_json:
-                    from flask import jsonify as _jsonify
-                    return _jsonify({'success': False, 'error': 'session_timeout'}), 401
-
                 # Redirect to login with a timeout flag so the login page can show a message
                 return redirect(url_for('auth.login', timeout=1))
 

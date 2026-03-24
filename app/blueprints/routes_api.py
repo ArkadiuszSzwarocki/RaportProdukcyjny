@@ -292,7 +292,8 @@ def session_close():
                 deactivate_active_session(sid)
         except Exception:
             pass
-            
+        # clear flask session server-side
+        session.clear()
         return ('', 204)
     except Exception as e:
         current_app.logger.exception('Failed to close session: %s', e)

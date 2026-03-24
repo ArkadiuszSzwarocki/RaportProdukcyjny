@@ -636,7 +636,7 @@
         var overlay = document.getElementById('moveModalBufferOverlay');
 
         if (!modal) {
-            alert('❌ Brak okna dialogowego przeniesienia');
+            try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ Brak okna dialogowego przeniesienia</div>'); } catch(e){ alert('❌ Brak okna dialogowego przeniesienia'); }
             return;
         }
 
@@ -679,7 +679,7 @@
         var toDate = document.getElementById('move_to_date_buffer').value;
 
         if (!planId || !toDate) {
-            alert('❌ Brak wymaganych danych (ID lub data)');
+            try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ Brak wymaganych danych (ID lub data)</div>'); } catch(e){ alert('❌ Brak wymaganych danych (ID lub data)'); }
             return;
         }
 
@@ -692,14 +692,14 @@
             .then(j => {
                 if (j && j.success) {
                     closeMoveModalBuffer();
-                    alert('✅ ' + (j.message || 'Szarża przeniesiona na nową datę'));
+                    try { showQuickPopup('Sukces', `<div class="p-10">✅ ${ (j.message||'Szarża przeniesiona na nową datę') }</div>`); } catch(e){ alert('✅ ' + (j.message || 'Szarża przeniesiona na nową datę')); }
                     location.reload();
                 } else {
-                    alert('❌ ' + (j && j.message ? j.message : 'Błąd przeniesienia'));
+                    try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ ${ (j && j.message) ? j.message : 'Błąd przeniesienia' }</div>`); } catch(e){ alert('❌ ' + (j && j.message ? j.message : 'Błąd przeniesienia')); }
                 }
             })
             .catch(e => {
-                alert('❌ Błąd sieci: ' + e.message);
+                try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ Błąd sieci: ${ (e && e.message) ? e.message : '' }</div>`); } catch(err){ alert('❌ Błąd sieci: ' + e.message); }
             });
     }
 
@@ -719,14 +719,14 @@
             .then(r => r.json())
             .then(j => {
                 if (j && j.success) {
-                    alert(`✅ Zlecenie Workowanie utworzone NA DZISIAJ!\n${j.message}`);
+                    try { showQuickPopup('Sukces', `<div class="p-10">✅ Zlecenie Workowanie utworzone NA DZISIAJ!<br>${(j.message||'')}</div>`); } catch(e){ alert(`✅ Zlecenie Workowanie utworzone NA DZISIAJ!\n${j.message}`); }
                     location.reload();
                 } else {
-                    alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia'));
+                    try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ ${ (j && j.message) ? j.message : 'Nie udało się utworzyć zlecenia' }</div>`); } catch(e){ alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); }
                 }
             })
             .catch(e => {
-                alert('❌ Błąd sieci: ' + e.message);
+                try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ Błąd sieci: ${ (e && e.message) ? e.message : '' }</div>`); } catch(err){ alert('❌ Błąd sieci: ' + e.message); }
             });
     }
 
@@ -744,14 +744,14 @@
             .then(r => r.json())
             .then(j => {
                 if (j && j.success) {
-                    alert(`✅ ${j.message}`);
+                    try { showQuickPopup('Sukces', `<div class="p-10">✅ ${ (j.message||'') }</div>`); } catch(e){ alert(`✅ ${j.message}`); }
                     location.reload();
                 } else {
-                    alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia'));
+                    try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ ${ (j && j.message) ? j.message : 'Nie udało się utworzyć zlecenia' }</div>`); } catch(e){ alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się utworzyć zlecenia')); }
                 }
             })
             .catch(e => {
-                alert('❌ Błąd sieci: ' + e.message);
+                try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ Błąd sieci: ${ (e && e.message) ? e.message : '' }</div>`); } catch(err){ alert('❌ Błąd sieci: ' + e.message); }
             });
     }
 
@@ -774,12 +774,12 @@
                 const status = button.dataset.status || '';
 
                 if (!zasypId) {
-                    alert('❌ Brak ID zasypu');
+                    try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ Brak ID zasypu</div>'); } catch(e){ alert('❌ Brak ID zasypu'); }
                     return;
                 }
 
                 if (status !== 'zakonczone') {
-                    alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status);
+                    try { showQuickPopup('Uwaga', `<div class="p-10">⚠️ Zlecenie musi być zamknięte (status: zakonczone)<br><br>Aktualny status: ${status}</div>`); } catch(e){ alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status); }
                     return;
                 }
 
@@ -797,12 +797,12 @@
                 const status = button.dataset.status || '';
 
                 if (!zasypId) {
-                    alert('❌ Brak ID zasypu');
+                    try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ Brak ID zasypu</div>'); } catch(e){ alert('❌ Brak ID zasypu'); }
                     return;
                 }
 
                 if (status !== 'zakonczone') {
-                    alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status);
+                    try { showQuickPopup('Uwaga', `<div class="p-10">⚠️ Zlecenie musi być zamknięte (status: zakonczone)<br><br>Aktualny status: ${status}</div>`); } catch(e){ alert('⚠️ Zlecenie musi być zamknięte (status: zakonczone)\n\nAktualny status: ' + status); }
                     return;
                 }
 

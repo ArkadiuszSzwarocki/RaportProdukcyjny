@@ -126,15 +126,19 @@
                 </td>
                 <td class="text-right">
                     <div class="d-flex justify-end gap-5">
+                        {% if z.status != 'zakonczone' %}
                         <a href="/admin/edycja_zlecenia/{{ z.id }}" class="btn-icon" title="{{ _('edytuj') }}" aria-label="Edytuj zlecenie">
                             <span class="material-icons">edit</span>
                         </a>
+                        {% endif %}
+                        {% if z.status not in ['w toku','zakonczone'] %}
                         <form action="{{ url_for('planning.usun_plan', id=z.id) }}" method="POST" onsubmit="return confirm('Czy na pewno usunąć to zlecenie? Operacja jest nieodwracalna.');">
                             <input type="hidden" name="data_planu" value="{{ z.data_planu }}">
                             <button type="submit" class="btn-icon btn-delete" title="{{ _('usun') }}" aria-label="Usuń zlecenie">
                                 <span class="material-icons">delete</span>
                             </button>
                         </form>
+                        {% endif %}
                         {# Jeśli zlecenie jest zakończone, pokaż badge niezrealizowane + przycisk przeniesienia na następny dzień dla uprawnionych ról #}
                         {% if z.status == 'zakonczone' %}
                             {% set plan_kg = (z.tonaz or 0) | float %}
@@ -171,7 +175,18 @@
         return resp.clone().json().then(function(j){ var m = (j && j.message) ? j.message : JSON.stringify(j); throw new Error(m); }).catch(function(){ return resp.text().then(function(t){ var s = t.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); if (!s) s = 'Błąd serwera'; if (s.length>800) s = s.slice(0,800)+'...'; throw new Error(s); }); });
     }
     function moveIncompleteToNextDay(planId, currentDate) {
-        if (!confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?')) return;
+        try {
+            var doMove = true;
+            if (typeof showQuickPopup === 'function') {
+                // show confirm-style popup using quick popup and Promise-based flow
+                // fallback to native confirm if necessary
+                doMove = confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?');
+            } else {
+                doMove = confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?');
+            }
+            if (!doMove) return;
+        } catch (e) { if (!confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?')) return; }
+
         fetch('/api/przenies_wybrane_zlecenia', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -181,15 +196,15 @@
         .then(handleFetchResponse)
         .then(function (j) {
             if (j && j.success) {
-                alert('✅ ' + (j.message || 'Zlecenie przeniesione na następny dzień'));
+                try { showQuickPopup('Sukces', `<div class="p-10">✅ ${ (j.message||'Zlecenie przeniesione na następny dzień') }</div>`); } catch(e){ alert('✅ ' + (j.message || 'Zlecenie przeniesione na następny dzień')); }
                 location.reload();
             } else {
-                alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
+                try { showQuickPopup('Błąd', `<div class="p-10 text-error">✗ ${ (j && j.message) ? j.message : 'Błąd podczas przenoszenia' }</div>`); } catch(e){ alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia')); }
             }
         })
         .catch(function (err) {
             console.error('MOVE ERROR', err);
-            alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
+            try { showQuickPopup('Błąd', `<div class="p-10 text-error">✗ ${ (err && err.message) ? err.message : 'Połączenie nieudane' }</div>`); } catch(e){ alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane')); }
         });
     }
 </script>
