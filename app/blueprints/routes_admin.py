@@ -933,6 +933,62 @@ def admin_workowanie_times_update():
     return redirect('/admin/ustawienia/workowanie_times')
 
 
+@admin_bp.route('/admin/ustawienia/errors')
+@login_required
+@dynamic_role_required('ustawienia')
+def ustawienia_errors():
+    """View server error logs and application traps."""
+    import os
+    from flask import current_app
+    
+    # Path to error log
+    error_log_path = os.path.join(current_app.root_path, '../logs/error.log')
+    
+    # Get lines parameter (default 100)
+    try:
+        lines = int(request.args.get('lines', 100))
+    except ValueError:
+        lines = 100
+        
+    # Read last N lines
+    def tail(filepath, n, block_size=1024):
+        if not os.path.exists(filepath):
+            return "Brak pliku logów."
+        try:
+            with open(filepath, 'rb') as f:
+                f.seek(0, 2)
+                filesize = f.tell()
+                lines_found = []
+                block_end = filesize
+                
+                while block_end > 0 and len(lines_found) <= n:
+                    block_start = max(block_end - block_size, 0)
+                    f.seek(block_start)
+                    block = f.read(block_end - block_start)
+                    lines_found = block.split(b'\n') + lines_found
+                    if block_start == 0:
+                        break
+                    block_end = block_start
+                    
+                return b'\n'.join(lines_found[-n:]).decode('utf-8', errors='replace')
+        except Exception as e:
+            return f"Błąd odczytu: {e}"
+            
+    content = tail(error_log_path, lines)
+    if not content.strip():
+        content = "Log pusty lub nie istnieje."
+        
+    # Limit display if huge
+    trunc = len(content) > 50000
+    if trunc:
+        content = content[-50000:]
+        
+    if request.args.get('fragment') == 'true':
+        return render_template('ustawienia_errors_fragment.html', error_log=content, lines=lines, trunc=trunc)
+    
+    return render_template('ustawienia_errors.html', error_log=content, lines=lines, trunc=trunc)
+
+
 # Admin log viewer
 @admin_bp.route('/admin/ustawienia/logs')
 @admin_required
