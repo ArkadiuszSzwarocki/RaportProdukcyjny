@@ -413,7 +413,7 @@
             const isDownloadLink = href.indexOf('/admin/ustawienia/backups/download') === 0 || a.hasAttribute('download') || (a.target && a.target !== '_self');
             if (isDownloadLink) {
                 window._skipSessionClose = true;
-                setTimeout(function () { window._skipSessionClose = false; }, 1500);
+                setTimeout(function () { window._skipSessionClose = false; }, 15000);
             }
         } catch (e) { }
     }, false);
@@ -531,7 +531,7 @@
         document.addEventListener('submit', function (e) { 
             try { 
                 // mark this as intentional in-app navigation so beforeunload doesn't close the session
-                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 2000); } catch (ee) { }
+                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 15000); } catch (ee) { }
                 startGlobalSpinnerWatcher(); 
             } catch (e) { } 
         }, true);
@@ -544,7 +544,7 @@
                 if (a.target && a.target !== '' && a.target !== '_self') return;
                 if (a.hasAttribute('data-slide') || a.hasAttribute('data-slide-html') || href.indexOf('/api/') !== -1) return;
                 // internal navigation: set short-lived skip flag to avoid beforeunload closing session
-                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 2000); } catch (ee) { }
+                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 15000); } catch (ee) { }
                 startGlobalSpinnerWatcher();
             } catch (e) { }
         }, true);
