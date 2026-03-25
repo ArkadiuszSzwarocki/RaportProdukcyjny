@@ -24,10 +24,11 @@ class TestCreatePlan:
             
             # Mock the sequence query
             mock_cursor.execute.side_effect = [
+                MagicMock(),  # Duplicate check
                 MagicMock(),  # First call for MAX(kolejnosc)
                 MagicMock(),  # Second call for INSERT
             ]
-            mock_cursor.fetchone.return_value = (5,)  # Current max sequence
+            mock_cursor.fetchone.side_effect = [None, (5,)]  # No duplicate, max seq 5
             
             success, message, plan_id = PlanningService.create_plan(
                 data_planu='2025-02-10',
@@ -65,7 +66,7 @@ class TestCreatePlan:
             mock_get_conn.return_value = mock_conn
             mock_conn.cursor.return_value = mock_cursor
             
-            mock_cursor.fetchone.return_value = (0,)
+            mock_cursor.fetchone.side_effect = [None, (0,)]
             
             success, message, plan_id = PlanningService.create_plan(
                 data_planu='2025-02-10',

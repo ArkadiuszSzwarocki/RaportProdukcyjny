@@ -378,6 +378,39 @@ def panel_planisty():
     except Exception as e:
         current_app.logger.warning(f'Error checking incomplete plans: {e}')
 
+    # ===== PRZYPOMNIENIE O TOWARZE W BUFORZE =====
+    bufor_remaining = []
+    bufor_source_date = None
+    try:
+        conn_buf = get_db_connection()
+        cur_buf = conn_buf.cursor()
+        cur_buf.execute("""
+            SELECT b.produkt,
+                   SUM(COALESCE(b.tonaz_rzeczywisty, 0) - COALESCE(b.spakowano, 0)) as pozostalo
+            FROM bufor b
+            WHERE b.status = 'aktywny'
+              AND b.data_planu < %s
+            GROUP BY b.produkt
+            HAVING pozostalo > 0
+        """, (wybrana_data,))
+        bufor_remaining = [
+            {'produkt': r[0], 'pozostalo_kg': round(float(r[1]), 1)}
+            for r in cur_buf.fetchall()
+        ]
+        # Pobierz datę źródłową bufora (najnowsza data_planu < wybrana_data)
+        if bufor_remaining:
+            cur_buf.execute("""
+                SELECT MAX(b.data_planu) FROM bufor b
+                WHERE b.status = 'aktywny' AND b.data_planu < %s
+            """, (wybrana_data,))
+            row = cur_buf.fetchone()
+            if row and row[0]:
+                bufor_source_date = str(row[0])
+        cur_buf.close()
+        conn_buf.close()
+    except Exception:
+        current_app.logger.exception('Error checking bufor remainder for reminder')
+
     return render_template('planista.html',
                            plany=plany_list,
                            wybrana_data=wybrana_data,
@@ -397,7 +430,9 @@ def panel_planisty():
                            suma_wyk_agro=suma_wyk_agro,
                            suma_minut_plan_agro=suma_minut_plan_agro,
                            procent_agro=procent_agro,
-                           has_incomplete_plans=has_incomplete_plans)
+                           has_incomplete_plans=has_incomplete_plans,
+                           bufor_remaining=bufor_remaining,
+                           bufor_source_date=bufor_source_date)
 
 
 @planista_bp.route('/planista/add_czyszczenie', methods=['POST'])

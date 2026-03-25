@@ -2083,4 +2083,3 @@ def drukuj_etykiete(paleta_id):
     finally:
         cursor.close()
         conn.close()
-

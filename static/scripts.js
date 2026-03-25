@@ -379,46 +379,23 @@
         } catch (e) { console.warn('visibilitychange handler failed', e); }
     });
 
-    // On unload, try to inform server to close session using navigator.sendBeacon or fetch keepalive
-    window.addEventListener('beforeunload', function () {
-        try {
-            // Prefer an endpoint designed for closing session
-            // Skip sending close signal for intentional in-app navigations like file downloads
-            try {
-                if (window._skipSessionClose) return;
-            } catch (e) { }
+    // The beforeunload session beacon has been removed due to unreliable behavior during internal navigation.
+    // Inactive sessions will now safely rely on the server-side 40-minute enforceable timeout in middleware.py 
+    // and explicit user logouts.
 
-            const url = '/api/session/close';
-            if (navigator.sendBeacon) {
-                try {
-                    navigator.sendBeacon(url);
-                    return;
-                } catch (e) { /* fallthrough to fetch */ }
-            }
-
-            // Fallback - use keepalive fetch
-            try {
-                fetch(url, { method: 'POST', keepalive: true, credentials: 'same-origin' });
-            } catch (e) { /* ignore */ }
-        } catch (e) { /* ignore */ }
-    });
-
-    // Avoid closing session when user navigates within the app or clicks a download link.
-    // Set a short-lived flag when any internal same-origin anchor is clicked so beforeunload skips closing.
+    // Avoid closing session when user clicks a download link or navigates within app intentionally.
     document.addEventListener('click', function (ev) {
         try {
             const a = ev.target.closest && ev.target.closest('a');
             if (!a) return;
             const href = a.getAttribute('href') || '';
-            // Skip external links, anchors, javascript: and new-tab links
-            if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-            if (a.target && a.target !== '' && a.target !== '_self') return;
-            // For all same-origin navigations and downloads: skip the session close beacon
-            window._skipSessionClose = true;
-            setTimeout(function () { window._skipSessionClose = false; }, 2000);
+            const isDownloadLink = href.indexOf('/admin/ustawienia/backups/download') === 0 || a.hasAttribute('download') || (a.target && a.target !== '_self');
+            if (isDownloadLink) {
+                window._skipSessionClose = true;
+                setTimeout(function () { window._skipSessionClose = false; }, 15000);
+            }
         } catch (e) { }
     }, false);
-
 
     // Partial reload: fetch current page and replace main content silently
     async function performPartialReload(options) {
@@ -533,7 +510,7 @@
         document.addEventListener('submit', function (e) { 
             try { 
                 // mark this as intentional in-app navigation so beforeunload doesn't close the session
-                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 2000); } catch (ee) { }
+                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 15000); } catch (ee) { }
                 startGlobalSpinnerWatcher(); 
             } catch (e) { } 
         }, true);
@@ -545,8 +522,7 @@
                 if (href.indexOf('#') === 0 || href.indexOf('javascript:') === 0) return;
                 if (a.target && a.target !== '' && a.target !== '_self') return;
                 if (a.hasAttribute('data-slide') || a.hasAttribute('data-slide-html') || href.indexOf('/api/') !== -1) return;
-                // internal navigation: set short-lived skip flag to avoid beforeunload closing session
-                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 2000); } catch (ee) { }
+                // internal navigation
                 startGlobalSpinnerWatcher();
             } catch (e) { }
         }, true);

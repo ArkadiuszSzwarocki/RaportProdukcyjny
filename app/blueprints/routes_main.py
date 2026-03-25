@@ -308,30 +308,22 @@ def index() -> str:
     }
     
     # Render appropriate template
-    try:
-        # Log what we're passing to template
-        app.logger.info('===BEGIN DEBUG DASHBOARD===')
-        app.logger.info('sekcja=%s, len(plan)=%d', aktywna_sekcja, len(plan_dnia))
-        if plan_dnia:
-            app.logger.info('First plan item: id=%s, name=%s, status=%s', plan_dnia[0][0], plan_dnia[0][1], plan_dnia[0][3])
-        else:
-            app.logger.info('plan_dnia is EMPTY!')
-        app.logger.info('palety_mapa keys=%s', list(palety_mapa.keys()) if palety_mapa else 'EMPTY')
-        app.logger.info('===END DEBUG DASHBOARD===')
-        
-        if aktywna_sekcja == 'Dashboard':
-            app.logger.info('index(): rendering dashboard_global.html for sekcja=%s', aktywna_sekcja)
-            return render_template('dashboard_global.html', **context)
-        else:
-            app.logger.info('index(): rendering dashboard.html for sekcja=%s', aktywna_sekcja)
-            return render_template('dashboard.html', **context)
-    except Exception as e:
-        # Log exception and fallback to global dashboard on error
-        try:
-            app.logger.exception('index(): render failed for sekcja=%s, falling back to dashboard_global: %s', aktywna_sekcja, e)
-        except Exception:
-            pass
+    # Log what we're passing to template
+    app.logger.info('===BEGIN DEBUG DASHBOARD===')
+    app.logger.info('sekcja=%s, len(plan)=%d', aktywna_sekcja, len(plan_dnia))
+    if plan_dnia:
+        app.logger.info('First plan item: id=%s, name=%s, status=%s', plan_dnia[0][0], plan_dnia[0][1], plan_dnia[0][3])
+    else:
+        app.logger.info('plan_dnia is EMPTY!')
+    app.logger.info('palety_mapa keys=%s', list(palety_mapa.keys()) if palety_mapa else 'EMPTY')
+    app.logger.info('===END DEBUG DASHBOARD===')
+    
+    if aktywna_sekcja == 'Dashboard':
+        app.logger.info('index(): rendering dashboard_global.html for sekcja=%s', aktywna_sekcja)
         return render_template('dashboard_global.html', **context)
+    else:
+        app.logger.info('index(): rendering dashboard.html for sekcja=%s', aktywna_sekcja)
+        return render_template('dashboard.html', **context)
 
 
 @main_bp.route('/layout-editor')
