@@ -353,7 +353,7 @@ def dodaj_plan():
                         target_id, target_existing_tonaz = linked[0], linked[1] or 0
                         new_workowanie_tonaz = target_existing_tonaz + tonaz
                         cursor.execute(
-                            "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s",
+                            "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s AND status!='w toku'",
                             (new_workowanie_tonaz, target_id)
                         )
                         try:
@@ -371,7 +371,7 @@ def dodaj_plan():
                                 pass
                         new_workowanie_tonaz = w_existing_tonaz + tonaz
                         cursor.execute(
-                            "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s",
+                            "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s AND status!='w toku'",
                             (new_workowanie_tonaz, workowanie_id)
                         )
                         try:
