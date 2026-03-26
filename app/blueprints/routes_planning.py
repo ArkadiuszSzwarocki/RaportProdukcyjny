@@ -1,6 +1,7 @@
 """Planning and management routes (formerly in routes_api.py ZARZĄDZANIE section)."""
 
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
+import logging
 from datetime import date, datetime
 from app.db import get_db_connection, get_plan_notification_context, log_plan_history
 from app.decorators import login_required, roles_required, admin_required
@@ -357,6 +358,11 @@ def dodaj_plan():
                             (new_workowanie_tonaz, target_id)
                         )
                         try:
+                            status_logger = logging.getLogger('status_changes')
+                            status_logger.info(f"action=update_workowanie plan_id={target_id} old_tonaz={target_existing_tonaz} new_tonaz={new_workowanie_tonaz} user={session.get('login')} endpoint={request.path} caller=routes_planning.dodaj_plan")
+                        except Exception:
+                            pass
+                        try:
                             current_app.logger.debug(f'[DODAJ_PLAN] Summed into linked Workowanie id={target_id}: tonaz={new_workowanie_tonaz} (was {target_existing_tonaz} + szarza {tonaz})')
                         except Exception:
                             pass
@@ -374,6 +380,11 @@ def dodaj_plan():
                             "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s AND status!='w toku'",
                             (new_workowanie_tonaz, workowanie_id)
                         )
+                        try:
+                            status_logger = logging.getLogger('status_changes')
+                            status_logger.info(f"action=update_workowanie plan_id={workowanie_id} old_tonaz={w_existing_tonaz} new_tonaz={new_workowanie_tonaz} user={session.get('login')} endpoint={request.path} caller=routes_planning.dodaj_plan")
+                        except Exception:
+                            pass
                         try:
                             current_app.logger.debug(f'[DODAJ_PLAN] Reset/sum Workowanie plan for produkt={produkt}: tonaz={new_workowanie_tonaz} (carry_over={w_existing_tonaz}, szarza={tonaz})')
                         except Exception:

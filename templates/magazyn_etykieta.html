@@ -13,16 +13,16 @@
         body {
             margin: 0;
             padding: 0;
-            width: 100mm;
-            height: 150mm;
+            inline-size: 100mm;
+            block-size: 150mm;
             box-sizing: border-box;
             font-family: 'Roboto', Arial, sans-serif;
             background: #fff;
             color: #000;
         }
         .label-container {
-            width: 100%;
-            height: 100%;
+            inline-size: 100%;
+            block-size: 100%;
             padding: 8mm; /* Leave physical margin */
             box-sizing: border-box;
             display: flex;
@@ -34,9 +34,9 @@
         }
         .header {
             text-align: center;
-            border-bottom: 3px solid #000;
-            padding-bottom: 5mm;
-            margin-bottom: 5mm;
+            border-block-end: 3px solid #000;
+            padding-block-end: 5mm;
+            margin-block-end: 5mm;
         }
         .header h1 {
             font-size: 28px;
@@ -47,7 +47,7 @@
         .header .subtitle {
             font-size: 14px;
             color: #333;
-            margin-top: 2mm;
+            margin-block-start: 2mm;
         }
         .content {
             flex-grow: 1;
@@ -61,7 +61,7 @@
             justify-content: center;
             font-size: 26px;
             font-weight: 800;
-            margin-top: 6mm;
+            margin-block-start: 6mm;
         }
         .data-row {
             display: flex;
@@ -73,7 +73,7 @@
             color: #555;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 1px;
+            margin-block-end: 1px;
         }
         .data-value {
             font-size: 24px;
@@ -84,8 +84,8 @@
             font-size: 32px;
         }
         .footer {
-            border-top: 2px solid #000;
-            padding-top: 3mm;
+            border-block-start: 2px solid #000;
+            padding-block-start: 3mm;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -123,7 +123,7 @@
                 <span class="data-value large">SZARŻA NR {{ nr_szarzy }}</span>
             </div>
             
-            <div class="data-row" style="margin-top: auto; padding-top: 5mm;">
+            <div class="data-row" style="margin-block-start: auto; padding-block-start: 5mm;">
                 <span class="data-label">Ilość na palecie (kg)</span>
                 <span class="data-value" style="font-size: 48px; text-align: center;">{{ waga|int }} kg</span>
             </div>
@@ -134,7 +134,7 @@
                 {% else %}
                 <div>
                     <div id="expiryDisplay">Termin przydatności: —</div>
-                    <div style="text-align:center; margin-top:6px;">
+                    <div style="text-align:center; margin-block-start:6px;">
                         <input id="termin" name="termin" type="date" style="font-size:14px; padding:6px;" />
                     </div>
                 </div>
@@ -145,9 +145,9 @@
                 <div style="display: flex; flex-direction: column; gap:4px;">
                     <span>Wydrukowano: {{ data_wydruku }}</span>
                 </div>
-                <div style="display: flex; flex-direction: column; text-align: right; justify-content: flex-end;">
+                <div style="display: flex; flex-direction: column; text-align: end; justify-content: flex-end;">
                     <span>Wydruk z Systemu P.R.</span>
-                    <button id="printBtn" style="margin-top:6px; padding:6px 10px; font-size:12px;">Wydrukuj</button>
+                    <button id="printBtn" style="margin-block-start:6px; padding:6px 10px; font-size:12px;">Wydrukuj</button>
                 </div>
             </div>
     </div>

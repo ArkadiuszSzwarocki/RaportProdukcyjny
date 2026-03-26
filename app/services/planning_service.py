@@ -3,7 +3,8 @@
 from datetime import date, datetime, timedelta
 import traceback
 from app.db import get_db_connection
-from flask import current_app
+from flask import current_app, request, session
+import logging
 
 
 class PlanningService:
@@ -246,7 +247,7 @@ class PlanningService:
             
             # Get section of this plan
             cursor.execute(
-                "SELECT sekcja, produkt FROM plan_produkcji WHERE id=%s",
+                "SELECT sekcja, produkt, status FROM plan_produkcji WHERE id=%s",
                 (plan_id,)
             )
             res = cursor.fetchone()
@@ -263,12 +264,25 @@ class PlanningService:
                 "UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'",
                 (sekcja,)
             )
-            
+            # Log pause of other plans (diagnostic)
+            try:
+                status_logger = logging.getLogger('status_changes')
+                status_logger.info(f"action=pause_section sekcja={sekcja} effected_by=resume_plan caller=PlanningService.resume_plan user={session.get('login') if session else 'unknown'}")
+            except Exception:
+                pass
+
             # Set this plan to w toku (resume)
             cursor.execute(
                 "UPDATE plan_produkcji SET status='w toku', real_stop=NULL WHERE id=%s",
                 (plan_id,)
             )
+            # Log resume event
+            try:
+                status_logger = logging.getLogger('status_changes')
+                old_status = res[2] if len(res) > 2 else 'unknown'
+                status_logger.info(f"action=resume plan_id={plan_id} old={old_status} new=w_toku user={session.get('login') if session else 'unknown'} endpoint={request.path if request else 'cli'} caller=PlanningService.resume_plan")
+            except Exception:
+                pass
             
             conn.commit()
             conn.close()
@@ -338,6 +352,11 @@ class PlanningService:
                     pass
 
             current_app.logger.info(f'Plan status changed: id={plan_id}, {old_status} -> {new_status}')
+            try:
+                status_logger = logging.getLogger('status_changes')
+                status_logger.info(f"action=change_status plan_id={plan_id} old={old_status} new={new_status} user={session.get('login') if session else 'unknown'} endpoint={request.path if request else 'cli'} caller=PlanningService.change_status")
+            except Exception:
+                pass
             return (True, f'Status dla {produkt} zmieniony na {new_status}.')
             
         except Exception as e:

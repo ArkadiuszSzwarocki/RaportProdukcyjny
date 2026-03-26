@@ -140,6 +140,22 @@ def setup_logging(app):
     if not palety_logger.handlers:
         palety_logger.addHandler(palety_handler)
 
+    # ------------------------------------------------------------------
+    # Status changes logger — dedicated file for plan status diagnostics
+    # ------------------------------------------------------------------
+    status_logger = logging.getLogger('status_changes')
+    status_logger.setLevel(logging.INFO)
+    status_log_path = os.path.join(logs_dir, 'status_changes.log')
+    status_handler = TimedRotatingFileHandler(
+        status_log_path, when='midnight', interval=1, backupCount=60, encoding='utf-8', delay=True
+    )
+    status_handler.setLevel(logging.INFO)
+    status_formatter = logging.Formatter('%(asctime)s STATUS: %(message)s')
+    status_handler.setFormatter(status_formatter)
+    # Avoid duplicate handlers on repeated app create
+    if not status_logger.handlers:
+        status_logger.addHandler(status_handler)
+
     return handler, palety_logger
 
 

@@ -1,4 +1,5 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify, send_file
+import logging
 import os
 import glob
 from datetime import date, datetime
@@ -104,12 +105,22 @@ def start_zlecenie(id):
                 current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
                 audit_log('Uruchomił zlecenie', f'ID={id}, produkt={produkt}, sekcja={sekcja}')
                 flash(f"✅ Uruchomiono: <strong>{produkt}</strong>", 'success')
+                try:
+                    status_logger = logging.getLogger('status_changes')
+                    status_logger.info(f"action=start_zlecenie plan_id={id} old={status_obecny} new=w_toku user={session.get('login')} endpoint={request.path} caller=production.start_zlecenie sekcja={sekcja}")
+                except Exception:
+                    pass
 
                 # Jeśli jest warning info - dodaj do flash message
                 if warning_info:
                     flash(f"ℹ️ {warning_info['message']}", 'info')
             
         conn.commit()
+        # commit done — ensure status change logged if not already
+        try:
+            pass
+        except Exception:
+            pass
     except Exception as e:
         current_app.logger.error(f"Error starting order {id}: {e}", exc_info=True)
         try:
@@ -168,6 +179,11 @@ def koniec_zlecenie(id):
         conn.commit()
         current_app.logger.info('Zakończono zlecenie ID=%s przez %s', id, session.get('login'))
         audit_log('Zakończył zlecenie', f'ID={id}, tonaz_rz={rzeczywista_waga} kg')
+        try:
+            status_logger = logging.getLogger('status_changes')
+            status_logger.info(f"action=koniec_zlecenie plan_id={id} new=zakonczone user={session.get('login')} endpoint={request.path} caller=production.koniec_zlecenie sekcja={sekcja}")
+        except Exception:
+            pass
         
         # WAŻNE: Odśwież bufor teraz, żeby kolejka się przesuniała
         try:

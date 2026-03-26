@@ -19,8 +19,8 @@
 
         .notifications-badge {
             position: absolute;
-            top: -4px;
-            right: -4px;
+            inset-block-start: -4px;
+            inset-inline-end: -4px;
             min-width: 18px;
             height: 18px;
             padding: 0 5px;
@@ -386,7 +386,7 @@
                                 <span class="material-icons" style="color:#d9342b; font-size:48px; margin-bottom:12px;">error_outline</span>
                                 <h3 style="color:#0f172a; margin:0 0 12px 0; font-size:20px;">Wykryto Błąd</h3>
                                 <p style="font-size:15px; color:#334155; line-height:1.5; margin:0 0 24px 0;">{{ message }}</p>
-                                <button onclick="document.getElementById('customModalError-{{ loop.index }}').remove()" style="background:#d9342b; color:#fff; border:none; padding:10px 24px; border-radius:6px; font-weight:600; font-size:15px; cursor:pointer; width:100%;">Przyjmuję do wiadomości</button>
+                                <button onclick="document.getElementById('customModalError-{{ loop.index }}').remove()" style="background:#d9342b; color:#fff; border:none; padding:10px 24px; border-radius:6px; font-weight:600; font-size:15px; cursor:pointer; inline-size:100%;">Przyjmuję do wiadomości</button>
                             </div>
                         </div>
                     {% else %}

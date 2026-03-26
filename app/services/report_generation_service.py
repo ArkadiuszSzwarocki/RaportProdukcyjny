@@ -93,6 +93,12 @@ class ReportGenerationService:
             cursor.execute(
                 "UPDATE plan_produkcji SET status='zakonczone', real_stop=NOW() WHERE status='w toku'"
             )
+            try:
+                import logging
+                status_logger = logging.getLogger('status_changes')
+                status_logger.info(f"action=bulk_close count={len(ids_to_close)} ids={ids_to_close} user={request.remote_addr if 'request' in locals() else 'system'} caller=ReportGenerationService._close_in_progress_orders")
+            except Exception:
+                pass
             
             # Record final report
             cursor.execute(
