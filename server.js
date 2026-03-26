@@ -84,6 +84,52 @@ async function initTables() {
         await pool.execute(`CREATE TABLE IF NOT EXISTS roles (id VARCHAR(50) PRIMARY KEY, name VARCHAR(100) NOT NULL, label VARCHAR(100), permissions JSON) ${tableOptions};`);
         await pool.execute(`CREATE TABLE IF NOT EXISTS sub_roles (id VARCHAR(50) PRIMARY KEY, role_id VARCHAR(50), name VARCHAR(100) NOT NULL, FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE) ${tableOptions};`);
         
+        // Nowa tabela dla zleceń produkcyjnych
+        await pool.execute(`CREATE TABLE IF NOT EXISTS production_runs (
+            id VARCHAR(50) PRIMARY KEY,
+            recipe_id VARCHAR(50),
+            recipe_name VARCHAR(255),
+            target_batch_size_kg DECIMAL(12,3),
+            actual_produced_quantity_kg DECIMAL(12,3),
+            planned_date VARCHAR(50),
+            status VARCHAR(50),
+            start_time DATETIME,
+            end_time DATETIME,
+            created_by VARCHAR(50),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            notes TEXT,
+            has_shortages TINYINT(1) DEFAULT 0,
+            shelf_life_months INT,
+            batches JSON,
+            actual_ingredients_used JSON,
+            planned_ingredients JSON,
+            events JSON,
+            samples JSON,
+            suggested_transfer_pallets JSON,
+            downtimes JSON
+        ) ${tableOptions};`);
+        
+        // --- Poprawka schematu (Dodaj brakujące kolumny jeśli tabela już istniała) ---
+        try {
+            const [columns] = await pool.query('SHOW COLUMNS FROM production_runs');
+            const colNames = columns.map(c => c.Field);
+            if (!colNames.includes('planned_date')) {
+                console.log('🏗️ Dodaję brakującą kolumnę planned_date...');
+                await pool.execute('ALTER TABLE production_runs ADD COLUMN planned_date VARCHAR(50) AFTER actual_produced_quantity_kg');
+            }
+            if (!colNames.includes('shelf_life_months')) {
+                console.log('🏗️ Dodaję brakującą kolumnę shelf_life_months...');
+                await pool.execute('ALTER TABLE production_runs ADD COLUMN shelf_life_months INT AFTER has_shortages');
+            }
+            if (!colNames.includes('downtimes')) {
+                console.log('🏗️ Dodaję brakującą kolumnę downtimes...');
+                await pool.execute('ALTER TABLE production_runs ADD COLUMN downtimes JSON AFTER suggested_transfer_pallets');
+            }
+        } catch (e) {
+            console.error('⚠️ Nie udało się zaktualizować schematu production_runs:', e.message);
+        }
+        
         const [roles] = await pool.query('SELECT * FROM roles');
         if (roles.length === 0) {
             await pool.execute(`INSERT INTO roles (id, name, label, permissions) VALUES 
@@ -141,6 +187,80 @@ app.get('/api/users', verifyToken, async (req, res) => {
         res.json(normalizeRows(rows));
     } catch (err) {
         res.status(500).json({ error: 'Błąd pobierania użytkowników' });
+    }
+});
+
+// ==========================================================
+// ENDPOINTY ZLECEŃ PRODUKCYJNYCH (AGRO)
+// ==========================================================
+
+app.get('/api/production-runs', verifyToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM production_runs ORDER BY planned_date DESC, created_at DESC');
+        res.json(normalizeRows(rows));
+    } catch (err) {
+        console.error('Error fetching production runs:', err);
+        res.status(500).json({ error: 'Błąd pobierania zleceń produkcyjnych' });
+    }
+});
+
+app.post('/api/production-runs', verifyToken, async (req, res) => {
+    const run = req.body;
+    if (!run.id || !run.recipeId) return res.status(400).json({ error: 'Brak wymaganych danych zlecenia.' });
+
+    try {
+        // Przygotuj dane do zapisu (mapowanie camelCase -> snake_case)
+        const runData = {
+            id: run.id,
+            recipe_id: run.recipeId,
+            recipe_name: run.recipeName,
+            target_batch_size_kg: run.targetBatchSizeKg,
+            actual_produced_quantity_kg: run.actualProducedQuantityKg || 0,
+            planned_date: run.plannedDate,
+            status: run.status || 'planned',
+            start_time: run.startTime || null,
+            end_time: run.endTime || null,
+            created_by: run.createdBy || req.userId || 'system',
+            notes: run.notes || '',
+            has_shortages: run.hasShortages ? 1 : 0,
+            shelf_life_months: run.shelfLifeMonths || 0,
+            batches: JSON.stringify(run.batches || []),
+            actual_ingredients_used: JSON.stringify(run.actualIngredientsUsed || []),
+            planned_ingredients: JSON.stringify(run.plannedIngredients || []),
+            events: JSON.stringify(run.events || []),
+            samples: JSON.stringify(run.samples || []),
+            suggested_transfer_pallets: JSON.stringify(run.suggestedTransferPallets || []),
+            downtimes: JSON.stringify(run.downtimes || [])
+        };
+
+        const query = `
+            INSERT INTO production_runs 
+            (id, recipe_id, recipe_name, target_batch_size_kg, actual_produced_quantity_kg, planned_date, status, start_time, end_time, created_by, notes, has_shortages, shelf_life_months, batches, actual_ingredients_used, planned_ingredients, events, samples, suggested_transfer_pallets, downtimes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+            recipe_id=VALUES(recipe_id), recipe_name=VALUES(recipe_name), target_batch_size_kg=VALUES(target_batch_size_kg), actual_produced_quantity_kg=VALUES(actual_produced_quantity_kg),
+            planned_date=VALUES(planned_date), status=VALUES(status), start_time=VALUES(start_time), end_time=VALUES(end_time), notes=VALUES(notes),
+            has_shortages=VALUES(has_shortages), shelf_life_months=VALUES(shelf_life_months), batches=VALUES(batches), actual_ingredients_used=VALUES(actual_ingredients_used),
+            planned_ingredients=VALUES(planned_ingredients), events=VALUES(events), samples=VALUES(samples), suggested_transfer_pallets=VALUES(suggested_transfer_pallets), downtimes=VALUES(downtimes),
+            updated_at=CURRENT_TIMESTAMP
+        `;
+
+        await pool.execute(query, Object.values(runData));
+        res.json({ success: true, message: 'Zlecenie zapisane pomyślnie.' });
+    } catch (err) {
+        console.error('Error saving production run:', err);
+        res.status(500).json({ error: 'Błąd zapisu zlecenia produkcyjnego' });
+    }
+});
+
+app.delete('/api/production-runs/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.execute('DELETE FROM production_runs WHERE id = ?', [id]);
+        res.json({ success: true, message: 'Zlecenie usunięte.' });
+    } catch (err) {
+        console.error('Error deleting production run:', err);
+        res.status(500).json({ error: 'Błąd usuwania zlecenia' });
     }
 });
 

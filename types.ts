@@ -443,8 +443,8 @@ export interface PsdBatch {
     producedGoods: PsdFinishedGood[];
     notes?: string;
     confirmationStatus?: {
-        nirs: 'pending' | 'ok' | 'nok';
-        sampling: 'pending' | 'ok';
+        nirs?: 'pending' | 'ok' | 'nok';
+        sampling?: 'pending' | 'ok';
     };
     weighingFinishedIngredients?: string[];
 }
@@ -797,6 +797,15 @@ export interface ExpiringPalletInfo {
     daysLeft: number;
     // FIX: Narrowed status type to exclude 'default', resolving type predicate assignability error in WarehouseContext.
     status: 'expired' | 'critical' | 'warning';
+}
+
+export interface ProductionRunTemplate {
+    id: string;
+    recipeId: string;
+    recipeName: string;
+    targetBatchSizeKg: number;
+    shelfLifeMonths: number;
+    notes?: string;
 }
 
 export interface AnalysisRangeHistoryEntry {

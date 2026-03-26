@@ -1,5 +1,6 @@
 
-import React, { createContext, useContext, PropsWithChildren, useState, useCallback } from 'react';
+import React, { createContext, useContext, PropsWithChildren, useState, useCallback, useEffect } from 'react';
+import { API_BASE_URL } from '../../constants';
 import { ProductionRun, FinishedGoodItem, Recipe, ProductionRunTemplate, Permission, AdjustmentOrder, PsdBatch, AgroConsumedMaterial, SplitProposalDetails, ProductionEvent } from '../../types';
 import { INITIAL_PRODUCTION_RUNS, INITIAL_FINISHED_GOODS } from '../../src/initialData';
 import { SAMPLE_RECIPES, STATION_RAW_MATERIAL_MAPPING_DEFAULT, AGRO_LINE_PRODUCTION_RATE_KG_PER_MINUTE } from '../../constants';
@@ -100,6 +101,28 @@ export const ProductionProvider: React.FC<PropsWithChildren> = ({ children }) =>
     const [recipes, setRecipes] = useState<Recipe[]>(SAMPLE_RECIPES);
     const [stationRawMaterialMapping, setStationRawMaterialMapping] = useState<Record<string, string>>(STATION_RAW_MATERIAL_MAPPING_DEFAULT);
     const [productionRunTemplates, setProductionRunTemplates] = useState<ProductionRunTemplate[]>([]);
+
+    const fetchProductionRuns = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('jwt_token');
+            const response = await fetch(`${API_BASE_URL}/production-runs`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setProductionRunsList(data);
+                console.log('✅ Zlecenia produkcyjne załadowane:', data.length);
+            }
+        } catch (error) {
+            console.error('❌ Błąd pobierania zleceń:', error);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchProductionRuns();
+    }, [fetchProductionRuns]);
 
     const handleStartProductionRun = useCallback((runId: string) => {
         setProductionRunsList(prev => prev.map(r => {
@@ -320,9 +343,75 @@ export const ProductionProvider: React.FC<PropsWithChildren> = ({ children }) =>
         // Fixed syntax for method stubs in value object to satisfy interface.
         handleAssignPalletToProductionStation: () => ({ success: true, message: 'OK' }),
         getDailyCapacity,
-        handleAddOrUpdateAgroRun: () => ({ success: true, message: 'OK' }),
+        handleAddOrUpdateAgroRun: (runData: Partial<ProductionRun>) => {
+            const run = {
+                ...runData,
+                createdBy: currentUser?.username || 'system',
+                createdAt: runData.createdAt || new Date().toISOString(),
+                status: runData.status || 'planned',
+                batches: runData.batches || []
+            };
+
+            // Optymistyczna aktualizacja UI
+            setProductionRunsList(prev => {
+                const exists = prev.find(r => r.id === run.id);
+                if (exists) {
+                    return prev.map(r => r.id === run.id ? { ...r, ...run } as ProductionRun : r);
+                }
+                return [run as ProductionRun, ...prev];
+            });
+
+            // Zapis do bazy
+            (async () => {
+                try {
+                    const token = localStorage.getItem('jwt_token');
+                    const resp = await fetch(`${API_BASE_URL}/production-runs`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(run)
+                    });
+                    if (!resp.ok) {
+                        console.error('❌ Błąd zapisu zlecenia:', await resp.text());
+                        fetchProductionRuns(); // Revert on error
+                    }
+                } catch (err) {
+                    console.error('❌ Błąd sieci przy zapisie zlecenia:', err);
+                    fetchProductionRuns(); // Revert on error
+                }
+            })();
+
+            return { success: true, message: 'Zlecenie zapisane.' };
+        },
         handleConfirmSplitRun: () => ({ success: true, message: 'OK' }),
-        handleDeletePlannedProductionRun: () => ({ success: true, message: 'OK' }),
+        handleDeletePlannedProductionRun: (runId: string) => {
+            // Optymistyczna aktualizacja UI
+            setProductionRunsList(prev => prev.filter(r => r.id !== runId));
+
+            // Usuwanie z bazy
+            (async () => {
+                try {
+                    const token = localStorage.getItem('jwt_token');
+                    const resp = await fetch(`${API_BASE_URL}/production-runs/${runId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    if (!resp.ok) {
+                        console.error('❌ Błąd usuwania zlecenia:', await resp.text());
+                        fetchProductionRuns(); // Revert on error
+                    }
+                } catch (err) {
+                    console.error('❌ Błąd sieci przy usuwaniu zlecenia:', err);
+                    fetchProductionRuns(); // Revert on error
+                }
+            })();
+
+            return { success: true, message: 'Zlecenie usunięte.' };
+        },
         handleStartProductionRun,
         handlePauseProductionRun,
         handleResumeProductionRun,
