@@ -383,7 +383,7 @@ def refresh_bufor_queue(conn=None):
                                         AND w.data_planu >= %s AND w.data_planu <= %s
                 """, (yesterday, today))
             if cursor.rowcount > 0:
-                print(f"[SYNC] Workowanie.tonaz synchronized: {cursor.rowcount} rows")
+                print(f"[SYNC] Workowanie.tonaz synchronized from Zasyp.tonaz_rzeczywisty: {cursor.rowcount} rows")
         except Exception as e:
             print(f"[WARN] Sync Workowanie.tonaz failed: {e}")
         

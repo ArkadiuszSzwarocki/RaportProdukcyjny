@@ -940,7 +940,8 @@ def api_check_niezrealizowane():
             details.append({
                 'plan_id': plan['zasyp_id'],
                 'produkt': plan['produkt'],
-                'plan_kg': w_plan if plan['workowanie_id'] is not None else z_real,
+                # Show actual amount Zasypano (real tonnage from Zasyp record)
+                'plan_kg': z_real,
                 'wykonanie_kg': w_real,
                 'remaining_kg': workowanie_remaining,
                 'zasyp_shortfall_kg': zasyp_remaining,

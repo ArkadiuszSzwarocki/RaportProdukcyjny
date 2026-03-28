@@ -1,9 +1,13 @@
 from datetime import date
+import os
 from db import get_db_connection
 
 
 def create_plan(data_planu=None, sekcja='Zasyp', produkt='E2E Test Produkt', tonaz=100.0):
     """Insert a minimal plan_produkcji row for E2E tests and return the new id."""
+    # Safety: only allow running this script when explicitly enabled by env
+    if os.environ.get('ALLOW_TEST_SEEDS') != '1':
+        raise RuntimeError('Test seeding disabled. Set ALLOW_TEST_SEEDS=1 to enable.')
     if data_planu is None:
         data_planu = date.today()
     conn = get_db_connection()

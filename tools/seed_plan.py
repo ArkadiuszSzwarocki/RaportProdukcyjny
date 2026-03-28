@@ -6,6 +6,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import db
 
 def main():
+    # Safety: only allow running this script when explicitly enabled by env
+    if os.environ.get('ALLOW_TEST_SEEDS') != '1':
+        print('Test seeding disabled. Set ALLOW_TEST_SEEDS=1 to enable. Exiting.')
+        return
     conn = db.get_db_connection()
     cursor = conn.cursor()
     data = str(date.today())
