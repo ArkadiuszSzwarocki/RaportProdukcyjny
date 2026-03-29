@@ -174,6 +174,36 @@
 
         .nav-item { cursor: pointer; }
     </style>
+    <script>
+        // Lightweight shims so pages can call these helpers before static/scripts.js is loaded
+        if (typeof window.formatError !== 'function') {
+            window.formatError = function (err) {
+                try {
+                    if (!err && err !== 0) return '';
+                    if (typeof err === 'object') {
+                        if (err.message) return String(err.message);
+                        try { return JSON.stringify(err); } catch (e) { return String(err); }
+                    }
+                    var s = String(err);
+                    if (/^\s*[{\[]/.test(s)) {
+                        try { var parsed = JSON.parse(s); if (parsed && parsed.message) return String(parsed.message); return JSON.stringify(parsed); } catch (e) { }
+                    }
+                    try { return s.replace(/\\u([0-9a-fA-F]{4})/g, function (m, g) { return String.fromCharCode(parseInt(g, 16)); }); } catch (e) { return s; }
+                } catch (e) { try { return String(err); } catch (ee) { return 'Błąd'; } }
+            };
+        }
+        if (typeof window.safeAlert !== 'function') {
+            window.safeAlert = function (title, message) {
+                try {
+                    if (typeof window.showQuickPopup === 'function') {
+                        try { window.showQuickPopup(title || '', '<div class="p-10">' + (message || '') + '</div>'); return; } catch (e) { }
+                    }
+                    var text = (title ? title + "\n\n" : '') + (message || '');
+                    alert(text);
+                } catch (e) { try { alert((message || title) || ''); } catch (ee) { /* ignore */ } }
+            };
+        }
+    </script>
     <style>
         /* Global spinner overlay shown after 1s when navigation or data loads are slow */
         #globalSpinner {

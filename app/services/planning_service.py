@@ -58,8 +58,8 @@ class PlanningService:
             # Prevent creating duplicate plans for same date+product
             try:
                 cursor.execute(
-                    "SELECT id, sekcja FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
-                    (data_planu, produkt)
+                    "SELECT id, sekcja FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
+                    (data_planu, produkt, sekcja)
                 )
                 existing = cursor.fetchone()
                 if existing:
@@ -775,185 +775,202 @@ class PlanningService:
             cursor = conn.cursor(dictionary=True)
 
             # Fetch all closed Zasyp plans for the date, with their paired Workowanie plan
+            created_count = 0
+            update_cursor = conn.cursor()
+
             if plan_ids_to_move:
                 placeholders = ','.join(['%s'] * len(plan_ids_to_move))
-                cursor.execute(f"""
-                    SELECT z.id AS zasyp_id, z.produkt, z.typ_produkcji,
-                           COALESCE(z.tonaz, 0) AS z_plan,
-                           COALESCE(z.tonaz_rzeczywisty, 0) AS z_real,
-                           w.id AS workowanie_id,
-                           COALESCE(w.tonaz, 0) AS w_plan,
-                           COALESCE(w.tonaz_rzeczywisty, 0) AS w_real
-                    FROM plan_produkcji z
-                    LEFT JOIN plan_produkcji w
-                        ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'
-                    WHERE DATE(z.data_planu) = %s
-                      AND z.status = 'zakonczone'
-                      AND LOWER(z.sekcja) = 'zasyp'
-                      AND z.id IN ({placeholders})
-                    ORDER BY z.id
-                """, [current_data] + list(plan_ids_to_move))
+                sql = (
+                    "SELECT z.id AS zasyp_id, z.produkt, z.typ_produkcji,"
+                    " COALESCE(z.tonaz, 0) AS z_plan,"
+                    " COALESCE(z.tonaz_rzeczywisty, 0) AS z_real,"
+                    " w.id AS workowanie_id,"
+                    " COALESCE(w.tonaz, 0) AS w_plan,"
+                    " COALESCE(w.tonaz_rzeczywisty, 0) AS w_real"
+                    " FROM plan_produkcji z"
+                    " LEFT JOIN plan_produkcji w ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'"
+                    f" WHERE DATE(z.data_planu) = %s AND z.status = 'zakonczone' AND LOWER(z.sekcja) = 'zasyp' AND z.id IN ({placeholders})"
+                    " ORDER BY z.id"
+                )
+                params = tuple([current_data] + list(plan_ids_to_move))
+                cursor.execute(sql, params)
             else:
-                cursor.execute("""
-                    SELECT z.id AS zasyp_id, z.produkt, z.typ_produkcji,
-                           COALESCE(z.tonaz, 0) AS z_plan,
-                           COALESCE(z.tonaz_rzeczywisty, 0) AS z_real,
-                           w.id AS workowanie_id,
-                           COALESCE(w.tonaz, 0) AS w_plan,
-                           COALESCE(w.tonaz_rzeczywisty, 0) AS w_real
-                    FROM plan_produkcji z
-                    LEFT JOIN plan_produkcji w
-                        ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'
-                    WHERE DATE(z.data_planu) = %s
-                      AND z.status = 'zakonczone'
-                      AND LOWER(z.sekcja) = 'zasyp'
-                    ORDER BY z.id
-                """, (current_data,))
+                sql = (
+                    "SELECT z.id AS zasyp_id, z.produkt, z.typ_produkcji,"
+                    " COALESCE(z.tonaz, 0) AS z_plan,"
+                    " COALESCE(z.tonaz_rzeczywisty, 0) AS z_real,"
+                    " w.id AS workowanie_id,"
+                    " COALESCE(w.tonaz, 0) AS w_plan,"
+                    " COALESCE(w.tonaz_rzeczywisty, 0) AS w_real"
+                    " FROM plan_produkcji z"
+                    " LEFT JOIN plan_produkcji w ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'"
+                    " WHERE DATE(z.data_planu) = %s AND z.status = 'zakonczone' AND LOWER(z.sekcja) = 'zasyp'"
+                    " ORDER BY z.id"
+                )
+                cursor.execute(sql, (current_data,))
 
-            plans = cursor.fetchall()
-            update_cursor = conn.cursor()
-            created_count = 0
+            rows = cursor.fetchall()
 
-            for plan in plans:
-                zasyp_id = plan['zasyp_id']
-                produkt = plan['produkt']
-                typ_prod = plan['typ_produkcji'] or 'worki_zgrzewane_25'
-                z_plan = plan['z_plan']
-                z_real = plan['z_real']
-                w_plan = plan['w_plan']
-                w_real = plan['w_real']
+            for row in rows:
+                current_app.logger.debug(f"[PRZENIES-DEBUG] Processing row: {row}")
+                # Support both dict and tuple row shapes
+                produkt = row.get('produkt') if isinstance(row, dict) else row[1]
+                typ_prod = row.get('typ_produkcji') if isinstance(row, dict) else row[2]
+                z_plan = int(row.get('z_plan') if isinstance(row, dict) else row[3])
+                z_real = int(row.get('z_real') if isinstance(row, dict) else row[4])
+                work_id = row.get('workowanie_id') if isinstance(row, dict) else row[5]
+                w_plan = int(row.get('w_plan') if isinstance(row, dict) else row[6])
+                w_real = int(row.get('w_real') if isinstance(row, dict) else row[7])
 
-                # Rule 1: remaining to pack = what Zasyp produced minus what was already packed
-                # If no Workowanie plan exists, all zasypane goods need packing
-                if plan['workowanie_id'] is not None:
-                    workowanie_remaining = max(0.0, w_plan - w_real)
-                else:
-                    workowanie_remaining = max(0.0, z_real)
+                zasyp_remaining = max(z_plan - z_real, 0)
+                workowanie_remaining = max(w_plan - w_real, 0)
+                current_app.logger.debug(f"[PRZENIES-DEBUG] zasyp_remaining={zasyp_remaining} workowanie_remaining={workowanie_remaining} produkt={produkt} typ={typ_prod} work_id={work_id}")
 
-                # Rule 2: Zasyp shortfall = how much Zasyp still needs to do
-                zasyp_remaining = max(0.0, z_plan - z_real)
-
-                if workowanie_remaining <= 0 and zasyp_remaining <= 0:
-                    continue
-
-                # --- Rule 1: Workowanie carryover ---
+                # If there's remaining Workowanie to do, prefer to create a companion Zasyp ghost
+                # and a Workowanie linked to it so queue uses zasyp_id.
                 if workowanie_remaining > 0:
-                    # Check for duplicate on next_date (same produkt + workowanie + zaplanowane)
-                    cursor.execute("""
-                        SELECT id FROM plan_produkcji
-                        WHERE DATE(data_planu) = %s AND produkt = %s
-                          AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'
-                          AND zasyp_id IN (
-                              SELECT id FROM plan_produkcji
-                              WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'zasyp' AND status = 'zakonczone'
-                                AND tonaz_rzeczywisty = %s
-                          )
-                    """, (next_data_str, produkt, next_data_str, workowanie_remaining))
-                    if cursor.fetchone():
-                        current_app.logger.info(
-                            f'[PRZENIES] Carryover Workowanie already exists for {produkt} on {next_data_str}, skipping'
-                        )
+                    # Prefer buffer-derived remaining if available: read bufor aggregate for this zasyp
+                    try:
+                        cursor.execute("""
+                            SELECT data_planu, produkt, typ_produkcji, COALESCE(SUM(tonaz_rzeczywisty),0) AS tonaz_rzeczywisty,
+                                   COALESCE(SUM(spakowano),0) AS spakowano, COALESCE(MAX(nazwa_zlecenia),'') AS nazwa_zlecenia
+                            FROM bufor
+                            WHERE zasyp_id = %s AND DATE(data_planu) = %s AND status = 'aktywny'
+                            GROUP BY data_planu, produkt, typ_produkcji
+                            LIMIT 1
+                        """, (row.get('zasyp_id') if isinstance(row, dict) else row[0], current_data))
+                        buf_row = cursor.fetchone()
+                    except Exception:
+                        buf_row = None
+
+                    current_app.logger.debug(f"[PRZENIES-DEBUG] buf_row raw: {buf_row}")
+                    if buf_row:
+                        # support both cursor shapes (dict/tuple)
+                        if isinstance(buf_row, dict):
+                            buf_tonaz = int(buf_row.get('tonaz_rzeczywisty') or 0) - int(buf_row.get('spakowano') or 0)
+                            buf_typ = buf_row.get('typ_produkcji')
+                            buf_nazwa = buf_row.get('nazwa_zlecenia')
+                            buf_produkt = buf_row.get('produkt')
+                        else:
+                            buf_tonaz = int(buf_row[3] or 0) - int(buf_row[4] or 0)
+                            buf_typ = buf_row[2]
+                            buf_nazwa = buf_row[5] if len(buf_row) > 5 else ''
+                            buf_produkt = buf_row[1]
+
+                        current_app.logger.debug(f"[PRZENIES-DEBUG] buf_tonaz={buf_tonaz} buf_typ={buf_typ} buf_produkt={buf_produkt} buf_nazwa={buf_nazwa}")
+                        if buf_tonaz > 0:
+                            # override workowanie_remaining with buffer-derived remainder
+                            work_plan_amount = buf_tonaz
+                            produkt_for_new = buf_produkt
+                            typ_for_new = buf_typ or typ_prod
+                            nazwa_for_new = buf_nazwa or f'carry-over z {current_data}'
+                        else:
+                            work_plan_amount = workowanie_remaining
+                            produkt_for_new = produkt
+                            typ_for_new = typ_prod
+                            nazwa_for_new = f'PRZENIESIONE z {current_data}'
                     else:
-                        # Create a visible Zasyp plan with 0 kg (so planner sees it), and
-                        # create companion Workowanie with the actual missing tonage.
-                        # This avoids creating hidden 'ghost' records while keeping the
-                        # buffer/workowanie behaviour intact.
-                        s_zg, _, new_zasyp_id = PlanningService.create_plan(
+                        work_plan_amount = workowanie_remaining
+                        produkt_for_new = produkt
+                        typ_for_new = typ_prod
+                        nazwa_for_new = f'PRZENIESIONE z {current_data}'
+
+                    # Avoid duplicates on next date
+                    cursor.execute(
+                        "SELECT id FROM plan_produkcji WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'",
+                        (next_data_str, produkt_for_new)
+                    )
+                    exists = cursor.fetchone()
+                    if exists:
+                        current_app.logger.info(f'[PRZENIES] Carryover Workowanie already exists for {produkt_for_new} on {next_data_str}, skipping')
+                        current_app.logger.debug(f"[PRZENIES-DEBUG] existing work row: {exists}")
+                    else:
+                        s_z, msg_z, zasyp_created_id = PlanningService.create_plan(
+                            data_planu=next_data_str,
+                            produkt=produkt_for_new,
+                            tonaz=0,
+                            sekcja='Zasyp',
+                            typ_produkcji=typ_prod,
+                            status='zaplanowane',
+                            nazwa_zlecenia=nazwa_for_new
+                        )
+                        new_zasyp_id = None
+                        if isinstance(zasyp_created_id, int):
+                            new_zasyp_id = zasyp_created_id
+
+                        if new_zasyp_id:
+                            current_app.logger.debug(f"[PRZENIES-DEBUG] Created Zasyp id={new_zasyp_id} for produkt={produkt_for_new}")
+                            s_w, msg_w, new_work_id = PlanningService.create_plan(
+                                data_planu=next_data_str,
+                                produkt=produkt_for_new,
+                                tonaz=work_plan_amount,
+                                sekcja='Workowanie',
+                                typ_produkcji=typ_for_new,
+                                status='zaplanowane',
+                                nazwa_zlecenia=nazwa_for_new,
+                                zasyp_id=new_zasyp_id
+                            )
+                            if isinstance(new_work_id, int):
+                                conn.commit()
+                                created_count += 1
+                                current_app.logger.info(f'[PRZENIES] Workowanie carryover created/linked: {produkt_for_new} {work_plan_amount}kg -> Workowanie #{new_work_id} (Zasyp #{new_zasyp_id})')
+                                current_app.logger.debug(f"[PRZENIES-DEBUG] create_plan returned: work_id={new_work_id} msg={msg_w}")
+
+                                update_cursor.execute("SELECT COALESCE(MAX(kolejka), 0) FROM bufor WHERE data_planu = %s AND status = 'aktywny'", (next_data_str,))
+                                max_kol = update_cursor.fetchone()[0] or 0
+                                sql_ins = (
+                                    "INSERT INTO bufor (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)"
+                                    " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny') ON DUPLICATE KEY UPDATE id = id"
+                                )
+                                update_cursor.execute(sql_ins, (new_zasyp_id, next_data_str, produkt_for_new, f'carry-over z {current_data}', typ_for_new, work_plan_amount, max_kol + 1))
+                                inserted_bufor_id = update_cursor.lastrowid if hasattr(update_cursor, 'lastrowid') else None
+                                conn.commit()
+                                current_app.logger.info(f'[PRZENIES] Bufor entry inserted for {produkt_for_new} on {next_data_str} (kolejka {max_kol + 1}) pointing to Zasyp #{new_zasyp_id}')
+                                current_app.logger.debug(f"[PRZENIES-DEBUG] bufor_inserted_id={inserted_bufor_id}")
+
+                # If Zasyp itself had shortfall, create companion Zasyp and Workowanie for that shortfall
+                if zasyp_remaining > 0:
+                    cursor.execute(
+                        "SELECT id FROM plan_produkcji WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'",
+                        (next_data_str, produkt)
+                    )
+                    if cursor.fetchone():
+                        current_app.logger.info(f'[PRZENIES] Workowanie shortfall already exists for {produkt} on {next_data_str}, skipping')
+                    else:
+                        s_z2, msg_z2, zasyp_created2_id = PlanningService.create_plan(
                             data_planu=next_data_str,
                             produkt=produkt,
                             tonaz=0,
                             sekcja='Zasyp',
                             typ_produkcji=typ_prod,
                             status='zaplanowane',
-                            nazwa_zlecenia=f'carry-over z {current_data}'
+                            nazwa_zlecenia=f'PRZENIESIONE ZASYP z {current_data}'
                         )
-                        if s_zg and new_zasyp_id:
-                            # Create Workowanie plan for packing the remaining amount
-                            s_w, _, new_work_id = PlanningService.create_plan(
-                                data_planu=next_data_str,
-                                produkt=produkt,
-                                tonaz=workowanie_remaining,
-                                sekcja='Workowanie',
-                                typ_produkcji=typ_prod,
-                                status='zaplanowane'
-                            )
-                            if s_w and new_work_id:
-                                update_cursor.execute(
-                                    "UPDATE plan_produkcji SET zasyp_id = %s WHERE id = %s",
-                                    (new_zasyp_id, new_work_id)
-                                )
-                                conn.commit()
-                                created_count += 2
-                                current_app.logger.info(
-                                    f'[PRZENIES] Workowanie carryover visible: {produkt} {workowanie_remaining}kg'
-                                    f' -> Zasyp #{new_zasyp_id}, Workowanie #{new_work_id}'
-                                )
+                        new_zasyp2_id = None
+                        if isinstance(zasyp_created2_id, int):
+                            new_zasyp2_id = zasyp_created2_id
 
-                                # Insert bufor entry immediately so queue reflects availability
-                                update_cursor.execute(
-                                    "SELECT COALESCE(MAX(kolejka), 0) FROM bufor WHERE data_planu = %s AND status = 'aktywny'",
-                                    (next_data_str,)
-                                )
-                                max_kol = update_cursor.fetchone()[0]
-                                update_cursor.execute("""
-                                    INSERT INTO bufor
-                                    (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji,
-                                     tonaz_rzeczywisty, spakowano, kolejka, status)
-                                    VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny')
-                                    ON DUPLICATE KEY UPDATE id = id
-                                """, (new_zasyp_id, next_data_str, produkt,
-                                      f'carry-over z {current_data}', typ_prod,
-                                      workowanie_remaining, max_kol + 1))
-                                conn.commit()
-                                current_app.logger.info(
-                                    f'[PRZENIES] Bufor entry inserted for {produkt} on {next_data_str}'
-                                    f' (kolejka {max_kol + 1})'
-                                )
-
-                # --- Rule 2: Zasyp shortfall ---
-                if zasyp_remaining > 0:
-                    # Check for duplicate Zasyp shortfall on next_date
-                    cursor.execute("""
-                        SELECT id FROM plan_produkcji
-                        WHERE DATE(data_planu) = %s AND produkt = %s
-                          AND LOWER(sekcja) = 'zasyp' AND status = 'zaplanowane'
-                    """, (next_data_str, produkt))
-                    if cursor.fetchone():
-                        current_app.logger.info(
-                            f'[PRZENIES] Zasyp shortfall plan already exists for {produkt} on {next_data_str}, skipping'
-                        )
-                    else:
-                        s_z2, _, new_zasyp_id = PlanningService.create_plan(
-                            data_planu=next_data_str,
-                            produkt=produkt,
-                            tonaz=zasyp_remaining,
-                            sekcja='Zasyp',
-                            typ_produkcji=typ_prod,
-                            status='zaplanowane'
-                        )
-                        if s_z2 and new_zasyp_id:
-                            # Companion empty Workowanie plan (tonaz will be synced by refresh_bufor_queue)
-                            # Create companion Workowanie plan with the actual missing tonage
-                            # (previously created with 0 and relied on refresh_bufor_queue to sync)
-                            s_w2, _, new_work2_id = PlanningService.create_plan(
+                        if new_zasyp2_id:
+                            s_w2, msg_w2, new_work2_id = PlanningService.create_plan(
                                 data_planu=next_data_str,
                                 produkt=produkt,
                                 tonaz=zasyp_remaining,
                                 sekcja='Workowanie',
                                 typ_produkcji=typ_prod,
-                                status='zaplanowane'
+                                status='zaplanowane',
+                                nazwa_zlecenia=f'PRZENIESIONE z {current_data}',
+                                zasyp_id=new_zasyp2_id
                             )
-                            if s_w2 and new_work2_id:
-                                update_cursor.execute(
-                                    "UPDATE plan_produkcji SET zasyp_id = %s WHERE id = %s",
-                                    (new_zasyp_id, new_work2_id)
-                                )
+                            if isinstance(new_work2_id, int):
                                 conn.commit()
-                                created_count += 2
-                                current_app.logger.info(
-                                    f'[PRZENIES] Zasyp shortfall: {produkt} {zasyp_remaining}kg'
-                                    f' -> Zasyp #{new_zasyp_id}, Workowanie #{new_work2_id}'
-                                )
+                                created_count += 1
+                                current_app.logger.info(f'[PRZENIES] Workowanie shortfall created/linked: {produkt} {zasyp_remaining}kg -> Workowanie #{new_work2_id} (Zasyp #{new_zasyp2_id})')
+
+                                update_cursor.execute("SELECT COALESCE(MAX(kolejka), 0) FROM bufor WHERE data_planu = %s AND status = 'aktywny'", (next_data_str,))
+                                max_kol = update_cursor.fetchone()[0] or 0
+                                update_cursor.execute(sql_ins, (new_zasyp2_id, next_data_str, produkt, f'carry-over z {current_data}', typ_prod, zasyp_remaining, max_kol + 1))
+                                conn.commit()
+                                current_app.logger.info(f'[PRZENIES] Bufor entry inserted for {produkt} on {next_data_str} (kolejka {max_kol + 1}) pointing to Zasyp #{new_zasyp2_id}')
 
             update_cursor.close()
             conn.close()
@@ -961,7 +978,7 @@ class PlanningService:
             if created_count == 0:
                 return (True, 'Brak planów do przeniesienia na następny dzień.', 0)
 
-            product_count = created_count // 2
+            product_count = created_count
             message = (
                 f'✓ Przeniesiono na {next_date.strftime("%d.%m.%Y")}: '
                 f'{product_count} produktów ({created_count} planów)'

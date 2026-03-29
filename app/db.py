@@ -402,17 +402,22 @@ def refresh_bufor_queue(conn=None):
         except Exception as e:
             print(f"[WARN] Sync Workowanie.tonaz_rzeczywisty failed: {e}")
         
-        # 1. Usuń wszystkie wpisy z bufora które się nie mają statusu 'w toku' lub 'zaplanowane'
+        # 1. Zamiast usuwać wpisy z bufora od razu, oznacz je jako 'zamkniete'
+        #    tylko gdy nie ma aktywnego Workowania i jednocześnie nie ma nic do rozliczenia
+        #    (tj. tonaz_rzeczywisty - spakowano) <= 0. Dzięki temu zachowujemy rekordy
+        #    z częściowo niezrealizowanymi ilościami, aż do ich pełnego rozliczenia.
         cursor.execute("""
-            DELETE FROM bufor 
+            UPDATE bufor
+            SET status = 'zamkniete'
             WHERE status = 'aktywny'
-            AND NOT EXISTS (
-                SELECT 1 FROM plan_produkcji w 
-                WHERE w.sekcja = 'Workowanie' AND w.status IN ('w toku', 'zaplanowane')
-                AND w.produkt = bufor.produkt AND w.data_planu = bufor.data_planu
-            )
+              AND NOT EXISTS (
+                  SELECT 1 FROM plan_produkcji w
+                  WHERE w.sekcja = 'Workowanie' AND w.status IN ('w toku', 'zaplanowane')
+                    AND w.produkt = bufor.produkt AND w.data_planu = bufor.data_planu
+              )
+              AND COALESCE(bufor.tonaz_rzeczywisty, 0) - COALESCE(bufor.spakowano, 0) <= 0
         """)
-        deleted = cursor.rowcount
+        updated = cursor.rowcount
         
         # 2. Pobierz Zasypy dla dzisiejszego i wczorajszego bufora
         cursor.execute("""
@@ -501,7 +506,7 @@ def refresh_bufor_queue(conn=None):
         """)
         
         conn.commit()
-        print(f"[BUFOR] Refreshed buffer: deleted {deleted}, added {added}")
+        print(f"[BUFOR] Refreshed buffer: marked_closed {updated}, added {added}")
         
     except Exception as e:
         print(f"[ERROR] refresh_bufor_queue: {e}")
@@ -622,12 +627,12 @@ def rollover_unfinished(from_date, to_date):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id, sekcja, produkt, tonaz, status, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury FROM plan_produkcji WHERE data_planu=%s", (from_date,))
+        cursor.execute("SELECT id, sekcja, produkt, tonaz, status, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury, zasyp_id FROM plan_produkcji WHERE data_planu=%s", (from_date,))
         rows = cursor.fetchall()
         moved = 0
         moved_ids = []
         for row in rows:
-            pid, sekcja, produkt, tonaz, status, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury = row
+            pid, sekcja, produkt, tonaz, status, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury, zasyp_id = row
             if status == 'zakonczone':
                 continue
 
@@ -637,8 +642,8 @@ def rollover_unfinished(from_date, to_date):
             nk = (res[0] if res and res[0] else 0) + 1
 
             cursor.execute(
-                "INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, kolejnosc, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury) VALUES (%s, %s, %s, %s, 'zaplanowane', NULL, NULL, NULL, %s, %s, %s, %s, %s)",
-                (to_date, sekcja, produkt, tonaz, nk, typ_produkcji or 'worki_zgrzewane_25', nazwa_zlecenia or '', typ_zlecenia or '', nr_receptury or '')
+                "INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, kolejnosc, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury, zasyp_id) VALUES (%s, %s, %s, %s, 'zaplanowane', NULL, NULL, NULL, %s, %s, %s, %s, %s, %s)",
+                (to_date, sekcja, produkt, tonaz, nk, typ_produkcji or 'worki_zgrzewane_25', nazwa_zlecenia or '', typ_zlecenia or '', nr_receptury or '', zasyp_id)
             )
             # usuń oryginał
             cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (pid,))

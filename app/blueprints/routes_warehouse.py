@@ -1313,6 +1313,20 @@ def api_bufor():
     
     out = []
     qdate = request.args.get('data') or str(_date.today())
+    # Normalize incoming date formats: accept 'YYYY-MM-DD' or 'DD.MM.YYYY'
+    try:
+        from datetime import datetime
+        try:
+            dt = datetime.strptime(qdate, '%Y-%m-%d')
+            qdate = dt.date().isoformat()
+        except Exception:
+            try:
+                dt = datetime.strptime(qdate, '%d.%m.%Y')
+                qdate = dt.date().isoformat()
+            except Exception:
+                qdate = str(_date.today())
+    except Exception:
+        qdate = str(_date.today())
     
     try:
         # Odśwież bufor przed zwróceniem danych
@@ -1378,6 +1392,20 @@ def bufor_page_html():
     from app.db import refresh_bufor_queue
     
     wybrana_data = request.args.get('data', str(_date.today()))
+    # Normalize UI date formats so SQL comparison matches stored ISO dates
+    try:
+        from datetime import datetime
+        try:
+            dt = datetime.strptime(wybrana_data, '%Y-%m-%d')
+            wybrana_data = dt.date().isoformat()
+        except Exception:
+            try:
+                dt = datetime.strptime(wybrana_data, '%d.%m.%Y')
+                wybrana_data = dt.date().isoformat()
+            except Exception:
+                wybrana_data = str(_date.today())
+    except Exception:
+        wybrana_data = str(_date.today())
     bufor_list = []
     
     try:

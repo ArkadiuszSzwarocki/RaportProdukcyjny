@@ -162,6 +162,15 @@ def dodaj_plan():
     
     # Get all fields - allow empty produkt since it comes from hidden field
     produkt = request.form.get('produkt', '').strip()
+    # Block known test product to avoid accidental seeding
+    if produkt and produkt.strip().upper() == 'ROUTE_TEST_PROD':
+        try:
+            current_app.logger.warning(f'[DODAJ_PLAN] Rejected attempt to create forbidden product: {produkt} by user {session.get("login")}')
+            audit_log('Odrzucono zlecenie (zablokowany produkt)', f'produkt={produkt}, data_planu={data_planu}, user={session.get("login")}')
+        except Exception:
+            pass
+        flash('Dodawanie zlecenia testowego jest zablokowane.', 'error')
+        return redirect(bezpieczny_powrot())
     try:
         tonaz = int(float(request.form.get('tonaz', 0)))
     except Exception:
@@ -537,6 +546,9 @@ def dodaj_plany_batch():
         
         for idx, p in enumerate(plans, start=1):
             produkt = (p.get('produkt') or '').strip()
+            # Prevent adding forbidden test product in batch
+            if produkt and produkt.strip().upper() == 'ROUTE_TEST_PROD':
+                return jsonify({'success': False, 'message': f'Wiersz {idx}: dodawanie testowego produktu jest zablokowane'})
             try:
                 tonaz = int(float(p.get('tonaz') or 0))
             except Exception as parse_err:
@@ -1000,7 +1012,7 @@ def update_uszkodzone_worki():
 
 
 @planning_bp.route('/przenies_zlecenie_ajax', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider')
 def przenies_zlecenie_ajax():
     """Move a plan to different date via AJAX - delegated to PlanningService."""
     try:
@@ -1041,7 +1053,7 @@ def przenies_zlecenie_ajax():
 
 
 @planning_bp.route('/przesun_zlecenie_ajax', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider')
 def przesun_zlecenie_ajax():
     """Move a plan up/down in sequence via AJAX - delegated to PlanMovementService."""
     try:

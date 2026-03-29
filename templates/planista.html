@@ -436,6 +436,36 @@
                 mainRow.classList.add('expanded');
             }
         }
+        // When details are expanded, also fetch active status for the plan and show brief info
+        try {
+            if (!detailsRow.classList.contains('hidden')) {
+                fetch('/api/check_zlecenie', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan_id: id })
+                }).then(function (r) { return r.json(); }).then(function (j) {
+                    try {
+                        if (j && j.success) {
+                            var p = j.plan || {};
+                            var rel = j.related || {};
+                            var parts = [];
+                            parts.push('<strong>Zlecenie:</strong> ' + (p.id || '—') + ' — ' + (p.produkt || '—'));
+                            parts.push('<strong>Sekcja:</strong> ' + (p.sekcja || '—'));
+                            parts.push('<strong>Status:</strong> ' + (p.status || '—'));
+                            parts.push('<strong>Pozostało:</strong> ' + (p.remaining_kg !== undefined ? (p.remaining_kg + ' kg') : '—'));
+                            if (rel && rel.workowanie) {
+                                parts.push('<strong>Workowanie (pozostało):</strong> ' + (rel.workowanie.remaining_kg || 0) + ' kg');
+                            }
+                            if (j.active) parts.push('<span class="badge badge-warning">AKTYWNE</span>'); else parts.push('<span class="badge">zamknięte</span>');
+                            var html = '<div class="p-10">' + parts.join('<br>') + '</div>';
+                            try { showQuickPopup('Status zlecenia', html); } catch (e) { safeAlert('Status zlecenia', parts.join('\n')); }
+                        } else {
+                            safeAlert('Info', (j && j.message) || 'Brak danych');
+                        }
+                    } catch (e) { console.error('check_zlecenie processing failed', e); }
+                }).catch(function (err) { console.error('check_zlecenie fetch failed', err); safeAlert('Błąd sieci', 'Nie udało się sprawdzić statusu zlecenia'); });
+            }
+        } catch (e) { console.warn('toggleDetails check_zlecenie failed', e); }
     }
 
     function openMoveModal(id, nazwa) {
@@ -459,7 +489,7 @@
     function submitMoveModal(id) {
         var newDate = document.getElementById('new_date_' + id).value;
         if (!newDate) {
-            alert('Wybierz datę');
+            safeAlert('Uwaga', 'Wybierz datę');
             return;
         }
         fetch('/planista/przenies_zlecenie/' + id, {
@@ -473,7 +503,7 @@
             }
             location.reload();
         }).catch(err => {
-            alert('Błąd: ' + err);
+            safeAlert('Błąd', 'Błąd: ' + err);
         });
     }
 
@@ -490,7 +520,12 @@
         .then(handleFetchResponse)
         .then(function (j) {
             if (!j || !j.success) {
-                alert('Brak niezrealizowanych planów do przeniesienia');
+                try {
+                    var shortMsg = (j && j.message) ? j.message : 'Jeśli coś jest niezamknięte, nie można przenieść zlecenia.';
+                    // Show concise message to user
+                    try { showQuickPopup('Uwaga', '<div class="p-10">' + shortMsg + '</div>'); }
+                    catch (e) { safeAlert('Uwaga', shortMsg); }
+                } catch (e) { safeAlert('Uwaga', 'Jeśli coś jest niezamknięte, nie można przenieść zlecenia.'); }
                 return;
             }
             var html = '<div style="max-height:400px;overflow:auto;padding:8px;">';
@@ -518,7 +553,7 @@
         })
         .catch(function (err) {
             console.error('CheckIncomplete ERROR', err);
-            alert('Błąd podczas sprawdzania niezrealizowanych: ' + (err && err.message ? err.message : err));
+            safeAlert('Błąd', 'Błąd podczas sprawdzania niezrealizowanych: ' + (err && err.message ? err.message : err));
         });
     }
 
@@ -529,7 +564,7 @@
             .then(function (resp) { if (!resp.ok) throw new Error('Nie można załadować formularza'); return resp.text(); })
             .then(function (html) {
                 var body = document.getElementById('quickPopupBody');
-                if (!body) return alert('Brak quick-popup panelu');
+                if (!body) return safeAlert('Błąd', 'Brak quick-popup panelu');
                 openQuickPopup(html);
                 // NOTE: data-slide-close handling removed with slide-over component
 
@@ -550,10 +585,10 @@
                                     } else {
                                         throw new Error((j && j.message) || 'Błąd');
                                     }
-                                }).catch(function (err) { alert('Błąd: ' + (err.message || err)); });
+                                }).catch(function (err) { safeAlert('Błąd', 'Błąd: ' + (err.message || err)); });
                     });
                 }
-            }).catch(function () { alert('Błąd ładowania formularza'); closeQuickPopup(); });
+            }).catch(function () { safeAlert('Błąd', 'Błąd ładowania formularza'); closeQuickPopup(); });
     }
     /* showModalDisabled removed — slide-over used as fallback instead */
 </script>
@@ -572,10 +607,10 @@
                         row.parentNode.insertBefore(row, row.previousElementSibling);
                     }
                 } else {
-                    alert((j && j.message) || 'Błąd');
+                    safeAlert('Błąd', (j && j.message) || 'Błąd');
                 }
             })
-            .catch(function (err) { alert(err && err.message ? err.message : 'Błąd sieci'); });
+            .catch(function (err) { safeAlert('Błąd sieci', err && err.message ? err.message : 'Błąd sieci'); });
     }
     function moveDown(id) {
         fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'dol', data: '{{ wybrana_data }}' }) })
@@ -588,10 +623,10 @@
                         row.parentNode.insertBefore(row.nextElementSibling, row);
                     }
                 } else {
-                    alert((j && j.message) || 'Błąd');
+                    safeAlert('Błąd', (j && j.message) || 'Błąd');
                 }
             })
-            .catch(function (err) { alert(err && err.message ? err.message : 'Błąd sieci'); });
+            .catch(function (err) { safeAlert('Błąd sieci', err && err.message ? err.message : 'Błąd sieci'); });
     }
     function deletePlanConfirm(id, data) { if (!confirm('Usunąć?')) return; deletePlan(id, data); }
     function deletePlan(id, data) {
@@ -599,17 +634,18 @@
             .then(function (r) {
                     return handleFetchResponse(r);
             })
-            .then(function (j) { if (j && !j.success) { alert(j.message || 'Błąd'); } })
-            .catch(function () { alert('Błąd sieci'); });
+            .then(function (j) { if (j && !j.success) { safeAlert('Błąd', j.message || 'Błąd'); } })
+            .catch(function () { safeAlert('Błąd sieci', 'Błąd sieci'); });
     }
 </script>
 <script>
     function toggleEdit(id) {
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
         if (!tr) return;
-        var produkt = tr.children[0].innerText.trim();
+        // Table columns: 0=Lp, 1=Produkt, 2=Typ, 3=Plan
+        var produkt = tr.children[1].innerText.trim();
         var typ = tr.querySelector('.badge-sekcja') ? tr.querySelector('.badge-sekcja').innerText : '';
-        var tonaz = tr.children[2].innerText.replace(/[^0-9\.\,]/g, '') || 0;
+        var tonaz = tr.children[3].innerText.replace(/[^0-9\.\,]/g, '') || 0;
 
         var html = '<form id="editForm_' + id + '" class="form-group">';
         html += '<div class="form-group"><label>Produkt:</label><input id="e_prod_' + id + '" name="produkt" value="' + produkt + '" required></div>';
@@ -640,15 +676,16 @@
                 }
                 location.reload();
             } else {
-                alert((j && j.message) || 'Błąd');
+                safeAlert('Błąd', (j && j.message) || 'Błąd');
             }
-        }).catch(() => alert('Błąd sieci'));
+        }).catch(() => safeAlert('Błąd sieci', 'Błąd sieci'));
     }
 
     function toggleTonazEdit(id) {
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
         if (!tr) return;
-        var tonaz = tr.children[2].innerText.replace(/[^0-9\.\,]/g, '') || 0;
+        // Plan is in the 4th column (index 3)
+        var tonaz = tr.children[3].innerText.replace(/[^0-9\.\,]/g, '') || 0;
 
         var html = '<form id="editTonazForm_' + id + '" class="form-group">';
         html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_only_' + id + '" name="tonaz" type="number" step="0.1" value="' + tonaz + '" required></div>';
@@ -675,9 +712,9 @@
                 }
                 location.reload();
             } else {
-                alert((j && j.message) || 'Błąd');
+                safeAlert('Błąd', (j && j.message) || 'Błąd');
             }
-        }).catch(() => alert('Błąd sieci'));
+        }).catch(() => safeAlert('Błąd sieci', 'Błąd sieci'));
     }
 
     function openQuickPopup(html) {
@@ -717,14 +754,14 @@
                         e.target.style.borderColor = '#4CAF50';
                         setTimeout(function () { e.target.style.borderColor = ''; }, 1000);
                     } else {
-                        alert((j && j.message) || 'Błąd aktualizacji');
+                        safeAlert('Błąd', (j && j.message) || 'Błąd aktualizacji');
                         e.target.value = e.target.getAttribute('data-original-value') || 0;
                     }
                 })
-                .catch(function (err) {
-                    alert('Błąd sieci');
-                    console.error(err);
-                });
+                    .catch(function (err) {
+                        safeAlert('Błąd sieci', 'Błąd sieci');
+                        console.error(err);
+                    });
         }
     }, false);
 
@@ -833,11 +870,11 @@
                                         // Silently update UI without reload
                                         console.log('Reorder success - no reload needed');
                                     } else {
-                                        alert((j && j.message) || 'Błąd przy reorderowaniu');
+                                        safeAlert('Błąd', (j && j.message) || 'Błąd przy reorderowaniu');
                                     }
                                 })
                                 .catch(function (err) {
-                                    alert('Błąd: ' + (err && err.message ? err.message : 'Nie wiadomo'));
+                                    safeAlert('Błąd', 'Błąd: ' + (err && err.message ? err.message : 'Nie wiadomo'));
                                 });
                         }
                     }
@@ -847,7 +884,7 @@
     }
 
     // Przenieś niezrealizowane zlecenia na następny dzień
-    function przeniesNiezrealizowane(data) {
+    window.przeniesNiezrealizowane = function (data) {
         console.log('[PRZENIES] Kliknięto przycisk dla daty:', data);
         // First, fetch details about what would be moved
         fetch('/api/check_niezrealizowane', {
@@ -864,17 +901,26 @@
                     showSelectModal(j, data);
                 } else {
                     console.log('[PRZENIES] Brak niezrealizowanych planów:', j && j.message);
-                    alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas sprawdzania planów'));
+                    try {
+                        showQuickPopup('Błąd', `<div class="p-10 text-error">✗ ${ (j && j.message) ? j.message : 'Błąd podczas sprawdzania planów' }</div>`);
+                    } catch (e) {
+                        alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas sprawdzania planów'));
+                    }
                 }
             })
             .catch(function (err) {
                 console.error('[PRZENIES] ERROR:', err);
-                alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
+                try {
+                    var msg = formatError(err && err.message ? err.message : err);
+                    showQuickPopup('Błąd sieci', '<div class="p-10 text-error">✗ Błąd: ' + (msg || 'Połączenie nieudane') + '</div>');
+                } catch (e) {
+                    safeAlert('Błąd sieci', '✗ Błąd: ' + (formatError(err) || 'Połączenie nieudane'));
+                }
                 console.error(err);
             });
     }
 
-    function showSelectModal(data, currentDate) {
+    window.showSelectModal = function (data, currentDate) {
         console.log('[SELECT MODAL] Pokazuję modal z planami:', data.plans);
         
         // Store current data for later use
@@ -917,7 +963,7 @@
         });
     }
 
-    function closeSelectModal() {
+    window.closeSelectModal = function () {
         console.log('[SELECT MODAL] Zamykam modal');
         document.getElementById('selectBackdrop').classList.remove('active');
         document.getElementById('selectModal').classList.remove('active');
@@ -925,21 +971,21 @@
         window.currentMoveDate = null;
     }
 
-    function selectAllPlans() {
+    window.selectAllPlans = function () {
         console.log('[SELECT MODAL] Zaznaczam wszystkie');
         document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) {
             cb.checked = true;
         });
     }
 
-    function deselectAllPlans() {
+    window.deselectAllPlans = function () {
         console.log('[SELECT MODAL] Odznaczam wszystkie');
         document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) {
             cb.checked = false;
         });
     }
 
-    function submitSelectedPlans() {
+    window.submitSelectedPlans = function () {
         console.log('[SELECT MODAL] Wysyłam wybrane plany');
         
         // Get checked plan IDs
@@ -989,15 +1035,29 @@
             .then(function (j) {
                 console.log('[MOVE] Response:', j);
                 if (j && j.success) {
-                    alert('✅ ' + (j.message || 'Zlecenia zostały pomyślnie przeniesione!'));
-                    location.reload(); // Reload page to show updated plans
+                    try {
+                        showQuickPopup('Sukces', '<div class="p-10">✅ ' + (j.message || 'Zlecenia zostały pomyślnie przeniesione!') + '</div>');
+                    } catch (e) {
+                        safeAlert('Sukces', (j.message || 'Zlecenia zostały pomyślnie przeniesione!'));
+                    }
+                    setTimeout(function () { location.reload(); }, 400);
                 } else {
-                    alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
+                    var msg = (j && j.message) ? formatError(j.message) : 'Błąd podczas przenoszenia';
+                    try {
+                        showQuickPopup('Błąd', '<div class="p-10 text-error">✗ ' + msg + '</div>');
+                    } catch (e) {
+                        safeAlert('Błąd', msg);
+                    }
                 }
             })
             .catch(function (err) {
                 console.error('[MOVE] ERROR:', err);
-                alert('✗ Błąd: ' + (err && err.message ? err.message : 'Połączenie nieudane'));
+                var msg = formatError(err && err.message ? err.message : err);
+                try {
+                    showQuickPopup('Błąd sieci', '<div class="p-10 text-error">✗ Błąd: ' + (msg || 'Połączenie nieudane') + '</div>');
+                } catch (e) {
+                    safeAlert('Błąd sieci', '✗ Błąd: ' + (msg || 'Połączenie nieudane'));
+                }
                 console.error(err);
             });
     }

@@ -919,39 +919,34 @@ def api_check_niezrealizowane():
         total_remaining = 0
         
         for plan in all_plans:
-            z_plan = plan['z_plan']
-            z_real = plan['z_real']
+            # Only consider entries that have a Workowanie plan — transfer is based on Workowanie
+            if plan['workowanie_id'] is None:
+                continue
+
             w_plan = plan['w_plan']
             w_real = plan['w_real']
-            
-            # Remaining to pack (buffer-based)
-            if plan['workowanie_id'] is not None:
-                workowanie_remaining = max(0.0, w_plan - w_real)
-            else:
-                workowanie_remaining = max(0.0, z_real)  # no Workowanie plan yet
-            
-            # Zasyp shortfall
-            zasyp_remaining = max(0.0, z_plan - z_real)
-            
-            if workowanie_remaining <= 0 and zasyp_remaining <= 0:
+
+            # Remaining to pack = Workowanie.tonaz - Workowanie.tonaz_rzeczywisty
+            workowanie_remaining = max(0.0, w_plan - w_real)
+
+            if workowanie_remaining <= 0:
                 continue
-            
+
             total_remaining += workowanie_remaining
             details.append({
                 'plan_id': plan['zasyp_id'],
                 'produkt': plan['produkt'],
-                # Show actual amount Zasypano (real tonnage from Zasyp record)
-                'plan_kg': z_real,
+                # Show 'Zasypano' as the Workowanie planned tonage (we base on Workowanie)
+                'plan_kg': w_plan,
                 'wykonanie_kg': w_real,
                 'remaining_kg': workowanie_remaining,
-                'zasyp_shortfall_kg': zasyp_remaining,
+                'zasyp_shortfall_kg': 0,
             })
         
         if not details:
-            return jsonify({
-                'success': False,
-                'message': 'Brak niezrealizowanych planów do przeniesienia'
-            }), 400
+            # Return a simple, user-facing message: if anything is not closed, transfer is not allowed
+            simple_msg = 'Jeśli coś jest niezamknięte, nie można przenieść zlecenia.'
+            return jsonify({'success': False, 'message': simple_msg}), 400
         
         return jsonify({
             'success': True,
@@ -966,6 +961,112 @@ def api_check_niezrealizowane():
         
     except Exception as e:
         current_app.logger.exception(f'Error in api_check_niezrealizowane: {str(e)}')
+        return jsonify({'success': False, 'message': f'Błąd serwera: {str(e)}'}), 500
+
+
+@planista_bp.route('/api/check_zlecenie', methods=['POST'])
+@roles_required('planista', 'admin', 'lider')
+def api_check_zlecenie():
+    """Check given plan (zlecenie) and report which parts are still active / not closed and in which section."""
+    try:
+        data = request.get_json() or {}
+        plan_id = data.get('plan_id') or request.args.get('plan_id')
+        if not plan_id:
+            return jsonify({'success': False, 'message': 'Brak plan_id'}), 400
+        try:
+            plan_id = int(plan_id)
+        except Exception:
+            return jsonify({'success': False, 'message': 'Nieprawidłowe plan_id'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT id, sekcja, produkt, tonaz, tonaz_rzeczywisty, status, real_start, real_stop FROM plan_produkcji WHERE id = %s", (plan_id,))
+        plan = cursor.fetchone()
+        if not plan:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Zlecenie nie znalezione'}), 404
+
+        # compute remaining for this plan
+        plan_ton = float(plan.get('tonaz') or 0)
+        real_ton = float(plan.get('tonaz_rzeczywisty') or 0)
+        remaining = max(0.0, plan_ton - real_ton)
+
+        # gather related info: Workowanie (if this is Zasyp), szarze, palety, bufor entries
+        related = {}
+        try:
+            # If this plan is a Zasyp, find its Workowanie record
+            if (plan.get('sekcja') or '').strip().lower() == 'zasyp':
+                cursor.execute("SELECT id, sekcja, tonaz, tonaz_rzeczywisty, status FROM plan_produkcji WHERE zasyp_id = %s AND LOWER(sekcja) = 'workowanie' LIMIT 1", (plan_id,))
+                w = cursor.fetchone()
+                if w:
+                    w_ton = float(w.get('tonaz') or 0)
+                    w_real = float(w.get('tonaz_rzeczywisty') or 0)
+                    related['workowanie'] = {
+                        'id': w.get('id'),
+                        'sekcja': w.get('sekcja'),
+                        'plan_kg': w_ton,
+                        'real_kg': w_real,
+                        'remaining_kg': max(0.0, w_ton - w_real),
+                        'status': w.get('status')
+                    }
+
+            # szarze sum (actual weights entered)
+            cursor.execute("SELECT COALESCE(SUM(waga),0) AS szarze_sum FROM szarze WHERE plan_id = %s", (plan_id,))
+            r = cursor.fetchone()
+            related['szarze_sum_kg'] = float(r.get('szarze_sum') or 0)
+
+            # palety summary (for Workowanie)
+            cursor.execute("SELECT COUNT(*) AS count, COALESCE(SUM(waga),0) AS total_kg FROM palety_workowanie WHERE plan_id = %s", (plan_id,))
+            r = cursor.fetchone()
+            related['palety_count'] = int(r.get('count') or 0)
+            related['palety_total_kg'] = float(r.get('total_kg') or 0)
+
+            # bufor entries related (zasyp_id or plan_id)
+            cursor.execute("SELECT id, zasyp_id, data_planu, produkt, spakowano, status FROM bufor WHERE zasyp_id = %s OR plan_id = %s", (plan_id, plan_id))
+            buf_rows = cursor.fetchall()
+            related['bufor'] = buf_rows or []
+        except Exception:
+            current_app.logger.exception('Error gathering related info for plan')
+
+        conn.close()
+
+        is_active = False
+        reasons = []
+        if (plan.get('status') or '').strip().lower() != 'zakonczone':
+            is_active = True
+            reasons.append('status != zakonczone')
+        if remaining > 0:
+            is_active = True
+            reasons.append(f'Nie spakowano {remaining:.1f} kg')
+        # also if there are pending bufor entries or palety not confirmed
+        if related.get('bufor'):
+            for b in related.get('bufor'):
+                if (b.get('status') or '').strip().lower() != 'zamkniete' and (b.get('spakowano') is None or float(b.get('spakowano') or 0) < 0.0001):
+                    is_active = True
+                    reasons.append('Istnieją aktywne wpisy w buforze')
+                    break
+
+        payload = {
+            'success': True,
+            'plan': {
+                'id': plan.get('id'),
+                'sekcja': plan.get('sekcja'),
+                'produkt': plan.get('produkt'),
+                'status': plan.get('status'),
+                'plan_kg': plan_ton,
+                'real_kg': real_ton,
+                'remaining_kg': remaining
+            },
+            'related': related,
+            'active': is_active,
+            'reasons': reasons
+        }
+
+        return jsonify(payload), 200
+
+    except Exception as e:
+        current_app.logger.exception(f'Error in api_check_zlecenie: {str(e)}')
         return jsonify({'success': False, 'message': f'Błąd serwera: {str(e)}'}), 500
 
 

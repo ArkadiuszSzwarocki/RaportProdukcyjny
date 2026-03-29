@@ -935,7 +935,7 @@
       const typ = document.getElementById('newProductTyp').value;
 
       if (!nazwa) {
-        return alert('Podaj nazwę produktu');
+        return safeAlert('Uwaga', 'Podaj nazwę produktu');
       }
 
       fetch('/api/produkty', {
@@ -949,8 +949,8 @@
       })
         .then(r => r.json())
         .then(data => {
-          if (data.success) {
-            alert('✅ Produkt "' + nazwa + '" dodany do listy!');
+            if (data.success) {
+            safeAlert('Sukces', '✅ Produkt "' + nazwa + '" dodany do listy!');
             closeProductModal();
             loadProdukty();
             setTimeout(() => {
@@ -960,12 +960,12 @@
               selectProdukt.dispatchEvent(new Event('change'));
             }, 100);
           } else {
-            alert('❌ Błąd: ' + data.message);
+            safeAlert('Błąd', '❌ Błąd: ' + data.message);
           }
         })
         .catch(e => {
           console.error('Error:', e);
-          alert('Błąd sieci');
+          safeAlert('Błąd sieci', 'Błąd sieci');
         });
     });
 
@@ -1011,8 +1011,8 @@
       const tonaz = tonazVal === '' ? null : (parseFloat(tonazVal) || 0);
       const typ = document.getElementById('inpTyp').value;
 
-      if (!produkt) { return alert('Wybierz produkt ze listy'); }
-      if (tonaz === null || tonaz <= 0) { return alert('Podaj poprawną wagę (kg) większą od 0'); }
+      if (!produkt) { return safeAlert('Uwaga', 'Wybierz produkt ze listy'); }
+      if (tonaz === null || tonaz <= 0) { return safeAlert('Uwaga', 'Podaj poprawną wagę (kg) większą od 0'); }
 
       const tr = document.createElement('tr');
       tr.innerHTML = `<td><strong>${produkt}</strong></td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="delete-button">🗑️</button></td>`;
@@ -1073,9 +1073,9 @@
     const btnSubmitAll = document.getElementById('btnSubmitAll');
     if (btnSubmitAll) btnSubmitAll.addEventListener('click', function () {
       const rows = Array.from(tbody.querySelectorAll('tr'));
-      if (rows.length === 0) return alert('Brak dodanych zleceń');
+      if (rows.length === 0) return safeAlert('Uwaga', 'Brak dodanych zleceń');
       const valid = validateRows(rows);
-      if (!valid.ok) return alert(valid.message);
+      if (!valid.ok) return safeAlert('Błąd', valid.message);
 
       const data_planu = document.getElementById('data_planu').value || '{{ wybrana_data }}';
       const sekcja = document.getElementById('sekcja_select').value;
@@ -1098,13 +1098,13 @@
             const sekcja = document.getElementById('sekcja_select').value;
             const tab = sekcja.toLowerCase() === 'agro' ? 'agro' : 'psd';
             window.location = "{{ url_for('planista.panel_planisty') }}?data=" + encodeURIComponent(data_planu) + '&tab=' + tab;
-          } else {
-            alert(j && j.message ? j.message : 'Błąd serwera');
+            } else {
+            safeAlert('Błąd', j && j.message ? j.message : 'Błąd serwera');
           }
         })
         .catch(e => {
           console.error(e);
-          alert('Błąd sieci');
+          safeAlert('Błąd sieci', 'Błąd sieci');
         });
     });
 
@@ -1151,17 +1151,17 @@
       })
         .then(r => r.json())
         .then(data => {
-          if (data.success) {
-            alert('Produkt zaktualizowany');
+            if (data.success) {
+            safeAlert('Sukces', 'Produkt zaktualizowany');
             loadProdukty();
             loadProductsForManagement();
           } else {
-            alert(data.message || 'Błąd');
+            safeAlert('Błąd', data.message || 'Błąd');
           }
         })
         .catch(e => {
           console.error(e);
-          alert('Błąd sieci');
+          safeAlert('Błąd sieci', 'Błąd sieci');
         });
     };
 
@@ -1174,16 +1174,16 @@
         .then(r => r.json())
         .then(data => {
           if (data.success) {
-            alert('Produkt usunięty');
+                safeAlert('Sukces', 'Produkt usunięty');
             loadProdukty();
             loadProductsForManagement();
           } else {
-            alert(data.message || 'Błąd');
+                safeAlert('Błąd', data.message || 'Błąd');
           }
         })
         .catch(e => {
           console.error(e);
-          alert('Błąd sieci');
+              safeAlert('Błąd sieci', 'Błąd sieci');
         });
     };
 

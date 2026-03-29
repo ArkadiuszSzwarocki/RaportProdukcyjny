@@ -52,7 +52,7 @@ def start_zlecenie(id):
                 if active_on_zasyp and active_on_zasyp[0] != id:
                     # Inne zlecenie aktywne na Zasyp - informuj ale nie blokuj
                     warning_info = {
-                        'message': f"Na Zasyp trwa zlecenie: <strong>{active_on_zasyp[1]}</strong>",
+                        'message': f"Na Zasyp trwa zlecenie: {active_on_zasyp[1]}",
                         'zasyp_order_id': active_on_zasyp[0],
                         'zasyp_order_name': active_on_zasyp[1]
                     }
@@ -95,7 +95,7 @@ def start_zlecenie(id):
                             current_app.logger.debug(f'[KOLEJKA] produkt="{produkt}" earliest_from_zasyp="{earliest_product}" normalized: "{prod_norm}" vs "{earliest_norm}"')
                             if prod_norm != earliest_norm:
                                 # Nie zezwalamy na uruchomienie innego produktu niż ten najwcześniej zakończony na Zasyp
-                                flash(f"❌ Kolejkowanie Workowanie: aktualnie otwarty powinien być produkt zakończony najwcześniej na Zasyp: <strong>{earliest_product}</strong>. Najpierw zakończ ten produkt na Zasyp.", 'error')
+                                flash(f"❌ Kolejkowanie Workowanie: aktualnie otwarty powinien być produkt zakończony najwcześniej na Zasyp: {earliest_product}. Najpierw zakończ ten produkt na Zasyp.", 'error')
                                 return redirect(bezpieczny_powrot())
 
             # Zawsze wykonaj START - Workowanie pracuje niezależnie z bufora
@@ -104,7 +104,7 @@ def start_zlecenie(id):
                 cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
                 current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
                 audit_log('Uruchomił zlecenie', f'ID={id}, produkt={produkt}, sekcja={sekcja}')
-                flash(f"✅ Uruchomiono: <strong>{produkt}</strong>", 'success')
+                flash(f"✅ Uruchomiono: {produkt}", 'success')
                 try:
                     status_logger = logging.getLogger('status_changes')
                     status_logger.info(f"action=start_zlecenie plan_id={id} old={status_obecny} new=w_toku user={session.get('login')} endpoint={request.path} caller=production.start_zlecenie sekcja={sekcja}")

@@ -203,6 +203,79 @@
         }
     }
 
+    // Bezpieczny alert używający showQuickPopup gdy dostępny, z fallbackiem na natywny alert
+    function safeAlert(title, message) {
+        try {
+            if (typeof showQuickPopup === 'function') {
+                try {
+                    var html = '<div class="p-10">' + (message || '') + '</div>';
+                    showQuickPopup(title || '', html);
+                    return;
+                } catch (e) {
+                    // fallthrough to native alert
+                }
+            }
+            var text = (title ? title + "\n\n" : '') + (message || '');
+            alert(text);
+        } catch (e) {
+            try { alert((message || title) || ''); } catch (ee) { /* ignore */ }
+        }
+    }
+
+    // Format and sanitize error-like values for display
+    function formatError(err) {
+        try {
+            if (!err && err !== 0) return '';
+            // If it's an Error object
+            if (typeof err === 'object') {
+                if (err.message) return String(err.message);
+                // try JSON stringify fallback
+                try { return JSON.stringify(err); } catch (e) { return String(err); }
+            }
+            // If it's already a string, try to parse JSON to extract message
+            var s = String(err);
+            // Try to detect JSON blob and extract .message
+            if (/^\s*[{\[]/.test(s)) {
+                try {
+                    var parsed = JSON.parse(s);
+                    if (parsed && parsed.message) return String(parsed.message);
+                    // If parsed is object, return a short stringified version
+                    return JSON.stringify(parsed);
+                } catch (e) {
+                    // fallthrough to unescape unicode sequences
+                }
+            }
+            // Decode \uXXXX sequences
+            try {
+                return s.replace(/\\u([0-9a-fA-F]{4})/g, function (match, grp) { return String.fromCharCode(parseInt(grp, 16)); });
+            } catch (e) { return s; }
+        } catch (e) {
+            try { return String(err); } catch (ee) { return 'Błąd'; }
+        }
+    }
+
+    // Sanitize HTML content passed to showQuickPopup: extract JSON.message or decode unicode escapes
+    function sanitizePopupContent(content) {
+        try {
+            if (!content || typeof content !== 'string') return content;
+            // If content contains a JSON object with message property, extract it
+            var jsonMatch = content.match(/\{\s*"message"[\s\S]*?\}/);
+            if (jsonMatch) {
+                try {
+                    var parsed = JSON.parse(jsonMatch[0]);
+                    var msg = parsed.message || JSON.stringify(parsed);
+                    // Replace the JSON blob in content with the plain message
+                    return content.replace(jsonMatch[0], String(msg));
+                } catch (e) {
+                    // ignore and fallthrough
+                }
+            }
+            // Decode unicode escapes like \u00f3
+            var decoded = content.replace(/\\u([0-9a-fA-F]{4})/g, function (m, g) { return String.fromCharCode(parseInt(g, 16)); });
+            return decoded;
+        } catch (e) { return content; }
+    }
+
     function shouldSkipAutoRefresh() {
         if (skipOpenStopActive()) return true;
         if (hasFocusedEditableElement()) return true;
@@ -311,8 +384,44 @@
                 }
             } catch (e) { /* ignore resize errors */ }
         });
+        // Ensure date input is interactive even if a backdrop/quick-popup is present:
+        try {
+            var dateInput = document.querySelector('input[name="data"]');
+            if (dateInput) {
+                var restoreDateClicks = function (ev) {
+                    try {
+                        // If quick popup/backdrop or select modal are open, close/hide them so datepicker can open
+                        if (window.createQuickPopup && window.createQuickPopup._lastInst) {
+                            try { window.createQuickPopup._lastInst.close(); } catch (e) { }
+                        }
+                        var qb = document.getElementById('quickBackdrop');
+                        if (qb) { qb.classList.remove('show'); qb.style.display = 'none'; qb.setAttribute('aria-hidden', 'true'); qb.style.pointerEvents = 'none'; }
+                        var qp = document.getElementById('quickPopup');
+                        if (qp) { qp.classList.remove('open'); qp.style.display = 'none'; qp.setAttribute('aria-hidden', 'true'); qp.style.pointerEvents = 'none'; }
+                        var sb = document.getElementById('selectBackdrop');
+                        if (sb) { sb.classList.remove('active'); sb.style.display = 'none'; sb.style.pointerEvents = 'none'; }
+                        var sm = document.getElementById('selectModal'); if (sm) sm.classList.remove('active');
+                        // Remove any body-level modal classes that may block clicks
+                        try { document.body.classList.remove('modal-open', 'slide-over-open'); } catch (e) { }
+                    } catch (e) { /* ignore */ }
+                };
+                dateInput.addEventListener('focus', restoreDateClicks);
+                dateInput.addEventListener('click', restoreDateClicks);
+            }
+        } catch (e) { /* ignore */ }
 
         // Modal management removed — modale są wyłączone w całej aplikacji.
+        // Wrap global showQuickPopup to sanitize content (decode JSON/unicode) if present
+        try {
+            if (window.showQuickPopup && !window.__showQuickPopupWrapped) {
+                var __origShowQuickPopup = window.showQuickPopup;
+                window.showQuickPopup = function (title, content) {
+                    try { content = sanitizePopupContent(content); } catch (e) { /* ignore */ }
+                    return __origShowQuickPopup(title, content);
+                };
+                window.__showQuickPopupWrapped = true;
+            }
+        } catch (e) { /* ignore */ }
     });
 
     // Global click delegation: any element with `data-slide` or `data-slide-html` opens slide-over
@@ -613,6 +722,15 @@
     /* ================= Global quick popup helper ================= */
     function createQuickPopup(title, html, opts) {
         opts = opts || {};
+        // If plain-text content is passed (no HTML tags), render it using
+        // the styled popup templates so messages look consistent.
+        try {
+            var raw = String(html || '');
+            if (!/[<][a-zA-Z]/.test(raw)) {
+                var inferredType = /bł[ae]d|error|blad|fail|nie uda/gi.test((title || '') + ' ' + raw) ? 'error' : 'info';
+                html = createPopupContent(inferredType === 'info' ? 'success' : inferredType, raw);
+            }
+        } catch (e) { /* ignore and use provided html */ }
         // Reuse existing global quick popup elements if present to avoid duplicates
         const existingBd = document.getElementById('quickBackdrop') || document.querySelector('.quick-backdrop');
         const existingM = document.getElementById('quickPopup') || document.querySelector('.quick-popup');
@@ -651,9 +769,38 @@
             return { close: function () { try { if (typeof closeQuickPopup === 'function') closeQuickPopup(); else { existingM.classList.remove('open'); existingBd.classList.remove('show'); setTimeout(() => { existingM.style.display = 'none'; document.body.classList.remove('slide-over-open'); }, 260); } } catch (e) { } }, element: existingM };
         }
 
-        const bd = document.createElement('div'); bd.className = 'quick-backdrop';
-        const m = document.createElement('div'); m.className = 'quick-popup';
-        m.innerHTML = `<div class="qp-header"><strong>${title || ''}</strong><button class="qp-close" aria-label="Zamknij">✕</button></div><div class="qp-body">${html || ''}</div>`;
+        const bd = document.createElement('div'); bd.className = 'quick-backdrop'; bd.id = 'quickBackdrop';
+        const m = document.createElement('div'); m.className = 'quick-popup'; m.id = 'quickPopup';
+        // Build a more structured header with an icon and accessible labels
+        var isError = (/(bł[ae]d|error|blad|nie uda)/i.test(title || '') || /(^✗|✗)/.test(html || ''));
+        var icon = isError ? '✗' : 'ℹ';
+        var headerHtml = '<div class="qp-header" role="dialog" aria-modal="true">'
+            + '<div class="qp-header-left" style="display:flex;align-items:center;gap:12px;">'
+            + '<div class="qp-icon" style="font-size:20px;color:' + (isError ? '#d9534f' : '#0d6efd') + ';">' + icon + '</div>'
+            + '<div class="header-title"><strong>' + (title || '') + '</strong></div>'
+            + '</div>'
+            + '<button class="qp-close" aria-label="Zamknij" style="background:none;border:none;font-size:18px;line-height:1;padding:6px;cursor:pointer;">✕</button>'
+            + '</div>';
+
+        // Inject lightweight, scoped styles to improve visual appearance
+        var scopedStyle = '<style>'
+            + '.quick-backdrop{position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9998;opacity:0;transition:opacity .18s ease}.quick-backdrop.show{opacity:1}'
+            + '.quick-popup{position:fixed;left:50%;top:10%;transform:translateX(-50%) translateY(-6px);z-index:9999;max-width:920px;width:calc(100% - 48px);background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(2,6,23,0.2);overflow:hidden;display:block;opacity:0;transition:all .18s ease}'
+            + '.quick-popup.open{transform:translateX(-50%) translateY(0);opacity:1}'
+            + '.qp-header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #eef2f6;background:linear-gradient(90deg,#fbfcfd,#ffffff)}'
+            + '.qp-header .header-title{font-size:16px;color:#0f172a}'
+            + '.qp-body{padding:12px 16px;max-height:60vh;overflow:auto;font-size:14px;color:#334155;background:#fff}'
+            + '.qp-body .modern-table{width:100%;border-collapse:collapse;margin-top:8px}'
+            + '.qp-body .modern-table th{background:#f8f9fb;color:#0f172a;padding:8px;border-bottom:1px solid #e6eef6;text-align:left;font-weight:700}'
+            + '.qp-body .modern-table td{padding:8px;border-bottom:1px solid #f1f5f9;color:#334155}'
+            + '.qp-body .badge{display:inline-block;padding:6px 10px;border-radius:8px;background:#e9ecef;color:#212529;font-weight:600;margin:4px 4px 4px 0}'
+            + '.qp-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}'
+            + '.btn-action{padding:8px 12px;border-radius:6px;border:none;cursor:pointer}'
+            + '.btn-action.btn-success{background:#28a745;color:#fff}'
+            + '.btn-action.btn-secondary{background:#6c757d;color:#fff}'
+            + '</style>';
+
+        m.innerHTML = scopedStyle + headerHtml + '<div id="quickPopupBody" class="qp-body">' + (html || '') + '</div>';
 
         // Ensure popup/backdrop are appended to top-level root before evaluating scripts
         try {
@@ -813,6 +960,37 @@
             });
     }
     window.showSlideOver = showSlideOver;
+
+    // Unified safeAlert wrapper - prefers showQuickPopup and falls back to native alert
+    function escapeHtml(str) {
+        return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function createPopupContent(type, message) {
+        var m = escapeHtml(message || '');
+        if (type === 'error') {
+            return '<div class="p-12"><div class="popup-error" style="display:flex;gap:12px;align-items:flex-start;"><div style="font-size:20px;color:#d9534f;">✗</div><div><div style="font-weight:700;margin-bottom:6px;color:#0f172a;">Błąd</div><div style="color:#334155;white-space:pre-wrap;">' + m + '</div></div></div></div>';
+        }
+        if (type === 'success') {
+            return '<div class="p-12"><div style="display:flex;gap:12px;align-items:center;"><div style="font-size:20px;color:#28a745;">✓</div><div><div style="font-weight:700;color:#0f172a;">Sukces</div><div style="color:#334155;">' + m + '</div></div></div></div>';
+        }
+        return '<div class="p-10">' + m + '</div>';
+    }
+
+    function safeAlert(title, message) {
+        try {
+            var type = /błąd|error|blad/i.test(title || '') || /^✗/.test(message || '') ? 'error' : 'info';
+            var contentHtml = createPopupContent(type === 'info' ? 'success' : type, message || title || '');
+            if (typeof showQuickPopup === 'function') {
+                showQuickPopup(title || 'Komunikat', contentHtml);
+                return;
+            }
+        } catch (e) {
+            // ignore and fallback to native alert
+        }
+        try { window.alert(message || title); } catch (e) { /* best-effort */ }
+    }
+    window.safeAlert = safeAlert;
 
     // Reinitialize event listeners after partial reload
     function reinitializeAfterPartialReload() {
