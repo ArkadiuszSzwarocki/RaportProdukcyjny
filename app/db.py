@@ -965,7 +965,7 @@ def list_unread_notifications(user_id, role, limit=20, linia='PSD'):
         return []
 
 
-def mark_notification_read(notification_id, user_id):
+def mark_notification_read(notification_id, user_id, linia='PSD'):
     """Mark a single notification as read for the given user."""
     if not notification_id or not user_id:
         return False
@@ -997,7 +997,7 @@ def mark_notification_read(notification_id, user_id):
         return False
 
 
-def mark_all_notifications_read(user_id, role):
+def mark_all_notifications_read(user_id, role, linia='PSD'):
     """Mark all unread notifications for a role as read for the given user."""
     if not user_id or not role:
         return False
