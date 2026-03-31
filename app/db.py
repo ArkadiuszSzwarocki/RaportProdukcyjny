@@ -929,7 +929,7 @@ def create_notifications(typ, tytul, tresc, recipient_roles, link_url=None, plan
                 pass
 
 
-def list_unread_notifications(user_id, role, limit=20):
+def list_unread_notifications(user_id, role, limit=20, linia='PSD'):
     """Return unread notifications for a single user and role."""
     if not user_id or not role:
         return []

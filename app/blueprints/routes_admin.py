@@ -957,8 +957,9 @@ def ustawienia_errors():
     import os
     from flask import current_app
     
-    # Path to error log
-    error_log_path = os.path.join(current_app.root_path, '../logs/error.log')
+    # Path to error log (root_path is app/core, go up 2 levels to project root)
+    project_root = os.path.dirname(os.path.dirname(current_app.root_path))
+    error_log_path = os.path.join(project_root, 'logs/error.log')
     
     # Get lines parameter (default 100)
     try:
