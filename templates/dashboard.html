@@ -9,18 +9,18 @@
             <nav class="top-menu">
                 {% if sekcja not in ['Zasyp', 'Bufor', 'Workowanie', 'Magazyn'] %}
                 <a class="top-menu-item {% if request.endpoint in ['production.obsada_page','panels.panel_obsada_page'] or request.args.get('sekcja')=='Workowanie' %}active{% endif %}"
-                    href="{{ url_for('production.obsada_page', sekcja='Workowanie') }}" title="{{ _('obsada') }}"
+                    href="{{ url_for('production.obsada_page', sekcja='Workowanie', linia=linia) }}" title="{{ _('obsada') }}"
                     data-slide>
                     <span class="material-icons">people</span> {{ _('obsada') }}
                 </a>
                 <a class="top-menu-item {% if request.endpoint=='panels.panel_wnioski_page' %}active{% endif %}"
-                    href="{{ url_for('panels.panel_wnioski_page') }}" data-slide> <span
+                    href="{{ url_for('panels.panel_wnioski_page', linia=linia) }}" data-slide> <span
                         class="material-icons">assignment_turned_in</span> {{ _('zatwierdzenie_wnioskow') }}</a>
                 <a class="top-menu-item {% if request.endpoint=='panels.panel_planowane_page' %}active{% endif %}"
-                    href="{{ url_for('panels.panel_planowane_page') }}" data-slide> <span
+                    href="{{ url_for('panels.panel_planowane_page', linia=linia) }}" data-slide> <span
                         class="material-icons">beach_access</span> {{ _('planowane_urlopy') }}</a>
                 <a class="top-menu-item {% if request.endpoint=='panels.panel_obecnosci_page' %}active{% endif %}"
-                    href="{{ url_for('panels.panel_obecnosci_page') }}" data-slide> <span
+                    href="{{ url_for('panels.panel_obecnosci_page', linia=linia) }}" data-slide> <span
                         class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
                 {% endif %}
             </nav>
@@ -113,7 +113,7 @@
                     <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{%
                             else %}-{% endif %}</span></td>
                     <td>
-                        <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=p[0]) }}"
+                        <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=p[0], linia=linia) }}"
                             class="btn-action btn-success btn-small" data-slide>{{ _('zatwierdz') }}</a>
                     </td>
                 </tr>
@@ -220,7 +220,7 @@
                     <td><span class="badge-info">{{ user_login or '-' }}</span></td>
                     <td><span class="status-badge status-accepted">{{ status }}</span></td>
                     <td class="text-right">
-                        <a href="{{ url_for('warehouse.drukuj_etykiete', paleta_id=id) }}" target="_blank" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę">
+                        <a href="{{ url_for('warehouse.drukuj_etykiete', paleta_id=id, linia=linia) }}" target="_blank" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę">
                             <span class="material-icons" style="font-size:18px;">print</span>
                         </a>
                         {% if rola in ['produkcja', 'lider', 'admin'] %}
@@ -248,7 +248,12 @@
             {% for p in plan %}
             <div class="card {% if p[3] == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}">
                 <div class="card-header">
-                    <strong class="card-title">{{ loop.index }}. {{ p[1] }}</strong>
+                    <strong class="card-title">
+                        {{ loop.index }}. {{ p[1] }}
+                        {% if sekcja == 'Zasyp' %}
+                        <span class="zlecenie-id-badge" title="Nr zlecenia w systemie">#{{ p[0] }}</span>
+                        {% endif %}
+                    </strong>
                     <div class="header-actions">
                         <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>
                         {% if p[3] == 'zaplanowane' %}
@@ -259,7 +264,7 @@
                         {% set allowed = (allowed_work_start_ids is defined and (p[0] in allowed_work_start_ids)) %}
                         {% if allowed and not product_active %}
                         <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                            style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button
+                            style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                                 type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
                         {% else %}
                         <span class="btn-icon-disabled" title="Zablokowane">🔒</span>
@@ -278,17 +283,17 @@
                         <span class="btn-icon-disabled" title="Zablokowane">🔒</span>
                         {% else %}
                         <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                            style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button
+                            style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                                 type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
                         {% endif %}
                         {% endif %}
                         {% elif p[3] == 'w toku' %}
-                        <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja) }}"
+                        <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja, linia=linia) }}"
                             class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
                         {% elif p[3] == 'zakonczone' %}
                         {% if rola in ['lider', 'admin'] %}
-                        <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST"
-                            onsubmit="return confirm('Wznowić {{ p[1] }}?');" style="display:inline;"><button
+                        <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]|int) }}" method="POST"
+                            onsubmit="return confirm('Wznowić {{ p[1] }}?');" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><button
                                 type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button></form>
                         {% endif %}
                         {% endif %}
@@ -315,7 +320,7 @@
                     {% if sekcja != 'Magazyn' %}
                     {% if p[3] == 'w toku' %}
                     {% if sekcja == 'Workowanie' %}
-                    <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0]) }}" class="btn-action btn-purple"
+                    <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple"
                         data-slide>+ PALETA</a>
                     {% set palety_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and
                     palety_mapa[p[0]]) else 0 %}
@@ -323,12 +328,12 @@
                         onclick="toggleDetails('{{ p[0] }}')">Palety ({{ palety_count }})</button>
                     {% elif sekcja == 'Zasyp' %}
                     {% if rola != 'laborant' %}
-                    <a href="{{ url_for('production.szarza_page', plan_id=p[0]) }}" class="btn-action btn-green"
+                    <a href="{{ url_for('production.szarza_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green"
                         data-slide>+ SZARŻA</a>
                     {% endif %}
                     {% set dosypki_pending_count = dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa else
                     0 %}
-                    <a href="{{ url_for('production.dosypki_list', plan_id=p[0]) }}"
+                    <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}"
                         class="btn-action btn-blue btn-with-badge" data-slide data-plan-id="{{ p[0] }}">
                         <span>Dosypki</span>
                         {% if dosypki_pending_count > 0 %}
@@ -371,7 +376,7 @@
                                         }}</span>
                                 </div>
                                 {# Minimal pencil icon in the top-right of the szarza card (tooltip shows note) #}
-                                <a href="{{ url_for('warehouse.edytuj_szarze_page', szarza_id=pal[2]) }}" title="Notatka" class="szarza-note" data-note="{{ (pal[6] if pal|length>6 else '')|e }}" style="position:absolute;right:8px;bottom:8px;font-size:14px;color:var(--muted-color);text-decoration:none;line-height:1;display:flex;align-items:center;gap:6px;">
+                                <a href="{{ url_for('warehouse.edytuj_szarze_page', szarza_id=pal[2], linia=linia) }}" title="Notatka" class="szarza-note" data-note="{{ (pal[6] if pal|length>6 else '')|e }}" style="position:absolute;right:8px;bottom:8px;font-size:14px;color:var(--muted-color);text-decoration:none;line-height:1;display:flex;align-items:center;gap:6px;">
                                     <span style="font-size:14px;line-height:1;">✏️</span>
                                     {% if pal|length>6 and pal[6] %}
                                     <span class="note-badge" style="display:inline-block;width:9px;height:9px;background:#ff5a5f;border-radius:50%;vertical-align:middle;box-shadow:0 0 0 2px rgba(0,0,0,0.06);"></span>
@@ -379,7 +384,7 @@
                                 </a>
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     {% if rola != 'pracownik' and p[3] != 'zakonczone' %}
-                                    <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2]) }}"
+                                    <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2], linia=linia) }}"
                                         class="btn-action btn-green"
                                         style="font-size: 11px; padding: 4px 8px; white-space: nowrap;" data-slide>+
                                         dosypka</a>
@@ -592,8 +597,10 @@
                     // preserve sekcja in querystring (use data-sekcja from container)
                     var params = new URLSearchParams(window.location.search);
                     var sec = container.dataset.sekcja || params.get('sekcja');
+                    var lin = params.get('linia') || '{{ linia }}';
                     if (sec) params.set('sekcja', sec);
                     else params.delete('sekcja');
+                    params.set('linia', lin);
                     params.set('data', iso);
                     window.location.search = params.toString();
                 });
@@ -714,6 +721,7 @@
 
     {% if sekcja == 'Magazyn' %}
     <script>
+
         function editPalet(id, waga) {
             var newWaga = prompt('Nowa waga (kg):', waga);
             if (newWaga && newWaga != waga) {
@@ -1099,8 +1107,7 @@
                 const btn = closestBtn;
                 const id = btn.getAttribute('data-plan-id');
                 const date = btn.getAttribute('data-plan-date');
-                const name = btn.getAttribute('data-plan-name');
-                console.log('🗑️ [5] DELETE BUTTON CLICKED - ID:', id, 'DATE:', date, 'NAME:', name);
+                console.log('🗑️ [5] DELETE BUTTON CLICKED - ID:', id, 'DATE:', date);
                 deletePlan(id, date);
             }
         });

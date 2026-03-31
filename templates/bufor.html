@@ -478,6 +478,7 @@
         </div>
         <div class="bufor-actions-right mt-10">
             <form action="/bufor" method="GET" class="bufor-jump-form">
+                <input type="hidden" name="linia" value="{{ wybrana_linia }}">
                 <label for="bufor-date-input">Skok do daty</label>
                 <input type="date" id="bufor-date-input" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm" aria-label="Wybierz datę">
             </form>
@@ -543,7 +544,7 @@
     }
 
     function navigateToDate(newDate) {
-        window.location.href = '/bufor?data=' + newDate;
+        window.location.href = '/bufor?data=' + newDate + '&linia={{ wybrana_linia }}';
     }
 
     function changeDate(days) {
@@ -602,9 +603,12 @@
                             title="Utwórz zlecenie Workowanie na DZISIAJ ({{ wybrana_data }}) z towarem z bufora - zamiast czekać na tamtą datę">🚀
                             NA DZISIAJ</button>
                         {% endif %}
-                        <button class="btn btn-sm js-move-order btn-move-order" data-plan-id="{{ b.zasyp_id }}"
+                        <button class="btn btn-sm js-move-order btn-move-order" data-plan-id="{{ b.id }}"
                             data-produkt="{{ b.produkt }}" title="{{ _('przenies_zlecenie') }}">📦 {{
                             _('przenies_zlecenie') }}</button>
+                        {% if session.rola in ['admin', 'planista', 'lider'] %}
+                        <button class="btn btn-danger btn-sm js-trash-order" data-plan-id="{{ b.id }}" data-produkt="{{ b.produkt }}" title="Usuń z bufora">🗑️</button>
+                        {% endif %}
 
                     </td>
                     </tr>
@@ -756,10 +760,48 @@
     }
 
     // Zarchiwizuj zlecenie
+    function archiwizujZlecenie(planId, produkt) {
+        if (!confirm(`Czy na pewno chcesz usunąć zlecenie "${produkt}" z bufora?\n\nZlecenie zostanie oznaczone jako zarchiwizowane.`)) {
+            return;
+        }
+
+        fetch('/bufor/archiwizuj', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                plan_id: planId,
+                linia: '{{ wybrana_linia }}'
+            })
+        })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.ok) {
+                    try { showQuickPopup('Sukces', `<div class="p-10">✅ Zlecenie "${produkt}" usunięte z bufora.</div>`); } catch(e){ alert(`✅ Zlecenie "${produkt}" usunięte z bufora.`); }
+                    location.reload();
+                } else {
+                    try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ ${ (j && j.message) ? j.message : 'Nie udało się usunąć zlecenia' }</div>`); } catch(e){ alert('❌ Błąd: ' + (j && j.message ? j.message : 'Nie udało się usunąć zlecenia')); }
+                }
+            })
+            .catch(e => {
+                try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ Błąd sieci: ${ (e && e.message) ? e.message : '' }</div>`); } catch(err){ alert('❌ Błąd sieci: ' + e.message); }
+            });
+    }
 
 
     // Event listeners - załadowane gdy DOM jest gotowy
     document.addEventListener('DOMContentLoaded', () => {
+        // ... (existing listeners)
+        
+        // Przyciski do śmietnika (archiwizacja)
+        document.querySelectorAll('.js-trash-order').forEach((button) => {
+            button.addEventListener('click', () => {
+                const planId = button.dataset.planId;
+                const produkt = button.dataset.produkt || '';
+                if (planId) {
+                    archiwizujZlecenie(planId, produkt);
+                }
+            });
+        });
         const currentDateDisplay = document.getElementById('current-date-display');
         const currentDateIso = document.getElementById('current-date-iso');
         if (currentDateDisplay && currentDateIso) {

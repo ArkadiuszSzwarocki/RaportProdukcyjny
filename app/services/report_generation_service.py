@@ -14,14 +14,14 @@ from pathlib import Path
 import os
 from zipfile import ZipFile
 
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 
 
 class ReportGenerationService:
     """Service for handling shift closing and report generation."""
 
     @staticmethod
-    def close_shift_and_generate_reports(uwagi_lidera: str = '') -> Tuple[Optional[Tuple], Optional[str]]:
+    def close_shift_and_generate_reports(uwagi_lidera: str = '', linia: str = 'PSD') -> Tuple[Optional[Tuple], Optional[str]]:
         """Close shift and generate final reports.
         
         Performs complete shift closing workflow:
@@ -38,14 +38,14 @@ class ReportGenerationService:
         """
         # Step 1: Close orders and record report
         try:
-            ReportGenerationService._close_in_progress_orders(uwagi_lidera)
+            ReportGenerationService._close_in_progress_orders(uwagi_lidera, linia=linia)
         except Exception as e:
             from flask import current_app
             current_app.logger.exception('Failed to close orders: %s', e)
             return None, None
         
         # Step 2: Generate report files
-        xls_path, txt_path, pdf_path = ReportGenerationService._generate_report_files()
+        xls_path, txt_path, pdf_path = ReportGenerationService._generate_report_files(linia=linia)
         
         # Step 3: Try Outlook (optional, non-blocking)
         try:
@@ -55,14 +55,14 @@ class ReportGenerationService:
             current_app.logger.exception('Outlook send failed (non-blocking): %s', e)
         
         # Step 4: Create and return ZIP
-        zip_path = ReportGenerationService._create_report_zip(xls_path, txt_path, pdf_path)
+        zip_path = ReportGenerationService._create_report_zip(xls_path, txt_path, pdf_path, linia=linia)
         if zip_path:
             return (zip_path, 'application/zip')
         
         return None, None
 
     @staticmethod
-    def _close_in_progress_orders(uwagi_lidera: str) -> None:
+    def _close_in_progress_orders(uwagi_lidera: str, linia: str = 'PSD') -> None:
         """Close all in-progress production orders and record final report.
         
         Args:
@@ -78,8 +78,11 @@ class ReportGenerationService:
             from flask import current_app, request
             import traceback
             
+            table_plan = get_table_name('plan_produkcji', linia)
+            table_raporty = get_table_name('raporty_koncowe', linia)
+            
             # Pobranie listy do logu przed updatem
-            cursor.execute("SELECT id FROM plan_produkcji WHERE status='w toku'")
+            cursor.execute(f"SELECT id FROM {table_plan} WHERE status='w toku'")
             ids_to_close = [row[0] for row in cursor.fetchall()]
             if ids_to_close:
                 current_app.logger.critical(f"[TRAP-ZAKONCZONE] UWAGA: Zamykam hurtowo {len(ids_to_close)} zleceń: {ids_to_close} przy generowaniu raportu zmiany (close_shift_and_generate_reports) -> Caller: {traceback.extract_stack()[-3]}")
@@ -91,7 +94,7 @@ class ReportGenerationService:
                 
             # Close all in-progress orders
             cursor.execute(
-                "UPDATE plan_produkcji SET status='zakonczone', real_stop=NOW() WHERE status='w toku'"
+                f"UPDATE {table_plan} SET status='zakonczone', real_stop=NOW() WHERE status='w toku'"
             )
             try:
                 import logging
@@ -102,8 +105,8 @@ class ReportGenerationService:
             
             # Record final report
             cursor.execute(
-                "INSERT INTO raporty_koncowe (data_raportu, lider_uwagi) VALUES (%s, %s)",
-                (date.today(), uwagi_lidera)
+                f"INSERT INTO {table_raporty} (data_raportu, lider_uwagi, linia) VALUES (%s, %s, %s)",
+                (date.today(), uwagi_lidera, linia)
             )
             
             conn.commit()
@@ -112,7 +115,7 @@ class ReportGenerationService:
             conn.close()
 
     @staticmethod
-    def _generate_report_files() -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    def _generate_report_files(linia: str = 'PSD') -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """Generate Excel, text, and PDF report files.
         
         Returns:
@@ -133,7 +136,7 @@ class ReportGenerationService:
         
         try:
             # Generator returns tuple of (xls, txt, pdf)
-            xls_path, txt_path, pdf_path = generuj_paczke_raportow(str(date.today()), '', '')
+            xls_path, txt_path, pdf_path = generuj_paczke_raportow(str(date.today()), '', linia=linia)
         except Exception as e:
             from flask import current_app
             current_app.logger.exception('Report generation failed: %s', e)
@@ -142,7 +145,7 @@ class ReportGenerationService:
 
     @staticmethod
     def _create_report_zip(xls_path: Optional[str], txt_path: Optional[str], 
-                          pdf_path: Optional[str]) -> Optional[str]:
+                          pdf_path: Optional[str], linia: str = 'PSD') -> Optional[str]:
         """Create ZIP archive containing generated report files.
         
         Args:
@@ -157,7 +160,7 @@ class ReportGenerationService:
         if not any([xls_path, txt_path, pdf_path]):
             return None
         
-        zip_name = f"Raport_{date.today()}.zip"
+        zip_name = f"Raport_{linia}_{date.today()}.zip"
         raporty_dir = Path('raporty')
         raporty_dir.mkdir(exist_ok=True)
         zip_path = str(raporty_dir / zip_name)
@@ -205,17 +208,10 @@ class ReportGenerationService:
             raise
 
     @staticmethod
-    def get_report_files_for_date(report_date: date) -> Dict[str, Optional[str]]:
-        """Retrieve paths to generated report files for a specific date.
-        
-        Args:
-            report_date: Date to retrieve reports for
-            
-        Returns:
-            Dict with keys 'excel', 'text', 'pdf' pointing to file paths (or None if not found)
-        """
+    def get_report_files_for_date(report_date: date, linia: str = 'PSD') -> Dict[str, Optional[str]]:
+        """Retrieve paths to generated report files for a specific date and line."""
         raporty_dir = Path('raporty')
-        report_prefix = f"Raport_{report_date}"
+        report_prefix = f"Raport_{linia}_{report_date}"
         
         files = {
             'excel': None,

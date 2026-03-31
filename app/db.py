@@ -6,6 +6,31 @@ import time
 from datetime import date, timedelta
 import uuid
 
+
+def get_table_name(base_name: str, linia: str = 'Agro') -> str:
+    """Return the physical table name for a given logical name and production line.
+
+    Naming conventions in the database:
+    - PSD line:  uses base table names as-is (e.g. plan_produkcji, bufor, magazyn_surowce)
+    - Agro line: most tables use suffix _agro (e.g. plan_produkcji_agro, bufor_agro)
+                 but magazyn_surowce / magazyn_ruch use magazyn_agro_* prefix instead
+                 (magazyn_agro_surowce, magazyn_agro_ruch)
+    """
+    if linia and linia.lower() == 'agro':
+        # Special cases: tables that use magazyn_agro_* prefix pattern
+        _special_agro = {
+            'magazyn_surowce': 'magazyn_agro_surowce',
+            'magazyn_ruch':    'magazyn_agro_ruch',
+        }
+        if base_name in _special_agro:
+            return _special_agro[base_name]
+        # General rule: append _agro suffix
+        if not base_name.endswith('_agro'):
+            return base_name + '_agro'
+    return base_name
+
+
+
 def get_db_connection(retries=3):
     """Get database connection with retry logic"""
     last_error = None
@@ -627,12 +652,12 @@ def rollover_unfinished(from_date, to_date):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id, sekcja, produkt, tonaz, status, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury, zasyp_id FROM plan_produkcji WHERE data_planu=%s", (from_date,))
+        cursor.execute("SELECT id, sekcja, produkt, tonaz, status, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury FROM plan_produkcji WHERE data_planu=%s", (from_date,))
         rows = cursor.fetchall()
         moved = 0
         moved_ids = []
         for row in rows:
-            pid, sekcja, produkt, tonaz, status, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury, zasyp_id = row
+            pid, sekcja, produkt, tonaz, status, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury = row
             if status == 'zakonczone':
                 continue
 
@@ -642,8 +667,8 @@ def rollover_unfinished(from_date, to_date):
             nk = (res[0] if res and res[0] else 0) + 1
 
             cursor.execute(
-                "INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, kolejnosc, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury, zasyp_id) VALUES (%s, %s, %s, %s, 'zaplanowane', NULL, NULL, NULL, %s, %s, %s, %s, %s, %s)",
-                (to_date, sekcja, produkt, tonaz, nk, typ_produkcji or 'worki_zgrzewane_25', nazwa_zlecenia or '', typ_zlecenia or '', nr_receptury or '', zasyp_id)
+                "INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, kolejnosc, typ_produkcji, nazwa_zlecenia, typ_zlecenia, nr_receptury) VALUES (%s, %s, %s, %s, 'zaplanowane', NULL, NULL, NULL, %s, %s, %s, %s, %s)",
+                (to_date, sekcja, produkt, tonaz, nk, typ_produkcji or 'worki_zgrzewane_25', nazwa_zlecenia or '', typ_zlecenia or '', nr_receptury or '')
             )
             # usuń oryginał
             cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (pid,))

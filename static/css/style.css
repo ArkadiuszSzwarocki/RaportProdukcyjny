@@ -366,8 +366,23 @@ body.sidebar-open {
 .sidebar-nav {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 2px;
     margin-block-start: 6px;
+}
+
+.nav-section-label {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    padding: 12px 12px 4px 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.nav-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 8px 12px;
 }
 
 .sidebar-nav .nav-item {
@@ -1733,6 +1748,22 @@ button[type="submit"]:hover {
     flex: 1;
     min-width: 0;
     word-break: break-word;
+}
+
+.zlecenie-id-badge {
+    display: inline-block;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 1px 7px;
+    font-size: 0.72em;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.02em;
+    font-family: monospace;
+    vertical-align: middle;
+    margin-left: 6px;
+    white-space: nowrap;
 }
 
 .header-actions {

@@ -12,7 +12,7 @@ class AttendanceService:
     """Service for managing employee attendance, schedules, and schedule panels."""
 
     @staticmethod
-    def add_to_schedule(sekcja: str, pracownik_id: int, date_str: str = None) -> tuple:
+    def add_to_schedule(sekcja: str, pracownik_id: int, date_str: str = None, linia: str = 'PSD') -> tuple:
         """
         Add employee to schedule (obsada) for a section and date.
         Automatically creates an attendance record if none exists.
@@ -21,6 +21,7 @@ class AttendanceService:
             sekcja: Section name (Zasyp, Workowanie, Magazyn)
             pracownik_id: Employee ID
             date_str: Date string (YYYY-MM-DD), defaults to today
+            linia: Production line (PSD or Agro)
             
         Returns:
             (success: bool, inserted_id: int or None, employee_name: str)
@@ -46,18 +47,18 @@ class AttendanceService:
             try:
                 # Insert schedule record
                 cursor.execute(
-                    """INSERT INTO obsada_zmiany (data_wpisu, sekcja, pracownik_id) 
-                       VALUES (%s, %s, %s)""",
-                    (add_date, sekcja, pracownik_id)
+                    """INSERT INTO obsada_zmiany (data_wpisu, sekcja, pracownik_id, linia) 
+                       VALUES (%s, %s, %s, %s)""",
+                    (add_date, sekcja, pracownik_id, linia)
                 )
 
                 # Retrieve inserted ID
                 try:
                     cursor.execute(
                         """SELECT id FROM obsada_zmiany 
-                           WHERE data_wpisu=%s AND sekcja=%s AND pracownik_id=%s 
+                           WHERE data_wpisu=%s AND sekcja=%s AND pracownik_id=%s AND linia=%s
                            ORDER BY id DESC LIMIT 1""",
-                        (add_date, sekcja, pracownik_id)
+                        (add_date, sekcja, pracownik_id, linia)
                     )
                     inserted_row = cursor.fetchone()
                     inserted_id = inserted_row[0] if inserted_row else None
@@ -107,13 +108,14 @@ class AttendanceService:
             return False, None, ""
 
     @staticmethod
-    def remove_from_schedule(obsada_id: int) -> bool:
+    def remove_from_schedule(obsada_id: int, linia: str = 'PSD') -> bool:
         """
         Remove employee from schedule.
         Deletes all schedule records for that employee/date/section combination.
         
         Args:
             obsada_id: Schedule record ID
+            linia: Production line
             
         Returns:
             success: bool
@@ -135,8 +137,8 @@ class AttendanceService:
                     # Delete all matching records (handles duplicates)
                     cursor.execute(
                         """DELETE FROM obsada_zmiany 
-                           WHERE pracownik_id=%s AND data_wpisu=%s AND sekcja=%s""",
-                        (pracownik_id, data_wpisu, sekcja)
+                           WHERE pracownik_id=%s AND data_wpisu=%s AND sekcja=%s AND linia=%s""",
+                        (pracownik_id, data_wpisu, sekcja, linia)
                     )
                     # Also remove obecnosc presence records for this worker/date
                     # so the calendar does not show stale "Obecny" status

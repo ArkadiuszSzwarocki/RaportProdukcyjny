@@ -19,7 +19,7 @@ from io import BytesIO
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +37,14 @@ RAPORTY_TEMP_DIR = _PROJECT_ROOT / 'raporty_temp'
 # Publiczny API
 # ---------------------------------------------------------------------------
 
-def close_shift_and_get_zip(date_str: str, session_data: dict, form_data: dict):
+def close_shift_and_get_zip(date_str: str, session_data: dict, form_data: dict, linia: str = 'PSD'):
     """Zamknij zmianę i zwróć archiwum ZIP z raportami.
 
     Args:
         date_str:     data w formacie 'YYYY-MM-DD'
         session_data: {'pracownik_id': ..., 'login': ...}
         form_data:    {'lider_id': ..., 'lider_prowadzacy_id': ...}
+        linia:        'PSD' lub 'Agro'
 
     Returns:
         (zip_buffer: BytesIO, zip_filename: str)
@@ -54,20 +55,20 @@ def close_shift_and_get_zip(date_str: str, session_data: dict, form_data: dict):
     logger.info("[SHIFT_CLOSE] === START === date=%s", date_str)
 
     # 1. Notatki zmianowe
-    uwagi = _load_shift_notes(date_str)
+    uwagi = _load_shift_notes(date_str, linia=linia)
 
     # 2. Lider
     lider_name, uwagi_extra = _get_leader_name(session_data, form_data)
     uwagi = uwagi + uwagi_extra
 
     # 3. Generuj pliki (XLS, TXT, PDF)
-    xls_path, txt_path, pdf_path = _generate_report_files(date_str, uwagi, lider_name)
+    xls_path, txt_path, pdf_path = _generate_report_files(date_str, uwagi, lider_name, linia=linia)
 
     # 4. Zbuduj ZIP w pamięci
-    zip_buffer, zip_filename = _build_zip(xls_path, txt_path, pdf_path, date_str)
+    zip_buffer, zip_filename = _build_zip(xls_path, txt_path, pdf_path, date_str, linia=linia)
 
     # 5. Zawieś plany poprzedniego dnia (nie blokuje pobierania nawet gdy zawiedzie)
-    _suspend_previous_day_plans(date_str)
+    _suspend_previous_day_plans(date_str, linia=linia)
 
     logger.info("[SHIFT_CLOSE] === DONE === zip=%s", zip_filename)
     return zip_buffer, zip_filename
@@ -77,13 +78,14 @@ def close_shift_and_get_zip(date_str: str, session_data: dict, form_data: dict):
 # Prywatne helpery
 # ---------------------------------------------------------------------------
 
-def _load_shift_notes(date_str: str) -> str:
+def _load_shift_notes(date_str: str, linia: str = 'PSD') -> str:
     uwagi = ""
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
+        table_notes = get_table_name('shift_notes', linia)
         cursor.execute(
-            "SELECT note, author, created FROM shift_notes "
+            f"SELECT note, author, created FROM {table_notes} "
             "WHERE DATE(created) = %s ORDER BY created ASC",
             (date_str,)
         )
@@ -130,14 +132,14 @@ def _get_leader_name(session_data: dict, form_data: dict):
     return lider_name, uwagi_extra
 
 
-def _generate_report_files(date_str: str, uwagi: str, lider_name: str):
+def _generate_report_files(date_str: str, uwagi: str, lider_name: str, linia: str = 'PSD'):
     """Wywołaj generator raportów i zwróć ABSOLUTNE ścieżki Path (lub None)."""
     from scripts.generator_raportow import generuj_paczke_raportow
 
     RAPORTY_TEMP_DIR.mkdir(parents=True, exist_ok=True)
     RAPORTY_DIR.mkdir(parents=True, exist_ok=True)
 
-    xls_raw, txt_raw, pdf_raw = generuj_paczke_raportow(date_str, uwagi, lider_name)
+    xls_raw, txt_raw, pdf_raw = generuj_paczke_raportow(date_str, uwagi, lider_name, linia=linia)
     logger.info("[SHIFT_CLOSE] Generator zwrocil: xls=%s txt=%s pdf=%s", xls_raw, txt_raw, pdf_raw)
 
     xls_abs = _resolve_path(xls_raw)
@@ -189,7 +191,7 @@ def _resolve_pdf_path(pdf_path_raw):
     return None
 
 
-def _build_zip(xls_path, txt_path, pdf_path, date_str: str):
+def _build_zip(xls_path, txt_path, pdf_path, date_str: str, linia: str = 'PSD'):
     """Zbuduj ZIP w pamięci (BytesIO) ze wszystkich plików raportów."""
     buf = BytesIO()
     added = 0
@@ -212,19 +214,20 @@ def _build_zip(xls_path, txt_path, pdf_path, date_str: str):
     if missing:
         logger.warning("[SHIFT_CLOSE] ZIP niekompletny — brakuje: %s", missing)
     buf.seek(0)
-    zip_filename = f"Raporty_{date_str}.zip"
+    zip_filename = f"Raporty_{linia}_{date_str}.zip"
     logger.info("[SHIFT_CLOSE] ZIP gotowy: %s (%d plikow, brakuje=%s)", zip_filename, added, missing)
     return buf, zip_filename
 
 
-def _suspend_previous_day_plans(date_str: str):
+def _suspend_previous_day_plans(date_str: str, linia: str = 'PSD'):
     """Zawieś plany z poprzedniego dnia (best-effort, nie rzuca wyjątku)."""
     try:
         prev_day = (datetime.strptime(date_str, '%Y-%m-%d').date() - timedelta(days=1)).strftime('%Y-%m-%d')
+        table_plan = get_table_name('plan_produkcji', linia)
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE plan_produkcji SET status = 'wstrzymane' "
+            f"UPDATE {table_plan} SET status = 'wstrzymane' "
             "WHERE DATE(data_planu) = %s AND status = 'w toku'",
             (prev_day,)
         )

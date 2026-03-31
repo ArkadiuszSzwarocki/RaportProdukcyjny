@@ -62,6 +62,7 @@
                     class="input-sm">
             </div>
             {% if rola in ['lider','admin'] %}
+            {% if linia == 'PSD' or not linia %}
             <div class="obsada-field-group">
                 <label for="lider_psd" class="obsada-field-label">{{ _('lider_psd_label') }}</label>
                 <select id="lider_psd" class="input-sm">
@@ -71,6 +72,8 @@
                     {% endfor %}
                 </select>
             </div>
+            {% endif %}
+            {% if linia == 'Agro' %}
             <div class="obsada-field-group">
                 <label for="lider_agro" class="obsada-field-label">{{ _('lider_agro_label') }}</label>
                 <select id="lider_agro" class="input-sm">
@@ -80,11 +83,16 @@
                     {% endfor %}
                 </select>
             </div>
+            {% endif %}
             <button type="button" id="btnSaveLiderzy" class="btn btn-primary">{{ _('zapisz_liderow') }}</button>
             {% endif %}
         </div>
         <div class="obsada-sections">
-            {% set sections = ['Zasyp','Workowanie','Magazyn','Hala Agro','Laboratorium','Handel'] %}
+            {% if linia == 'Agro' %}
+                {% set sections = ['Zasyp','Workowanie','Hala Agro','Laboratorium','Handel'] %}
+            {% else %}
+                {% set sections = ['Zasyp','Workowanie','Magazyn','Laboratorium','Handel'] %}
+            {% endif %}
             {% set section_icons = {'Zasyp': '🌾', 'Workowanie': '📦', 'Magazyn': '🏭', 'Hala Agro': '🌱', 'Laboratorium': '🔬', 'Handel': '🛒'} %}
             {% for s in sections %}
             <div class="obsada-section" data-sekcja="{{ s }}">

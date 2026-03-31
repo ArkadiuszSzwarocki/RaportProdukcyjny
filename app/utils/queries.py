@@ -1,8 +1,4 @@
-"""
-Database query helpers - centralized SQL queries to DRY the codebase.
-All queries use parameterized statements with %s placeholders.
-"""
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 from datetime import date, datetime, timedelta
 
 
@@ -20,12 +16,13 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_obsada_zmiany(data_wpisu, sekcja=None):
+    def get_obsada_zmiany(data_wpisu, sekcja=None, linia='PSD'):
         """Get assigned staff (obsada) for a given day.
         
         Args:
             data_wpisu: date object
             sekcja: Optional section filter
+            linia: Production line ('PSD' or 'Agro')
             
         Returns:
             List of (id, pracownik_id, imie_nazwisko) tuples
@@ -37,30 +34,33 @@ class QueryHelper:
             cursor.execute(
                 "SELECT o.id, p.imie_nazwisko FROM obsada_zmiany o "
                 "JOIN pracownicy p ON o.pracownik_id = p.id "
-                "WHERE o.data_wpisu = %s AND o.sekcja = %s",
-                (data_wpisu, sekcja)
+                "WHERE o.data_wpisu = %s AND o.sekcja = %s AND o.linia = %s",
+                (data_wpisu, sekcja, linia)
             )
         else:
             cursor.execute(
-                "SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s",
-                (data_wpisu,)
+                "SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND linia = %s",
+                (data_wpisu, linia)
             )
         result = cursor.fetchall()
         conn.close()
         return result
     
     @staticmethod
-    def get_dziennik_zmiany(data_wpisu, sekcja):
-        """Get shift log entries (non-finished status only) for a given day/section."""
+    def get_dziennik_zmiany(data_wpisu, sekcja, linia='PSD'):
+        """Get shift log entries (non-finished status only) for a given day/section/line."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        # Note: dziennik_zmiany doesn't have 'linia' column yet. 
+        # For now we use it as shared, or we can add linia here too.
+        # Given the request, we should probably add linia to all production-related tables.
         cursor.execute(
             "SELECT d.id, p.imie_nazwisko, d.problem, d.czas_start, d.czas_stop, d.kategoria, "
             "TIMESTAMPDIFF(MINUTE, d.czas_start, d.czas_stop), d.pracownik_id, d.sekcja, d.data_zakonczenia "
             "FROM dziennik_zmiany d LEFT JOIN pracownicy p ON d.pracownik_id = p.id "
-            "WHERE d.data_wpisu = %s AND d.sekcja = %s AND d.status != 'zakończone' "
+            "WHERE d.data_wpisu = %s AND d.sekcja = %s AND d.linia = %s AND d.status != 'zakończone' "
             "ORDER BY d.id DESC",
-            (data_wpisu, sekcja)
+            (data_wpisu, sekcja, linia)
         )
         rows = cursor.fetchall()
         result = [list(r) for r in rows]
@@ -72,9 +72,11 @@ class QueryHelper:
                 for p in result:
                     try:
                         prod = p[1]
-                        # Get tonaz_rzeczywisty from the first matching Zasyp for that product/date
+                        # Get table name for plan_produkcji
+                        table_plan = get_table_name('plan_produkcji', linia)
+                        # Get tonaz_rzeczywisty from the first matching Zasyp for that product/date/line
                         cursor.execute(
-                            "SELECT COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji "
+                            f"SELECT COALESCE(tonaz_rzeczywisty, 0) FROM {table_plan} "
                             "WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND produkt = %s "
                             "ORDER BY COALESCE(real_stop, real_start, id) ASC LIMIT 1",
                             (data_wpisu, prod)
@@ -83,9 +85,11 @@ class QueryHelper:
                         if zasyp_row and zasyp_row[0] is not None:
                             p[2] = zasyp_row[0]
 
+                        # Get table name for bufor
+                        table_bufor = get_table_name('bufor', linia)
                         # Get spakowano value from bufor (take MAX to avoid double-counting duplicates)
                         cursor.execute(
-                            "SELECT COALESCE(MAX(spakowano), 0) FROM bufor WHERE data_planu = %s AND produkt = %s AND status = 'aktywny'",
+                            f"SELECT COALESCE(MAX(spakowano), 0) FROM {table_bufor} WHERE data_planu = %s AND produkt = %s AND status = 'aktywny'",
                             (data_wpisu, prod)
                         )
                         buf_row = cursor.fetchone()
@@ -104,8 +108,8 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_plan_produkcji(data_planu, sekcja):
-        """Get production plans (excludes 'nieoplacone' and deleted) for a given day/section.
+    def get_plan_produkcji(data_planu, sekcja, linia='PSD'):
+        """Get production plans for a given day/section/line.
         
         Returns list of tuples: (id, produkt, tonaz, status, real_start, real_stop, 
                                  minutes_diff, tonaz_rzeczywisty, kolejnosc, typ_produkcji, 
@@ -114,18 +118,13 @@ class QueryHelper:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # For all sections: show all plans (no special filtering)
-        # Plan (p[2]) = tonaz (plan value)
-        # Realizacja (p[7]) = tonaz_rzeczywisty (actual realized)
-        # p[11] = uszkodzone_worki (damaged bags)
-        # p[12] = nazwa_zlecenia (order name - to identify BUF orders)
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            "SELECT id, produkt, tonaz, status, real_start, real_stop, "
+            f"SELECT id, produkt, tonaz, status, real_start, real_stop, "
             "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
             "typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, '') "
-            "FROM plan_produkcji "
+            f"FROM {table_plan} "
             "WHERE DATE(data_planu) = %s AND LOWER(sekcja) = LOWER(%s) AND status != 'nieoplacone' AND is_deleted = 0 "
-            "  AND COALESCE(typ_zlecenia, '') != 'carry_over_ghost' "
             "ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, "
             "kolejnosc ASC, id ASC",
             (data_planu, sekcja)
@@ -136,15 +135,17 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_paletki_for_plan(plan_id):
+    def get_paletki_for_plan(plan_id, linia='PSD'):
         """Get all paletki (pallets) for a specific production plan."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_palety = get_table_name('palety_workowanie', linia)
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, "
-            "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
-            "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-            "WHERE pw.plan_id = %s ORDER BY pw.data_dodania ASC",
+            f"SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, "
+            f"p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
+            f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
+            f"WHERE pw.plan_id = %s ORDER BY pw.data_dodania ASC",
             (plan_id,)
         )
         result = cursor.fetchall()
@@ -152,29 +153,32 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_paletki_magazyn(data_planu):
-        """Get all confirmed paletki in Magazyn (Warehouse) for a given day."""
+    def get_paletki_magazyn(data_planu, linia='PSD'):
+        """Get all confirmed paletki in Magazyn (Warehouse) for a given day/line."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Prefer magazyn_palety records (separate table) for Magazyn UI. Fall back
-        # to palety_workowanie rows with status='przyjeta' for backwards compatibility.
+        
+        table_magazyn = get_table_name('magazyn_palety', linia)
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_palety = get_table_name('palety_workowanie', linia)
+        
         cursor.execute(
-            "SELECT m.id, m.plan_id, m.waga_netto AS waga, m.tara, m.waga_brutto, "
+            f"SELECT m.id, m.plan_id, m.waga_netto AS waga, m.tara, m.waga_brutto, "
             "pw.data_dodania AS data_dodania, "
             "m.produkt, COALESCE(p.typ_produkcji, '') AS typ_produkcji, 'przyjeta' AS status, NULL AS czas_potwierdzenia_s, "
             "GREATEST(m.data_potwierdzenia, pw.data_dodania), m.user_login "
-            "FROM magazyn_palety m LEFT JOIN plan_produkcji p ON m.plan_id = p.id "
-            "LEFT JOIN palety_workowanie pw ON m.paleta_workowanie_id = pw.id "
-            "WHERE DATE(GREATEST(m.data_potwierdzenia, pw.data_dodania)) = %s AND m.waga_netto > 0 "
+            f"FROM {table_magazyn} m LEFT JOIN {table_plan} p ON m.plan_id = p.id "
+            f"LEFT JOIN {table_palety} pw ON m.paleta_workowanie_id = pw.id "
+            f"WHERE DATE(GREATEST(m.data_potwierdzenia, pw.data_dodania)) = %s AND m.waga_netto > 0 "
             "UNION ALL "
             "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, COALESCE(pw.data_potwierdzenia, pw.data_dodania) AS data_dodania, "
             "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s, "
             "CASE WHEN pw.data_potwierdzenia IS NOT NULL AND pw.data_potwierdzenia >= pw.data_dodania THEN pw.data_potwierdzenia "
             "WHEN pw.czas_rzeczywistego_potwierdzenia IS NOT NULL THEN CAST(CONCAT(DATE(pw.data_dodania), ' ', pw.czas_rzeczywistego_potwierdzenia) AS DATETIME) "
             "ELSE pw.data_dodania END, NULL AS user_login "
-            "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
+            f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
             "WHERE (pw.data_potwierdzenia IS NOT NULL OR COALESCE(pw.status,'') = 'przyjeta') AND pw.waga > 0 "
-            "AND NOT EXISTS (SELECT 1 FROM magazyn_palety mp WHERE mp.paleta_workowanie_id = pw.id) "
+            f"AND NOT EXISTS (SELECT 1 FROM {table_magazyn} mp WHERE mp.paleta_workowanie_id = pw.id) "
             "AND DATE(COALESCE(pw.data_potwierdzenia, pw.data_dodania)) = %s "
             "ORDER BY 6 DESC, 1 DESC",
             (data_planu, data_planu)
@@ -184,13 +188,15 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_unconfirmed_paletki(data_planu):
+    def get_unconfirmed_paletki(data_planu, linia='PSD'):
         """Get paletki that haven't been confirmed yet (status != 'przyjeta', 'zamknieta')."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_palety = get_table_name('palety_workowanie', linia)
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            "SELECT pw.id, pw.plan_id, p.produkt, pw.data_dodania "
-            "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
+            f"SELECT pw.id, pw.plan_id, p.produkt, pw.data_dodania "
+            f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
             "WHERE DATE(pw.data_dodania) = %s AND p.sekcja = 'Workowanie' "
             "AND pw.waga > 0 AND COALESCE(pw.status,'') NOT IN ('przyjeta', 'zamknieta')",
             (data_planu,)
@@ -200,15 +206,17 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_paletki_for_produkt_magazyn(data_planu, produkt):
+    def get_paletki_for_produkt_magazyn(data_planu, produkt, linia='PSD'):
         """Get paletki for a specific product in Magazyn (Warehouse) view."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_palety = get_table_name('palety_workowanie', linia)
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, "
-            "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
-            "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-            "WHERE DATE(p.data_planu) = %s AND p.produkt = %s AND p.sekcja = 'Workowanie' "
+            f"SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, "
+            f"p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
+            f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
+            f"WHERE DATE(p.data_planu) = %s AND p.produkt = %s AND p.sekcja = 'Workowanie' "
             "ORDER BY pw.id DESC",
             (data_planu, produkt)
         )
@@ -217,13 +225,14 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_waga_workowania(data_planu, produkt, typ_produkcji):
+    def get_waga_workowania(data_planu, produkt, typ_produkcji, linia='PSD'):
         """Get total weight executed in Workowanie for a product."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_plan = get_table_name('plan_produkcji', linia)
         typ_param = typ_produkcji if typ_produkcji else ''
         cursor.execute(
-            "SELECT SUM(tonaz_rzeczywisty) FROM plan_produkcji "
+            f"SELECT SUM(tonaz_rzeczywisty) FROM {table_plan} "
             "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' "
             "AND COALESCE(typ_produkcji,'')=%s",
             (data_planu, produkt, typ_param)
@@ -275,12 +284,13 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_quality_orders_count():
-        """Get count of unfinished quality orders."""
+    def get_quality_orders_count(linia='PSD'):
+        """Get count of unfinished quality orders for a given line."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            "SELECT COUNT(1) FROM plan_produkcji "
+            f"SELECT COUNT(1) FROM {table_plan} "
             "WHERE (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') "
             "AND status != 'zakonczone'"
         )
@@ -323,12 +333,13 @@ class QueryHelper:
 
     
     @staticmethod
-    def get_plan_typ_zlecenia(plan_id):
+    def get_plan_typ_zlecenia(plan_id, linia='PSD'):
         """Get typ_zlecenia and sekcja for a specific plan."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            "SELECT COALESCE(typ_zlecenia, ''), sekcja FROM plan_produkcji WHERE id=%s",
+            f"SELECT COALESCE(typ_zlecenia, ''), sekcja FROM {table_plan} WHERE id=%s",
             (plan_id,)
         )
         result = cursor.fetchone()
@@ -336,12 +347,13 @@ class QueryHelper:
         return result if result else ('', '')
     
     @staticmethod
-    def get_zasyp_started_produkty(data_planu):
-        """Get list of products started (w toku/zakonczone) in Zasyp section."""
+    def get_zasyp_started_produkty(data_planu, linia='PSD'):
+        """Get list of products started (w toku/zakonczone) in Zasyp section for a given line."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            "SELECT DISTINCT produkt FROM plan_produkcji "
+            f"SELECT DISTINCT produkt FROM {table_plan} "
             "WHERE sekcja='Zasyp' AND status IN ('w toku', 'zakonczone') "
             "AND DATE(data_planu) = %s",
             (data_planu,)
@@ -351,12 +363,13 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_paleta_seq_number(plan_id, paleta_id):
+    def get_paleta_seq_number(plan_id, paleta_id, linia='PSD'):
         """Get sequence number (1-based) of a paleta within its plan."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_palety = get_table_name('palety_workowanie', linia)
         cursor.execute(
-            "SELECT COUNT(1) FROM palety_workowanie WHERE plan_id = %s AND id <= %s",
+            f"SELECT COUNT(1) FROM {table_palety} WHERE plan_id = %s AND id <= %s",
             (plan_id, paleta_id)
         )
         result = cursor.fetchone()
@@ -364,23 +377,16 @@ class QueryHelper:
         return int(result[0]) if result and result[0] is not None else 1
     
     @staticmethod
-    def get_paletki_for_product(data_planu, produkt, typ_produkcji=None):
-        """Get paletki for a specific product (Magazyn view).
-        
-        Args:
-            data_planu: date of plan
-            produkt: product name
-            typ_produkcji: optional type filter
-            
-        Returns:
-            List of paleta rows
-        """
+    def get_paletki_for_product(data_planu, produkt, typ_produkcji=None, linia='PSD'):
+        """Get paletki for a specific product (Magazyn view)."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_palety = get_table_name('palety_workowanie', linia)
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
-            "FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id "
-            "WHERE DATE(p.data_planu) = %s AND p.produkt = %s AND p.sekcja = 'Workowanie' ORDER BY pw.id DESC",
+            f"SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
+            f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
+            f"WHERE DATE(p.data_planu) = %s AND p.produkt = %s AND p.sekcja = 'Workowanie' ORDER BY pw.id DESC",
             (data_planu, produkt)
         )
         result = cursor.fetchall()
@@ -388,23 +394,15 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_workowanie_sum_for_product(data_planu, produkt, typ_produkcji=None):
-        """Get total weight from Workowanie for a product (used by Zasyp view).
-        
-        Args:
-            data_planu: date of plan
-            produkt: product name
-            typ_produkcji: optional type filter
-            
-        Returns:
-            Float: total tonaz_rzeczywisty
-        """
+    def get_workowanie_sum_for_product(data_planu, produkt, typ_produkcji=None, linia='PSD'):
+        """Get total weight from Workowanie for a product (used by Zasyp view)."""
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_plan = get_table_name('plan_produkcji', linia)
         # typ_produkcji may be NULL in DB; use COALESCE to match empty/NULL values correctly
         typ_param = typ_produkcji if typ_produkcji is not None else ''
         cursor.execute(
-            "SELECT SUM(tonaz_rzeczywisty) FROM plan_produkcji "
+            f"SELECT SUM(tonaz_rzeczywisty) FROM {table_plan} "
             "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
             (data_planu, produkt, typ_param)
         )
@@ -413,7 +411,7 @@ class QueryHelper:
         return result[0] if result and result[0] else 0
     
     @staticmethod
-    def get_presence_records_for_day(data_wpisu):
+    def get_presence_records_for_day(data_wpisu, linia='PSD'):
         """Get all presence/absence records (obecnosc) for a day.
         
         Args:
@@ -469,7 +467,7 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_pending_quality_count():
+    def get_pending_quality_count(linia='PSD'):
         """Get count of pending quality orders (jakosc).
         
         Returns:
@@ -477,8 +475,9 @@ class QueryHelper:
         """
         conn = get_db_connection()
         cursor = conn.cursor()
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            "SELECT COUNT(1) FROM plan_produkcji "
+            f"SELECT COUNT(1) FROM {table_plan} "
             "WHERE (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone'"
         )
         result = cursor.fetchone()
@@ -560,11 +559,12 @@ class QueryHelper:
         return result
     
     @staticmethod
-    def get_obsada_for_date(data_wpisu):
-        """Get staff assignment (obsada) for a specific date, grouped by sekcja.
+    def get_obsada_for_date(data_wpisu, linia='PSD'):
+        """Get staff assignment (obsada) for a specific date/line, grouped by sekcja.
         
         Args:
             data_wpisu: date to query
+            linia: Production line
             
         Returns:
             Dict mapping sekcja -> list of (pracownik_id, imie_nazwisko) tuples
@@ -574,8 +574,8 @@ class QueryHelper:
         cursor.execute(
             "SELECT oz.sekcja, p.id, p.imie_nazwisko FROM obsada_zmiany oz "
             "JOIN pracownicy p ON oz.pracownik_id = p.id "
-            "WHERE oz.data_wpisu = %s ORDER BY oz.sekcja, p.imie_nazwisko",
-            (data_wpisu,)
+            "WHERE oz.data_wpisu = %s AND oz.linia = %s ORDER BY oz.sekcja, p.imie_nazwisko",
+            (data_wpisu, linia)
         )
         rows = cursor.fetchall()
         obsady_map = {}
@@ -586,11 +586,12 @@ class QueryHelper:
         return obsady_map
     
     @staticmethod
-    def get_unassigned_pracownicy(data_wpisu):
-        """Get workers not assigned to any sekcja on a specific date.
+    def get_unassigned_pracownicy(data_wpisu, linia='PSD'):
+        """Get workers not assigned to any sekcja on a specific date/line.
         
         Args:
             data_wpisu: date to query
+            linia: Production line
             
         Returns:
             List of (id, imie_nazwisko) tuples
@@ -599,10 +600,10 @@ class QueryHelper:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT id, imie_nazwisko FROM pracownicy "
-            "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) "
+            "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s AND linia=%s) "
             "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad') AND pracownik_id IS NOT NULL) "
             "ORDER BY imie_nazwisko",
-            (data_wpisu,)
+            (data_wpisu, linia)
         )
         result = cursor.fetchall()
         conn.close()

@@ -9,7 +9,7 @@ class PlanMovementService:
     """Service for managing plan movement operations (move to different section, shift order)."""
 
     @staticmethod
-    def move_plan_to_section(plan_id, target_sekcja):
+    def move_plan_to_section(plan_id, target_sekcja, linia='PSD'):
         """Move a plan to a different section.
         
         Args:
@@ -24,8 +24,9 @@ class PlanMovementService:
             cursor = conn.cursor()
             
             # Get current plan info
+            table_plan = get_table_name('plan_produkcji', linia)
             cursor.execute(
-                "SELECT sekcja, produkt, data_planu FROM plan_produkcji WHERE id=%s",
+                f"SELECT sekcja, produkt, data_planu FROM {table_plan} WHERE id=%s",
                 (plan_id,)
             )
             res = cursor.fetchone()
@@ -46,7 +47,7 @@ class PlanMovementService:
             
             # Get next sequence in target section
             cursor.execute(
-                "SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja=%s",
+                f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja=%s",
                 (data_planu, target_sekcja)
             )
             res_seq = cursor.fetchone()
@@ -54,7 +55,7 @@ class PlanMovementService:
             
             # Update plan: change section and reset sequence
             cursor.execute(
-                "UPDATE plan_produkcji SET sekcja=%s, kolejnosc=%s WHERE id=%s",
+                f"UPDATE {table_plan} SET sekcja=%s, kolejnosc=%s WHERE id=%s",
                 (target_sekcja, next_seq, plan_id)
             )
             
@@ -73,12 +74,13 @@ class PlanMovementService:
             return (False, f'Błąd przy przeniesieniu: {str(e)}')
 
     @staticmethod
-    def shift_plan_order(plan_id, kierunek):
+    def shift_plan_order(plan_id, kierunek, linia='PSD'):
         """Shift a plan up or down in the queue (change order).
         
         Args:
             plan_id: ID of plan to shift
             kierunek: Direction ('up'/'w_gore'/'gora' or 'down'/'w_dol'/'dol')
+            linia: Production line
             
         Returns:
             Tuple (success: bool, message: str)
@@ -94,8 +96,9 @@ class PlanMovementService:
             cursor = conn.cursor()
             
             # Get current plan info
+            table_plan = get_table_name('plan_produkcji', linia)
             cursor.execute(
-                "SELECT sekcja, kolejnosc, data_planu, produkt FROM plan_produkcji WHERE id=%s",
+                f"SELECT sekcja, kolejnosc, data_planu, produkt FROM {table_plan} WHERE id=%s",
                 (plan_id,)
             )
             res = cursor.fetchone()
@@ -112,16 +115,16 @@ class PlanMovementService:
             # Find adjacent plan in target direction
             if is_up:
                 # Find plan with lower sequence (move up)
-                cursor.execute("""
-                    SELECT id, kolejnosc FROM plan_produkcji 
+                cursor.execute(f"""
+                    SELECT id, kolejnosc FROM {table_plan} 
                     WHERE sekcja=%s AND data_planu=%s AND kolejnosc < %s
                     ORDER BY kolejnosc DESC
                     LIMIT 1
                 """, (sekcja, data_planu, current_seq))
             else:
                 # Find plan with higher sequence (move down)
-                cursor.execute("""
-                    SELECT id, kolejnosc FROM plan_produkcji
+                cursor.execute(f"""
+                    SELECT id, kolejnosc FROM {table_plan}
                     WHERE sekcja=%s AND data_planu=%s AND kolejnosc > %s
                     ORDER BY kolejnosc ASC
                     LIMIT 1
@@ -138,11 +141,11 @@ class PlanMovementService:
             
             # Swap sequences
             cursor.execute(
-                "UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s",
+                f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s",
                 (adjacent_seq, plan_id)
             )
             cursor.execute(
-                "UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s",
+                f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s",
                 (current_seq, adjacent_id)
             )
             
@@ -162,13 +165,14 @@ class PlanMovementService:
             return (False, f'Błąd przy przesunięciu: {str(e)}')
 
     @staticmethod
-    def reorder_plans(section, date_planu, new_order):
+    def reorder_plans(section, date_planu, new_order, linia='PSD'):
         """Reorder plans within a section for a specific date.
         
         Args:
             section: Section name
             date_planu: Date (YYYY-MM-DD or date object)
             new_order: List of plan IDs in desired order
+            linia: Production line
             
         Returns:
             Tuple (success: bool, message: str)
@@ -180,10 +184,12 @@ class PlanMovementService:
             conn = get_db_connection()
             cursor = conn.cursor()
             
+            table_plan = get_table_name('plan_produkcji', linia)
+            
             # Update each plan's sequence based on position in new_order
             for seq, plan_id in enumerate(new_order, start=1):
                 cursor.execute(
-                    "UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s AND sekcja=%s AND data_planu=%s",
+                    f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s AND sekcja=%s AND data_planu=%s",
                     (seq, plan_id, section, date_planu)
                 )
             
@@ -202,12 +208,13 @@ class PlanMovementService:
             return (False, f'Błąd przy zmianie kolejności: {str(e)}')
 
     @staticmethod
-    def get_plan_queue_for_section(section, date_planu):
+    def get_plan_queue_for_section(section, date_planu, linia='PSD'):
         """Get ordered list of plans in a section for a date.
         
         Args:
             section: Section name
             date_planu: Date (YYYY-MM-DD or date object)
+            linia: Production line
             
         Returns:
             List of plans ordered by kolejnosc, or empty list on error
@@ -219,9 +226,11 @@ class PlanMovementService:
             conn = get_db_connection()
             cursor = conn.cursor()
             
-            cursor.execute("""
+            table_plan = get_table_name('plan_produkcji', linia)
+            
+            cursor.execute(f"""
                 SELECT id, produkt, tonaz, status, kolejnosc, tonaz_rzeczywisty
-                FROM plan_produkcji
+                FROM {table_plan}
                 WHERE sekcja=%s AND data_planu=%s AND (is_deleted=0 OR is_deleted IS NULL)
                 ORDER BY kolejnosc ASC
             """, (section, date_planu))

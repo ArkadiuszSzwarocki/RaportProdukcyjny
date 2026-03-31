@@ -20,6 +20,9 @@ admin_bp = Blueprint('admin', __name__)
 @admin_bp.route('/admin')
 @admin_required
 def admin_panel():
+    linia = request.args.get('linia') or 'PSD'
+    from app.db import get_table_name
+    table_plan = get_table_name('plan_produkcji', linia)
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM pracownicy ORDER BY imie_nazwisko")
@@ -31,7 +34,7 @@ def admin_panel():
     konta = [(r[0], r[1], r[2]) for r in konta_raw]
     # Wylicz listę loginów, które mają hashe w formacie nie-pbkdf2 (np. scrypt)
     needs_reset = [r[1] for r in konta_raw if r[3] and (str(r[3]).startswith('scrypt:') or not str(r[3]).startswith('pbkdf2:'))]
-    cursor.execute("SELECT id, data_planu, sekcja, produkt, tonaz, tonaz_rzeczywisty, status FROM plan_produkcji ORDER BY data_planu DESC LIMIT 50")
+    cursor.execute(f"SELECT id, data_planu, sekcja, produkt, tonaz, tonaz_rzeczywisty, status FROM {table_plan} ORDER BY data_planu DESC LIMIT 50")
     zlecenia_rows = cursor.fetchall()
     # Convert tuples to objects with attribute access for templates
     class _Z:
@@ -48,7 +51,7 @@ def admin_panel():
     raporty_hr = cursor.fetchall()
     roles = _load_roles(cursor)
     conn.close()
-    return render_template('admin.html', pracownicy=pracownicy, konta=konta, raporty_hr=raporty_hr, dzisiaj=date.today(), zlecenia=zlecenia, needs_reset=needs_reset, roles=roles)
+    return render_template('admin.html', pracownicy=pracownicy, konta=konta, raporty_hr=raporty_hr, dzisiaj=date.today(), zlecenia=zlecenia, needs_reset=needs_reset, roles=roles, linia=linia)
 
 
 @admin_bp.route('/admin/users')
@@ -65,10 +68,23 @@ def admin_users():
     return render_template('admin_users.html', konta=konta, needs_reset=needs_reset, roles=roles)
 
 
+@admin_bp.route('/admin/centrum')
+@dynamic_role_required('ustawienia')
+def admin_centrum_systemowe():
+    return render_template('centrum_index.html')
+
+@admin_bp.route('/admin/centrum/audyt')
+@dynamic_role_required('ustawienia')
+def admin_centrum_audyt():
+    from app.services.agro_warehouse_service import AgroWarehouseService
+    linia = request.args.get('linia', 'Agro')
+    history = AgroWarehouseService.get_history(limit=50, linia=linia)
+    return render_template('centrum_audyt.html', history=history)
+
 @admin_bp.route('/admin/ustawienia')
 @dynamic_role_required('ustawienia')
 def admin_ustawienia():
-    # Show selection tiles (Użytkownicy / Pracownicy)
+    # Show selection tiles (Użytkownicy / Pracownicy / Role / itp.)
     return render_template('ustawienia_index.html')
 
 

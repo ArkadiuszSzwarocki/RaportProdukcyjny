@@ -24,17 +24,15 @@ def zarzad_panel():
     wybrany_rok = get_arg_int('rok', teraz.year)
     wybrany_miesiac = get_arg_int('miesiac', teraz.month)
     wybrana_data = request.args.get('data') or str(teraz.date())
+    linia = request.args.get('linia') or 'PSD'
 
     # 1. Oblicz zakres dat (korzystając z serwisu)
     d_od, d_do = get_date_range(tryb, wybrany_rok, wybrany_miesiac, wybrana_data)
     
-    # Tytuł (logika prezentacyjna może zostać w widoku lub tutaj)
-    tytul = f"Raport: {tryb}" 
-
-    # 2. Pobierz dane z serwisu
-    kpi = get_kpi_data(d_od, d_do)
-    charts = get_chart_data(d_od, d_do)
-    pracownicy_stats = get_worker_stats(d_od, d_do, tryb)
+    # 2. Pobierz dane z serwisu (przekazując linia)
+    kpi = get_kpi_data(d_od, d_do, linia=linia)
+    charts = get_chart_data(d_od, d_do, linia=linia)
+    pracownicy_stats = get_worker_stats(d_od, d_do, tryb, linia=linia)
 
     # Oblicz datę następną dla nawigacji
     try:
@@ -45,10 +43,11 @@ def zarzad_panel():
     return render_template(
         'zarzad.html',
         tryb=tryb,
-        tytul=tytul,
+        tytul=f"Raport {linia}: {tryb}",
         wybrany_rok=wybrany_rok,
         wybrany_miesiac=wybrany_miesiac,
         wybrana_data=wybrana_data,
+        linia=linia,
         suma_plan=kpi['plan'],
         suma_wykonanie=kpi['wykonanie'],
         ilosc_zlecen=kpi['ilosc_zlecen'],
@@ -70,18 +69,22 @@ def dzien_szczegoly():
     """Zwraca JSON ze zleceniami produkcyjnymi dla podanej daty i sekcji."""
     data_str = request.args.get('data', str(date.today()))
     sekcja = request.args.get('sekcja', 'Zasyp')
+    linia = request.args.get('linia') or 'PSD'
     try:
         data_obj = date.fromisoformat(data_str)
     except ValueError:
         return jsonify({'error': 'Nieprawidłowy format daty'}), 400
 
     conn = get_db_connection()
+    from app.db import get_table_name
+    table_plan = get_table_name('plan_produkcji', linia)
+    table_pal = get_table_name('palety_workowanie', linia)
     cursor = conn.cursor()
     try:
         cursor.execute(
-            """SELECT id, produkt, tonaz, tonaz_rzeczywisty, status,
+            f"""SELECT id, produkt, tonaz, tonaz_rzeczywisty, status,
                       real_start, real_stop, typ_zlecenia
-               FROM plan_produkcji
+               FROM {table_plan}
                WHERE data_planu = %s AND sekcja = %s
                ORDER BY real_start, id""",
             (data_obj, sekcja)
@@ -91,7 +94,7 @@ def dzien_szczegoly():
         for r in rows:
             plan_id, produkt, tonaz, tonaz_rz, status, real_start, real_stop, typ_zl = r
             cursor.execute(
-                "SELECT COUNT(1), COALESCE(SUM(waga),0) FROM palety_workowanie WHERE plan_id=%s",
+                f"SELECT COUNT(1), COALESCE(SUM(waga),0) FROM {table_pal} WHERE plan_id=%s",
                 (plan_id,)
             )
             pal = cursor.fetchone()
@@ -107,7 +110,7 @@ def dzien_szczegoly():
                 'palety_ilosc': int(pal[0] or 0),
                 'palety_waga': float(pal[1] or 0),
             })
-        return jsonify({'data': data_str, 'sekcja': sekcja, 'zlecenia': zlecenia})
+        return jsonify({'data': data_str, 'sekcja': sekcja, 'linia': linia, 'zlecenia': zlecenia})
     finally:
         conn.close()
 
@@ -119,12 +122,15 @@ def raporty_okresowe():
     teraz = datetime.now()
     rok = request.args.get('rok', teraz.year, type=int)
     mc = request.args.get('miesiac', teraz.month, type=int)
+    linia = request.args.get('linia') or 'PSD'
     
     conn = get_db_connection()
+    from app.db import get_table_name
+    table_plan = get_table_name('plan_produkcji', linia)
     cursor = conn.cursor()
     # ... (oryginalne zapytania SQL lub przeniesione do serwisu) ...
     # Dla skrócenia przykładu zostawiam jak jest, ale rekomenduję przeniesienie do services/stats_service.py
-    cursor.execute("SELECT MONTH(data_planu), COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) FROM plan_produkcji WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu) ORDER BY MONTH(data_planu)", (rok,))
+    cursor.execute(f"SELECT MONTH(data_planu), COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) FROM {table_plan} WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu) ORDER BY MONTH(data_planu)", (rok,))
     trend = cursor.fetchall()
     conn.close()
     

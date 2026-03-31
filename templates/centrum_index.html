@@ -238,10 +238,10 @@
     <div class="settings-shell">
         <div class="settings-hero">
             <div>
-                <div class="settings-eyebrow">Panel konfiguracji</div>
-                <h2 class="settings-title">{{ _('ustawienia') }}</h2>
+                <div class="settings-eyebrow">Panel monitoringu</div>
+                <h2 class="settings-title">Centrum Systemowe</h2>
                 <p class="settings-description">
-                    Zarządzaj kontami, pracownikami, uprawnieniami, czasami workowania i testami raportów z jednego miejsca.
+                    Zintegrowane miejsce do zarządzania logami, powiadomieniami, błędami, backupami i podglądem ruchów magazynowych w systemie.
                 </p>
             </div>
             <div class="settings-hero-actions">
@@ -250,51 +250,63 @@
         </div>
 
         <div class="settings-grid">
-            <article class="settings-card settings-card-admin">
-                <div class="settings-card-icon">👤</div>
+            <article class="settings-card settings-card-shared">
+                <div class="settings-card-icon">🟢</div>
                 <div class="settings-card-body">
-                    <h3>{{ _('uzytkownicy') }}</h3>
-                    <p>{{ _('dodawaj_edytuj_konta') }}</p>
-                    <div class="settings-card-meta">Konta, role, loginy i reset haseł</div>
+                    <h3>Zalogowani użytkownicy</h3>
+                    <p>Sprawdź kto jest aktywny w systemie i kiedy ostatnio wykonywał akcję.</p>
+                    <div class="settings-card-meta">Podgląd sesji aktywnych i ostatnio widzianych</div>
                 </div>
                 <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/uzytkownicy" class="btn btn-primary">{{ _('przejdz_do_uzytkownikow') }}</a>
+                    <a href="/admin/ustawienia/zalogowani" class="btn btn-primary">Pokaż aktywne sesje</a>
                 </div>
             </article>
 
-            <article class="settings-card settings-card-admin">
-                <div class="settings-card-icon">🧑‍🏭</div>
+            <article class="settings-card settings-card-muted">
+                <div class="settings-card-icon">📋</div>
                 <div class="settings-card-body">
-                    <h3>{{ _('pracownicy') }}</h3>
-                    <p>{{ _('zarzadzaj_pracownikami') }}</p>
-                    <div class="settings-card-meta">Lista pracowników, grupy i powiązania z kontami</div>
+                    <h3>Dziennik akcji użytkowników</h3>
+                    <p>Przeglądaj <strong>kto, co i kiedy</strong> zrobił w systemie: logowania, potwierdzenia palet itp.</p>
+                    <div class="settings-card-meta">Dostęp tylko dla administratorów • Plik: <code>logs/audit.log</code></div>
                 </div>
                 <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/pracownicy" class="btn btn-primary">{{ _('przejdz_do_pracownikow') }}</a>
+                    <a href="/admin/ustawienia/logs" class="btn btn-primary">Pokaż dziennik</a>
                 </div>
             </article>
 
-            <article class="settings-card settings-card-admin">
-                <div class="settings-card-icon">🛡️</div>
+            <article class="settings-card settings-card-muted">
+                <div class="settings-card-icon">🚨</div>
                 <div class="settings-card-body">
-                    <h3>{{ _('role_uprawnienia') }}</h3>
-                    <p>{{ _('skonfiguruj_role') }}</p>
-                    <div class="settings-card-meta">Macierz dostępu do sekcji i trybu tylko odczyt</div>
+                    <h3>Pułapki błędów</h3>
+                    <p>Przeglądaj wyłapane anomalie, skomplikowane zrzuty błędów bazy oraz logi krytyczne aplikacji.</p>
+                    <div class="settings-card-meta">Dostęp tylko dla administratorów • Plik: <code>logs/error.log</code></div>
                 </div>
                 <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/roles" class="btn btn-primary">{{ _('zarzadzaj_uprawnieniami') }}</a>
+                    <a href="/admin/ustawienia/errors" class="btn btn-primary">Pokaż usterki</a>
                 </div>
             </article>
 
-            <article class="settings-card settings-card-admin">
-                <div class="settings-card-icon">⏱️</div>
+            <article class="settings-card settings-card-shared">
+                <div class="settings-card-icon">💾</div>
                 <div class="settings-card-body">
-                    <h3>Czasy Workowania</h3>
-                    <p>Definiuj czasy przetwarzania na 1000 kg dla różnych typów opakowań.</p>
-                    <div class="settings-card-meta">Planowanie, wydajność i normy sekcji Workowanie</div>
+                    <h3>Backupy bazy danych</h3>
+                    <p>Przeglądaj i pobieraj kopie zapasowe wygenerowane przez system.</p>
+                    <div class="settings-card-meta">Katalog backupów: <code>backups/</code></div>
                 </div>
                 <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/workowanie_times" class="btn btn-primary">Konfiguruj czasy</a>
+                    <a href="/admin/ustawienia/backups" class="btn btn-primary">Przejdź do backupów</a>
+                </div>
+            </article>
+            
+            <article class="settings-card settings-card-admin">
+                <div class="settings-card-icon">📖</div>
+                <div class="settings-card-body">
+                    <h3>Ostatnie Ruchy (Audyt)</h3>
+                    <p>Podgląd historii ruchów w magazynie surowców.</p>
+                    <div class="settings-card-meta">Baza danych: <code>warehouse_audit</code></div>
+                </div>
+                <div class="settings-card-actions">
+                    <a href="/admin/centrum/audyt" class="btn btn-primary">Przejdź do audytu</a>
                 </div>
             </article>
 

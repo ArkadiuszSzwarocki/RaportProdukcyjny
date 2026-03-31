@@ -2,7 +2,7 @@
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 import json
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 
 def get_date_range(tryb, rok, miesiac, wybrana_data):
     """Oblicza zakres dat na podstawie wybranego trybu."""
@@ -26,44 +26,46 @@ def get_date_range(tryb, rok, miesiac, wybrana_data):
         
     return d_od, d_do
 
-def get_kpi_data(d_od, d_do):
-    """Pobiera główne wskaźniki KPI."""
+def get_kpi_data(d_od, d_do, linia='PSD'):
+    """Pobiera główne wskaźniki KPI dla wybranej linii."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
+    table_plan = get_table_name('plan_produkcji', linia)
+    cursor.execute(f"""
         SELECT COALESCE(SUM(tonaz), 0), 
                COALESCE(SUM(tonaz_rzeczywisty), 0), 
                COUNT(id) 
-        FROM plan_produkcji 
+        FROM {table_plan} 
         WHERE data_planu BETWEEN %s AND %s AND status='zakonczone' AND COALESCE(typ_zlecenia, '') != 'jakosc'
     """, (d_od, d_do))
     kpi = cursor.fetchone()
     conn.close()
     return {
-        'plan': kpi[0],
-        'wykonanie': kpi[1],
-        'ilosc_zlecen': kpi[2],
+        'plan': kpi[0] or 0,
+        'wykonanie': kpi[1] or 0,
+        'ilosc_zlecen': kpi[2] or 0,
         'procent': (kpi[1]/kpi[0]*100) if kpi[0] else 0
     }
 
-def get_chart_data(d_od, d_do):
+def get_chart_data(d_od, d_do, linia='PSD'):
     """Pobiera dane do wykresów (produkcja i awarie)."""
     conn = get_db_connection()
     cursor = conn.cursor()
+    table_plan = get_table_name('plan_produkcji', linia)
     
     # Wykres Produkcji
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT data_planu, 
                SUM(CASE WHEN sekcja = 'Zasyp' THEN tonaz ELSE 0 END), 
                SUM(CASE WHEN sekcja = 'Zasyp' THEN COALESCE(tonaz_rzeczywisty, 0) ELSE 0 END), 
                SUM(CASE WHEN sekcja = 'Workowanie' THEN COALESCE(tonaz_rzeczywisty, 0) ELSE 0 END)
-        FROM plan_produkcji 
+        FROM {table_plan} 
         WHERE data_planu BETWEEN %s AND %s AND COALESCE(typ_zlecenia, '') != 'jakosc'
         GROUP BY data_planu ORDER BY data_planu
     """, (d_od, d_do))
     ch = cursor.fetchall()
     
-    # Wykres Awarii
+    # Wykres Awarii (shared table, but maybe filter by sekcja if needed? Sticking to shared for now)
     cursor.execute("""
         SELECT kategoria, COALESCE(SUM(TIMESTAMPDIFF(MINUTE, czas_start, czas_stop)), 0) 
         FROM dziennik_zmiany 
@@ -83,7 +85,7 @@ def get_chart_data(d_od, d_do):
         'total_downtime': sum([float(r[1]) for r in dt])
     }
 
-def get_worker_stats(d_od, d_do, tryb):
+def get_worker_stats(d_od, d_do, tryb, linia='PSD'):
     """Generuje statystyki pracownicze."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -101,8 +103,8 @@ def get_worker_stats(d_od, d_do, tryb):
         cursor.execute("""
             SELECT p.imie_nazwisko, o.sekcja 
             FROM obsada_zmiany o JOIN pracownicy p ON o.pracownik_id=p.id 
-            WHERE o.data_wpisu=%s
-        """, (d_od,))
+            WHERE o.data_wpisu=%s AND o.linia=%s
+        """, (d_od, linia))
         for r in cursor.fetchall(): 
             if r[1] in ['Zasyp','Workowanie','Magazyn']: 
                 p_dict[r[0]][r[1].lower()] = '✅'
@@ -121,8 +123,8 @@ def get_worker_stats(d_od, d_do, tryb):
         cursor.execute("""
             SELECT p.imie_nazwisko, COUNT(o.id) 
             FROM obsada_zmiany o JOIN pracownicy p ON o.pracownik_id=p.id 
-            WHERE o.data_wpisu BETWEEN %s AND %s GROUP BY p.imie_nazwisko
-        """, (d_od, d_do))
+            WHERE o.data_wpisu BETWEEN %s AND %s AND o.linia=%s GROUP BY p.imie_nazwisko
+        """, (d_od, d_do, linia))
         p_dict = defaultdict(lambda: {'total':0,'abs':0,'ot':0})
         for r in cursor.fetchall(): 
             p_dict[r[0]]['total'] = r[1]

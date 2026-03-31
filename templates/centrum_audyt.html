@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+    <div class="row justify-between items-center mb-15">
+        <h2 class="section-title row items-center gap-8 m-0">
+            <span class="material-icons" style="color:var(--primary-color);">history</span> 
+            Ostatnie Ruchy (Audyt) Magazynu
+        </h2>
+        <a href="/admin/centrum" class="btn btn-outline">Wróć do Centrum</a>
+    </div>
+
+    <div class="section-box bg-white" style="border-radius: 16px; overflow: hidden;">
+        <div class="history-list" style="max-height: 700px; overflow-y: auto;" id="historyList">
+            {% for h in history %}
+            <div class="history-item p-15"
+                 data-typ="{{ h.typ_ruchu }}"
+                 data-data="{{ h.autor_data.strftime('%Y-%m-%d') if h.autor_data else '' }}"
+                 data-surowiec="{{ h.surowiec_nazwa or '' }}"
+                 data-lok="{{ h.lokalizacja or '' }}"
+                 style="border-bottom: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 4px;">
+                <div class="row justify-between items-center">
+                    <span class="font-bold" style="font-size: 15px;">{{ h.surowiec_nazwa }}</span>
+                    <span class="{% if h.ilosc > 0 %}text-success{% else %}text-danger-color{% endif %} font-bold" style="font-size: 15px;">
+                        {{ '+' if h.ilosc > 0 else '' }}{{ h.ilosc|round(1) }} kg
+                    </span>
+                </div>
+                <div class="row justify-between items-center text-muted small">
+                    <span class="row items-center gap-4">
+                        <span class="badge-dot {% if h.status == 'POTWIERDZONE' %}bg-success{% elif h.status == 'OCZEKUJACE' %}bg-warning{% else %}bg-error{% endif %}"></span>
+                        {{ h.typ_ruchu }} • {{ h.status }}
+                    </span>
+                    <span>{{ h.autor_data.strftime('%d.%m %H:%M') if h.autor_data else '' }}</span>
+                </div>
+                <div class="small text-muted mt-2">
+                   <span class="italic">Autor: {{ h.autor_login }}</span>
+                   {% if h.potwierdzil_login %} • <span class="text-success">Potwierdził: {{ h.potwierdzil_login }}</span>{% endif %}
+                   {% if h.lokalizacja %} • <span class="row items-center gap-4" style="display:inline-flex; color: var(--primary-color); font-weight: bold;"><span class="material-icons" style="font-size:12px;">place</span> {{ h.lokalizacja }}</span>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% if not history %}
+            <div class="p-20 text-center">
+                <p class="text-muted">Brak historii ruchów.</p>
+            </div>
+            {% endif %}
+            <div id="historyEmptyState" style="display:none;" class="p-20 text-center">
+                <span class="material-icons" style="font-size:32px;color:#cbd5e1;">filter_list_off</span>
+                <p class="text-muted small mt-8">Brak ruchów dla wybranych filtrów.</p>
+            </div>
+        </div>
+        <div class="p-10 text-center bg-gray-50 border-top">
+            <button class="btn btn-ghost w-100" onclick="location.reload()">Odśwież Listę</button>
+        </div>
+    </div>
+</div>
+{% endblock %}

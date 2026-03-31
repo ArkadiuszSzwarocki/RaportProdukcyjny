@@ -3,7 +3,7 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
 import logging
 from datetime import date, datetime
-from app.db import get_db_connection, get_plan_notification_context, log_plan_history
+from app.db import get_db_connection, get_table_name, get_plan_notification_context, log_plan_history
 from app.decorators import login_required, roles_required, admin_required
 from app.services.planning_service import PlanningService
 from app.services.plan_movement_service import PlanMovementService
@@ -23,8 +23,15 @@ def bezpieczny_powrot():
         return url_for('planista.panel_planisty', data=str(date.today()))
     elif role == 'admin':
         return url_for('admin.admin_panel')
-    else:
-        return url_for('main.index')
+    """Wraca do Planisty jeśli to on klikał, w przeciwnym razie na Dashboard"""
+    if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
+        data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+        return url_for('planista.panel_planisty', data=data)
+    
+    # Try to get sekcja from query string first (URL parameters), then from form
+    sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
+    data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+    return url_for('main.index', sekcja=sekcja, data=data)
 
 
 # Use `log_plan_history` implementation from `app.db` to avoid duplicate logic
@@ -33,38 +40,32 @@ def bezpieczny_powrot():
 @planning_bp.route('/przywroc_zlecenie_page/<int:id>', methods=['GET'])
 @roles_required('lider', 'admin')
 def przywroc_zlecenie_page(id):
-    """Render a confirmation popup for resuming/recovering an order."""
-    sekcja = request.args.get('sekcja', 'Zasyp')
-    produkt = None
-    conn = None
-    
+    """Render a confirmation page for resuming an order."""
+    linia = request.args.get('linia') or 'PSD'
     try:
         conn = get_db_connection()
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
-        cursor.execute("SELECT produkt FROM plan_produkcji WHERE id=%s", (id,))
-        row = cursor.fetchone()
-        if row:
-            produkt = row[0]
-            current_app.logger.debug(f'Loaded product for plan {id}: {produkt}')
-    
+        cursor.execute(f"SELECT id, produkt, tonaz FROM {table_plan} WHERE id = %s", (id,))
+        plan = cursor.fetchone()
+        conn.close()
+        
+        if not plan:
+            flash('Zlecenie nie istnieje', 'danger')
+            return redirect(url_for('main.index'))
+            
+        return render_template('confirm_przywroc.html', plan=plan, linia=linia)
     except Exception as e:
-        current_app.logger.error(f'Failed to load product for plan {id}: {e}', exc_info=True)
-    
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
-    
-    return render_template('przywroc_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt)
+        current_app.logger.error(f"Error loading restoration page: {e}")
+        return redirect(url_for('main.index'))
 
 
-@planning_bp.route('/przywroc_zlecenie/<int:id>', methods=['POST'])
+@planning_bp.route('/reanimate_zlecenie/<int:id>', methods=['POST'])
 @roles_required('lider', 'admin')
-def przywroc_zlecenie(id):
-    """Resume a paused plan - delegated to PlanningService."""
-    success, message = PlanningService.resume_plan(id)
+def reanimate_zlecenie(id):
+    """Przywraca zakończone lub zarchiwizowane zlecenie do statusu 'zaplanowane'."""
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    success, message = PlanningService.resume_plan(id, linia=linia)
     flash(message, 'success' if success else 'warning')
     return redirect(bezpieczny_powrot())
 
@@ -73,7 +74,8 @@ def przywroc_zlecenie(id):
 @roles_required('planista', 'admin')
 def przywroc_usunietego_zlecenia(id):
     """Restore (undelete) a deleted plan - delegated to PlanningService."""
-    success, message = PlanningService.restore_plan(id)
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    success, message = PlanningService.restore_plan(id, linia=linia)
     return jsonify({'success': success, 'message': message}), 200 if success else 500
 
 
@@ -81,12 +83,8 @@ def przywroc_usunietego_zlecenia(id):
 @login_required
 def zmien_status_zlecenia(id):
     """Change plan status - delegated to PlanningService."""
-    status = request.form.get('status')
-    if not status:
-        flash('Status jest wymagany.', 'warning')
-        return redirect(bezpieczny_powrot())
-    
-    success, message = PlanningService.change_status(id, status)
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    success, message = PlanningService.change_status(id, status, linia=linia)
     flash(message, 'success' if success else 'warning')
     return redirect(bezpieczny_powrot())
 
@@ -95,7 +93,8 @@ def zmien_status_zlecenia(id):
 @login_required
 def usun_plan(id):
     """Soft delete a plan - delegated to PlanningService."""
-    success, message = PlanningService.delete_plan(id)
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    success, message = PlanningService.delete_plan(id, linia=linia)
     flash(message, 'success' if success else 'warning')
     # Redirect back to planista view preserving selected date when available
     # Accept multiple possible field names coming from different templates
@@ -128,9 +127,10 @@ def dodaj_plan_zaawansowany():
         current_app.logger.debug(f'Failed to parse tonaz in dodaj_plan_zaawansowany: {e}')
         tonaz = 0
     
+    linia = request.form.get('linia', 'PSD')
     success, message, plan_id = PlanningService.create_plan(
         data_planu, produkt, tonaz, sekcja, typ, 
-        status='zaplanowane', wymaga_oplaty=wymaga_oplaty
+        status='zaplanowane', wymaga_oplaty=wymaga_oplaty, linia=linia
     )
 
     if success and plan_id:
@@ -179,6 +179,7 @@ def dodaj_plan():
     # Normalize sekcja case - always capitalize first letter
     sekcja = sekcja[0].upper() + sekcja[1:].lower() if sekcja else 'Nieprzydzielony'
     typ = request.form.get('typ_produkcji', 'worki_zgrzewane_25')
+    linia = request.form.get('linia', 'PSD')
     
     # Get plan_id if provided (from popup form)
     try:
@@ -222,22 +223,26 @@ def dodaj_plan():
                 pass
             
             # SZARŻA: If plan_id is provided, use it directly. Otherwise search for plan.
+            table_plan = get_table_name('plan_produkcji', linia)
+            table_szarze = get_table_name('szarze', linia)
+            table_dosypki = get_table_name('dosypki', linia)
+            
             if plan_id_provided > 0:
                 # Use provided plan_id
                 zasyp_plan_id = plan_id_provided
                 try:
-                    current_app.logger.debug(f'[DODAJ_PLAN] Using PROVIDED plan_id={zasyp_plan_id}')
+                    current_app.logger.debug(f'[DODAJ_PLAN] Using PROVIDED plan_id={zasyp_plan_id} ({linia})')
                 except Exception:
                     pass
             else:
                 # Find ANY Zasyp plan for this product
                 try:
-                    current_app.logger.debug(f'[DODAJ_PLAN] plan_id_provided=0, searching for Zasyp plan for produkt={produkt}')
+                    current_app.logger.debug(f'[DODAJ_PLAN] plan_id_provided=0, searching for Zasyp plan for produkt={produkt} ({linia})')
                 except Exception:
                     pass
                 
                 cursor.execute(
-                    "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Zasyp' AND COALESCE(typ_produkcji,'')=%s ORDER BY id DESC LIMIT 1",
+                    f"SELECT id FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja='Zasyp' AND COALESCE(typ_produkcji,'')=%s ORDER BY id DESC LIMIT 1",
                     (data_planu, produkt, typ)
                 )
                 szarza_plan = cursor.fetchone()
@@ -267,7 +272,7 @@ def dodaj_plan():
                     return redirect(bezpieczny_powrot())
 
                 # Validate sequential numbers
-                cursor.execute("SELECT MAX(nr_szarzy) FROM szarze WHERE plan_id=%s", (zasyp_plan_id,))
+                cursor.execute(f"SELECT MAX(nr_szarzy) FROM {table_szarze} WHERE plan_id=%s", (zasyp_plan_id,))
                 max_nr = cursor.fetchone()[0]
                 expected_nr = (max_nr or 0) + 1
 
@@ -286,16 +291,16 @@ def dodaj_plan():
                     pracownik_id = session.get('pracownik_id')
                 
                 cursor.execute(
-                    "INSERT INTO szarze (plan_id, waga, data_dodania, godzina, pracownik_id, status, nr_szarzy) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    f"INSERT INTO {table_szarze} (plan_id, waga, data_dodania, godzina, pracownik_id, status, nr_szarzy) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                     (zasyp_plan_id, tonaz, now, godzina, pracownik_id, 'zarejestowana', nr_szarzy)
                 )
                 
                 # Synchronize plan's tonaz_rzeczywisty = SUM(szarże) + SUM(dosypki potwierdzone)
                 cursor.execute(
-                    "UPDATE plan_produkcji SET tonaz_rzeczywisty = "
-                    "COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) + "
-                    "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
-                    "WHERE id = %s",
+                    f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
+                    f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
+                    f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
+                    f"WHERE id = %s",
                     (zasyp_plan_id, zasyp_plan_id, zasyp_plan_id)
                 )
                 try:
@@ -304,7 +309,7 @@ def dodaj_plan():
                 except Exception:
                     pass
 
-                plan_context = get_plan_notification_context(zasyp_plan_id, conn=conn)
+                plan_context = get_plan_notification_context(zasyp_plan_id, conn=conn, linia=linia)
                 notify_laboratory_about_szarza(
                     plan_context=plan_context,
                     weight_kg=tonaz,
@@ -312,32 +317,38 @@ def dodaj_plan():
                     conn=conn,
                     cursor=cursor,
                     created_by_user_id=session.get('user_id'),
+                    linia=linia
                 )
                 
                 # IMPORTANT: Create or reset Workowanie plan when first szarża is added
                 # First try to find Workowanie linked to this Zasyp via zasyp_id
                 cursor.execute(
-                    "SELECT id, tonaz, zasyp_id FROM plan_produkcji WHERE zasyp_id=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",
+                    f"SELECT id, tonaz, zasyp_id FROM {table_plan} WHERE zasyp_id=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",
                     (zasyp_plan_id,)
                 )
                 workowanie_plan = cursor.fetchone()
                 # If not found by zasyp_id, fallback to matching by data_planu and produkt
                 if not workowanie_plan:
                     cursor.execute(
-                        "SELECT id, tonaz, zasyp_id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",
+                        f"SELECT id, tonaz, zasyp_id FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",
                         (data_planu, produkt)
                     )
                     workowanie_plan = cursor.fetchone()
 
                 if not workowanie_plan:
                     # Create new Workowanie plan when first szarża is added
-                    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja='Workowanie'", (data_planu,))
+                    cursor.execute(f"SELECT linia, typ_produkcji FROM {table_plan} WHERE id=%s", (zasyp_plan_id,))
+                    source_row = cursor.fetchone()
+                    source_linia = source_row[0] if source_row else linia
+                    source_typ = source_row[1] if source_row else 'worki_zgrzewane_25'
+                    
+                    cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja='Workowanie'", (data_planu,))
                     res = cursor.fetchone()
                     nk_work = (res[0] if res and res[0] else 0) + 1
                     
                     cursor.execute(
-                        "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                        (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, typ, 0, zasyp_plan_id)
+                        f"INSERT INTO {table_plan} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        (data_planu, produkt, tonaz, 'zaplanowane', 'Workowanie', nk_work, source_typ, 0, zasyp_plan_id)
                     )
                     try:
                         current_app.logger.debug(f'[DODAJ_PLAN] Created new Workowanie plan for produkt={produkt} when first szarża added')
@@ -356,14 +367,14 @@ def dodaj_plan():
                         print(debug_msg)
 
                     # If a Workowanie already exists that is linked to this zasyp, use it
-                    cursor.execute("SELECT id, tonaz FROM plan_produkcji WHERE zasyp_id=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1", (zasyp_plan_id,))
+                    cursor.execute(f"SELECT id, tonaz FROM {table_plan} WHERE zasyp_id=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1", (zasyp_plan_id,))
                     linked = cursor.fetchone()
                     if linked:
                         # Use the linked one as target
                         target_id, target_existing_tonaz = linked[0], linked[1] or 0
                         new_workowanie_tonaz = target_existing_tonaz + tonaz
                         cursor.execute(
-                            "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s AND status!='w toku'",
+                            f"UPDATE {table_plan} SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s AND status!='w toku'",
                             (new_workowanie_tonaz, target_id)
                         )
                         try:
@@ -379,14 +390,14 @@ def dodaj_plan():
                         # No linked Workowanie exists. If current workowanie has no zasyp_id, set it; otherwise update it to link (safe) and sum.
                         if not w_zasyp_id:
                             try:
-                                cursor.execute("UPDATE plan_produkcji SET zasyp_id=%s WHERE id=%s", (zasyp_plan_id, workowanie_id))
+                                cursor.execute(f"UPDATE {table_plan} SET zasyp_id=%s WHERE id=%s", (zasyp_plan_id, workowanie_id))
                                 w_zasyp_id = zasyp_plan_id
                             except Exception:
                                 # If update fails (uniqueness), fallback to summing into any existing linked plan
                                 pass
                         new_workowanie_tonaz = w_existing_tonaz + tonaz
                         cursor.execute(
-                            "UPDATE plan_produkcji SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s AND status!='w toku'",
+                            f"UPDATE {table_plan} SET status='zaplanowane', real_start=NULL, real_stop=NULL, tonaz=%s WHERE id=%s AND status!='w toku'",
                             (new_workowanie_tonaz, workowanie_id)
                         )
                         try:
@@ -406,7 +417,7 @@ def dodaj_plan():
                 # Odśwież bufor natychmiast po dodaniu szarży, żeby Workowanie pojawiło się w kolejce
                 try:
                     from app.db import refresh_bufor_queue
-                    refresh_bufor_queue(conn)
+                    refresh_bufor_queue(conn, linia=linia)
                 except Exception:
                     pass
                 conn.close()
@@ -428,8 +439,11 @@ def dodaj_plan():
         elif sekcja == 'Workowanie':
             # PALETA: Find main Workowanie plan by data_planu, produkt, typ_produkcji
             # This is the plan that needs tonaz_rzeczywisty updated
+            table_plan = get_table_name('plan_produkcji', linia)
+            table_pal = get_table_name('palety_workowanie', linia)
+            
             cursor.execute(
-                "SELECT id, typ_produkcji FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND status IN ('zaplanowane', 'w toku') ORDER BY id ASC LIMIT 1",
+                f"SELECT id, typ_produkcji FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND status IN ('zaplanowane', 'w toku') ORDER BY id ASC LIMIT 1",
                 (data_planu, produkt)
             )
             main_plan = cursor.fetchone()
@@ -442,13 +456,13 @@ def dodaj_plan():
 
                 # Insert a new paleta record directly to main Workowanie plan
                 cursor.execute(
-                    "INSERT INTO palety_workowanie (plan_id, waga, status) VALUES (%s, %s, %s)",
+                    f"INSERT INTO {table_pal} (plan_id, waga, status) VALUES (%s, %s, %s)",
                     (main_plan_id, tonaz, 'oczekuje')
                 )
                 
                 # IMPORTANT: Increase main Workowanie plan tonaz_rzeczywisty (realizacja = sum of palety weights)
                 cursor.execute(
-                    "UPDATE plan_produkcji SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
+                    f"UPDATE {table_plan} SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
                     (tonaz, main_plan_id)
                 )
                 try:
@@ -459,7 +473,7 @@ def dodaj_plan():
                     conn.commit()
                     try:
                         from app.db import refresh_bufor_queue
-                        refresh_bufor_queue(conn)
+                        refresh_bufor_queue(conn, linia=linia)
                     except Exception:
                         pass
                     conn.close()
@@ -467,16 +481,17 @@ def dodaj_plan():
     
     # No open order found - create new planned order
     # Prevent duplicate plans for same date+product: require editing existing plan instead
+    table_plan = get_table_name('plan_produkcji', linia)
     try:
         cursor.execute(
-            "SELECT id, sekcja FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
+            f"SELECT id, sekcja FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
             (data_planu, produkt)
         )
         existing = cursor.fetchone()
         if existing:
             flash(f'Zlecenie dla {produkt} już istnieje na dzień {data_planu}. Zmień ilość istniejącego zlecenia zamiast tworzyć nowe.', 'modal_error')
             conn.close()
-            return redirect(url_for('planista.panel_planisty', data=data_planu))
+            return redirect(url_for('planista.panel_planisty', data=data_planu, linia=linia))
     except Exception:
         # If duplicate-check fails for any reason, continue to create (fail-open)
         try:
@@ -485,10 +500,10 @@ def dodaj_plan():
             pass
 
     status = 'zaplanowane'
-    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja=%s", (data_planu, sekcja))
+    cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja=%s", (data_planu, sekcja))
     res = cursor.fetchone()
     nk = (res[0] if res and res[0] else 0) + 1
-    cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ, 0))
+    cursor.execute(f"INSERT INTO {table_plan} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, status, sekcja, nk, typ, 0))
     zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
 
     notify_workers_about_plan_change(
@@ -503,6 +518,7 @@ def dodaj_plan():
         conn=conn,
         cursor=cursor,
         created_by_user_id=session.get('user_id'),
+        linia=linia
     )
     
     # NOTE: Workowanie plan is NOT created here anymore.
@@ -530,19 +546,25 @@ def dodaj_plany_batch():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Compute initial max sequence FOR EACH SECTION
         # Build a map: sekcja -> max_kolejnosc
-        cursor.execute("""
+        table_psd = get_table_name('plan_produkcji', 'PSD')
+        cursor.execute(f"""
             SELECT sekcja, MAX(kolejnosc) as max_seq
-            FROM plan_produkcji 
+            FROM {table_psd} 
             WHERE data_planu=%s
             GROUP BY sekcja
         """, (data_planu,))
+        max_seq_map = {row[0]: (row[1] if row[1] else 0) for row in cursor.fetchall()}
         
-        max_seq_map = {}
-        for row in cursor.fetchall():
-            sekcja, max_seq = row
-            max_seq_map[sekcja] = (max_seq if max_seq else 0)
+        # AGRO max sequence
+        table_agro = get_table_name('plan_produkcji', 'Agro')
+        cursor.execute(f"""
+            SELECT sekcja, MAX(kolejnosc) as max_seq
+            FROM {table_agro} 
+            WHERE data_planu=%s
+            GROUP BY sekcja
+        """, (data_planu,))
+        max_seq_map_agro = {row[0]: (row[1] if row[1] else 0) for row in cursor.fetchall()}
         
         for idx, p in enumerate(plans, start=1):
             produkt = (p.get('produkt') or '').strip()
@@ -568,29 +590,42 @@ def dodaj_plany_batch():
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: brak typu produkcji'})
 
             # Duplicate check: do not allow creating a new plan for same product+date
+            # (Check against appropriate table based on intended sekcja/linia)
+            target_linia = 'Agro' if sekcja == 'Agro' else 'PSD'
+            table_target = get_table_name('plan_produkcji', target_linia)
+            
             cursor.execute(
-                "SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
+                f"SELECT id FROM {table_target} WHERE data_planu=%s AND produkt=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
                 (data_planu, produkt)
             )
             if cursor.fetchone():
                 return jsonify({'success': False, 'message': f'Wiersz {idx}: zlecenie dla {produkt} już istnieje na {data_planu} — edytuj istniejący plan.'})
 
-            # === AGRO: zapisz do dedykowanej tabeli plan_agro ===
+            # === AGRO: zapisz do plan_produkcji z linia='Agro' ===
             if sekcja == 'Agro':
-                nk_agro = max_seq_map.get('Agro', 0) + 1
-                max_seq_map['Agro'] = nk_agro
+                nk_agro = max_seq_map_agro.get('Agro', 0) + 1
+                max_seq_map_agro['Agro'] = nk_agro
                 cursor.execute(
-                    "INSERT INTO plan_agro (data_planu, produkt, tonaz, status, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (data_planu, produkt, tonaz, 'zaplanowane', nk_agro, 'agro', nr, 0)
+                    f"INSERT INTO {table_agro} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk_agro, 'agro', nr, 0)
                 )
-                continue  # nie wstawiaj do plan_produkcji
+                
+                # Auto-create Workowanie for Agro too
+                nk_work_agro = max_seq_map_agro.get('Workowanie', 0) + 1
+                max_seq_map_agro['Workowanie'] = nk_work_agro
+                zasyp_id_agro = cursor.lastrowid
+                cursor.execute(
+                    f"INSERT INTO {table_agro} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work_agro, 'agro', 0, zasyp_id_agro)
+                )
+                continue
 
             # === PSD / inne sekcje: zapisz do plan_produkcji ===
             # Increment kolejnosc for this specific sekcja
             nk_zasyp = max_seq_map.get('Zasyp', 0) + 1
             max_seq_map['Zasyp'] = nk_zasyp
             
-            cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', sekcja, nk_zasyp, typ, nr, 0))
+            cursor.execute(f"INSERT INTO {table_psd} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', sekcja, nk_zasyp, typ, nr, 0))
             
             # NEW: If sekcja is Zasyp, create corresponding Workowanie automatically
             if sekcja == 'Zasyp':
@@ -602,7 +637,7 @@ def dodaj_plany_batch():
                 zasyp_id_created = cursor.lastrowid
                 
                 cursor.execute(
-                    "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    f"INSERT INTO {table_psd} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work, typ, 0, zasyp_id_created)
                 )
 
@@ -640,11 +675,12 @@ def dodaj_plany_batch():
 def przenies_zlecenie(id):
     """Move a plan to a different date - delegated to PlanningService."""
     nowa_data = request.form.get('nowa_data')
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
     if not nowa_data:
         flash('Nowa data jest wymagana.', 'warning')
         return redirect(bezpieczny_powrot())
     
-    success, message = PlanningService.reschedule_plan(id, nowa_data)
+    success, message = PlanningService.reschedule_plan(id, nowa_data, linia=linia)
     flash(message, 'success' if success else 'warning')
     return redirect(bezpieczny_powrot())
 
@@ -658,10 +694,11 @@ def przenies_zlecenie(id):
 def przesun_zlecenie(id, kierunek):
     """Move a plan up or down in the sequence - delegated to PlanMovementService."""
     data = request.args.get('data', str(date.today()))
-    success, message = PlanMovementService.shift_plan_order(id, kierunek)
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    success, message = PlanMovementService.shift_plan_order(id, kierunek, linia=linia)
     if not success:
         flash(message, 'warning')
-    return redirect(url_for('planista.panel_planisty', data=data))
+    return redirect(url_for('planista.panel_planisty', data=data, linia=linia))
 
 
 @planning_bp.route('/edytuj_plan/<int:id>', methods=['POST'])
@@ -673,6 +710,7 @@ def edytuj_plan(id):
     tonaz = request.form.get('tonaz')
     sekcja = request.form.get('sekcja')
     data_planu = request.form.get('data_planu')
+    linia = request.form.get('linia', 'PSD')
     try:
         tonaz_val = int(float(tonaz)) if tonaz is not None and tonaz != '' else None
     except Exception as e:
@@ -682,10 +720,11 @@ def edytuj_plan(id):
     conn = None
     try:
         conn = get_db_connection()
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
         
         # Check if exists and get current sekcja
-        cursor.execute("SELECT id, status, sekcja FROM plan_produkcji WHERE id=%s", (id,))
+        cursor.execute(f"SELECT id, status, sekcja FROM {table_plan} WHERE id=%s", (id,))
         r = cursor.fetchone()
         if not r:
             flash('Nie znaleziono zlecenia', 'warning')
@@ -741,7 +780,7 @@ def edytuj_plan(id):
             current_sekcja = sekcja  # Update sekcja if changing it
         if data_planu:
             # if changing date, set new sequence at end of day FOR THIS SEKCJA
-            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja=%s", (data_planu, current_sekcja))
+            cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja=%s", (data_planu, current_sekcja))
             res = cursor.fetchone()
             nk = (res[0] if res and res[0] else 0) + 1
             updates.append('data_planu=%s')
@@ -750,15 +789,16 @@ def edytuj_plan(id):
             params.append(nk)
 
         if updates:
-            sql = f"UPDATE plan_produkcji SET {', '.join(updates)} WHERE id=%s"
+            sql = f"UPDATE {table_plan} SET {', '.join(updates)} WHERE id=%s"
             params.append(id)
             cursor.execute(sql, tuple(params))
             conn.commit()
             notify_workers_about_plan_change(
-                plan_context=get_plan_notification_context(id, conn=conn),
+                plan_context=get_plan_notification_context(id, conn=conn, linia=linia),
                 action_label='zmienił',
                 author_name=session.get('imie_nazwisko') or session.get('login'),
                 created_by_user_id=session.get('user_id'),
+                linia=linia
             )
             flash('Zlecenie zaktualizowane', 'success')
             current_app.logger.info('Zlecenie ID=%s zaktualizowane przez %s', id, session.get('login'))
@@ -807,6 +847,7 @@ def edytuj_plan_ajax():
     # Optional fields that should be propagated to linked Workowanie when editing Zasyp
     typ_produkcji = data.get('typ_produkcji')
     nazwa_zlecenia = data.get('nazwa_zlecenia')
+    linia = data.get('linia', 'PSD')
 
     try:
         tonaz_val = int(float(tonaz)) if tonaz is not None and str(tonaz).strip() != '' else None
@@ -816,8 +857,9 @@ def edytuj_plan_ajax():
     conn = None
     try:
         conn = get_db_connection()
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, '') FROM plan_produkcji WHERE id=%s", (pid,))
+        cursor.execute(f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, '') FROM {table_plan} WHERE id=%s", (pid,))
         before = cursor.fetchone()
         if not before:
             return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
@@ -875,7 +917,7 @@ def edytuj_plan_ajax():
             changes['nazwa_zlecenia'] = {'before': before[7], 'after': nazwa_zlecenia}
         if data_planu and data_planu != str(before[4]):
             # Get max sequence FOR THIS SEKCJA on the new date
-            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja=%s", (data_planu, current_sekcja))
+            cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja=%s", (data_planu, current_sekcja))
             res = cursor.fetchone()
             nk = (res[0] if res and res[0] else 0) + 1
             updates.append('data_planu=%s')
@@ -885,7 +927,7 @@ def edytuj_plan_ajax():
             changes['data_planu'] = {'before': str(before[4]), 'after': data_planu}
 
         if updates:
-            sql = f"UPDATE plan_produkcji SET {', '.join(updates)} WHERE id=%s"
+            sql = f"UPDATE {table_plan} SET {', '.join(updates)} WHERE id=%s"
             params.append(pid)
             cursor.execute(sql, tuple(params))
             conn.commit()
@@ -917,7 +959,7 @@ def edytuj_plan_ajax():
                         linked_updates.append('data_planu=%s')
                         linked_params.append(changes['data_planu']['after'])
                     if linked_updates:
-                        linked_sql = f"UPDATE plan_produkcji SET {', '.join(linked_updates)} WHERE zasyp_id=%s"
+                        linked_sql = f"UPDATE {table_plan} SET {', '.join(linked_updates)} WHERE zasyp_id=%s"
                         linked_params.append(pid)
                         cursor.execute(linked_sql, tuple(linked_params))
                         conn.commit()
@@ -977,11 +1019,13 @@ def update_uszkodzone_worki():
     except (ValueError, TypeError):
         return jsonify({'success': False, 'message': 'Nieprawidłowe wartości'}), 400
     
+    linia = data.get('linia') or request.args.get('linia') or 'PSD'
     conn = get_db_connection()
+    table_plan = get_table_name('plan_produkcji', linia)
     cursor = conn.cursor()
     try:
         # Sprawdź czy plan istnieje
-        cursor.execute("SELECT id, uszkodzone_worki FROM plan_produkcji WHERE id=%s", (plan_id_int,))
+        cursor.execute(f"SELECT id, uszkodzone_worki FROM {table_plan} WHERE id=%s", (plan_id_int,))
         result = cursor.fetchone()
         
         if not result:
@@ -989,7 +1033,7 @@ def update_uszkodzone_worki():
             return jsonify({'success': False, 'message': 'Plan nie znaleziony'}), 404
         
         # Zaktualizuj pole
-        cursor.execute("UPDATE plan_produkcji SET uszkodzone_worki=%s WHERE id=%s", (uszk_val, plan_id_int))
+        cursor.execute(f"UPDATE {table_plan} SET uszkodzone_worki=%s WHERE id=%s", (uszk_val, plan_id_int))
         conn.commit()
         
         current_app.logger.debug(f"[USZKODZONE-WORKI] Plan {plan_id_int}: uszkodzone_worki={uszk_val}")
@@ -1027,20 +1071,23 @@ def przenies_zlecenie_ajax():
     if not id or not to_date:
         return jsonify({'success': False, 'message': 'Brak parametrów'}), 400
 
+    linia = data.get('linia') or request.args.get('linia') or 'PSD'
+
     try:
         pid = int(id)
     except Exception:
         return jsonify({'success': False, 'message': 'Błąd ID'}), 400
 
-    success, message = PlanningService.reschedule_plan(pid, to_date)
+    success, message = PlanningService.reschedule_plan(pid, to_date, linia=linia)
     status_code = 200 if success else 400
     if success:
         audit_log('Przesunął zlecenie', f'ID={pid}, nowa data={to_date}')
         current_app.logger.info('Przesunięto zlecenie ID=%s na %s przez %s', pid, to_date, session.get('login'))
         try:
             conn = get_db_connection()
+            table_plan = get_table_name('plan_produkcji', linia)
             cursor = conn.cursor()
-            cursor.execute("SELECT data_planu FROM plan_produkcji WHERE id=%s", (pid,))
+            cursor.execute(f"SELECT data_planu FROM {table_plan} WHERE id=%s", (pid,))
             old_row = cursor.fetchone()
             old_date = old_row[0] if old_row else '?'
             conn.close()
@@ -1071,7 +1118,7 @@ def przesun_zlecenie_ajax():
     except Exception:
         return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
 
-    success, message = PlanMovementService.shift_plan_order(pid, kierunek)
+    success, message = PlanMovementService.shift_plan_order(pid, kierunek, linia=linia)
     
     if success:
         # Log history
@@ -1094,7 +1141,7 @@ def api_usun_plan(id):
     current_app.logger.info('Usuwanie zlecenia ID=%s przez %s', id, session.get('login'))
 
     try:
-        success, message = PlanningService.delete_plan(id)
+        success, message = PlanningService.delete_plan(id, linia=linia)
         current_app.logger.info('Wynik usunięcia zlecenia ID=%s: %s', id, message)
 
         if success:
@@ -1102,8 +1149,9 @@ def api_usun_plan(id):
             # Log history
             try:
                 conn = get_db_connection()
+                table_plan = get_table_name('plan_produkcji', linia)
                 cursor = conn.cursor()
-                cursor.execute("SELECT produkt, data_planu, tonaz FROM plan_produkcji WHERE id=%s", (id,))
+                cursor.execute(f"SELECT produkt, data_planu, tonaz FROM {table_plan} WHERE id=%s", (id,))
                 res = cursor.fetchone()
                 conn.close()
                 if res:
@@ -1126,8 +1174,9 @@ def api_usun_plan(id):
 def jakosc_dodaj_do_planow(id):
     """Create a scheduled production order based on a quality order."""
     conn = get_db_connection()
+    table_plan = get_table_name('plan_produkcji', linia)
     cursor = conn.cursor()
-    cursor.execute("SELECT produkt, tonaz, typ_produkcji FROM plan_produkcji WHERE id=%s", (id,))
+    cursor.execute(f"SELECT produkt, tonaz, typ_produkcji FROM {table_plan} WHERE id=%s", (id,))
     row = cursor.fetchone()
     if not row:
         conn.close()
@@ -1138,21 +1187,21 @@ def jakosc_dodaj_do_planow(id):
     data_planu = request.form.get('data_planu') or request.form.get('data_powrot') or str(date.today())
     
     # Calculate new sequences FOR EACH SEKCJA
-    cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja='Zasyp'", (data_planu,))
+    cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja='Zasyp'", (data_planu,))
     res = cursor.fetchone()
     nk = (res[0] if res and res[0] else 0) + 1
     
-    cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk, typ, 0))
+    cursor.execute(f"INSERT INTO {table_plan} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk, typ, 0))
     zasyp_plan_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
     
     # NEW: Create corresponding Workowanie automatically
     if zasyp_plan_id:
-        cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s AND sekcja='Workowanie'", (data_planu,))
+        cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja='Workowanie'", (data_planu,))
         res_work = cursor.fetchone()
         nk_work = (res_work[0] if res_work and res_work[0] else 0) + 1
         
         cursor.execute(
-            "INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            f"INSERT INTO {table_plan} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (data_planu, produkt, 0, 'w toku', 'Workowanie', nk_work, typ, 0)
         )
     
@@ -1173,6 +1222,7 @@ def reorder_plans_bulk():
     
     plan_ids = data.get('plan_ids', [])
     data_planu = data.get('data')
+    linia = data.get('linia', 'PSD')
     
     if not plan_ids or not isinstance(plan_ids, list) or len(plan_ids) == 0:
         return jsonify({'success': False, 'message': 'Brak plan_ids'}), 400
@@ -1181,12 +1231,13 @@ def reorder_plans_bulk():
     
     try:
         conn = get_db_connection()
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
         
         # Check if ANY plan is w toku or zakonczone - if so, reject
         for pid in plan_ids:
             cursor.execute(
-                "SELECT status FROM plan_produkcji WHERE id=%s AND DATE(data_planu)=%s",
+                f"SELECT status FROM {table_plan} WHERE id=%s AND DATE(data_planu)=%s",
                 (int(pid), data_planu)
             )
             res = cursor.fetchone()
@@ -1202,7 +1253,7 @@ def reorder_plans_bulk():
         # Reorder - assign sequences 1,2,3,... only to zaplanowane
         for idx, pid in enumerate(plan_ids, 1):
             cursor.execute(
-                "UPDATE plan_produkcji SET kolejnosc=%s WHERE id=%s AND DATE(data_planu)=%s AND status='zaplanowane'",
+                f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s AND DATE(data_planu)=%s AND status='zaplanowane'",
                 (idx, int(pid), data_planu)
             )
             if cursor.rowcount == 0:
@@ -1226,15 +1277,21 @@ def reorder_plans_bulk():
 @planning_bp.route('/planista/agro/usun/<int:plan_id>', methods=['POST'])
 @roles_required('planista', 'admin')
 def usun_plan_agro(plan_id):
-    """Usuń plan z tabeli plan_agro."""
+    """Usuń plan z tabeli plan_produkcji oznaczony jako Agro."""
     from flask import redirect, url_for
     data_planu = request.form.get('data_planu', '')
     try:
         conn = get_db_connection()
+        table_plan = get_table_name('plan_produkcji', 'Agro')
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM plan_agro WHERE id=%s AND status='zaplanowane'", (plan_id,))
-        conn.commit()
+        # Najpierw sprawdź czy to na pewno Agro i czy można usunąć
+        cursor.execute(f"SELECT id FROM {table_plan} WHERE id=%s AND status='zaplanowane'", (plan_id,))
+        if cursor.fetchone():
+            cursor.execute(f"DELETE FROM {table_plan} WHERE id=%s", (plan_id,))
+            # Usuń też powiązane workowanie jeśli istnieje
+            cursor.execute(f"DELETE FROM {table_plan} WHERE zasyp_id=%s", (plan_id,))
+            conn.commit()
         conn.close()
     except Exception as e:
-        current_app.logger.exception('Błąd usuwania plan_agro id=%s: %s', plan_id, e)
+        current_app.logger.exception('Błąd usuwania planu Agro id=%s: %s', plan_id, e)
     return redirect(url_for('planista.panel_planisty', data=data_planu, tab='agro'))

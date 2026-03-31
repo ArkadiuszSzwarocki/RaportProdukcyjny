@@ -9,7 +9,7 @@ Handles:
 
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Tuple, Any, Optional
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 from app.utils.queries import QueryHelper
 from app.dto.paleta import PaletaDTO
 
@@ -18,19 +18,12 @@ class DashboardService:
     """Service for aggregating and preparing dashboard data."""
 
     @staticmethod
-    def get_basic_staff_data(dzisiaj: date) -> Dict[str, Any]:
-        """Get basic staff assignments and availability for a given day.
-        
-        Returns dict with keys:
-        - wszyscy: list of all staff (id, name, surname)
-        - zajeci_ids: set of occupied staff IDs
-        - dostepni: list of available staff
-        - obsada: current shift assignments
-        """
+    def get_basic_staff_data(dzisiaj: date, linia='PSD') -> Dict[str, Any]:
+        """Get basic staff assignments and availability for a given day."""
         wszyscy = QueryHelper.get_pracownicy()
-        zajeci_ids = [r[0] for r in QueryHelper.get_obsada_zmiany(dzisiaj)]
+        zajeci_ids = [r[0] for r in QueryHelper.get_obsada_zmiany(dzisiaj, linia=linia)]
         dostepni = [p for p in wszyscy if p[0] not in zajeci_ids]
-        obsada = QueryHelper.get_obsada_zmiany(dzisiaj)
+        obsada = QueryHelper.get_obsada_zmiany(dzisiaj, linia=linia)
         
         return {
             'wszyscy': wszyscy,
@@ -40,9 +33,9 @@ class DashboardService:
         }
 
     @staticmethod
-    def get_journal_entries(dzisiaj: date, sekcja: str) -> List[List[Any]]:
+    def get_journal_entries(dzisiaj: date, sekcja: str, linia='PSD') -> List[List[Any]]:
         """Get and format journal entries for a section."""
-        wpisy = QueryHelper.get_dziennik_zmiany(dzisiaj, sekcja)
+        wpisy = QueryHelper.get_dziennik_zmiany(dzisiaj, sekcja, linia=linia)
         
         # Format czas_start/czas_stop as HH:MM
         for w in wpisy:
@@ -58,9 +51,9 @@ class DashboardService:
         return wpisy
 
     @staticmethod
-    def get_warehouse_data(dzisiaj: date) -> Tuple[List[Tuple], List[Tuple]]:
+    def get_warehouse_data(dzisiaj: date, linia='PSD') -> Tuple[List[Tuple], List[Tuple], int]:
         """Get warehouse (Magazyn) palety and unconfirmed palety."""
-        raw_mag = QueryHelper.get_paletki_magazyn(dzisiaj)
+        raw_mag = QueryHelper.get_paletki_magazyn(dzisiaj, linia=linia)
         magazyn_palety = []
         suma_wykonanie = 0
         
@@ -105,15 +98,15 @@ class DashboardService:
             suma_wykonanie += dto.waga or 0
         
         # Get unconfirmed palety
-        unconfirmed_palety = DashboardService._process_unconfirmed_palety(dzisiaj)
+        unconfirmed_palety = DashboardService._process_unconfirmed_palety(dzisiaj, linia=linia)
         
         return magazyn_palety, unconfirmed_palety, suma_wykonanie
 
     @staticmethod
-    def _process_unconfirmed_palety(dzisiaj: date) -> List[Tuple]:
+    def _process_unconfirmed_palety(dzisiaj: date, linia='PSD') -> List[Tuple]:
         """Process unconfirmed palety with elapsed time calculation."""
         try:
-            raw = QueryHelper.get_unconfirmed_paletki(dzisiaj)
+            raw = QueryHelper.get_unconfirmed_paletki(dzisiaj, linia=linia)
             out = []
             for r in raw:
                 pid = r[0]
@@ -169,7 +162,7 @@ class DashboardService:
         return ''
 
     @staticmethod
-    def get_production_plans(dzisiaj: date, sekcja: str) -> Tuple[List, Dict, int, int]:
+    def get_production_plans(dzisiaj: date, sekcja: str, linia='PSD') -> Tuple[List, Dict, int, int]:
         """Get production plans for section with formatting and palety mapping.
         
         Returns:
@@ -177,12 +170,13 @@ class DashboardService:
         """
         plan_dnia = QueryHelper.get_plan_produkcji(
             dzisiaj, 
-            sekcja if sekcja != 'Dashboard' else 'Workowanie'
+            sekcja if sekcja != 'Dashboard' else 'Workowanie',
+            linia=linia
         )
         
         # Fallback for Workowanie
         if sekcja == 'Workowanie' and not plan_dnia:
-            plan_dnia = DashboardService._get_workowanie_fallback(dzisiaj)
+            plan_dnia = DashboardService._get_workowanie_fallback(dzisiaj, linia=linia)
         
         # Store raw start times before formatting
         plan_start_times = {}
@@ -205,22 +199,23 @@ class DashboardService:
         # Workowanie.plan in sync with what was realized on Zasyp.
         if sekcja == 'Workowanie':
             try:
+                table_plan = get_table_name('plan_produkcji', linia)
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 for p in plan_dnia:
                     try:
                         produkt = p[1]
                         # Find first matching Zasyp for same date/product
+                        # Only override when Zasyp was actually realized (>0) and NOT a ghost.
+                        # If Zasyp is a ghost, keep the original plan from Workowanie table.
                         cursor.execute(
-                            "SELECT COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji "
+                            f"SELECT COALESCE(tonaz_rzeczywisty, 0), typ_zlecenia FROM {table_plan} "
                             "WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND produkt = %s "
                             "ORDER BY COALESCE(real_stop, real_start, id) ASC LIMIT 1",
                             (dzisiaj, produkt)
                         )
                         row = cursor.fetchone()
-                        # Only override when Zasyp was actually realized (>0).
-                        # If Zasyp hasn't started yet, keep the plan's original tonaz.
-                        if row and row[0] is not None and row[0] > 0:
+                        if row and row[0] is not None and row[0] > 0 and row[1] != 'carry_over_ghost':
                             p[2] = row[0]
                     except Exception:
                         continue
@@ -239,14 +234,14 @@ class DashboardService:
                 p[7] = 0
             
             # Check if quality order
-            is_quality = DashboardService._is_quality_order(p)
+            is_quality = DashboardService._is_quality_order(p[0], linia=linia)
             
             if not is_quality:
                 suma_plan += p[2] if p[2] else 0
             
             # Get palety for this plan
             if sekcja == 'Magazyn':
-                palety = DashboardService._get_palety_for_product(dzisiaj, p[1], p[9])
+                palety = DashboardService._get_palety_for_product(dzisiaj, p[1], p[9], linia=linia)
                 palety_mapa[p[0]] = palety
                 waga_kg = sum(pal[0] for pal in palety)
                 p[7] = waga_kg
@@ -265,13 +260,15 @@ class DashboardService:
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 if sekcja == 'Zasyp':
+                    table_szarze = get_table_name('szarze', linia)
                     cursor.execute(
-                        "SELECT COUNT(*) FROM szarze WHERE plan_id = %s",
+                        f"SELECT COUNT(*) FROM {table_szarze} WHERE plan_id = %s",
                         (p[0],)
                     )
                 elif sekcja == 'Workowanie':
+                    table_palety = get_table_name('palety_workowanie', linia)
                     cursor.execute(
-                        "SELECT COUNT(*) FROM palety_workowanie WHERE plan_id = %s",
+                        f"SELECT COUNT(*) FROM {table_palety} WHERE plan_id = %s",
                         (p[0],)
                     )
                 else:
@@ -292,15 +289,17 @@ class DashboardService:
             # Populate palety_mapa for Zasyp/Workowanie when DB has detail rows but palety_mapa wasn't filled earlier
             try:
                 if sekcja == 'Zasyp' and p[0] not in palety_mapa:
+                    table_szarze = get_table_name('szarze', linia)
+                    table_dosypki = get_table_name('dosypki', linia)
                     conn = get_db_connection()
                     cursor = conn.cursor()
                     cursor.execute(
-                        """SELECT s.id, 
-                                  s.waga + COALESCE((SELECT SUM(kg) FROM dosypki d WHERE d.szarza_id = s.id AND d.potwierdzone = 1 AND COALESCE(d.anulowana, 0) = 0), 0) as waga_total, 
+                        f"""SELECT s.id, 
+                                  s.waga + COALESCE((SELECT SUM(kg) FROM {table_dosypki} d WHERE d.szarza_id = s.id AND d.potwierdzone = 1 AND COALESCE(d.anulowana, 0) = 0), 0) as waga_total, 
                                   s.godzina, s.data_dodania, s.pracownik_id, s.status,
                                   COALESCE(prac.imie_nazwisko, '') as pracownik_name,
                                   COALESCE(s.uwagi, '') as uwagi
-                           FROM szarze s 
+                           FROM {table_szarze} s 
                            LEFT JOIN pracownicy prac ON s.pracownik_id = prac.id
                            WHERE s.plan_id = %s AND s.status = 'zarejestowana' 
                            ORDER BY s.data_dodania ASC""",
@@ -314,7 +313,7 @@ class DashboardService:
                         szarza_id = r[0]
                         # Fetch dosypki for this szarża with timestamp
                         cursor.execute(
-                            """SELECT nazwa, kg, data_zlecenia FROM dosypki WHERE szarza_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0 ORDER BY data_zlecenia ASC""",
+                            f"""SELECT nazwa, kg, data_zlecenia FROM {table_dosypki} WHERE szarza_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0 ORDER BY data_zlecenia ASC""",
                             (szarza_id,)
                         )
                         dosypki_rows = cursor.fetchall()
@@ -342,7 +341,7 @@ class DashboardService:
                     p[7] = suma_szarzy
                 elif sekcja == 'Workowanie' and p[0] not in palety_mapa:
                     # Use existing query helper to fetch paletki for plan
-                    palety = QueryHelper.get_paletki_for_plan(p[0])
+                    palety = QueryHelper.get_paletki_for_plan(p[0], linia=linia)
                     if palety:
                         # Map to (waga, czas, id, UNUSED, status) to match template expectations
                         # get_paletki_for_plan returns: (id, plan_id, waga, tara, waga_brutto, data_dodania, produkt, typ_produkcji, status, czas_potwierdzenia_s)
@@ -366,21 +365,23 @@ class DashboardService:
         return plan_dnia, palety_mapa, suma_plan, suma_wykonanie
 
     @staticmethod
-    def _get_workowanie_fallback(dzisiaj: date) -> List:
+    def _get_workowanie_fallback(dzisiaj: date, linia='PSD') -> List:
         """Get Workowanie plans as fallback - with szarża filter."""
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
+            table_plan = get_table_name('plan_produkcji', linia)
+            table_szarze = get_table_name('szarze', linia)
             cursor.execute(
-                """SELECT id, produkt, tonaz, status, real_start, real_stop, 
+                f"""SELECT id, produkt, tonaz, status, real_start, real_stop, 
                    TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, 
                    kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci 
-                   FROM plan_produkcji p
+                   FROM {table_plan} p
                    WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' 
                    AND p.status IN ('w toku', 'zaplanowane')
                    AND EXISTS (
-                       SELECT 1 FROM szarze s
-                       INNER JOIN plan_produkcji pr ON s.plan_id = pr.id
+                       SELECT 1 FROM {table_szarze} s
+                       INNER JOIN {table_plan} pr ON s.plan_id = pr.id
                        WHERE s.status = 'zarejestowana'
                          AND DATE(s.data_dodania) = DATE(p.data_planu)
                          AND pr.produkt = p.produkt
@@ -397,37 +398,42 @@ class DashboardService:
             return []
 
     @staticmethod
-    def _is_quality_order(plan: List) -> bool:
+    def _is_quality_order(plan_id: int, linia='PSD') -> bool:
         """Check if production plan is a quality order."""
-        produkt_lower = str(plan[1]).strip().lower() if plan[1] else ''
-        
-        # Check typ_zlecenia
         try:
+            table_plan = get_table_name('plan_produkcji', linia)
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT COALESCE(typ_zlecenia, ''), sekcja FROM plan_produkcji WHERE id=%s",
-                (plan[0],)
+                f"SELECT COALESCE(typ_zlecenia, ''), sekcja, produkt FROM {table_plan} WHERE id=%s",
+                (plan_id,)
             )
             rz = cursor.fetchone()
             cursor.close()
             conn.close()
-            if rz and (str(rz[0]).strip().lower() == 'jakosc' or 
-                     (len(rz) > 1 and str(rz[1]).strip() == 'Jakosc')):
+            
+            if not rz:
+                return False
+            
+            typ_zlecenia = str(rz[0]).strip().lower()
+            sekcja = str(rz[1]).strip()
+            produkt_lower = str(rz[2]).strip().lower() if rz[2] else ''
+            
+            if typ_zlecenia == 'jakosc' or sekcja == 'Jakosc':
+                return True
+            
+            # Check product name
+            if produkt_lower in ['dezynfekcja linii', 'dezynfekcja']:
                 return True
         except Exception:
             pass
         
-        # Check product name
-        if produkt_lower in ['dezynfekcja linii', 'dezynfekcja']:
-            return True
-        
         return False
 
     @staticmethod
-    def _get_palety_for_product(dzisiaj: date, product: str, typ_produkcji: str) -> List[Tuple]:
+    def _get_palety_for_product(dzisiaj: date, product: str, typ_produkcji: str, linia='PSD') -> List[Tuple]:
         """Get and format palety for a specific product."""
-        raw_pal = QueryHelper.get_paletki_for_product(dzisiaj, product, typ_produkcji)
+        raw_pal = QueryHelper.get_paletki_for_product(dzisiaj, product, typ_produkcji, linia=linia)
         palety = []
         
         for r in raw_pal:
@@ -462,12 +468,13 @@ class DashboardService:
         return palety
 
     @staticmethod
-    def any_plan_in_progress(dzisiaj: date) -> bool:
-        """Return True if any production plan for the given date has status 'w toku'."""
+    def any_plan_in_progress(dzisiaj: date, linia='PSD') -> bool:
+        """Return True if any production plan for the given date/line has status 'w toku'."""
         try:
+            table_plan = get_table_name('plan_produkcji', linia)
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM plan_produkcji WHERE DATE(data_planu) = %s AND status = 'w toku'", (dzisiaj,))
+            cursor.execute(f"SELECT COUNT(*) FROM {table_plan} WHERE DATE(data_planu) = %s AND status = 'w toku'", (dzisiaj,))
             row = cursor.fetchone()
             cursor.close()
             conn.close()
@@ -476,12 +483,13 @@ class DashboardService:
             return False
 
     @staticmethod
-    def get_zasyp_active_status(dzisiaj: date) -> bool:
-        """Return True if ANY plan on Zasyp section has status 'w toku' for the given date."""
+    def get_zasyp_active_status(dzisiaj: date, linia='PSD') -> bool:
+        """Return True if ANY plan on Zasyp section has status 'w toku' for the given date/line."""
         try:
+            table_plan = get_table_name('plan_produkcji', linia)
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM plan_produkcji WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND status = 'w toku'", (dzisiaj,))
+            cursor.execute(f"SELECT COUNT(*) FROM {table_plan} WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND status = 'w toku'", (dzisiaj,))
             row = cursor.fetchone()
             cursor.close()
             conn.close()
@@ -490,16 +498,14 @@ class DashboardService:
             return False
 
     @staticmethod
-    def get_active_products(dzisiaj: date) -> List[str]:
-        """Return list of product names that have a plan with status 'w toku' for Workowanie/Magazyn (not Zasyp).
-        
-        This prevents blocking Workowanie START when Zasyp is running for same product.
-        """
+    def get_active_products(dzisiaj: date, linia='PSD') -> List[str]:
+        """Return list of product names that have a plan with status 'w toku' for Workowanie/Magazyn (not Zasyp) for a given line."""
         try:
+            table_plan = get_table_name('plan_produkcji', linia)
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT produkt FROM plan_produkcji WHERE DATE(data_planu) = %s AND status = 'w toku' AND sekcja IN ('Workowanie', 'Magazyn')", 
+                f"SELECT produkt FROM {table_plan} WHERE DATE(data_planu) = %s AND status = 'w toku' AND sekcja IN ('Workowanie', 'Magazyn')", 
                 (dzisiaj,)
             )
             rows = cursor.fetchall()
@@ -510,19 +516,17 @@ class DashboardService:
             return []
 
     @staticmethod
-    def get_buffer_queue(dzisiaj: date) -> Dict[str, List[int]]:
-        """Build a buffer queue mapping product -> ordered list of Zasyp plan ids.
-
-        Order is by status (w toku first), then kolejnosc, then id to reproduce UI ordering.
-        """
+    def get_buffer_queue(dzisiaj: date, linia='PSD') -> Dict[str, List[int]]:
+        """Build a buffer queue mapping product -> ordered list of Zasyp plan ids for a given line."""
         try:
+            table_plan = get_table_name('plan_produkcji', linia)
             conn = get_db_connection()
             cursor = conn.cursor()
             # Include completed Zasyp plans too and order by completion/ start time
             cursor.execute(
-                """SELECT id, produkt, COALESCE(p.real_stop, p.real_start, p.kolejnosc, p.id) as ord
-                   FROM plan_produkcji p
-                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp' AND p.is_deleted = 0
+                f"""SELECT id, produkt, COALESCE(p.real_stop, p.real_start, p.kolejnosc, p.id) as ord
+                   FROM {table_plan} p
+                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp' AND p.is_deleted = 0 
                    AND p.status IN ('w toku', 'zaplanowane', 'zakonczone')
                    ORDER BY ord ASC, p.kolejnosc ASC, p.id ASC""",
                 (dzisiaj,)
@@ -544,17 +548,15 @@ class DashboardService:
             return {}
 
     @staticmethod
-    def get_first_workowanie_map(dzisiaj: date) -> Dict[str, int]:
-        """Return a map product -> first Workowanie plan id (by status then kolejnosc).
-
-        This determines which Workowanie plan should be started first per product.
-        """
+    def get_first_workowanie_map(dzisiaj: date, linia='PSD') -> Dict[str, int]:
+        """Return a map product -> first Workowanie plan id for a given line."""
         try:
+            table_plan = get_table_name('plan_produkcji', linia)
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
-                """SELECT id, produkt FROM plan_produkcji p
-                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' AND p.is_deleted = 0
+                f"""SELECT id, produkt FROM {table_plan} p
+                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' AND p.is_deleted = 0 
                    AND p.status IN ('w toku', 'zaplanowane')
                    ORDER BY CASE p.status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, p.kolejnosc ASC, p.id ASC""",
                 (dzisiaj,)
@@ -575,19 +577,16 @@ class DashboardService:
             return {}
 
     @staticmethod
-    def get_zasyp_product_order(dzisiaj: date) -> Dict[str, int]:
-        """Return a numbering (1-based) for products according to Zasyp execution order.
-
-        Orders all Zasyp plans for the day by completion/start time and assigns the first
-        occurrence of each product an incremental position.
-        """
+    def get_zasyp_product_order(dzisiaj: date, linia='PSD') -> Dict[str, int]:
+        """Return product numbering according to Zasyp execution order for a given line."""
         try:
+            table_plan = get_table_name('plan_produkcji', linia)
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
-                """SELECT produkt, COALESCE(p.real_stop, p.real_start, p.kolejnosc, p.id) as ord
-                   FROM plan_produkcji p
-                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp' AND p.is_deleted = 0
+                f"""SELECT produkt, COALESCE(p.real_stop, p.real_start, p.kolejnosc, p.id) as ord
+                   FROM {table_plan} p
+                   WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp' AND p.is_deleted = 0 
                    AND p.status IN ('w toku', 'zaplanowane', 'zakonczone')
                    ORDER BY ord ASC, p.kolejnosc ASC, p.id ASC""",
                 (dzisiaj,)
@@ -620,6 +619,12 @@ class DashboardService:
             ob_all_ids = set(r[0] for r in ob)
             ob_nonprivate_ids = set(r[0] for r in ob if str(r[1]).strip().lower() != 'wyjscie prywatne')
             hr_dostepni = [p for p in wszyscy if p[0] not in ob_nonprivate_ids]
+            # When calculating hr_pracownicy (available for assignment), we must exclude those already assigned to ANY line 
+            # or we can exclude those assigned to THIS line? 
+            # Usually, a person assigned to PSD cannot be assigned to Agro. 
+            # So we should exclude ALL zajeci_ids (which come from obsada_zmiany for THIS line? No, DashboardService calls get_basic_staff_data which gets obsada for THIS line).
+            # If we want to see who is truly free, we might need all assigned IDs across all lines.
+            # But let's stick to the current logic which uses zajeci_ids passed in.
             hr_pracownicy = [p for p in wszyscy if p[0] not in ob_nonprivate_ids and p[0] not in zajeci_ids]
         except Exception:
             hr_dostepni = [p for p in wszyscy if p[0] not in zajeci_ids]
@@ -638,9 +643,9 @@ class DashboardService:
         }
 
     @staticmethod
-    def get_quality_and_leave_requests(role: str) -> Dict[str, Any]:
+    def get_quality_and_leave_requests(role: str, linia='PSD') -> Dict[str, Any]:
         """Get quality orders count and pending leave requests for leaders."""
-        quality_count = QueryHelper.get_pending_quality_count()
+        quality_count = QueryHelper.get_quality_orders_count(linia=linia)
         wnioski_pending = []
         
         try:
@@ -655,17 +660,19 @@ class DashboardService:
         }
 
     @staticmethod
-    def get_shift_notes(dzisiaj: date) -> List[Dict[str, Any]]:
-        """Get shift notes from database for the specified date."""
+    def get_shift_notes(dzisiaj: date, linia='PSD') -> List[Dict[str, Any]]:
+        """Get shift notes from database for the specified date and line."""
         shift_notes = []
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
             
+            table_notes = get_table_name('shift_notes', linia)
+            
             # Create table if not exists
             try:
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS shift_notes (
+                cursor.execute(f"""
+                    CREATE TABLE IF NOT EXISTS {table_notes} (
                         id BIGINT PRIMARY KEY,
                         pracownik_id INT,
                         note TEXT,
@@ -678,8 +685,8 @@ class DashboardService:
                 pass
             
             cursor.execute(
-                "SELECT id, pracownik_id, DATE_FORMAT(date, '%Y-%m-%d'), note, author, created "
-                "FROM shift_notes WHERE DATE(date) = %s OR DATE(created) = %s ORDER BY created DESC LIMIT 200",
+                f"SELECT id, pracownik_id, DATE_FORMAT(date, '%Y-%m-%d'), note, author, created "
+                f"FROM {table_notes} WHERE (DATE(date) = %s OR DATE(created) = %s) ORDER BY created DESC LIMIT 200",
                 (dzisiaj, dzisiaj)
             )
             rows = cursor.fetchall()
@@ -700,21 +707,23 @@ class DashboardService:
         return shift_notes
 
     @staticmethod
-    def get_full_plans_for_sections(dzisiaj: date) -> Tuple[List, List]:
-        """Get full production plans for Zasyp and Workowanie sections."""
+    def get_full_plans_for_sections(dzisiaj: date, linia='PSD') -> Tuple[List, List]:
+        """Get full production plans for Zasyp and Workowanie sections for a given line."""
         plans_zasyp = []
         plans_workowanie = []
         
         try:
+            table_plan = get_table_name('plan_produkcji', linia)
+            table_szarze = get_table_name('szarze', linia)
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Zasyp: fetch all plans
             cursor.execute(
-                """SELECT id, produkt, tonaz, status, real_start, real_stop, 
+                f"""SELECT id, produkt, tonaz, status, real_start, real_stop, 
                    TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, 
                    kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
-                   FROM plan_produkcji 
+                   FROM {table_plan} 
                    WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND status != 'nieoplacone' 
                    AND is_deleted = 0 
                    ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 
@@ -725,15 +734,15 @@ class DashboardService:
             
             # Workowanie: fetch ONLY plans that have szarża (buffer) with status='zarejestowana'
             cursor.execute(
-                """SELECT id, produkt, tonaz, status, real_start, real_stop, 
+                f"""SELECT id, produkt, tonaz, status, real_start, real_stop, 
                    TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, 
                    kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
-                   FROM plan_produkcji p
+                   FROM {table_plan} p
                    WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' AND p.status != 'nieoplacone' 
                    AND p.is_deleted = 0
                    AND EXISTS (
-                       SELECT 1 FROM szarze s
-                       INNER JOIN plan_produkcji pr ON s.plan_id = pr.id
+                       SELECT 1 FROM {table_szarze} s
+                       INNER JOIN {table_plan} pr ON s.plan_id = pr.id
                        WHERE s.status = 'zarejestowana'
                          AND DATE(s.data_dodania) = DATE(p.data_planu)
                          AND pr.produkt = p.produkt
@@ -766,10 +775,10 @@ class DashboardService:
         return plans_zasyp, plans_workowanie
 
     @staticmethod
-    def get_zasyp_started_products(dzisiaj: date) -> List:
-        """Get started Zasyp products."""
+    def get_zasyp_started_products(dzisiaj: date, linia='PSD') -> List:
+        """Get started Zasyp products for a given line."""
         try:
-            return QueryHelper.get_zasyp_started_produkty(dzisiaj)
+            return QueryHelper.get_zasyp_started_produkty(dzisiaj, linia=linia)
         except Exception:
             return []
 

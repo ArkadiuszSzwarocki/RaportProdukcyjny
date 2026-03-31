@@ -208,15 +208,8 @@ def usun_obecnosc(id):
 @login_required
 def dodaj_do_obsady():
     """Add employee to schedule - delegated to AttendanceService."""
-    sekcja = request.form.get('sekcja')
-    pracownik_id = request.form.get('pracownik_id')
-    date_str = request.form.get('date') or request.args.get('date')
-    
-    if not sekcja or not pracownik_id:
-        flash('Brak wybranego pracownika lub sekcji.', 'warning')
-        return redirect(bezpieczny_powrot())
-    
-    success, inserted_id, employee_name = AttendanceService.add_to_schedule(sekcja, int(pracownik_id), date_str)
+    linia = request.form.get('linia') or request.args.get('linia', 'PSD')
+    success, inserted_id, employee_name = AttendanceService.add_to_schedule(sekcja, int(pracownik_id), date_str, linia=linia)
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({'success': success, 'id': inserted_id, 'pracownik_id': pracownik_id, 'name': employee_name})
@@ -254,8 +247,8 @@ def zapisz_liderow_obsady():
 @leaves_bp.route('/usun_z_obsady/<int:id>', methods=['POST'])
 @login_required
 def usun_z_obsady(id):
-    """Remove employee from schedule - delegated to AttendanceService."""
-    success = AttendanceService.remove_from_schedule(id)
+    linia = request.form.get('linia') or request.args.get('linia', 'PSD')
+    success = AttendanceService.remove_from_schedule(id, linia=linia)
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({'success': success})
@@ -273,16 +266,24 @@ def zamknij_zmiane():
     """Wyświetl stronę podsumowania i zamknięcia zmiany - KONKRETNA SEKCJA"""
     dzisiaj = date.today()
     sekcja = request.args.get('sekcja', 'Workowanie')
+    linia = request.args.get('linia')
+    if not linia:
+        if sekcja == 'Hala Agro':
+            linia = 'Agro'
+        else:
+            linia = 'PSD'
     
     conn = None
     try:
         conn = get_db_connection()
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_pal = get_table_name('palety_workowanie', linia)
         cursor = conn.cursor()
         
         # Pobierz dane o zmianach dzisiaj
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT id, produkt, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji
-            FROM plan_produkcji
+            FROM {table_plan}
             WHERE data_planu = %s AND sekcja = %s
             ORDER BY real_start DESC
         """, (dzisiaj, sekcja))
@@ -292,9 +293,9 @@ def zamknij_zmiane():
             plan_id, produkt, tonaz, status, real_start, real_stop, tonaz_wykonania, typ_prod = row
             
             # Pobierz palety
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT id, waga, data_dodania, status, czas_potwierdzenia_s
-                FROM palety_workowanie
+                FROM {table_pal}
                 WHERE plan_id = %s
                 ORDER BY data_dodania DESC
             """, (plan_id,))
@@ -348,13 +349,15 @@ def zamknij_zmiane():
             'lider_id': lider_id,
             'plany': plany,
             'pracownicy': pracownicy,
-            'notatki': ''
+            'notatki': '',
+            'linia': linia
         }
         
         return render_template('podsumowanie_zmiany.html',
                               zmiana_data=zmiana_data,
                               sekcja=sekcja,
-                              rola=session.get('rola'))
+                              rola=session.get('rola'),
+                              linia=linia)
     
     except Exception as e:
         current_app.logger.error(f'Error in zamknij_zmiane: {e}', exc_info=True)
@@ -387,6 +390,7 @@ def zamknij_zmiane_global():
         'pracownik_id': session.get('pracownik_id'),
         'login': session.get('login', 'nieznany'),
     }
+    linia = request.form.get('linia') or request.values.get('linia', 'PSD')
     form_data = {
         'lider_id': request.form.get('lider_id') or request.values.get('lider_id'),
         'lider_prowadzacy_id': (
@@ -396,7 +400,7 @@ def zamknij_zmiane_global():
     }
 
     try:
-        zip_buffer, zip_filename = close_shift_and_get_zip(date_str, session_data, form_data)
+        zip_buffer, zip_filename = close_shift_and_get_zip(date_str, session_data, form_data, linia=linia)
         return send_file(
             zip_buffer,
             mimetype='application/zip',
@@ -453,16 +457,23 @@ def zapisz_raport_koncowy():
     dzisiaj = date.today()
     sekcja = request.form.get('sekcja', 'Workowanie')
     notatki = request.form.get('notatki', '')
+    linia = request.form.get('linia')
+    if not linia:
+        if sekcja == 'Hala Agro':
+            linia = 'Agro'
+        else:
+            linia = 'PSD'
     
     conn = None
     try:
         conn = get_db_connection()
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
         
         # Pobierz dane zmiany
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT id, produkt, tonaz, tonaz_rzeczywisty
-            FROM plan_produkcji
+            FROM {table_plan}
             WHERE data_planu = %s AND sekcja = %s
         """, (dzisiaj, sekcja))
         
@@ -510,8 +521,8 @@ def zapisz_raport_koncowy():
         """, (dzisiaj, sekcja, lider_id, notatki, json.dumps(zmiana_summary)))
         
         # Oznacz plany jako zamknięte
-        cursor.execute("""
-            UPDATE plan_produkcji
+        cursor.execute(f"""
+            UPDATE {table_plan}
             SET status = 'zamknieta'
             WHERE data_planu = %s AND sekcja = %s AND status != 'zamknieta'
         """, (dzisiaj, sekcja))
@@ -546,20 +557,26 @@ def zapisz_raport_koncowy_global():
     """Zapisz raport końcowy i zamknij zmianę - WSZYSTKIE SEKCJE"""
     dzisiaj = date.today()
     notatki = request.form.get('notatki', '')
+    linia = request.form.get('linia', 'PSD')
     
     conn = None
     try:
         conn = get_db_connection()
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_pal = get_table_name('palety_workowanie', linia)
         cursor = conn.cursor()
         
         # Pobierz dane dla ALL sekcji z paletami
         wszystkie_plany = {}
-        sekcje = ['Zasyp', 'Workowanie', 'Magazyn', 'Hala Agro']
+        if linia == 'Agro':
+            sekcje = ['Hala Agro']
+        else:
+            sekcje = ['Zasyp', 'Workowanie', 'Magazyn']
         
         for sekcja in sekcje:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT id, produkt, tonaz, tonaz_rzeczywisty, status
-                FROM plan_produkcji
+                FROM {table_plan}
                 WHERE data_planu = %s AND sekcja = %s
             """, (dzisiaj, sekcja))
             
@@ -568,9 +585,9 @@ def zapisz_raport_koncowy_global():
                 plan_id = row[0]
                 
                 # Pobierz palety dla tego planu
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT waga, data_dodania, status
-                    FROM palety_workowanie
+                    FROM {table_pal}
                     WHERE plan_id = %s
                     ORDER BY data_dodania DESC
                 """, (plan_id,))
@@ -600,9 +617,9 @@ def zapisz_raport_koncowy_global():
                 SELECT DISTINCT pw.id, pw.imie_nazwisko
                 FROM obsada_zmiany oz
                 JOIN pracownicy pw ON oz.pracownik_id = pw.id
-                WHERE oz.data_wpisu = %s AND oz.sekcja = %s
+                WHERE oz.data_wpisu = %s AND oz.sekcja = %s AND COALESCE(oz.linia, 'PSD') = %s
                 ORDER BY pw.imie_nazwisko
-            """, (dzisiaj, sekcja))
+            """, (dzisiaj, sekcja, linia))
             
             obsada = []
             for row in cursor.fetchall():
@@ -618,8 +635,9 @@ def zapisz_raport_koncowy_global():
             SELECT DISTINCT sekcja, typ, opis, data_wpisu, pracownik_id
             FROM dziennik_wpisy
             WHERE data_wpisu = %s AND typ IN ('awaria', 'usterka', 'nieobecność', 'przerwa')
+                AND COALESCE(linia, 'PSD') = %s
             ORDER BY sekcja, data_wpisu DESC
-        """, (dzisiaj,))
+        """, (dzisiaj, linia))
         
         awarie = []
         for row in cursor.fetchall():
@@ -654,14 +672,14 @@ def zapisz_raport_koncowy_global():
         # Zapisz raport do bazy (bez konkretnej sekcji)
         import json
         cursor.execute("""
-            INSERT INTO raporty_koncowe (data_raportu, sekcja, lider_id, lider_uwagi, summary_json)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (dzisiaj, 'Wszystkie sekcje', lider_id, notatki, json.dumps(zmiana_summary)))
+            INSERT INTO raporty_koncowe (data_raportu, sekcja, lider_id, lider_uwagi, summary_json, linia)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (dzisiaj, 'Wszystkie sekcje', lider_id, notatki, json.dumps(zmiana_summary), linia))
         
         # Oznacz WSZYSTKIE plany jako zamknięte
         for sekcja in sekcje:
-            cursor.execute("""
-                UPDATE plan_produkcji
+            cursor.execute(f"""
+                UPDATE {table_plan}
                 SET status = 'zamknieta'
                 WHERE data_planu = %s AND sekcja = %s AND status != 'zamknieta'
             """, (dzisiaj, sekcja))

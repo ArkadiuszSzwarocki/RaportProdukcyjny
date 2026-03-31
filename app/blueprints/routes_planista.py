@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, current_app, session, jsonify
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 from app.dto.paleta import PaletaDTO
 from app.services.notification_service import notify_workers_about_plan_change
 from app.services.planning_service import PlanningService
@@ -64,28 +64,45 @@ def panel_planisty():
     cursor = conn.cursor()
 
     wybrana_data = request.args.get('data', str(date.today()))
-
+    wybrana_linia = request.args.get('linia', 'PSD')
+ 
+    # Use PlanningService/DashboardService where possible
+    table_plan = get_table_name('plan_produkcji', wybrana_linia)
+ 
     # Include both Zasyp and Czyszczenie entries so planner sees cleaning slots
     # Exclude ghost carry-over Zasyp records (technical records linked to bufor, not real production)
-    cursor.execute("""
+    query_plans = f"""
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
-        FROM plan_produkcji 
+        FROM {table_plan} 
         WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
-          AND COALESCE(typ_zlecenia, '') != 'carry_over_ghost'
-        ORDER BY kolejnosc
-    """, (wybrana_data,))
+    """
+    query_params = [wybrana_data]
+    
+    # Only PSD table has 'linia' column; Agro table is already line-specific
+    if wybrana_linia != 'Agro':
+        query_plans += " AND linia = %s"
+        query_params.append(wybrana_linia)
+        
+    query_plans += " ORDER BY kolejnosc"
+    cursor.execute(query_plans, tuple(query_params))
     
     plany = cursor.fetchall()
     plany_list = [list(p) for p in plany] # Lista edytowalna
 
     # DODATKOWO: dołącz wpisy Workowanie jako osobną grupę, tak by były widoczne w UI
     try:
-        cursor.execute("""
+        query_work = f"""
             SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
-            FROM plan_produkcji
+            FROM {table_plan}
             WHERE data_planu = %s AND LOWER(sekcja) = 'workowanie'
-            ORDER BY kolejnosc
-        """, (wybrana_data,))
+        """
+        work_params = [wybrana_data]
+        if wybrana_linia != 'Agro':
+            query_work += " AND linia = %s"
+            work_params.append(wybrana_linia)
+        
+        query_work += " ORDER BY kolejnosc"
+        cursor.execute(query_work, tuple(work_params))
         work_rows = cursor.fetchall()
         for w in work_rows:
             # unikaj duplikatów gdyby rekord już wystąpił (id)
@@ -122,10 +139,7 @@ def panel_planisty():
         # 1b. Dla planów Zasyp - pobierz uszkodzone_worki z odpowiadającego planu Workowania
         sekcja = (p[1] or '').lower()
         if sekcja == 'zasyp':
-            cursor.execute(
-                "SELECT COALESCE(uszkodzone_worki, 0) FROM plan_produkcji WHERE DATE(data_planu)=%s AND sekcja='Workowanie' AND produkt=%s LIMIT 1",
-                (wybrana_data, p[2])
-            )
+            cursor.execute(f"SELECT COALESCE(uszkodzone_worki, 0) FROM {table_plan} WHERE DATE(data_planu)=%s AND linia=%s AND sekcja='Workowanie' AND produkt=%s LIMIT 1", (wybrana_data, wybrana_linia, p[2]))
             work_result = cursor.fetchone()
             if work_result:
                 p[11] = work_result[0]  # Zastąp uszkodzone_worki z Zasyp wartością z Workowania
@@ -145,10 +159,9 @@ def panel_planisty():
         sekcja = (p[1] or '').lower()
         wykonanie_rzeczywiste = 0
         if sekcja != 'czyszczenie':
-            cursor.execute(
-                "SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM szarze WHERE plan_id = %s",
-                (plan_id, plan_id)
-            )
+            table_szarze = get_table_name('szarze', wybrana_linia)
+            table_dosypki = get_table_name('dosypki', wybrana_linia)
+            cursor.execute(f"SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {table_szarze} WHERE plan_id = %s", (plan_id, plan_id))
             szarze_result = cursor.fetchone()
             wykonanie_rzeczywiste = szarze_result[0] if szarze_result and szarze_result[0] else 0
             # Fallback: jeśli nie ma szarży, użyj tonaz_rzeczywisty z bazy
@@ -158,13 +171,14 @@ def panel_planisty():
             suma_wyk += wykonanie_rzeczywiste
 
         # 3. POBIERANIE PALET
-        cursor.execute("""
+        table_pal = get_table_name('palety_workowanie', wybrana_linia)
+        cursor.execute(f"""
             SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, pp.produkt, pp.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s
-            FROM palety_workowanie pw
-            JOIN plan_produkcji pp ON pw.plan_id = pp.id
-            WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie'
+            FROM {table_pal} pw
+            JOIN {table_plan} pp ON pw.plan_id = pp.id
+            WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' AND pp.linia = %s
             ORDER BY pw.id DESC
-        """, (wybrana_data, p[2]))
+        """, (wybrana_data, p[2], wybrana_linia))
         raw_pal = cursor.fetchall()
         formatted = []
         for r in raw_pal:
@@ -188,7 +202,7 @@ def panel_planisty():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, produkt, tonaz, sekcja, status FROM plan_produkcji WHERE data_planu=%s AND (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone' ORDER BY id DESC", (wybrana_data,))
+        cursor.execute(f"SELECT id, produkt, tonaz, sekcja, status FROM {table_plan} WHERE data_planu=%s AND linia=%s AND (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone' ORDER BY id DESC", (wybrana_data, wybrana_linia))
         quality_orders = cursor.fetchall()
         quality_count = len(quality_orders)
         conn.close()
@@ -209,10 +223,15 @@ def panel_planisty():
             zasyp_id = p[0]
             produkt = p[2]
             planowany_zasyp = p[3] or 0  # tonaz z tabeli plan_produkcji (kolumna tonaz dla Zasypu)
-
+ 
+            table_szarze = get_table_name('szarze', wybrana_linia)
+            table_dosypki = get_table_name('dosypki', wybrana_linia)
+            table_pal = get_table_name('palety_workowanie', wybrana_linia)
+            table_bufor = get_table_name('bufor', wybrana_linia)
+ 
             # Zasyp = SUM(szarże) + SUM(dosypki potwierdzone) - co faktycznie wyjechało z Zasypu
-            cursor.execute("""
-                SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM szarze
+            cursor.execute(f"""
+                SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {table_szarze}
                 WHERE plan_id = %s
             """, (zasyp_id, zasyp_id))
             row = cursor.fetchone()
@@ -220,16 +239,16 @@ def panel_planisty():
             plan_work = zasyp_kg  # Plan Workowanie = Zasyp (co wyjechało = co ma spakować)
 
             # Spakowano (sumarycznie z palet Workowanie dla tego produktu/daty - rzeczywiste spakowanie)
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT COALESCE(SUM(CASE WHEN waga_potwierdzona > 0 THEN waga_potwierdzona ELSE waga END), 0) 
-                FROM palety_workowanie 
-                WHERE plan_id IN (SELECT id FROM plan_produkcji WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s)
+                FROM {table_pal} 
+                WHERE plan_id IN (SELECT id FROM {table_plan} WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s)
             """, (wybrana_data, produkt))
             row_pal = cursor.fetchone()
             spakowano_palety = row_pal[0] or 0 if row_pal else 0
 
             # Bufor: ile czeka w buforze do spakowania (tonaz_rzeczywisty - spakowano)
-            cursor.execute("SELECT SUM(tonaz_rzeczywisty - spakowano) FROM bufor WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'", (zasyp_id, wybrana_data))
+            cursor.execute(f"SELECT SUM(tonaz_rzeczywisty - spakowano) FROM {table_bufor} WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'", (zasyp_id, wybrana_data))
             rowb = cursor.fetchone()
             bufor_czeka = rowb[0] or 0 if rowb else 0
 
@@ -272,12 +291,16 @@ def panel_planisty():
     procent_agro = 0
 
     try:
+        table_plan_agro = get_table_name('plan_produkcji', 'Agro')
+        table_szarze_agro = get_table_name('szarze', 'Agro')
+        table_dosypki_agro = get_table_name('dosypki', 'Agro')
+ 
         conn_agro = get_db_connection()
         cursor_agro = conn_agro.cursor()
-        cursor_agro.execute("""
-            SELECT id, 'Agro' as sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
-            FROM plan_agro
-            WHERE data_planu = %s
+        cursor_agro.execute(f"""
+            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
+            FROM {table_plan_agro}
+            WHERE data_planu = %s AND linia = 'Agro'
             ORDER BY kolejnosc
         """, (wybrana_data,))
         agro_rows = cursor_agro.fetchall()
@@ -293,10 +316,7 @@ def panel_planisty():
             suma_minut_plan_agro += czas_min
 
             # Wykonanie
-            cursor_agro.execute(
-                "SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM szarze WHERE plan_id = %s",
-                (p[0], p[0])
-            )
+            cursor_agro.execute(f"SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {table_dosypki_agro} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {table_szarze_agro} WHERE plan_id = %s", (p[0], p[0]))
             sz = cursor_agro.fetchone()
             wyk = sz[0] if sz and sz[0] else (p[8] if p[8] else 0)
             p[8] = wyk
@@ -324,23 +344,43 @@ def panel_planisty():
         try:
             conn_w = get_db_connection()
             cur_w = conn_w.cursor()
-            cur_w.execute("""
+            # PSD check (using table_plan which is for wybrana_linia)
+            cur_w.execute(f"""
                 SELECT id, tonaz, tonaz_rzeczywisty, status
-                FROM plan_produkcji
+                FROM {table_plan}
                 WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie'
             """, (wybrana_data,))
             for rw in cur_w.fetchall():
-                try:
-                    plan_val = float(rw[1] or 0)
-                except Exception:
-                    plan_val = 0.0
-                try:
-                    real_val = float(rw[2] or 0)
-                except Exception:
-                    real_val = 0.0
-                if (rw[3] == 'zakonczone') and real_val < plan_val:
-                    workowanie_incomplete = True
-                    break
+                # ... check logic
+                pass # existing logic below
+            
+            # Reset and check Agro (if wybrana_linia was PSD)
+            if wybrana_linia == 'PSD':
+                table_plan_agro = get_table_name('plan_produkcji', 'Agro')
+                cur_w.execute(f"""
+                    SELECT id, tonaz, tonaz_rzeczywisty, status
+                    FROM {table_plan_agro}
+                    WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie'
+                """, (wybrana_data,))
+                for rw in cur_w.fetchall():
+                     # ... logic
+                     pass
+                     
+            # REWRITING THIS PART FOR CLARITY AND CORRECTNESS
+            workowanie_incomplete = False
+            for linia_check in ['PSD', 'Agro']:
+                t_plan = get_table_name('plan_produkcji', linia_check)
+                cur_w.execute(f"SELECT tonaz, tonaz_rzeczywisty, status FROM {t_plan} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie'", (wybrana_data,))
+                for rw in cur_w.fetchall():
+                    try:
+                        plan_val = float(rw[0] or 0)
+                        real_val = float(rw[1] or 0)
+                    except Exception:
+                        plan_val, real_val = 0.0, 0.0
+                    if (rw[2] == 'zakonczone') and real_val < plan_val:
+                        workowanie_incomplete = True
+                        break
+                if workowanie_incomplete: break
         except Exception:
             current_app.logger.exception('Error checking Workowanie incomplete')
         finally:
@@ -384,23 +424,24 @@ def panel_planisty():
     try:
         conn_buf = get_db_connection()
         cur_buf = conn_buf.cursor()
-        cur_buf.execute("""
+        table_bufor = get_table_name('bufor', wybrana_linia)
+        cur_buf.execute(f"""
             SELECT b.produkt,
                    SUM(COALESCE(b.tonaz_rzeczywisty, 0) - COALESCE(b.spakowano, 0)) as pozostalo
-            FROM bufor b
+            FROM {table_bufor} b
             WHERE b.status = 'aktywny'
-              AND b.data_planu < %s
+              AND b.data_planu < %s AND b.linia = %s
             GROUP BY b.produkt
             HAVING pozostalo > 0
-        """, (wybrana_data,))
+        """, (wybrana_data, wybrana_linia))
         bufor_remaining = [
             {'produkt': r[0], 'pozostalo_kg': round(float(r[1]), 1)}
             for r in cur_buf.fetchall()
         ]
         # Pobierz datę źródłową bufora (najnowsza data_planu < wybrana_data)
         if bufor_remaining:
-            cur_buf.execute("""
-                SELECT MAX(b.data_planu) FROM bufor b
+            cur_buf.execute(f"""
+                SELECT MAX(b.data_planu) FROM {table_bufor} b
                 WHERE b.status = 'aktywny' AND b.data_planu < %s
             """, (wybrana_data,))
             row = cur_buf.fetchone()
@@ -414,6 +455,7 @@ def panel_planisty():
     return render_template('planista.html',
                            plany=plany_list,
                            wybrana_data=wybrana_data,
+                           wybrana_linia=wybrana_linia,
                            palety_mapa=palety_mapa,
                            suma_plan=suma_plan,
                            suma_wyk=suma_wyk,
@@ -461,12 +503,15 @@ def add_czyszczenie():
             return ("data_planu required", 400)
 
         # If kolejnosc specified, shift existing entries to make room
+        linia = request.form.get('linia') or json_body.get('linia') or 'PSD'
+        table_plan = get_table_name('plan_produkcji', linia)
+ 
         if kolejnosc_val is not None:
-            cursor.execute("UPDATE plan_produkcji SET kolejnosc = kolejnosc + 1 WHERE data_planu = %s AND kolejnosc >= %s", (data_planu, kolejnosc_val))
-
-        insert_sql = ("INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_zlecenia) "
-                      "VALUES (%s, %s, %s, %s, %s, %s, %s)")
-        cursor.execute(insert_sql, (data_planu, 'Czyszczenie', 'Czyszczenie', tonaz_val, 'zaplanowane', kolejnosc_val or 9999, 'jakosc'))
+            cursor.execute(f"UPDATE {table_plan} SET kolejnosc = kolejnosc + 1 WHERE data_planu = %s AND kolejnosc >= %s", (data_planu, kolejnosc_val))
+ 
+        insert_sql = (f"INSERT INTO {table_plan} (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_zlecenia, linia) "
+                      "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)")
+        cursor.execute(insert_sql, (data_planu, 'Czyszczenie', 'Czyszczenie', tonaz_val, 'zaplanowane', kolejnosc_val or 9999, 'jakosc', linia))
         notify_workers_about_plan_change(
             plan_context={
                 'id': cursor.lastrowid if hasattr(cursor, 'lastrowid') else None,
@@ -506,29 +551,34 @@ def bufor_page():
     app_logger.info(f"[BUFOR] bufor_page() called")
     
     wybrana_data = request.args.get('data', str(date.today()))
-    app_logger.info(f"[BUFOR] Starting bufor_page for date {wybrana_data}")
+    wybrana_linia = request.args.get('linia', 'PSD')
+    app_logger.info(f"[BUFOR] Starting bufor_page for date {wybrana_data}, line {wybrana_linia}")
     
     bufor_list = []
     
     try:
         # Odśwież bufor - dodaj nowe zpecenia które się pojawiły
-        refresh_bufor_queue()
+        from app.db import get_table_name
+        refresh_bufor_queue(linia=wybrana_linia)
         
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        table_bufor = get_table_name('bufor', wybrana_linia)
+        table_plan = get_table_name('plan_produkcji', wybrana_linia)
+        
         # Czytaj z nowej tabeli bufor - posortowane po kolejce
-        cursor.execute("""
+        cursor.execute(f"""
              SELECT b.id, b.zasyp_id, b.data_planu, b.produkt, b.nazwa_zlecenia,
                  b.typ_produkcji, b.kolejka,
                  z.tonaz, z.tonaz_rzeczywisty, z.real_start, z.status,
                  w.tonaz, w.tonaz_rzeczywisty
-            FROM bufor b
-            LEFT JOIN plan_produkcji z ON z.id = b.zasyp_id
-             LEFT JOIN plan_produkcji w ON w.zasyp_id = b.zasyp_id AND w.sekcja = 'Workowanie'
-            WHERE b.data_planu = %s AND b.status = 'aktywny'
+            FROM {table_bufor} b
+            LEFT JOIN {table_plan} z ON z.id = b.zasyp_id
+             LEFT JOIN {table_plan} w ON w.zasyp_id = b.zasyp_id AND w.sekcja = 'Workowanie'
+            WHERE b.data_planu = %s AND b.status = 'aktywny' AND b.linia = %s
             ORDER BY b.kolejka ASC
-        """, (wybrana_data,))
+        """, (wybrana_data, wybrana_linia))
         
         rows = cursor.fetchall()
         app_logger.info(f"[BUFOR] Loaded {len(rows)} active bufor entries for date {wybrana_data}")
@@ -565,7 +615,7 @@ def bufor_page():
         app_logger.error(f"ERROR in bufor_page for date {wybrana_data}: {type(e).__name__}: {str(e)}", exc_info=True)
         bufor_list = []
     
-    return render_template('bufor.html', bufor_list=bufor_list, wybrana_data=wybrana_data)
+    return render_template('bufor.html', bufor_list=bufor_list, wybrana_data=wybrana_data, wybrana_linia=wybrana_linia)
 
 
 @planista_bp.route('/bufor/rozlicz', methods=['POST'])
@@ -579,61 +629,70 @@ def bufor_rozlicz():
         plan_id = int(request.form.get('plan_id'))
     except Exception:
         try:
-            plan_id = int(request.json.get('plan_id'))
+            plan_id = int(request.form.get('plan_id'))
         except Exception:
-            plan_id = None
-    if not plan_id:
-        conn.close()
-        return ("Brak plan_id", 400)
-
-    final = request.form.get('final_tonaz') or (request.json.get('final_tonaz') if request.json else None)
-    note = request.form.get('note') or (request.json.get('note') if request.json else None)
-    close = request.form.get('close') == '1' or (request.json.get('close') if request.json else False)
-
-    try:
-        if final is not None and final != '':
             try:
-                val = int(float(str(final).replace(',', '.')))
+                plan_id = int(request.json.get('plan_id'))
             except Exception:
-                val = None
-        else:
-            val = None
-
-        sql = "UPDATE plan_produkcji SET "
-        parts = []
-        params = []
-        if val is not None:
-            parts.append('tonaz_rzeczywisty=%s')
-            params.append(val)
-        if note:
-            parts.append('wyjasnienie_rozbieznosci=%s')
-            params.append(note)
-        if close:
-            parts.append("status='zakonczone'")
-            parts.append('real_stop=NOW()')
-
-        if parts:
-            sql += ', '.join(parts) + ' WHERE id=%s'
-            params.append(plan_id)
-            cursor.execute(sql, tuple(params))
-            conn.commit()
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-    finally:
-        try:
+                plan_id = None
+        if not plan_id:
             conn.close()
+            return ("Brak plan_id", 400)
+
+        final = request.form.get('final_tonaz') or (request.json.get('final_tonaz') if request.json else None)
+        note = request.form.get('note') or (request.json.get('note') if request.json else None)
+        close = request.form.get('close') == '1' or (request.json.get('close') if request.json else False)
+
+        try:
+            if final is not None and final != '':
+                try:
+                    val = int(float(str(final).replace(',', '.')))
+                except Exception:
+                    val = None
+            else:
+                val = None
+
+            sql = "UPDATE plan_produkcji SET "
+            parts = []
+            params = []
+            if val is not None:
+                parts.append('tonaz_rzeczywisty=%s')
+                params.append(val)
+            if note:
+                parts.append('wyjasnienie_rozbieznosci=%s')
+                params.append(note)
+            if close:
+                parts.append("status='zakonczone'")
+                parts.append('real_stop=NOW()')
+
+            linia = request.form.get('linia') or (request.json.get('linia') if request.json else 'PSD')
+            table_plan = get_table_name('plan_produkcji', linia)
+     
+            if parts:
+                sql += ', '.join(parts) + f' WHERE id=%s'
+                params.append(plan_id)
+                cursor.execute(sql.replace('plan_produkcji', table_plan), tuple(params))
+                conn.commit()
         except Exception:
-            pass
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     # If called by JS, return JSON success
     try:
         from flask import jsonify
         return jsonify({'ok': True})
     except Exception:
-        return redirect('/bufor')
+        # Try to get sekcja from query string first (URL parameters), then from form
+        sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
+        data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+        return redirect(url_for('planista.panel_planisty', sekcja=sekcja, data=data))
 
 
 @planista_bp.route('/bufor/archiwizuj', methods=['POST'])
@@ -644,19 +703,29 @@ def bufor_archiwizuj():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        try:
-            plan_id = int(request.json.get('plan_id'))
-        except Exception:
-            plan_id = None
+        data = request.get_json(silent=True) or {}
+        plan_id = data.get('plan_id') or request.form.get('plan_id') or request.args.get('plan_id')
+        linia = data.get('linia') or request.form.get('linia') or request.args.get('linia', 'PSD')
         
         if not plan_id:
             return jsonify({'ok': False, 'message': 'Brak plan_id'}), 400
         
-        # Update status to 'archiwizowany'
+        plan_id = int(plan_id)
+        table_plan = get_table_name('plan_produkcji', linia)
+        
+        # Update status to 'archiwizowany' in plan_produkcji
         cursor.execute(
-            "UPDATE plan_produkcji SET status=%s WHERE id=%s",
+            f"UPDATE {table_plan} SET status=%s WHERE id=%s",
             ('archiwizowany', plan_id)
         )
+        
+        # ALSO update buffer status to 'zamkniete' so it disappears from active view
+        table_bufor = get_table_name('bufor', linia)
+        cursor.execute(
+            f"UPDATE {table_bufor} SET status=%s WHERE zasyp_id=%s",
+            ('zamkniete', plan_id)
+        )
+        
         conn.commit()
         return jsonify({'ok': True})
     except Exception as e:
@@ -703,10 +772,15 @@ def bufor_create_zlecenie():
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    linia = data.get('linia') or 'PSD'
+    from app.db import get_table_name
+    table_bufor = get_table_name('bufor', linia)
+    table_plan = get_table_name('plan_produkcji', linia)
+    
     try:
         if use_buffer:
             # OPCJA 2: Czytaj bezpośrednio z bufora (niezależnie od statusu Zasypu)
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     zasyp_id,
                     data_planu,
@@ -714,8 +788,9 @@ def bufor_create_zlecenie():
                     COALESCE(tonaz_rzeczywisty, 0) as tonaz_rzeczywisty,
                     typ_produkcji,
                     COALESCE(nazwa_zlecenia, '') as nazwa_zlecenia,
-                    COALESCE(SUM(spakowano), 0) as spakowano
-                FROM bufor
+                    COALESCE(SUM(spakowano), 0) as spakowano,
+                    MAX(linia) as linia
+                FROM {table_bufor}
                 WHERE zasyp_id = %s
                 GROUP BY zasyp_id, data_planu, produkt, typ_produkcji, nazwa_zlecenia
                 LIMIT 1
@@ -726,15 +801,15 @@ def bufor_create_zlecenie():
                 conn.close()
                 return jsonify({'success': False, 'message': 'Nie znaleziono wpisu w buforze dla tego Zasypu'}), 404
             
-            z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa, spakowano = zasyp_data
+            z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa, spakowano, z_linia = zasyp_data
             # Calculate remainder from buffer directly
             roznicza = (z_tonaz_rz or 0) - spakowano
         else:
             # OPCJA 1 (standardowa): Czytaj z Zasypu
-            # Get Zasyp details (tonaz_rzeczywisty, date, product, type)
-            cursor.execute("""
-                SELECT id, data_planu, produkt, tonaz_rzeczywisty, typ_produkcji, nazwa_zlecenia
-                FROM plan_produkcji
+            # Get Zasyp details (tonaz_rzeczywisty, date, product, type, linia)
+            cursor.execute(f"""
+                SELECT id, data_planu, produkt, tonaz_rzeczywisty, typ_produkcji, nazwa_zlecenia, linia
+                FROM {table_plan}
                 WHERE id = %s AND sekcja = 'Zasyp'
             """, (zasyp_id,))
             zasyp = cursor.fetchone()
@@ -743,11 +818,11 @@ def bufor_create_zlecenie():
                 conn.close()
                 return jsonify({'success': False, 'message': 'Nie znaleziono Zasypu'}), 404
             
-            z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa = zasyp
+            z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa, z_linia = zasyp
             
             # Get how much was already packed (sum from bufor.spakowano)
-            cursor.execute("""
-                SELECT SUM(spakowano) FROM bufor
+            cursor.execute(f"""
+                SELECT SUM(spakowano) FROM {table_bufor}
                 WHERE zasyp_id = %s AND data_planu = %s
             """, (zasyp_id, z_data))
             
@@ -758,15 +833,19 @@ def bufor_create_zlecenie():
             roznicza = (z_tonaz_rz or 0) - spakowano
         
         # OPCJA 3: Override workowanie date if provided (dla rana następnego dnia)
-        work_date = override_work_date if override_work_date else z_data
+        work_date = str(override_work_date) if override_work_date else str(z_data)
         
+        # Determine if we are moving to a NEW date (compared to source Zasyp)
+        source_date_str = str(z_data)
+        is_new_day = work_date != source_date_str
+
         if roznicza <= 0:
             conn.close()
             return jsonify({'success': False, 'message': 'Nie ma pozostałego towaru do spakowania (różnica <= 0)'}), 400
         
         # Check if Workowanie for this product/date already exists (in any status)
-        cursor.execute("""
-            SELECT id FROM plan_produkcji
+        cursor.execute(f"""
+            SELECT id FROM {table_plan}
             WHERE data_planu = %s AND produkt = %s AND sekcja = 'Workowanie'
             LIMIT 1
         """, (work_date, z_produkt))
@@ -780,9 +859,51 @@ def bufor_create_zlecenie():
                 'message': f'Zlecenie Workowanie na produkt "{z_produkt}" już istnieje dla tej daty'
             }), 400
         
+        # GHOST ZASYP LOGIC: If moving to a new day, create a placeholder Zasyp on that day
+        final_zasyp_id = z_id
+        if is_new_day:
+            # Check if Ghost Zasyp already exists for this product and new date
+            cursor.execute(f"""
+                SELECT id FROM {table_plan}
+                WHERE data_planu = %s AND produkt = %s AND sekcja = 'Zasyp' AND typ_zlecenia = 'carry_over_ghost'
+                LIMIT 1
+            """, (work_date, z_produkt))
+            existing_ghost = cursor.fetchone()
+            
+            if existing_ghost:
+                final_zasyp_id = existing_ghost[0]
+            else:
+                # Create NEW Ghost Zasyp (plan 0kg)
+                cursor.execute(f"""
+                    SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu = %s AND sekcja = 'Zasyp'
+                """, (work_date,))
+                res_max = cursor.fetchone()
+                nk_zasyp = (res_max[0] or 0) + 1
+                
+                cursor.execute(f"""
+                    INSERT INTO {table_plan} 
+                    (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, typ_zlecenia, linia, tonaz_rzeczywisty)
+                    VALUES (%s, %s, %s, 0, 'zakonczone', %s, %s, %s, 'carry_over_ghost', %s, 0)
+                """, (
+                    work_date, 'Zasyp', z_produkt, nk_zasyp, 
+                    z_typ or 'worki_zgrzewane_25', f"Carry-over {source_date_str}", z_linia
+                ))
+                final_zasyp_id = cursor.lastrowid
+                
+                # Also create a NEW buffer entry for the new day so it's visible there
+                cursor.execute(f"SELECT COALESCE(MAX(kolejka),0) FROM {table_bufor} WHERE data_planu=%s", (work_date,))
+                max_kol = cursor.fetchone()[0] or 0
+                cursor.execute(f"""
+                    INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status, linia)
+                    VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny', %s)
+                """, (
+                    final_zasyp_id, work_date, z_produkt, f"Carry-over {source_date_str}", 
+                    z_typ or 'worki_zgrzewane_25', round(roznicza, 1), max_kol + 1, z_linia
+                ))
+
         # Get next sequence number for Workowanie section (dla dnia Workowania)
-        cursor.execute("""
-            SELECT MAX(kolejnosc) FROM plan_produkcji 
+        cursor.execute(f"""
+            SELECT MAX(kolejnosc) FROM {table_plan} 
             WHERE data_planu = %s AND sekcja = 'Workowanie'
         """, (work_date,))
         
@@ -790,10 +911,10 @@ def bufor_create_zlecenie():
         next_kolejnosc = (result[0] or 0) + 1 if result else 1
         
         # Create new Workowanie zlecenie with plan = roznicza
-        cursor.execute("""
-            INSERT INTO plan_produkcji 
-            (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, zasyp_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        cursor.execute(f"""
+            INSERT INTO {table_plan} 
+            (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, zasyp_id, linia, tonaz_rzeczywisty)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
         """, (
             work_date,
             'Workowanie',
@@ -803,7 +924,8 @@ def bufor_create_zlecenie():
             next_kolejnosc,
             z_typ or 'worki_zgrzewane_25',
             z_nazwa or '',
-            z_id  # Link to source Zasyp
+            final_zasyp_id,  # Link to local Ghost Zasyp or original Zasyp
+            z_linia
         ))
         
         conn.commit()
@@ -870,41 +992,38 @@ def api_przenies_niezrealizowane():
         return jsonify({'success': False, 'message': f'Błąd serwera: {str(e)}'}), 500
 
 
-@planista_bp.route('/api/check_niezrealizowane', methods=['POST'])
+@planista_bp.route('/api/check_niezrealizowane', methods=['POST', 'GET'])
 @roles_required('planista', 'admin', 'lider')
 def api_check_niezrealizowane():
     """Check what incomplete plans exist and would be moved."""
     try:
-        data_dict = request.get_json() or {}
-        current_data = data_dict.get('data')
-        
+        # Support both methods
+        if request.method == 'POST':
+            data_dict = request.get_json() or {}
+            current_data = data_dict.get('data')
+            linia = data_dict.get('linia') or 'PSD'
+        else:
+            current_data = request.args.get('data')
+            linia = request.args.get('linia') or 'PSD'
+            
         if not current_data:
-            return jsonify({'success': False, 'message': 'Data jest wymagana'}), 400
+            current_data = date.today().strftime('%Y-%m-%d')
+        
+        table_plan = get_table_name('plan_produkcji', linia)
         
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Get next date
-        from datetime import datetime, timedelta
-        try:
-            current_date = datetime.strptime(current_data, '%Y-%m-%d').date()
-            next_date = current_date + timedelta(days=1)
-            next_data_str = next_date.isoformat()
-        except Exception as e:
-            return jsonify({'success': False, 'message': f'Nieprawidłowy format daty: {str(e)}'}), 400
-        
-        # Find closed Zasyp plans with their Workowanie counterparts.
-        # Remaining to pack = Workowanie.tonaz - Workowanie.tonaz_rzeczywisty
-        # Zasyp shortfall   = Zasyp.tonaz    - Zasyp.tonaz_rzeczywisty
-        cursor.execute("""
+        # Query for unfinished production (Zasyp finished but Workowanie incomplete)
+        cursor.execute(f"""
             SELECT z.id AS zasyp_id, z.produkt,
                    COALESCE(z.tonaz, 0) AS z_plan,
                    COALESCE(z.tonaz_rzeczywisty, 0) AS z_real,
                    w.id AS workowanie_id,
                    COALESCE(w.tonaz, 0) AS w_plan,
                    COALESCE(w.tonaz_rzeczywisty, 0) AS w_real
-            FROM plan_produkcji z
-            LEFT JOIN plan_produkcji w
+            FROM {table_plan} z
+            LEFT JOIN {table_plan} w
                 ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'
             WHERE DATE(z.data_planu) = %s
               AND z.status = 'zakonczone'
@@ -916,61 +1035,67 @@ def api_check_niezrealizowane():
         conn.close()
         
         details = []
-        total_remaining = 0
+        total_remaining = 0.0
         
+        from datetime import datetime, timedelta
+        current_date_obj = datetime.strptime(current_data, '%Y-%m-%d')
+        next_date = current_date_obj + timedelta(days=1)
+        next_data_str = next_date.strftime('%Y-%m-%d')
+
         for plan in all_plans:
-            # Only consider entries that have a Workowanie plan — transfer is based on Workowanie
             if plan['workowanie_id'] is None:
                 continue
 
-            w_plan = plan['w_plan']
-            w_real = plan['w_real']
+            w_plan = float(plan['w_plan'] or 0.0)
+            w_real = float(plan['w_real'] or 0.0)
+            z_real = float(plan['z_real'] or 0.0)
 
-            # Remaining to pack = Workowanie.tonaz - Workowanie.tonaz_rzeczywisty
-            workowanie_remaining = max(0.0, w_plan - w_real)
-
-            if workowanie_remaining <= 0:
+            rem_kg = max(0.0, w_plan - w_real)
+            if rem_kg <= 0:
                 continue
 
-            total_remaining += workowanie_remaining
+            in_buf_kg = max(0.0, z_real - w_real)
+            short_kg = max(0.0, w_plan - z_real)
+
+            total_remaining += rem_kg
             details.append({
-                'plan_id': plan['zasyp_id'],
-                'produkt': plan['produkt'],
-                # Show 'Zasypano' as the Workowanie planned tonage (we base on Workowanie)
-                'plan_kg': w_plan,
-                'wykonanie_kg': w_real,
-                'remaining_kg': workowanie_remaining,
-                'zasyp_shortfall_kg': 0,
+                'plan_id': int(plan['zasyp_id']),
+                'produkt': str(plan['produkt']),
+                'w_plan_kg': float(w_plan),
+                'w_real_kg': float(w_real),
+                'remaining_kg': float(rem_kg),
+                'shortfall_kg': float(short_kg),
+                'in_buffer_kg': float(in_buf_kg)
             })
-        
+
         if not details:
-            # Return a simple, user-facing message: if anything is not closed, transfer is not allowed
-            simple_msg = 'Jeśli coś jest niezamknięte, nie można przenieść zlecenia.'
-            return jsonify({'success': False, 'message': simple_msg}), 400
-        
+            return jsonify({'success': False, 'message': 'Brak zleceń do przeniesienia.'}), 400
+
         return jsonify({
             'success': True,
-            'current_date': current_data,
+            'current_data': current_data,
             'next_date': next_data_str,
-            'current_date_formatted': current_date.strftime('%d.%m.%Y'),
+            'current_date_formatted': current_date_obj.strftime('%d.%m.%Y'),
             'next_date_formatted': next_date.strftime('%d.%m.%Y'),
             'plans': details,
-            'total_remaining_kg': total_remaining,
+            'total_remaining_kg': float(total_remaining),
             'count': len(details)
         }), 200
-        
+
     except Exception as e:
         current_app.logger.exception(f'Error in api_check_niezrealizowane: {str(e)}')
         return jsonify({'success': False, 'message': f'Błąd serwera: {str(e)}'}), 500
 
 
-@planista_bp.route('/api/check_zlecenie', methods=['POST'])
+@planista_bp.route('/api/check_zlecenie', methods=['POST', 'GET'])
 @roles_required('planista', 'admin', 'lider')
 def api_check_zlecenie():
     """Check given plan (zlecenie) and report which parts are still active / not closed and in which section."""
     try:
-        data = request.get_json() or {}
-        plan_id = data.get('plan_id') or request.args.get('plan_id')
+        # Get parameters from query string (sent via fetch?plan_id=...) or form
+        plan_id = request.args.get('plan_id') or request.form.get('plan_id')
+        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+        
         if not plan_id:
             return jsonify({'success': False, 'message': 'Brak plan_id'}), 400
         try:
@@ -978,10 +1103,15 @@ def api_check_zlecenie():
         except Exception:
             return jsonify({'success': False, 'message': 'Nieprawidłowe plan_id'}), 400
 
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_szarze = get_table_name('szarze', linia)
+        table_pal = get_table_name('palety_workowanie', linia)
+        table_bufor = get_table_name('bufor', linia)
+ 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-
-        cursor.execute("SELECT id, sekcja, produkt, tonaz, tonaz_rzeczywisty, status, real_start, real_stop FROM plan_produkcji WHERE id = %s", (plan_id,))
+ 
+        cursor.execute(f"SELECT id, sekcja, produkt, tonaz, tonaz_rzeczywisty, status, real_start, real_stop FROM {table_plan} WHERE id = %s", (plan_id,))
         plan = cursor.fetchone()
         if not plan:
             conn.close()
@@ -997,7 +1127,7 @@ def api_check_zlecenie():
         try:
             # If this plan is a Zasyp, find its Workowanie record
             if (plan.get('sekcja') or '').strip().lower() == 'zasyp':
-                cursor.execute("SELECT id, sekcja, tonaz, tonaz_rzeczywisty, status FROM plan_produkcji WHERE zasyp_id = %s AND LOWER(sekcja) = 'workowanie' LIMIT 1", (plan_id,))
+                cursor.execute(f"SELECT id, sekcja, tonaz, tonaz_rzeczywisty, status FROM {table_plan} WHERE zasyp_id = %s AND LOWER(sekcja) = 'workowanie' LIMIT 1", (plan_id,))
                 w = cursor.fetchone()
                 if w:
                     w_ton = float(w.get('tonaz') or 0)
@@ -1012,18 +1142,18 @@ def api_check_zlecenie():
                     }
 
             # szarze sum (actual weights entered)
-            cursor.execute("SELECT COALESCE(SUM(waga),0) AS szarze_sum FROM szarze WHERE plan_id = %s", (plan_id,))
+            cursor.execute(f"SELECT COALESCE(SUM(waga),0) AS szarze_sum FROM {table_szarze} WHERE plan_id = %s", (plan_id,))
             r = cursor.fetchone()
             related['szarze_sum_kg'] = float(r.get('szarze_sum') or 0)
-
+ 
             # palety summary (for Workowanie)
-            cursor.execute("SELECT COUNT(*) AS count, COALESCE(SUM(waga),0) AS total_kg FROM palety_workowanie WHERE plan_id = %s", (plan_id,))
+            cursor.execute(f"SELECT COUNT(*) AS count, COALESCE(SUM(waga),0) AS total_kg FROM {table_pal} WHERE plan_id = %s", (plan_id,))
             r = cursor.fetchone()
             related['palety_count'] = int(r.get('count') or 0)
             related['palety_total_kg'] = float(r.get('total_kg') or 0)
-
+ 
             # bufor entries related (zasyp_id or plan_id)
-            cursor.execute("SELECT id, zasyp_id, data_planu, produkt, spakowano, status FROM bufor WHERE zasyp_id = %s OR plan_id = %s", (plan_id, plan_id))
+            cursor.execute(f"SELECT id, zasyp_id, data_planu, produkt, spakowano, status FROM {table_bufor} WHERE zasyp_id = %s OR plan_id = %s", (plan_id, plan_id))
             buf_rows = cursor.fetchall()
             related['bufor'] = buf_rows or []
         except Exception:

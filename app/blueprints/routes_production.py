@@ -3,7 +3,7 @@ import logging
 import os
 import glob
 from datetime import date, datetime
-from app.db import get_db_connection, rollover_unfinished, sync_dosypka_notifications
+from app.db import get_db_connection, get_table_name, rollover_unfinished, sync_dosypka_notifications
 from app.decorators import login_required, roles_required
 from app.core.audit import audit_log
 
@@ -17,8 +17,9 @@ def bezpieczny_powrot():
     
     # Try to get sekcja from query string first (URL parameters), then from form
     sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
     data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-    return url_for('main.index', sekcja=sekcja, data=data)
+    return url_for('main.index', sekcja=sekcja, data=data, linia=linia)
 
 
 @production_bp.route('/start_zlecenie/<int:id>', methods=['POST'])
@@ -31,8 +32,10 @@ def start_zlecenie(id):
     """
     conn = get_db_connection()
     try:
+        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
-        cursor.execute("SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0) FROM plan_produkcji WHERE id=%s", (id,))
+        cursor.execute(f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0) FROM {table_plan} WHERE id=%s", (id,))
         z = cursor.fetchone()
         
         warning_info = None  # Informacja o tym co dzieje się na Zasyp
@@ -43,7 +46,7 @@ def start_zlecenie(id):
             # INFO ONLY (nie blokuje): jeśli na Workowanie, sprawdzić co dzieje się na Zasyp
             if sekcja == 'Workowanie':
                 cursor.execute(
-                    "SELECT id, produkt FROM plan_produkcji "
+                    f"SELECT id, produkt FROM {table_plan} "
                     "WHERE sekcja='Zasyp' AND status='w toku' AND DATE(data_planu)=%s LIMIT 1",
                     (data_planu,)
                 )
@@ -68,40 +71,44 @@ def start_zlecenie(id):
                         try:
                             # Log context for debugging
                             current_app.logger.debug(f'[KOLEJKA] start_zlecenie called id={id} produkt="{produkt}" data_planu={data_planu} role={role}')
+                            
+                            # Poprawiona logika FIFO: znajdź najwcześniej zakończony Zasyp, 
+                            # którego Workowanie jest jeszcze 'zaplanowane' (nie 'zakonczone' i nie 'w toku')
                             cursor.execute(
-                                "SELECT id, produkt, real_stop FROM plan_produkcji WHERE sekcja='Zasyp' AND status='zakonczone' AND DATE(data_planu)=%s AND real_stop IS NOT NULL ORDER BY real_stop ASC",
+                                f"""
+                                SELECT pz.id, pz.produkt 
+                                FROM {table_plan} pz
+                                WHERE pz.sekcja='Zasyp' AND pz.status='zakonczone' AND DATE(pz.data_planu)=%s
+                                AND EXISTS (
+                                    SELECT 1 FROM {table_plan} pw
+                                    WHERE pw.sekcja='Workowanie' AND pw.produkt = pz.produkt 
+                                    AND pw.status = 'zaplanowane' AND DATE(pw.data_planu) = DATE(pz.data_planu)
+                                )
+                                ORDER BY pz.real_stop ASC LIMIT 1
+                                """,
                                 (data_planu,)
                             )
-                            all_closed = cursor.fetchall()
-                            current_app.logger.debug(f'[KOLEJKA] closed_zasyp_count={len(all_closed)}')
-                            for ac in all_closed:
-                                try:
-                                    current_app.logger.debug(f'[KOLEJKA] closed: id={ac[0]} produkt="{ac[1]}" real_stop={ac[2]}')
-                                except Exception:
-                                    current_app.logger.debug(f'[KOLEJKA] closed (raw): {ac}')
-                            earliest = all_closed[0] if all_closed else None
+                            earliest = cursor.fetchone()
+                            current_app.logger.debug(f'[KOLEJKA] earliest_pending_from_zasyp={earliest}')
                         except Exception as e:
-                            current_app.logger.exception('[KOLEJKA] failed to query closed Zasyp: %s', e)
+                            current_app.logger.exception('[KOLEJKA] failed to query pending Zasyp: %s', e)
                             earliest = None
+                        
                         if earliest:
                             earliest_product = earliest[1]
                             # Normalize product names for robust comparison
-                            try:
-                                prod_norm = (produkt or '').strip().lower()
-                                earliest_norm = (earliest_product or '').strip().lower()
-                            except Exception:
-                                prod_norm = produkt
-                                earliest_norm = earliest_product
-                            current_app.logger.debug(f'[KOLEJKA] produkt="{produkt}" earliest_from_zasyp="{earliest_product}" normalized: "{prod_norm}" vs "{earliest_norm}"')
+                            prod_norm = (produkt or '').strip().lower()
+                            earliest_norm = (earliest_product or '').strip().lower()
+                            
                             if prod_norm != earliest_norm:
                                 # Nie zezwalamy na uruchomienie innego produktu niż ten najwcześniej zakończony na Zasyp
-                                flash(f"❌ Kolejkowanie Workowanie: aktualnie otwarty powinien być produkt zakończony najwcześniej na Zasyp: {earliest_product}. Najpierw zakończ ten produkt na Zasyp.", 'error')
+                                flash(f"❌ Kolejkowanie Workowanie: aktualnie otwarty powinien być produkt zakończony najwcześniej na Zasyp: {earliest_product}. Najpierw zakończ te zlecenia, które wpłynęły do bufora wcześniej.", 'error')
                                 return redirect(bezpieczny_powrot())
 
             # Zawsze wykonaj START - Workowanie pracuje niezależnie z bufora
             if status_obecny != 'w toku':
-                cursor.execute("UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
-                cursor.execute("UPDATE plan_produkcji SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
+                cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
+                cursor.execute(f"UPDATE {table_plan} SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
                 current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
                 audit_log('Uruchomił zlecenie', f'ID={id}, produkt={produkt}, sekcja={sekcja}')
                 flash(f"✅ Uruchomiono: {produkt}", 'success')
@@ -148,6 +155,9 @@ def koniec_zlecenie(id):
         wyjasnienie = request.form.get('wyjasnienie')
         uszkodzone_worki = request.form.get('uszkodzone_worki')
         sekcja = request.form.get('sekcja')
+        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+        table_plan = get_table_name('plan_produkcji', linia)
+        
         rzeczywista_waga = 0
         if final_tonaz:
             try:
@@ -155,7 +165,7 @@ def koniec_zlecenie(id):
             except Exception:
                 pass
 
-        sql = "UPDATE plan_produkcji SET status='zakonczone', real_stop=NOW()"
+        sql = f"UPDATE {table_plan} SET status='zakonczone', real_stop=NOW()"
         params = []
         if rzeczywista_waga > 0:
             sql += ", tonaz_rzeczywisty=%s"
@@ -188,7 +198,7 @@ def koniec_zlecenie(id):
         # WAŻNE: Odśwież bufor teraz, żeby kolejka się przesuniała
         try:
             from app.db import refresh_bufor_queue
-            refresh_bufor_queue(conn)
+            refresh_bufor_queue(conn, linia=linia)
         except Exception as e:
             current_app.logger.warning(f'Failed to refresh bufor after koniec_zlecenie: {e}')
     except Exception as e:
@@ -213,8 +223,10 @@ def zapisz_wyjasnienie(id):
     """Zapisz wyjaśnienie rozbieżności"""
     conn = get_db_connection()
     try:
+        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
-        cursor.execute("UPDATE plan_produkcji SET wyjasnienie_rozbieznosci=%s WHERE id=%s", (request.form.get('wyjasnienie'), id))
+        cursor.execute(f"UPDATE {table_plan} SET wyjasnienie_rozbieznosci=%s WHERE id=%s", (request.form.get('wyjasnienie'), id))
         conn.commit()
     except Exception as e:
         current_app.logger.error(f"Error saving explanation for {id}: {e}", exc_info=True)
@@ -241,8 +253,10 @@ def koniec_zlecenie_page(id):
     tonaz_rzeczywisty = None
     conn = get_db_connection()
     try:
+        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
-        cursor.execute("SELECT produkt, tonaz_rzeczywisty FROM plan_produkcji WHERE id=%s", (id,))
+        cursor.execute(f"SELECT produkt, tonaz_rzeczywisty FROM {table_plan} WHERE id=%s", (id,))
         row = cursor.fetchone()
         if row:
             produkt, tonaz_rzeczywisty = row[0], row[1]
@@ -285,9 +299,11 @@ def szarza_page(plan_id):
     
     conn = get_db_connection()
     try:
+        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT produkt, typ_produkcji FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'",
+            f"SELECT produkt, typ_produkcji FROM {table_plan} WHERE id=%s AND sekcja='Zasyp'",
             (plan_id,)
         )
         plan = cursor.fetchone()
@@ -297,12 +313,13 @@ def szarza_page(plan_id):
             return redirect('/')
         
         produkt, typ_produkcji = plan[0], plan[1]
-        current_app.logger.debug(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}')
+        current_app.logger.debug(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}, linia={linia}')
         return render_template('dodaj_palete_popup.html', 
                      plan_id=plan_id, 
                      sekcja='Zasyp',
                      produkt=produkt,
-                     typ=typ_produkcji)
+                     typ=typ_produkcji,
+                     linia=linia)
     except Exception as e:
         current_app.logger.error(f'[SZARZA_PAGE] Error in szarza_page: {e}', exc_info=True)
         flash('Błąd pobierania danych planu', 'error')
@@ -332,13 +349,14 @@ def manual_rollover():
     """Manually rollover unfinished jobs from one date to another"""
     from_date = request.form.get('from_date') or request.args.get('from_date')
     to_date = request.form.get('to_date') or request.args.get('to_date')
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
     if not from_date or not to_date:
         flash('Brakuje daty źródłowej lub docelowej', 'error')
         return redirect(bezpieczny_powrot())
 
     try:
-        added = rollover_unfinished(from_date, to_date)
-        flash(f'Przeniesiono {added} zleceń z {from_date} na {to_date}', 'success')
+        added = rollover_unfinished(from_date, to_date, linia=linia)
+        flash(f'Przeniesiono {added} zleceń ({linia}) z {from_date} na {to_date}', 'success')
     except Exception as e:
         current_app.logger.exception('manual_rollover failed: %s', e)
         flash('Błąd podczas przenoszenia zleceń', 'error')
@@ -352,6 +370,7 @@ def manual_rollover():
 def obsada_page():
     """Render slide-over for managing obsada (workers on shift) for a sekcja"""
     sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Workowanie'))
+    linia = request.args.get('linia', request.form.get('linia', 'PSD'))
     # allow optional date parameter (YYYY-MM-DD) to view/modify obsada for other dates
     date_str = request.args.get('date') or request.form.get('date')
     try:
@@ -400,9 +419,9 @@ def obsada_page():
         is_ajax = False
 
     if is_ajax:
-        return render_template('obsada_fragment.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'), qdate=qdate, lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id, all_pracownicy=all_pracownicy)
+        return render_template('obsada_fragment.html', sekcja=sekcja, linia=linia, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'), qdate=qdate, lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id, all_pracownicy=all_pracownicy)
 
-    return render_template('obsada.html', sekcja=sekcja, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'), qdate=qdate, lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id, all_pracownicy=all_pracownicy)
+    return render_template('obsada.html', sekcja=sekcja, linia=linia, obsady_map=obsady_map, pracownicy=wszyscy, rola=session.get('rola'), qdate=qdate, lider_psd_id=lider_psd_id, lider_agro_id=lider_agro_id, all_pracownicy=all_pracownicy)
 
 
 @production_bp.route('/dosypka_page/<int:plan_id>', methods=['GET'])
@@ -411,8 +430,11 @@ def dosypka_page(plan_id):
     """Render form to add up to 4 dosypki for an active Zasyp plan."""
     conn = get_db_connection()
     try:
+        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_dosypki = get_table_name('dosypki', linia)
         cursor = conn.cursor()
-        cursor.execute("SELECT produkt, typ_produkcji, status FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'", (plan_id,))
+        cursor.execute(f"SELECT produkt, typ_produkcji, status FROM {table_plan} WHERE id=%s AND sekcja='Zasyp'", (plan_id,))
         plan = cursor.fetchone()
         if not plan:
             flash('Plan nie znaleziony', 'error')
@@ -434,9 +456,9 @@ def dosypka_page(plan_id):
 
         if szarza_id_int:
             cursor.execute(
-                """
+                f"""
                 SELECT id, nazwa, kg, data_zlecenia, COALESCE(anulowana, 0), anulowal_login, data_anulowania
-                FROM dosypki
+                FROM {table_dosypki}
                 WHERE plan_id=%s AND szarza_id=%s
                 ORDER BY COALESCE(anulowana, 0) ASC, data_zlecenia DESC
                 """,
@@ -444,9 +466,9 @@ def dosypka_page(plan_id):
             )
         else:
             cursor.execute(
-                """
+                f"""
                 SELECT id, nazwa, kg, data_zlecenia, COALESCE(anulowana, 0), anulowal_login, data_anulowania
-                FROM dosypki
+                FROM {table_dosypki}
                 WHERE plan_id=%s
                 ORDER BY COALESCE(anulowana, 0) ASC, data_zlecenia DESC
                 """,
@@ -473,6 +495,7 @@ def dosypka_page(plan_id):
             typ=typ_produkcji,
             szarza_id=szarza_id,
             existing_dosypki=existing_dosypki,
+            linia=linia
         )
     except Exception as e:
         current_app.logger.error(f'Error in dosypka_page: {e}', exc_info=True)
@@ -531,10 +554,13 @@ def dodaj_dosypke():
 
     conn = get_db_connection()
     try:
+        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_dosypki = get_table_name('dosypki', linia)
         cursor = conn.cursor()
         # Validate plan exists and is active
         cursor.execute(
-            "SELECT id, produkt, data_planu, status FROM plan_produkcji WHERE id=%s AND sekcja='Zasyp'",
+            f"SELECT id, produkt, data_planu, status FROM {table_plan} WHERE id=%s AND sekcja='Zasyp'",
             (plan_id,)
         )
         r = cursor.fetchone()
@@ -545,7 +571,7 @@ def dodaj_dosypke():
         pracownik_id = session.get('pracownik_id') if 'pracownik_id' in session else None
         created_by_user_id = session.get('user_id') if 'user_id' in session else None
         for name, kg in entries:
-            cursor.execute("INSERT INTO dosypki (plan_id, szarza_id, nazwa, kg, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, 0)", (plan_id, szarza_id, name, kg, pracownik_id))
+            cursor.execute(f"INSERT INTO {table_dosypki} (plan_id, szarza_id, nazwa, kg, pracownik_id, potwierdzone) VALUES (%s, %s, %s, %s, %s, 0)", (plan_id, szarza_id, name, kg, pracownik_id))
             try:
                 # Log individual dosypka creation to audit log
                 audit_log('Dodał dosypkę', f'nazwa={name}, kg={kg}, plan_id={plan_id}')
@@ -558,6 +584,7 @@ def dodaj_dosypke():
             created_by_user_id=created_by_user_id,
             conn=conn,
             cursor=cursor,
+            linia=linia
         )
 
         conn.commit()
@@ -586,10 +613,14 @@ def dodaj_dosypke():
 def potwierdz_dosypke(dosypka_id):
     """Operator potwierdza odczytanie dosypki - mark as confirmed."""
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    table_plan = get_table_name('plan_produkcji', linia)
+    table_dosypki = get_table_name('dosypki', linia)
+    table_szarze = get_table_name('szarze', linia)
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM dosypki WHERE id=%s AND potwierdzone=0 AND COALESCE(anulowana, 0)=0", (dosypka_id,))
+        cursor.execute(f"SELECT id FROM {table_dosypki} WHERE id=%s AND potwierdzone=0 AND COALESCE(anulowana, 0)=0", (dosypka_id,))
         r = cursor.fetchone()
         if not r:
             if is_ajax:
@@ -600,19 +631,19 @@ def potwierdz_dosypke(dosypka_id):
         pracownik_id = session.get('pracownik_id') if 'pracownik_id' in session else None
         
         # First, get the plan_id from dosypka to update tonaz_rzeczywisty
-        cursor.execute("SELECT plan_id FROM dosypki WHERE id=%s", (dosypka_id,))
+        cursor.execute(f"SELECT plan_id FROM {table_dosypki} WHERE id=%s", (dosypka_id,))
         dosypka_row = cursor.fetchone()
         plan_id = dosypka_row[0] if dosypka_row else None
         
-        cursor.execute("UPDATE dosypki SET potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s", (pracownik_id, dosypka_id))
+        cursor.execute(f"UPDATE {table_dosypki} SET potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s", (pracownik_id, dosypka_id))
         
         # Synchronize plan's tonaz_rzeczywisty = SUM(szarże) + SUM(dosypki potwierdzone)
         if plan_id:
             cursor.execute(
-                "UPDATE plan_produkcji SET tonaz_rzeczywisty = "
-                "COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) + "
-                "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
-                "WHERE id = %s",
+                f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
+                f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
+                f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
+                f"WHERE id = %s",
                 (plan_id, plan_id, plan_id)
             )
             sync_dosypka_notifications(
@@ -621,6 +652,7 @@ def potwierdz_dosypke(dosypka_id):
                 created_by_user_id=session.get('user_id'),
                 conn=conn,
                 cursor=cursor,
+                linia=linia
             )
         
         conn.commit()
@@ -654,11 +686,13 @@ def potwierdz_dosypke(dosypka_id):
 def anuluj_dosypke(dosypka_id):
     """Mark dosypka as anulowana instead of deleting it."""
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    table_dosypki = get_table_name('dosypki', linia)
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, plan_id FROM dosypki WHERE id=%s AND potwierdzone=0 AND COALESCE(anulowana, 0)=0",
+            f"SELECT id, plan_id FROM {table_dosypki} WHERE id=%s AND potwierdzone=0 AND COALESCE(anulowana, 0)=0",
             (dosypka_id,)
         )
         row = cursor.fetchone()
@@ -670,7 +704,7 @@ def anuluj_dosypke(dosypka_id):
 
         anulowal_login = session.get('login') or session.get('imie_nazwisko') or 'unknown'
         cursor.execute(
-            "UPDATE dosypki SET anulowana=1, data_anulowania=NOW(), anulowal_login=%s WHERE id=%s",
+            f"UPDATE {table_dosypki} SET anulowana=1, data_anulowania=NOW(), anulowal_login=%s WHERE id=%s",
             (anulowal_login, dosypka_id)
         )
         sync_dosypka_notifications(
@@ -679,6 +713,7 @@ def anuluj_dosypke(dosypka_id):
             created_by_user_id=session.get('user_id'),
             conn=conn,
             cursor=cursor,
+            linia=linia
         )
         conn.commit()
         if is_ajax:
@@ -717,15 +752,17 @@ def api_dosypki():
     """Return JSON of active unconfirmed dosypki for operators."""
     current_app.logger.debug(f"[api_dosypki] Endpoint reached by user role: {session.get('rola')}")
     plan_id = request.args.get('plan_id', None)
+    linia = request.args.get('linia', 'PSD')
+    table_dosypki = get_table_name('dosypki', linia)
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         if plan_id:
             cursor.execute(
-                """
+                f"""
                 SELECT id, plan_id, nazwa, kg, data_zlecenia,
                        COALESCE(anulowana, 0), anulowal_login, data_anulowania
-                FROM dosypki
+                FROM {table_dosypki}
                 WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0 AND plan_id = %s
                 ORDER BY data_zlecenia ASC
                 """,
@@ -733,10 +770,10 @@ def api_dosypki():
             )
         else:
             cursor.execute(
-                """
+                f"""
                 SELECT id, plan_id, nazwa, kg, data_zlecenia,
                        COALESCE(anulowana, 0), anulowal_login, data_anulowania
-                FROM dosypki
+                FROM {table_dosypki}
                   WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0
                   ORDER BY data_zlecenia ASC
                 """
@@ -778,9 +815,10 @@ def dosypki_list():
     """Render slide-over page with list of active unconfirmed dosypki for operators."""
     # Accept optional plan_id to filter dosypki for a specific zlecenie
     plan_id = request.args.get('plan_id', None)
+    linia = request.args.get('linia', 'PSD')
     # Fetch unconfirmed dosypki server-side so fragment shows data even if client JS doesn't run
     from app.db import list_unconfirmed_dosypki
-    rows = list_unconfirmed_dosypki()
+    rows = list_unconfirmed_dosypki(linia=linia)
     role = session.get('rola', '')
     visible_roles = ('laborant', 'pracownik', 'produkcja', 'lider', 'admin')
     dosypki = []

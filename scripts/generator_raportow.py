@@ -1,13 +1,13 @@
 import pandas as pd
 import os
 from datetime import datetime
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 import logging
 
 logger = logging.getLogger(__name__)
 
-def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
-    logger.info(f"[GENERATOR] Starting report generation for {data_raportu}")
+def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PSD'):
+    logger.info(f"[GENERATOR] Starting report generation for {data_raportu} line {linia}")
     logger.info(f"[GENERATOR] Lider: {lider_name}, Uwagi length: {len(uwagi_lidera)}")
     print(f"[GENERATOR] ===== REPORT GENERATION START =====")
     print(f"[GENERATOR] Data: {data_raportu}")
@@ -25,15 +25,16 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
     # Pobieranie danych
     logger.info(f"[GENERATOR] Fetching production data for {data_raportu}")
     print(f"[GENERATOR] Fetching production data...")
-    df_plan = pd.read_sql("SELECT sekcja, produkt, tonaz, tonaz_rzeczywisty FROM plan_produkcji WHERE data_planu = %s", conn, params=(data_raportu,))
-    logger.info(f"[GENERATOR] Production data: {len(df_plan)} rows")
-    print(f"[GENERATOR] OK Production data: {len(df_plan)} rows")
+    table_plan = get_table_name('plan_produkcji', linia)
+    df_plan = pd.read_sql(f"SELECT sekcja, produkt, tonaz, tonaz_rzeczywisty FROM {table_plan} WHERE data_planu = %s", conn, params=(data_raportu,))
+    logger.info(f"[GENERATOR] Production data: {len(df_plan)} rows from {table_plan}")
+    print(f"[GENERATOR] OK Production data: {len(df_plan)} rows from {table_plan}")
     
     # Awarie: spróbuj pobrać szczegółowe kolumny, ale jeśli ich nie ma w schemacie, użyj prostszego SELECT
     try:
-        df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem, start_czas, stop_czas, minuty FROM dziennik_zmiany WHERE data_wpisu = %s", conn, params=(data_raportu,))
+        df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem, start_czas, stop_czas, minuty FROM dziennik_zmiany WHERE data_wpisu = %s AND linia = %s", conn, params=(data_raportu, linia))
     except Exception:
-        df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem FROM dziennik_zmiany WHERE data_wpisu = %s", conn, params=(data_raportu,))
+        df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem FROM dziennik_zmiany WHERE data_wpisu = %s AND linia = %s", conn, params=(data_raportu, linia))
     logger.info(f"[GENERATOR] Issues data: {len(df_awarie)} rows")
     print(f"[GENERATOR] OK Issues data: {len(df_awarie)} rows")
     
@@ -48,9 +49,9 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
             SELECT oz.sekcja, p.imie_nazwisko AS pracownik
             FROM obsada_zmiany oz
             JOIN pracownicy p ON oz.pracownik_id = p.id
-            WHERE oz.data_wpisu = %s
+            WHERE oz.data_wpisu = %s AND oz.linia = %s
             ORDER BY oz.sekcja, p.imie_nazwisko
-        """, conn, params=(data_raportu,))
+        """, conn, params=(data_raportu, linia))
     except Exception as _e:
         logger.warning(f"[GENERATOR] Nie mozna pobrac obsady: {_e}")
         df_obsada = pd.DataFrame(columns=['sekcja', 'pracownik'])
@@ -76,11 +77,12 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
 
     # Bufor — co zostało do spakowania
     try:
-        df_bufor = pd.read_sql("""
+        table_bufor = get_table_name('bufor', linia)
+        df_bufor = pd.read_sql(f"""
             SELECT produkt, COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
                    tonaz_rzeczywisty, spakowano,
                    GREATEST(tonaz_rzeczywisty - spakowano, 0) AS pozostalo
-            FROM bufor
+            FROM {table_bufor}
             WHERE data_planu = %s AND status = 'aktywny' AND tonaz_rzeczywisty > 0
             ORDER BY kolejka
         """, conn, params=(data_raportu,))
@@ -109,7 +111,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
     logger.info(f"[GENERATOR] Output folder: {os.path.abspath(folder)}")
 
     # 1. Excel
-    xls_path = os.path.join(folder, f"Raport_{data_raportu}.xlsx")
+    xls_path = os.path.join(folder, f"Raport_{linia}_{data_raportu}.xlsx")
     logger.info(f"[GENERATOR] Creating Excel file: {xls_path}")
     print(f"[GENERATOR] Creating Excel: {os.path.abspath(xls_path)}")
     with pd.ExcelWriter(xls_path, engine='openpyxl') as writer:
@@ -129,11 +131,11 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
     print(f"[GENERATOR] OK Excel created: {xls_exists} | Path: {os.path.abspath(xls_path)}")
 
     # 2. Notatnik (Treść do maila)
-    txt_path = os.path.join(folder, f"Do_Maila_{data_raportu}.txt")
+    txt_path = os.path.join(folder, f"Do_Maila_{linia}_{data_raportu}.txt")
     logger.info(f"[GENERATOR] Creating TXT file: {txt_path}")
     print(f"[GENERATOR] Creating TXT: {os.path.abspath(txt_path)}")
     with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(f"RAPORT PRODUKCYJNY - {data_raportu}\n")
+        f.write(f"RAPORT PRODUKCYJNY - {linia} - {data_raportu}\n")
         f.write("="*30 + "\n\n")
         f.write(f"NOTATKI ZMIANOWE:\n{uwagi_lidera}\n\n")
         f.write(f"PRODUKCJA: {int(df_plan['tonaz_rzeczywisty'].sum())} kg\n")
@@ -148,7 +150,8 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
         # Przygotuj struktury wymagane przez generuj_pdf (listy krotek)
         # Ustal kolejność produktów na podstawie kolejności planu (pole `kolejnosc` lub `id`)
         try:
-            df_order = pd.read_sql("SELECT produkt, COALESCE(MIN(kolejnosc), MIN(id)) AS ord FROM plan_produkcji WHERE data_planu = %s GROUP BY produkt", conn, params=(data_raportu,))
+            table_plan = get_table_name('plan_produkcji', linia)
+            df_order = pd.read_sql(f"SELECT produkt, COALESCE(MIN(kolejnosc), MIN(id)) AS ord FROM {table_plan} WHERE data_planu = %s GROUP BY produkt", conn, params=(data_raportu,))
             product_order = {row['produkt']: row['ord'] for _, row in df_order.iterrows()}
         except Exception:
             product_order = {}
@@ -196,6 +199,13 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
         
         logger.info(f"[GENERATOR] pdf_name returned: {pdf_name} (type={type(pdf_name).__name__})")
         pdf_path = os.path.join('raporty', pdf_name) if pdf_name else None
+        # Rename PDF to include line name if possible or handle it in raporty.py
+        if pdf_path and os.path.exists(pdf_path):
+             new_pdf_name = f"Raport_{linia}_{data_raportu}.pdf"
+             new_pdf_path = os.path.join('raporty', new_pdf_name)
+             import shutil
+             shutil.move(pdf_path, new_pdf_path)
+             pdf_path = new_pdf_path
         logger.info(f"[GENERATOR] pdf_path constructed: {pdf_path}")
         logger.info(f"[GENERATOR] PDF generated successfully: {pdf_name}")
     except Exception as e:
@@ -220,10 +230,10 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name=''):
     return xls_path, txt_path, pdf_path
 
 
-def generuj_excel_zmiany(data_raportu):
+def generuj_excel_zmiany(data_raportu, linia='PSD'):
     """Kompatybilna z app.py: zwraca ścieżkę do wygenerowanego pliku Excel (lub None)."""
     try:
-        xls, txt, pdf = generuj_paczke_raportow(data_raportu, '')
+        xls, txt, pdf = generuj_paczke_raportow(data_raportu, '', linia=linia)
         # Przenieś wygenerowane pliki do trwałego folderu `raporty` dostępnego przez aplikację
         import shutil
         raporty_dir = 'raporty'
@@ -269,7 +279,9 @@ def otworz_outlook_z_raportem(sciezka_xls, uwagi_lidera):
     try:
         outlook = win32com.client.Dispatch('Outlook.Application')
         mail = outlook.CreateItem(0)
-        mail.Subject = f"Raport produkcyjny - {datetime.now().date()}"
+        # We don't have linia here easily unless we pass it, but let's just keep generic name or use XLS basename
+        subj_line = os.path.basename(sciezka_xls).replace('.xlsx', '').replace('Raport_', 'Raport ')
+        mail.Subject = f"{subj_line} - {datetime.now().date()}"
         mail.Body = uwagi_lidera or ''
         if sciezka_xls and os.path.exists(sciezka_xls):
             mail.Attachments.Add(os.path.abspath(sciezka_xls))

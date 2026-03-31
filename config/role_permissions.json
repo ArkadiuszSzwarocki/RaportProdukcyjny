@@ -271,6 +271,40 @@
       "readonly": false
     }
   },
+  "agro_magazyn": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": true,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
   "bufor": {
     "admin": {
       "access": true,

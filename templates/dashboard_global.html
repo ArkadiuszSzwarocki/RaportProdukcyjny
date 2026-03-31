@@ -139,6 +139,7 @@
       title="{{ _('notatka_zapisu') }}" aria-label="Notatka"></textarea>
     <input type="hidden" name="date" value="{{ dzisiaj }}">
     <input type="hidden" name="pracownik_id" value="{{ session.get('pracownik_id') or '' }}">
+    <input type="hidden" name="linia" value="{{ linia }}">
     <button type="submit" class="note-save-btn">{{ _('zapisz_notatke') }}</button>
   </form>
 
@@ -444,11 +445,12 @@
 
     if (!dateDisplay || !notesContainer || dayNavBtns.length === 0) return;
 
-    // Initialize with current date
+    // Initialize with current date and line
     let currentDate = new Date(dateDisplay.textContent.trim());
+    const linia = '{{ linia }}';
 
     function updateShiftNotesForDate(dateStr) {
-      fetch(`/api/shift_notes_na_date?data=${dateStr}`)
+      fetch(`/api/shift_notes_na_date?data=${dateStr}&linia=${linia}`)
         .then(r => r.json())
         .then(data => {
           if (!data.success) {

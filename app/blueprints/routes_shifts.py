@@ -36,15 +36,17 @@ def add_shift_note():
                     note TEXT,
                     author VARCHAR(255),
                     date DATE,
-                    created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    linia VARCHAR(20) DEFAULT 'PSD'
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
         except Exception as e:
             current_app.logger.debug(f'CREATE TABLE shift_notes: {e}')
         
         nid = int(time.time() * 1000)  # Use milliseconds for uniqueness
-        cursor.execute("INSERT INTO shift_notes (id, pracownik_id, note, author, date) VALUES (%s, %s, %s, %s, %s)", 
-                      (nid, pracownik_id, note, author, date_str))
+        linia = request.form.get('linia', 'PSD')
+        cursor.execute("INSERT INTO shift_notes (id, pracownik_id, note, author, date, linia) VALUES (%s, %s, %s, %s, %s, %s)", 
+                      (nid, pracownik_id, note, author, date_str, linia))
         conn.commit()
         current_app.logger.info('Note saved successfully: id=%s', nid)
         flash('✅ Notatka zapisana', 'success')

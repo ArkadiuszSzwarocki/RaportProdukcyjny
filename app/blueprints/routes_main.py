@@ -73,6 +73,7 @@ def index() -> str:
     
     # Parse parameters
     aktywna_sekcja = request.args.get('sekcja', 'Dashboard')
+    aktywna_linia = request.args.get('linia', 'PSD')
     role = (session.get('rola') or '').lower()
 
     # --- Dynamic section access check ---
@@ -123,14 +124,14 @@ def index() -> str:
         dzisiaj = date.today()
     
     # Get basic staff data
-    staff_data = DashboardService.get_basic_staff_data(dzisiaj)
+    staff_data = DashboardService.get_basic_staff_data(dzisiaj, linia=aktywna_linia)
     wszyscy = staff_data['wszyscy']
     zajeci_ids = staff_data['zajeci_ids']
     dostepni = staff_data['dostepni']
     obsada = staff_data['obsada']
     
     # Get journal entries for section
-    wpisy = DashboardService.get_journal_entries(dzisiaj, aktywna_sekcja)
+    wpisy = DashboardService.get_journal_entries(dzisiaj, aktywna_sekcja, linia=aktywna_linia)
     
     # Get section-specific data
     plan_dnia = []
@@ -143,70 +144,78 @@ def index() -> str:
     # Warehouse section
     if aktywna_sekcja == 'Magazyn':
         magazyn_palety, unconfirmed_palety, suma_wykonanie = \
-            DashboardService.get_warehouse_data(dzisiaj)
+            DashboardService.get_warehouse_data(dzisiaj, linia=aktywna_linia)
     
     # Production plans (don't overwrite Magazyn aggregates when viewing Magazyn)
     if aktywna_sekcja != 'Magazyn':
         plan_dnia, palety_mapa, suma_plan, suma_wykonanie = \
-            DashboardService.get_production_plans(dzisiaj, aktywna_sekcja)
+            DashboardService.get_production_plans(dzisiaj, aktywna_sekcja, linia=aktywna_linia)
     else:
         # Ensure plan_dnia and palety_mapa are still populated for the template
         plan_dnia, palety_mapa, suma_plan = [], {}, 0
     
     # Get zasyp started products
-    zasyp_rozpoczete = DashboardService.get_zasyp_started_products(dzisiaj)
+    zasyp_rozpoczete = DashboardService.get_zasyp_started_products(dzisiaj, linia=aktywna_linia)
     
     # Get HR and leave data
     hr_data = DashboardService.get_hr_and_leave_data(dzisiaj, wszyscy, zajeci_ids)
     
     # Get quality and leave requests
-    quality_data = DashboardService.get_quality_and_leave_requests(role)
+    quality_data = DashboardService.get_quality_and_leave_requests(role, linia=aktywna_linia)
     
     # Get shift notes
-    shift_notes = DashboardService.get_shift_notes(dzisiaj)
+    shift_notes = DashboardService.get_shift_notes(dzisiaj, linia=aktywna_linia)
     
     # Get full plans for Dashboard
-    plans_zasyp, plans_workowanie = DashboardService.get_full_plans_for_sections(dzisiaj)
+    plans_zasyp, plans_workowanie = DashboardService.get_full_plans_for_sections(dzisiaj, linia=aktywna_linia)
     
     # Get next Workowanie ID
     next_workowanie_id = DashboardService.get_next_workowanie_id(plan_dnia)
 
     # Global flag: is any plan in progress today (affects Start button availability across sections)
-    global_active = DashboardService.any_plan_in_progress(dzisiaj)
+    global_active = DashboardService.any_plan_in_progress(dzisiaj, linia=aktywna_linia)
     # Products that have an active 'w toku' plan (used to selectively disable START for matching products)
-    active_products = DashboardService.get_active_products(dzisiaj)
+    active_products = DashboardService.get_active_products(dzisiaj, linia=aktywna_linia)
     # Check if ANY plan on Zasyp is 'w toku' — if so, block ALL START buttons for Zasyp
-    zasyp_has_active = DashboardService.get_zasyp_active_status(dzisiaj)
+    zasyp_has_active = DashboardService.get_zasyp_active_status(dzisiaj, linia=aktywna_linia)
     # Buffer queue: mapping product -> ordered list of Zasyp plan ids (first = next to be processed)
-    buffer_queue = DashboardService.get_buffer_queue(dzisiaj)
+    buffer_queue = DashboardService.get_buffer_queue(dzisiaj, linia=aktywna_linia)
     # Map product -> first Workowanie plan id (ordered by status/kolejnosc)
-    work_first_map = DashboardService.get_first_workowanie_map(dzisiaj)
+    work_first_map = DashboardService.get_first_workowanie_map(dzisiaj, linia=aktywna_linia)
     # Number products by Zasyp execution order and determine allowed Workowanie starts
-    zasyp_product_order = DashboardService.get_zasyp_product_order(dzisiaj)
+    zasyp_product_order = DashboardService.get_zasyp_product_order(dzisiaj, linia=aktywna_linia)
     
     # Nowa logika: START aktywny tylko dla Workowania z MINIMUM kolejka w buforze
     allowed_work_start_ids = set()
     try:
+        from app.db import get_table_name
+        table_bufor = get_table_name('bufor', aktywna_linia)
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Krok 1: Znajdź GLOBALNE minimum kolejka w buforze
-        cursor.execute("""
-            SELECT MIN(kolejka) as global_min_queue
-            FROM bufor 
-            WHERE DATE(data_planu) = %s AND status = 'aktywny'
+        # Krok 1: Znajdź GLOBALNE minimum kolejka w buforze DLA PRODUKTÓW, KTÓRE SĄ W PLANIE (nie zakończone)
+        table_plan = get_table_name('plan_produkcji', aktywna_linia)
+        cursor.execute(f"""
+            SELECT MIN(b.kolejka) as global_min_queue
+            FROM {table_bufor} b
+            WHERE DATE(b.data_planu) = %s AND b.status = 'aktywny'
+              AND EXISTS (
+                  SELECT 1 FROM {table_plan} w
+                  WHERE w.sekcja = 'Workowanie' AND w.status IN ('zaplanowane', 'w toku')
+                    AND w.produkt = b.produkt AND w.data_planu = b.data_planu
+              )
         """, (dzisiaj,))
         
         result = cursor.fetchone()
         global_min_queue = result[0] if result and result[0] is not None else None
         
-        app.logger.info(f"[DEBUG-START] GLOBAL MIN kolejka w buforze: {global_min_queue}")
+        app.logger.info(f"[DEBUG-START] GLOBAL MIN kolejka w {table_bufor}: {global_min_queue}")
         
         if global_min_queue is not None:
             # Krok 2: Pobierz wszystkie produkty z tym minimum
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT DISTINCT produkt
-                FROM bufor 
+                FROM {table_bufor} 
                 WHERE DATE(data_planu) = %s AND status = 'aktywny' AND kolejka = %s
             """, (dzisiaj, global_min_queue))
             
@@ -234,12 +243,15 @@ def index() -> str:
     dosypki_oczekujace_mapa = {}
     if aktywna_sekcja == 'Zasyp':
         try:
+            from app.db import get_table_name
+            table_dosypki = get_table_name('dosypki', aktywna_linia)
+            table_plan = get_table_name('plan_produkcji', aktywna_linia)
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT d.plan_id, d.nazwa, d.kg, d.data_zlecenia, d.data_potwierdzenia, d.szarza_id
-                FROM dosypki d
-                JOIN plan_produkcji p ON d.plan_id = p.id
+                FROM {table_dosypki} d
+                JOIN {table_plan} p ON d.plan_id = p.id
                 WHERE d.potwierdzone = 1 AND COALESCE(d.anulowana, 0) = 0 AND DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp'
                 ORDER BY d.data_potwierdzenia ASC
             """, (dzisiaj,))
@@ -254,10 +266,10 @@ def index() -> str:
                     'potwierdzono': str(row[4])[:16] if row[4] else '',
                     'szarza_id': row[5]
                 })
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT d.plan_id, COUNT(*)
-                FROM dosypki d
-                JOIN plan_produkcji p ON d.plan_id = p.id
+                FROM {table_dosypki} d
+                JOIN {table_plan} p ON d.plan_id = p.id
                 WHERE d.potwierdzone = 0 AND COALESCE(d.anulowana, 0) = 0 AND DATE(p.data_planu) = %s AND p.sekcja = 'Zasyp'
                 GROUP BY d.plan_id
             """, (dzisiaj,))
@@ -271,6 +283,7 @@ def index() -> str:
     # Build template context
     context = {
         'sekcja': aktywna_sekcja,
+        'linia': aktywna_linia,
         'pracownicy': dostepni,
         'wszyscy_pracownicy': wszyscy,
         'hr_pracownicy': hr_data['hr_pracownicy'],
@@ -520,8 +533,9 @@ def api_get_section_data() -> Tuple[dict, int]:
     dzisiaj = date_type.today()
     
     try:
+        linia = request.args.get('linia', 'PSD')
         plan_dnia, palety_mapa, suma_plan, suma_wykonanie = \
-            DashboardService.get_production_plans(dzisiaj, sekcja)
+            DashboardService.get_production_plans(dzisiaj, sekcja, linia=linia)
         
         percent = int((suma_wykonanie / suma_plan * 100) if suma_plan > 0 else 0)
         
@@ -578,7 +592,8 @@ def zamknij_zmiane() -> Union[Response, Tuple[str, int]]:
     uwagi_lidera = request.form.get('uwagi_lidera', '')
     
     # Use service to perform shift closing and report generation
-    zip_path, mime_type = ReportGenerationService.close_shift_and_generate_reports(uwagi_lidera)
+    aktywna_linia = request.form.get('linia', request.args.get('linia', 'PSD'))
+    zip_path, mime_type = ReportGenerationService.close_shift_and_generate_reports(uwagi_lidera, linia=aktywna_linia)
     
     # Return ZIP file if successfully generated
     if zip_path:

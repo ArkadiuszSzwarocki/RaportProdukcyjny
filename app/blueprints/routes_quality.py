@@ -15,12 +15,15 @@ quality_bp = Blueprint('quality', __name__)
 @dynamic_role_required('jakosc')
 def jakosc_index():
     """Lista zleceń jakościowych (typ_zlecenia = 'jakosc')."""
+    linia = request.args.get('linia') or 'PSD'
     try:
         conn = get_db_connection()
+        from app.db import get_table_name
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT id, produkt, data_planu, sekcja, tonaz, status, real_start, real_stop, tonaz_rzeczywisty
-            FROM plan_produkcji
+            FROM {table_plan}
             WHERE COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc'
             ORDER BY data_planu DESC, id DESC
         """)
@@ -36,7 +39,7 @@ def jakosc_index():
             except Exception:
                 z[7] = str(z[7]) if z[7] else ''
         conn.close()
-        return render_template('jakosc.html', zlecenia=zlecenia, rola=session.get('rola'))
+        return render_template('jakosc.html', zlecenia=zlecenia, rola=session.get('rola'), linia=linia)
     except Exception:
         current_app.logger.exception('Failed to render /jakosc')
         return redirect('/')
@@ -59,11 +62,14 @@ def jakosc_dodaj():
         typ = request.form.get('typ_produkcji') or 'worki_zgrzewane_25'
 
         conn = get_db_connection()
+        from app.db import get_table_name
+        linia = request.form.get('linia') or 'PSD'
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
-        cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+        cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s", (data_planu,))
         res = cursor.fetchone()
         nk = (res[0] if res and res[0] else 0) + 1
-        cursor.execute("INSERT INTO plan_produkcji (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, typ_zlecenia) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Jakosc', nk, typ, 'jakosc'))
+        cursor.execute(f"INSERT INTO {table_plan} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, typ_zlecenia) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (data_planu, produkt, tonaz, 'zaplanowane', 'Jakosc', nk, typ, 'jakosc'))
         conn.commit()
         conn.close()
         flash('Zlecenie jakościowe utworzone', 'success')
@@ -81,11 +87,14 @@ def jakosc_dodaj():
 @dynamic_role_required('jakosc')
 def jakosc_detail(plan_id):
     """Szczegóły zlecenia jakościowego i upload dokumentów."""
+    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
     docs_dir = os.path.join('raporty', 'jakosc_docs', str(plan_id))
     try:
         conn = get_db_connection()
+        from app.db import get_table_name
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, produkt, data_planu, sekcja, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, wyjasnienie_rozbieznosci FROM plan_produkcji WHERE id=%s", (plan_id,))
+        cursor.execute(f"SELECT id, produkt, data_planu, sekcja, tonaz, status, real_start, real_stop, tonaz_rzeczywisty, wyjasnienie_rozbieznosci FROM {table_plan} WHERE id=%s", (plan_id,))
         plan = cursor.fetchone()
         conn.close()
 
@@ -103,13 +112,13 @@ def jakosc_detail(plan_id):
                 flash('Plik przesłany', 'success')
             else:
                 flash('Brak pliku do przesłania', 'warning')
-            return redirect(url_for('quality.jakosc_detail', plan_id=plan_id))
+            return redirect(url_for('quality.jakosc_detail', plan_id=plan_id, linia=linia))
 
         files = []
         if os.path.exists(docs_dir):
             files = sorted(os.listdir(docs_dir), reverse=True)
 
-        return render_template('jakosc_detail.html', plan=plan, files=files, plan_id=plan_id, rola=session.get('rola'))
+        return render_template('jakosc_detail.html', plan=plan, files=files, plan_id=plan_id, rola=session.get('rola'), linia=linia)
     except Exception:
         current_app.logger.exception('Failed to render /jakosc/%s', plan_id)
         return redirect('/jakosc')
@@ -119,16 +128,21 @@ def jakosc_detail(plan_id):
 @roles_required('laborant', 'lider', 'admin')
 def jakosc_podsumowanie_szarz():
     """Podsumowanie szarż dla laboratorium: lista szarż z dosypkami i uwagami."""
+    linia = request.args.get('linia') or 'PSD'
     try:
         conn = get_db_connection()
+        from app.db import get_table_name
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_szarze = get_table_name('szarze', linia)
+        table_dosypki = get_table_name('dosypki', linia)
         cursor = conn.cursor()
         # Pobierz wszystkie zarejestrowane szarże wraz z informacją o zleceniu/planie
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT s.id AS szarza_id, s.plan_id, p.produkt AS plan_nazwa, s.data_dodania, 
                    s.godzina, s.waga, s.pracownik_id, COALESCE(pr.imie_nazwisko, '') AS pracownik_name,
                    COALESCE(s.uwagi, '') AS uwagi
-            FROM szarze s
-            LEFT JOIN plan_produkcji p ON s.plan_id = p.id
+            FROM {table_szarze} s
+            LEFT JOIN {table_plan} p ON s.plan_id = p.id
             LEFT JOIN pracownicy pr ON s.pracownik_id = pr.id
             ORDER BY s.data_dodania DESC
         """)
@@ -138,7 +152,7 @@ def jakosc_podsumowanie_szarz():
         for s in szarze:
             sid = s['szarza_id']
             # dosypki
-            cursor.execute("SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana FROM dosypki WHERE szarza_id = %s ORDER BY data_zlecenia ASC", (sid,))
+            cursor.execute(f"SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana FROM {table_dosypki} WHERE szarza_id = %s ORDER BY data_zlecenia ASC", (sid,))
             s['dosypki'] = [dict(id=r[0], nazwa=r[1], kg=r[2], data_zlecenia=r[3], potwierdzone=r[4], anulowana=r[5]) for r in cursor.fetchall()]
 
         # Apply optional filters passed via query params (same param names as podsumowanie_szarz)
@@ -177,7 +191,7 @@ def jakosc_podsumowanie_szarz():
 
         cursor.close()
         conn.close()
-        return render_template('jakosc_podsumowanie_szarz.html', szarze=filtered, rola=session.get('rola'))
+        return render_template('jakosc_podsumowanie_szarz.html', szarze=filtered, rola=session.get('rola'), linia=linia)
     except Exception as e:
         current_app.logger.exception('Failed to render jakosc podsumowanie szarz: %s', e)
         return redirect(url_for('quality.jakosc_index'))
@@ -190,21 +204,25 @@ def jakosc_podsumowanie_szarz_fragment():
     Optional query param: today=1 to limit to today's szarze (by data_dodania date).
     """
     try:
-        today_only = request.args.get('today') in ('1', 'true', 'True')
+        linia = request.args.get('linia') or 'PSD'
         conn = get_db_connection()
+        from app.db import get_table_name
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_szarze = get_table_name('szarze', linia)
+        table_dosypki = get_table_name('dosypki', linia)
         cursor = conn.cursor()
 
-        q = """
+        q = f"""
             SELECT s.id AS szarza_id, s.plan_id, p.produkt AS plan_nazwa, s.data_dodania, 
                    s.godzina, s.waga, s.pracownik_id, COALESCE(pr.imie_nazwisko, '') AS pracownik_name,
                    COALESCE(s.uwagi, '') AS uwagi
-            FROM szarze s
-            LEFT JOIN plan_produkcji p ON s.plan_id = p.id
+            FROM {table_szarze} s
+            LEFT JOIN {table_plan} p ON s.plan_id = p.id
             LEFT JOIN pracownicy pr ON s.pracownik_id = pr.id
         """
         params = []
         if today_only:
-            q += " AND DATE(s.data_dodania) = CURDATE()"
+            q += " WHERE DATE(s.data_dodania) = CURDATE()"
 
         q += " ORDER BY s.data_dodania DESC"
 
@@ -214,7 +232,7 @@ def jakosc_podsumowanie_szarz_fragment():
         # attach dosypki for each
         for s in szarze:
             sid = s['szarza_id']
-            cursor.execute("SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana FROM dosypki WHERE szarza_id = %s ORDER BY data_zlecenia ASC", (sid,))
+            cursor.execute(f"SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana FROM {table_dosypki} WHERE szarza_id = %s ORDER BY data_zlecenia ASC", (sid,))
             s['dosypki'] = [dict(id=r[0], nazwa=r[1], kg=r[2], data_zlecenia=r[3], potwierdzone=r[4], anulowana=r[5]) for r in cursor.fetchall()]
 
         # Apply same optional filters as main view

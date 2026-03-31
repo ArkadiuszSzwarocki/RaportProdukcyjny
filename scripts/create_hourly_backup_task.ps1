@@ -14,7 +14,8 @@ Note: If you need the task to run when the user is not logged in, provide creden
 param(
     [string]$TaskName = 'RP_Backup',
     [switch]$RunAsCurrentUser = $true,
-    [switch]$Force = $false
+    [switch]$Force = $false,
+    [int]$IntervalHours = 2
 )
 
 $projectRoot = Resolve-Path "$PSScriptRoot\.."
@@ -43,16 +44,12 @@ if ($LASTEXITCODE -eq 0) {
 # Create hourly schedule: every 1 hour
 if ($RunAsCurrentUser) {
     # Create task that runs only when user is logged on (no password required)
-    $cmd = "schtasks /Create /SC HOURLY /MO 1 /TN `"$TaskName`" /TR `"$action`" /F"
-    Write-Output "Creating scheduled task (hourly) for current user..."
-    Write-Output $cmd
-    iex $cmd
+    Write-Output "Creating scheduled task (every $IntervalHours hours) for current user..."
+    & schtasks /Create /SC HOURLY /MO $IntervalHours /TN $TaskName /TR $action /F
 } else {
     # Create task running as SYSTEM (requires admin) - use /RU SYSTEM
-    $cmd = "schtasks /Create /SC HOURLY /MO 1 /TN `"$TaskName`" /TR `"$action`" /RU SYSTEM /F"
-    Write-Output "Creating scheduled task (hourly) as SYSTEM..."
-    Write-Output $cmd
-    iex $cmd
+    Write-Output "Creating scheduled task (every $IntervalHours hours) as SYSTEM..."
+    & schtasks /Create /SC HOURLY /MO $IntervalHours /TN $TaskName /TR $action /RU SYSTEM /F
 }
 
 if ($LASTEXITCODE -eq 0) {

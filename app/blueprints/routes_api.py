@@ -8,7 +8,7 @@ import zipfile
 import mysql.connector
 from datetime import date, datetime, timedelta, time
 from io import BytesIO
-from app.db import get_db_connection, rollover_unfinished, log_plan_history, list_unread_notifications, mark_all_notifications_read, mark_notification_read, ensure_session_tracking_id, touch_active_session
+from app.db import get_db_connection, get_table_name, rollover_unfinished, log_plan_history, list_unread_notifications, mark_all_notifications_read, mark_notification_read, ensure_session_tracking_id, touch_active_session
 from app.dto.paleta import PaletaDTO
 from app.decorators import login_required, roles_required, dynamic_role_required
 from app.services.raport_service import RaportService
@@ -117,12 +117,13 @@ def wpisy_na_date():
     try:
         data_str = request.args.get('data', str(date.today()))
         sekcja = request.args.get('sekcja', 'Zasyp')
+        linia = request.args.get('linia', 'PSD')
         
         # Parse data
         data_obj = datetime.strptime(data_str, '%Y-%m-%d').date()
         
         # Get wpisy
-        wpisy = QueryHelper.get_dziennik_zmiany(data_obj, sekcja)
+        wpisy = QueryHelper.get_dziennik_zmiany(data_obj, sekcja, linia=linia)
         
         # Format czas_start/czas_stop as HH:MM strings
         for w in wpisy:
@@ -153,6 +154,7 @@ def shift_notes_na_date():
     """Pobierz shift notes dla wybranej daty (AJAX)"""
     try:
         data_str = request.args.get('data', str(date.today()))
+        linia = request.args.get('linia', 'PSD')
         
         # Parse data
         data_obj = datetime.strptime(data_str, '%Y-%m-%d').date()
@@ -161,7 +163,8 @@ def shift_notes_na_date():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        query = "SELECT id, note, author, created FROM shift_notes WHERE DATE(created) = %s ORDER BY created DESC"
+        table_notes = get_table_name('shift_notes', linia)
+        query = f"SELECT id, note, author, created FROM {table_notes} WHERE DATE(created) = %s ORDER BY created DESC"
         cursor.execute(query, (data_obj,))
         shift_notes = cursor.fetchall()
         cursor.close()
@@ -201,10 +204,12 @@ def get_notifications():
 
     try:
         limit = int(request.args.get('limit', 20))
+        linia = request.args.get('linia', 'PSD')
     except Exception:
         limit = 20
+        linia = 'PSD'
 
-    notifications = list_unread_notifications(user_id, role, limit=limit)
+    notifications = list_unread_notifications(user_id, role, limit=limit, linia=linia)
     result = []
     for item in notifications:
         created_at = item.get('created_at')
@@ -230,7 +235,8 @@ def read_notification(notification_id):
     if not user_id:
         return jsonify({'success': False, 'message': 'Brak danych użytkownika'}), 400
 
-    if not mark_notification_read(notification_id, user_id):
+    linia = request.args.get('linia', 'PSD')
+    if not mark_notification_read(notification_id, user_id, linia=linia):
         return jsonify({'success': False, 'message': 'Nie udało się oznaczyć powiadomienia'}), 500
 
     return jsonify({'success': True})
@@ -245,7 +251,8 @@ def read_all_notifications():
     if not user_id or not role:
         return jsonify({'success': False, 'message': 'Brak danych użytkownika'}), 400
 
-    if not mark_all_notifications_read(user_id, role):
+    linia = request.args.get('linia', 'PSD')
+    if not mark_all_notifications_read(user_id, role, linia=linia):
         return jsonify({'success': False, 'message': 'Nie udało się oznaczyć powiadomień'}), 500
 
     return jsonify({'success': True})
@@ -321,9 +328,12 @@ def update_uszkodzone_worki():
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        linia = data.get('linia', 'PSD')
+        table_plan = get_table_name('plan_produkcji', linia)
+        
         # Aktualizuj pole uszkodzone_worki
         cursor.execute(
-            "UPDATE plan_produkcji SET uszkodzone_worki = %s WHERE id = %s AND sekcja = 'Workowanie'",
+            f"UPDATE {table_plan} SET uszkodzone_worki = %s WHERE id = %s AND sekcja = 'Workowanie'",
             (uszkodzone_worki, plan_id)
         )
         
@@ -359,8 +369,10 @@ def get_deleted_plans(date):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        linia = request.args.get('linia', 'PSD')
+        table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
-            "SELECT id, produkt, tonaz, status, deleted_at FROM plan_produkcji WHERE DATE(data_planu) = %s AND is_deleted = 1 ORDER BY deleted_at DESC",
+            f"SELECT id, produkt, tonaz, status, deleted_at FROM {table_plan} WHERE DATE(data_planu) = %s AND is_deleted = 1 ORDER BY deleted_at DESC",
             (date,)
         )
         deleted_plans = cursor.fetchall()
@@ -616,9 +628,12 @@ def check_plan_status(plan_id):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        cursor.execute("""
+        linia = request.args.get('linia', 'PSD')
+        table_plan = get_table_name('plan_produkcji', linia)
+        
+        cursor.execute(f"""
             SELECT id, produkt, status, tonaz, tonaz_rzeczywisty, real_start, real_stop, sekcja
-            FROM plan_produkcji
+            FROM {table_plan}
             WHERE id=%s
         """, (plan_id,))
         
@@ -807,11 +822,19 @@ def delete_produkt(product_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Sprawdź czy produkt jest używany w planach
-        cursor.execute("""
-            SELECT COUNT(*) as count FROM plan_produkcji 
-            WHERE produkt = (SELECT nazwa_produktu FROM produkty_receptury WHERE id=%s)
-        """, (product_id,))
+        # Sprawdź czy produkt jest używany w planach (we wszystkich liniach)
+        table_plan_psd = get_table_name('plan_produkcji', 'PSD')
+        table_plan_agro = get_table_name('plan_produkcji', 'Agro')
+        
+        cursor.execute(f"""
+            SELECT (
+                SELECT COUNT(*) FROM {table_plan_psd} 
+                WHERE produkt = (SELECT nazwa_produktu FROM produkty_receptury WHERE id=%s)
+            ) + (
+                SELECT COUNT(*) FROM {table_plan_agro} 
+                WHERE produkt = (SELECT nazwa_produktu FROM produkty_receptury WHERE id=%s)
+            ) as total_count
+        """, (product_id, product_id))
         
         result = cursor.fetchone()
         if result and result[0] > 0:
