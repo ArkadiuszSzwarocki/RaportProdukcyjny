@@ -440,7 +440,14 @@ def refresh_bufor_queue(conn=None):
                   WHERE w.sekcja = 'Workowanie' AND w.status IN ('w toku', 'zaplanowane')
                     AND w.produkt = bufor.produkt AND w.data_planu = bufor.data_planu
               )
-              AND COALESCE(bufor.tonaz_rzeczywisty, 0) - COALESCE(bufor.spakowano, 0) <= 0
+              AND (
+                  COALESCE(bufor.tonaz_rzeczywisty, 0) - COALESCE(bufor.spakowano, 0) <= 0
+                  OR EXISTS (
+                      SELECT 1 FROM plan_produkcji w 
+                      WHERE w.sekcja = 'Workowanie' AND w.status = 'zakonczone'
+                        AND w.produkt = bufor.produkt AND w.data_planu = bufor.data_planu
+                  )
+              )
         """)
         updated = cursor.rowcount
         

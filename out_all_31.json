@@ -1,0 +1,114 @@
+[
+  {
+    "id": 2751,
+    "produkt": "GÓR-PASZ INSTANT",
+    "sekcja": "Workowanie",
+    "status": "zakonczone",
+    "real_start": "2026-03-31 07:10:19",
+    "real_stop": "2026-03-31 07:10:29"
+  },
+  {
+    "id": 2753,
+    "produkt": "GÓR-PASZ MLEKO LEN",
+    "sekcja": "Workowanie",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  },
+  {
+    "id": 2755,
+    "produkt": "DOBRE MLEKO LEN",
+    "sekcja": "Workowanie",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  },
+  {
+    "id": 2757,
+    "produkt": "WITALAC EXTRA",
+    "sekcja": "Workowanie",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  },
+  {
+    "id": 2759,
+    "produkt": "KREMÓWKA LEN",
+    "sekcja": "Workowanie",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  },
+  {
+    "id": 2761,
+    "produkt": "AGROS 3 LEN",
+    "sekcja": "Workowanie",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  },
+  {
+    "id": 2763,
+    "produkt": "AGROS EKO",
+    "sekcja": "Workowanie",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  },
+  {
+    "id": 2750,
+    "produkt": "GÓR-PASZ INSTANT",
+    "sekcja": "Zasyp",
+    "status": "zakonczone",
+    "real_start": "2026-03-31 07:03:55",
+    "real_stop": "2026-03-31 07:04:52"
+  },
+  {
+    "id": 2752,
+    "produkt": "GÓR-PASZ MLEKO LEN",
+    "sekcja": "Zasyp",
+    "status": "w toku",
+    "real_start": "2026-03-31 07:04:54",
+    "real_stop": null
+  },
+  {
+    "id": 2754,
+    "produkt": "DOBRE MLEKO LEN",
+    "sekcja": "Zasyp",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  },
+  {
+    "id": 2756,
+    "produkt": "WITALAC EXTRA",
+    "sekcja": "Zasyp",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  },
+  {
+    "id": 2758,
+    "produkt": "KREMÓWKA LEN",
+    "sekcja": "Zasyp",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  },
+  {
+    "id": 2760,
+    "produkt": "AGROS 3 LEN",
+    "sekcja": "Zasyp",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  },
+  {
+    "id": 2762,
+    "produkt": "AGROS EKO",
+    "sekcja": "Zasyp",
+    "status": "zaplanowane",
+    "real_start": null,
+    "real_stop": null
+  }
+]

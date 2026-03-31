@@ -60,8 +60,6 @@ def start_zlecenie(id):
                         'zasyp_order_name': active_on_zasyp[1]
                     }
             
-            # Dodatkowa logika kolejki dla Workowanie:
-            # Tylko produkt, który miał NAJWCZEŚNIEJ zakończone Zasyp tego dnia, może być uruchomiony jako pierwszy.
             if sekcja == 'Workowanie':
                     # Allow planners/admins to bypass queue restriction
                     role = session.get('rola', '')
@@ -70,40 +68,42 @@ def start_zlecenie(id):
                     else:
                         try:
                             # Log context for debugging
-                            current_app.logger.debug(f'[KOLEJKA] start_zlecenie called id={id} produkt="{produkt}" data_planu={data_planu} role={role}')
+                            table_bufor = get_table_name('bufor', linia)
+                            current_app.logger.debug(f'[KOLEJKA] start_zlecenie check id={id} produkt="{produkt}" data_planu={data_planu}')
                             
-                            # Poprawiona logika FIFO: znajdź najwcześniej zakończony Zasyp, 
-                            # którego Workowanie jest jeszcze 'zaplanowane' (nie 'zakonczone' i nie 'w toku')
-                            cursor.execute(
-                                f"""
-                                SELECT pz.id, pz.produkt 
-                                FROM {table_plan} pz
-                                WHERE pz.sekcja='Zasyp' AND pz.status='zakonczone' AND DATE(pz.data_planu)=%s
-                                AND EXISTS (
-                                    SELECT 1 FROM {table_plan} pw
-                                    WHERE pw.sekcja='Workowanie' AND pw.produkt = pz.produkt 
-                                    AND pw.status = 'zaplanowane' AND DATE(pw.data_planu) = DATE(pz.data_planu)
-                                )
-                                ORDER BY pz.real_stop ASC LIMIT 1
-                                """,
-                                (data_planu,)
-                            )
-                            earliest = cursor.fetchone()
-                            current_app.logger.debug(f'[KOLEJKA] earliest_pending_from_zasyp={earliest}')
+                            # FIFO Logic: find the absolute minimum queue in the buffer among all products 
+                            # that are currently planned on Workowanie today.
+                            cursor.execute(f"""
+                                SELECT MIN(b.kolejka) 
+                                FROM {table_bufor} b
+                                WHERE DATE(b.data_planu) = %s AND b.status = 'aktywny'
+                                  AND EXISTS (
+                                      SELECT 1 FROM {table_plan} w
+                                      WHERE w.sekcja = 'Workowanie' AND w.status IN ('zaplanowane', 'w toku')
+                                        AND w.produkt = b.produkt AND w.data_planu = b.data_planu
+                                  )
+                            """, (data_planu,))
+                            min_q_row = cursor.fetchone()
+                            global_min_queue = min_q_row[0] if min_q_row else None
+                            
+                            if global_min_queue is not None:
+                                # Check if THIS product has that global_min_queue
+                                cursor.execute(f"""
+                                    SELECT kolejka FROM {table_bufor}
+                                    WHERE produkt = %s AND DATE(data_planu) = %s AND status = 'aktywny'
+                                """, (produkt, data_planu))
+                                my_q_row = cursor.fetchone()
+                                my_q = my_q_row[0] if my_q_row else None
+                                
+                                if my_q is not None and my_q > global_min_queue:
+                                    # Pobierz nazwę produktu, który powinien wejść pierwszy
+                                    cursor.execute(f"SELECT produkt FROM {table_bufor} WHERE kolejka = %s AND status = 'aktywny' AND DATE(data_planu) = %s LIMIT 1", (global_min_queue, data_planu))
+                                    earliest_produkt = cursor.fetchone()[0]
+                                    
+                                    flash(f"❌ Kolejkowanie Workowanie: W buforze znajduje się produkt przewidziany wcześniej do startu: {earliest_produkt}. Zalecana kolejność FIFO.", 'error')
+                                    return redirect(bezpieczny_powrot())
                         except Exception as e:
-                            current_app.logger.exception('[KOLEJKA] failed to query pending Zasyp: %s', e)
-                            earliest = None
-                        
-                        if earliest:
-                            earliest_product = earliest[1]
-                            # Normalize product names for robust comparison
-                            prod_norm = (produkt or '').strip().lower()
-                            earliest_norm = (earliest_product or '').strip().lower()
-                            
-                            if prod_norm != earliest_norm:
-                                # Nie zezwalamy na uruchomienie innego produktu niż ten najwcześniej zakończony na Zasyp
-                                flash(f"❌ Kolejkowanie Workowanie: aktualnie otwarty powinien być produkt zakończony najwcześniej na Zasyp: {earliest_product}. Najpierw zakończ te zlecenia, które wpłynęły do bufora wcześniej.", 'error')
-                                return redirect(bezpieczny_powrot())
+                            current_app.logger.exception('[KOLEJKA] FIFO check failed: %s', e)
 
             # Zawsze wykonaj START - Workowanie pracuje niezależnie z bufora
             if status_obecny != 'w toku':

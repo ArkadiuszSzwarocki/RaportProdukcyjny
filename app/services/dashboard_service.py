@@ -379,12 +379,17 @@ class DashboardService:
                    FROM {table_plan} p
                    WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' 
                    AND p.status IN ('w toku', 'zaplanowane')
-                   AND EXISTS (
-                       SELECT 1 FROM {table_szarze} s
-                       INNER JOIN {table_plan} pr ON s.plan_id = pr.id
-                       WHERE s.status = 'zarejestowana'
-                         AND DATE(s.data_dodania) = DATE(p.data_planu)
-                         AND pr.produkt = p.produkt
+                   AND (
+                       EXISTS (
+                           SELECT 1 FROM {table_szarze} s
+                           INNER JOIN {table_plan} pr ON s.plan_id = pr.id
+                           WHERE s.status = 'zarejestowana'
+                             AND pr.produkt = p.produkt
+                       )
+                       OR
+                       EXISTS (
+                           SELECT 1 FROM bufor b WHERE b.produkt = p.produkt AND b.status = 'aktywny'
+                       )
                    )
                    ORDER BY CASE p.status WHEN 'w toku' THEN 1 ELSE 2 END, 
                    p.kolejnosc ASC, p.id ASC""",
@@ -740,12 +745,19 @@ class DashboardService:
                    FROM {table_plan} p
                    WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' AND p.status != 'nieoplacone' 
                    AND p.is_deleted = 0
-                   AND EXISTS (
-                       SELECT 1 FROM {table_szarze} s
-                       INNER JOIN {table_plan} pr ON s.plan_id = pr.id
-                       WHERE s.status = 'zarejestowana'
-                         AND DATE(s.data_dodania) = DATE(p.data_planu)
-                         AND pr.produkt = p.produkt
+                   AND (
+                       EXISTS (
+                           SELECT 1 FROM {table_szarze} s
+                           INNER JOIN {table_plan} pr ON s.plan_id = pr.id
+                           WHERE s.status = 'zarejestowana'
+                             AND (DATE(s.data_dodania) = DATE(p.data_planu) OR DATE(s.data_dodania) < DATE(p.data_planu))
+                             AND pr.produkt = p.produkt
+                       )
+                       OR
+                       EXISTS (
+                           SELECT 1 FROM bufor b WHERE b.produkt = p.produkt AND b.status = 'aktywny'
+                       )
+                       OR p.status IN ('w toku', 'zakonczone')
                    )
                    ORDER BY CASE p.status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 
                    ELSE 3 END, p.kolejnosc ASC, p.id ASC""",

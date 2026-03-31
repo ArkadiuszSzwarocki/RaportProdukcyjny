@@ -192,7 +192,6 @@ def index() -> str:
         table_bufor = get_table_name('bufor', aktywna_linia)
         conn = get_db_connection()
         cursor = conn.cursor()
-        
         # Krok 1: Znajdź GLOBALNE minimum kolejka w buforze DLA PRODUKTÓW, KTÓRE SĄ W PLANIE (nie zakończone)
         table_plan = get_table_name('plan_produkcji', aktywna_linia)
         cursor.execute(f"""
@@ -227,7 +226,7 @@ def index() -> str:
                 if prod in work_first_map:
                     allowed_work_start_ids.add(work_first_map[prod])
                     app.logger.info(f"[DEBUG-START] Aktywny START dla {prod} (id={work_first_map[prod]}, kolejka={global_min_queue})")
-        
+
         cursor.close()
         conn.close()
         
