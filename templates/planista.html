@@ -5,6 +5,30 @@
 <!-- Sortable.js for drag-and-drop reordering -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
+<style>
+.plan-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid var(--border-color);
+}
+.plan-tab {
+    padding: 10px 24px;
+    font-weight: 700;
+    text-decoration: none;
+    border-radius: 8px 8px 0 0;
+    border: 1px solid var(--border-color);
+    margin-bottom: -2px;
+    background: #f4f6f9;
+    color: var(--text-muted);
+}
+.plan-tab-active {
+    background: white;
+    color: var(--primary-color);
+    border-bottom: 2px solid white;
+}
+</style>
+
 <div class="section-header">
     <div>
         <h2 class="header-title">📅 {{ _('panel_planisty') }}</h2>
@@ -21,21 +45,13 @@
 </div>
 
 <!-- Zakładki PSD / AGRO -->
-<div class="plan-tabs" style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--border-color);">
+<div class="plan-tabs">
     <a href="/planista?data={{ wybrana_data }}&tab=psd"
-        class="plan-tab {% if aktywna_zakladka == 'psd' %}plan-tab-active{% endif %}" style="padding:10px 24px;font-weight:700;text-decoration:none;border-radius:8px 8px 0 0;
-              border:1px solid var(--border-color);border-bottom:{% if aktywna_zakladka == 'psd' %}2px solid white{% else %}none{% endif %};
-              background:{% if aktywna_zakladka == 'psd' %}white{% else %}#f4f6f9{% endif %};
-              color:{% if aktywna_zakladka == 'psd' %}var(--primary-color){% else %}var(--text-muted){% endif %};
-              margin-bottom:-2px;">
+        class="plan-tab {% if aktywna_zakladka == 'psd' %}plan-tab-active{% endif %}">
         🏭 PSD
     </a>
     <a href="/planista?data={{ wybrana_data }}&tab=agro"
-        class="plan-tab {% if aktywna_zakladka == 'agro' %}plan-tab-active{% endif %}" style="padding:10px 24px;font-weight:700;text-decoration:none;border-radius:8px 8px 0 0;
-              border:1px solid var(--border-color);border-bottom:{% if aktywna_zakladka == 'agro' %}2px solid white{% else %}none{% endif %};
-              background:{% if aktywna_zakladka == 'agro' %}white{% else %}#f4f6f9{% endif %};
-              color:{% if aktywna_zakladka == 'agro' %}var(--primary-color){% else %}var(--text-muted){% endif %};
-              margin-bottom:-2px;">
+        class="plan-tab {% if aktywna_zakladka == 'agro' %}plan-tab-active{% endif %}">
         🌿 AGRO
     </a>
 </div>
@@ -471,7 +487,7 @@
     function openMoveModal(id, nazwa) {
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
         if (!tr) return;
-        var html = '<form id="moveForm_' + id + '" class="form-group">';
+        var html = '<form id="moveForm_' + id + '" action="/planista/przenies_zlecenie/' + id + '" method="POST" class="form-group">';
         html += '<div class="form-group">';
         html += '  <label for="new_date_' + id + '">Nowa data:</label>';
         html += '  <input type="date" id="new_date_' + id + '" name="nowa_data" required>';

@@ -886,7 +886,11 @@
                         });
                     } catch (e) { }
 
-                    const url = innerForm.getAttribute('action') || window.location.href;
+                    const url = innerForm.getAttribute('action');
+                    if (!url || url === '#' || url === '') {
+                        // Skip if no action defined - avoid unintended POST / that lead to 405 errors
+                        return;
+                    }
                     const method = (innerForm.getAttribute('method') || 'POST').toUpperCase();
                     const data = new URLSearchParams(new FormData(innerForm));
 

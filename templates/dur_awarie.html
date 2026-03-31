@@ -937,7 +937,7 @@
     border-left-color: #28a745;
   }
 
-  <style>
+
 
   /* Base styles */
   .header-actions {
@@ -1215,7 +1215,7 @@
     </div>
 
     <!-- Formularz dodawania komentarza -->
-    <form class="add-comment-form add-comment-form-wrapper" data-awaria-id="{{ awaria.id }}">
+    <form class="add-comment-form add-comment-form-wrapper" action="{{ url_for('quality.dur_zatwierdz_awarię', awaria_id=awaria.id) }}" method="POST" data-awaria-id="{{ awaria.id }}">
       <div class="comment-input-flex-layout">
         <input type="text" class="comment-input comment-input-field-main" name="komentarz"
           placeholder="Dodaj komentarz...">
