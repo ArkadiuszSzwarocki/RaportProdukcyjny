@@ -930,7 +930,7 @@
       const typ = document.getElementById('newProductTyp').value;
 
       if (!nazwa) {
-        return safeAlert('Uwaga', 'Podaj nazwę produktu');
+        return safeAlert('Błąd', 'Podaj nazwę produktu');
       }
 
       fetch('/api/produkty', {
@@ -1068,7 +1068,7 @@
     const btnSubmitAll = document.getElementById('btnSubmitAll');
     if (btnSubmitAll) btnSubmitAll.addEventListener('click', function () {
       const rows = Array.from(tbody.querySelectorAll('tr'));
-      if (rows.length === 0) return safeAlert('Uwaga', 'Brak dodanych zleceń');
+      if (rows.length === 0) return safeAlert('Błąd', 'Brak dodanych zleceń');
       const valid = validateRows(rows);
       if (!valid.ok) return safeAlert('Błąd', valid.message);
 

@@ -727,7 +727,9 @@
         try {
             var raw = String(html || '');
             if (!/[<][a-zA-Z]/.test(raw)) {
-                var inferredType = /bł[ae]d|error|blad|fail|nie uda/gi.test((title || '') + ' ' + raw) ? 'error' : 'info';
+                var combined = (title || '') + ' ' + raw;
+                var inferredType = /bł[ae]d|error|blad|fail|nie uda|✗/gi.test(combined) ? 'error' :
+                                   (/uwaga|warning|ostrzeżenie|⚠️/gi.test(combined) ? 'warning' : 'info');
                 html = createPopupContent(inferredType === 'info' ? 'success' : inferredType, raw);
             }
         } catch (e) { /* ignore and use provided html */ }
@@ -771,12 +773,19 @@
 
         const bd = document.createElement('div'); bd.className = 'quick-backdrop'; bd.id = 'quickBackdrop';
         const m = document.createElement('div'); m.className = 'quick-popup'; m.id = 'quickPopup';
-        // Build a more structured header with an icon and accessible labels
-        var isError = (/(bł[ae]d|error|blad|nie uda)/i.test(title || '') || /(^✗|✗)/.test(html || ''));
-        var icon = isError ? '✗' : 'ℹ';
+        // Header icon/color based on detected type
+        var comb = (title || '') + ' ' + (String(html || ''));
+        var isErr = /bł[ae]d|error|blad|fail|nie uda|✗/gi.test(comb);
+        var isWarn = (!isErr && /uwaga|warning|ostrzeżenie|⚠️/gi.test(comb));
+        
+        var icon = 'ℹ';
+        var iconColor = '#0d6efd';
+        if (isErr) { icon = '✗'; iconColor = '#d9534f'; }
+        else if (isWarn) { icon = '⚠️'; iconColor = '#ff9800'; }
+
         var headerHtml = '<div class="qp-header" role="dialog" aria-modal="true">'
             + '<div class="qp-header-left" style="display:flex;align-items:center;gap:12px;">'
-            + '<div class="qp-icon" style="font-size:20px;color:' + (isError ? '#d9534f' : '#0d6efd') + ';">' + icon + '</div>'
+            + '<div class="qp-icon" style="font-size:20px;color:' + iconColor + ';">' + icon + '</div>'
             + '<div class="header-title"><strong>' + (title || '') + '</strong></div>'
             + '</div>'
             + '<button class="qp-close" aria-label="Zamknij" style="background:none;border:none;font-size:18px;line-height:1;padding:6px;cursor:pointer;">✕</button>'
