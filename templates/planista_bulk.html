@@ -1006,8 +1006,8 @@
       const tonaz = tonazVal === '' ? null : (parseFloat(tonazVal) || 0);
       const typ = document.getElementById('inpTyp').value;
 
-      if (!produkt) { return safeAlert('Uwaga', 'Wybierz produkt ze listy'); }
-      if (tonaz === null || tonaz <= 0) { return safeAlert('Uwaga', 'Podaj poprawną wagę (kg) większą od 0'); }
+      if (!produkt) { return safeAlert('Błąd', 'Wybierz produkt ze listy'); }
+      if (tonaz === null || tonaz <= 0) { return safeAlert('Błąd', 'Podaj poprawną wagę (kg) większą od 0'); }
 
       const tr = document.createElement('tr');
       tr.innerHTML = `<td><strong>${produkt}</strong></td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="delete-button">🗑️</button></td>`;

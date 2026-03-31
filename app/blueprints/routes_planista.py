@@ -190,7 +190,7 @@ def panel_planisty():
     # Obliczenie obłożenia zmiany (450 min to 7.5h pracy netto)
     procent_czasu = (suma_minut_plan / 450 * 100)
 
-    # Pobierz zlecenia jakościowe zgłoszone na wybraną datę (laboratorium)
+    # Zasoby jakościowe (zgłoszone na wybraną datę)
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -202,213 +202,149 @@ def panel_planisty():
         quality_orders = []
         quality_count = 0
 
-    # Przygotuj dane rozliczeniowe (Rozliczenie) — dla każdego Zasypu policz: Zasyp, Plan Workowanie, Spakowano (palety), Bufor (spakowano z bufor)
-    rozliczenia = []
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        for p in plany_list:
-            sekcja = (p[1] or '').lower()
-            if sekcja != 'zasyp':
-                continue
-
-            zasyp_id = p[0]
-            produkt = p[2]
-            planowany_zasyp = p[3] or 0  # tonaz z tabeli plan_produkcji (kolumna tonaz dla Zasypu)
- 
-            table_szarze = get_table_name('szarze', wybrana_linia)
-            table_dosypki = get_table_name('dosypki', wybrana_linia)
-            table_pal = get_table_name('palety_workowanie', wybrana_linia)
-            table_bufor = get_table_name('bufor', wybrana_linia)
- 
-            # Zasyp = SUM(szarże) + SUM(dosypki potwierdzone) - co faktycznie wyjechało z Zasypu
-            cursor.execute(f"""
-                SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {table_szarze}
-                WHERE plan_id = %s
-            """, (zasyp_id, zasyp_id))
-            row = cursor.fetchone()
-            zasyp_kg = row[0] or 0 if row else 0
-            plan_work = zasyp_kg  # Plan Workowanie = Zasyp (co wyjechało = co ma spakować)
-
-            # Spakowano (sumarycznie z palet Workowanie dla tego produktu/daty - rzeczywiste spakowanie)
-            cursor.execute(f"""
-                SELECT COALESCE(SUM(CASE WHEN waga_potwierdzona > 0 THEN waga_potwierdzona ELSE waga END), 0) 
-                FROM {table_pal} 
-                WHERE plan_id IN (SELECT id FROM {table_plan} WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s)
-            """, (wybrana_data, produkt))
-            row_pal = cursor.fetchone()
-            spakowano_palety = row_pal[0] or 0 if row_pal else 0
-
-            # Bufor: ile czeka w buforze do spakowania (tonaz_rzeczywisty - spakowano)
-            cursor.execute(f"SELECT SUM(tonaz_rzeczywisty - spakowano) FROM {table_bufor} WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'", (zasyp_id, wybrana_data))
-            rowb = cursor.fetchone()
-            bufor_czeka = rowb[0] or 0 if rowb else 0
-
-            diff_no_buf = round((zasyp_kg - spakowano_palety), 1)
-            diff_with_buf = round((zasyp_kg - (spakowano_palety + bufor_czeka)), 1)
-
-            rozliczenia.append({
-                'zasyp_id': zasyp_id,
-                'produkt': produkt,
-                'status': p[4],  # Dodaj status zlecenia
-                'planowany_zasyp': round(float(planowany_zasyp), 1),
-                'zasyp_kg': round(float(zasyp_kg), 1),
-                'plan_workowanie': round(float(plan_work), 1),
-                'spakowano_palety': round(float(spakowano_palety), 1),
-                'bufor_spakowano': round(float(bufor_czeka), 1),
-                'diff_no_buf': diff_no_buf,
-                'diff_with_buf': diff_with_buf,
-            })
-    except Exception as e:
-        current_app.logger.error(f'[PLANISTA] Error calculating rozliczenia: {e}', exc_info=True)
-        rozliczenia = []
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-
     rola = session.get('rola')
     aktywna_zakladka = request.args.get('tab', 'psd').lower()
     if aktywna_zakladka not in ('psd', 'agro'):
         aktywna_zakladka = 'psd'
 
-    current_app.logger.debug(f'[PLANISTA] Rendering template: current_role={rola}, tab={aktywna_zakladka}, session_keys={list(session.keys())}')
+    # Prepare for secondary lookups
+    palety_mapa = {}
+    
+    # Process PSD plans (plany_list)
+    suma_plan, suma_wyk, suma_minut_plan = 0, 0, 0
+    t_szarze_psd = get_table_name('szarze', 'PSD')
+    t_dosypki_psd = get_table_name('dosypki', 'PSD')
+    t_pal_psd = get_table_name('palety_workowanie', 'PSD')
+    t_plan_psd = get_table_name('plan_produkcji', 'PSD')
+    
+    for p in plany_list:
+        w_p = p[3] or 0
+        t_p = p[9]
+        norma = calculate_kg_per_hour(t_p) if t_p else calculate_kg_per_hour('bigbag')
+        dur = int((w_p / norma) * 60) if norma > 0 else 0
+        p.append(dur) # index 12
+        if p[1].lower() != 'czyszczenie': suma_plan += w_p
+        suma_minut_plan += dur
+        
+        # execution (wyk)
+        if p[1].lower() != 'czyszczenie':
+            cursor.execute(f"SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {t_dosypki_psd} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {t_szarze_psd} WHERE plan_id = %s", (p[0], p[0]))
+            sz_r = cursor.fetchone()
+            wyk_val = sz_r[0] if sz_r and sz_r[0] else p[8] or 0
+            p[8] = wyk_val
+            suma_wyk += wyk_val
+            
+        # palety for details
+        cursor.execute(f"SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, pp.produkt, pp.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s FROM {t_pal_psd} pw JOIN {t_plan_psd} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' ORDER BY pw.id DESC", (wybrana_data, p[2]))
+        p_rows = cursor.fetchall()
+        palety_mapa[p[0]] = [(r[2], (r[5].strftime('%H:%M') if hasattr(r[5], 'strftime') else str(r[5])), r[3], r[4]) for r in p_rows]
 
-    # ===== DANE DLA ZAKŁADKI AGRO =====
+    # Process Agro plans
     plany_agro = []
-    suma_plan_agro = 0
-    suma_wyk_agro = 0
-    suma_minut_plan_agro = 0
-    procent_agro = 0
-
+    suma_plan_agro, suma_wyk_agro, suma_minut_plan_agro = 0, 0, 0
     try:
-        table_plan_agro = get_table_name('plan_produkcji', 'Agro')
-        table_szarze_agro = get_table_name('szarze', 'Agro')
-        table_dosypki_agro = get_table_name('dosypki', 'Agro')
- 
-        conn_agro = get_db_connection()
-        cursor_agro = conn_agro.cursor()
-        cursor_agro.execute(f"""
-            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
-            FROM {table_plan_agro}
-            WHERE data_planu = %s
-            ORDER BY kolejnosc
-        """, (wybrana_data,))
-        agro_rows = cursor_agro.fetchall()
-        plany_agro = [list(r) for r in agro_rows]
-
+        t_plan_agro = get_table_name('plan_produkcji', 'Agro')
+        t_sz_agro = get_table_name('szarze', 'Agro')
+        t_ds_agro = get_table_name('dosypki', 'Agro')
+        t_pal_agro = get_table_name('palety_workowanie', 'Agro')
+        
+        cursor.execute(f"SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0) FROM {t_plan_agro} WHERE data_planu = %s ORDER BY kolejnosc", (wybrana_data,))
+        agro_raw = cursor.fetchall()
+        z_prod_a = {(r[2] or '').strip().lower() for r in agro_raw if r[1].lower() == 'zasyp'}
+        
+        for r in agro_raw:
+            if r[1].lower() == 'workowanie' and (r[2] or '').strip().lower() in z_prod_a: continue
+            plany_agro.append(list(r))
+            
         for p in plany_agro:
-            waga_plan = p[3] if p[3] else 0
-            typ_prod = p[9]
-            norma = calculate_kg_per_hour(typ_prod) if typ_prod else calculate_kg_per_hour('bigbag')
-            czas_min = int((waga_plan / norma) * 60) if norma > 0 else 0
-            p.append(czas_min)  # index 12
-            suma_plan_agro += waga_plan
-            suma_minut_plan_agro += czas_min
-
-            # Wykonanie
-            cursor_agro.execute(f"SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {table_dosypki_agro} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {table_szarze_agro} WHERE plan_id = %s", (p[0], p[0]))
-            sz = cursor_agro.fetchone()
-            wyk = sz[0] if sz and sz[0] else (p[8] if p[8] else 0)
-            p[8] = wyk
-            suma_wyk_agro += wyk
-
-        conn_agro.close()
-        procent_agro = (suma_wyk_agro / suma_plan_agro * 100) if suma_plan_agro > 0 else 0
+            w_a = p[3] or 0
+            t_a = p[9]
+            norma_a = calculate_kg_per_hour(t_a) if t_a else calculate_kg_per_hour('bigbag')
+            dur_a = int((w_a / norma_a) * 60) if norma_a > 0 else 0
+            p.append(dur_a) # index 12
+            suma_plan_agro += w_a
+            suma_minut_plan_agro += dur_a
+            
+            # execution Agro
+            cursor.execute(f"SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {t_ds_agro} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {t_sz_agro} WHERE plan_id = %s", (p[0], p[0]))
+            sz_a = cursor.fetchone()
+            wyk_a = sz_a[0] if sz_a and sz_a[0] else p[8] or 0
+            p[8] = wyk_a
+            suma_wyk_agro += wyk_a
+            
+            # palety Agro (for details)
+            cursor.execute(f"SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, pp.produkt, pp.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s FROM {t_pal_agro} pw JOIN {t_plan_agro} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' ORDER BY pw.id DESC", (wybrana_data, p[2]))
+            pa_rows = cursor.fetchall()
+            palety_mapa[p[0]] = [(r[2], (r[5].strftime('%H:%M') if hasattr(r[5], 'strftime') else str(r[5])), r[3], r[4]) for r in pa_rows]
     except Exception as e:
-        current_app.logger.error(f'[PLANISTA AGRO] Błąd ładowania danych AGRO: {e}')
-        plany_agro = []
+        current_app.logger.error(f'Error Agro: {e}')
 
-    # Check if there are incomplete plans (status 'zakonczone' with wykonanie < plan)
+    procent = (suma_wyk / suma_plan * 100) if suma_plan > 0 else 0
+    procent_agro = (suma_wyk_agro / suma_plan_agro * 100) if suma_plan_agro > 0 else 0
+    procent_czasu = (suma_minut_plan / 450 * 100)
+
+    # Rozliczenia summary table (active tab)
+    rozliczenia = []
+    try:
+        ln_r = 'Agro' if aktywna_zakladka == 'agro' else 'PSD'
+        pl_r = plany_agro if aktywna_zakladka == 'agro' else plany_list
+        t_sz_r = get_table_name('szarze', ln_r)
+        t_ds_r = get_table_name('dosypki', ln_r)
+        t_pa_r = get_table_name('palety_workowanie', ln_r)
+        t_bf_r = get_table_name('bufor', ln_r)
+        t_pp_r = get_table_name('plan_produkcji', ln_r)
+        
+        for p in pl_r:
+            if p[1].lower() != 'zasyp': continue
+            z_id, prod_r, p_z = p[0], p[2], p[3] or 0
+            cursor.execute(f"SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {t_ds_r} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {t_sz_r} WHERE plan_id = %s", (z_id, z_id))
+            z_kg = cursor.fetchone()[0] or 0
+            cursor.execute(f"SELECT COALESCE(SUM(CASE WHEN waga_potwierdzona > 0 THEN waga_potwierdzona ELSE waga END), 0) FROM {t_pa_r} WHERE plan_id IN (SELECT id FROM {t_pp_r} WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s)", (wybrana_data, prod_r))
+            spak_kg = cursor.fetchone()[0] or 0
+            cursor.execute(f"SELECT SUM(tonaz_rzeczywisty - spakowano) FROM {t_bf_r} WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'", (z_id, wybrana_data))
+            buf_kg = cursor.fetchone()[0] or 0
+            
+            rozliczenia.append({
+                'zasyp_id': z_id, 'produkt': prod_r, 'status': p[4],
+                'planowany_zasyp': round(float(p_z), 1), 'zasyp_kg': round(float(z_kg), 1),
+                'plan_workowanie': round(float(z_kg), 1), 'spakowano_palety': round(float(spak_kg), 1),
+                'bufor_spakowano': round(float(buf_kg), 1),
+                'diff_no_buf': round(z_kg - spak_kg, 1), 'diff_with_buf': round(z_kg - (spak_kg + buf_kg), 1)
+            })
+    except Exception as er:
+        current_app.logger.error(f'Rozliczenie error: {er}')
+
+    # Check incomplete plans
     has_incomplete_plans = False
     try:
-        psd_incomplete = any(
-            p[4] == 'zakonczone' and (p[8] or 0) < (p[3] or 0)
-            for p in plany_list
-        )
-        agro_incomplete = any(
-            p[4] == 'zakonczone' and (p[8] or 0) < (p[3] or 0)
-            for p in plany_agro
-        )
-        # ALSO check Workowanie entries: show banner if any Workowanie is 'zakonczone' but not fully packed
-        workowanie_incomplete = False
-        try:
-            conn_w = get_db_connection()
-            cur_w = conn_w.cursor()
-            # PSD check (using table_plan which is for wybrana_linia)
-            cur_w.execute(f"""
-                SELECT id, tonaz, tonaz_rzeczywisty, status
-                FROM {table_plan}
-                WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie'
-            """, (wybrana_data,))
-            for rw in cur_w.fetchall():
-                # ... check logic
-                pass # existing logic below
-            
-            # Reset and check Agro (if wybrana_linia was PSD)
-            if wybrana_linia == 'PSD':
-                table_plan_agro = get_table_name('plan_produkcji', 'Agro')
-                cur_w.execute(f"""
-                    SELECT id, tonaz, tonaz_rzeczywisty, status
-                    FROM {table_plan_agro}
-                    WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie'
-                """, (wybrana_data,))
-                for rw in cur_w.fetchall():
-                     # ... logic
-                     pass
-                     
-            # REWRITING THIS PART FOR CLARITY AND CORRECTNESS
-            workowanie_incomplete = False
-            for linia_check in ['PSD', 'Agro']:
-                t_plan = get_table_name('plan_produkcji', linia_check)
-                cur_w.execute(f"SELECT tonaz, tonaz_rzeczywisty, status FROM {t_plan} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie'", (wybrana_data,))
-                for rw in cur_w.fetchall():
-                    try:
-                        plan_val = float(rw[0] or 0)
-                        real_val = float(rw[1] or 0)
-                    except Exception:
-                        plan_val, real_val = 0.0, 0.0
-                    if (rw[2] == 'zakonczone') and real_val < plan_val:
-                        workowanie_incomplete = True
-                        break
-                if workowanie_incomplete: break
-        except Exception:
-            current_app.logger.exception('Error checking Workowanie incomplete')
-        finally:
-            try:
-                conn_w.close()
-            except Exception:
-                pass
-
-        has_incomplete_plans = psd_incomplete or agro_incomplete or workowanie_incomplete
+        psd_incomplete = any(p[4] == 'zakonczone' and (p[8] or 0) < (p[3] or 0) for p in plany_list)
+        agro_incomplete = any(p[4] == 'zakonczone' and (p[8] or 0) < (p[3] or 0) for p in plany_agro)
         
-        current_app.logger.debug(f'DEBUG has_incomplete_plans: psd={psd_incomplete} (plany_list={len(plany_list)}), agro={agro_incomplete} (plany_agro={len(plany_agro)}), result={has_incomplete_plans}')
-        for p in plany_list:
-            if p[4] == 'zakonczone':
-                current_app.logger.debug(f'  Zasyp: {p[2]} status={p[4]}, tonaz_rz={p[8]}, tonaz_plan={p[3]}, incomplete={(p[8] or 0) < (p[3] or 0)}')
-        for p in plany_agro:
-            if p[4] == 'zakonczone':
-                current_app.logger.debug(f'  Agro: {p[2]} status={p[4]}, tonaz_rz={p[8]}, tonaz_plan={p[3]}, incomplete={(p[8] or 0) < (p[3] or 0)}')
-        # Dodatkowe logi: oblicz remaining i czy przycisk zostanie pokazany dla aktualnej roli
-        try:
-            role_now = (session.get('rola') or '')
-            for p in plany_list:
-                try:
-                    plan_val = float(p[3] or 0)
-                except Exception:
-                    plan_val = 0.0
-                try:
-                    wyk_val = float(p[8] or 0)
-                except Exception:
-                    wyk_val = 0.0
-                remaining = round(plan_val - wyk_val, 3)
-                show_btn = (p[4] == 'zakonczone' and remaining > 0 and role_now.lower() in ['planista', 'admin', 'zarzad'])
-                current_app.logger.debug(f'[PLANISTA-LOG] id={p[0]} produkt="{p[2]}" sekcja="{p[1]}" status="{p[4]}" plan={plan_val} wyk={wyk_val} remaining={remaining} role="{role_now}" show_button={show_btn}')
-        except Exception as _:
-            current_app.logger.exception('Error logging detailed planista info')
+        work_inc = False
+        for l_chk in ['PSD', 'Agro']:
+            t_p_chk = get_table_name('plan_produkcji', l_chk)
+            cursor.execute(f"SELECT tonaz, tonaz_rzeczywisty, status FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie'", (wybrana_data,))
+            for rw in cursor.fetchall():
+                if rw[2] == 'zakonczone' and (rw[1] or 0) < (rw[0] or 0):
+                    work_inc = True; break
+            if work_inc: break
+        has_incomplete_plans = psd_incomplete or agro_incomplete or work_inc
     except Exception as e:
         current_app.logger.warning(f'Error checking incomplete plans: {e}')
+
+    try:
+        role_now = (session.get('rola') or '')
+        for p in plany_list + plany_agro:
+            try:
+                plan_val = float(p[3] or 0)
+                wyk_val = float(p[8] or 0)
+            except Exception:
+                plan_val, wyk_val = 0.0, 0.0
+            remaining = round(plan_val - wyk_val, 3)
+            show_btn = (p[4] == 'zakonczone' and remaining > 0 and role_now.lower() in ['planista', 'admin', 'zarzad'])
+            current_app.logger.debug(f'[PLANISTA-LOG] id={p[0]} produkt="{p[2]}" sekcja="{p[1]}" status="{p[4]}" plan={plan_val} wyk={wyk_val} remaining={remaining} role="{role_now}" show_button={show_btn}')
+    except Exception:
+        current_app.logger.exception('Error logging detailed planista info')
 
     # ===== PRZYPOMNIENIE O TOWARZE W BUFORZE =====
     bufor_remaining = []

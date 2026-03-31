@@ -971,6 +971,9 @@
         if (type === 'error') {
             return '<div class="p-12"><div class="popup-error" style="display:flex;gap:12px;align-items:flex-start;"><div style="font-size:20px;color:#d9534f;">✗</div><div><div style="font-weight:700;margin-bottom:6px;color:#0f172a;">Błąd</div><div style="color:#334155;white-space:pre-wrap;">' + m + '</div></div></div></div>';
         }
+        if (type === 'warning') {
+            return '<div class="p-12"><div style="display:flex;gap:12px;align-items:center;"><div style="font-size:20px;color:#ff9800;">⚠️</div><div><div style="font-weight:700;color:#0f172a;">Uwaga</div><div style="color:#334155;">' + m + '</div></div></div></div>';
+        }
         if (type === 'success') {
             return '<div class="p-12"><div style="display:flex;gap:12px;align-items:center;"><div style="font-size:20px;color:#28a745;">✓</div><div><div style="font-weight:700;color:#0f172a;">Sukces</div><div style="color:#334155;">' + m + '</div></div></div></div>';
         }
@@ -979,8 +982,18 @@
 
     function safeAlert(title, message) {
         try {
-            var type = /błąd|error|blad/i.test(title || '') || /^✗/.test(message || '') ? 'error' : 'info';
-            var contentHtml = createPopupContent(type === 'info' ? 'success' : type, message || title || '');
+            var tLow = (title || '').toLowerCase();
+            var type = 'info';
+            if (/błąd|error|blad/i.test(tLow) || /^✗/.test(message || '')) {
+                type = 'error';
+            } else if (/uwaga|warning|ostrzeżenie/i.test(tLow)) {
+                type = 'warning';
+            }
+
+            var displayType = type;
+            if (type === 'info') displayType = 'success';
+
+            var contentHtml = createPopupContent(displayType, message || title || '');
             if (typeof showQuickPopup === 'function') {
                 showQuickPopup(title || 'Komunikat', contentHtml);
                 return;
