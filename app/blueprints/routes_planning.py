@@ -144,6 +144,7 @@ def dodaj_plan_zaawansowany():
             action_label='dodał',
             author_name=session.get('imie_nazwisko') or session.get('login'),
             created_by_user_id=session.get('user_id'),
+            linia=linia
         )
     
     if not success:
@@ -648,6 +649,7 @@ def dodaj_plany_batch():
             conn=conn,
             cursor=cursor,
             created_by_user_id=session.get('user_id'),
+            linia='PSD'  # Batch PSD
         )
         conn.commit()
         current_app.logger.info('Dodano %s zleceń na dzień %s przez %s', len(plans), data_planu, session.get('login'))
@@ -936,6 +938,7 @@ def edytuj_plan_ajax():
                 action_label='zmienił',
                 author_name=session.get('imie_nazwisko') or session.get('login'),
                 created_by_user_id=session.get('user_id'),
+                linia=linia
             )
             current_app.logger.info('Zlecenie ID=%s zaktualizowane (AJAX) przez %s: %s', pid, session.get('login'), changes)
             audit_log('Edytował zlecenie (AJAX)', f'ID={pid}, zmiany: {list(changes.keys())}')

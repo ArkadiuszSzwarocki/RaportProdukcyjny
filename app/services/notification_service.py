@@ -16,7 +16,7 @@ def build_section_link(data_planu, sekcja='Zasyp'):
     return f'/?sekcja={section}&data={data_str}' if data_str else f'/?sekcja={section}'
 
 
-def notify_workers_about_dosypka(plan_context, total_kg, entries_count, author_name, conn=None, cursor=None, created_by_user_id=None):
+def notify_workers_about_dosypka(plan_context, total_kg, entries_count, author_name, conn=None, cursor=None, created_by_user_id=None, linia='PSD'):
     if not plan_context:
         return []
 
@@ -41,7 +41,7 @@ def notify_workers_about_dosypka(plan_context, total_kg, entries_count, author_n
     )
 
 
-def notify_laboratory_about_szarza(plan_context, weight_kg, author_name, conn=None, cursor=None, created_by_user_id=None):
+def notify_laboratory_about_szarza(plan_context, weight_kg, author_name, conn=None, cursor=None, created_by_user_id=None, linia='PSD'):
     if not plan_context:
         return []
 
@@ -63,7 +63,7 @@ def notify_laboratory_about_szarza(plan_context, weight_kg, author_name, conn=No
     )
 
 
-def notify_workers_about_plan_change(plan_context, action_label, author_name, conn=None, cursor=None, created_by_user_id=None):
+def notify_workers_about_plan_change(plan_context, action_label, author_name, conn=None, cursor=None, created_by_user_id=None, linia='PSD'):
     if not plan_context:
         return []
 
@@ -86,7 +86,7 @@ def notify_workers_about_plan_change(plan_context, action_label, author_name, co
     )
 
 
-def notify_workers_about_plan_batch(data_planu, plans_count, author_name, sekcja='Zasyp', conn=None, cursor=None, created_by_user_id=None):
+def notify_workers_about_plan_batch(data_planu, plans_count, author_name, sekcja='Zasyp', conn=None, cursor=None, created_by_user_id=None, linia='PSD'):
     if plans_count <= 0:
         return []
 

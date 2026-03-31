@@ -1167,7 +1167,7 @@ def deactivate_notifications(typ, recipient_roles=None, plan_id=None, conn=None,
                 pass
 
 
-def sync_dosypka_notifications(plan_id, author_name=None, created_by_user_id=None, conn=None, cursor=None):
+def sync_dosypka_notifications(plan_id, author_name=None, created_by_user_id=None, conn=None, cursor=None, linia='PSD'):
     """Keep dosypka notifications aligned with current unconfirmed rows for a plan."""
     if not plan_id:
         return []
