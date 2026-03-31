@@ -758,11 +758,13 @@ def insert_dosypka(plan_id, nazwa, kg, pracownik_id=None):
         return False
 
 
-def list_unconfirmed_dosypki():
+def list_unconfirmed_dosypki(linia='PSD'):
     """Return list of active unconfirmed dosypki."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        # Dosypki table is shared — linia param accepted for API compatibility
+        # but dosypki are filtered by plan_id on the caller side if needed
         cursor.execute(
             """
             SELECT id, plan_id, nazwa, kg, data_zlecenia, pracownik_id,
