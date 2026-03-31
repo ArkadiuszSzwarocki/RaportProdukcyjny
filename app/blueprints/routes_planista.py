@@ -75,15 +75,10 @@ def panel_planisty():
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
         FROM {table_plan} 
         WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
+        ORDER BY kolejnosc
     """
     query_params = [wybrana_data]
     
-    # Only PSD table has 'linia' column; Agro table is already line-specific
-    if wybrana_linia != 'Agro':
-        query_plans += " AND linia = %s"
-        query_params.append(wybrana_linia)
-        
-    query_plans += " ORDER BY kolejnosc"
     cursor.execute(query_plans, tuple(query_params))
     
     plany = cursor.fetchall()
@@ -95,13 +90,10 @@ def panel_planisty():
             SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
             FROM {table_plan}
             WHERE data_planu = %s AND LOWER(sekcja) = 'workowanie'
+            ORDER BY kolejnosc
         """
         work_params = [wybrana_data]
-        if wybrana_linia != 'Agro':
-            query_work += " AND linia = %s"
-            work_params.append(wybrana_linia)
         
-        query_work += " ORDER BY kolejnosc"
         cursor.execute(query_work, tuple(work_params))
         work_rows = cursor.fetchall()
         for w in work_rows:
@@ -139,7 +131,7 @@ def panel_planisty():
         # 1b. Dla planów Zasyp - pobierz uszkodzone_worki z odpowiadającego planu Workowania
         sekcja = (p[1] or '').lower()
         if sekcja == 'zasyp':
-            cursor.execute(f"SELECT COALESCE(uszkodzone_worki, 0) FROM {table_plan} WHERE DATE(data_planu)=%s AND linia=%s AND sekcja='Workowanie' AND produkt=%s LIMIT 1", (wybrana_data, wybrana_linia, p[2]))
+            cursor.execute(f"SELECT COALESCE(uszkodzone_worki, 0) FROM {table_plan} WHERE DATE(data_planu)=%s AND sekcja='Workowanie' AND produkt=%s LIMIT 1", (wybrana_data, p[2]))
             work_result = cursor.fetchone()
             if work_result:
                 p[11] = work_result[0]  # Zastąp uszkodzone_worki z Zasyp wartością z Workowania
@@ -176,9 +168,9 @@ def panel_planisty():
             SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, pp.produkt, pp.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s
             FROM {table_pal} pw
             JOIN {table_plan} pp ON pw.plan_id = pp.id
-            WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' AND pp.linia = %s
+            WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie'
             ORDER BY pw.id DESC
-        """, (wybrana_data, p[2], wybrana_linia))
+        """, (wybrana_data, p[2]))
         raw_pal = cursor.fetchall()
         formatted = []
         for r in raw_pal:
@@ -202,7 +194,7 @@ def panel_planisty():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute(f"SELECT id, produkt, tonaz, sekcja, status FROM {table_plan} WHERE data_planu=%s AND linia=%s AND (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone' ORDER BY id DESC", (wybrana_data, wybrana_linia))
+        cursor.execute(f"SELECT id, produkt, tonaz, sekcja, status FROM {table_plan} WHERE data_planu=%s AND (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone' ORDER BY id DESC", (wybrana_data,))
         quality_orders = cursor.fetchall()
         quality_count = len(quality_orders)
         conn.close()
@@ -430,10 +422,10 @@ def panel_planisty():
                    SUM(COALESCE(b.tonaz_rzeczywisty, 0) - COALESCE(b.spakowano, 0)) as pozostalo
             FROM {table_bufor} b
             WHERE b.status = 'aktywny'
-              AND b.data_planu < %s AND b.linia = %s
+              AND b.data_planu < %s
             GROUP BY b.produkt
             HAVING pozostalo > 0
-        """, (wybrana_data, wybrana_linia))
+        """, (wybrana_data,))
         bufor_remaining = [
             {'produkt': r[0], 'pozostalo_kg': round(float(r[1]), 1)}
             for r in cur_buf.fetchall()
@@ -576,9 +568,9 @@ def bufor_page():
             FROM {table_bufor} b
             LEFT JOIN {table_plan} z ON z.id = b.zasyp_id
              LEFT JOIN {table_plan} w ON w.zasyp_id = b.zasyp_id AND w.sekcja = 'Workowanie'
-            WHERE b.data_planu = %s AND b.status = 'aktywny' AND b.linia = %s
+            WHERE b.data_planu = %s AND b.status = 'aktywny'
             ORDER BY b.kolejka ASC
-        """, (wybrana_data, wybrana_linia))
+        """, (wybrana_data,))
         
         rows = cursor.fetchall()
         app_logger.info(f"[BUFOR] Loaded {len(rows)} active bufor entries for date {wybrana_data}")
