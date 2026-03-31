@@ -300,7 +300,7 @@ def panel_planisty():
         cursor_agro.execute(f"""
             SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
             FROM {table_plan_agro}
-            WHERE data_planu = %s AND linia = 'Agro'
+            WHERE data_planu = %s
             ORDER BY kolejnosc
         """, (wybrana_data,))
         agro_rows = cursor_agro.fetchall()

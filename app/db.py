@@ -826,7 +826,7 @@ def confirm_dosypka(dosypka_id, potwierdzil_pracownik_id=None):
         return False
 
 
-def get_plan_notification_context(plan_id, conn=None, cursor=None):
+def get_plan_notification_context(plan_id, conn=None, cursor=None, linia='PSD'):
     """Return minimal plan context used to build notification content."""
     own_conn = conn is None
     own_cursor = cursor is None
