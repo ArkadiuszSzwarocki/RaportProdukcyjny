@@ -1054,8 +1054,8 @@
                                     </div>
                                 </div>
                                 <div class="d-flex gap-8 align-center">
-                                    <a href="/api/edytuj?id=${w[0]}" title="${msgs.editWpis}" class="font-bold text-warning-dark no-underline">✎</a>
-                                    <form action="/api/usun_wpis?id=${w[0]}" method="POST" class="m-0">
+                                     <a href="/edytuj/${w[0]}" title="${msgs.editWpis}" class="font-bold text-warning-dark no-underline">✎</a>
+                                     <form action="/usun_wpis/${w[0]}" method="POST" class="m-0">
                                         <input type="hidden" name="sekcja" value="${sekcja}">
                                         <button type="submit" class="btn-icon text-warning-dark" aria-label="Usuń wpis">✖</button>
                                     </form>

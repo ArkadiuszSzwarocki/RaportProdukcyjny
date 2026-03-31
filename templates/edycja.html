@@ -10,7 +10,7 @@
 
 <div class="box">
     <h2>✏️ {{ _('edytuj_zgloszenie') }}</h2>
-    <form method="POST">
+    <form method="POST" action="{{ url_for('journal.edytuj', id=wpis[0]) }}">
         
         <label for="kategoria">{{ _('rodzaj_problemu') }}</label>
         <select id="kategoria" name="kategoria" aria-label="Rodzaj problemu">

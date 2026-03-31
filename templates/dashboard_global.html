@@ -216,8 +216,8 @@
     }
     if (e.target.classList.contains('note-edit-btn')) {
       const id = e.target.getAttribute('data-id');
-      const noteDiv = e.target.closest('div[style*="background: #f9f9f9"]');
-      const noteText = noteDiv.querySelector('div:last-of-type').innerText;
+      const noteCard = e.target.closest('.note-card');
+      const noteText = noteCard.querySelector('.note-text').innerText;
       const newText = prompt('Edytuj notatkę:', noteText);
       if (newText !== null && newText.trim() !== '') {
         const form = document.createElement('form');
