@@ -97,7 +97,7 @@ class PlanningService:
             return (False, f'Błąd przy dodawaniu planu: {str(e)}', None)
 
     @staticmethod
-    def delete_plan(plan_id):
+    def delete_plan(plan_id, linia='PSD'):
         """Hard delete a plan (remove completely from database).
         
         Args:
@@ -182,7 +182,7 @@ class PlanningService:
             return (False, f'Błąd przy usuwaniu: {str(e)}')
 
     @staticmethod
-    def restore_plan(plan_id):
+    def restore_plan(plan_id, linia='PSD'):
         """Restore (un-delete) a deleted plan.
         
         Args:
@@ -232,7 +232,7 @@ class PlanningService:
             return (False, f'Błąd przy przywracaniu: {str(e)}')
 
     @staticmethod
-    def resume_plan(plan_id):
+    def resume_plan(plan_id, linia='PSD'):
         """Resume a paused/zaplanowane plan (change status to 'w toku').
         
         Args:
@@ -299,7 +299,7 @@ class PlanningService:
             return (False, f'Błąd przy wznawianiu: {str(e)}')
 
     @staticmethod
-    def change_status(plan_id, new_status):
+    def change_status(plan_id, new_status, linia='PSD'):
         """Change plan status.
         
         Args:
@@ -471,7 +471,7 @@ class PlanningService:
 
     @staticmethod
     @staticmethod
-    def reschedule_plan(plan_id, nowa_data):
+    def reschedule_plan(plan_id, nowa_data, linia='PSD'):
         """Move a plan to a different date. Also moves buffer entries if they exist.
         
         Args:
