@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, timedelta
 import traceback
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 from flask import current_app, request, session
 import logging
 
@@ -106,7 +106,8 @@ class PlanningService:
         Returns:
             Tuple (success: bool, message: str)
         """
-        current_app.logger.debug(f'\n[SERVICE-DELETE] delete_plan({plan_id}) START - HARD DELETE')
+        current_app.logger.debug(f'\n[SERVICE-DELETE] delete_plan({plan_id}, linia={linia}) START - HARD DELETE')
+        table_plan = get_table_name('plan_produkcji', linia)
         try:
             current_app.logger.debug(f'[SERVICE-DELETE] Connecting to database...')
             conn = get_db_connection()
@@ -114,7 +115,7 @@ class PlanningService:
             
             # Check if plan exists and its status
             current_app.logger.debug(f'[SERVICE-DELETE] Finding plan ID={plan_id}...')
-            cursor.execute("SELECT status, produkt, sekcja FROM plan_produkcji WHERE id=%s", (plan_id,))
+            cursor.execute(f"SELECT status, produkt, sekcja FROM {table_plan} WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
             current_app.logger.debug(f'[SERVICE-DELETE] Result: {res}')
 
@@ -136,9 +137,9 @@ class PlanningService:
                 # Use ascii form 'zakonczone' to match test expectations
                 return (False, 'Nie można usunąć zlecenia w toku lub zakonczone.')
             
-            # Hard delete: DELETE FROM plan_produkcji
+            # Hard delete: DELETE FROM table
             current_app.logger.debug(f'[SERVICE-DELETE] Executing DELETE...')
-            cursor.execute("DELETE FROM plan_produkcji WHERE id=%s", (plan_id,))
+            cursor.execute(f"DELETE FROM {table_plan} WHERE id=%s", (plan_id,))
             current_app.logger.debug(f'[SERVICE-DELETE] DELETE finished, rowcount={cursor.rowcount}')
 
             # Jeśli kasujemy Zasyp, usuń też powiązane zlecenie Workowanie (które jeszcze nie startowało)
@@ -146,7 +147,7 @@ class PlanningService:
             linked_deleted = 0
             if sekcja and sekcja.lower() == 'zasyp':
                 cursor.execute(
-                    "DELETE FROM plan_produkcji WHERE zasyp_id=%s AND status='zaplanowane'",
+                    f"DELETE FROM {table_plan} WHERE zasyp_id=%s AND status='zaplanowane'",
                     (plan_id,)
                 )
                 linked_deleted = cursor.rowcount
@@ -191,13 +192,14 @@ class PlanningService:
         Returns:
             Tuple (success: bool, message: str)
         """
+        table_plan = get_table_name('plan_produkcji', linia)
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Check if plan exists and is deleted
             cursor.execute(
-                "SELECT is_deleted, produkt, status FROM plan_produkcji WHERE id=%s",
+                f"SELECT is_deleted, produkt, status FROM {table_plan} WHERE id=%s",
                 (plan_id,)
             )
             res = cursor.fetchone()
@@ -214,7 +216,7 @@ class PlanningService:
             
             # Restore: set is_deleted=0, deleted_at=NULL
             cursor.execute(
-                "UPDATE plan_produkcji SET is_deleted=0, deleted_at=NULL WHERE id=%s",
+                f"UPDATE {table_plan} SET is_deleted=0, deleted_at=NULL WHERE id=%s",
                 (plan_id,)
             )
             conn.commit()
@@ -241,13 +243,14 @@ class PlanningService:
         Returns:
             Tuple (success: bool, message: str)
         """
+        table_plan = get_table_name('plan_produkcji', linia)
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Get section of this plan
             cursor.execute(
-                "SELECT sekcja, produkt, status FROM plan_produkcji WHERE id=%s",
+                f"SELECT sekcja, produkt, status FROM {table_plan} WHERE id=%s",
                 (plan_id,)
             )
             res = cursor.fetchone()
@@ -261,7 +264,7 @@ class PlanningService:
             
             # Set all other plans in this section to zaplanowane (pause them)
             cursor.execute(
-                "UPDATE plan_produkcji SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'",
+                f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'",
                 (sekcja,)
             )
             # Log pause of other plans (diagnostic)
@@ -273,7 +276,7 @@ class PlanningService:
 
             # Set this plan to w toku (resume)
             cursor.execute(
-                "UPDATE plan_produkcji SET status='w toku', real_stop=NULL WHERE id=%s",
+                f"UPDATE {table_plan} SET status='w toku', real_stop=NULL WHERE id=%s",
                 (plan_id,)
             )
             # Log resume event
@@ -309,13 +312,14 @@ class PlanningService:
         Returns:
             Tuple (success: bool, message: str)
         """
+        table_plan = get_table_name('plan_produkcji', linia)
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Get current plan info
             cursor.execute(
-                "SELECT status, produkt FROM plan_produkcji WHERE id=%s",
+                f"SELECT status, produkt FROM {table_plan} WHERE id=%s",
                 (plan_id,)
             )
             res = cursor.fetchone()
@@ -329,7 +333,7 @@ class PlanningService:
             
             # Update status
             cursor.execute(
-                "UPDATE plan_produkcji SET status=%s WHERE id=%s",
+                f"UPDATE {table_plan} SET status=%s WHERE id=%s",
                 (new_status, plan_id)
             )
             conn.commit()
@@ -481,7 +485,8 @@ class PlanningService:
         Returns:
             (success: bool, message: str)
         """
-        current_app.logger.debug(f'\n[SERVICE-RESCHEDULE] reschedule_plan({plan_id}, {nowa_data}) START')
+        current_app.logger.debug(f'\n[SERVICE-RESCHEDULE] reschedule_plan({plan_id}, {nowa_data}, linia={linia}) START')
+        table_plan = get_table_name('plan_produkcji', linia)
         try:
             # Convert both dates to ISO string format for safe comparison
             if hasattr(nowa_data, 'isoformat'):
@@ -495,7 +500,7 @@ class PlanningService:
             
             # Validate plan exists and check status
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] Fetching plan {plan_id}...')
-            cursor.execute("SELECT status, data_planu, produkt, tonaz_rzeczywisty FROM plan_produkcji WHERE id=%s", (plan_id,))
+            cursor.execute(f"SELECT status, data_planu, produkt, tonaz_rzeczywisty FROM {table_plan} WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] Result: {res}')
             
@@ -524,18 +529,18 @@ class PlanningService:
             
             # Get max sequence for target date
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] Fetching max sequence for target date {nowa_data_str}...')
-            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (nowa_data_str,))
+            cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s", (nowa_data_str,))
             max_seq = cursor.fetchone()
             nowa_kolejnosc = (max_seq[0] if max_seq and max_seq[0] else 0) + 1
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] New sequence: {nowa_kolejnosc}')
             
             # Update date and reset sequence FOR PLAN
-            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Updating plan_produkcji: id={plan_id}, nowa_data={nowa_data_str}...')
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Updating {table_plan}: id={plan_id}, nowa_data={nowa_data_str}...')
             cursor.execute(
-                "UPDATE plan_produkcji SET data_planu=%s, kolejnosc=%s WHERE id=%s",
+                f"UPDATE {table_plan} SET data_planu=%s, kolejnosc=%s WHERE id=%s",
                 (nowa_data_str, nowa_kolejnosc, plan_id)
             )
-            current_app.logger.debug(f'[SERVICE-RESCHEDULE] UPDATE plan_produkcji rowcount: {cursor.rowcount}')
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] UPDATE {table_plan} rowcount: {cursor.rowcount}')
             
             # NOW HANDLE BUFFER ENTRIES
             # Look for all active buffer entries by zasyp_id (no date restriction —

@@ -2,7 +2,7 @@
 
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify, send_file
 from datetime import date, datetime, timedelta
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 from app.decorators import login_required, roles_required
 from app.services.leave_request_service import LeaveRequestService
 from app.services.attendance_service import AttendanceService
@@ -208,7 +208,15 @@ def usun_obecnosc(id):
 @login_required
 def dodaj_do_obsady():
     """Add employee to schedule - delegated to AttendanceService."""
+    sekcja = request.form.get('sekcja') or request.args.get('sekcja', 'Zasyp')
+    pracownik_id = request.form.get('pracownik_id')
+    date_str = request.form.get('date') or request.args.get('date')
     linia = request.form.get('linia') or request.args.get('linia', 'PSD')
+    
+    if not pracownik_id:
+        flash('Nie wybrano pracownika.', 'warning')
+        return redirect(bezpieczny_powrot())
+        
     success, inserted_id, employee_name = AttendanceService.add_to_schedule(sekcja, int(pracownik_id), date_str, linia=linia)
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
