@@ -1101,170 +1101,110 @@ def potwierdz_palete(paleta_id):
         current_app.logger.warning(f'[WAREHOUSE-AUTH] User {session.get("login")} with role={role} tried to confirm paleta {paleta_id} - insufficient permissions')
         return jsonify({'success': False, 'message': 'Brak uprawnień do zatwierdzania palet'}), 403
     
-    # Initialize variables that will be used in response (scope fix)
     provided_netto = None
     provided_brutto = None
     deklarowana_waga = None
     
     conn = get_db_connection()
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
+        # Start transaction for atomic updates
+        conn.autocommit = False
+
+        # Step 1: Initial state check - if paleta is already confirmed, BAIL EARLY
+        cursor.execute("SELECT plan_id, status, waga, waga_potwierdzona, waga_brutto, tara FROM palety_workowanie WHERE id=%s FOR UPDATE", (paleta_id,))
+        paleta_row = cursor.fetchone()
         
-        # Step 1: Ensure column exists (idempotent)
-        try:
-            cursor.execute("ALTER TABLE palety_workowanie ADD COLUMN status VARCHAR(32) DEFAULT 'do_przyjecia'")
-            conn.commit()
-        except Exception as e:
-            current_app.logger.debug(f'ALTER TABLE potwierdz_palete: {e}')
-            try: conn.rollback()
-            except: pass
+        if not paleta_row:
+            return jsonify({'success': False, 'message': 'Paleta nie istnieje'}), 404
+            
+        plan_id, prev_status, deklarowana_waga, stored_netto, stored_brutto, stored_tara = paleta_row
         
-        # Step 2: Fetch tara (weight of package)
-        tara = 25  # default
-        try:
-            cursor.execute("SELECT COALESCE(tara,25) FROM palety_workowanie WHERE id=%s", (paleta_id,))
-            trow = cursor.fetchone()
-            tara = int(trow[0]) if trow and trow[0] is not None else 25
-        except Exception as e:
-            current_app.logger.warning(f'Failed to fetch tara for paleta {paleta_id}: {e}')
-        
-        # Step 3: Parse provided weights from form (netto/brutto)
+        if prev_status == 'przyjeta':
+            # Check if it's already in magazyn
+            cursor.execute("SELECT id FROM magazyn_palety WHERE paleta_workowanie_id=%s", (paleta_id,))
+            if cursor.fetchone():
+                current_app.logger.debug('Paleta ID=%s already confirmed and in warehouse, skipping duplicate request', paleta_id)
+                return jsonify({'success': True, 'paleta_id': paleta_id, 'message': 'Zatwierdzona'}), 200
+
+        # Step 2: Parse provided weight
         try:
             if request.form.get('waga_palety'):
-                try:
-                    provided_netto = int(float(require_field(request.form, 'waga_palety').replace(',', '.')))
-                except (ValueError, Exception):
-                    provided_netto = None
+                provided_netto = int(float(str(request.form.get('waga_palety')).replace(',', '.')))
             elif request.form.get('waga_brutto'):
-                try:
-                    provided_brutto = int(float(require_field(request.form, 'waga_brutto').replace(',', '.')))
-                except (ValueError, Exception):
-                    provided_brutto = None
+                provided_brutto = int(float(str(request.form.get('waga_brutto')).replace(',', '.')))
                 if provided_brutto is not None:
-                    n = provided_brutto - int(tara)
+                    n = provided_brutto - int(stored_tara or 25)
                     provided_netto = n if n >= 0 else 0
-        except Exception as e:
-            current_app.logger.error(f'Failed to parse provided weight for paleta {paleta_id}: {e}', exc_info=True)
-        
-        # Step 3b: FETCH DECLARED WEIGHT BEFORE ANY UPDATES (for validation)
-        try:
-            cursor.execute("SELECT waga FROM palety_workowanie WHERE id=%s", (paleta_id,))
-            drow = cursor.fetchone()
-            if drow and drow[0] is not None:
-                deklarowana_waga = int(drow[0])
-        except Exception as e:
-            current_app.logger.debug(f'Failed to fetch declared weight for paleta {paleta_id}: {e}')
-        
-        # Step 4: Persist provided weights separately
-        try:
-            if provided_netto is not None:
-                cursor.execute("UPDATE palety_workowanie SET waga_potwierdzona=%s WHERE id=%s", (provided_netto, paleta_id))
-            if provided_brutto is not None:
-                cursor.execute("UPDATE palety_workowanie SET waga_brutto=%s WHERE id=%s", (provided_brutto, paleta_id))
-            if provided_netto is not None or provided_brutto is not None:
-                conn.commit()
-        except Exception as e:
-            current_app.logger.error(f'Failed to persist weights for paleta {paleta_id}: {e}', exc_info=True)
-            try: conn.rollback()
-            except: pass
-        
-        # Step 5: Get plan_id, previous status, and stored weights before update
-        prev_status = ''
-        plan_id = None
-        stored_netto = None
-        try:
-            cursor.execute("SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, 0) FROM palety_workowanie WHERE id=%s", (paleta_id,))
-            prev_row = cursor.fetchone()
-            if prev_row:
-                plan_id = prev_row[0]
-                prev_status = prev_row[1]
-                stored_netto = int(prev_row[2] or 0)
-        except Exception as e:
-            current_app.logger.warning(f'Failed to fetch plan_id/status/weights for paleta {paleta_id}: {e}')
-        
-        # Step 6: Update paleta status to 'przyjeta' (accepted)
-        try:
-            cursor.execute(
-                "UPDATE palety_workowanie SET status='przyjeta', "
-                "data_potwierdzenia = DATE_ADD(data_dodania, INTERVAL TIMESTAMPDIFF(SECOND, data_dodania, NOW()) SECOND), "
-                "czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()), "
-                "czas_rzeczywistego_potwierdzenia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_dodania, NOW())) "
-                "WHERE id=%s",
-                (paleta_id,)
-            )
-            conn.commit()
-        except Exception as e:
-            current_app.logger.warning(f'Complex update failed for paleta {paleta_id}: {e}, retrying simple update')
-            try:
-                cursor.execute("UPDATE palety_workowanie SET status='przyjeta' WHERE id=%s", (paleta_id,))
-                conn.commit()
-            except Exception as e2:
-                current_app.logger.error(f'Simple status update also failed for paleta {paleta_id}: {e2}', exc_info=True)
-                try: conn.rollback()
-                except: pass
-        
-        # Step 6b: Update Magazyn table if plan_id exists
-        if plan_id:
-            netto_val = provided_netto if provided_netto is not None else stored_netto
+        except (ValueError, TypeError):
+            provided_netto = None
             
-            try:
-                cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
-                z = cursor.fetchone()
-                if z and prev_status != 'przyjeta':
-                    # Find existing Magazyn plan id for this date+product
-                    cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (z[0], z[1]))
-                    mp = cursor.fetchone()
-                    mp_id = mp[0] if mp else None
-                    
-                    # Prevent duplicate magazyn entries
-                    cursor.execute("SELECT id FROM magazyn_palety WHERE paleta_workowanie_id=%s", (paleta_id,))
-                    exists = cursor.fetchone()
-                    if not exists:
+        # Step 3: Update palety_workowanie (status and weight)
+        final_netto = provided_netto if provided_netto is not None else (stored_netto or deklarowana_waga)
+        final_brutto = provided_brutto if provided_brutto is not None else stored_brutto
+        
+        cursor.execute(
+            "UPDATE palety_workowanie SET status='przyjeta', waga_potwierdzona=%s, waga_brutto=%s, "
+            "data_potwierdzenia=NOW(), "
+            "czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()), "
+            "czas_rzeczywistego_potwierdzenia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_dodania, NOW())) "
+            "WHERE id=%s",
+            (final_netto, final_brutto, paleta_id)
+        )
+
+        # Step 4: Handle Magazyn insert/sync
+        if plan_id:
+            cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
+            plan_row = cursor.fetchone()
+            if plan_row:
+                data_planu, produkt = plan_row
+                # Find matching Magazyn plan
+                cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (data_planu, produkt))
+                mp_row = cursor.fetchone()
+                mp_id = mp_row[0] if mp_row else None
+                
+                # Check for existing magazyn entry again after locking
+                cursor.execute("SELECT id FROM magazyn_palety WHERE paleta_workowanie_id=%s", (paleta_id,))
+                if not cursor.fetchone():
+                    try:
                         cursor.execute(
-                            "INSERT INTO magazyn_palety (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                            (paleta_id, mp_id, z[0], z[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'))
+                            "INSERT INTO magazyn_palety (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) "
+                            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                            (paleta_id, mp_id, data_planu, produkt, final_netto, final_brutto, stored_tara or 25, session.get('login'))
                         )
-                        current_app.logger.info('Potwierdzono paletę ID=%s: waga_netto=%s kg, produkt=%s, użytkownik=%s', paleta_id, netto_val, z[1] if len(z) > 1 else '—', session.get('login'))
-                        audit_log('Potwierdził paletę', f'ID={paleta_id}, produkt={z[1] if len(z) > 1 else "—"}, waga_netto={netto_val} kg')
-                    else:
-                        current_app.logger.debug('Paleta ID=%s już jest w magazynie, aktualizacja wagi=%s kg', paleta_id, netto_val)
-                    
-                    # Recalculate Magazyn aggregates
+                        current_app.logger.info('Paleta ID=%s confirmed: waga=%s, produkt=%s', paleta_id, final_netto, produkt)
+                        audit_log('Potwierdził paletę', f'ID={paleta_id}, produkt={produkt}, waga={final_netto}kg')
+                    except mysql.connector.IntegrityError:
+                        # Handled if race happened despite checks
+                        current_app.logger.warning('Race condition detected on insert into magazyn_palety for paleta_id=%s', paleta_id)
+
+                # Sync aggregates for Magazyn plan
+                if mp_id:
                     cursor.execute(
-                        "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto),0) FROM magazyn_palety WHERE plan_id = plan_produkcji.id) WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'",
-                        (z[0], z[1])
+                        "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto),0) FROM magazyn_palety WHERE plan_id = %s) WHERE id=%s",
+                        (mp_id, mp_id)
                     )
-                    conn.commit()
-            except Exception as e:
-                current_app.logger.error(f'Failed to update Magazyn aggregates for paleta {paleta_id}: {e}', exc_info=True)
-                try: conn.rollback()
-                except: pass
-    
-    except Exception as e:
-        current_app.logger.error(f'Failed to potwierdz palete {paleta_id}: {e}', exc_info=True)
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-    
-    # Return response (AJAX or redirect)
-    try:
+
+        conn.commit()
+        
+        # Prepare AJAX response
+        response_data = {'success': True, 'paleta_id': paleta_id}
+        if final_netto is not None and deklarowana_waga is not None:
+            difference = abs(float(final_netto) - float(deklarowana_waga))
+            if difference > 1:
+                response_data['has_difference'] = True
+                response_data['difference'] = round(difference, 1)
+                
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            # Calculate difference for AJAX response
-            response_data = {'success': True, 'paleta_id': paleta_id}
-            current_app.logger.debug(f'AJAX Response: deklarowana_waga={deklarowana_waga}, provided_netto={provided_netto}')
-            if deklarowana_waga is not None and provided_netto is not None:
-                difference = abs(provided_netto - deklarowana_waga)
-                current_app.logger.debug(f'Difference calculated: {difference}')
-                if difference > 1:
-                    response_data['has_difference'] = True
-                    response_data['difference'] = round(difference, 1)
-                    current_app.logger.debug(f'Returning modal response: {response_data}')
             return jsonify(response_data), 200
-    except Exception:
-        pass
-    return redirect(bezpieczny_powrot())
+        return redirect(bezpieczny_powrot())
+
+    except Exception as e:
+        conn.rollback()
+        current_app.logger.error(f'Error confirming paleta {paleta_id}: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
 
 
 # DEBUG: no-auth route to reproduce template rendering issues (do not expose in production)

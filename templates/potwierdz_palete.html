@@ -33,6 +33,12 @@
       return;
     }
     
+    var btn = event.target.querySelector('button[type="submit"]');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = 'TRWA ZAPISYWANIE...';
+    }
+    
     fetch('{{ url_for("warehouse.potwierdz_palete", paleta_id=paleta_id) }}', {
       method: 'POST',
       headers: {

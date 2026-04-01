@@ -325,14 +325,15 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' - FK linkujacy Workowanie z Zasyp 1:1")
     
     # palety_workowanie columns
-    _add_column_if_missing(cursor, "palety_workowanie", "tara", "FLOAT DEFAULT 0", "Dodawanie kolumny 'tara' do palet")
-    _add_column_if_missing(cursor, "palety_workowanie", "waga_brutto", "FLOAT DEFAULT 0", "Dodawanie kolumny 'waga_brutto' do palet")
-    _add_column_if_missing(cursor, "palety_workowanie", "status", "VARCHAR(20) DEFAULT 'do_przyjecia'", "Dodawanie kolumny 'status' do palet")
-    _add_column_if_missing(cursor, "palety_workowanie", "data_potwierdzenia", "DATETIME NULL", "Dodawanie kolumny 'data_potwierdzenia' do palet")
-    _add_column_if_missing(cursor, "palety_workowanie", "czas_potwierdzenia_s", "INT NULL", "Dodawanie kolumny 'czas_potwierdzenia_s' do palet")
-    _add_column_if_missing(cursor, "palety_workowanie", "czas_rzeczywistego_potwierdzenia", "TIME NULL", "Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do palet")
-    # Store confirmed weight separately to avoid overwriting original Workowanie weight
-    _add_column_if_missing(cursor, "palety_workowanie", "waga_potwierdzona", "FLOAT NULL", "Dodawanie kolumny 'waga_potwierdzona' do palet")
+    for table in ["palety_workowanie", "palety_workowanie_agro"]:
+        _add_column_if_missing(cursor, table, "tara", "FLOAT DEFAULT 0", f"Dodawanie kolumny 'tara' do {table}")
+        _add_column_if_missing(cursor, table, "waga_brutto", "FLOAT DEFAULT 0", f"Dodawanie kolumny 'waga_brutto' do {table}")
+        _add_column_if_missing(cursor, table, "status", "VARCHAR(20) DEFAULT 'do_przyjecia'", f"Dodawanie kolumny 'status' do {table}")
+        _add_column_if_missing(cursor, table, "data_potwierdzenia", "DATETIME NULL", f"Dodawanie kolumny 'data_potwierdzenia' do {table}")
+        _add_column_if_missing(cursor, table, "czas_potwierdzenia_s", "INT NULL", f"Dodawanie kolumny 'czas_potwierdzenia_s' do {table}")
+        _add_column_if_missing(cursor, table, "czas_rzeczywistego_potwierdzenia", "TIME NULL", f"Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do {table}")
+        # Store confirmed weight separately to avoid overwriting original Workowanie weight
+        _add_column_if_missing(cursor, table, "waga_potwierdzona", "FLOAT NULL", f"Dodawanie kolumny 'waga_potwierdzona' do {table}")
     
     # raporty_koncowe columns
     _add_column_if_missing(cursor, "raporty_koncowe", "sekcja", "VARCHAR(50)", "Dodawanie kolumny 'sekcja' do raporty_koncowe")
@@ -348,6 +349,24 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "uzytkownicy", "grupa", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'grupa' do uzytkownicy")
     _add_column_if_missing(cursor, "pracownicy", "grupa", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'grupa' do pracownicy")
     _add_column_if_missing(cursor, "uzytkownicy", "pracownik_id", "INT NULL", "Dodawanie kolumny 'pracownik_id' do uzytkownicy")
+
+    # magazyn_palety unique constraint to prevent duplicates
+    try:
+        cursor.execute("SHOW INDEX FROM magazyn_palety WHERE Key_name = 'uq_magazyn_palety_paleta_workowanie'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE magazyn_palety ADD UNIQUE INDEX uq_magazyn_palety_paleta_workowanie (paleta_workowanie_id)")
+            print("[MIGRATE] Added UNIQUE INDEX to magazyn_palety.paleta_workowanie_id")
+    except Exception as e:
+        print(f"[WARN] Failed to add unique index to magazyn_palety: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM magazyn_palety_agro WHERE Key_name = 'uq_magazyn_palety_agro_paleta_workowanie'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE magazyn_palety_agro ADD UNIQUE INDEX uq_magazyn_palety_agro_paleta_workowanie (paleta_workowanie_id)")
+            print("[MIGRATE] Added UNIQUE INDEX to magazyn_palety_agro.paleta_workowanie_id")
+    except Exception as e:
+        # Tables might not exist yet, ignore
+        pass
 
 
 def _seed_default_users(cursor):
