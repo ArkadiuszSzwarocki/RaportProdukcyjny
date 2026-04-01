@@ -1,7 +1,7 @@
 """Main application routes: dashboard index, shift closing, reports."""
 
 from typing import Tuple, Dict, Any, Optional, Union
-from flask import Blueprint, render_template, request, redirect, url_for, session, send_file, jsonify, Response
+from flask import Blueprint, render_template, request, redirect, url_for, session, send_file, jsonify, Response, flash
 from datetime import date, datetime, timedelta
 import json
 import os
@@ -11,6 +11,14 @@ from app.services.report_generation_service import ReportGenerationService
 from app.db import get_db_connection
 
 main_bp = Blueprint('main', __name__)
+
+
+@main_bp.route('/favicon.ico')
+@main_bp.route('/apple-touch-icon.png')
+@main_bp.route('/apple-touch-icon-precomposed.png')
+def favicon():
+    """Silence favicon/apple-touch-icon 404 noise in logs."""
+    return ('', 204)
 
 
 @main_bp.route('/debug/modal-move', methods=['POST'])
