@@ -12,7 +12,7 @@ class PlanningService:
 
     @staticmethod
     def create_plan(data_planu, produkt, tonaz, sekcja, typ_produkcji='worki_zgrzewane_25', 
-                   status='zaplanowane', wymaga_oplaty=False, nazwa_zlecenia=None, typ_zlecenia=None, zasyp_id=None):
+                   status='zaplanowane', wymaga_oplaty=False, nazwa_zlecenia=None, typ_zlecenia=None, zasyp_id=None, linia='PSD'):
         """Create a new production plan.
         
         Args:
@@ -39,10 +39,13 @@ class PlanningService:
             except Exception:
                 tonaz = 0
             
-            # Normalize sekcja case - always capitalize first letter
+            # Normalize sekcja properly: keep specific acronyms capitalized
             if sekcja:
-                sekcja = sekcja.strip()
-                sekcja = sekcja[0].upper() + sekcja[1:].lower() if sekcja else 'Zasyp'
+                s = sekcja.strip().upper()
+                if s in ['PSD', 'AGRO']:
+                    sekcja = s
+                else:
+                    sekcja = s[0].upper() + s[1:].lower() if len(s) > 0 else 'Zasyp'
             else:
                 sekcja = 'Zasyp'
             
@@ -52,13 +55,15 @@ class PlanningService:
             else:
                 initial_status = status or 'zaplanowane'
             
+            table_plan = get_table_name('plan_produkcji', linia)
+            
             conn = get_db_connection()
             cursor = conn.cursor()
             
             # Prevent creating duplicate plans for same date+product
             try:
                 cursor.execute(
-                    "SELECT id, sekcja FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
+                    f"SELECT id, sekcja FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja=%s AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
                     (data_planu, produkt, sekcja)
                 )
                 existing = cursor.fetchone()
@@ -74,16 +79,17 @@ class PlanningService:
                     pass
             
             # Get next sequence number for the day
-            cursor.execute("SELECT MAX(kolejnosc) FROM plan_produkcji WHERE data_planu=%s", (data_planu,))
+            cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s", (data_planu,))
             res = cursor.fetchone()
             nk = (res[0] if res and res[0] else 0) + 1
             
             # Insert new plan (include optional fields if provided)
-            cursor.execute("""
-                INSERT INTO plan_produkcji 
-                (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0, nazwa_zlecenia or '', typ_zlecenia or '', zasyp_id))
+            # Make sure to support the 'linia' column if it exists in DB, or fallback
+            cursor.execute(f"""
+                INSERT INTO {table_plan} 
+                (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id, linia)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0, nazwa_zlecenia or '', typ_zlecenia or '', zasyp_id, linia))
             
             plan_id = cursor.lastrowid
             conn.commit()
@@ -525,7 +531,12 @@ class PlanningService:
             # Only block if plan is currently being unpacked (w toku)
             if status == 'w toku':
                 current_app.logger.debug(f'[SERVICE-RESCHEDULE] Plan is w toku - cannot reschedule!')
-                return False, 'Nie można przesunąć planu, który jest w rozpakowania (w toku).'
+                return False, 'Nie można przesunąć planu, który jest w trakcie realizacji (status: w toku).'
+            
+            # Additional safety: Block if already has some actual tonnage reported
+            if tonaz_rzeczywisty and tonaz_rzeczywisty > 0:
+                current_app.logger.debug(f'[SERVICE-RESCHEDULE] Plan has actual tonnage ({tonaz_rzeczywisty}kg) - cannot reschedule!')
+                return False, 'Nie można przesunąć zlecenia, na którym odnotowano już tonaż rzeczywisty.'
             
             # Get max sequence for target date
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] Fetching max sequence for target date {nowa_data_str}...')
@@ -747,7 +758,7 @@ class PlanningService:
             current_app.logger.exception(f'Error ensuring status for plan {plan_id}: {str(e)}')
             return (False, f'Błąd przy sprawdzaniu statusu: {str(e)}')
     @staticmethod
-    def przenies_niezrealizowane(current_data, plan_ids_to_move=None):
+    def przenies_niezrealizowane(current_data, plan_ids_to_move=None, linia='PSD'):
         """
         Move incomplete work to next day.
 
@@ -763,6 +774,7 @@ class PlanningService:
         Args:
             current_data: Date string (YYYY-MM-DD)
             plan_ids_to_move: Optional list of Zasyp plan IDs to process (None = all)
+            linia: Optional hall name specifying the table ('PSD' or 'AGRO')
 
         Returns:
             Tuple (success: bool, message: str, count: int)
@@ -772,6 +784,10 @@ class PlanningService:
                 current_date = datetime.strptime(current_data, '%Y-%m-%d').date()
             except Exception as e:
                 return (False, f'Nieprawidłowy format daty: {str(e)}', 0)
+
+            from app.db import get_table_name
+            table_plan = get_table_name('plan_produkcji', linia)
+            table_bufor = get_table_name('bufor', linia)
 
             next_date = current_date + timedelta(days=1)
             next_data_str = next_date.isoformat()
@@ -792,8 +808,8 @@ class PlanningService:
                     " w.id AS workowanie_id,"
                     " COALESCE(w.tonaz, 0) AS w_plan,"
                     " COALESCE(w.tonaz_rzeczywisty, 0) AS w_real"
-                    " FROM plan_produkcji z"
-                    " LEFT JOIN plan_produkcji w ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'"
+                    f" FROM {table_plan} z"
+                    f" LEFT JOIN {table_plan} w ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'"
                     f" WHERE DATE(z.data_planu) = %s AND z.status = 'zakonczone' AND LOWER(z.sekcja) = 'zasyp' AND z.id IN ({placeholders})"
                     " ORDER BY z.id"
                 )
@@ -807,8 +823,8 @@ class PlanningService:
                     " w.id AS workowanie_id,"
                     " COALESCE(w.tonaz, 0) AS w_plan,"
                     " COALESCE(w.tonaz_rzeczywisty, 0) AS w_real"
-                    " FROM plan_produkcji z"
-                    " LEFT JOIN plan_produkcji w ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'"
+                    f" FROM {table_plan} z"
+                    f" LEFT JOIN {table_plan} w ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'"
                     " WHERE DATE(z.data_planu) = %s AND z.status = 'zakonczone' AND LOWER(z.sekcja) = 'zasyp'"
                     " ORDER BY z.id"
                 )
@@ -829,51 +845,45 @@ class PlanningService:
 
                 zasyp_remaining = max(z_plan - z_real, 0)
                 workowanie_remaining = max(w_plan - w_real, 0)
-                current_app.logger.debug(f"[PRZENIES-DEBUG] zasyp_remaining={zasyp_remaining} workowanie_remaining={workowanie_remaining} produkt={produkt} typ={typ_prod} work_id={work_id}")
+                # Look into buffer first because we might not have workowanie linked yet
+                try:
+                    cursor.execute(f"""
+                        SELECT data_planu, produkt, typ_produkcji, COALESCE(SUM(tonaz_rzeczywisty),0) AS tonaz_rzeczywisty,
+                               COALESCE(SUM(spakowano),0) AS spakowano, COALESCE(MAX(nazwa_zlecenia),'') AS nazwa_zlecenia
+                        FROM {table_bufor}
+                        WHERE zasyp_id = %s AND DATE(data_planu) = %s AND status = 'aktywny'
+                        GROUP BY data_planu, produkt, typ_produkcji
+                        LIMIT 1
+                    """, (row.get('zasyp_id') if isinstance(row, dict) else row[0], current_data))
+                    buf_row = cursor.fetchone()
+                except Exception:
+                    buf_row = None
 
-                # If there's remaining Workowanie to do, prefer to create a companion Zasyp ghost
-                # and a Workowanie linked to it so queue uses zasyp_id.
-                if workowanie_remaining > 0:
-                    # Prefer buffer-derived remaining if available: read bufor aggregate for this zasyp
-                    try:
-                        cursor.execute("""
-                            SELECT data_planu, produkt, typ_produkcji, COALESCE(SUM(tonaz_rzeczywisty),0) AS tonaz_rzeczywisty,
-                                   COALESCE(SUM(spakowano),0) AS spakowano, COALESCE(MAX(nazwa_zlecenia),'') AS nazwa_zlecenia
-                            FROM bufor
-                            WHERE zasyp_id = %s AND DATE(data_planu) = %s AND status = 'aktywny'
-                            GROUP BY data_planu, produkt, typ_produkcji
-                            LIMIT 1
-                        """, (row.get('zasyp_id') if isinstance(row, dict) else row[0], current_data))
-                        buf_row = cursor.fetchone()
-                    except Exception:
-                        buf_row = None
+                buf_tonaz = 0
+                buf_typ = typ_prod
+                buf_nazwa = ''
+                buf_produkt = produkt
 
-                    current_app.logger.debug(f"[PRZENIES-DEBUG] buf_row raw: {buf_row}")
-                    if buf_row:
-                        # support both cursor shapes (dict/tuple)
-                        if isinstance(buf_row, dict):
-                            buf_tonaz = int(buf_row.get('tonaz_rzeczywisty') or 0) - int(buf_row.get('spakowano') or 0)
-                            buf_typ = buf_row.get('typ_produkcji')
-                            buf_nazwa = buf_row.get('nazwa_zlecenia')
-                            buf_produkt = buf_row.get('produkt')
-                        else:
-                            buf_tonaz = int(buf_row[3] or 0) - int(buf_row[4] or 0)
-                            buf_typ = buf_row[2]
-                            buf_nazwa = buf_row[5] if len(buf_row) > 5 else ''
-                            buf_produkt = buf_row[1]
+                if buf_row:
+                    if isinstance(buf_row, dict):
+                        buf_tonaz = int(buf_row.get('tonaz_rzeczywisty') or 0) - int(buf_row.get('spakowano') or 0)
+                        buf_typ = buf_row.get('typ_produkcji') or typ_prod
+                        buf_nazwa = buf_row.get('nazwa_zlecenia')
+                        buf_produkt = buf_row.get('produkt')
+                    else:
+                        buf_tonaz = int(buf_row[3] or 0) - int(buf_row[4] or 0)
+                        buf_typ = buf_row[2] or typ_prod
+                        buf_nazwa = buf_row[5] if len(buf_row) > 5 else ''
+                        buf_produkt = buf_row[1]
 
-                        current_app.logger.debug(f"[PRZENIES-DEBUG] buf_tonaz={buf_tonaz} buf_typ={buf_typ} buf_produkt={buf_produkt} buf_nazwa={buf_nazwa}")
-                        if buf_tonaz > 0:
-                            # override workowanie_remaining with buffer-derived remainder
-                            work_plan_amount = buf_tonaz
-                            produkt_for_new = buf_produkt
-                            typ_for_new = buf_typ or typ_prod
-                            nazwa_for_new = buf_nazwa or f'carry-over z {current_data}'
-                        else:
-                            work_plan_amount = workowanie_remaining
-                            produkt_for_new = produkt
-                            typ_for_new = typ_prod
-                            nazwa_for_new = f'PRZENIESIONE z {current_data}'
+                current_app.logger.debug(f"[PRZENIES-DEBUG] zasyp_remaining={zasyp_remaining} workowanie_remaining={workowanie_remaining} in buffer={buf_tonaz}")
+
+                if workowanie_remaining > 0 or buf_tonaz > 0:
+                    if buf_tonaz > 0:
+                        work_plan_amount = buf_tonaz
+                        produkt_for_new = buf_produkt
+                        typ_for_new = buf_typ
+                        nazwa_for_new = buf_nazwa or f'carry-over z {current_data}'
                     else:
                         work_plan_amount = workowanie_remaining
                         produkt_for_new = produkt
@@ -882,7 +892,7 @@ class PlanningService:
 
                     # Avoid duplicates on next date
                     cursor.execute(
-                        "SELECT id FROM plan_produkcji WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'",
+                        f"SELECT id FROM {table_plan} WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'",
                         (next_data_str, produkt_for_new)
                     )
                     exists = cursor.fetchone()
@@ -896,8 +906,9 @@ class PlanningService:
                             tonaz=0,
                             sekcja='Zasyp',
                             typ_produkcji=typ_prod,
-                            status='zaplanowane',
-                            nazwa_zlecenia=nazwa_for_new
+                            status='zakonczone',  # Ghost Zasyp should be fully complete immediately
+                            nazwa_zlecenia=nazwa_for_new,
+                            linia=linia
                         )
                         new_zasyp_id = None
                         if isinstance(zasyp_created_id, int):
@@ -913,7 +924,8 @@ class PlanningService:
                                 typ_produkcji=typ_for_new,
                                 status='zaplanowane',
                                 nazwa_zlecenia=nazwa_for_new,
-                                zasyp_id=new_zasyp_id
+                                zasyp_id=new_zasyp_id,
+                                linia=linia
                             )
                             if isinstance(new_work_id, int):
                                 conn.commit()
@@ -921,13 +933,13 @@ class PlanningService:
                                 current_app.logger.info(f'[PRZENIES] Workowanie carryover created/linked: {produkt_for_new} {work_plan_amount}kg -> Workowanie #{new_work_id} (Zasyp #{new_zasyp_id})')
                                 current_app.logger.debug(f"[PRZENIES-DEBUG] create_plan returned: work_id={new_work_id} msg={msg_w}")
 
-                                update_cursor.execute("SELECT COALESCE(MAX(kolejka), 0) FROM bufor WHERE data_planu = %s AND status = 'aktywny'", (next_data_str,))
+                                update_cursor.execute(f"SELECT COALESCE(MAX(kolejka), 0) FROM {table_bufor} WHERE data_planu = %s AND status = 'aktywny'", (next_data_str,))
                                 max_kol = update_cursor.fetchone()[0] or 0
                                 sql_ins = (
-                                    "INSERT INTO bufor (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)"
-                                    " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny') ON DUPLICATE KEY UPDATE id = id"
+                                    f"INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status, linia)"
+                                    " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny', %s) ON DUPLICATE KEY UPDATE id = id"
                                 )
-                                update_cursor.execute(sql_ins, (new_zasyp_id, next_data_str, produkt_for_new, f'carry-over z {current_data}', typ_for_new, work_plan_amount, max_kol + 1))
+                                update_cursor.execute(sql_ins, (new_zasyp_id, next_data_str, produkt_for_new, f'carry-over z {current_data}', typ_for_new, work_plan_amount, max_kol + 1, linia))
                                 inserted_bufor_id = update_cursor.lastrowid if hasattr(update_cursor, 'lastrowid') else None
                                 conn.commit()
                                 current_app.logger.info(f'[PRZENIES] Bufor entry inserted for {produkt_for_new} on {next_data_str} (kolejka {max_kol + 1}) pointing to Zasyp #{new_zasyp_id}')
@@ -936,7 +948,7 @@ class PlanningService:
                 # If Zasyp itself had shortfall, create companion Zasyp and Workowanie for that shortfall
                 if zasyp_remaining > 0:
                     cursor.execute(
-                        "SELECT id FROM plan_produkcji WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'",
+                        f"SELECT id FROM {table_plan} WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'",
                         (next_data_str, produkt)
                     )
                     if cursor.fetchone():
@@ -945,11 +957,12 @@ class PlanningService:
                         s_z2, msg_z2, zasyp_created2_id = PlanningService.create_plan(
                             data_planu=next_data_str,
                             produkt=produkt,
-                            tonaz=0,
+                            tonaz=zasyp_remaining,
                             sekcja='Zasyp',
                             typ_produkcji=typ_prod,
                             status='zaplanowane',
-                            nazwa_zlecenia=f'PRZENIESIONE ZASYP z {current_data}'
+                            nazwa_zlecenia=f'PRZENIESIONE ZASYP z {current_data}',
+                            linia=linia
                         )
                         new_zasyp2_id = None
                         if isinstance(zasyp_created2_id, int):
@@ -964,16 +977,21 @@ class PlanningService:
                                 typ_produkcji=typ_prod,
                                 status='zaplanowane',
                                 nazwa_zlecenia=f'PRZENIESIONE z {current_data}',
-                                zasyp_id=new_zasyp2_id
+                                zasyp_id=new_zasyp2_id,
+                                linia=linia
                             )
                             if isinstance(new_work2_id, int):
                                 conn.commit()
                                 created_count += 1
                                 current_app.logger.info(f'[PRZENIES] Workowanie shortfall created/linked: {produkt} {zasyp_remaining}kg -> Workowanie #{new_work2_id} (Zasyp #{new_zasyp2_id})')
 
-                                update_cursor.execute("SELECT COALESCE(MAX(kolejka), 0) FROM bufor WHERE data_planu = %s AND status = 'aktywny'", (next_data_str,))
+                                update_cursor.execute(f"SELECT COALESCE(MAX(kolejka), 0) FROM {table_bufor} WHERE data_planu = %s AND status = 'aktywny'", (next_data_str,))
                                 max_kol = update_cursor.fetchone()[0] or 0
-                                update_cursor.execute(sql_ins, (new_zasyp2_id, next_data_str, produkt, f'carry-over z {current_data}', typ_prod, zasyp_remaining, max_kol + 1))
+                                sql_ins2 = (
+                                    f"INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status, linia)"
+                                    " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny', %s) ON DUPLICATE KEY UPDATE id = id"
+                                )
+                                update_cursor.execute(sql_ins2, (new_zasyp2_id, next_data_str, produkt, f'carry-over z {current_data}', typ_prod, zasyp_remaining, max_kol + 1, linia))
                                 conn.commit()
                                 current_app.logger.info(f'[PRZENIES] Bufor entry inserted for {produkt} on {next_data_str} (kolejka {max_kol + 1}) pointing to Zasyp #{new_zasyp2_id}')
 

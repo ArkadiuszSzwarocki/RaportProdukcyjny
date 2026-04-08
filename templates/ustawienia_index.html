@@ -251,26 +251,14 @@
 
         <div class="settings-grid">
             <article class="settings-card settings-card-admin">
-                <div class="settings-card-icon">👤</div>
+                <div class="settings-card-icon">👥</div>
                 <div class="settings-card-body">
-                    <h3>{{ _('uzytkownicy') }}</h3>
-                    <p>{{ _('dodawaj_edytuj_konta') }}</p>
-                    <div class="settings-card-meta">Konta, role, loginy i reset haseł</div>
+                    <h3>Zarządzanie Zespołem</h3>
+                    <p>Wspólna lista pracowników, ich ID oraz uprawnień systemowych.</p>
+                    <div class="settings-card-meta">Dodawaj osoby, zarządzaj loginami i przypisuj do hal</div>
                 </div>
                 <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/uzytkownicy" class="btn btn-primary">{{ _('przejdz_do_uzytkownikow') }}</a>
-                </div>
-            </article>
-
-            <article class="settings-card settings-card-admin">
-                <div class="settings-card-icon">🧑‍🏭</div>
-                <div class="settings-card-body">
-                    <h3>{{ _('pracownicy') }}</h3>
-                    <p>{{ _('zarzadzaj_pracownikami') }}</p>
-                    <div class="settings-card-meta">Lista pracowników, grupy i powiązania z kontami</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/pracownicy" class="btn btn-primary">{{ _('przejdz_do_pracownikow') }}</a>
+                    <a href="/admin/ustawienia/zespol" class="btn btn-primary">Przejdź do Zespołu</a>
                 </div>
             </article>
 
@@ -295,6 +283,18 @@
                 </div>
                 <div class="settings-card-actions">
                     <a href="/admin/ustawienia/workowanie_times" class="btn btn-primary">Konfiguruj czasy</a>
+                </div>
+            </article>
+
+            <article class="settings-card settings-card-accent">
+                <div class="settings-card-icon">🏭</div>
+                <div class="settings-card-body">
+                    <h3>Zarządzanie Produkcją</h3>
+                    <p>Przeglądaj i filtruj zlecenia oraz archiwalne dane produkcyjne.</p>
+                    <div class="settings-card-meta">Podgląd wszystkich sekcji, statusów i historii planu</div>
+                </div>
+                <div class="settings-card-actions">
+                    <a href="/admin/ustawienia/produkcja" class="btn btn-primary">Przejdź do Produkcji</a>
                 </div>
             </article>
 

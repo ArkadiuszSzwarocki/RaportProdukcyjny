@@ -33,6 +33,40 @@
       "readonly": false
     }
   },
+  "podsumowanie_szarz": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": true
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
   "ustawienia": {
     "admin": {
       "access": true,

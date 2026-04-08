@@ -29,6 +29,7 @@
       <div class="end-shift-wrapper-top" style="margin-left: auto;">
         <form method="POST" action="{{ url_for('leaves.zamknij_zmiane_global') }}" class="end-shift-form m-0"
           id="endShiftForm" style="display: flex; gap: 10px;">
+          <input type="hidden" name="linia" value="{{ linia }}">
           <button type="submit" class="btn-action btn-success btn-end-shift-large" style="white-space: nowrap;">
             🏁 {{ _('zakonczy_zmiane_i_pobierz_raporty') }}
           </button>
@@ -43,14 +44,16 @@
   </div>
 </div>
 
+{% for h_id in halls_to_fetch %}
+{% set h = halls_data[h_id] %}
 {# Full day production overview: Zasyp & Workowanie #}
-<section class="section-box p-15 p-15-bg">
-  <h3 class="m-0">📦 {{ _('podglad_produkcji') }}</h3>
+<section class="section-box p-15 p-15-bg" style="margin-bottom: 25px;">
+  <h3 class="m-0">📦 {{ _('podglad_produkcji') }} — {{ h.linia }}</h3>
   <div class="production-flex-container">
     <div class="production-flex-item">
-      <h4 class="m-0">{{ _('zasyp') }} — {{ dzisiaj }} <small class="text-muted">({{ plans_zasyp|length }}
+      <h4 class="m-0">{{ _('zasyp') }} — {{ dzisiaj }} <small class="text-muted">({{ h.plans_zasyp|length }}
           planów)</small></h4>
-      {% if plans_zasyp %}
+      {% if h.plans_zasyp %}
       <table class="modern-table small production-table">
         <thead>
           <tr>
@@ -63,12 +66,13 @@
           </tr>
         </thead>
         <tbody>
-          {% for p in plans_zasyp %}
+          {% for p in h.plans_zasyp %}
           <tr>
             <td><strong class="text-primary">{{ p[1] }}</strong></td>
             <td>{{ p[2]|int }} kg</td>
             <td>{{ p[7]|int }} kg</td>
             <td><input type="number" class="uszkodzone-input" data-plan-id="{{ p[0] }}"
+                data-linia="{{ h.linia }}"
                 value="{{ p[11]|default(0, true)|int }}" min="0" placeholder="0" title="Liczba uszkodzonych worków"
                 aria-label="Liczba uszkodzonych worków"></td>
             <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
@@ -83,9 +87,9 @@
     </div>
 
     <div class="production-flex-item">
-      <h4 class="m-0">{{ _('workowanie') }} — {{ dzisiaj }} <small class="text-muted">({{ plans_workowanie|length }}
+      <h4 class="m-0">{{ _('workowanie') }} — {{ dzisiaj }} <small class="text-muted">({{ h.plans_workowanie|length }}
           planów)</small></h4>
-      {% if plans_workowanie %}
+      {% if h.plans_workowanie %}
       <table class="modern-table small production-table-workowanie">
         <thead>
           <tr>
@@ -98,12 +102,13 @@
           </tr>
         </thead>
         <tbody>
-          {% for p in plans_workowanie %}
+          {% for p in h.plans_workowanie %}
           <tr>
             <td><strong class="text-primary">{{ p[1] }}</strong></td>
             <td>{{ p[2]|int }} kg</td>
             <td>{{ p[7]|int }} kg</td>
             <td><input type="number" class="uszkodzone-input" data-plan-id="{{ p[0] }}"
+                data-linia="{{ h.linia }}"
                 value="{{ p[11]|default(0, true)|int }}" min="0" placeholder="0" title="Liczba uszkodzonych worków"
                 aria-label="Liczba uszkodzonych worków"></td>
             <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
@@ -118,6 +123,7 @@
     </div>
   </div>
 </section>
+{% endfor %}
 
 {# Sekcje Wniosków, Nieobecności i Planowanych Urlopów usunięte - przeniesione do dedykowanych paneli #}
 
@@ -392,7 +398,8 @@
         method: 'POST',
         headers: {
           'X-Requested-With': 'XMLHttpRequest'
-        }
+        },
+        body: new FormData(this)
       })
         .then(response => {
           console.log('[CLOSE-SHIFT] Response status:', response.status);
@@ -520,7 +527,8 @@
     input.addEventListener('blur', function () {
       const plan_id = this.getAttribute('data-plan-id');
       const uszkodzone_ilosc = parseInt(this.value) || 0;
-
+      const linia = this.getAttribute('data-linia') || 'PSD';
+      
       // Wysyłaj update do API
       fetch('/api/update_uszkodzone_worki', {
         method: 'POST',
@@ -528,8 +536,9 @@
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          id: plan_id,
-          uszkodzone_worki: uszkodzone_ilosc
+          plan_id: plan_id,
+          uszkodzone_worki: uszkodzone_ilosc,
+          linia: linia
         })
       })
         .then(response => response.json())

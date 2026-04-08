@@ -12,6 +12,27 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ static_version }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/inline-styles.css') }}?v={{ static_version }}">
+    <script>
+        /** JS ERROR TRAP: Capture and log frontend errors to the server */
+        window.onerror = function(message, source, lineno, colno, error) {
+            try {
+                const payload = {
+                    message: message,
+                    url: source,
+                    line: lineno,
+                    column: colno,
+                    stack: error ? error.stack : '',
+                    href: window.location.href
+                };
+                fetch('/log_frontend_error', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).catch(() => {}); // silent fail if network error
+            } catch(e) {}
+            return false; // let default browser handling continue
+        };
+    </script>
     <style>
         .notifications-wrapper {
             position: relative;
@@ -320,8 +341,34 @@
         <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
         <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
             <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
+            
+            {# Hall isolation logic for rotating leaders/admins #}
+            {% set role = session.get('rola', '').lower() %}
+            {# Force user_hall to ALL for admin/zarzad even if session hasn't refreshed yet #}
+            {% set user_hall = 'ALL' if role in ['admin', 'zarzad'] else (session.get('grupa') or 'ALL').upper() %}
+            {% set hall_view = session.get('selected_hall_view') %}
+            
+            {# Switcher is only for operational leaders and admins who have ALL hall access #}
+            {% set can_switch_halls = role in ['admin', 'zarzad', 'lider', 'planista'] and user_hall == 'ALL' %}
+            {% set effective_hall = hall_view or user_hall %}
+
+            {% if can_switch_halls %}
+            <div class="hall-switcher">
+                <div class="switcher-label">Pracujesz dziś na:</div>
+                <div class="switcher-controls">
+                    <a href="{{ url_for('main.set_hall_view', hall='PSD', sekcja=request.args.get('sekcja'), data=request.args.get('data')) }}" 
+                       class="switcher-btn {% if effective_hall == 'PSD' %}active{% endif %}" title="Hala 1 (PSD)">1</a>
+                    <a href="{{ url_for('main.set_hall_view', hall='AGRO', sekcja=request.args.get('sekcja'), data=request.args.get('data')) }}" 
+                       class="switcher-btn {% if effective_hall or effective_hall == 'AGRO' %}{% if effective_hall == 'AGRO' %}active{% endif %}{% endif %}" title="Hala 2 (Agro)">2</a>
+                    <a href="{{ url_for('main.set_hall_view', hall='ALL', sekcja=request.args.get('sekcja'), data=request.args.get('data')) }}" 
+                       class="switcher-btn {% if effective_hall == 'ALL' %}active{% endif %}" title="Wszystkie hale">A</a>
+                </div>
+            </div>
+            {% endif %}
+
             <nav class="sidebar-nav">
-                <div class="nav-section-label">LINIA PSD</div>
+                {% if effective_hall in ['PSD', 'ALL'] %}
+                <div class="nav-section-label">HALA 1 (PSD)</div>
                 
                 {% if role_has_access('dashboard') %}
                 <a href="{{ url_for('main.index', linia='PSD') }}"
@@ -352,51 +399,50 @@
                     class="nav-item {% if request.args.get('sekcja')=='Magazyn' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">📦 <span
                         class="text-capitalize">{{ _('magazyn') }}</span></a>
                 {% endif %}
-
                 <div class="nav-divider"></div>
-                <div class="nav-section-label">LINIA AGRO</div>
+                {% endif %}
+                {% if effective_hall in ['AGRO', 'ALL'] %}
+                <div class="nav-section-label">HALA 2 (AGRO)</div>
 
                 {% if role_has_access('dashboard') %}
-                <a href="{{ url_for('main.index', linia='Agro') }}"
-                    class="nav-item {% if (request.path == '/' or request.path == '') and (not request.args.get('sekcja') or request.args.get('sekcja') == 'Dashboard') and (request.args.get('linia') == 'Agro') %}active{% endif %}">🌾
+                <a href="{{ url_for('main.index', linia='AGRO') }}"
+                    class="nav-item {% if (request.path == '/' or request.path == '') and (not request.args.get('sekcja') or request.args.get('sekcja') == 'Dashboard') and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">🌾
                     <span class="text-capitalize">Dashboard Agro</span></a>
                 {% endif %}
 
                 {% if role_has_access('zasyp') %}
-                <a href="{{ url_for('main.index', sekcja='Zasyp', linia='Agro') }}"
-                    class="nav-item {% if request.args.get('sekcja')=='Zasyp' and request.args.get('linia') == 'Agro' %}active{% endif %}">📥 <span
+                <a href="{{ url_for('main.index', sekcja='Zasyp', linia='AGRO') }}"
+                    class="nav-item {% if request.args.get('sekcja')=='Zasyp' and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">📥 <span
                         class="text-capitalize">Zasyp Agro</span></a>
                 {% endif %}
 
                 {% if role_has_access('bufor') %}
-                <a href="{{ url_for('planista.bufor_page', linia='Agro') }}"
-                    class="nav-item {% if request.path.startswith('/bufor') and request.args.get('linia') == 'Agro' %}active{% endif %}">🗂️ <span
+                <a href="{{ url_for('planista.bufor_page', linia='AGRO') }}"
+                    class="nav-item {% if request.path.startswith('/bufor') and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">🗂️ <span
                         class="text-capitalize">Bufor Agro</span></a>
                 {% endif %}
 
                 {% if role_has_access('workowanie') %}
-                <a href="{{ url_for('main.index', sekcja='Workowanie', linia='Agro') }}"
-                    class="nav-item {% if request.args.get('sekcja')=='Workowanie' and request.args.get('linia') == 'Agro' %}active{% endif %}">⚙️ <span
+                <a href="{{ url_for('main.index', sekcja='Workowanie', linia='AGRO') }}"
+                    class="nav-item {% if request.args.get('sekcja')=='Workowanie' and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">⚙️ <span
                         class="text-capitalize">Workowanie Agro</span></a>
                 {% endif %}
 
                 {% if role_has_access('magazyn') %}
-                <a href="{{ url_for('agro_warehouse.index', linia='Agro') }}"
-                    class="nav-item {% if request.blueprint == 'agro_warehouse' %}active{% endif %}">📦 <span
-                        class="text-capitalize">Magazyn Surowców Agro</span></a>
+                <a href="{{ url_for('main.index', sekcja='Magazyn', linia='AGRO') }}"
+                    class="nav-item {% if request.args.get('sekcja')=='Magazyn' and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">📦 <span
+                        class="text-capitalize">Magazyn Agro</span></a>
+                <a href="{{ url_for('agro_warehouse.index', linia='AGRO') }}"
+                    class="nav-item {% if request.blueprint == 'agro_warehouse' %}active{% endif %}">📔 <span
+                        class="text-capitalize">Surowce Agro</span></a>
                 {% endif %}
 
                 <div class="nav-divider"></div>
+                {% endif %}
                 <div class="nav-section-label">ADMINISTRACJA & INNE</div>
 
-                {% if role_has_access('zasyp') %}
+                {% if role_has_access('podsumowanie_szarz') %}
                 <a href="{{ url_for('warehouse.podsumowanie_szarz') }}" class="nav-item {% if request.path.startswith('/podsumowanie_szarz') %}active{% endif %}">📈 <span class="text-capitalize">Podsumowanie szarż</span></a>
-                {% endif %}
-
-                {% if role_has_access('magazyn') %}
-                <a href="{{ url_for('main.index', sekcja='Magazyn', linia='PSD') }}"
-                    class="nav-item {% if request.args.get('sekcja')=='Magazyn' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">📦 <span
-                        class="text-capitalize">{{ _('magazyn') }}</span></a>
                 {% endif %}
 
                 {% if role_has_access('jakosc') %}
@@ -434,12 +480,32 @@
                 {% endif %}
 
                 {% if role_has_access('ustawienia') %}
-                <a href="/admin/centrum"
-                    class="nav-item {% if request.path.startswith('/admin/centrum') %}active{% endif %}">🖥️ <span
-                        class="text-capitalize">Centrum Systemowe</span></a>
-                <a href="/admin/ustawienia"
-                    class="nav-item {% if request.path == '/admin/ustawienia' %}active{% endif %}">⚙️ <span
-                        class="text-capitalize">{{ _('ustawienia') }}</span></a>
+                <div class="nav-item-group">
+                    <button type="button" class="nav-item {% if request.path.startswith('/admin/centrum') or '/admin/ustawienia/zalogowani' in request.path or '/admin/ustawienia/logs' in request.path or '/admin/ustawienia/errors' in request.path or '/admin/ustawienia/backups' in request.path or '/admin/centrum/audyt' in request.path %}active{% endif %}" aria-expanded="false">
+                        🖥️ <span class="text-capitalize">Centrum Systemowe</span>
+                    </button>
+                    <div class="nav-sub {% if request.path.startswith('/admin/centrum') or '/admin/ustawienia/zalogowani' in request.path or '/admin/ustawienia/logs' in request.path or '/admin/ustawienia/errors' in request.path or '/admin/ustawienia/backups' in request.path or '/admin/centrum/audyt' in request.path %}open{% endif %}">
+                        <a href="/admin/centrum" class="nav-sub-item {% if request.path == '/admin/centrum' %}active{% endif %}">— Dashboard Systemu</a>
+                        <a href="/admin/ustawienia/zalogowani" class="nav-sub-item {% if request.path == '/admin/ustawienia/zalogowani' %}active{% endif %}">— Zalogowani</a>
+                        <a href="/admin/ustawienia/logs" class="nav-sub-item {% if request.path == '/admin/ustawienia/logs' %}active{% endif %}">— Dziennik akcji</a>
+                        <a href="/admin/ustawienia/errors" class="nav-sub-item {% if request.path == '/admin/ustawienia/errors' %}active{% endif %}">— Pułapki błędów</a>
+                        <a href="/admin/ustawienia/backups" class="nav-sub-item {% if request.path == '/admin/ustawienia/backups' %}active{% endif %}">— Backupy</a>
+                        <a href="/admin/centrum/audyt" class="nav-sub-item {% if request.path == '/admin/centrum/audyt' %}active{% endif %}">— Audyt ruchów</a>
+                    </div>
+                </div>
+
+                <div class="nav-item-group">
+                    <button type="button" class="nav-item {% if request.path == '/admin/ustawienia' or '/admin/ustawienia/zespol' in request.path or '/admin/ustawienia/roles' in request.path or '/admin/ustawienia/workowanie_times' in request.path or '/admin/ustawienia/produkcja' in request.path %}active{% endif %}" aria-expanded="false">
+                        ⚙️ <span class="text-capitalize">{{ _('ustawienia') }}</span>
+                    </button>
+                    <div class="nav-sub {% if request.path == '/admin/ustawienia' or '/admin/ustawienia/zespol' in request.path or '/admin/ustawienia/roles' in request.path or '/admin/ustawienia/workowanie_times' in request.path or '/admin/ustawienia/produkcja' in request.path %}open{% endif %}">
+                        <a href="/admin/ustawienia" class="nav-sub-item {% if request.path == '/admin/ustawienia' %}active{% endif %}">— Główne Ustawienia</a>
+                        <a href="/admin/ustawienia/zespol" class="nav-sub-item {% if request.path == '/admin/ustawienia/zespol' %}active{% endif %}">— Zespół</a>
+                        <a href="/admin/ustawienia/roles" class="nav-sub-item {% if request.path == '/admin/ustawienia/roles' %}active{% endif %}">— Uprawnienia</a>
+                        <a href="/admin/ustawienia/workowanie_times" class="nav-sub-item {% if request.path == '/admin/ustawienia/workowanie_times' %}active{% endif %}">— Czasy Workowania</a>
+                        <a href="/admin/ustawienia/produkcja" class="nav-sub-item {% if request.path == '/admin/ustawienia/produkcja' %}active{% endif %}">— Historia Produkcji</a>
+                    </div>
+                </div>
                 {% endif %}
             </nav>
             <div class="sidebar-footer">

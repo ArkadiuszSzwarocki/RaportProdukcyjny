@@ -17,7 +17,7 @@ def bezpieczny_powrot():
     
     # Try to get sekcja from query string first (URL parameters), then from form
     sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
-    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
     data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
     return url_for('main.index', sekcja=sekcja, data=data, linia=linia)
 
@@ -32,7 +32,8 @@ def start_zlecenie(id):
     """
     conn = get_db_connection()
     try:
-        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+        linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+        linia = str(linia_input).upper()
         table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
         cursor.execute(f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0) FROM {table_plan} WHERE id=%s", (id,))
@@ -155,7 +156,7 @@ def koniec_zlecenie(id):
         wyjasnienie = request.form.get('wyjasnienie')
         uszkodzone_worki = request.form.get('uszkodzone_worki')
         sekcja = request.form.get('sekcja')
-        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+        linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         table_plan = get_table_name('plan_produkcji', linia)
         
         rzeczywista_waga = 0
@@ -247,13 +248,14 @@ def zapisz_wyjasnienie(id):
 @production_bp.route('/koniec_zlecenie_page/<int:id>', methods=['GET'])
 @login_required
 def koniec_zlecenie_page(id):
-    """Render confirmation fragment for ending job order"""
+    """Widok potwierdzenia zakończenia zlecenia (analogicznie do dawnego modalu)."""
+    linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+    linia = str(linia_input).upper()
     sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Zasyp'))
     produkt = None
     tonaz_rzeczywisty = None
     conn = get_db_connection()
     try:
-        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
         table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
         cursor.execute(f"SELECT produkt, tonaz_rzeczywisty FROM {table_plan} WHERE id=%s", (id,))
@@ -294,12 +296,13 @@ def api_test_pobierz_raport():
 @production_bp.route('/szarza_page/<int:plan_id>', methods=['GET'])
 @login_required
 def szarza_page(plan_id):
-    """Render form to add a szarża (charge) for Zasyp plan"""
+    """Strona dodawania nowej szarży dla konkretnego planu."""
+    linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+    linia = str(linia_input).upper()
     current_app.logger.debug(f'[SZARZA_PAGE] Called with plan_id={plan_id}')
     
     conn = get_db_connection()
     try:
-        linia = request.args.get('linia') or request.form.get('linia', 'PSD')
         table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
         cursor.execute(
@@ -313,13 +316,21 @@ def szarza_page(plan_id):
             return redirect('/')
         
         produkt, typ_produkcji = plan[0], plan[1]
-        current_app.logger.debug(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}, linia={linia}')
+        
+        # Calculate next szarża number (MAX + 1)
+        table_szarze = get_table_name('szarze', linia)
+        cursor.execute(f"SELECT MAX(nr_szarzy) FROM {table_szarze} WHERE plan_id=%s", (plan_id,))
+        max_nr = cursor.fetchone()[0]
+        next_nr = (max_nr or 0) + 1
+        
+        current_app.logger.debug(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}, linia={linia}, next_nr={next_nr}')
         return render_template('dodaj_palete_popup.html', 
                      plan_id=plan_id, 
                      sekcja='Zasyp',
                      produkt=produkt,
                      typ=typ_produkcji,
-                     linia=linia)
+                     linia=linia,
+                     next_nr_szarzy=next_nr)
     except Exception as e:
         current_app.logger.error(f'[SZARZA_PAGE] Error in szarza_page: {e}', exc_info=True)
         flash('Błąd pobierania danych planu', 'error')
@@ -349,7 +360,7 @@ def manual_rollover():
     """Manually rollover unfinished jobs from one date to another"""
     from_date = request.form.get('from_date') or request.args.get('from_date')
     to_date = request.form.get('to_date') or request.args.get('to_date')
-    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
     if not from_date or not to_date:
         flash('Brakuje daty źródłowej lub docelowej', 'error')
         return redirect(bezpieczny_powrot())
@@ -370,7 +381,7 @@ def manual_rollover():
 def obsada_page():
     """Render slide-over for managing obsada (workers on shift) for a sekcja"""
     sekcja = request.args.get('sekcja', request.form.get('sekcja', 'Workowanie'))
-    linia = request.args.get('linia', request.form.get('linia', 'PSD'))
+    linia = request.args.get('linia', request.form.get('linia')) or session.get('selected_hall_view') or 'PSD'
     # allow optional date parameter (YYYY-MM-DD) to view/modify obsada for other dates
     date_str = request.args.get('date') or request.form.get('date')
     try:
@@ -613,7 +624,7 @@ def dodaj_dosypke():
 def potwierdz_dosypke(dosypka_id):
     """Operator potwierdza odczytanie dosypki - mark as confirmed."""
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
     table_plan = get_table_name('plan_produkcji', linia)
     table_dosypki = get_table_name('dosypki', linia)
     table_szarze = get_table_name('szarze', linia)
@@ -686,7 +697,7 @@ def potwierdz_dosypke(dosypka_id):
 def anuluj_dosypke(dosypka_id):
     """Mark dosypka as anulowana instead of deleting it."""
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
     table_dosypki = get_table_name('dosypki', linia)
     conn = get_db_connection()
     try:
@@ -752,7 +763,7 @@ def api_dosypki():
     """Return JSON of active unconfirmed dosypki for operators."""
     current_app.logger.debug(f"[api_dosypki] Endpoint reached by user role: {session.get('rola')}")
     plan_id = request.args.get('plan_id', None)
-    linia = request.args.get('linia', 'PSD')
+    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
     table_dosypki = get_table_name('dosypki', linia)
     conn = get_db_connection()
     try:
@@ -815,7 +826,7 @@ def dosypki_list():
     """Render slide-over page with list of active unconfirmed dosypki for operators."""
     # Accept optional plan_id to filter dosypki for a specific zlecenie
     plan_id = request.args.get('plan_id', None)
-    linia = request.args.get('linia', 'PSD')
+    linia = request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
     # Fetch unconfirmed dosypki server-side so fragment shows data even if client JS doesn't run
     from app.db import list_unconfirmed_dosypki
     rows = list_unconfirmed_dosypki(linia=linia)
@@ -833,6 +844,6 @@ def dosypki_list():
         dosypki.append({'id': r[0], 'plan_id': r[1], 'nazwa': nazwa, 'kg': float(r[3]) if r[3] is not None else None, 'data_zlecenia': str(r[4]) if r[4] is not None else ''})
     # Always return the fragment regardless of X-Requested-With
     # because the quick popup JS via fetch expects just the fragment HTML.
-    return render_template('dosypki_list.html', dosypki=dosypki, plan_id=plan_id, rola=role)
+    return render_template('dosypki_list.html', dosypki=dosypki, plan_id=plan_id, rola=role, linia=linia)
 
 

@@ -1,27 +1,48 @@
 {% extends "layout.html" %}
+
 {% block content %}
-<h2>Backupy bazy danych</h2>
-<p>Lista plików backupu w katalogu <strong>backups/</strong>.</p>
-<table class="table table-sm">
-  <thead>
-    <tr>
-      <th>Nazwa pliku</th>
-      <th>Rozmiar</th>
-      <th>Data modyfikacji</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for b in backups %}
-    <tr>
-      <td>{{ b.name }}</td>
-      <td>{{ (b.size / 1024) | round(2) }} KB</td>
-      <td>{{ b.mtime.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-      <td><a class="btn btn-sm btn-outline-primary" href="/admin/ustawienia/backups/download/{{ b.name }}">Pobierz</a></td>
-    </tr>
-    {% else %}
-    <tr><td colspan="4">Brak plików backupu.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="section-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0;">📋 Backupy bazy danych</h2>
+        <form action="{{ url_for('admin.admin_ustawienia_backups_create') }}" method="POST" style="margin: 0;">
+            <button type="submit" class="btn btn-primary" onclick="return confirm('Czy na pewno chcesz utworzyć nową kopię zapasową bazy danych?')">
+                ➕ Zrób kopię teraz
+            </button>
+        </form>
+    </div>
+
+    <div class="card mb-15">
+        <p>Lista plików backupu w katalogu <strong>backups/</strong>. Automatyczny backup wykonuje się co 2 godziny (Windows Task Scheduler).</p>
+        <div class="muted">Kopie są przechowywane lokalnie na komputerze. Zalecamy regularne pobieranie ich lub konfigurację wysyłki na serwer QNAP/Cloud.</div>
+    </div>
+
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>Nazwa pliku</th>
+          <th>Rozmiar</th>
+          <th>Data modyfikacji</th>
+          <th>Akcja</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in backups %}
+        <tr>
+          <td><strong>{{ b.name }}</strong></td>
+          <td>{{ (b.size / 1024) | round(2) }} KB</td>
+          <td>{{ b.mtime.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td>
+              <a class="btn btn-sm btn-outline-primary" href="/admin/ustawienia/backups/download/{{ b.name }}">Pobierz</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted" style="text-align: center; padding: 20px;">Brak plików backupu w folderze.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    
+    <div style="margin-top: 20px;">
+        <a href="/admin/ustawienia" class="btn btn-secondary">Powrót do Ustawień</a>
+    </div>
+</div>
 {% endblock %}

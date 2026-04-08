@@ -13,6 +13,23 @@ from app.db import get_db_connection
 main_bp = Blueprint('main', __name__)
 
 
+@main_bp.route('/set_hall_view/<hall>')
+def set_hall_view(hall):
+    """Pin the current view to a specific hall for users with multi-hall access."""
+    if hall in ['PSD', 'AGRO']:
+        session['selected_hall_view'] = hall
+        flash(f'Widok przełączony na: { "Hala 1 (PSD)" if hall=="PSD" else "Hala 2 (Agro)" }', 'info')
+    elif hall == 'ALL':
+        session.pop('selected_hall_view', None)
+        flash('Widok przełączony na: Wszystkie hale', 'info')
+    
+    # Próbuj wrócić na tę samą sekcję jeśli to możliwe
+    sekcja = request.args.get('sekcja')
+    data = request.args.get('data')
+    
+    return redirect(url_for('main.index', linia=hall, sekcja=sekcja, data=data))
+
+
 @main_bp.route('/favicon.ico')
 @main_bp.route('/apple-touch-icon.png')
 @main_bp.route('/apple-touch-icon-precomposed.png')
@@ -81,8 +98,23 @@ def index() -> str:
     
     # Parse parameters
     aktywna_sekcja = request.args.get('sekcja', 'Dashboard')
-    aktywna_linia = request.args.get('linia', 'PSD')
+    
     role = (session.get('rola') or '').lower()
+    user_grupa = session.get('grupa')
+    sess_hall = session.get('selected_hall_view')
+    
+    # Priority for deciding which hall(s) to view:
+    # 1. Explicit 'linia' URL parameter
+    # 2. Pinned hall from session 'selected_hall_view' (via /set_hall_view)
+    # 3. User's assigned group from database session['grupa'] (e.g. 'PSD', 'AGRO', or 'ALL')
+    # 4. Fallback default 'PSD'
+    aktywna_linia = request.args.get('linia') or sess_hall or user_grupa or 'PSD'
+
+    # Hall Isolation: if user has a group and is not an admin/manager/lider/planista, restrict them to their hall
+    # Users with group 'ALL' (like rotating leaders, admins, managers) are NOT isolated.
+    if user_grupa and user_grupa.upper() != 'ALL' and role not in ['admin', 'zarzad', 'planista', 'lider']:
+        if aktywna_linia != user_grupa:
+            return redirect(url_for('main.index', sekcja=aktywna_sekcja, linia=user_grupa))
 
     # --- Dynamic section access check ---
     # Map sekcja param to the key used in role_permissions.json
@@ -130,55 +162,69 @@ def index() -> str:
                   if request.args.get('data') else date.today()
     except Exception:
         dzisiaj = date.today()
-    
-    # Get basic staff data
-    staff_data = DashboardService.get_basic_staff_data(dzisiaj, linia=aktywna_linia)
-    wszyscy = staff_data['wszyscy']
-    zajeci_ids = staff_data['zajeci_ids']
-    dostepni = staff_data['dostepni']
-    obsada = staff_data['obsada']
-    
-    # Get journal entries for section
-    wpisy = DashboardService.get_journal_entries(dzisiaj, aktywna_sekcja, linia=aktywna_linia)
-    
-    # Get section-specific data
-    plan_dnia = []
-    palety_mapa = {}
-    magazyn_palety = []
-    unconfirmed_palety = []
-    suma_plan = 0
-    suma_wykonanie = 0
-    
-    # Warehouse section
-    if aktywna_sekcja == 'Magazyn':
-        magazyn_palety, unconfirmed_palety, suma_wykonanie = \
-            DashboardService.get_warehouse_data(dzisiaj, linia=aktywna_linia)
-    
-    # Production plans (don't overwrite Magazyn aggregates when viewing Magazyn)
-    if aktywna_sekcja != 'Magazyn':
-        plan_dnia, palety_mapa, suma_plan, suma_wykonanie = \
-            DashboardService.get_production_plans(dzisiaj, aktywna_sekcja, linia=aktywna_linia)
-    else:
-        # Ensure plan_dnia and palety_mapa are still populated for the template
-        plan_dnia, palety_mapa, suma_plan = [], {}, 0
-    
-    # Get zasyp started products
-    zasyp_rozpoczete = DashboardService.get_zasyp_started_products(dzisiaj, linia=aktywna_linia)
-    
-    # Get HR and leave data
+
+    # Determine which halls to fetch data for
+    halls_to_fetch = ['PSD', 'AGRO'] if aktywna_linia == 'ALL' else [aktywna_linia]
+    halls_data = {}
+
+    # Global data (shared across halls)
+    staff_data_global = DashboardService.get_basic_staff_data(dzisiaj, linia='PSD')
+    wszyscy = staff_data_global['wszyscy']
+    zajeci_ids = staff_data_global['zajeci_ids']
+    dostepni = staff_data_global['dostepni']
     hr_data = DashboardService.get_hr_and_leave_data(dzisiaj, wszyscy, zajeci_ids)
-    
-    # Get quality and leave requests
-    quality_data = DashboardService.get_quality_and_leave_requests(role, linia=aktywna_linia)
-    
-    # Get shift notes
-    shift_notes = DashboardService.get_shift_notes(dzisiaj, linia=aktywna_linia)
-    
-    # Get full plans for Dashboard
-    plans_zasyp, plans_workowanie = DashboardService.get_full_plans_for_sections(dzisiaj, linia=aktywna_linia)
-    
-    # Get next Workowanie ID
-    next_workowanie_id = DashboardService.get_next_workowanie_id(plan_dnia)
+
+    for h in halls_to_fetch:
+        h_staff = DashboardService.get_basic_staff_data(dzisiaj, linia=h)
+        h_wpisy = DashboardService.get_journal_entries(dzisiaj, aktywna_sekcja, linia=h)
+        h_zasyp_rozpoczete = DashboardService.get_zasyp_started_products(dzisiaj, linia=h)
+        h_quality = DashboardService.get_quality_and_leave_requests(role, linia=h)
+        h_notes = DashboardService.get_shift_notes(dzisiaj, linia=h)
+        h_plans_zasyp, h_plans_work = DashboardService.get_full_plans_for_sections(dzisiaj, linia=h)
+        h_active = DashboardService.any_plan_in_progress(dzisiaj, linia=h)
+        h_buffer_q = DashboardService.get_buffer_queue(dzisiaj, linia=h)
+        h_work_first = DashboardService.get_first_workowanie_map(dzisiaj, linia=h)
+        h_product_order = DashboardService.get_zasyp_product_order(dzisiaj, linia=h)
+        h_zasyp_has_active = DashboardService.get_zasyp_active_status(dzisiaj, linia=h)
+        h_active_products = DashboardService.get_active_products(dzisiaj, linia=h)
+        
+        # Section specific data
+        h_plan_dnia = []
+        h_palety_mapa = {}
+        h_mag_palety = []
+        h_unconf_palety = []
+        h_suma_plan = 0
+        h_suma_wyk = 0
+        
+        if aktywna_sekcja == 'Magazyn':
+            h_mag_palety, h_unconf_palety, h_suma_wyk = DashboardService.get_warehouse_data(dzisiaj, linia=h)
+        
+        if aktywna_sekcja != 'Magazyn':
+            h_plan_dnia, h_palety_mapa, h_suma_plan, h_suma_wyk = DashboardService.get_production_plans(dzisiaj, aktywna_sekcja, linia=h)
+        
+        halls_data[h] = {
+            'linia': h,
+            'obsada': h_staff['obsada'],
+            'wpisy': h_wpisy,
+            'zasyp_rozpoczete': h_zasyp_rozpoczete,
+            'quality_data': h_quality,
+            'shift_notes': h_notes,
+            'plans_zasyp': h_plans_zasyp,
+            'plans_workowanie': h_plans_work,
+            'plan_dnia': h_plan_dnia,
+            'palety_mapa': h_palety_mapa,
+            'suma_plan': h_suma_plan,
+            'suma_wykonanie': h_suma_wyk,
+            'magazyn_palety': h_mag_palety,
+            'unconfirmed_palety': h_unconf_palety,
+            'global_active': h_active,
+            'buffer_queue': h_buffer_q,
+            'work_first_map': h_work_first,
+            'next_workowanie_id': DashboardService.get_next_workowanie_id(h_plan_dnia),
+            'zasyp_product_order': h_product_order,
+            'zasyp_has_active': h_zasyp_has_active,
+            'active_products': h_active_products
+        }
 
     # Global flag: is any plan in progress today (affects Start button availability across sections)
     global_active = DashboardService.any_plan_in_progress(dzisiaj, linia=aktywna_linia)
@@ -288,40 +334,43 @@ def index() -> str:
             app.logger.error(f"[ERROR-DOSYPKI] Błąd pobierania potwierdzonych dosypek: {e}")
             
     # Build template context
+    main_h_data = halls_data[halls_to_fetch[0]]
     context = {
+        'halls_data': halls_data,
+        'halls_to_fetch': halls_to_fetch,
         'sekcja': aktywna_sekcja,
         'linia': aktywna_linia,
         'pracownicy': dostepni,
         'wszyscy_pracownicy': wszyscy,
         'hr_pracownicy': hr_data['hr_pracownicy'],
         'hr_dostepni': hr_data['hr_dostepni'],
-        'obsada': obsada,
-        'wpisy': wpisy,
-        'plan': plan_dnia,
-        'palety_mapa': palety_mapa,
-        'magazyn_palety': magazyn_palety,
-        'unconfirmed_palety': unconfirmed_palety,
-        'suma_plan': suma_plan,
-        'suma_wykonanie': suma_wykonanie,
+        'obsada': main_h_data['obsada'],
+        'wpisy': main_h_data['wpisy'],
+        'plan': main_h_data['plan_dnia'],
+        'palety_mapa': main_h_data['palety_mapa'],
+        'magazyn_palety': main_h_data['magazyn_palety'],
+        'unconfirmed_palety': main_h_data['unconfirmed_palety'],
+        'suma_plan': main_h_data['suma_plan'],
+        'suma_wykonanie': main_h_data['suma_wykonanie'],
         'rola': session.get('rola'),
         'dzisiaj': dzisiaj,
         'raporty_hr': hr_data['raporty_hr'],
-        'zasyp_rozpoczete': zasyp_rozpoczete,
-        'next_workowanie_id': next_workowanie_id,
+        'zasyp_rozpoczete': main_h_data['zasyp_rozpoczete'],
+        'next_workowanie_id': main_h_data['next_workowanie_id'],
         'now_time': datetime.now().strftime('%H:%M'),
-        'quality_count': quality_data['quality_count'],
-        'wnioski_pending': quality_data['wnioski_pending'],
+        'quality_count': main_h_data['quality_data']['quality_count'],
+        'wnioski_pending': main_h_data['quality_data']['wnioski_pending'],
         'planned_leaves': hr_data['planned_leaves'],
         'recent_absences': hr_data['recent_absences'],
-        'shift_notes': shift_notes,
-        'plans_zasyp': plans_zasyp,
-        'plans_workowanie': plans_workowanie,
-        'buffer_map': buffer_queue,
-        'global_active': global_active,
-        'active_products': active_products,
-        'zasyp_has_active': zasyp_has_active,
-        'work_first_map': work_first_map,
-        'zasyp_product_order': zasyp_product_order,
+        'shift_notes': main_h_data['shift_notes'],
+        'plans_zasyp': main_h_data['plans_zasyp'],
+        'plans_workowanie': main_h_data['plans_workowanie'],
+        'buffer_map': main_h_data['buffer_queue'],
+        'global_active': main_h_data['global_active'],
+        'active_products': main_h_data['active_products'],
+        'zasyp_has_active': main_h_data['zasyp_has_active'],
+        'work_first_map': main_h_data['work_first_map'],
+        'zasyp_product_order': main_h_data['zasyp_product_order'],
         'allowed_work_start_ids': allowed_work_start_ids,
         'dosypki_mapa': dosypki_mapa,
         'dosypki_oczekujace_mapa': dosypki_oczekujace_mapa,
@@ -330,12 +379,12 @@ def index() -> str:
     # Render appropriate template
     # Log what we're passing to template
     app.logger.info('===BEGIN DEBUG DASHBOARD===')
-    app.logger.info('sekcja=%s, len(plan)=%d', aktywna_sekcja, len(plan_dnia))
-    if plan_dnia:
-        app.logger.info('First plan item: id=%s, name=%s, status=%s', plan_dnia[0][0], plan_dnia[0][1], plan_dnia[0][3])
+    app.logger.info('sekcja=%s, len(plan)=%d', aktywna_sekcja, len(main_h_data['plan_dnia']))
+    if main_h_data['plan_dnia']:
+        app.logger.info('First plan item: id=%s, name=%s, status=%s', main_h_data['plan_dnia'][0][0], main_h_data['plan_dnia'][0][1], main_h_data['plan_dnia'][0][3])
     else:
         app.logger.info('plan_dnia is EMPTY!')
-    app.logger.info('palety_mapa keys=%s', list(palety_mapa.keys()) if palety_mapa else 'EMPTY')
+    app.logger.info('palety_mapa keys=%s', list(main_h_data['palety_mapa'].keys()) if main_h_data['palety_mapa'] else 'EMPTY')
     app.logger.info('===END DEBUG DASHBOARD===')
     
     if aktywna_sekcja == 'Dashboard':

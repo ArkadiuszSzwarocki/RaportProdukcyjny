@@ -4,23 +4,43 @@
         <div><a href="/admin/ustawienia" class="btn">Powrót</a></div>
     </div>
 
-    <div class="card mb-15">
-        <form method="get" class="inline-form" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-            <div>
-                <label for="lines">Pokaż ostatnie linie:</label>
-                <input type="number" id="lines" name="lines" value="{{ lines }}" min="10" max="2000" />
-                <button class="btn" type="submit">Odśwież</button>
-            </div>
-        </form>
-        <div class="muted">Wyświetlane są tylko logi systemu na poziomie ERROR oraz wpisy krytyczne dotyczące aplikacji. Dane autoryzacyjne w logach (tokeny) są redagowane. Zobacz pełny plik <code>logs/error.log</code> z poziomu serwera by analizować szczegóły.</div>
+<div class="card mb-15">
+    <form method="get" class="inline-form" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <div>
+            <label for="lines">Analizuj ostatnie linie logu:</label>
+            <input type="number" id="lines" name="lines" value="{{ lines }}" min="10" max="2000" />
+            <button class="btn btn-primary" type="submit">Odśwież i parsuj</button>
+        </div>
+    </form>
+    <div class="muted" style="margin-top:10px;">
+        System skanuje plik <code>error.log</code> i grupuje wpisy w czytelne karty. 
+        Wpisy typu <strong>TRAP</strong> zawierają dodatkowe metadane o stronie i akcji, która spowodowała błąd.
     </div>
+</div>
 
-    <div class="card mb-15">
-        <h3>⚠️ Kod błędu — error.log (ostatnie {{ lines }} linii){% if trunc %} — log za duży, obcięto{% endif %}</h3>
-        {% if error_log %}
-        <pre class="log-block" style="color: #c0392b; background: #fdedec; border-color: #e6b0aa;">{{ error_log }}</pre>
-        {% else %}
-        <div class="muted"><strong>Czysto!</strong> Plik <code>error.log</code> jest pusty lub jeszcze w ogóle nie istnieje. Gratulacje! 🎉</div>
-        {% endif %}
-    </div>
+<div class="error-trap-container">
+    {% if errors %}
+        {% for err in errors %}
+        <article class="error-card {{ err.type|lower }}">
+            <div class="error-header">
+                <span class="error-time" title="Data i godzina">🕒 {{ err.timestamp }}</span>
+                <span class="error-path" title="Strona / URL">🌐 {{ err.url }}</span>
+                <span class="error-action" title="Przycisk / Akcja">🖱️ {{ err.action }}</span>
+                <span class="error-badge">{{ err.type }}</span>
+            </div>
+            <div class="error-body">
+                <pre>{{ err.lines|join('\n') }}</pre>
+            </div>
+        </article>
+        {% endfor %}
+    {% else %}
+        <div class="card">
+            <div class="muted" style="text-align:center; padding: 40px;">
+                <div style="font-size: 3rem; margin-bottom:15px;">🎉</div>
+                <strong>Brak błędów!</strong><br>
+                W analizowanym fragmencie logu nie znaleziono żadnych usterkek.
+            </div>
+        </div>
+    {% endif %}
+</div>
 </div>

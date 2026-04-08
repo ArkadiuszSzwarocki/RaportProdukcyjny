@@ -19,9 +19,12 @@
                 <input type="search" id="q" name="q" value="{{ q or '' }}" placeholder="tekst do wyszukania" />
                 <select name="file">
                     <option value="" {% if not q_file %}selected{% endif %}>Wszystkie</option>
-                    <option value="audit" {% if q_file=='audit' %}selected{% endif %}>audit.log</option>
-                    <option value="palety" {% if q_file=='palety' %}selected{% endif %}>palety.log</option>
-                    <option value="app" {% if q_file=='app' %}selected{% endif %}>app.log</option>
+                    <option value="audit" {% if q_file=='audit' %}selected{% endif %}>audit.log (akcje)</option>
+                    <option value="palety" {% if q_file=='palety' %}selected{% endif %}>palety.log (detale)</option>
+                    <option value="app" {% if q_file=='app' %}selected{% endif %}>app.log (system)</option>
+                    <option value="frontend" {% if q_file=='frontend' %}selected{% endif %}>frontend.log (błędy Przeglądarki)</option>
+                    <option value="database" {% if q_file=='database' %}selected{% endif %}>db_errors.log (baza danych)</option>
+                    <option value="status" {% if q_file=='status' %}selected{% endif %}>status_changes.log (stany zleceń)</option>
                 </select>
                 <label for="since">Od</label>
                 <span style="display:inline-flex;align-items:center;gap:6px">
@@ -75,6 +78,41 @@
     <div class="card mb-15">
         <h3>📦 palety.log (ostatnie {{ lines }} linii){% if pal_trunc %} — plik duży, wyświetlone linie ograniczone{% endif %}</h3>
         <pre class="log-block">{{ palety_log }}</pre>
+    </div>
+
+    <div class="card mb-15">
+        <h3>🚨 frontend_errors.log (błędy w przeglądarkach użytkowników - ostatnie {{ lines }} linii)</h3>
+        <div class="muted">Rejestruje błędy JavaScript z tabletów/komputerów operatorów. Pomaga w diagnozie problemów z interfejsem.</div>
+        {% if frontend_log %}
+        <pre class="log-block">{{ frontend_log }}</pre>
+        {% else %}
+        <div class="muted">Brak zarejestrowanych błędów frontendu.</div>
+        {% endif %}
+    </div>
+
+    <div class="card mb-15">
+        <h3>🗄️ db_errors.log (ostatnie {{ lines }} linii){% if db_trunc %} — plik duży{% endif %}</h3>
+        <div class="muted">Rejestruje błędy operacyjne bazy danych (Pułapka Monitoringu Bazy).</div>
+        {% if db_log %}
+        <pre class="log-block">{{ db_log }}</pre>
+        {% else %}
+        <div class="muted">Brak zarejestrowanych błędów bazy danych. Wspaniale!</div>
+        {% endif %}
+    </div>
+
+    <div class="card mb-15" style="border-left: 4px solid #3498db;">
+        <h3>🔄 status_changes.log (ostatnie {{ lines }} linii){% if stat_trunc %} — plik duży{% endif %}</h3>
+        <div class="muted">Szczegółowa historia zmian statusów i tonaży zleceń.</div>
+        {% if status_log %}
+        <pre class="log-block">{{ status_log }}</pre>
+        {% else %}
+        <div class="muted">Brak zarejestrowanych zmian statusów.</div>
+        {% endif %}
+    </div>
+
+    <div class="card mb-15">
+        <h3>🛠️ app.log (logi techniczne serwera - ostatnie {{ lines }} linii){% if app_trunc %} — plik duży{% endif %}</h3>
+        <pre class="log-block">{{ app_log }}</pre>
     </div>
 </div>
 {% endblock %}

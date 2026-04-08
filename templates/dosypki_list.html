@@ -82,8 +82,13 @@
     }
 </style>
 
-<div class="p-15" data-popup-title="Dosypki" {% if plan_id %} data-plan-id="{{ plan_id }}" {% endif %}>
-    <h4 class="m-0 text-zarzad">Dosypki — lista oczekujących</h4>
+<div class="p-15" data-popup-title="Dosypki" {% if plan_id %} data-plan-id="{{ plan_id }}" {% endif %} data-linia="{{ linia or 'PSD' }}">
+    <div class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <h4 class="m-0 text-zarzad">Dosypki — lista oczekujących</h4>
+        <a href="{{ url_for('production.dosypka_page', plan_id=plan_id, linia=linia) }}" class="btn-action btn-green" data-slide>
+             <span class="material-icons" style="font-size:16px; vertical-align:middle;">add_circle</span> Dodaj Nową
+        </a>
+    </div>
     <div class="mt-10">
         <div class="dosypki-status-row">
             <div id="dosypki-spinner" class="dosypki-spinner{% if dosypki and dosypki|length>0 %} hidden{% endif %}">

@@ -84,11 +84,16 @@
             const planIdFromUrl = urlParams.get('plan_id');
             const planId = planIdFromAttr || planIdFromUrl;
 
-            console.log('[dosypki.fetch] planIdFromAttr:', planIdFromAttr, 'planIdFromUrl:', planIdFromUrl, 'planId:', planId);
-            console.log('[dosypki.fetch] Current role:', window._currentRole);
+            // Get linia: prefer data-linia on container, then window._linia, then URL param
+            const liniaFromAttr = (p15 && p15.getAttribute('data-linia')) || (container.getAttribute && container.getAttribute('data-linia'));
+            const liniaFromUrl = urlParams.get('linia');
+            const linia = liniaFromAttr || liniaFromUrl || (typeof window._linia !== 'undefined' ? window._linia : 'PSD');
 
-            let fetchUrl = '/api/dosypki';
-            if (planId) fetchUrl += '?plan_id=' + encodeURIComponent(planId);
+            console.log('[dosypki.fetch] planIdFromAttr:', planIdFromAttr, 'planIdFromUrl:', planIdFromUrl, 'planId:', planId);
+            console.log('[dosypki.fetch] linia:', linia, 'Current role:', window._currentRole);
+
+            let fetchUrl = '/api/dosypki?linia=' + encodeURIComponent(linia);
+            if (planId) fetchUrl += '&plan_id=' + encodeURIComponent(planId);
             console.log('[dosypki.fetch] Fetching from:', fetchUrl);
 
             const res = await fetch(fetchUrl, { credentials: 'same-origin' });
@@ -132,11 +137,15 @@
             const row = btn.closest('tr');
             const planId = row ? row.getAttribute('data-plan-id') : null;
 
+            // Resolve linia from container data attribute or global window._linia
+            const p15 = btn.closest && btn.closest('.p-15');
+            const linia = (p15 && p15.getAttribute('data-linia')) || (typeof window._linia !== 'undefined' ? window._linia : 'PSD');
+
             btn.disabled = true;
             originalText = btn.textContent;
             btn.textContent = '⏳...';
 
-            const res = await fetch('/potwierdz_dosypke/' + id, {
+            const res = await fetch('/potwierdz_dosypke/' + id + '?linia=' + encodeURIComponent(linia), {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {

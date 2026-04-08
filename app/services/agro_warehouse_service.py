@@ -16,48 +16,6 @@ class AgroWarehouseService:
             conn.close()
 
     @staticmethod
-    def get_grouped_inventory(linia='Agro'):
-        """Return inventory grouped by surowiec name with total qty and pallet count."""
-        table_surowce = get_table_name('magazyn_surowce', linia)
-        conn = get_db_connection()
-        try:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute(
-                f"SELECT nazwa, "
-                f"SUM(stan_magazynowy) AS total_kg, "
-                f"COUNT(*) AS liczba_palet "
-                f"FROM {table_surowce} "
-                f"WHERE stan_magazynowy > 0 "
-                f"GROUP BY nazwa "
-                f"ORDER BY nazwa ASC"
-            )
-            return cursor.fetchall()
-        finally:
-            conn.close()
-
-    @staticmethod
-    def get_palety_dla_surowca(nazwa, linia='Agro'):
-        """Return all active pallets for a surowiec, sorted by id ASC (FIFO order, oldest first)."""
-        table_surowce = get_table_name('magazyn_surowce', linia)
-        conn = get_db_connection()
-        try:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute(
-                f"SELECT id, nazwa, stan_magazynowy, lokalizacja "
-                f"FROM {table_surowce} "
-                f"WHERE nazwa = %s AND stan_magazynowy > 0 "
-                f"ORDER BY id ASC",
-                (nazwa,)
-            )
-            rows = cursor.fetchall()
-            # Convert Decimal to float for JSON serialization
-            for r in rows:
-                r['stan_magazynowy'] = float(r['stan_magazynowy'])
-            return rows
-        finally:
-            conn.close()
-
-    @staticmethod
     def get_dictionary():
         conn = get_db_connection()
         try:
@@ -134,7 +92,7 @@ class AgroWarehouseService:
             conn.close()
 
     @staticmethod
-    def use_for_production(surowiec_id, ilosc, worker_login, plan_id=None, linia='Agro', komentarz=None):
+    def use_for_production(surowiec_id, ilosc, worker_login, plan_id=None, linia='Agro', komentarz=None, zbiornik=None):
         table_surowce = get_table_name('magazyn_surowce', linia)
         table_ruch = get_table_name('magazyn_ruch', linia)
         conn = get_db_connection()
@@ -149,10 +107,12 @@ class AgroWarehouseService:
             stan_po = cursor.fetchone()[0]
             
             # Add movement record
+            plan_id_val = int(plan_id) if plan_id not in (None, '', 0, '0') else None
+            zbiornik_val = zbiornik.strip() if zbiornik and str(zbiornik).strip() else None
             cursor.execute(
-                f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz) "
-                "VALUES (%s, 'PRODUKCJA', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s)",
-                (surowiec_id, -ilosc, stan_po, worker_login, datetime.now(), worker_login, datetime.now(), plan_id, komentarz)
+                f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, zbiornik) "
+                "VALUES (%s, 'PRODUKCJA', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s, %s)",
+                (surowiec_id, -ilosc, stan_po, worker_login, datetime.now(), worker_login, datetime.now(), plan_id_val, komentarz, zbiornik_val)
             )
             
             conn.commit()
@@ -216,9 +176,12 @@ class AgroWarehouseService:
             if not row or row[2] != 'OCZEKUJACE': return False
             
             s_id, qty = row[0], row[1]
+            if not s_id:
+                return False  # PRZYJECIE rows have no surowiec_id — use confirm_delivery instead
             cursor.execute(f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy - %s WHERE id = %s", (qty, s_id))
             cursor.execute(f"SELECT stan_magazynowy FROM {table_surowce} WHERE id = %s", (s_id,))
-            stan_po = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            stan_po = result[0] if result else 0
             
             cursor.execute(
                 f"UPDATE {table_ruch} SET status = 'POTWIERDZONE', potwierdzil_login = %s, potwierdzil_data = %s, ilosc_po = %s WHERE id = %s",
@@ -283,17 +246,36 @@ class AgroWarehouseService:
             conn.close()
 
     @staticmethod
-    def get_history(limit=100, status=None, linia='Agro'):
+    def get_history(limit=100, status=None, linia='Agro', data=None, plan_id=None):
+        """Return movement history with optional filters.
+
+        Args:
+            data: date string 'YYYY-MM-DD' — filter to that calendar day
+            plan_id: int/str — filter to specific production order
+        """
         table_surowce = get_table_name('magazyn_surowce', linia)
         table_ruch = get_table_name('magazyn_ruch', linia)
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            q = f"SELECT r.*, COALESCE(s.nazwa, r.surowiec_nazwa) as surowiec_nazwa FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id "
+            q = (
+                f"SELECT r.*, COALESCE(s.nazwa, r.surowiec_nazwa) as surowiec_nazwa "
+                f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id "
+                "WHERE 1=1 "
+            )
             params = []
             if status:
-                q += " WHERE r.status = %s "
+                q += " AND r.status = %s "
                 params.append(status)
+            if data:
+                q += " AND DATE(r.autor_data) = %s "
+                params.append(data)
+            if plan_id:
+                try:
+                    params.append(int(plan_id))
+                    q += " AND r.plan_id = %s "
+                except (ValueError, TypeError):
+                    pass
             q += " ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
             params.append(limit)
             cursor.execute(q, tuple(params))

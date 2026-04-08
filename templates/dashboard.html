@@ -67,6 +67,8 @@
         window._urls.anuluj_dosypke = "{{ url_for('production.anuluj_dosypke', dosypka_id=0) }}";
         // Current user role for conditional UI features
         window._currentRole = "{{ rola }}";
+        // Current hall/linia for AGRO-aware API calls
+        window._linia = "{{ linia or 'PSD' }}";
     </script>
 </div>
 
@@ -275,7 +277,7 @@
                         <span class="btn-icon-disabled" title="Zablokowane">🔒</span>
                         {% else %}
                         <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                            style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><button
+                            style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                                 type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
                         {% endif %}
                         {% else %}
@@ -376,7 +378,7 @@
                                         }}</span>
                                 </div>
                                 {# Minimal pencil icon in the top-right of the szarza card (tooltip shows note) #}
-                                <a href="{{ url_for('warehouse.edytuj_szarze_page', szarza_id=pal[2], linia=linia) }}" title="Notatka" class="szarza-note" data-note="{{ (pal[6] if pal|length>6 else '')|e }}" style="position:absolute;right:8px;bottom:8px;font-size:14px;color:var(--muted-color);text-decoration:none;line-height:1;display:flex;align-items:center;gap:6px;">
+                                <a href="{{ url_for('warehouse.edytuj_szarze_page', szarza_id=pal[2], linia=linia, data=dzisiaj, sekcja=sekcja) }}" title="Notatka" class="szarza-note" data-note="{{ (pal[6] if pal|length>6 else '')|e }}" style="position:absolute;right:8px;bottom:8px;font-size:14px;color:var(--muted-color);text-decoration:none;line-height:1;display:flex;align-items:center;gap:6px;">
                                     <span style="font-size:14px;line-height:1;">✏️</span>
                                     {% if pal|length>6 and pal[6] %}
                                     <span class="note-badge" style="display:inline-block;width:9px;height:9px;background:#ff5a5f;border-radius:50%;vertical-align:middle;box-shadow:0 0 0 2px rgba(0,0,0,0.06);"></span>

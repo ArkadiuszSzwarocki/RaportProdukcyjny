@@ -41,3 +41,8 @@ if not os.path.exists('raporty'):
 
 # Session timeout (minutes) - use env var to override. Default: 40 minutes
 SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', 40))
+
+# Bufor - zakres dat (ile dni wstecz i do przodu uwzględniać przy odświeżaniu bufora)
+# Domyślnie: 1 dzień wstecz i 1 dzień do przodu (stałe, można nadpisać w .env)
+BUFOR_LOOKBACK_DAYS = int(os.getenv('BUFOR_LOOKBACK_DAYS', 1))
+BUFOR_LOOKAHEAD_DAYS = int(os.getenv('BUFOR_LOOKAHEAD_DAYS', 1))

@@ -280,6 +280,51 @@ body.sidebar-open {
     overflow-x: hidden;
 }
 
+/* HALL SWITCHER */
+.hall-switcher {
+    padding: 10px 0 15px 0;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+.hall-switcher .switcher-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+.hall-switcher .switcher-controls {
+    display: flex;
+    gap: 4px;
+}
+.hall-switcher .switcher-btn {
+    flex: 1;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-main);
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+.hall-switcher .switcher-btn:hover {
+    background: #eee;
+}
+.hall-switcher .switcher-btn.active {
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.hall-switcher .switcher-btn.active[title*="Hala 1"] { background: var(--accent-color); }
+.hall-switcher .switcher-btn.active[title*="Hala 2"] { background: var(--warning-dark); }
+.hall-switcher .switcher-btn.active[title*="Wszystkie"] { background: var(--success-color); }
+
 @media (max-width: 900px) {
     .hamburger-btn {
         display: flex;

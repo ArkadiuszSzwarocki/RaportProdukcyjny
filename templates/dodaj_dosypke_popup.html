@@ -397,6 +397,7 @@
     <form action="{{ url_for('production.dodaj_dosypke') }}" method="POST" class="dosypka-form" id="dosypka-form">
         <input type="hidden" name="plan_id" value="{{ plan_id }}">
         <input type="hidden" name="szarza_id" value="{{ szarza_id or '' }}">
+        <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
         <input type="hidden" name="brak_dosypki" id="brak_dosypki" value="0">
 
         <div class="dosypka-info">
@@ -544,7 +545,9 @@ function initDosypkaPopup() {
 async function refreshDosypkaPopup(planId, szarzaId) {
     if (!planId) return;
     let refreshUrl = '/dosypka_page/' + encodeURIComponent(planId);
-    if (szarzaId) refreshUrl += '?szarza_id=' + encodeURIComponent(szarzaId);
+    const liniaVal = document.querySelector('input[name="linia"]')?.value || 'PSD';
+    refreshUrl += '?linia=' + encodeURIComponent(liniaVal);
+    if (szarzaId) refreshUrl += '&szarza_id=' + encodeURIComponent(szarzaId);
 
     const resp = await fetch(refreshUrl, {
         credentials: 'same-origin',

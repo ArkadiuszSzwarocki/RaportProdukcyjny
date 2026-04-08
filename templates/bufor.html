@@ -370,18 +370,26 @@
         }
 
         .table tbody td:nth-child(3):before {
-            content: "Do spakowania";
+            content: "Produkt";
         }
 
         .table tbody td:nth-child(4):before {
-            content: "Spakowane";
+            content: "Nr zlecenia";
         }
 
         .table tbody td:nth-child(5):before {
-            content: "Pozostało";
+            content: "Do spakowania";
         }
 
         .table tbody td:nth-child(6):before {
+            content: "Spakowane";
+        }
+
+        .table tbody td:nth-child(7):before {
+            content: "Pozostało";
+        }
+
+        .table tbody td:nth-child(8):before {
             content: "Akcje";
         }
 
@@ -565,6 +573,8 @@
                 <tr>
                     <th class="th-kolejka">{{ _('kolejka') }}</th>
                     <th>{{ _('data_zasypu') }}</th>
+                    <th>Produkt</th>
+                    <th>Nr zlecenia</th>
                     <th>Do spakowania</th>
                     <th>Spakowane</th>
                     <th>Pozostało</th>
@@ -581,6 +591,8 @@
                         {{ b.data }}
                         <small class="bufor-start-time">Start: {{ b.start_time }}</small>
                     </td>
+                    <td><strong class="text-primary">{{ b.produkt }}</strong></td>
+                    <td><span class="text-muted">{{ b.nazwa }}</span></td>
                     <td>{{ '%.1f'|format(b.do_spakowania) }} kg</td>
                     <td>{{ '%.1f'|format(b.spakowane) }} kg</td>
                     <td

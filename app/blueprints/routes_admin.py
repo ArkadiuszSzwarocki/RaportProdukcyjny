@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, flash, current_app, session, jsonify
+from flask import Blueprint, render_template, request, redirect, flash, current_app, session, jsonify, url_for
 from flask import send_from_directory, abort
 from datetime import date
 from app.db import get_db_connection, list_online_users
@@ -20,23 +20,32 @@ admin_bp = Blueprint('admin', __name__)
 @admin_bp.route('/admin')
 @admin_required
 def admin_panel():
+    """Redirect legacy admin panel to the new modern settings dashboard."""
+    return redirect(url_for('admin.admin_ustawienia'))
+
+
+@admin_bp.route('/admin/users')
+@admin_required
+def admin_users():
+    """Redirect legacy users management to the new modern settings dashboard."""
+    return redirect(url_for('admin.admin_ustawienia_uzytkownicy'))
+
+
+@admin_bp.route('/admin/ustawienia/produkcja')
+@dynamic_role_required('ustawienia')
+def admin_ustawienia_produkcja():
+    """Modern Production Management Dashboard for Supervisors."""
     linia = request.args.get('linia') or 'PSD'
     from app.db import get_table_name
     table_plan = get_table_name('plan_produkcji', linia)
+    
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM pracownicy ORDER BY imie_nazwisko")
-    pracownicy = cursor.fetchall()
-    # Pobierz również kolumnę haslo, aby wykryć starsze formaty hashy wymagające resetu
-    cursor.execute("SELECT id, login, rola, haslo FROM uzytkownicy ORDER BY login")
-    konta_raw = cursor.fetchall()
-    # Konta przekazane do szablonu (bez hasel)
-    konta = [(r[0], r[1], r[2]) for r in konta_raw]
-    # Wylicz listę loginów, które mają hashe w formacie nie-pbkdf2 (np. scrypt)
-    needs_reset = [r[1] for r in konta_raw if r[3] and (str(r[3]).startswith('scrypt:') or not str(r[3]).startswith('pbkdf2:'))]
+    
+    # Query 50 most recent orders for searching/reviewing
     cursor.execute(f"SELECT id, data_planu, sekcja, produkt, tonaz, tonaz_rzeczywisty, status FROM {table_plan} ORDER BY data_planu DESC LIMIT 50")
     zlecenia_rows = cursor.fetchall()
-    # Convert tuples to objects with attribute access for templates
+    
     class _Z:
         def __init__(self, r):
             self.id = r[0]
@@ -46,26 +55,12 @@ def admin_panel():
             self.tonaz = r[4]
             self.tonaz_rzeczywisty = r[5]
             self.status = r[6]
+            
     zlecenia = [_Z(r) for r in zlecenia_rows]
-    cursor.execute("SELECT o.id, p.imie_nazwisko, o.typ, o.ilosc_godzin, o.komentarz FROM obecnosc o JOIN pracownicy p ON o.pracownik_id = p.id WHERE o.data_wpisu = %s", (date.today(),))
-    raporty_hr = cursor.fetchall()
     roles = _load_roles(cursor)
     conn.close()
-    return render_template('admin.html', pracownicy=pracownicy, konta=konta, raporty_hr=raporty_hr, dzisiaj=date.today(), zlecenia=zlecenia, needs_reset=needs_reset, roles=roles, linia=linia)
-
-
-@admin_bp.route('/admin/users')
-@admin_required
-def admin_users():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, login, rola, haslo FROM uzytkownicy ORDER BY login")
-    rows = cursor.fetchall()
-    konta = [(r[0], r[1], r[2]) for r in rows]
-    needs_reset = [r[1] for r in rows if r[3] and (str(r[3]).startswith('scrypt:') or not str(r[3]).startswith('pbkdf2:'))]
-    roles = _load_roles(cursor)
-    conn.close()
-    return render_template('admin_users.html', konta=konta, needs_reset=needs_reset, roles=roles)
+    
+    return render_template('ustawienia_produkcja.html', zlecenia=zlecenia, roles=roles, linia=linia)
 
 
 @admin_bp.route('/admin/centrum')
@@ -118,58 +113,148 @@ def admin_online_users_api():
     return jsonify({'success': True, 'online_users': result, 'active_window_minutes': 30})
 
 
+@admin_bp.route('/admin/ustawienia/zespol')
+@dynamic_role_required('ustawienia')
+def admin_ustawienia_zespol():
+    """Unified Team Management: Employees + Optional System Accounts."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Query all employees joined with their system accounts if they have one
+    cursor.execute(
+        "SELECT p.id, p.imie_nazwisko, p.grupa as prac_hall, "
+        "       u.id as user_id, u.login, u.rola, u.grupa as user_hall "
+        "FROM pracownicy p "
+        "LEFT JOIN uzytkownicy u ON p.id = u.pracownik_id "
+        "ORDER BY p.imie_nazwisko"
+    )
+    rows = cursor.fetchall()
+    
+    roles = _load_roles(cursor)
+    roles_map = {r[0]: r[1] for r in roles}
+    
+    team = []
+    for r in rows:
+        team.append({
+            'id': r[0],
+            'imie_nazwisko': r[1],
+            'prac_hall': r[2],
+            'user_id': r[3],
+            'login': r[4],
+            'rola': r[5],
+            'role_label': roles_map.get(r[5] or '', 'Pracownik'),
+            'user_hall': r[6]
+        })
+    
+    conn.close()
+    return render_template('ustawienia_zespol.html', team=team, roles=roles)
+
+
 @admin_bp.route('/admin/ustawienia/uzytkownicy')
 @dynamic_role_required('ustawienia')
 def admin_ustawienia_uzytkownicy():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT u.id, u.login, u.rola, u.grupa, u.haslo, u.pracownik_id, p.imie_nazwisko "
-        "FROM uzytkownicy u "
-        "LEFT JOIN pracownicy p ON u.pracownik_id = p.id "
-        "ORDER BY u.login"
-    )
-    rows = cursor.fetchall()
-    konta = [(r[0], r[1], r[2], r[3], r[5], r[6]) for r in rows]
-    needs_reset = [r[1] for r in rows if r[4] and (str(r[4]).startswith('scrypt:') or not str(r[4]).startswith('pbkdf2:'))]
-    # Compute suggested free pracownik id to help admin create/match accounts
-    try:
-        cursor.execute("SELECT id FROM pracownicy ORDER BY id ASC")
-        used = [int(r[0]) for r in cursor.fetchall()]
-        suggested_prac_id = 1
-        for u in used:
-            if u == suggested_prac_id:
-                suggested_prac_id += 1
-            elif u > suggested_prac_id:
-                break
-    except Exception:
-        suggested_prac_id = 1
-    roles = _load_roles(cursor)
-    conn.close()
-    return render_template('ustawienia_uzytkownicy.html', konta=konta, needs_reset=needs_reset, suggested_prac_id=suggested_prac_id, roles=roles)
+    """Redirect legacy users management to the new unified team view."""
+    return redirect(url_for('admin.admin_ustawienia_zespol'))
 
 
 @admin_bp.route('/admin/ustawienia/pracownicy')
 @dynamic_role_required('ustawienia')
 def admin_ustawienia_pracownicy():
+    """Redirect legacy employees management to the new unified team view."""
+    return redirect(url_for('admin.admin_ustawienia_zespol'))
+
+
+@admin_bp.route('/api/zespol/person/<int:id>')
+@dynamic_role_required('ustawienia')
+def api_zespol_person(id):
+    """Fetch single person data for editing."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, imie_nazwisko, grupa FROM pracownicy ORDER BY imie_nazwisko")
-    pracownicy = cursor.fetchall()
-    # Compute first free positive integer id (suggestion only)
-    try:
-        cursor.execute("SELECT id FROM pracownicy ORDER BY id ASC")
-        used = [int(r[0]) for r in cursor.fetchall()]
-        suggested = 1
-        for u in used:
-            if u == suggested:
-                suggested += 1
-            elif u > suggested:
-                break
-    except Exception:
-        suggested = 1
+    cursor.execute("SELECT id, imie_nazwisko, grupa FROM pracownicy WHERE id = %s", (id,))
+    row = cursor.fetchone()
     conn.close()
-    return render_template('ustawienia_pracownicy.html', pracownicy=pracownicy, suggested_id=suggested)
+    if not row:
+        return jsonify({'success': False, 'message': 'Nie znaleziono osoby'})
+    
+    return jsonify({
+        'success': True,
+        'person': {
+            'id': row[0],
+            'imie_nazwisko': row[1],
+            'grupa': row[2]
+        }
+    })
+
+
+@admin_bp.route('/api/zespol/person/update', methods=['POST'])
+@dynamic_role_required('ustawienia')
+def api_zespol_person_update():
+    """Update personnel basic data (physical record)."""
+    pid = request.form.get('id')
+    name = request.form.get('imie_nazwisko')
+    grupa = request.form.get('grupa')
+    
+    if not pid or not name:
+        flash("Błąd danych", "danger")
+        return redirect(url_for('admin.admin_ustawienia_zespol'))
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE pracownicy SET imie_nazwisko = %s, grupa = %s WHERE id = %s", (name, grupa, pid))
+    conn.commit()
+    conn.close()
+    
+    flash("Zaktualizowano dane pracownika", "success")
+    return redirect(url_for('admin.admin_ustawienia_zespol'))
+
+
+@admin_bp.route('/api/zespol/dodaj', methods=['POST'])
+@dynamic_role_required('ustawienia')
+def api_zespol_dodaj():
+    """Unified Add Person helper (optionally creates system account too)."""
+    name = request.form.get('imie_nazwisko')
+    grupa = request.form.get('grupa', 'ALL')
+    explicit_id = request.form.get('explicit_id')
+    
+    create_acc = request.form.get('create_account') == 'on'
+    login = request.form.get('login')
+    haslo = request.form.get('haslo')
+    rola = request.form.get('rola', 'pracownik')
+    
+    if not name:
+        flash("Nazwisko jest wymagane", "danger")
+        return redirect(url_for('admin.admin_ustawienia_zespol'))
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # 1. Create Employee Record
+        if explicit_id:
+            cursor.execute("INSERT INTO pracownicy (id, imie_nazwisko, grupa) VALUES (%s, %s, %s)", (explicit_id, name, grupa))
+            new_prac_id = explicit_id
+        else:
+            cursor.execute("INSERT INTO pracownicy (imie_nazwisko, grupa) VALUES (%s, %s)", (name, grupa))
+            new_prac_id = cursor.lastrowid
+            
+        # 2. Optionally Create User Account
+        if create_acc and login and haslo:
+            hashed = generate_password_hash(haslo)
+            # Use same grupa for user as for employee
+            cursor.execute(
+                "INSERT INTO uzytkownicy (login, haslo, rola, grupa, pracownik_id) VALUES (%s, %s, %s, %s, %s)",
+                (login, hashed, rola, grupa, new_prac_id)
+            )
+            
+        conn.commit()
+        flash(f"Dodano {name} do zespołu.", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Błąd podczas dodawania: {str(e)}", "danger")
+    finally:
+        conn.close()
+        
+    return redirect(url_for('admin.admin_ustawienia_zespol'))
 
 
 @admin_bp.route('/admin/ustawienia/roles')
@@ -516,13 +601,13 @@ def admin_dodaj_pracownika():
         except ValueError:
             flash("Błędne ID.", "error")
             conn.close()
-            return redirect('/admin')
+            return redirect(url_for('admin.admin_ustawienia_zespol'))
         # Ensure id not already used
         cursor.execute("SELECT 1 FROM pracownicy WHERE id=%s", (eid,))
         if cursor.fetchone():
             flash(f"ID {eid} już istnieje.", "error")
             conn.close()
-            return redirect('/admin')
+            return redirect(url_for('admin.admin_ustawienia_zespol'))
         try:
             from app.utils.validation import require_field
             imie_nazwisko = require_field(request.form, 'imie_nazwisko')
@@ -530,7 +615,7 @@ def admin_dodaj_pracownika():
         except Exception as e:
             flash(str(e), 'danger')
             conn.close()
-            return redirect('/admin')
+            return redirect(url_for('admin.admin_ustawienia_zespol'))
         cursor.execute("INSERT INTO pracownicy (id, imie_nazwisko, grupa) VALUES (%s, %s, %s)", (eid, imie_nazwisko, grupa))
         conn.commit()
         new_id = eid
@@ -552,7 +637,7 @@ def admin_dodaj_pracownika():
         except Exception as e:
             flash(str(e), 'danger')
             conn.close()
-            return redirect('/admin')
+            return redirect(url_for('admin.admin_ustawienia_zespol'))
         cursor.execute("INSERT INTO pracownicy (imie_nazwisko, grupa) VALUES (%s, %s)", (imie_nazwisko, grupa))
         conn.commit()
         new_id = None
@@ -580,7 +665,7 @@ def admin_dodaj_pracownika():
     finally:
         conn.close()
     flash("Dodano.", "success")
-    return redirect('/admin')
+    return redirect(url_for('admin.admin_ustawienia_zespol'))
 
 @admin_bp.route('/admin/pracownik/edytuj', methods=['POST'])
 @dynamic_role_required('ustawienia')
@@ -593,12 +678,12 @@ def admin_edytuj_pracownika():
     if not imie_nazwisko or not pid:
         flash('Brak wymaganych pól.', 'danger')
         conn.close()
-        return redirect('/admin')
+        return redirect(url_for('admin.admin_ustawienia_zespol'))
     cursor.execute("UPDATE pracownicy SET imie_nazwisko=%s, grupa=%s WHERE id=%s", (imie_nazwisko, grupa, pid))
     conn.commit()
     conn.close()
     flash("Zaktualizowano.", "success")
-    return redirect('/admin')
+    return redirect(url_for('admin.admin_ustawienia_zespol'))
 
 @admin_bp.route('/admin/pracownik/usun/<int:id>', methods=['POST'])
 @dynamic_role_required('ustawienia')
@@ -612,7 +697,7 @@ def admin_usun_pracownika(id):
         flash("Nie można usunąć (historia).", "error")
     conn.commit()
     conn.close()
-    return redirect('/admin')
+    return redirect(url_for('admin.admin_ustawienia_zespol'))
 
 @admin_bp.route('/admin/konto/dodaj', methods=['POST'])
 @dynamic_role_required('ustawienia')
@@ -632,7 +717,7 @@ def admin_dodaj_konto():
         except Exception as e:
             flash(str(e), 'danger')
             conn.close()
-            return redirect('/admin')
+            return redirect(url_for('admin.admin_ustawienia_zespol'))
         cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola, grupa) VALUES (%s, %s, %s, %s)", (login, hashed, rola_field, grupa))
         # Spróbuj automatycznie powiązać konto z rekordem pracownika jeśli istnieje dopasowanie
         try:
@@ -732,7 +817,7 @@ def admin_dodaj_konto():
     conn.close()
     audit_log('Dodał konto użytkownika', f'login={login}, rola={rola_field}')
     current_app.logger.info('Admin %s dodał konto: login=%s, rola=%s', session.get('login'), login, rola_field)
-    return redirect('/admin')
+    return redirect(url_for('admin.admin_ustawienia_zespol'))
 
 
 @admin_bp.route('/admin/konto/edytuj', methods=['POST'])
@@ -747,7 +832,8 @@ def admin_edytuj_konto():
     haslo = request.form.get('haslo', '').strip()
     try:
         if haslo:
-            cursor.execute("UPDATE uzytkownicy SET login=%s, haslo=%s, rola=%s, grupa=%s WHERE id=%s", (login, generate_password_hash(haslo, method='pbkdf2:sha256'), rola, grupa, uid))
+            new_haslo = generate_password_hash(haslo, method='pbkdf2:sha256')
+            cursor.execute("UPDATE uzytkownicy SET login=%s, haslo=%s, rola=%s, grupa=%s WHERE id=%s", (login, new_haslo, rola, grupa, uid))
         else:
             cursor.execute("UPDATE uzytkownicy SET login=%s, rola=%s, grupa=%s WHERE id=%s", (login, rola, grupa, uid))
         conn.commit()
@@ -755,11 +841,13 @@ def admin_edytuj_konto():
         audit_log('Edytował konto użytkownika', zmiana)
         current_app.logger.info('Admin %s edytował konto ID=%s: %s', session.get('login'), uid, zmiana)
         flash("Zaktualizowano.", "success")
-    except Exception:
+    except Exception as e:
         conn.rollback()
+        current_app.logger.error(f'Error updating account: {str(e)}')
         flash("Błąd aktualizacji (login może być zajęty).", "error")
-    conn.close()
-    return redirect('/admin?tab=users')
+    finally:
+        conn.close()
+    return redirect(url_for('admin.admin_ustawienia_zespol'))
 
 @admin_bp.route('/admin/konto/usun/<int:id>', methods=['POST'])
 @dynamic_role_required('ustawienia')
@@ -776,7 +864,7 @@ def admin_usun_konto(id):
         audit_log('Usunął konto użytkownika', f'login={row[0]}, rola={row[1]}')
         current_app.logger.info('Admin %s usunął konto ID=%s (login=%s)', session.get('login'), id, row[0])
     flash("Usunięto.", "info")
-    return redirect('/admin')
+    return redirect(url_for('admin.admin_ustawienia_zespol'))
 
 
 # ============= WORKOWANIE PROCESSING TIMES =============
@@ -953,57 +1041,92 @@ def admin_workowanie_times_update():
 @login_required
 @dynamic_role_required('ustawienia')
 def ustawienia_errors():
-    """View server error logs and application traps."""
-    import os
+    """View server error logs and application traps with structured parsing."""
+    import os, re
     from flask import current_app
     
-    # Path to error log (root_path is app/core, go up 2 levels to project root)
     project_root = os.path.dirname(os.path.dirname(current_app.root_path))
     error_log_path = os.path.join(project_root, 'logs/error.log')
     
-    # Get lines parameter (default 100)
     try:
-        lines = int(request.args.get('lines', 100))
+        lines_count = int(request.args.get('lines', 100))
     except ValueError:
-        lines = 100
+        lines_count = 100
         
-    # Read last N lines
     def tail(filepath, n, block_size=1024):
         if not os.path.exists(filepath):
-            return "Brak pliku logów."
+            return []
         try:
             with open(filepath, 'rb') as f:
                 f.seek(0, 2)
                 filesize = f.tell()
                 lines_found = []
                 block_end = filesize
-                
                 while block_end > 0 and len(lines_found) <= n:
                     block_start = max(block_end - block_size, 0)
                     f.seek(block_start)
                     block = f.read(block_end - block_start)
                     lines_found = block.split(b'\n') + lines_found
-                    if block_start == 0:
-                        break
+                    if block_start == 0: break
                     block_end = block_start
-                    
-                return b'\n'.join(lines_found[-n:]).decode('utf-8', errors='replace')
-        except Exception as e:
-            return f"Błąd odczytu: {e}"
-            
-    content = tail(error_log_path, lines)
-    if not content.strip():
-        content = "Log pusty lub nie istnieje."
-        
-    # Limit display if huge
-    trunc = len(content) > 50000
-    if trunc:
-        content = content[-50000:]
-        
-    if request.args.get('fragment') == 'true':
-        return render_template('ustawienia_errors_fragment.html', error_log=content, lines=lines, trunc=trunc)
+                return [l.decode('utf-8', errors='replace') for l in lines_found[-n:] if l.strip()]
+        except Exception:
+            return []
+
+    raw_lines = tail(error_log_path, lines_count)
     
-    return render_template('ustawienia_errors.html', error_log=content, lines=lines, trunc=trunc)
+    # Parse lines into structured Error objects
+    parsed_errors = []
+    # Regular expression to catch standard ERROR lines: YYYY-MM-DD HH:MM:SS,ms ERROR: ...
+    # Or [TRAP_HEADER] lines
+    current_entry = None
+    
+    for line in raw_lines:
+        # Check if line is a TRAP_HEADER
+        # Format: 2026-04-03 20:34:11,555 ERROR: [TRAP_HEADER] URL: /path | ACTION: button
+        trap_match = re.search(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*?\[TRAP_HEADER\] URL: (.*?) \| ACTION: (.*)', line)
+        if trap_match:
+            if current_entry: parsed_errors.append(current_entry)
+            current_entry = {
+                'timestamp': trap_match.group(1),
+                'url': trap_match.group(2),
+                'action': trap_match.group(3),
+                'type': 'TRAP',
+                'lines': []
+            }
+            continue
+            
+        # Check if it's a generic ERROR start
+        generic_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ ERROR: (.*)', line)
+        if generic_match:
+            if current_entry: parsed_errors.append(current_entry)
+            current_entry = {
+                'timestamp': generic_match.group(1),
+                'url': 'N/A',
+                'action': 'System Error',
+                'type': 'ERROR',
+                'message': generic_match.group(2),
+                'lines': [generic_match.group(2)]
+            }
+            continue
+            
+        # If it's a continuation line (traceback etc)
+        if current_entry:
+            current_entry['lines'].append(line)
+        else:
+            # First lines of file might not have a header if truncated
+            current_entry = {'timestamp': 'Unknown', 'url': '?', 'action': '?', 'type': 'MISC', 'lines': [line]}
+
+    if current_entry:
+        parsed_errors.append(current_entry)
+        
+    # Reverse to show newest errors first
+    parsed_errors.reverse()
+
+    if request.args.get('fragment') == 'true':
+        return render_template('ustawienia_errors_fragment.html', errors=parsed_errors, lines=lines_count)
+    
+    return render_template('ustawienia_errors.html', errors=parsed_errors, lines=lines_count)
 
 
 # Admin log viewer
@@ -1045,6 +1168,9 @@ def admin_ustawienia_logs():
     app_log_path = os.path.join(logs_dir, 'app.log')
     palety_log_path = os.path.join(logs_dir, 'palety.log')
     audit_log_path = os.path.join(logs_dir, 'audit.log')
+    frontend_log_path = os.path.join(logs_dir, 'frontend_errors.log')
+    db_log_path = os.path.join(logs_dir, 'db_errors.log')
+    status_log_path = os.path.join(logs_dir, 'status_changes.log')
 
     # If a log file is very large, reduce the requested lines to avoid heavy IO
     def cap_lines_by_size(path, requested):
@@ -1066,7 +1192,9 @@ def admin_ustawienia_logs():
             return ''
         try:
             with open(path, 'r', encoding='utf-8', errors='replace') as f:
-                return ''.join(deque(f, maxlen=n))
+                lines = list(deque(f, maxlen=n))
+                lines.reverse() # Show newest first
+                return ''.join(lines)
         except Exception as e:
             current_app.logger.exception('Failed to read log %s: %s', path, e)
             return f'Error reading log: {e}'
@@ -1089,21 +1217,33 @@ def admin_ustawienia_logs():
     app_lines, app_trunc = cap_lines_by_size(app_log_path, lines)
     pal_lines, pal_trunc = cap_lines_by_size(palety_log_path, lines)
     audit_lines, audit_trunc = cap_lines_by_size(audit_log_path, lines)
+    front_lines, front_trunc = cap_lines_by_size(frontend_log_path, lines)
+    db_lines, db_trunc = cap_lines_by_size(db_log_path, lines)
+    stat_lines, stat_trunc = cap_lines_by_size(status_log_path, lines)
 
     app_log = tail_text(app_log_path, app_lines)
     palety_log = tail_text(palety_log_path, pal_lines)
     audit_log_text = tail_text(audit_log_path, audit_lines)
+    frontend_log = tail_text(frontend_log_path, front_lines)
+    db_log = tail_text(db_log_path, db_lines)
+    status_log = tail_text(status_log_path, stat_lines)
 
     # redact sensitive fragments before rendering
     try:
         app_log = redact(app_log)
         palety_log = redact(palety_log)
         audit_log_text = redact(audit_log_text)
+        frontend_log = redact(frontend_log)
+        db_log = redact(db_log)
+        status_log = redact(status_log)
     except Exception:
         # if redaction fails, fall back to safe escaping
         app_log = html.escape(app_log or '')
         palety_log = html.escape(palety_log or '')
         audit_log_text = html.escape(audit_log_text or '')
+        frontend_log = html.escape(frontend_log or '')
+        db_log = html.escape(db_log or '')
+        status_log = html.escape(status_log or '')
 
     # If a search query is provided, perform a simple case-insensitive search across rotated log files
     search_results = None
@@ -1152,8 +1292,10 @@ def admin_ustawienia_logs():
                 patterns = ['palety.log']
             elif q_file == 'app':
                 patterns = ['app.log']
+            elif q_file == 'frontend':
+                patterns = ['frontend_errors.log']
             else:
-                patterns = ['audit.log', 'palety.log', 'app.log']
+                patterns = ['audit.log', 'palety.log', 'app.log', 'frontend_errors.log', 'db_errors.log', 'status_changes.log']
 
             from datetime import timedelta
             # helper to add file if exists
@@ -1227,8 +1369,10 @@ def admin_ustawienia_logs():
                 patterns = ['palety.log']
             elif q_file == 'app':
                 patterns = ['app.log']
+            elif q_file == 'frontend':
+                patterns = ['frontend_errors.log']
             else:
-                patterns = ['audit.log', 'palety.log', 'app.log']
+                patterns = ['audit.log', 'palety.log', 'app.log', 'frontend_errors.log', 'db_errors.log', 'status_changes.log']
 
             # collect matching files from logs_dir
             files = []
@@ -1252,6 +1396,7 @@ def admin_ustawienia_logs():
                     continue
                 try:
                     with open(fpath, 'r', encoding='utf-8', errors='replace') as fh:
+                        file_matches = []
                         for i, line in enumerate(fh, start=1):
                             if q.lower() not in line.lower():
                                 continue
@@ -1291,10 +1436,13 @@ def admin_ustawienia_logs():
                                     if line_dt > until_bound:
                                         continue
                             # matched query and time filters passed
-                            search_results.append({'file': fname, 'line_no': i, 'line': line.rstrip()})
-                            matches += 1
-                            if matches >= max_matches:
-                                break
+                            file_matches.append({'file': fname, 'line_no': i, 'line': line.rstrip()})
+                        
+                        file_matches.reverse() # Newest from this file first
+                        search_results.extend(file_matches)
+                        matches += len(file_matches)
+                        if matches >= max_matches:
+                            break
                 except Exception:
                     continue
                 if matches >= max_matches:
@@ -1307,19 +1455,60 @@ def admin_ustawienia_logs():
     if is_ajax:
         return render_template(
             'ustawienia_logs_fragment.html',
-            palety_log=palety_log, audit_log=audit_log_text,
+            palety_log=palety_log, audit_log=audit_log_text, app_log=app_log, frontend_log=frontend_log, db_log=db_log, status_log=status_log,
             lines=lines,
-            pal_trunc=pal_trunc, audit_trunc=audit_trunc,
+            pal_trunc=pal_trunc, audit_trunc=audit_trunc, app_trunc=app_trunc, front_trunc=front_trunc, db_trunc=db_trunc, stat_trunc=stat_trunc,
             q=q, q_file=q_file, search_results=search_results, raw_files_content=raw_files_content,
         )
     # Normal full-page render
     return render_template(
         'ustawienia_logs.html',
-        palety_log=palety_log, audit_log=audit_log_text,
+        palety_log=palety_log, audit_log=audit_log_text, app_log=app_log, frontend_log=frontend_log, db_log=db_log, status_log=status_log,
         lines=lines,
-        pal_trunc=pal_trunc, audit_trunc=audit_trunc,
+        pal_trunc=pal_trunc, audit_trunc=audit_trunc, app_trunc=app_trunc, front_trunc=front_trunc, db_trunc=db_trunc, stat_trunc=stat_trunc,
         q=q, q_file=q_file, search_results=search_results, raw_files_content=raw_files_content,
     )
+
+
+@admin_bp.route('/admin/ustawienia/backups/create', methods=['POST'])
+@dynamic_role_required('ustawienia')
+def admin_ustawienia_backups_create():
+    import subprocess
+    import os
+    import sys
+    
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    script_path = os.path.join(project_root, 'scripts', 'backup_database.py')
+    
+    # Use current python executable to run the script
+    python_exe = sys.executable
+    
+    try:
+        # Run the script and capture output
+        # Ensure PYTHONPATH includes project root for imports in script
+        env = os.environ.copy()
+        env['PYTHONPATH'] = project_root
+        
+        result = subprocess.run(
+            [python_exe, script_path],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=project_root
+        )
+        
+        if result.returncode == 0:
+            flash('Kopia zapasowa została utworzona pomyślnie.', 'success')
+            current_app.logger.info(f"[BACKUP] Ręczny backup wykonany pomyślnie przez {session.get('login')}")
+        else:
+            flash(f'Błąd podczas tworzenia kopii: {result.stderr}', 'danger')
+            current_app.logger.error(f"[BACKUP] Błąd ręcznego backupu: {result.stderr}")
+            
+    except Exception as e:
+        flash(f'Wystąpił błąd krytyczny: {str(e)}', 'danger')
+        current_app.logger.exception(f"[BACKUP] Wyjątek podczas ręcznego backupu: {e}")
+        
+    return redirect(url_for('admin.admin_ustawienia_backups'))
 
 
 # Backups viewer

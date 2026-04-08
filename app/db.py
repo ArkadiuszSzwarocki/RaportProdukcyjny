@@ -1,35 +1,10 @@
 import mysql.connector
-from app.config import DB_CONFIG
+from app.config import DB_CONFIG, BUFOR_LOOKBACK_DAYS, BUFOR_LOOKAHEAD_DAYS
 import os
 from werkzeug.security import generate_password_hash
 import time
 from datetime import date, timedelta
 import uuid
-
-
-def get_table_name(base_name: str, linia: str = 'Agro') -> str:
-    """Return the physical table name for a given logical name and production line.
-
-    Naming conventions in the database:
-    - PSD line:  uses base table names as-is (e.g. plan_produkcji, bufor, magazyn_surowce)
-    - Agro line: most tables use suffix _agro (e.g. plan_produkcji_agro, bufor_agro)
-                 but magazyn_surowce / magazyn_ruch use magazyn_agro_* prefix instead
-                 (magazyn_agro_surowce, magazyn_agro_ruch)
-    """
-    if linia and linia.lower() == 'agro':
-        # Special cases: tables that use magazyn_agro_* prefix pattern
-        _special_agro = {
-            'magazyn_surowce': 'magazyn_agro_surowce',
-            'magazyn_ruch':    'magazyn_agro_ruch',
-        }
-        if base_name in _special_agro:
-            return _special_agro[base_name]
-        # General rule: append _agro suffix
-        if not base_name.endswith('_agro'):
-            return base_name + '_agro'
-    return base_name
-
-
 
 def get_db_connection(retries=3):
     """Get database connection with retry logic"""
@@ -46,6 +21,27 @@ def get_db_connection(retries=3):
             continue
     # If all retries failed, raise the last error
     raise last_error
+
+def get_table_name(base_table, linia='PSD'):
+    """Return table name based on production line (PSD or AGRO)."""
+    # Convert linia to string and check if it's AGRO hall
+    if linia and str(linia).upper() == 'AGRO':
+        if base_table == 'plan_produkcji':
+            return 'plan_produkcji_agro'
+        elif base_table == 'szarze':
+            return 'szarze_agro'
+        elif base_table == 'dosypki':
+            return 'dosypki_agro'
+        elif base_table == 'palety_workowanie':
+            return 'palety_agro'
+        elif base_table == 'bufor':
+            return 'bufor_agro'
+        elif base_table == 'magazyn_surowce':
+            return 'magazyn_agro_surowce'
+        elif base_table == 'magazyn_ruch':
+            return 'magazyn_agro_ruch'
+    # Default to base_table (PSD hall)
+    return base_table
 
 def _create_tables(cursor):
     """Create all base tables if they don't exist."""
@@ -266,6 +262,25 @@ def _create_tables(cursor):
         )
     """)
 
+    # Osobna tabela bufora dla linii AGRO (FK do plan_produkcji_agro)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bufor_agro (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            zasyp_id INT NOT NULL,
+            data_planu DATE NOT NULL,
+            produkt VARCHAR(100) NOT NULL,
+            nazwa_zlecenia VARCHAR(255) DEFAULT '',
+            typ_produkcji VARCHAR(20) DEFAULT 'worki_zgrzewane_25',
+            tonaz_rzeczywisty FLOAT DEFAULT 0,
+            spakowano FLOAT DEFAULT 0,
+            kolejka INT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status VARCHAR(20) DEFAULT 'aktywny',
+            UNIQUE KEY `bufor_agro_uq_data_produkt_kolejka` (data_planu, produkt, kolejka),
+            FOREIGN KEY (zasyp_id) REFERENCES plan_produkcji_agro(id) ON DELETE CASCADE
+        )
+    """)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS produkty_receptury (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -325,15 +340,14 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' - FK linkujacy Workowanie z Zasyp 1:1")
     
     # palety_workowanie columns
-    for table in ["palety_workowanie", "palety_workowanie_agro"]:
-        _add_column_if_missing(cursor, table, "tara", "FLOAT DEFAULT 0", f"Dodawanie kolumny 'tara' do {table}")
-        _add_column_if_missing(cursor, table, "waga_brutto", "FLOAT DEFAULT 0", f"Dodawanie kolumny 'waga_brutto' do {table}")
-        _add_column_if_missing(cursor, table, "status", "VARCHAR(20) DEFAULT 'do_przyjecia'", f"Dodawanie kolumny 'status' do {table}")
-        _add_column_if_missing(cursor, table, "data_potwierdzenia", "DATETIME NULL", f"Dodawanie kolumny 'data_potwierdzenia' do {table}")
-        _add_column_if_missing(cursor, table, "czas_potwierdzenia_s", "INT NULL", f"Dodawanie kolumny 'czas_potwierdzenia_s' do {table}")
-        _add_column_if_missing(cursor, table, "czas_rzeczywistego_potwierdzenia", "TIME NULL", f"Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do {table}")
-        # Store confirmed weight separately to avoid overwriting original Workowanie weight
-        _add_column_if_missing(cursor, table, "waga_potwierdzona", "FLOAT NULL", f"Dodawanie kolumny 'waga_potwierdzona' do {table}")
+    _add_column_if_missing(cursor, "palety_workowanie", "tara", "FLOAT DEFAULT 0", "Dodawanie kolumny 'tara' do palet")
+    _add_column_if_missing(cursor, "palety_workowanie", "waga_brutto", "FLOAT DEFAULT 0", "Dodawanie kolumny 'waga_brutto' do palet")
+    _add_column_if_missing(cursor, "palety_workowanie", "status", "VARCHAR(20) DEFAULT 'do_przyjecia'", "Dodawanie kolumny 'status' do palet")
+    _add_column_if_missing(cursor, "palety_workowanie", "data_potwierdzenia", "DATETIME NULL", "Dodawanie kolumny 'data_potwierdzenia' do palet")
+    _add_column_if_missing(cursor, "palety_workowanie", "czas_potwierdzenia_s", "INT NULL", "Dodawanie kolumny 'czas_potwierdzenia_s' do palet")
+    _add_column_if_missing(cursor, "palety_workowanie", "czas_rzeczywistego_potwierdzenia", "TIME NULL", "Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do palet")
+    # Store confirmed weight separately to avoid overwriting original Workowanie weight
+    _add_column_if_missing(cursor, "palety_workowanie", "waga_potwierdzona", "FLOAT NULL", "Dodawanie kolumny 'waga_potwierdzona' do palet")
     
     # raporty_koncowe columns
     _add_column_if_missing(cursor, "raporty_koncowe", "sekcja", "VARCHAR(50)", "Dodawanie kolumny 'sekcja' do raporty_koncowe")
@@ -350,23 +364,12 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "pracownicy", "grupa", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'grupa' do pracownicy")
     _add_column_if_missing(cursor, "uzytkownicy", "pracownik_id", "INT NULL", "Dodawanie kolumny 'pracownik_id' do uzytkownicy")
 
-    # magazyn_palety unique constraint to prevent duplicates
-    try:
-        cursor.execute("SHOW INDEX FROM magazyn_palety WHERE Key_name = 'uq_magazyn_palety_paleta_workowanie'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE magazyn_palety ADD UNIQUE INDEX uq_magazyn_palety_paleta_workowanie (paleta_workowanie_id)")
-            print("[MIGRATE] Added UNIQUE INDEX to magazyn_palety.paleta_workowanie_id")
-    except Exception as e:
-        print(f"[WARN] Failed to add unique index to magazyn_palety: {e}")
+    # bufor columns
+    _add_column_if_missing(cursor, "bufor", "linia", "VARCHAR(10) DEFAULT 'PSD'", "Dodawanie kolumny 'linia' do bufor (rozróżnienie PSD/AGRO)")
 
-    try:
-        cursor.execute("SHOW INDEX FROM magazyn_palety_agro WHERE Key_name = 'uq_magazyn_palety_agro_paleta_workowanie'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE magazyn_palety_agro ADD UNIQUE INDEX uq_magazyn_palety_agro_paleta_workowanie (paleta_workowanie_id)")
-            print("[MIGRATE] Added UNIQUE INDEX to magazyn_palety_agro.paleta_workowanie_id")
-    except Exception as e:
-        # Tables might not exist yet, ignore
-        pass
+    # magazyn ruch columns
+    _add_column_if_missing(cursor, "magazyn_ruch", "zbiornik", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'zbiornik' do magazyn_ruch (nr zbiornika przy pobraniu)")
+    _add_column_if_missing(cursor, "magazyn_agro_ruch", "zbiornik", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'zbiornik' do magazyn_agro_ruch (nr zbiornika przy pobraniu)")
 
 
 def _seed_default_users(cursor):
@@ -403,103 +406,108 @@ def _seed_default_users(cursor):
         cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola) VALUES (%s, %s, %s)", ('planista', generate_password_hash('planista123', method='pbkdf2:sha256'), 'planista'))
 
 
-def refresh_bufor_queue(conn=None):
+def refresh_bufor_queue(conn=None, linia='PSD'):
     """Odświeța bufor - dodaje nowe zlecenia z przepisanymi kolejkami (OPTIMIZED)"""
     close_conn = False
     if conn is None:
         conn = get_db_connection()
         close_conn = True
     
+    linia = (linia or 'PSD').upper()
+    table_plan = get_table_name('plan_produkcji', linia)
+    table_palety = get_table_name('palety_workowanie', linia)
+    table_bufor = get_table_name('bufor', linia)
+
     try:
         cursor = conn.cursor()
         today = date.today()
-        yesterday = today - timedelta(days=1)
-        
-        # SYNC 1: Synchronizuj Workowanie.tonaz = Zasyp.tonaz_rzeczywisty (tylko dzisiaj)
+        # Zakres dat używany przy odświeżaniu bufora - stała konfiguracja z app.config
+        start_date = today - timedelta(days=BUFOR_LOOKBACK_DAYS)
+        end_date = today + timedelta(days=BUFOR_LOOKAHEAD_DAYS)
+
+        # SYNC 1: Synchronizuj Workowanie.tonaz = Zasyp.tonaz_rzeczywisty
         try:
-            cursor.execute("""
-                                    UPDATE plan_produkcji w
-                                    JOIN plan_produkcji z ON z.id = w.zasyp_id
-                                    SET w.tonaz = COALESCE(z.tonaz_rzeczywisty, 0)
-                                    WHERE w.sekcja = 'Workowanie' AND z.sekcja = 'Zasyp'
-                                        AND COALESCE(z.tonaz_rzeczywisty, 0) > 0
-                                        AND COALESCE(w.tonaz, 0) = 0
-                                        AND w.data_planu >= %s AND w.data_planu <= %s
-                """, (yesterday, today))
+            cursor.execute(f"""
+                UPDATE {table_plan} w
+                JOIN {table_plan} z ON z.id = w.zasyp_id
+                SET w.tonaz = COALESCE(z.tonaz_rzeczywisty, 0)
+                WHERE w.sekcja = 'Workowanie' AND z.sekcja = 'Zasyp'
+                  AND COALESCE(z.tonaz_rzeczywisty, 0) > 0
+                  AND COALESCE(w.tonaz, 0) = 0
+                  AND w.data_planu >= %s AND w.data_planu <= %s
+            """, (start_date, end_date))
             if cursor.rowcount > 0:
-                print(f"[SYNC] Workowanie.tonaz synchronized from Zasyp.tonaz_rzeczywisty: {cursor.rowcount} rows")
+                print(f"[SYNC-{linia}] Workowanie.tonaz synchronized: {cursor.rowcount} rows")
         except Exception as e:
-            print(f"[WARN] Sync Workowanie.tonaz failed: {e}")
-        
-        # SYNC 2: Synchronizuj Workowanie.tonaz_rzeczywisty = sum palet (tylko dzisiaj)
+            print(f"[WARN] Sync Workowanie.tonaz failed ({linia}): {e}")
+
+        # SYNC 2: Synchronizuj Workowanie.tonaz_rzeczywisty = sum palet
         try:
-            cursor.execute("""
-                UPDATE plan_produkcji w
+            cursor.execute(f"""
+                UPDATE {table_plan} w
                 SET w.tonaz_rzeczywisty = (
-                    SELECT COALESCE(SUM(pw.waga), 0) FROM palety_workowanie pw
+                    SELECT COALESCE(SUM(pw.waga), 0) FROM {table_palety} pw
                     WHERE pw.plan_id = w.id
                 )
                 WHERE w.sekcja = 'Workowanie' AND w.data_planu >= %s AND w.data_planu <= %s
-            """, (yesterday, today))
+            """, (start_date, end_date))
             if cursor.rowcount > 0:
-                print(f"[SYNC] Workowanie.tonaz_rzeczywisty synchronized: {cursor.rowcount} rows")
+                print(f"[SYNC-{linia}] Workowanie.tonaz_rzeczywisty synchronized: {cursor.rowcount} rows")
         except Exception as e:
-            print(f"[WARN] Sync Workowanie.tonaz_rzeczywisty failed: {e}")
-        
-        # 1. Zamiast usuwać wpisy z bufora od razu, oznacz je jako 'zamkniete'
-        #    tylko gdy nie ma aktywnego Workowania i jednocześnie nie ma nic do rozliczenia
-        #    (tj. tonaz_rzeczywisty - spakowano) <= 0. Dzięki temu zachowujemy rekordy
-        #    z częściowo niezrealizowanymi ilościami, aż do ich pełnego rozliczenia.
-        cursor.execute("""
-            UPDATE bufor
+            print(f"[WARN] Sync Workowanie.tonaz_rzeczywisty failed ({linia}): {e}")
+
+        # 1. Oznacz wpisy z bufora jako 'zamkniete' gdy nie ma aktywnego Workowania
+        #    i nic do rozliczenia (tonaz_rzeczywisty - spakowano <= 0).
+        cursor.execute(f"""
+            UPDATE {table_bufor}
             SET status = 'zamkniete'
             WHERE status = 'aktywny'
               AND NOT EXISTS (
-                  SELECT 1 FROM plan_produkcji w
+                  SELECT 1 FROM {table_plan} w
                   WHERE w.sekcja = 'Workowanie' AND w.status IN ('w toku', 'zaplanowane')
-                    AND w.produkt = bufor.produkt AND w.data_planu = bufor.data_planu
+                    AND w.produkt = {table_bufor}.produkt AND w.data_planu = {table_bufor}.data_planu
               )
-              AND (
-                  COALESCE(bufor.tonaz_rzeczywisty, 0) - COALESCE(bufor.spakowano, 0) <= 0
-                  OR EXISTS (
-                      SELECT 1 FROM plan_produkcji w 
-                      WHERE w.sekcja = 'Workowanie' AND w.status = 'zakonczone'
-                        AND w.produkt = bufor.produkt AND w.data_planu = bufor.data_planu
-                  )
-              )
+              AND COALESCE({table_bufor}.tonaz_rzeczywisty, 0) - COALESCE({table_bufor}.spakowano, 0) <= 0
         """)
         updated = cursor.rowcount
-        
-        # 2. Pobierz Zasypy dla dzisiejszego i wczorajszego bufora
-        cursor.execute("""
-            SELECT z.id, z.data_planu, z.produkt, z.nazwa_zlecenia, z.typ_produkcji, 
-                   z.tonaz_rzeczywisty, z.status
-            FROM plan_produkcji z
-            INNER JOIN plan_produkcji w ON w.zasyp_id = z.id
+
+        # 2. Pobierz Zasypy dla skonfigurowanego zakresu dat.
+        #    Uwzględniamy 'zaplanowane' (przyszłe plany) - fix dla planów widocznych
+        #    w planowaniu ale niewidocznych na Zasypie.
+        #    Dla planów zaplanowanych używamy COALESCE(tonaz_rzeczywisty, tonaz) jako ilość.
+        cursor.execute(f"""
+            SELECT z.id, z.data_planu, z.produkt, z.nazwa_zlecenia, z.typ_produkcji,
+                   COALESCE(NULLIF(z.tonaz_rzeczywisty, 0), z.tonaz) AS efektywny_tonaz,
+                   z.status
+            FROM {table_plan} z
+            INNER JOIN {table_plan} w ON w.zasyp_id = z.id
             WHERE z.sekcja = 'Zasyp' AND w.sekcja = 'Workowanie'
               AND w.status IN ('w toku', 'zaplanowane')
-              AND (z.status = 'w toku' OR z.status = 'zakonczone')
+              AND z.status IN ('w toku', 'zakonczone', 'zaplanowane')
               AND z.data_planu >= %s AND z.data_planu <= %s
-              AND z.tonaz_rzeczywisty > 0
-            ORDER BY z.data_planu DESC, CASE WHEN z.real_start IS NOT NULL THEN 0 ELSE 1 END ASC, 
+              AND COALESCE(NULLIF(z.tonaz_rzeczywisty, 0), z.tonaz, 0) > 0
+            ORDER BY z.data_planu DESC, CASE WHEN z.real_start IS NOT NULL THEN 0 ELSE 1 END ASC,
                      COALESCE(z.real_start, '00:00:00') ASC, z.id ASC
-        """, (yesterday, today))
-        
+        """, (start_date, end_date))
+
         zasypy_do_bufora = cursor.fetchall()
-        
+
         # 3. Dodaj brakujące Zasypy do bufora
         added = 0
         for z_id, z_data, z_produkt, z_nazwa, z_typ, z_tonaz, z_status in zasypy_do_bufora:
-            cursor.execute("SELECT id FROM bufor WHERE zasyp_id = %s AND status = 'aktywny'", (z_id,))
+            cursor.execute(
+                f"SELECT id FROM {table_bufor} WHERE zasyp_id = %s AND status = 'aktywny'",
+                (z_id,)
+            )
             if cursor.fetchone():
                 continue
 
             # Pobierz max kolejkę i ilość spakowanego w jednym zapytaniu
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT COALESCE(MAX(b.kolejka), 0), COALESCE(SUM(pw.waga), 0)
-                FROM bufor b
-                LEFT JOIN palety_workowanie pw ON pw.plan_id IN (
-                    SELECT id FROM plan_produkcji 
+                FROM {table_bufor} b
+                LEFT JOIN {table_palety} pw ON pw.plan_id IN (
+                    SELECT id FROM {table_plan}
                     WHERE data_planu = %s AND produkt = %s AND sekcja = 'Workowanie'
                 )
                 WHERE b.data_planu = %s AND b.produkt = %s AND b.status = 'aktywny'
@@ -510,54 +518,58 @@ def refresh_bufor_queue(conn=None):
             spakowano = result[1] or 0
 
             # Sprawdź, czy dla tej daty/produktu/kolejki już istnieje wpis
-            cursor.execute("SELECT id FROM bufor WHERE data_planu = %s AND produkt = %s AND kolejka = %s AND status = 'aktywny'", (z_data, z_produkt, next_kolejka))
+            cursor.execute(
+                f"SELECT id FROM {table_bufor} WHERE data_planu = %s AND produkt = %s AND kolejka = %s "
+                "AND status = 'aktywny'",
+                (z_data, z_produkt, next_kolejka)
+            )
             if cursor.fetchone():
                 continue
 
             # Dodaj do bufora
-            cursor.execute("""
-                INSERT INTO bufor 
-                (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)
+            cursor.execute(f"""
+                INSERT INTO {table_bufor}
+                (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji,
+                 tonaz_rzeczywisty, spakowano, kolejka, status)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'aktywny')
-                ON DUPLICATE KEY UPDATE id = id
-            """, (z_id, z_data, z_produkt, z_nazwa or '', z_typ or 'worki_zgrzewane_25', 
+            """, (z_id, z_data, z_produkt, z_nazwa or '', z_typ or 'worki_zgrzewane_25',
                   z_tonaz, spakowano, next_kolejka))
             if cursor.rowcount:
                 added += 1
-        
-        # 4. OPTYMALIZACJA: Renumeruj kolejki w jednym UPDATE (zamiast pętli N updateów)
-        cursor.execute("""
-            UPDATE bufor b
+
+        # 4. Renumeruj kolejki
+        cursor.execute(f"""
+            UPDATE {table_bufor} b
             JOIN (
                 SELECT b2.id, ROW_NUMBER() OVER (
-                    PARTITION BY b2.data_planu 
+                    PARTITION BY b2.data_planu
                     ORDER BY b2.data_planu DESC, COALESCE((
-                        SELECT z.real_start FROM plan_produkcji z WHERE z.id = b2.zasyp_id
+                        SELECT z.real_start FROM {table_plan} z WHERE z.id = b2.zasyp_id
                     ), '00:00:00'), b2.id
                 ) as nowa_kolejka
-                FROM bufor b2
+                FROM {table_bufor} b2
                 WHERE b2.status = 'aktywny'
             ) ranked ON b.id = ranked.id
             SET b.kolejka = ranked.nowa_kolejka
         """)
-        
+
         # 5. Aktualizuj tonaz_rzeczywisty i spakowano w jednym UPDATE
-        cursor.execute("""
-                        UPDATE bufor b
-                        JOIN plan_produkcji z ON z.id = b.zasyp_id
-                        SET b.tonaz_rzeczywisty = COALESCE(z.tonaz_rzeczywisty, 0),
-                                b.spakowano = (
-                    SELECT COALESCE(SUM(pw.waga), 0) FROM palety_workowanie pw
-                    INNER JOIN plan_produkcji w ON pw.plan_id = w.id
-                    WHERE w.data_planu = b.data_planu AND w.produkt = b.produkt 
+        cursor.execute(f"""
+            UPDATE {table_bufor} b
+            JOIN {table_plan} z ON z.id = b.zasyp_id
+            SET b.tonaz_rzeczywisty = COALESCE(z.tonaz_rzeczywisty, 0),
+                b.spakowano = (
+                    SELECT COALESCE(SUM(pw.waga), 0) FROM {table_palety} pw
+                    INNER JOIN {table_plan} w ON pw.plan_id = w.id
+                    WHERE w.data_planu = b.data_planu AND w.produkt = b.produkt
                       AND w.sekcja = 'Workowanie'
                 )
-                        WHERE b.status = 'aktywny'
-                            AND COALESCE(z.tonaz_rzeczywisty, 0) > 0
+            WHERE b.status = 'aktywny'
+              AND COALESCE(z.tonaz_rzeczywisty, 0) > 0
         """)
-        
+
         conn.commit()
-        print(f"[BUFOR] Refreshed buffer: marked_closed {updated}, added {added}")
+        print(f"[BUFOR-{linia}] Refreshed buffer: marked_closed {updated}, added {added}")
         
     except Exception as e:
         print(f"[ERROR] refresh_bufor_queue: {e}")
@@ -647,8 +659,9 @@ def setup_database():
         conn.close()
         print("[OK] Baza danych jest gotowa!")
         
-        # 6. Odśwież bufor (wymagane połączenie)  
-        refresh_bufor_queue()
+        # 6. Odświeź bufor dla obu linii
+        refresh_bufor_queue(linia='PSD')
+        refresh_bufor_queue(linia='AGRO')
         
     except Exception as e:
         print(f"[ERROR] Blad podczas inicjalizacji bazy danych: {e}")
@@ -780,15 +793,14 @@ def insert_dosypka(plan_id, nazwa, kg, pracownik_id=None):
 def list_unconfirmed_dosypki(linia='PSD'):
     """Return list of active unconfirmed dosypki."""
     try:
+        table_dosypki = get_table_name('dosypki', linia)
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Dosypki table is shared — linia param accepted for API compatibility
-        # but dosypki are filtered by plan_id on the caller side if needed
         cursor.execute(
-            """
+            f"""
             SELECT id, plan_id, nazwa, kg, data_zlecenia, pracownik_id,
                    COALESCE(anulowana, 0), anulowal_login, data_anulowania
-            FROM dosypki
+            FROM {table_dosypki}
             WHERE potwierdzone = 0 AND COALESCE(anulowana, 0) = 0
             ORDER BY data_zlecenia ASC
             """
@@ -805,27 +817,31 @@ def list_unconfirmed_dosypki(linia='PSD'):
         return []
 
 
-def confirm_dosypka(dosypka_id, potwierdzil_pracownik_id=None):
+def confirm_dosypka(dosypka_id, potwierdzil_pracownik_id=None, linia='PSD'):
     """Mark dosypka as confirmed (odczytanie) and sync plan's tonaz_rzeczywisty."""
     try:
+        table_dosypki = get_table_name('dosypki', linia)
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_szarze = get_table_name('szarze', linia)
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         
         # Get plan_id first
-        cursor.execute("SELECT plan_id FROM dosypki WHERE id=%s", (dosypka_id,))
+        cursor.execute(f"SELECT plan_id FROM {table_dosypki} WHERE id=%s", (dosypka_id,))
         row = cursor.fetchone()
         plan_id = row[0] if row else None
         
         # Update dosypka status
-        cursor.execute("UPDATE dosypki SET potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s", (potwierdzil_pracownik_id, dosypka_id))
+        cursor.execute(f"UPDATE {table_dosypki} SET potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s", (potwierdzil_pracownik_id, dosypka_id))
         
         # Synchronize plan's tonaz_rzeczywisty = SUM(szarże) + SUM(dosypki potwierdzone)
         if plan_id:
             cursor.execute(
-                "UPDATE plan_produkcji SET tonaz_rzeczywisty = "
-                "COALESCE((SELECT SUM(waga) FROM szarze WHERE plan_id = %s), 0) + "
-                "COALESCE((SELECT SUM(kg) FROM dosypki WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
-                "WHERE id = %s",
+                f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
+                f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
+                f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
+                f"WHERE id = %s",
                 (plan_id, plan_id, plan_id)
             )
         
@@ -852,15 +868,16 @@ def get_plan_notification_context(plan_id, conn=None, cursor=None, linia='PSD'):
     local_conn = conn
     local_cursor = cursor
     try:
+        table_plan = get_table_name('plan_produkcji', linia)
         if own_conn:
             local_conn = get_db_connection()
         if own_cursor:
             local_cursor = local_conn.cursor(dictionary=True)
         local_cursor.execute(
-            """
+            f"""
             SELECT id, produkt, sekcja, data_planu, COALESCE(typ_produkcji, '') AS typ_produkcji,
                    COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia
-            FROM plan_produkcji
+            FROM {table_plan}
             WHERE id = %s
             """,
             (plan_id,)
@@ -1197,6 +1214,9 @@ def sync_dosypka_notifications(plan_id, author_name=None, created_by_user_id=Non
     local_cursor = cursor
     recipient_roles = ('pracownik', 'produkcja', 'lider', 'laborant', 'admin')
 
+    table_plan = get_table_name('plan_produkcji', linia)
+    table_dosypki = get_table_name('dosypki', linia)
+
     try:
         if own_conn:
             local_conn = get_db_connection()
@@ -1204,9 +1224,9 @@ def sync_dosypka_notifications(plan_id, author_name=None, created_by_user_id=Non
             local_cursor = local_conn.cursor(dictionary=True)
 
         local_cursor.execute(
-            """
+            f"""
             SELECT id, produkt, data_planu
-            FROM plan_produkcji
+            FROM {table_plan}
             WHERE id = %s
             """,
             (plan_id,)
@@ -1219,9 +1239,9 @@ def sync_dosypka_notifications(plan_id, author_name=None, created_by_user_id=Non
             return []
 
         local_cursor.execute(
-            """
+            f"""
             SELECT nazwa, kg
-            FROM dosypki
+            FROM {table_dosypki}
             WHERE plan_id = %s AND potwierdzone = 0 AND COALESCE(anulowana, 0) = 0
             ORDER BY data_zlecenia ASC, id ASC
             """,
@@ -1235,6 +1255,7 @@ def sync_dosypka_notifications(plan_id, author_name=None, created_by_user_id=Non
                 local_conn.commit()
             return []
 
+        # ... (rest of function unchanged, but using table-specific data)
         produkt = plan_context.get('produkt') or 'Zasyp'
         data_planu = plan_context.get('data_planu')
         author_display = str(author_name or '').strip() or 'Użytkownik'
@@ -1252,7 +1273,7 @@ def sync_dosypka_notifications(plan_id, author_name=None, created_by_user_id=Non
             tytul = f'Dosypki oczekujące: {produkt}'
             tresc = f'{author_display} dodał {pending_count} pozycji dosypki, razem {total_kg:.1f} kg, dla {produkt}.'
 
-        link_url = f'/?sekcja=Zasyp&data={data_planu}' if data_planu else '/?sekcja=Zasyp'
+        link_url = f'/?sekcja=Zasyp&data={data_planu}&linia={linia}' if data_planu else f'/?sekcja=Zasyp&linia={linia}'
         created_ids = replace_active_notifications(
             typ='dosypka',
             recipient_roles=recipient_roles,

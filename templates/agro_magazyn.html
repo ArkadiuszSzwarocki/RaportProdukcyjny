@@ -78,120 +78,315 @@
     </div>
     {% endif %}
 
-    <!-- ===== SEARCH & FILTER BAR ===== -->
-    <div class="filter-bar mb-20" id="filterBar">
-        <div class="filter-bar-main">
-            <div class="filter-search-wrap">
-                <span class="material-icons filter-search-icon">search</span>
-                <input type="text" id="filterSearch" class="filter-search-input" placeholder="Szukaj surowca lub lokalizacji..." oninput="applyFilters()">
-                <button class="filter-clear-btn" id="filterClearBtn" onclick="clearFilters()" style="display:none;" title="Wyczyść filtry">
-                    <span class="material-icons" style="font-size:18px;">close</span>
-                </button>
-            </div>
-            <button class="btn btn-outline filter-toggle-btn" onclick="toggleFilters()" id="filterToggleBtn">
-                <span class="material-icons" style="font-size:18px;">tune</span>
-                Filtry <span id="filterActiveCount" class="filter-active-badge" style="display:none;">0</span>
-            </button>
-        </div>
-
-        <!-- Extended filter panel -->
-        <div class="filter-panel" id="filterPanel" style="display:none;">
-            <div class="filter-panel-grid">
-                <div class="filter-group">
-                    <label class="filter-label"><span class="material-icons" style="font-size:14px;">place</span> Lokalizacja</label>
-                    <input type="text" id="fLok" class="filter-input" placeholder="np. R010101" oninput="applyFilters()">
-                </div>
-                <div class="filter-group">
-                    <label class="filter-label"><span class="material-icons" style="font-size:14px;">scale</span> Waga min (kg)</label>
-                    <input type="number" id="fWagaMin" class="filter-input" placeholder="0" step="0.1" oninput="applyFilters()">
-                </div>
-                <div class="filter-group">
-                    <label class="filter-label"><span class="material-icons" style="font-size:14px;">scale</span> Waga max (kg)</label>
-                    <input type="number" id="fWagaMax" class="filter-input" placeholder="∞" step="0.1" oninput="applyFilters()">
-                </div>
-                <div class="filter-group filter-group-divider">
-                    <label class="filter-label"><span class="material-icons" style="font-size:14px;">add_box</span> Dzień przyjęcia</label>
-                    <input type="date" id="fPrzyjecie" class="filter-input" oninput="applyHistoryFilters()">
-                </div>
-                <div class="filter-group">
-                    <label class="filter-label"><span class="material-icons" style="font-size:14px;">output</span> Dzień wydania</label>
-                    <input type="date" id="fWydanie" class="filter-input" oninput="applyHistoryFilters()">
-                </div>
-                <div class="filter-group">
-                    <label class="filter-label"><span class="material-icons" style="font-size:14px;">engineering</span> Dzień zużycia</label>
-                    <input type="date" id="fZuzycie" class="filter-input" oninput="applyHistoryFilters()">
-                </div>
-            </div>
-            <div class="filter-panel-footer">
-                <span id="filterResultInfo" class="text-muted small"></span>
-                <button class="btn btn-ghost btn-xs" onclick="clearFilters()">Wyczyść wszystkie</button>
-            </div>
-        </div>
-    </div>
-
     <div class="grid-2-1 gap-30 mb-30">
-        <!-- GROUPED INVENTORY -->
+        <!-- INVENTORY CARDS -->
         <div>
             <h3 class="section-title mb-15 row items-center gap-8">
                 <span class="material-icons" style="color:var(--primary-color);">storage</span> 
-                Stany Magazynowe (grupowane po surowcu)
-                <span id="inventoryCount" class="text-muted small" style="font-weight:400;"></span>
+                Aktualne Stany (Palety / Regały)
             </h3>
-            {% if not grouped %}
+            {% if not inventory %}
             <div class="section-box section-padding text-center bg-white">
                 <p class="text-muted">Brak surowców w bazie. Dodaj pierwszą dostawę.</p>
             </div>
             {% else %}
-            <div class="surowiec-groups" id="surowiecGroupsContainer">
-                {% for g in grouped %}
-                <div class="surowiec-group-card"
-                     data-nazwa="{{ g.nazwa }}"
-                     data-total="{{ g.total_kg }}"
-                     id="grp-{{ loop.index }}">
-                    <div class="surowiec-group-header" onclick="toggleGroup('grp-{{ loop.index }}', '{{ g.nazwa }}')">
-                        <div class="surowiec-group-info">
-                            <span class="surowiec-group-icon material-icons">inventory_2</span>
-                            <div>
-                                <div class="surowiec-group-name">{{ g.nazwa }}</div>
-                                <div class="surowiec-group-meta">
-                                    <span class="badge-palet">{{ g.liczba_palet }} pal.</span>
-                                    <span class="text-muted small">·</span>
-                                    <span class="surowiec-group-total">{{ g.total_kg | round(1) }} kg łącznie</span>
-                                </div>
-                            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;">
+                {% for item in inventory %}
+                <div class="section-box bg-white hover-glow" style="position:relative; transition: all 0.2s; border-radius: 14px; padding: 14px 16px; min-width:155px; max-width:210px; flex: 0 0 auto; text-align:center;">
+                    <div class="text-muted small font-bold" style="text-transform:uppercase; letter-spacing:.4px; margin-bottom:6px; word-break:break-word; line-height:1.3;">{{ item.nazwa }}</div>
+                    <div class="text-primary" style="font-size:26px; font-weight:700; line-height:1.1;">{{ item.stan_magazynowy|round(1) }} <span style="font-size:13px; color:#94a3b8; font-weight:normal;">kg</span></div>
+
+                    <div class="row justify-center gap-8 mt-8">
+                        {% if item.lokalizacja %}
+                        <div class="badge badge-success small row items-center gap-4" style="font-size: 11px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;">
+                            <span class="material-icons" style="font-size: 14px;">place</span> {{ item.lokalizacja }}
                         </div>
-                        <div class="surowiec-group-right">
-                            <span class="surowiec-total-badge">{{ g.total_kg | round(1) }} kg</span>
-                            <span class="surowiec-expand-icon material-icons">expand_more</span>
-                        </div>
+                        {% else %}
+                        <div class="badge badge-outline small" style="font-size: 10px; color: #94a3b8;">Brak lok.</div>
+                        {% endif %}
                     </div>
-                    <!-- FIFO locations panel (hidden by default) -->
-                    <div class="surowiec-fifo-panel" id="fifo-grp-{{ loop.index }}" style="display:none;">
-                        <div class="fifo-loading" id="fifo-loading-grp-{{ loop.index }}">
-                            <span class="material-icons spin" style="font-size:18px;color:var(--primary-color);">autorenew</span>
-                            <span class="text-muted small">Ładowanie lokalizacji FIFO...</span>
-                        </div>
-                        <div class="fifo-locations" id="fifo-locs-grp-{{ loop.index }}"></div>
-                        <div class="fifo-legend">
-                            <div class="fifo-legend-item"><span class="fifo-dot" style="background:#22c55e;"></span> Pierwsza do pobrania (FIFO)</div>
-                            <div class="fifo-legend-item"><span class="fifo-dot" style="background:#f97316;"></span> Ostatnia do pobrania</div>
-                        </div>
+
+                    <div class="mt-12 pt-12 row justify-center gap-8" style="border-top: 1px solid #f1f5f9;">
+                        <button class="btn btn-ghost btn-xs text-primary" onclick="openUsageFor('{{ item.id }}', '{{ item.nazwa }}', '{{ item.lokalizacja }}', {{ item.stan_magazynowy }})">Pobierz</button>
+                        {% if session.get('rola') in ['lider', 'admin'] %}
+                        <button class="btn btn-ghost btn-xs text-muted" onclick="openInventoryFor('{{ item.id }}', '{{ item.nazwa }}', {{ item.stan_magazynowy }})">Korekta</button>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
-                <!-- Empty state when filters match nothing -->
-                <div id="inventoryEmptyState" style="display:none;" class="section-box section-padding text-center bg-white">
-                    <span class="material-icons" style="font-size:36px;color:#cbd5e1;">search_off</span>
-                    <p class="text-muted mt-8">Brak surowców pasujących do filtrów.</p>
-                    <button class="btn btn-ghost btn-xs mt-8" onclick="clearFilters()">Wyczyść filtry</button>
-                </div>
             </div>
             {% endif %}
         </div>
+
+        <!-- RECENT ACTIVITY AUDIT -->
+        <div>
+            <button type="button" class="btn btn-ghost w-100 row items-center gap-8 mb-5" style="justify-content:flex-start; padding: 10px 14px; border-radius: 12px; background: var(--gray-50, #f8fafc); border: 1px solid #e2e8f0;" onclick="toggleAudit(this)">
+                <span class="material-icons" style="color:var(--primary-color);">history</span>
+                <span style="font-weight:600; font-size:15px;">Ostatnie Ruchy (Audyt)</span>
+                <span class="material-icons" id="auditChevron" style="margin-left:auto; transition: transform .2s;">expand_more</span>
+            </button>
+            <div id="auditSection" style="display:none;">
+                <div class="section-box bg-white" style="border-radius: 16px; overflow: hidden;">
+
+                    <!-- FILTRY -->
+                    <div class="row items-end gap-10 wrap p-15" style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                        <div style="flex:1; min-width:140px;">
+                            <label class="form-label small mb-4" style="display:block;">Dzień</label>
+                            <input type="date" id="auditFilterData" class="form-control" style="height:38px;">
+                        </div>
+                        <div style="flex:1; min-width:120px;">
+                            <label class="form-label small mb-4" style="display:block;">Nr zlecenia</label>
+                            <input type="number" id="auditFilterPlanId" class="form-control" placeholder="np. 421" style="height:38px;">
+                        </div>
+                        <div class="row gap-8 items-center" style="flex-shrink:0;">
+                            <button class="btn btn-primary row items-center gap-4" style="height:38px; padding: 0 16px;" onclick="auditLoad()">
+                                <span class="material-icons" style="font-size:16px;">search</span> Filtruj
+                            </button>
+                            <button class="btn btn-ghost row items-center gap-4" style="height:38px; padding: 0 12px;" onclick="auditClear()" title="Wyczyść filtry">
+                                <span class="material-icons" style="font-size:16px;">close</span>
+                            </button>
+                        </div>
+                        <div id="auditSummary" class="small text-muted" style="flex-basis:100%; margin-top:2px; display:none;"></div>
+                    </div>
+
+                    <!-- LISTA RUCHÓW (dynamiczna) -->
+                    <div class="history-list" id="auditHistoryList" style="max-height: 650px; overflow-y: auto;">
+                        {# rendered server-side initially (last 50), replaced by JS on filter #}
+                        {% for h in history %}
+                        {% set is_positive = h.ilosc > 0 %}
+                        <div class="history-item" style="border-bottom: 1px solid #f1f5f9; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;">
+                            <div class="row justify-between items-center" style="gap:8px;">
+                                <div class="row items-center gap-8" style="flex:1; min-width:0;">
+                                    <span class="badge
+                                        {% if h.typ_ruchu == 'PRZYJECIE' %}badge-success
+                                        {% elif h.typ_ruchu == 'PRODUKCJA' %}badge-warning
+                                        {% elif h.typ_ruchu == 'INWENTARYZACJA' %}badge-info
+                                        {% else %}badge-error{% endif %}"
+                                        style="font-size:10px; white-space:nowrap;">{{ h.typ_ruchu }}</span>
+                                    <span class="font-bold" style="font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ h.surowiec_nazwa }}</span>
+                                </div>
+                                <span class="{{ 'text-success' if is_positive else 'text-danger-color' }} font-bold" style="font-size:15px; white-space:nowrap;">
+                                    {{ '+' if is_positive else '' }}{{ h.ilosc|round(1) }} kg
+                                </span>
+                            </div>
+                            {% if h.lokalizacja %}
+                            <div class="row items-center gap-6 small" style="color: var(--primary-color);">
+                                <span class="material-icons" style="font-size:14px;">place</span>
+                                <span>Miejsce: <strong>{{ h.lokalizacja }}</strong></span>
+                                {% if h.ilosc_po is not none %}
+                                <span class="text-muted" style="margin-left:4px;">— pozostało: <strong>{{ h.ilosc_po|round(1) }} kg</strong></span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% if h.zbiornik %}
+                            <div class="row items-center gap-6 small" style="color: #7c3aed; font-weight:600;">
+                                <span class="material-icons" style="font-size:14px;">storage</span>
+                                <span>Wsadził do zbiornika: <strong>{{ h.zbiornik }}</strong></span>
+                            </div>
+                            {% endif %}
+                            {% if h.plan_id %}
+                            <div class="row items-center gap-6 small text-muted">
+                                <span class="material-icons" style="font-size:14px;">assignment</span>
+                                <span>Zlecenie: <strong>#{{ h.plan_id }}</strong></span>
+                            </div>
+                            {% endif %}
+                            {% if h.komentarz %}
+                            <div class="row items-center gap-6 small text-muted">
+                                <span class="material-icons" style="font-size:14px;">comment</span>
+                                <span class="italic">{{ h.komentarz }}</span>
+                            </div>
+                            {% endif %}
+                            <div class="row justify-between items-center small text-muted" style="margin-top:2px; border-top: 1px dashed #e2e8f0; padding-top:6px;">
+                                <div class="row items-center gap-12" style="flex-wrap:wrap; gap:10px;">
+                                    <span class="row items-center gap-4">
+                                        <span class="material-icons" style="font-size:13px;">person</span>
+                                        <span>Zgłosił: <strong>{{ h.autor_login }}</strong></span>
+                                        {% if h.autor_data %}
+                                        <span style="margin-left:3px;">dnia <strong>{{ h.autor_data.strftime('%d.%m.%Y') }}</strong> o <strong>{{ h.autor_data.strftime('%H:%M') }}</strong></span>
+                                        {% endif %}
+                                    </span>
+                                    {% if h.potwierdzil_login %}
+                                    <span class="row items-center gap-4 text-success">
+                                        <span class="material-icons" style="font-size:13px;">verified</span>
+                                        <span>Potwierdził: <strong>{{ h.potwierdzil_login }}</strong></span>
+                                        {% if h.potwierdzil_data %}
+                                        <span style="margin-left:3px;">o <strong>{{ h.potwierdzil_data.strftime('%H:%M') }}</strong></span>
+                                        {% endif %}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <span class="badge-dot {% if h.status == 'POTWIERDZONE' %}bg-success{% elif h.status == 'OCZEKUJACE' %}bg-warning{% else %}bg-error{% endif %}" style="flex-shrink:0;" title="{{ h.status }}"></span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% if not history %}
+                        <div class="p-20 text-center text-muted small italic">Brak ruchów do wyświetlenia.</div>
+                        {% endif %}
+                    </div>
+                    <div class="p-10 text-center bg-gray-50 border-top">
+                        <button class="btn btn-ghost btn-xs w-100" onclick="location.reload()">Odśwież Listę</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+<script>
+function toggleAudit(btn) {
+    var sec = document.getElementById('auditSection');
+    var chevron = document.getElementById('auditChevron');
+    var visible = sec.style.display !== 'none';
+    sec.style.display = visible ? 'none' : 'block';
+    chevron.style.transform = visible ? '' : 'rotate(180deg)';
+}
 
+// ---- AUDIT FILTER / RAPORT ----
+var _auditLinia = '{{ linia }}';
 
+function auditClear() {
+    document.getElementById('auditFilterData').value = '';
+    document.getElementById('auditFilterPlanId').value = '';
+    document.getElementById('auditSummary').style.display = 'none';
+    // reload page to get fresh server-rendered default list
+    location.reload();
+}
+
+function auditLoad() {
+    var data = document.getElementById('auditFilterData').value;
+    var planId = document.getElementById('auditFilterPlanId').value.trim();
+    if (!data && !planId) { alert('Podaj dzień lub nr zlecenia.'); return; }
+
+    var url = '/agro/api/history?linia=' + encodeURIComponent(_auditLinia) + '&limit=500';
+    if (data)   url += '&data='    + encodeURIComponent(data);
+    if (planId) url += '&plan_id=' + encodeURIComponent(planId);
+
+    var list = document.getElementById('auditHistoryList');
+    list.innerHTML = '<div class="p-20 text-center text-muted small"><span class="material-icons" style="vertical-align:middle;">hourglass_empty</span> Ładowanie...</div>';
+
+    fetch(url, { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+            if (!resp.success) { list.innerHTML = '<div class="p-20 text-center text-danger-color small">' + (resp.error || 'Błąd') + '</div>'; return; }
+
+            var rows = resp.history;
+            if (!rows.length) {
+                list.innerHTML = '<div class="p-20 text-center text-muted small italic">Brak ruchów dla podanych filtrów.</div>';
+                _showAuditSummary(rows, data, planId);
+                return;
+            }
+
+            // group by date
+            var grouped = {};
+            rows.forEach(function(h) {
+                var d = h.autor_date_only || '—';
+                if (!grouped[d]) grouped[d] = [];
+                grouped[d].push(h);
+            });
+
+            var html = '';
+            Object.keys(grouped).sort().reverse().forEach(function(day) {
+                html += '<div style="padding:8px 16px 2px; background:#f0f9ff; border-bottom:1px solid #bae6fd; font-weight:700; font-size:12px; color:#0369a1; letter-spacing:.5px;">';
+                html += '<span class="material-icons" style="font-size:13px; vertical-align:middle;">calendar_today</span> ' + day;
+                html += ' <span style="font-weight:400; color:#64748b; margin-left:8px;">' + grouped[day].length + ' ruch(ów)</span></div>';
+                grouped[day].forEach(function(h) { html += _renderHistoryRow(h); });
+            });
+
+            list.innerHTML = html;
+            _showAuditSummary(rows, data, planId);
+        })
+        .catch(function(e) { list.innerHTML = '<div class="p-20 text-center text-danger-color small">Błąd sieci: ' + e + '</div>'; });
+}
+
+function _showAuditSummary(rows, data, planId) {
+    var el = document.getElementById('auditSummary');
+    var totalIn = 0, totalOut = 0;
+    rows.forEach(function(h) {
+        if (h.ilosc > 0) totalIn  += h.ilosc;
+        else             totalOut += Math.abs(h.ilosc);
+    });
+    var parts = [];
+    if (data) parts.push('Dzień: <strong>' + data + '</strong>');
+    if (planId) parts.push('Zlecenie: <strong>#' + planId + '</strong>');
+    parts.push('Łącznie ' + rows.length + ' ruchów');
+    if (totalIn)  parts.push('<span style="color:#16a34a">▲ ' + totalIn.toFixed(1)  + ' kg przyjęto</span>');
+    if (totalOut) parts.push('<span style="color:#dc2626">▼ ' + totalOut.toFixed(1) + ' kg pobrano/wydano</span>');
+    el.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+    el.style.display = 'block';
+}
+
+function _typBadge(typ) {
+    var map = { 'PRZYJECIE': 'badge-success', 'PRODUKCJA': 'badge-warning', 'INWENTARYZACJA': 'badge-info', 'WYDANIE_ZEW': 'badge-error' };
+    return '<span class="badge ' + (map[typ] || 'badge-error') + '" style="font-size:10px;white-space:nowrap;">' + typ + '</span>';
+}
+
+function _statusDot(status) {
+    var map = { 'POTWIERDZONE': 'bg-success', 'OCZEKUJACE': 'bg-warning' };
+    return '<span class="badge-dot ' + (map[status] || 'bg-error') + '" title="' + status + '"></span>';
+}
+
+function _renderHistoryRow(h) {
+    var pos = h.ilosc >= 0;
+    var html = '<div class="history-item" style="border-bottom:1px solid #f1f5f9;padding:14px 16px;display:flex;flex-direction:column;gap:6px;">';
+
+    // header
+    html += '<div class="row justify-between items-center" style="gap:8px;">';
+    html += '<div class="row items-center gap-8" style="flex:1;min-width:0;">';
+    html += _typBadge(h.typ_ruchu);
+    html += '<span class="font-bold" style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + h.surowiec_nazwa + '</span>';
+    html += '</div>';
+    html += '<span class="' + (pos ? 'text-success' : 'text-danger-color') + ' font-bold" style="font-size:15px;white-space:nowrap;">' + (pos ? '+' : '') + h.ilosc.toFixed(1) + ' kg</span>';
+    html += '</div>';
+
+    // lokalizacja + pozostało
+    if (h.lokalizacja) {
+        html += '<div class="row items-center gap-6 small" style="color:var(--primary-color);">';
+        html += '<span class="material-icons" style="font-size:14px;">place</span>';
+        html += 'Miejsce: <strong>' + h.lokalizacja + '</strong>';
+        if (h.ilosc_po !== null && h.ilosc_po !== undefined)
+            html += '<span class="text-muted" style="margin-left:4px;">— pozostało: <strong>' + parseFloat(h.ilosc_po).toFixed(1) + ' kg</strong></span>';
+        html += '</div>';
+    }
+
+    // zbiornik
+    if (h.zbiornik) {
+        html += '<div class="row items-center gap-6 small" style="color:#7c3aed;font-weight:600;">';
+        html += '<span class="material-icons" style="font-size:14px;">storage</span>';
+        html += 'Wsadził do zbiornika: <strong>' + h.zbiornik + '</strong></div>';
+    }
+
+    // plan_id
+    if (h.plan_id) {
+        html += '<div class="row items-center gap-6 small text-muted">';
+        html += '<span class="material-icons" style="font-size:14px;">assignment</span>';
+        html += 'Zlecenie: <strong>#' + h.plan_id + '</strong></div>';
+    }
+
+    // komentarz
+    if (h.komentarz) {
+        html += '<div class="row items-center gap-6 small text-muted">';
+        html += '<span class="material-icons" style="font-size:14px;">comment</span>';
+        html += '<span class="italic">' + h.komentarz + '</span></div>';
+    }
+
+    // kto / kiedy
+    html += '<div class="row justify-between items-center small text-muted" style="margin-top:2px;border-top:1px dashed #e2e8f0;padding-top:6px;">';
+    html += '<div class="row items-center gap-12" style="flex-wrap:wrap;gap:10px;">';
+    html += '<span class="row items-center gap-4"><span class="material-icons" style="font-size:13px;">person</span>';
+    html += 'Zgłosił: <strong>' + h.autor_login + '</strong>';
+    if (h.autor_data) html += '<span style="margin-left:3px;">dnia <strong>' + h.autor_date_only + '</strong> o <strong>' + h.autor_time_only + '</strong></span>';
+    html += '</span>';
+    if (h.potwierdzil_login) {
+        html += '<span class="row items-center gap-4 text-success"><span class="material-icons" style="font-size:13px;">verified</span>';
+        html += 'Potwierdził: <strong>' + h.potwierdzil_login + '</strong>';
+        if (h.potwierdzil_data) html += '<span style="margin-left:3px;">o <strong>' + h.potwierdzil_data + '</strong></span>';
+        html += '</span>';
+    }
+    html += '</div>' + _statusDot(h.status) + '</div>';
+
+    html += '</div>';
+    return html;
+}
+</script>
 
 <!-- MODAL: DELIVERY -->
 <dialog id="modalDelivery" class="modal-premium">
@@ -235,7 +430,12 @@
         <input type="hidden" id="conf_ruch_id">
         <div class="form-group mb-15">
             <label class="form-label">Lokalizacja (Regał / Miejsce / Rząd)</label>
-            <input type="text" id="conf_lokalizacja" class="form-control" placeholder="Np. R010101" list="racksList">
+            <div class="row gap-8 items-center">
+                <input type="text" id="conf_lokalizacja" class="form-control" placeholder="Np. R010101" list="racksList" style="flex:1;">
+                <button type="button" class="btn btn-outline row items-center gap-4" style="padding:8px 12px; white-space:nowrap;" onclick="openQrScanner('conf_lokalizacja')" title="Skanuj kod QR regału">
+                    <span class="material-icons" style="font-size:18px;">qr_code_scanner</span>
+                </button>
+            </div>
             <datalist id="racksList">
                 <option value="R010101"><option value="R010201"><option value="R010301">
                 <option value="R020101"><option value="R020201"><option value="R020301">
@@ -261,15 +461,21 @@
     <div class="modal-body">
         <div class="form-group mb-15">
             <label class="form-label">Wybierz Paletę / Regał</label>
-            <select id="usage_surowiec_id" class="form-control">
-                {% for s in inventory %}
-                <option value="{{ s.id }}">{{ s.nazwa }} - {{ s.lokalizacja or 'Brak' }} ({{ s.stan_magazynowy }} kg)</option>
-                {% endfor %}
-            </select>
+            <div class="row gap-8 items-center">
+                <select id="usage_surowiec_id" class="form-control" style="flex:1;"></select>
+                <button type="button" class="btn btn-outline row items-center gap-4" style="padding:8px 12px; white-space:nowrap;" onclick="openQrScanner('usage_location_scan')" title="Skanuj kod QR regału">
+                    <span class="material-icons" style="font-size:18px;">qr_code_scanner</span>
+                </button>
+            </div>
+            <input type="hidden" id="usage_location_scan">
         </div>
         <div class="form-group mb-15">
             <label class="form-label">Ilość pobrania (kg)</label>
             <input type="number" id="usage_ilosc" class="form-control" step="0.1" placeholder="0.0">
+        </div>
+        <div class="form-group mb-15">
+            <label class="form-label">Nr zbiornika / miejsca załadunku</label>
+            <input type="text" id="usage_zbiornik" class="form-control" placeholder="Np. ZB-01, Linia A, Silos 3">
         </div>
         <div class="form-group mb-15">
             <label class="form-label">Zlecenie (Opcjonalnie)</label>
@@ -286,6 +492,35 @@
     </div>
 </dialog>
 
+<!-- MODAL: QR SCANNER (Zebra / hardware wedge scanner) -->
+<dialog id="modalQr" class="modal-premium" style="max-width:380px;">
+    <div class="modal-header">
+        <h4 class="modal-title row items-center gap-8">
+            <span class="material-icons">qr_code_scanner</span> Skanuj kod regału
+        </h4>
+        <button class="modal-close" onclick="closeQrScanner()">×</button>
+    </div>
+    <div class="modal-body">
+        <div style="text-align:center; padding: 18px 0 10px;">
+            <span class="material-icons" style="font-size:56px; color:var(--primary-color); display:block; margin-bottom:8px;">barcode_reader</span>
+            <p class="text-muted small mb-15">Przyłóż skaner Zebra do kodu na regale.<br>Kod zostanie wczytany automatycznie.</p>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Lokalizacja</label>
+            <input type="text" id="qrScanInput" class="form-control" placeholder="Skanuj lub wpisz np. R010101"
+                   style="text-transform:uppercase; font-size:18px; font-weight:700; letter-spacing:2px; text-align:center;"
+                   autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+            <p id="qrScanHint" class="small text-muted mt-5" style="text-align:center;">Pole aktywne — skaner wpisze automatycznie</p>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeQrScanner()">Anuluj</button>
+        <button class="btn btn-success" id="qrConfirmBtn" onclick="confirmQrManual()" disabled>
+            <span class="material-icons" style="font-size:16px; vertical-align:middle;">check</span> Zatwierdź
+        </button>
+    </div>
+</dialog>
+
 <!-- MODAL: INVENTORY -->
 <dialog id="modalInventory" class="modal-premium">
     <div class="modal-header">
@@ -293,18 +528,11 @@
         <button class="modal-close" onclick="closeModal('modalInventory')">×</button>
     </div>
     <div class="modal-body">
-        <div class="form-group mb-15" style="border: 2px dashed var(--primary-color); padding: 10px; border-radius: 8px; background: #f8fafc;">
-            <label class="form-label row items-center justify-between m-0">
-                <span style="display: flex; align-items: center; gap: 6px;"><span class="material-icons" style="font-size:18px; color: var(--primary-color);">qr_code_scanner</span> Skanuj Kod QR Lokalizacji</span>
-            </label>
-            <input type="text" id="inv_qr_scanner" class="form-control" style="margin-top: 8px;" placeholder="Zeskanuj lokalizację (np. R01)..." autocomplete="off">
-            <small id="inv_qr_status" class="block mt-5"></small>
-        </div>
         <div class="form-group mb-15">
             <label class="form-label">Paleta</label>
             <select id="inv_surowiec_id" class="form-control">
                 {% for s in inventory %}
-                <option value="{{ s.id }}" data-lok="{{ s.lokalizacja or '' }}">[{{ s.lokalizacja or 'Brak' }}] {{ s.nazwa }} ({{ s.stan_magazynowy }} kg)</option>
+                <option value="{{ s.id }}">{{ s.nazwa }} - {{ s.lokalizacja or 'Brak' }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -332,260 +560,36 @@
     .tracking-wider { letter-spacing: 0.05em; }
     .hover-glow:hover { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); transform: translateY(-4px); border-color: var(--primary-color); }
     .btn-xs { padding: 4px 10px; font-size: 11px; height: auto; }
-
-    /* ===== Filter Bar ===== */
-    .filter-bar {
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .filter-bar-main {
-        display: flex; align-items: center; gap: 12px;
-        padding: 12px 16px;
-    }
-    .filter-search-wrap {
-        flex: 1; display: flex; align-items: center; gap: 8px;
-        background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px;
-        padding: 0 12px; transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .filter-search-wrap:focus-within {
-        border-color: var(--primary-color, #6366f1);
-        box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
-    }
-    .filter-search-icon { color: #94a3b8; font-size: 20px; flex-shrink: 0; }
-    .filter-search-input {
-        flex: 1; border: none; background: transparent; padding: 10px 0;
-        font-size: 14px; color: #1e293b; outline: none;
-    }
-    .filter-search-input::placeholder { color: #94a3b8; }
-    .filter-clear-btn {
-        background: none; border: none; cursor: pointer; color: #94a3b8; padding: 4px;
-        border-radius: 50%; display: flex; align-items: center; transition: color 0.15s, background 0.15s;
-    }
-    .filter-clear-btn:hover { color: #ef4444; background: #fff1f2; }
-    .filter-toggle-btn {
-        white-space: nowrap; display: flex; align-items: center; gap: 6px;
-        font-size: 13px; padding: 8px 14px; transition: background 0.15s, border-color 0.15s;
-    }
-    .filter-toggle-btn.active { background: var(--primary-color, #6366f1); color: #fff; border-color: var(--primary-color, #6366f1); }
-    .filter-active-badge {
-        background: #ef4444; color: #fff; border-radius: 10px;
-        font-size: 10px; font-weight: 800; padding: 1px 6px;
-    }
-
-    /* Extended filter panel */
-    .filter-panel {
-        border-top: 1px solid #f1f5f9;
-        padding: 16px;
-        background: #fafbfc;
-        animation: slideDown 0.2s ease;
-    }
-    .filter-panel-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 12px;
-        margin-bottom: 12px;
-    }
-    .filter-group { display: flex; flex-direction: column; gap: 5px; }
-    .filter-group-divider { border-left: 2px solid #e2e8f0; padding-left: 12px; }
-    .filter-label {
-        font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;
-        letter-spacing: 0.04em; display: flex; align-items: center; gap: 4px;
-    }
-    .filter-input {
-        border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 7px 10px;
-        font-size: 13px; color: #1e293b; background: #fff; outline: none;
-        transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .filter-input:focus {
-        border-color: var(--primary-color, #6366f1);
-        box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
-    }
-    .filter-input[type="date"] { cursor: pointer; }
-    .filter-panel-footer {
-        display: flex; align-items: center; justify-content: space-between;
-        padding-top: 10px; border-top: 1px solid #f1f5f9;
-    }
-
-    /* surowiec-group card highlight when filter active */
-    .surowiec-group-card.filter-hidden { display: none !important; }
-    .surowiec-group-card.filter-dim { opacity: 0.4; }
-
-    /* history item hidden by filter */
-    .history-item.filter-hidden { display: none !important; }
-
-    /* ===== Surowiec Group Cards ===== */
-    .surowiec-groups { display: flex; flex-direction: column; gap: 10px; }
-
-    .surowiec-group-card {
-        background: #fff;
-        border-radius: 14px;
-        border: 1px solid #e2e8f0;
-        overflow: hidden;
-        transition: box-shadow 0.2s, border-color 0.2s;
-    }
-    .surowiec-group-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-color: var(--primary-color, #6366f1); }
-    .surowiec-group-card.open { border-color: var(--primary-color, #6366f1); }
-
-    .surowiec-group-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 14px 18px;
-        cursor: pointer;
-        user-select: none;
-        gap: 12px;
-    }
-    .surowiec-group-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
-    .surowiec-group-icon { color: var(--primary-color, #6366f1); font-size: 24px; flex-shrink: 0; }
-    .surowiec-group-name { font-weight: 700; font-size: 15px; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .surowiec-group-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
-    .surowiec-group-total { font-size: 12px; color: #64748b; }
-    .badge-palet {
-        display: inline-block; background: #ede9fe; color: #7c3aed;
-        border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 700;
-    }
-
-    .surowiec-group-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-    .surowiec-total-badge {
-        background: linear-gradient(135deg, #6366f1, #8b5cf6);
-        color: #fff; border-radius: 20px; padding: 4px 12px;
-        font-size: 13px; font-weight: 700; white-space: nowrap;
-    }
-    .surowiec-expand-icon {
-        font-size: 22px; color: #94a3b8;
-        transition: transform 0.25s ease;
-    }
-    .surowiec-group-card.open .surowiec-expand-icon { transform: rotate(180deg); }
-
-    /* ===== FIFO Panel ===== */
-    .surowiec-fifo-panel {
-        border-top: 1px solid #f1f5f9;
-        padding: 16px 18px 14px;
-        background: #f8fafc;
-        animation: slideDown 0.25s ease;
-    }
-    @keyframes slideDown {
-        from { opacity: 0; transform: translateY(-8px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .fifo-loading { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spin { animation: spin 1s linear infinite; display: inline-block; }
-
-    .fifo-locations { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
-
-    .fifo-loc-item {
-        display: flex; flex-direction: column; align-items: center; gap: 4px;
-        border-radius: 12px; padding: 10px 14px; min-width: 90px;
-        border: 2px solid transparent;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        cursor: default;
-        transition: transform 0.15s;
-        position: relative;
-    }
-    .fifo-loc-item:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-
-    .fifo-loc-order {
-        font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
-        opacity: 0.85;
-    }
-    .fifo-loc-badge {
-        display: flex; align-items: center; gap: 4px;
-        font-size: 13px; font-weight: 700;
-    }
-    .fifo-loc-badge .material-icons { font-size: 14px; }
-    .fifo-loc-qty { font-size: 12px; opacity: 0.8; }
-    .fifo-loc-no-loc {
-        font-size: 11px; color: #94a3b8; font-style: italic;
-    }
-    .fifo-loc-first-label {
-        position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
-        background: #22c55e; color: #fff; font-size: 9px; font-weight: 800;
-        padding: 1px 6px; border-radius: 10px; white-space: nowrap;
-        letter-spacing: 0.04em; text-transform: uppercase;
-    }
-
-    .fifo-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 4px; }
-    .fifo-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; }
-    .fifo-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-
-    .fifo-empty { color: #94a3b8; font-size: 13px; font-style: italic; padding: 8px 0; }
 </style>
 
 <script>
-const LINIA = '{{ linia }}';
-
 function openModal(id) {
     const d = document.getElementById(id);
-    if (d && typeof d.showModal === 'function') {
-        d.showModal();
-        if (id === 'modalInventory') {
-            setTimeout(() => {
-                const scanner = document.getElementById('inv_qr_scanner');
-                if (scanner) scanner.focus();
-                document.getElementById('inv_qr_status').innerHTML = '';
-            }, 50);
-        }
-    }
+    if (d && typeof d.showModal === 'function') d.showModal();
 }
 function closeModal(id) {
     const d = document.getElementById(id);
     if (d) d.close();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const qrScanner = document.getElementById('inv_qr_scanner');
-    if (qrScanner) {
-        qrScanner.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const scannedLoc = this.value.trim().toUpperCase();
-                if (!scannedLoc) return;
-
-                const select = document.getElementById('inv_surowiec_id');
-                const options = Array.from(select.options);
-
-                // Szukamy opcji po lokalizacji
-                const matchIndex = options.findIndex(opt => {
-                    const loc = (opt.dataset.lok || '').toUpperCase();
-                    return loc === scannedLoc || loc.includes(scannedLoc);
-                });
-
-                if (matchIndex >= 0) {
-                    select.selectedIndex = matchIndex;
-                    document.getElementById('inv_qr_status').innerHTML = '<span style="color:#059669; font-weight:bold; font-size:12px;">✓ Znaleziono: ' + options[matchIndex].text + '</span>';
-                    // Automatyczne przejście do wagi
-                    document.getElementById('inv_qty').focus();
-                } else {
-                    document.getElementById('inv_qr_status').innerHTML = '<span style="color:#ef4444; font-weight:bold; font-size:12px;">✗ Nie ma takiej lokalizacji na liście aktywnych palet (' + scannedLoc + ').</span>';
-                }
-                this.value = ''; // wyczyść pole
-            }
+function openUsageFor(id, nazwa, lok, qty) {
+    // Rebuild select with all inventory options and pre-select this one
+    const sel = document.getElementById('usage_surowiec_id');
+    if (!sel.options.length) {
+        // populate from inventory data embedded in page
+        window._inventory.forEach(function(s) {
+            const o = document.createElement('option');
+            o.value = s.id;
+            o.textContent = s.nazwa + ' - ' + (s.lokalizacja || 'Brak') + ' (' + s.stan + ' kg)';
+            sel.appendChild(o);
         });
     }
-
-    // Pozwól na zatwierdzanie ilości i formularza klawiszem Enter (szybka praca)
-    const qtyInput = document.getElementById('inv_qty');
-    const commentInput = document.getElementById('inv_komentarz');
-    
-    function handleEnterSubmit(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            submitInventory();
-        }
-    }
-    if (qtyInput) qtyInput.addEventListener('keypress', handleEnterSubmit);
-    if (commentInput) commentInput.addEventListener('keypress', handleEnterSubmit);
-});
-
-function openUsageFor(id, nazwa, lok, qty) {
-    const sel = document.getElementById('usage_surowiec_id');
     sel.value = id;
     document.getElementById('usage_ilosc').value = qty;
+    document.getElementById('usage_location_scan').value = lok || '';
+    document.getElementById('usage_zbiornik').value = '';
+    document.getElementById('usage_plan_id').value = '';
+    document.getElementById('usage_komentarz').value = '';
     openModal('modalUsage');
 }
 
@@ -595,101 +599,6 @@ function openInventoryFor(id, nazwa, qty) {
     openModal('modalInventory');
 }
 
-/* ===== FIFO GRADIENT HELPERS ===== */
-/**
- * Interpolate between green (#22c55e) and orange (#f97316) based on t in [0,1].
- * t=0 → green (first/oldest FIFO), t=1 → orange (newest).
- */
-function fifoColor(t) {
-    const r = Math.round(0x22 + t * (0xf9 - 0x22));
-    const g = Math.round(0xc5 + t * (0x73 - 0xc5));
-    const b = Math.round(0x5e + t * (0x16 - 0x5e));
-    return `rgb(${r},${g},${b})`;
-}
-
-function hexToRgb(hex) {
-    const r = parseInt(hex.slice(1,3),16);
-    const g = parseInt(hex.slice(3,5),16);
-    const b = parseInt(hex.slice(5,7),16);
-    return {r,g,b};
-}
-
-/* ===== TOGGLE GROUP ===== */
-const _loadedGroups = {};
-
-async function toggleGroup(grpId, nazwa) {
-    const card = document.getElementById(grpId);
-    const panel = document.getElementById('fifo-' + grpId);
-    const isOpen = card.classList.contains('open');
-
-    if (isOpen) {
-        card.classList.remove('open');
-        panel.style.display = 'none';
-        return;
-    }
-
-    card.classList.add('open');
-    panel.style.display = 'block';
-
-    // Load data only once per group
-    if (_loadedGroups[grpId]) return;
-
-    const loadingEl = document.getElementById('fifo-loading-' + grpId);
-    const locsEl = document.getElementById('fifo-locs-' + grpId);
-
-    try {
-        const resp = await fetch('/agro/api/palety-surowca', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nazwa, linia: LINIA })
-        });
-        const res = await resp.json();
-        loadingEl.style.display = 'none';
-
-        if (!res.success || !res.palety || res.palety.length === 0) {
-            locsEl.innerHTML = '<span class="fifo-empty">Brak lokalizacji do wyświetlenia.</span>';
-            _loadedGroups[grpId] = true;
-            return;
-        }
-
-        const palety = res.palety; // already sorted oldest→newest (FIFO)
-        const n = palety.length;
-
-        palety.forEach((p, idx) => {
-            const t = n === 1 ? 0 : idx / (n - 1);
-            const bg = fifoColor(t);
-            // Compute a readable text color (dark if bg is light enough)
-            const brightness = (parseInt(bg.split(',')[0].replace('rgb(','')) * 299
-                              + parseInt(bg.split(',')[1]) * 587
-                              + parseInt(bg.split(',')[2].replace(')','')) * 114) / 1000;
-            const textColor = brightness > 128 ? '#1e293b' : '#ffffff';
-            const borderColor = fifoColor(Math.min(t + 0.15, 1));
-
-            const item = document.createElement('div');
-            item.className = 'fifo-loc-item';
-            item.style.cssText = `background:${bg}22; border-color:${bg}; color:${textColor === '#ffffff' ? bg : '#1e293b'};`;
-
-            let lokHtml = p.lokalizacja
-                ? `<span class="material-icons" style="font-size:14px;color:${bg}">place</span><span style="color:#1e293b;font-weight:700;">${p.lokalizacja}</span>`
-                : `<span class="fifo-loc-no-loc">Brak lok.</span>`;
-
-            item.innerHTML = `
-                ${idx === 0 ? '<span class="fifo-loc-first-label">🟢 FIFO</span>' : ''}
-                <span class="fifo-loc-order" style="color:${bg};">#${idx + 1}</span>
-                <span class="fifo-loc-badge">${lokHtml}</span>
-                <span class="fifo-loc-qty" style="color:#475569;">${p.stan_magazynowy.toFixed(1)} kg</span>
-            `;
-            locsEl.appendChild(item);
-        });
-
-        _loadedGroups[grpId] = true;
-    } catch(e) {
-        console.error('FIFO load error:', e);
-        loadingEl.innerHTML = '<span style="color:#ef4444;font-size:12px;">Błąd ładowania lokalizacji.</span>';
-    }
-}
-
-/* ===== API CALLS ===== */
 async function apiCall(endpoint, data) {
     try {
         const response = await fetch(endpoint, {
@@ -714,7 +623,7 @@ function submitDelivery() {
     const qtyVal = document.getElementById('del_ilosc').value;
     const noteVal = document.getElementById('del_komentarz').value;
     if (!nameVal || !qtyVal) return alert("Wypełnij wszystkie pola!");
-    apiCall('/agro/api/delivery', { nazwa: nameVal, ilosc: qtyVal, komentarz: noteVal, linia: LINIA });
+    apiCall('/agro/api/delivery', { nazwa: nameVal, ilosc: qtyVal, komentarz: noteVal, linia: '{{ linia }}' });
 }
 
 async function openConfirmModal(ruch_id, nazwa, ilosc) {
@@ -731,7 +640,7 @@ async function openConfirmModal(ruch_id, nazwa, ilosc) {
         const response = await fetch('/agro/api/suggest-location', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nazwa: nazwa, linia: LINIA })
+            body: JSON.stringify({ nazwa: nazwa, linia: '{{ linia }}' })
         });
         const res = await response.json();
         if (res.success && res.suggestion) {
@@ -748,7 +657,7 @@ function submitConfirm() {
     const rId = document.getElementById('conf_ruch_id').value;
     const locVal = document.getElementById('conf_lokalizacja').value;
     if (!locVal) return alert("Podaj lokalizację!");
-    apiCall('/agro/api/confirm', { ruch_id: rId, lokalizacja: locVal, linia: LINIA });
+    apiCall('/agro/api/confirm', { ruch_id: rId, lokalizacja: locVal, linia: '{{ linia }}' });
 }
 
 function submitUsage() {
@@ -756,190 +665,105 @@ function submitUsage() {
     const qVal = document.getElementById('usage_ilosc').value;
     const pId = document.getElementById('usage_plan_id').value;
     const nVal = document.getElementById('usage_komentarz').value;
+    const zbVal = document.getElementById('usage_zbiornik').value.trim();
     if (!sId || !qVal) return alert("Wypełnij wszystkie pola!");
-    apiCall('/agro/api/usage', { surowiec_id: sId, ilosc: qVal, plan_id: pId, komentarz: nVal, linia: LINIA });
+    apiCall('/agro/api/usage', { surowiec_id: sId, ilosc: qVal, plan_id: pId, komentarz: nVal, zbiornik: zbVal || null, linia: '{{ linia }}' });
 }
+
+// ---- QR / BARCODE SCANNER (Zebra hardware wedge) ----
+var _qrTargetFieldId = null;
+
+function openQrScanner(targetFieldId) {
+    _qrTargetFieldId = targetFieldId;
+    var inp = document.getElementById('qrScanInput');
+    inp.value = '';
+    document.getElementById('qrConfirmBtn').disabled = true;
+    document.getElementById('qrScanHint').textContent = 'Pole aktywne — skaner wpisze automatycznie';
+    openModal('modalQr');
+    // Focus the input so Zebra scanner types directly into it
+    setTimeout(function() { inp.focus(); }, 80);
+}
+
+function closeQrScanner() {
+    closeModal('modalQr');
+}
+
+// Listen for input in the scan field
+document.addEventListener('DOMContentLoaded', function() {
+    var inp = document.getElementById('qrScanInput');
+    if (!inp) return;
+
+    inp.addEventListener('input', function() {
+        var val = inp.value.trim().toUpperCase();
+        inp.value = val;
+        document.getElementById('qrConfirmBtn').disabled = val.length === 0;
+    });
+
+    // Zebra sends Enter after scan — auto-confirm
+    inp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            var val = inp.value.trim().toUpperCase();
+            if (val) applyQrResult(val);
+        }
+    });
+});
+
+function applyQrResult(val) {
+    closeQrScanner();
+    if (!_qrTargetFieldId || !val) return;
+
+    if (_qrTargetFieldId === 'usage_location_scan') {
+        // Match scanned location to inventory select by lokalizacja
+        const sel = document.getElementById('usage_surowiec_id');
+        let matched = false;
+        for (let i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].textContent.toUpperCase().indexOf(val) !== -1) {
+                sel.selectedIndex = i;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) alert('Nie znaleziono palety dla lokalizacji: ' + val);
+    } else {
+        const el = document.getElementById(_qrTargetFieldId);
+        if (el) {
+            el.value = val;
+            el.dispatchEvent(new Event('input'));
+        }
+    }
+}
+
+function confirmQrManual() {
+    var val = document.getElementById('qrScanInput').value.trim().toUpperCase();
+    if (!val) return;
+    applyQrResult(val);
+}
+
+// Inventory data for JS (for usage select rebuild)
+window._inventory = [
+    {% for s in inventory %}
+    { id: {{ s.id }}, nazwa: {{ s.nazwa|tojson }}, lokalizacja: {{ (s.lokalizacja or '')|tojson }}, stan: {{ s.stan_magazynowy }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+// Populate usage select on page load
+(function() {
+    const sel = document.getElementById('usage_surowiec_id');
+    window._inventory.forEach(function(s) {
+        const o = document.createElement('option');
+        o.value = s.id;
+        o.textContent = s.nazwa + ' - ' + (s.lokalizacja || 'Brak') + ' (' + s.stan + ' kg)';
+        sel.appendChild(o);
+    });
+})();
 
 function submitInventory() {
     const sId = document.getElementById('inv_surowiec_id').value;
     const qVal = document.getElementById('inv_qty').value;
     const nVal = document.getElementById('inv_komentarz').value;
     if (!sId || qVal === "") return alert("Wypełnij wszystkie pola!");
-    apiCall('/agro/api/inventory', { surowiec_id: sId, actual_qty: qVal, komentarz: nVal, linia: LINIA });
+    apiCall('/agro/api/inventory', { surowiec_id: sId, actual_qty: qVal, komentarz: nVal, linia: '{{ linia }}' });
 }
-
-/* ===================================================
-   SEARCH & FILTER FUNCTIONS
-   =================================================== */
-
-let _filtersVisible = false;
-
-function toggleFilters() {
-    _filtersVisible = !_filtersVisible;
-    const panel = document.getElementById('filterPanel');
-    const btn   = document.getElementById('filterToggleBtn');
-    panel.style.display = _filtersVisible ? 'block' : 'none';
-    btn.classList.toggle('active', _filtersVisible);
-}
-
-function applyFilters() {
-    const search   = (document.getElementById('filterSearch').value || '').toLowerCase().trim();
-    const lokFilt  = (document.getElementById('fLok').value || '').toLowerCase().trim();
-    const wagaMin  = parseFloat(document.getElementById('fWagaMin').value) || null;
-    const wagaMax  = parseFloat(document.getElementById('fWagaMax').value) || null;
-
-    // Show/hide clear button
-    const hasSearch = search || lokFilt || wagaMin !== null || wagaMax !== null;
-    document.getElementById('filterClearBtn').style.display = hasSearch ? 'flex' : 'none';
-
-    const cards = document.querySelectorAll('.surowiec-group-card');
-    let visible = 0;
-
-    cards.forEach(card => {
-        const nazwa = (card.dataset.nazwa || '').toLowerCase();
-        const total = parseFloat(card.dataset.total) || 0;
-
-        // Name / search match
-        let nameMatch = !search || nazwa.includes(search);
-
-        // Weight match (on total group kg)
-        let wagaMatch = true;
-        if (wagaMin !== null && total < wagaMin) wagaMatch = false;
-        if (wagaMax !== null && total > wagaMax) wagaMatch = false;
-
-        // Location filter: check rendered FIFO items if loaded
-        let lokMatch = true;
-        if (lokFilt) {
-            const grpId = card.id;
-            const locsEl = document.getElementById('fifo-locs-' + grpId);
-            if (locsEl && locsEl.children.length > 0) {
-                // Check rendered location badges
-                const lokTexts = Array.from(locsEl.querySelectorAll('.fifo-loc-badge span'))
-                    .map(el => el.textContent.toLowerCase());
-                lokMatch = lokTexts.some(t => t.includes(lokFilt));
-            } else {
-                // Not yet loaded – show card (will filter after expansion)
-                lokMatch = true;
-            }
-        }
-
-        const show = nameMatch && wagaMatch && lokMatch;
-        card.classList.toggle('filter-hidden', !show);
-        if (show) visible++;
-    });
-
-    // Empty state
-    document.getElementById('inventoryEmptyState').style.display = visible === 0 ? 'block' : 'none';
-
-    // Count label
-    const total = cards.length;
-    const countEl = document.getElementById('inventoryCount');
-    if (hasSearch) {
-        countEl.textContent = `(${visible} z ${total})`;
-    } else {
-        countEl.textContent = '';
-    }
-
-    updateActiveCount();
-}
-
-/* History filter: maps filter fields to typ_ruchu values */
-function applyHistoryFilters() {
-    const fPrzyjecie = document.getElementById('fPrzyjecie').value;
-    const fWydanie   = document.getElementById('fWydanie').value;
-    const fZuzycie   = document.getElementById('fZuzycie').value;
-
-    const items = document.querySelectorAll('#historyList .history-item');
-    let visible = 0;
-
-    items.forEach(item => {
-        const typ   = (item.dataset.typ  || '').toUpperCase();
-        const data  = item.dataset.data  || '';  // YYYY-MM-DD
-
-        let show = true;
-
-        // Przyjęcie filter: show PRZYJECIE items on that date, hide others if filter active
-        if (fPrzyjecie) {
-            if (typ.includes('PRZYJECIE') || typ.includes('PRZYJĘCIE')) {
-                if (data !== fPrzyjecie) show = false;
-            } else {
-                // hide non-przyjecie items when filter active
-                show = false;
-            }
-        }
-
-        // Wydanie filter
-        if (fWydanie) {
-            if (typ.includes('WYDANIE')) {
-                if (data !== fWydanie) show = false;
-            } else {
-                show = false;
-            }
-        }
-
-        // Zużycie filter
-        if (fZuzycie) {
-            if (typ.includes('PRODUKCJA') || typ.includes('ZUZYCIE') || typ.includes('ZUŻYCIE')) {
-                if (data !== fZuzycie) show = false;
-            } else {
-                show = false;
-            }
-        }
-
-        item.classList.toggle('filter-hidden', !show);
-        if (show) visible++;
-    });
-
-    const historyEmpty = document.getElementById('historyEmptyState');
-    const hasDateFilter = fPrzyjecie || fWydanie || fZuzycie;
-    if (historyEmpty) {
-        historyEmpty.style.display = (hasDateFilter && visible === 0) ? 'block' : 'none';
-    }
-    const countEl = document.getElementById('historyCount');
-    if (countEl) {
-        countEl.textContent = hasDateFilter ? `(${visible} z ${items.length})` : '';
-    }
-
-    // Also re-run inventory search to keep active count up to date
-    updateActiveCount();
-}
-
-function clearFilters() {
-    document.getElementById('filterSearch').value = '';
-    document.getElementById('fLok').value = '';
-    document.getElementById('fWagaMin').value = '';
-    document.getElementById('fWagaMax').value = '';
-    document.getElementById('fPrzyjecie').value = '';
-    document.getElementById('fWydanie').value = '';
-    document.getElementById('fZuzycie').value = '';
-    document.getElementById('filterClearBtn').style.display = 'none';
-
-    document.querySelectorAll('.surowiec-group-card').forEach(c => c.classList.remove('filter-hidden', 'filter-dim'));
-    document.querySelectorAll('#historyList .history-item').forEach(i => i.classList.remove('filter-hidden'));
-
-    document.getElementById('inventoryEmptyState').style.display = 'none';
-    const hes = document.getElementById('historyEmptyState');
-    if (hes) hes.style.display = 'none';
-    document.getElementById('inventoryCount').textContent = '';
-    const hc = document.getElementById('historyCount');
-    if (hc) hc.textContent = '';
-
-    updateActiveCount();
-}
-
-function updateActiveCount() {
-    let count = 0;
-    ['filterSearch','fLok','fWagaMin','fWagaMax','fPrzyjecie','fWydanie','fZuzycie'].forEach(id => {
-        if (document.getElementById(id).value) count++;
-    });
-    const badge = document.getElementById('filterActiveCount');
-    badge.style.display = count > 0 ? 'inline' : 'none';
-    badge.textContent = count;
-    // Also toggle filter bar glow
-    document.getElementById('filterBar').style.borderColor = count > 0 ? 'var(--primary-color, #6366f1)' : '#e2e8f0';
-}
-
 </script>
 
 {% endblock %}
-

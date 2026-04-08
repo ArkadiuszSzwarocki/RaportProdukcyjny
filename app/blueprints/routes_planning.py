@@ -4,7 +4,7 @@ from flask import Blueprint, request, redirect, url_for, flash, session, render_
 import logging
 from datetime import date, datetime
 from app.db import get_db_connection, get_table_name, get_plan_notification_context, log_plan_history
-from app.decorators import login_required, roles_required, admin_required
+from app.decorators import login_required, roles_required, admin_required, hall_restricted
 from app.services.planning_service import PlanningService
 from app.services.plan_movement_service import PlanMovementService
 from app.services.notification_service import notify_laboratory_about_szarza, notify_workers_about_plan_batch, notify_workers_about_plan_change
@@ -62,6 +62,7 @@ def przywroc_zlecenie_page(id):
 
 @planning_bp.route('/reanimate_zlecenie/<int:id>', methods=['POST'])
 @roles_required('lider', 'admin')
+@hall_restricted
 def reanimate_zlecenie(id):
     """Przywraca zakończone lub zarchiwizowane zlecenie do statusu 'zaplanowane'."""
     linia = request.args.get('linia') or request.form.get('linia', 'PSD')
@@ -80,33 +81,47 @@ def przywroc_usunietego_zlecenia(id):
 
 
 @planning_bp.route('/zmien_status_zlecenia/<int:id>', methods=['POST'])
-@login_required
+@roles_required('planista', 'admin')
+@hall_restricted
 def zmien_status_zlecenia(id):
     """Change plan status - delegated to PlanningService."""
+    status = request.form.get('status')
     linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    
+    if not status:
+        flash('Nie podano statusu', 'warning')
+        return redirect(bezpieczny_powrot())
+        
     success, message = PlanningService.change_status(id, status, linia=linia)
     flash(message, 'success' if success else 'warning')
     return redirect(bezpieczny_powrot())
 
 
 @planning_bp.route('/usun_plan/<int:id>', methods=['POST'])
-@login_required
+@roles_required('planista', 'admin')
 def usun_plan(id):
-    """Soft delete a plan - delegated to PlanningService."""
-    linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+    """
+    Unified route for plan deletion (PSD/AGRO).
+    Takes 'linia' from form/args to route to correct table.
+    """
+    linia = request.form.get('linia') or request.args.get('linia') or 'PSD'
+    data_planu = request.form.get('data_planu') or request.args.get('data_planu') or str(date.today())
+    tab = request.form.get('tab') or request.args.get('tab')
+    
+    # If tab is not explicitly provided, derive it from linia
+    if not tab:
+        tab = 'agro' if linia.upper() == 'AGRO' else 'psd'
+    
+    current_app.logger.info(f'[PLAN-DELETE] Request to delete plan ID={id} (linia={linia}, tab={tab}, data={data_planu})')
+    
     success, message = PlanningService.delete_plan(id, linia=linia)
-    flash(message, 'success' if success else 'warning')
-    # Redirect back to planista view preserving selected date when available
-    # Accept multiple possible field names coming from different templates
-    data_planu = (
-        request.form.get('data_planu')
-        or request.form.get('data_powrotu')
-        or request.args.get('data')
-        or request.args.get('data_powrotu')
-    )
-    if data_planu:
-        return redirect(url_for('planista.panel_planisty', data=data_planu))
-    return redirect(bezpieczny_powrot())
+    
+    if success:
+        flash(message, 'success')
+    else:
+        flash(message, 'error')
+        
+    return redirect(url_for('planista.panel_planisty', data=data_planu, linia=linia, tab=tab))
 
 
 @planning_bp.route('/dodaj_plan_zaawansowany', methods=['POST'])
@@ -156,6 +171,7 @@ def dodaj_plan_zaawansowany():
 
 @planning_bp.route('/dodaj_plan', methods=['POST'])
 @roles_required('planista', 'admin', 'lider', 'produkcja', 'pracownik')
+@hall_restricted
 def dodaj_plan():
     """Add a plan (legacy simple add)."""
     data_planu = request.form.get('data_planu') or request.form.get('data') or str(date.today())
@@ -277,8 +293,11 @@ def dodaj_plan():
                 max_nr = cursor.fetchone()[0]
                 expected_nr = (max_nr or 0) + 1
 
-                if nr_szarzy != expected_nr:
-                    flash(f'BŁĄD: Podałeś błędny numer szarży ({nr_szarzy}). Wykryto naruszenie kolejności! Zweryfikuj prawidłowy numer szarży z recepturą.', 'modal_error')
+                # Relax validation: Allow Admin to override, or if it's AGRO we might be more lenient
+                # For now, allow override if it's Admin or if specifically requested (though no UI for it yet)
+                is_admin = session.get('rola', '').lower() == 'admin'
+                if nr_szarzy != expected_nr and not is_admin:
+                    flash(f'BŁĄD: Podałeś błędny numer szarży ({nr_szarzy}). Wykryto naruszenie kolejności! (Oczekiwano: {expected_nr}). Zweryfikuj prawidłowy numer szarży z recepturą.', 'modal_error')
                     conn.close()
                     return redirect(bezpieczny_powrot())
                 
@@ -674,6 +693,7 @@ def dodaj_plany_batch():
 
 @planning_bp.route('/przenies_zlecenie/<int:id>', methods=['POST'])
 @login_required
+@hall_restricted
 def przenies_zlecenie(id):
     """Move a plan to a different date - delegated to PlanningService."""
     nowa_data = request.form.get('nowa_data')
@@ -693,6 +713,7 @@ def przenies_zlecenie(id):
 
 @planning_bp.route('/przesun_zlecenie/<int:id>/<kierunek>', methods=['POST'])
 @roles_required('planista', 'admin')
+@hall_restricted
 def przesun_zlecenie(id, kierunek):
     """Move a plan up or down in the sequence - delegated to PlanMovementService."""
     data = request.args.get('data', str(date.today()))
@@ -705,6 +726,7 @@ def przesun_zlecenie(id, kierunek):
 
 @planning_bp.route('/edytuj_plan/<int:id>', methods=['POST'])
 @roles_required('planista', 'admin')
+@hall_restricted
 def edytuj_plan(id):
     """Save plan edits: product, tonnage, section, date."""
     from app.utils.validation import require_field
@@ -725,12 +747,23 @@ def edytuj_plan(id):
         table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
         
-        # Check if exists and get current sekcja
-        cursor.execute(f"SELECT id, status, sekcja FROM {table_plan} WHERE id=%s", (id,))
+        # Check if exists and get current state including updated_at
+        cursor.execute(f"SELECT id, status, sekcja, updated_at FROM {table_plan} WHERE id=%s", (id,))
         r = cursor.fetchone()
         if not r:
             flash('Nie znaleziono zlecenia', 'warning')
             return redirect(bezpieczny_powrot())
+            
+        last_seen = request.form.get('last_updated')
+        db_updated_at = str(r[3]) if r[3] else ''
+        
+        # PUŁAPKA DUPLIKATÓW (Concurrent Edits): Compare timestamps
+        if last_seen and db_updated_at and last_seen != db_updated_at:
+            current_app.logger.warning('PUŁAPKA DUPLIKATÓW: Wykryto próbę równoległej edycji zlecenia ID=%s przez %s. (Oczekiwano: %s, Aktualnie: %s)', id, session.get('login'), last_seen, db_updated_at)
+            audit_log('KOLIZJA EDYCJI', f'Użytkownik {session.get("login")} próbuje nadpisać zmiany w zleceniu {id}')
+            flash('UWAGA: Wykryto, że inna osoba zmieniła to zlecenie w międzyczasie! Twoje zmiany mogą nadpisać czyjąś pracę. Odśwież stronę, aby zobaczyć aktualne dane.', 'danger')
+            # For now we allow them to proceed if they REALLY want, but we log the alert.
+            # Ideally we would block it, but a warning is a good start as a "trap".
         
         # Allow planista/admin to edit only tonaz (kg) when order is 'w toku' (NOT when 'zakonczone')
         # If zakonczone, nobody can edit
@@ -826,6 +859,7 @@ def edytuj_plan(id):
 
 @planning_bp.route('/edytuj_plan_ajax', methods=['POST'])
 @roles_required('planista', 'admin')
+@hall_restricted
 def edytuj_plan_ajax():
     """Edit plan via AJAX."""
     try:
@@ -1277,24 +1311,4 @@ def reorder_plans_bulk():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@planning_bp.route('/planista/agro/usun/<int:plan_id>', methods=['POST'])
-@roles_required('planista', 'admin')
-def usun_plan_agro(plan_id):
-    """Usuń plan z tabeli plan_produkcji oznaczony jako Agro."""
-    from flask import redirect, url_for
-    data_planu = request.form.get('data_planu', '')
-    try:
-        conn = get_db_connection()
-        table_plan = get_table_name('plan_produkcji', 'Agro')
-        cursor = conn.cursor()
-        # Najpierw sprawdź czy to na pewno Agro i czy można usunąć
-        cursor.execute(f"SELECT id FROM {table_plan} WHERE id=%s AND status='zaplanowane'", (plan_id,))
-        if cursor.fetchone():
-            cursor.execute(f"DELETE FROM {table_plan} WHERE id=%s", (plan_id,))
-            # Usuń też powiązane workowanie jeśli istnieje
-            cursor.execute(f"DELETE FROM {table_plan} WHERE zasyp_id=%s", (plan_id,))
-            conn.commit()
-        conn.close()
-    except Exception as e:
-        current_app.logger.exception('Błąd usuwania planu Agro id=%s: %s', plan_id, e)
-    return redirect(url_for('planista.panel_planisty', data=data_planu, tab='agro'))
+

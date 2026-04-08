@@ -65,7 +65,7 @@ def panel_planisty():
 
     conn = get_db_connection()
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
         if aktywna_zakladka not in ('psd', 'agro'):
             aktywna_zakladka = 'psd'
             
@@ -78,7 +78,7 @@ def panel_planisty():
             WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
             ORDER BY kolejnosc
         """, (wybrana_data,))
-        plany_list = [list(p) for p in cursor.fetchall()]
+        plany_list = [dict(p) for p in cursor.fetchall()]
 
         # 2. Add standalone Workowanie rows (avoiding duplicates and cases already covered by Zasyp)
         cursor.execute(f"""
@@ -89,81 +89,82 @@ def panel_planisty():
         """, (wybrana_data,))
         work_rows = cursor.fetchall()
         for w in work_rows:
-            if any(p[0] == w[0] for p in plany_list): continue
-            prod_name = (w[2] or '').strip().lower()
-            if any(p[1].lower() == 'zasyp' and (p[2] or '').strip().lower() == prod_name for p in plany_list): continue
-            plany_list.append(list(w))
+            if any(p['id'] == w['id'] for p in plany_list): continue
+            prod_name = (w['produkt'] or '').strip().lower()
+            if any(p['sekcja'].lower() == 'zasyp' and (p['produkt'] or '').strip().lower() == prod_name for p in plany_list): continue
+            plany_list.append(dict(w))
 
-        # 3. Process PSD details (Execution, Time, Palety)
+        # 3. Process primary list details (Execution, Time, Palety)
         suma_plan, suma_wyk, suma_minut_plan = 0, 0, 0
         palety_mapa = {}
-        t_sz_psd = get_table_name('szarze', 'PSD')
-        t_ds_psd = get_table_name('dosypki', 'PSD')
-        t_pa_psd = get_table_name('palety_workowanie', 'PSD')
-        t_pp_psd = get_table_name('plan_produkcji', 'PSD')
+        # Dynamic table names for the current context
+        t_sz_curr = get_table_name('szarze', wybrana_linia)
+        t_ds_curr = get_table_name('dosypki', wybrana_linia)
+        t_pa_curr = get_table_name('palety_workowanie', wybrana_linia)
+        t_pp_curr = get_table_name('plan_produkcji', wybrana_linia)
 
         for p in plany_list:
-            w_p = p[3] or 0
-            t_p = p[9]
+            w_p = p['tonaz'] or 0
+            t_p = p['typ_produkcji']
             norma = calculate_kg_per_hour(t_p) if t_p else calculate_kg_per_hour('bigbag')
             dur = int((w_p / norma) * 60) if norma > 0 else 0
-            p.append(dur) # index 12
+            p['estymacja_minut'] = dur
             
-            if p[1].lower() != 'czyszczenie':
+            if p['sekcja'].lower() != 'czyszczenie':
                 suma_plan += w_p
-                # execution
-                cursor.execute(f"SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {t_ds_psd} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {t_sz_psd} WHERE plan_id = %s", (p[0], p[0]))
+                # execution - use current context tables with clean alias
+                cursor.execute(f"SELECT (COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {t_ds_curr} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0)) as total FROM {t_sz_curr} WHERE plan_id = %s", (p['id'], p['id']))
                 sz_r = cursor.fetchone()
-                wyk_val = sz_r[0] if sz_r and sz_r[0] else p[8] or 0
-                p[8] = wyk_val
+                wyk_val = sz_r['total'] if sz_r and sz_r['total'] is not None else p['tonaz_rzeczywisty'] or 0
+                p['tonaz_rzeczywisty'] = wyk_val
                 suma_wyk += wyk_val
             suma_minut_plan += dur
 
-            # palety details
-            cursor.execute(f"SELECT pw.id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania FROM {t_pa_psd} pw JOIN {t_pp_psd} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' ORDER BY pw.id DESC", (wybrana_data, p[2]))
+            # palety details - use current context tables
+            cursor.execute(f"SELECT pw.id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania FROM {t_pa_curr} pw JOIN {t_pp_curr} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' ORDER BY pw.id DESC", (wybrana_data, p['produkt']))
             p_rows = cursor.fetchall()
-            palety_mapa[p[0]] = [(r[1], (r[4].strftime('%H:%M') if hasattr(r[4], 'strftime') else str(r[4])), r[2], r[3]) for r in p_rows]
+            palety_mapa[p['id']] = [(r['waga'], (r['data_dodania'].strftime('%H:%M') if hasattr(r['data_dodania'], 'strftime') else str(r['data_dodania'])), r['tara'], r['waga_brutto']) for r in p_rows]
 
-        # 4. Process Agro details
+        # 4. Process Agro details (always needed for the side indicators or if requested)
         plany_agro = []
         suma_plan_agro, suma_wyk_agro, suma_minut_plan_agro = 0, 0, 0
-        t_pp_agro = get_table_name('plan_produkcji', 'Agro')
-        t_sz_agro = get_table_name('szarze', 'Agro')
-        t_ds_agro = get_table_name('dosypki', 'Agro')
-        t_pa_agro = get_table_name('palety_workowanie', 'Agro')
+        t_pp_agro = get_table_name('plan_produkcji', 'AGRO')
+        t_sz_agro = get_table_name('szarze', 'AGRO')
+        t_ds_agro = get_table_name('dosypki', 'AGRO')
+        t_pa_agro = get_table_name('palety_workowanie', 'AGRO')
 
         cursor.execute(f"SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0) FROM {t_pp_agro} WHERE data_planu = %s ORDER BY kolejnosc", (wybrana_data,))
         agro_all = cursor.fetchall()
-        z_prod_a = {(r[2] or '').strip().lower() for r in agro_all if r[1].lower() == 'zasyp'}
+        z_prod_a = {(r['produkt'] or '').strip().lower() for r in agro_all if r['sekcja'].lower() == 'zasyp'}
         for r in agro_all:
-            if r[1].lower() == 'workowanie' and (r[2] or '').strip().lower() in z_prod_a: continue
-            plany_agro.append(list(r))
+            if r['sekcja'].lower() == 'workowanie' and (r['produkt'] or '').strip().lower() in z_prod_a: continue
+            plany_agro.append(dict(r))
 
         for p in plany_agro:
-            w_a = p[3] or 0
-            t_a = p[9]
+            w_a = p['tonaz'] or 0
+            t_a = p['typ_produkcji']
             norma_a = calculate_kg_per_hour(t_a) if t_a else calculate_kg_per_hour('bigbag')
             dur_a = int((w_a / norma_a) * 60) if norma_a > 0 else 0
-            p.append(dur_a) # index 12
+            p['estymacja_minut'] = dur_a
             
-            if p[1].lower() != 'czyszczenie':
+            if p['sekcja'].lower() != 'czyszczenie':
                 suma_plan_agro += w_a
-                # execution
-                cursor.execute(f"SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {t_ds_agro} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {t_sz_agro} WHERE plan_id = %s", (p[0], p[0]))
-                sz_a = cursor.fetchone()
-                wyk_a = sz_a[0] if sz_a and sz_a[0] else p[8] or 0
-                p[8] = wyk_a
+                # execution - use clean alias
+                cursor.execute(f"SELECT (COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {t_ds_agro} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0)) as total FROM {t_sz_agro} WHERE plan_id = %s", (p['id'], p['id']))
+                res_a = cursor.fetchone()
+                wyk_a = res_a['total'] if res_a and res_a['total'] is not None else p['tonaz_rzeczywisty'] or 0
+                p['tonaz_rzeczywisty'] = wyk_a
                 suma_wyk_agro += wyk_a
             suma_minut_plan_agro += dur_a
 
             # palety details Agro
-            cursor.execute(f"SELECT pw.id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania FROM {t_pa_agro} pw JOIN {t_pp_agro} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' ORDER BY pw.id DESC", (wybrana_data, p[2]))
+            cursor.execute(f"SELECT pw.id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania FROM {t_pa_agro} pw JOIN {t_pp_agro} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' ORDER BY pw.id DESC", (wybrana_data, p['produkt']))
             pa_rows = cursor.fetchall()
-            palety_mapa[p[0]] = [(r[1], (r[4].strftime('%H:%M') if hasattr(r[4], 'strftime') else str(r[4])), r[2], r[3]) for r in pa_rows]
+            palety_mapa[p['id']] = [(r['waga'], (r['data_dodania'].strftime('%H:%M') if hasattr(r['data_dodania'], 'strftime') else str(r['data_dodania'])), r['tara'], r['waga_brutto']) for r in pa_rows]
 
         # 5. Settlement (Rozliczenie)
         rozliczenia = []
-        cur_tab_line = 'Agro' if aktywna_zakladka == 'agro' else 'PSD'
+        cur_tab_line = 'AGRO' if aktywna_zakladka == 'agro' else 'PSD'
         cur_tab_plany = plany_agro if aktywna_zakladka == 'agro' else plany_list
         t_sz_r = get_table_name('szarze', cur_tab_line)
         t_ds_r = get_table_name('dosypki', cur_tab_line)
@@ -172,21 +173,21 @@ def panel_planisty():
         t_pp_r = get_table_name('plan_produkcji', cur_tab_line)
         
         for p in cur_tab_plany:
-            if p[1].lower() != 'zasyp': continue
-            z_id, prod_r, p_z = p[0], p[2], p[3] or 0
-            cursor.execute(f"SELECT COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {t_ds_r} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) FROM {t_sz_r} WHERE plan_id = %s", (z_id, z_id))
-            z_kg = cursor.fetchone()[0] or 0
-            cursor.execute(f"SELECT COALESCE(SUM(CASE WHEN waga_potwierdzona > 0 THEN waga_potwierdzona ELSE waga END), 0) FROM {t_pa_r} WHERE plan_id IN (SELECT id FROM {t_pp_r} WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s)", (wybrana_data, prod_r))
-            spak_kg = cursor.fetchone()[0] or 0
-            cursor.execute(f"SELECT SUM(tonaz_rzeczywisty - spakowano) FROM {t_bf_r} WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'", (z_id, wybrana_data))
-            buf_kg = cursor.fetchone()[0] or 0
+            if p['sekcja'].lower() != 'zasyp': continue
+            z_id, prod_r, p_z = p['id'], p['produkt'], p['tonaz'] or 0
+            cursor.execute(f"SELECT (COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {t_ds_r} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0)) as total FROM {t_sz_r} WHERE plan_id = %s", (z_id, z_id))
+            z_kg = cursor.fetchone()['total'] or 0
+            cursor.execute(f"SELECT COALESCE(SUM(CASE WHEN waga_potwierdzona > 0 THEN waga_potwierdzona ELSE waga END), 0) as total FROM {t_pa_r} WHERE plan_id IN (SELECT id FROM {t_pp_r} WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s)", (wybrana_data, prod_r))
+            spak_kg = cursor.fetchone()['total'] or 0
+            cursor.execute(f"SELECT SUM(tonaz_rzeczywisty - spakowano) as total FROM {t_bf_r} WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'", (z_id, wybrana_data))
+            buf_kg = cursor.fetchone()['total'] or 0
             
             rozliczenia.append({
-                'zasyp_id': z_id, 'produkt': prod_r, 'status': p[4],
+                'zasyp_id': z_id, 'produkt': prod_r, 'status': p['status'],
                 'planowany_zasyp': round(float(p_z), 1), 'zasyp_kg': round(float(z_kg), 1),
                 'plan_workowanie': round(float(z_kg), 1), 'spakowano_palety': round(float(spak_kg), 1),
                 'bufor_spakowano': round(float(buf_kg), 1),
-                'diff_no_buf': round(z_kg - spak_kg, 1), 'diff_with_buf': round(z_kg - (spak_kg + buf_kg), 1)
+                'diff_no_buf': round(float(z_kg) - float(spak_kg), 1), 'diff_with_buf': round(float(z_kg) - (float(spak_kg) + float(buf_kg)), 1)
             })
 
         # 6. Final aggregated values
@@ -199,23 +200,23 @@ def panel_planisty():
         quality_orders = cursor.fetchall()
         quality_count = len(quality_orders)
         
-        has_incomplete_plans = any(p[4] == 'zakonczone' and (p[8] or 0) < (p[3] or 0) for p in plany_list + plany_agro)
+        has_incomplete_plans = any(p['status'] == 'zakonczone' and (p['tonaz_rzeczywisty'] or 0) < (p['tonaz'] or 0) for p in plany_list + plany_agro)
         if not has_incomplete_plans:
-            for l_chk in ['PSD', 'Agro']:
+            for l_chk in ['PSD', 'AGRO']:
                 t_p_chk = get_table_name('plan_produkcji', l_chk)
-                cursor.execute(f"SELECT COUNT(*) FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zakonczone' AND COALESCE(tonaz_rzeczywisty, 0) < COALESCE(tonaz, 0)", (wybrana_data,))
-                if cursor.fetchone()[0] > 0: has_incomplete_plans = True; break
+                cursor.execute(f"SELECT COUNT(*) as cnt FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zakonczone' AND COALESCE(tonaz_rzeczywisty, 0) < COALESCE(tonaz, 0)", (wybrana_data,))
+                if cursor.fetchone()['cnt'] > 0: has_incomplete_plans = True; break
         
         # 8. Bufor reminders
         bufor_remaining = []
         bufor_source_date = None
         t_bf_now = get_table_name('bufor', wybrana_linia)
         cursor.execute(f"SELECT produkt, SUM(COALESCE(tonaz_rzeczywisty, 0) - COALESCE(spakowano, 0)) as pozostalo FROM {t_bf_now} WHERE status = 'aktywny' AND data_planu < %s GROUP BY produkt HAVING pozostalo > 0", (wybrana_data,))
-        bufor_remaining = [{'produkt': r[0], 'pozostalo_kg': round(float(r[1]), 1)} for r in cursor.fetchall()]
+        bufor_remaining = [{'produkt': r['produkt'], 'pozostalo_kg': round(float(r['pozostalo']), 1)} for r in cursor.fetchall()]
         if bufor_remaining:
-            cursor.execute(f"SELECT MAX(data_planu) FROM {t_bf_now} WHERE status = 'aktywny' AND data_planu < %s", (wybrana_data,))
+            cursor.execute(f"SELECT MAX(data_planu) as max_date FROM {t_bf_now} WHERE status = 'aktywny' AND data_planu < %s", (wybrana_data,))
             row = cursor.fetchone()
-            if row and row[0]: bufor_source_date = str(row[0])
+            if row and row['max_date']: bufor_source_date = str(row['max_date'])
 
         rola = session.get('rola')
         return render_template('planista.html',
@@ -229,8 +230,10 @@ def panel_planisty():
                                has_incomplete_plans=has_incomplete_plans, bufor_remaining=bufor_remaining,
                                bufor_source_date=bufor_source_date)
     except Exception as e:
-        current_app.logger.exception('Error loading panel_planisty: %s', e)
-        return str(e), 500
+        import traceback
+        error_msg = f"Error loading panel_planisty: {str(e)}\n{traceback.format_exc()}"
+        current_app.logger.error(error_msg)
+        return f"<pre>{error_msg}</pre>", 500
     finally:
         try: conn.close()
         except: pass
@@ -731,8 +734,10 @@ def api_przenies_niezrealizowane():
             current_app.logger.warning(f'[PRZENIES API] Data is missing!')
             return jsonify({'success': False, 'message': 'Data jest wymagana'}), 400
         
+        linia = data_dict.get('linia') or 'PSD'
+        
         # Call service method
-        success, message, count = PlanningService.przenies_niezrealizowane(current_data)
+        success, message, count = PlanningService.przenies_niezrealizowane(current_data, linia=linia)
         
         if success:
             return jsonify({
@@ -802,29 +807,32 @@ def api_check_niezrealizowane():
         next_data_str = next_date.strftime('%Y-%m-%d')
 
         for plan in all_plans:
-            if plan['workowanie_id'] is None:
-                continue
-
             w_plan = float(plan['w_plan'] or 0.0)
             w_real = float(plan['w_real'] or 0.0)
+            z_plan = float(plan['z_plan'] or 0.0)
             z_real = float(plan['z_real'] or 0.0)
 
             rem_kg = max(0.0, w_plan - w_real)
-            if rem_kg <= 0:
-                continue
-
             in_buf_kg = max(0.0, z_real - w_real)
             short_kg = max(0.0, w_plan - z_real)
+            z_short = max(0.0, z_plan - z_real)
 
-            total_remaining += rem_kg
+            if rem_kg <= 0 and in_buf_kg <= 0 and z_short <= 0:
+                continue
+
+            # We use buffer amount if remaining work is 0 but there is buffer
+            effective_rem = in_buf_kg if (in_buf_kg > 0 and rem_kg == 0) else rem_kg
+
+            total_remaining += effective_rem
             details.append({
                 'plan_id': int(plan['zasyp_id']),
                 'produkt': str(plan['produkt']),
                 'w_plan_kg': float(w_plan),
                 'w_real_kg': float(w_real),
-                'remaining_kg': float(rem_kg),
+                'remaining_kg': float(effective_rem),
                 'shortfall_kg': float(short_kg),
-                'in_buffer_kg': float(in_buf_kg)
+                'in_buffer_kg': float(in_buf_kg),
+                'zasyp_shortfall_kg': float(z_short)
             })
 
         if not details:
@@ -974,12 +982,15 @@ def api_przenies_wybrane_zlecenia():
         if not plan_ids or not isinstance(plan_ids, list):
             return jsonify({'success': False, 'message': 'Wybierz przynajmniej jedno zlecenie'}), 400
         
+        linia = data_dict.get('linia') or 'PSD'
+        
         # Use PlanningService to move selected plans
         from app.services.planning_service import PlanningService
         
         success, message, count = PlanningService.przenies_niezrealizowane(
             current_data,
-            plan_ids_to_move=plan_ids  # Pass selected plan IDs
+            plan_ids_to_move=plan_ids,  # Pass selected plan IDs
+            linia=linia
         )
         
         if success:

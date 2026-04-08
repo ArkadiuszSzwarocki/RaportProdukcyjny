@@ -153,6 +153,46 @@ def roles_required(*roles, groups=None):
 
     return wrapper
 
+def hall_restricted(f):
+    """
+    Restrict access to a specific hall (linia) if user has a 'grupa' set.
+    Admin, zarzad and planista are exempt.
+    """
+    from functools import wraps
+    from flask import session, request, jsonify, redirect, current_app
+    
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        role = (session.get('rola') or '').lower()
+        user_grupa = (session.get('grupa') or 'ALL').upper()
+        if user_grupa == 'ALL' or role in ['admin', 'zarzad', 'planista']:
+            return f(*args, **kwargs)
+        
+        # Determine target hall from request
+        req_linia = request.args.get('linia') or request.form.get('linia')
+        
+        # If no linia specified in request, it usually defaults to 'PSD' in the route.
+        # Check if the user is allowed to access whatever the default or requested hall is.
+        target_linia = req_linia or 'PSD'
+        if target_linia != user_grupa:
+            current_app.logger.warning(
+                "[HALL_RESTRICTED] Access denied for user '%s' (hall: %s) to hall: %s", 
+                session.get('login'), user_grupa, target_linia
+            )
+            # Try to determine if request is AJAX/JSON
+            try:
+                is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            except Exception:
+                is_xhr = False; accepts_json = False
+                
+            if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'Brak dostępu do tej hali'}), 403
+            return redirect('/')
+            
+        return f(*args, **kwargs)
+    return decorated
+
 def dynamic_role_required(page_name):
     """
     Sprawdza, czy rola użytkownika ma w 'role_permissions.json' ustawioną 

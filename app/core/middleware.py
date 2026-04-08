@@ -13,11 +13,13 @@ def register_middleware(app):
     Args:
         app: Flask application instance
     """
+    app.before_request(record_request_start_time(app))
     app.before_request(log_request_info(app))
     app.before_request(ensure_default_language(app))
     app.before_request(ensure_pracownik_mapping(app))
     app.before_request(enforce_session_timeout(app))
     app.before_request(track_active_session(app))
+    app.after_request(log_slow_requests(app))
     app.after_request(add_cache_headers(app))
 
 
@@ -46,6 +48,34 @@ def log_request_info(app):
             app.logger.debug('Incoming request (pid=%s): %s %s', pid, request.method, full)
         except Exception:
             pass
+    return middleware
+
+
+def record_request_start_time(app):
+    """Middleware: Monitor request start time for performance tracking."""
+    from flask import g
+    def middleware():
+        try:
+            g._request_start_time = time.time()
+        except Exception:
+            pass
+    return middleware
+
+
+def log_slow_requests(app):
+    """Middleware: Log requests exceeding 2 seconds (Performance Trap)."""
+    from flask import g
+    def middleware(response):
+        try:
+            start_time = getattr(g, '_request_start_time', None)
+            if start_time:
+                duration = time.time() - start_time
+                if duration > 2.0:
+                    user = session.get('login', 'anonymous')
+                    app.logger.warning('SLOW REQUEST: %s %s took %.2fs (User: %s)', request.method, request.path, duration, user)
+        except Exception:
+            pass
+        return response
     return middleware
 
 

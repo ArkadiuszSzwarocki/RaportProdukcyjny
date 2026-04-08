@@ -54,6 +54,15 @@ def inject_role_permissions():
                 perms = {}
             
             r = str(session.get('rola') or '').lower()
+            # Normalize common role name variants/synonyms (support numeric roles from DB)
+            if r.isdigit():
+                try:
+                    idx = int(r)
+                    roles_order = ['admin', 'planista', 'pracownik', 'magazynier', 'dur', 'zarzad', 'laborant']
+                    if 0 <= idx < len(roles_order):
+                        r = roles_order[idx]
+                except Exception:
+                    pass
             # Do not log debug info here to avoid noisy logs during template rendering
             
             # IMPORTANT: if config exists and contains pages, use ONLY config

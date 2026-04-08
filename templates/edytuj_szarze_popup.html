@@ -11,6 +11,9 @@
   <div class="box">
     <h3>✏️ Edytuj notatkę szarży</h3>
     <form action="{{ url_for('warehouse.edytuj_szarze', szarza_id=szarza_id) }}" method="POST">
+      <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
+      <input type="hidden" name="data_powrotu" value="{{ data or '' }}">
+      <input type="hidden" name="sekcja" value="{{ sekcja or 'Zasyp' }}">
       <div>
         <label for="uwagi">Notatka:</label>
         <textarea id="uwagi" name="uwagi" rows="6" class="input-sm" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px">{{ uwagi or '' }}</textarea>

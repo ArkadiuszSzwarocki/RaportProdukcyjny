@@ -156,6 +156,36 @@ def setup_logging(app):
     if not status_logger.handlers:
         status_logger.addHandler(status_handler)
 
+    # ------------------------------------------------------------------
+    # Frontend errors logger — dedicated file for JS problems from browser
+    # ------------------------------------------------------------------
+    frontend_logger = logging.getLogger('frontend_errors')
+    frontend_logger.setLevel(logging.ERROR)
+    frontend_log_path = os.path.join(logs_dir, 'frontend_errors.log')
+    frontend_handler = TimedRotatingFileHandler(
+        frontend_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
+    )
+    frontend_handler.setLevel(logging.ERROR)
+    frontend_formatter = logging.Formatter('%(asctime)s FRONTEND ERROR: %(message)s')
+    frontend_handler.setFormatter(frontend_formatter)
+    if not frontend_logger.handlers:
+        frontend_logger.addHandler(frontend_handler)
+
+    # ------------------------------------------------------------------
+    # DATABASE Monitoring (Trap)
+    # ------------------------------------------------------------------
+    db_logger = logging.getLogger('db_errors')
+    db_logger.setLevel(logging.ERROR)
+    db_log_path = os.path.join(logs_dir, 'db_errors.log')
+    db_handler = TimedRotatingFileHandler(
+        db_log_path, when='midnight', interval=1, backupCount=30, encoding='utf-8', delay=True
+    )
+    db_handler.setLevel(logging.ERROR)
+    db_formatter = logging.Formatter('%(asctime)s DB ERROR: %(message)s')
+    db_handler.setFormatter(db_formatter)
+    if not db_logger.handlers:
+        db_logger.addHandler(db_handler)
+
     return handler, palety_logger
 
 
@@ -170,8 +200,26 @@ def register_error_handlers(app):
     def handle_unexpected_error(error):
         """Handle uncaught exceptions with logging and user-friendly response."""
         try:
+            # Gather context for precise identification
             error_msg = f"{error.__class__.__name__}: {str(error)}"
+            path = request.path
+            
+            # Determine "Action" - common keys for buttons in forms
+            action = "N/A"
+            if request.method == 'POST':
+                # Check for common action triggers
+                action = request.form.get('action') or request.form.get('submit') or "Unknown Action"
+                # If it's a specific button like "confirm", "delete", etc.
+                possible_actions = ['confirm', 'delete', 'update', 'save', 'add', 'przenies']
+                for a in possible_actions:
+                    if a in request.form:
+                        action = f"Button: {a}"
+                        break
+            
+            # Log structured header for easier parsing in Error Trap view
+            app.logger.error(f"[TRAP_HEADER] URL: {path} | ACTION: {action}")
             app.logger.exception('Unhandled exception on %s %s: %s', request.method, request.path, error_msg)
+            
             flash(f'❌ Błąd: {str(error)}', 'danger')
         except Exception as e:
             app.logger.exception('Error in error handler: %s', e)

@@ -1,29 +1,149 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<style>
+    .error-trap-container {
+        display: grid;
+        gap: 20px;
+    }
+    .error-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e0e6ed;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+    }
+    .error-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+    .error-header {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 12px 20px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e0e6ed;
+        font-weight: 600;
+        font-size: 0.95rem;
+        flex-wrap: wrap;
+    }
+    .error-time { color: #2f7dd1; }
+    .error-path { color: #2c3e50; background: #ebf5ff; padding: 2px 8px; border-radius: 6px; }
+    .error-action { color: #e67e22; background: #fff4e5; padding: 2px 8px; border-radius: 6px; }
+    
+    .error-body {
+        padding: 0;
+        background: #fdfdfd;
+    }
+    .error-body pre {
+        margin: 0;
+        padding: 15px 20px;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        max-height: 300px;
+        overflow-y: auto;
+        color: #c0392b;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+    
+    .error-card.trap { border-left: 5px solid #e74c3c; background: #fffbfb; }
+    .error-card.error { border-left: 5px solid #f39c12; }
+    .error-card.misc { border-left: 5px solid #95a5a6; }
+
+    .trap .error-header { 
+        background: linear-gradient(to right, #fdedec, #fff); 
+        border-bottom: 2px solid #fadbd8;
+    }
+    .error .error-header { background: #fffcf0; }
+
+    .error-meta-group {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .error-footer {
+        padding: 10px 20px;
+        background: #fdfdfd;
+        border-top: 1px dashed #eee;
+        display: flex;
+        align-items: center;
+        font-size: 0.8rem;
+    }
+
+    .error-badge {
+        margin-left: auto;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .trap .error-badge { background: #e74c3c; box-shadow: 0 2px 8px rgba(231,76,60,0.3); }
+    .error .error-badge { background: #f39c12; }
+    .misc .error-badge { background: #95a5a6; }
+</style>
+
 <div class="section-box">
     <div class="section-header">
-        <h2>⚠️ Dziennik błędów systemu (error.log)</h2>
+        <h2>⚠️ Pułapki błędów systemu (error.log)</h2>
         <div><a href="/admin/centrum" class="btn">Powrót do Centrum</a></div>
     </div>
 
     <div class="card mb-15">
         <form method="get" class="inline-form" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <div>
-                <label for="lines">Pokaż ostatnie linie:</label>
+                <label for="lines">Analizuj ostatnie linie logu:</label>
                 <input type="number" id="lines" name="lines" value="{{ lines }}" min="10" max="2000" />
-                <button class="btn" type="submit">Odśwież</button>
+                <button class="btn btn-primary" type="submit">Odśwież i parsuj</button>
             </div>
         </form>
-        <div class="muted">Wyświetlane są tylko logi systemu na poziomie ERROR oraz wpisy krytyczne dotyczące aplikacji. Dane autoryzacyjne w logach (tokeny) są redagowane. Zobacz pełny plik <code>logs/error.log</code> z poziomu serwera by analizować szczegóły.</div>
+        <div class="muted" style="margin-top:10px;">
+            System skanuje plik <code>error.log</code> i grupuje wpisy w czytelne karty. 
+            Wpisy typu <strong>TRAP</strong> zawierają dodatkowe metadane o stronie i akcji, która spowodowała błąd.
+        </div>
     </div>
 
-    <div class="card mb-15">
-        <h3>⚠️ Kod błędu — error.log (ostatnie {{ lines }} linii){% if trunc %} — log za duży, obcięto{% endif %}</h3>
-        {% if error_log %}
-        <pre class="log-block" style="color: #c0392b; background: #fdedec; border-color: #e6b0aa;">{{ error_log }}</pre>
+    <div class="error-trap-container">
+        {% if errors %}
+            {% for err in errors %}
+            <article class="error-card {{ err.type|lower }}">
+                <div class="error-header">
+                    <div class="error-meta-group">
+                        <span class="error-time" title="Data i godzina">🕒 {{ err.timestamp }}</span>
+                        {% if err.type == 'TRAP' %}
+                        <span class="error-path" title="Strona / URL">🌐 <strong>{{ err.url }}</strong></span>
+                        <span class="error-action" title="Przycisk / Akcja">🖱️ <strong>{{ err.action }}</strong></span>
+                        {% else %}
+                        <span class="error-action" title="System Error">🛡️ System Error</span>
+                        {% endif %}
+                    </div>
+                    <span class="error-badge">{{ err.type }}</span>
+                </div>
+                <div class="error-body">
+                    <pre>{{ err.lines|join('\n') }}</pre>
+                </div>
+                {% if err.type == 'TRAP' %}
+                <div class="error-footer">
+                    <span class="muted"><span class="material-icons" style="font-size:12px;">info</span> To zdarzenie zostało zarejestrowane przez automatyczną pułapkę błędów (Error Trap).</span>
+                </div>
+                {% endif %}
+            </article>
+            {% endfor %}
         {% else %}
-        <div class="muted"><strong>Czysto!</strong> Plik <code>error.log</code> jest pusty lub jeszcze w ogóle nie istnieje. Gratulacje! 🎉</div>
+            <div class="card">
+                <div class="muted" style="text-align:center; padding: 40px;">
+                    <div style="font-size: 3rem; margin-bottom:15px;">🎉</div>
+                    <strong>Brak błędów!</strong><br>
+                    W analizowanym fragmencie logu nie znaleziono żadnych usterkek.
+                </div>
+            </div>
         {% endif %}
     </div>
 </div>

@@ -3,7 +3,7 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify, send_file
 from datetime import date, datetime, timedelta
 from app.db import get_db_connection, get_table_name
-from app.decorators import login_required, roles_required
+from app.decorators import login_required, roles_required, hall_restricted
 from app.services.leave_request_service import LeaveRequestService
 from app.services.attendance_service import AttendanceService
 from app.services.raport_service import RaportService
@@ -270,6 +270,7 @@ def usun_z_obsady(id):
 @leaves_bp.route('/zamknij-zmiane', methods=['GET'])
 @login_required
 @roles_required(['lider', 'admin'])
+@hall_restricted
 def zamknij_zmiane():
     """Wyświetl stronę podsumowania i zamknięcia zmiany - KONKRETNA SEKCJA"""
     dzisiaj = date.today()
@@ -382,6 +383,7 @@ def zamknij_zmiane():
 @leaves_bp.route('/zamknij-zmiane-global', methods=['POST', 'GET'])
 @login_required
 @roles_required('lider', 'admin')
+@hall_restricted
 def zamknij_zmiane_global():
     """Zamknij zmianę i pobierz ZIP z raportami.
     Cała logika zakończenia zmiany żyje w app.services.shift_close_service.
@@ -460,6 +462,7 @@ def obsada_for_date():
 @leaves_bp.route('/zapisz-raport-koncowy', methods=['POST'])
 @login_required
 @roles_required(['lider', 'admin'])
+@hall_restricted
 def zapisz_raport_koncowy():
     """Zapisz raport końcowy i zamknij zmianę - KONKRETNA SEKCJA"""
     dzisiaj = date.today()
@@ -561,6 +564,7 @@ def zapisz_raport_koncowy():
 @leaves_bp.route('/zapisz-raport-koncowy-global', methods=['POST'])
 @login_required
 @roles_required(['lider', 'admin'])
+@hall_restricted
 def zapisz_raport_koncowy_global():
     """Zapisz raport końcowy i zamknij zmianę - WSZYSTKIE SEKCJE"""
     dzisiaj = date.today()

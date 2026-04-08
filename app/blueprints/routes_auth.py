@@ -28,19 +28,34 @@ def login():
         conn = get_db_connection()
         cursor = conn.cursor()
         # Pobierz opcjonalne pole pracownik_id by mapować konto na rekord pracownika
-        cursor.execute("SELECT id, haslo, rola, COALESCE(pracownik_id, NULL) FROM uzytkownicy WHERE login = %s", (login_field,))
+        cursor.execute("SELECT id, haslo, rola, COALESCE(pracownik_id, NULL), grupa FROM uzytkownicy WHERE login = %s", (login_field,))
         row = cursor.fetchone()
         conn.close()
         
         if row:
-            uid, hashed, rola, pracownik_id = row[0], row[1], row[2], row[3]
+            uid, hashed, rola, pracownik_id, grupa = row[0], row[1], row[2], row[3], row[4]
             if hashed and check_password_hash(hashed, password_field):
                 # Must set permanent=True to ensure session cookie is saved
                 session.permanent = True
                 session['zalogowany'] = True
                 session['user_id'] = int(uid)
-                # Normalize role to lowercase to avoid case-sensitivity issues in templates
-                session['rola'] = (rola or '').lower()
+                # Normalize role to lowercase and resolve numeric IDs to string names
+                normalized_role = (rola or '').lower()
+                if normalized_role.isdigit():
+                    roles_order = ['admin', 'planista', 'pracownik', 'magazynier', 'dur', 'zarzad', 'laborant']
+                    try:
+                        idx = int(normalized_role)
+                        if 0 <= idx < len(roles_order):
+                            normalized_role = roles_order[idx]
+                    except Exception: pass
+                
+                session['rola'] = normalized_role
+                
+                # Admin and Management (Zarzad) must always see everything (PSD + AGRO)
+                if normalized_role in ['admin', 'zarzad']:
+                    session['grupa'] = 'ALL'
+                else:
+                    session['grupa'] = (grupa or '').strip()
                 # Zapisz login i powiązanie pracownika w sesji (może być None)
                 session['login'] = login_field
                 session['pracownik_id'] = int(pracownik_id) if pracownik_id is not None else None

@@ -5,30 +5,6 @@
 <!-- Sortable.js for drag-and-drop reordering -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
-<style>
-.plan-tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 16px;
-    border-bottom: 2px solid var(--border-color);
-}
-.plan-tab {
-    padding: 10px 24px;
-    font-weight: 700;
-    text-decoration: none;
-    border-radius: 8px 8px 0 0;
-    border: 1px solid var(--border-color);
-    margin-bottom: -2px;
-    background: #f4f6f9;
-    color: var(--text-muted);
-}
-.plan-tab-active {
-    background: white;
-    color: var(--primary-color);
-    border-bottom: 2px solid white;
-}
-</style>
-
 <div class="section-header">
     <div>
         <h2 class="header-title">📅 {{ _('panel_planisty') }}</h2>
@@ -45,13 +21,21 @@
 </div>
 
 <!-- Zakładki PSD / AGRO -->
-<div class="plan-tabs">
+<div class="plan-tabs" style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--border-color);">
     <a href="/planista?data={{ wybrana_data }}&tab=psd"
-        class="plan-tab {% if aktywna_zakladka == 'psd' %}plan-tab-active{% endif %}">
+        class="plan-tab {% if aktywna_zakladka == 'psd' %}plan-tab-active{% endif %}" style="padding:10px 24px;font-weight:700;text-decoration:none;border-radius:8px 8px 0 0;
+              border:1px solid var(--border-color);border-bottom:{% if aktywna_zakladka == 'psd' %}2px solid white{% else %}none{% endif %};
+              background:{% if aktywna_zakladka == 'psd' %}white{% else %}#f4f6f9{% endif %};
+              color:{% if aktywna_zakladka == 'psd' %}var(--primary-color){% else %}var(--text-muted){% endif %};
+              margin-bottom:-2px;">
         🏭 PSD
     </a>
     <a href="/planista?data={{ wybrana_data }}&tab=agro"
-        class="plan-tab {% if aktywna_zakladka == 'agro' %}plan-tab-active{% endif %}">
+        class="plan-tab {% if aktywna_zakladka == 'agro' %}plan-tab-active{% endif %}" style="padding:10px 24px;font-weight:700;text-decoration:none;border-radius:8px 8px 0 0;
+              border:1px solid var(--border-color);border-bottom:{% if aktywna_zakladka == 'agro' %}2px solid white{% else %}none{% endif %};
+              background:{% if aktywna_zakladka == 'agro' %}white{% else %}#f4f6f9{% endif %};
+              color:{% if aktywna_zakladka == 'agro' %}var(--primary-color){% else %}var(--text-muted){% endif %};
+              margin-bottom:-2px;">
         🌿 AGRO
     </a>
 </div>
@@ -109,28 +93,30 @@
         </thead>
         <tbody id="plans-agro-tbody">
             {% for p in plany_agro %}
-            <tr data-plan-id="{{ p[0] }}">
+            <tr data-plan-id="{{ p.id }}">
                 <td class="text-muted font-bold">{{ loop.index }}</td>
-                <td><strong class="text-primary">{{ p[2] }}</strong></td>
-                <td><span class="badge-sekcja">{{ (p[9] or '-')|upper }}</span></td>
-                <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
-                <td><span class="duration-badge">{{ p[12]|default(0) }} min</span></td>
+                <td><strong class="text-primary">{{ p.produkt }}</strong></td>
+                <td><span class="badge-sekcja">{{ (p.typ_produkcji or '-')|upper }}</span></td>
+                <td><strong class="text-success">{{ p.tonaz|int }} kg</strong></td>
+                <td><span class="duration-badge">{{ p.estymacja_minut|default(0) }} min</span></td>
                 <td>
-                    {% if (p[8]|default(0, true)) > 0 %}
-                    <strong class="text-success">{{ p[8]|int }} kg</strong>
+                    {% if (p.tonaz_rzeczywisty|default(0, true)) > 0 %}
+                    <strong class="text-success">{{ p.tonaz_rzeczywisty|int }} kg</strong>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
-                    {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
-                    {% elif p[4] == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
+                    {% if p.status == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
+                    {% elif p.status == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
                     {% else %}<span class="status-badge status-zaplanowane">ZAPLANOWANE</span>{% endif %}
                 </td>
                 <td class="text-right">
                     <div class="d-flex gap-5 align-center justify-end">
-                        {% if p[4] not in ['w toku', 'zakonczone'] %}
-                        <form action="{{ url_for('planning.usun_plan_agro', plan_id=p[0]) }}" method="POST"
+                        {% if p.status not in ['w toku', 'zakonczone'] %}
+                        <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST"
                             class="inline-form" onsubmit="return confirm('Usunąć zlecenie AGRO?');">
                             <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
+                            <input type="hidden" name="linia" value="Agro">
+                            <input type="hidden" name="tab" value="agro">
                             <button type="submit" class="btn-icon text-danger" title="Usuń">🗑️</button>
                         </form>
                         {% else %}
@@ -253,75 +239,77 @@
         </thead>
         <tbody id="plans-tbody" class="sortable-tbody">
             {% for p in plany %}
-            <tr data-plan-id="{{ p[0] }}" {% if p[4] in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
+            <tr data-plan-id="{{ p.id }}" {% if p.status in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
                 <td class="text-muted font-bold">{{ loop.index }}</td>
-                <td><strong class="text-primary">{{ p[2] }}</strong></td>
-                <td><span class="badge-sekcja">{{ p[9]|upper }}</span></td>
-                <td><strong class="text-success">{{ p[3]|int }} kg</strong></td>
+                <td><strong class="text-primary">{{ p.produkt }}</strong></td>
+                <td><span class="badge-sekcja">{{ (p.typ_produkcji or '')|upper }}</span></td>
+                <td><strong class="text-success">{{ p.tonaz|int }} kg</strong></td>
                 <td>
-                    <span class="duration-badge">{{ p[12]|default(0) }} min</span>
+                    <span class="duration-badge">{{ p.estymacja_minut|default(0) }} min</span>
                 </td>
                 <td>
-                    {% if (p[8]|default(0, true)) > 0 %}
-                    <strong class="text-success">{{ p[8]|int }} kg</strong>
-                    {% if p[10] %}<br><span class="small text-danger-color">⚠️ {{ p[10] }}</span>{% endif %}
+                    {% if (p.tonaz_rzeczywisty|default(0, true)) > 0 %}
+                    <strong class="text-success">{{ p.tonaz_rzeczywisty|int }} kg</strong>
+                    {% if p.wyjasnienie_rozbieznosci %}<br><span class="small text-danger-color">⚠️ {{ p.wyjasnienie_rozbieznosci }}</span>{% endif %}
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
-                    {% if palety_mapa[p[0]] %}
-                    <button type="button" data-action="toggle-details" data-plan-id="{{ p[0] }}" class="btn-toggle">📦
-                        {{ palety_mapa[p[0]]|length }} szt.</button>
+                    {% if palety_mapa[p.id] %}
+                    <button type="button" data-action="toggle-details" data-plan-id="{{ p.id }}" class="btn-toggle">📦
+                        {{ palety_mapa[p.id]|length }} szt.</button>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
-                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p[0] }}"
-                        value="{{ p[11]|default(0, true)|int }}" min="0" max="999999"
+                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p.id }}"
+                        value="{{ p.uszkodzone_worki|default(0, true)|int }}" min="0" max="999999"
                         title="Liczba uszkodzonych worków" />
                 </td>
                 <td>
-                    {% if p[4] == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
-                    {% elif p[4] == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
+                    {% if p.status == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
+                    {% elif p.status == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
                     {% else %}<span class="status-badge status-zaplanowane">{{ _('zaplanowane_btn') }}</span>{% endif %}
                 </td>
                 <td>
                     <div class="d-flex gap-5 align-center">
-                        {% if p[4] not in ['w toku', 'zakonczone'] %}
+                        {% if p.status not in ['w toku', 'zakonczone'] %}
                         <!-- Zaplanowane - można reorderować -->
-                        <button type="button" data-action="move-up" data-plan-id="{{ p[0] }}" class="btn-icon"
+                        <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon"
                             aria-label="Przenieś w górę">⬆</button>
-                        <button type="button" data-action="move-down" data-plan-id="{{ p[0] }}" class="btn-icon"
+                        <button type="button" data-action="move-down" data-plan-id="{{ p.id }}" class="btn-icon"
                             aria-label="Przenieś w dół">⬇</button>
-                        <button type="button" data-action="open-move-modal" data-plan-id="{{ p[0] }}"
-                            data-plan-day="{{ p[2] }}" class="btn-icon text-primary"
+                        <button type="button" data-action="open-move-modal" data-plan-id="{{ p.id }}"
+                            data-plan-day="{{ p.produkt }}" class="btn-icon text-primary"
                             aria-label="Przenieś plan">📅</button>
-                        <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p[0] }}"
+                        <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p.id }}"
                             title="{{ _('edytuj') }}">✎</button>
-                        {% elif p[4] == 'zakonczone' %}
+                        {% elif p.status == 'zakonczone' %}
                         {# Compute remaining explicitly to avoid type issues #}
-                        {% set plan_kg = (p[3] or 0) | float %}
-                        {% set wykonanie_kg = (p[8] or 0) | float %}
+                        {% set plan_kg = (p.tonaz or 0) | float %}
+                        {% set wykonanie_kg = (p.tonaz_rzeczywisty or 0) | float %}
                         {% set remaining = plan_kg - wykonanie_kg %}
                         {% if remaining > 0 %}
                             <span class="badge badge-warning">Niezrealizowane: {{ remaining|round(1) }} kg</span>
                             {% if (session.get('rola') or '')|lower in ['planista', 'admin', 'zarzad'] %}
-                            <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ p[0] }}, '{{ p[2] }}')"
+                            <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ p.id }}, '{{ p.produkt }}')"
                                 title="Przenieś niezrealizowane zlecenie na następny dzień">📦➡️</button>
                             {% endif %}
                         {% endif %}
                         {% endif %}
-                        {% if p[4] not in ['w toku', 'zakonczone'] %}
-                        <form action="{{ url_for('planning.usun_plan', id=p[0]) }}" method="POST" class="inline-form"
+                        {% if p.status not in ['w toku', 'zakonczone'] %}
+                        <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form"
                             onsubmit="return confirm('Usunąć zlecenie?');">
                             <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
+                            <input type="hidden" name="linia" value="PSD">
+                            <input type="hidden" name="tab" value="psd">
                             <button type="submit" class="btn-icon text-danger" title="{{ _('usun_plan') }}">🗑️</button>
                         </form>
                         {% else %}
                         <span class="text-muted">-</span>
                         {% endif %}
 
-                        {% if session.get('rola') in ['planista', 'admin'] and p[4] != 'zakonczone' %}
+                        {% if session.get('rola') in ['planista', 'admin'] and p.status != 'zakonczone' %}
                         <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
-                            data-plan-id="{{ p[0] }}" title="Edytuj tonaż">📝</button>
+                            data-plan-id="{{ p.id }}" title="Edytuj tonaż">📝</button>
                         {% else %}
                         <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
                         {% endif %}
@@ -329,8 +317,8 @@
                 </td>
             </tr>
 
-            {% if palety_mapa[p[0]] %}
-            <tr id="details-{{ p[0] }}" class="details-row">
+            {% if palety_mapa[p.id] %}
+            <tr id="details-{{ p.id }}" class="details-row">
                 <td colspan="10" class="p-0">
                     <div class="p-10">
                         <table class="modern-table small">
@@ -344,7 +332,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for pal in palety_mapa[p[0]] %}
+                                {% for pal in palety_mapa[p.id] %}
                                 <tr>
                                     <td class="text-muted font-bold">{{ loop.index }}</td>
                                     <td class="time-display">{{ pal[1] }}</td>
@@ -487,7 +475,7 @@
     function openMoveModal(id, nazwa) {
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
         if (!tr) return;
-        var html = '<form id="moveForm_' + id + '" action="/planista/przenies_zlecenie/' + id + '" method="POST" class="form-group">';
+        var html = '<form id="moveForm_' + id + '" class="form-group">';
         html += '<div class="form-group">';
         html += '  <label for="new_date_' + id + '">Nowa data:</label>';
         html += '  <input type="date" id="new_date_' + id + '" name="nowa_data" required>';
@@ -526,7 +514,9 @@
     // Check incomplete plans (what would be created) and show modal
     function checkIncomplete(currentDate) {
         if (!currentDate) currentDate = document.querySelector('input[name="data"]').value;
-        var payload = { data: currentDate };
+        var linia = (new URLSearchParams(window.location.search)).get('tab') || 'psd';
+        linia = linia === 'agro' ? 'AGRO' : 'PSD';
+        var payload = { data: currentDate, linia: linia };
         fetch('/api/check_niezrealizowane', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -901,12 +891,14 @@
 
     // Przenieś niezrealizowane zlecenia na następny dzień
     window.przeniesNiezrealizowane = function (data) {
-        console.log('[PRZENIES] Kliknięto przycisk dla daty:', data);
+        var linia = (new URLSearchParams(window.location.search)).get('tab') || 'psd';
+        linia = linia === 'agro' ? 'AGRO' : 'PSD';
+        console.log('[PRZENIES] Kliknięto przycisk dla daty:', data, 'linia:', linia);
         // First, fetch details about what would be moved
         fetch('/api/check_niezrealizowane', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: data }),
+            body: JSON.stringify({ data: data, linia: linia }),
             credentials: 'same-origin'
         })
             .then(handleFetchResponse)
@@ -1037,13 +1029,16 @@
     }
 
     function performSelectiveMove(currentDate, planIds) {
-        console.log('[MOVE] Wysyłam request do przeniesienia wybranych planów:', planIds);
+        var linia = (new URLSearchParams(window.location.search)).get('tab') || 'psd';
+        linia = linia === 'agro' ? 'AGRO' : 'PSD';
+        console.log('[MOVE] Wysyłam request do przeniesienia wybranych planów:', planIds, 'linia:', linia);
         fetch('/api/przenies_wybrane_zlecenia', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 data: currentDate,
-                plan_ids: planIds 
+                plan_ids: planIds,
+                linia: linia
             }),
             credentials: 'same-origin'
         })
@@ -1079,11 +1074,13 @@
     }
     
     function performMove(data) {
-        console.log('[PRZENIES] Wysyłam request do przeniesienia dla daty:', data);
+        var linia = (new URLSearchParams(window.location.search)).get('tab') || 'psd';
+        linia = linia === 'agro' ? 'AGRO' : 'PSD';
+        console.log('[PRZENIES] Wysyłam request do przeniesienia dla daty:', data, 'linia:', linia);
         fetch('/api/przenies_niezrealizowane', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: data }),
+            body: JSON.stringify({ data: data, linia: linia }),
             credentials: 'same-origin'
         })
             .then(handleFetchResponse)

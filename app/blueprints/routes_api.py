@@ -15,6 +15,27 @@ from app.services.raport_service import RaportService
 
 api_bp = Blueprint('api', __name__)
 
+@api_bp.route('/log_frontend_error', methods=['POST'])
+def log_frontend_error():
+    """Receive and log JavaScript errors from the frontend (Client Error Trap)."""
+    try:
+        data = request.get_json() or {}
+        error_msg = data.get('message', 'Unknown JS Error')
+        stack = data.get('stack', '')
+        url = data.get('url', '')
+        user = session.get('login', 'unauthenticated')
+        
+        # Dedicated frontend error log
+        frontend_logger = logging.getLogger('frontend_errors')
+        # Extra details help filter in log viewers
+        frontend_logger.error(
+            f"JS ERROR: {error_msg} | URL: {url} | User: {user}\nStack: {stack}"
+        )
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        current_app.logger.error(f"Error in JS error trap: {e}")
+        return jsonify({'success': False}), 500
+
 def bezpieczny_powrot():
     """Wraca do Planisty jeśli to on klikał, w przeciwnym razie na Dashboard"""
     if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':

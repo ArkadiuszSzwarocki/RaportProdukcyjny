@@ -196,8 +196,7 @@ class PlanMovementService:
             conn.commit()
             conn.close()
             
-            current_app.logger.info(f'Plans reordered: section={section}, date={date_planu}')
-            return (True, f'Kolejność zleceń w sekcji {section} uporządkowane.')
+            return (True, f'Kolejność zleceń w sekcji {section} została uporządkowana.')
             
         except Exception as e:
             try:

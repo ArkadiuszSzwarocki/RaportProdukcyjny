@@ -1,0 +1,291 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .prod-view {
+        display: grid;
+        gap: 24px;
+    }
+
+    .prod-hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 24px;
+        padding: 28px 30px;
+        border-radius: 22px;
+        border: 1px solid rgba(44, 62, 80, 0.08);
+        background: linear-gradient(135deg, #ffffff 0%, #f4f8fc 55%, #eef6ff 100%);
+        box-shadow: 0 16px 40px rgba(25, 40, 56, 0.08);
+    }
+
+    .prod-eyebrow {
+        margin-bottom: 10px;
+        color: #2f7dd1;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+    }
+
+    .prod-title {
+        margin: 0;
+        color: #203449;
+        font-size: 2.15rem;
+        line-height: 1.05;
+    }
+
+    .prod-description {
+        max-width: 760px;
+        margin: 14px 0 0;
+        color: #5e7184;
+        font-size: 1rem;
+        line-height: 1.65;
+    }
+
+    .prod-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .search-wrapper {
+        position: relative;
+        flex: 1;
+        min-width: 250px;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 12px 20px 12px 48px;
+        border-radius: 12px;
+        border: 1px solid rgba(32, 52, 73, 0.12);
+        background: #fff;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #2f7dd1;
+        box-shadow: 0 0 0 4px rgba(47, 125, 209, 0.12);
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 18px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        font-size: 1.2rem;
+    }
+
+    .table-container {
+        background: white;
+        border-radius: 22px;
+        border: 1px solid rgba(32, 52, 73, 0.08);
+        box-shadow: 0 18px 42px rgba(28, 44, 60, 0.08);
+        overflow: hidden;
+    }
+
+    .modern-table th {
+        background: #f8fafc;
+        color: #64748b;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+        padding: 16px 20px;
+        border-bottom: 2px solid #f1f5f9;
+    }
+
+    .modern-table td {
+        padding: 16px 20px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.95rem;
+    }
+
+    .status-badge {
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .status-zakonczone { background: #dcfce7; color: #166534; }
+    .status-wtoku { background: #fef9c3; color: #854d0e; }
+    .status-zaplanowane { background: #f1f5f9; color: #475569; }
+
+    .sekcja-pill {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: #f1f5f9;
+        color: #475569;
+        font-weight: 700;
+        font-size: 0.8rem;
+    }
+
+    .waga-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .waga-plan { color: #64748b; font-size: 0.85rem; }
+    .waga-rzecz { color: #166534; font-weight: 800; }
+
+    .line-selector {
+        display: flex;
+        gap: 4px;
+        background: #e2e8f0;
+        padding: 4px;
+        border-radius: 10px;
+    }
+
+    .line-btn {
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        background: transparent;
+        color: #475569;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .line-btn.active {
+        background: white;
+        color: #2f7dd1;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+</style>
+
+<div class="prod-view">
+    <div class="prod-hero">
+        <div>
+            <div class="prod-eyebrow">Administracja</div>
+            <h2 class="prod-title">Zarządzanie Produkcją</h2>
+            <p class="prod-description">Pełny przegląd wszystkich zleceń (PSD i AGRO), ich statusów oraz szczegółowych wyników realizacji.</p>
+        </div>
+        <div class="prod-actions">
+            <div class="line-selector">
+                <a href="?linia=PSD" class="line-btn {% if linia == 'PSD' %}active{% endif %}">Hala 1 (PSD)</a>
+                <a href="?linia=Agro" class="line-btn {% if linia == 'Agro' %}active{% endif %}">Hala 2 (AGRO)</a>
+            </div>
+            <a href="/admin/ustawienia" class="btn">Powrót</a>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <div class="p-20 bb-1 d-flex gap-15 align-center">
+            <div class="search-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="prodSearch" placeholder="Szukaj zlecenia, produktu lub sekcji..." class="search-input">
+            </div>
+            <div class="text-muted small">Pokazano 50 ostatnich zleceń dla linii: <strong>{{ linia }}</strong></div>
+        </div>
+
+        <table class="modern-table w-100" id="prodTable">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Sekcja</th>
+                    <th>Produkt</th>
+                    <th>Waga (Plan / Wyk.)</th>
+                    <th>Status</th>
+                    <th class="text-right">Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for z in zlecenia %}
+                <tr>
+                    <td><div class="font-bold">{{ z.data_planu }}</div></td>
+                    <td><span class="sekcja-pill">{{ z.sekcja|upper }}</span></td>
+                    <td><strong class="text-primary">{{ z.produkt }}</strong></td>
+                    <td>
+                        <div class="waga-cell">
+                            <span class="waga-plan">Plan: {{ z.tonaz }} kg</span>
+                            {% if z.tonaz_rzeczywisty %}
+                            <span class="waga-rzecz">Wyk: {{ z.tonaz_rzeczywisty }} kg</span>
+                            {% else %}
+                            <span class="text-muted small">Brak wykonania</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="status-badge status-{{ z.status|replace(' ', '') }}">
+                            {{ z.status|upper }}
+                        </span>
+                    </td>
+                    <td class="text-right">
+                        <div class="d-flex justify-end gap-10">
+                            {% if z.status != 'zakonczone' %}
+                            <a href="/admin/edycja_zlecenia/{{ z.id }}" class="btn btn-sm btn-outline-primary" title="Edytuj">✎</a>
+                            {% endif %}
+                            
+                            {% if z.status == 'zakonczone' %}
+                                {% set plan_kg = (z.tonaz or 0) | float %}
+                                {% set wykonanie_kg = (z.tonaz_rzeczywisty or 0) | float %}
+                                {% set remaining = plan_kg - wykonanie_kg %}
+                                {% if remaining > 0 %}
+                                    <button type="button" class="btn btn-sm btn-warning" onclick="moveIncompleteToNextDay({{ z.id }}, '{{ z.data_planu }}')" title="Przenieś niezrealizowane ({{ remaining|round(1) }} kg)">📦➡️</button>
+                                {% endif %}
+                            {% endif %}
+                            
+                            {% if z.status not in ['w toku','zakonczone'] %}
+                            <form action="{{ url_for('planning.usun_plan', id=z.id) }}" method="POST" onsubmit="return confirm('Czy na pewno usunąć to zlecenie?');" class="m-0">
+                                <input type="hidden" name="data_planu" value="{{ z.data_planu }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Usuń">🗑️</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center p-30 text-muted">Brak zleceń w bazie dla wybranej linii.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Simple searchable table
+    document.getElementById('prodSearch').addEventListener('input', function(e) {
+        let term = e.target.value.toLowerCase();
+        let rows = document.querySelectorAll('#prodTable tbody tr');
+        rows.forEach(row => {
+            let text = row.innerText.toLowerCase();
+            row.style.display = text.includes(term) ? '' : 'none';
+        });
+    });
+
+    function moveIncompleteToNextDay(planId, currentDate) {
+        if (!confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?')) return;
+
+        fetch('/api/przenies_wybrane_zlecenia', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: currentDate, plan_ids: [planId] }),
+            credentials: 'same-origin'
+        })
+        .then(r => r.json())
+        .then(function (j) {
+            if (j && j.success) {
+                alert('✅ ' + (j.message || 'Zlecenie przeniesione'));
+                location.reload();
+            } else {
+                alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
+            }
+        })
+        .catch(function (err) {
+            alert('✗ Błąd połączenia');
+        });
+    }
+</script>
+
+{% endblock %}
