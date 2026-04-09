@@ -12,9 +12,44 @@
         </div>
         <div class="row gap-10 wrap">
             {% if session.get('rola') in ['magazynier', 'admin'] %}
-            <button class="btn btn-primary row items-center gap-8" onclick="openModal('modalDelivery')" style="padding: 10px 20px;">
+            <button class="btn btn-primary row items-center gap-8" onclick="openCreateDeliveryModal()" style="padding: 10px 20px;">
                 <span class="material-icons">add_box</span> Nowa Dostawa
             </button>
+            {% endif %}
+            {% if session.get('rola') in ['magazynier', 'lider', 'admin'] %}
+            <!-- Hamburger menu for reports and production moves (excluding Add Delivery) -->
+            <div class="hamburger-container">
+                <button class="btn btn-ghost" id="hamburgerBtn" onclick="toggleHamburgerMenu(event)">
+                    <span class="material-icons">menu</span>
+                </button>
+                <div id="hamburgerMenu" class="hamburger-menu" style="display:none; z-index:40; min-width:260px;">
+                    <div class="menu-section p-8">
+                        <button class="btn btn-ghost w-100" onclick="openProductionModal(); toggleHamburgerMenu()"><span class="material-icons" style="vertical-align:middle;">local_shipping</span> Przesunięcia na Produkcję</button>
+                    </div>
+                    <div class="menu-section p-8" style="border-top:1px solid #eee;">
+                        <div style="font-weight:600; margin-bottom:6px;">Raporty</div>
+                        <div class="row gap-6 items-center" style="margin-bottom:6px;">
+                            <button class="btn btn-ghost" onclick="openReportModal('warehouse'); toggleHamburgerMenu()">Pokaż Raport Magazynu</button>
+                            <a class="btn btn-ghost" href="/agro/report/warehouse?format=csv&linia={{ linia }}" target="_blank">CSV</a>
+                        </div>
+                        <div class="row gap-6 items-center" style="margin-bottom:6px;">
+                            <button class="btn btn-ghost" onclick="openReportModal('production'); toggleHamburgerMenu()">Pokaż Raport Produkcji</button>
+                            <a class="btn btn-ghost" href="/agro/report/production?format=csv&linia={{ linia }}" target="_blank">CSV</a>
+                        </div>
+                        <div class="row gap-6 items-center">
+                            <button class="btn btn-ghost" onclick="openReportModal('combined'); toggleHamburgerMenu()">Pokaż Raport Połączony</button>
+                            <a class="btn btn-ghost" href="/agro/report/combined?format=csv&linia={{ linia }}" target="_blank">CSV</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <style>
+                .hamburger-container { position: relative; display: inline-flex; align-items: center; margin-left: 12px; }
+                .hamburger-menu { position: absolute; left: 0; top: calc(100% + 8px); background: white; border: 1px solid #e6e9ef; border-radius:8px; box-shadow:0 10px 30px rgba(16,24,40,0.08); }
+                .hamburger-menu .menu-section { padding: 8px 12px; }
+                /* make hamburger visually compact */
+                #hamburgerBtn { padding: 8px; height:36px; width:36px; display:inline-flex; align-items:center; justify-content:center; }
+            </style>
             {% endif %}
             <button class="btn btn-outline row items-center gap-8" onclick="openModal('modalUsage')" style="background: white;">
                 <span class="material-icons">production_quantity_limits</span> Pobierz na Produkcję
@@ -69,6 +104,10 @@
                             {% else %}
                             <span class="text-muted small italic">Oczekiwanie na drugą stronę</span>
                             {% endif %}
+                            {% if session.get('rola') == 'admin' and p.typ_ruchu == 'PRZYJECIE' and p.status == 'OCZEKUJACE' %}
+                            <button class="btn btn-ghost btn-xs ml-6" onclick="openEditDeliveryModal({{ p.id }})">Edytuj</button>
+                            <button class="btn btn-ghost btn-xs text-danger ml-6" onclick="deleteDelivery({{ p.id }})">Usuń</button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -92,9 +131,9 @@
             {% else %}
             <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;">
                 {% for item in inventory %}
-                <div class="section-box bg-white hover-glow" style="position:relative; transition: all 0.2s; border-radius: 14px; padding: 14px 16px; min-width:155px; max-width:210px; flex: 0 0 auto; text-align:center;">
+                <div class="section-box bg-white hover-glow" style="position:relative; transition: all 0.2s; border-radius: 14px; padding: 14px 16px; min-width:155px; max-width:210px; flex: 0 0 auto; text-align:center;" onclick='openGroupPopup(event, {{ loop.index0 }}, {{ item.nazwa|tojson }})'>
                     <div class="text-muted small font-bold" style="text-transform:uppercase; letter-spacing:.4px; margin-bottom:6px; word-break:break-word; line-height:1.3;">{{ item.nazwa }}</div>
-                    <div class="text-primary" style="font-size:26px; font-weight:700; line-height:1.1;">{{ item.stan_magazynowy|round(1) }} <span style="font-size:13px; color:#94a3b8; font-weight:normal;">kg</span></div>
+                    <div class="text-primary" style="font-size:26px; font-weight:700; line-height:1.1;">{{ (item.total or 0)|round(1) }} <span style="font-size:13px; color:#94a3b8; font-weight:normal;">kg</span></div>
 
                     <div class="row justify-center gap-8 mt-8">
                         {% if item.lokalizacja %}
@@ -106,12 +145,10 @@
                         {% endif %}
                     </div>
 
-                    <div class="mt-12 pt-12 row justify-center gap-8" style="border-top: 1px solid #f1f5f9;">
-                        <button class="btn btn-ghost btn-xs text-primary" onclick="openUsageFor('{{ item.id }}', '{{ item.nazwa }}', '{{ item.lokalizacja }}', {{ item.stan_magazynowy }})">Pobierz</button>
-                        {% if session.get('rola') in ['lider', 'admin'] %}
-                        <button class="btn btn-ghost btn-xs text-muted" onclick="openInventoryFor('{{ item.id }}', '{{ item.nazwa }}', {{ item.stan_magazynowy }})">Korekta</button>
-                        {% endif %}
+                        <div class="mt-12 pt-12 row justify-center gap-8" style="border-top: 1px solid #f1f5f9;">
+                        <!-- akcje przeniesione do popupu z listą palet; przyciski usunięte z kafelka -->
                     </div>
+                    <!-- popup will be rendered globally; placeholder left intentionally blank -->
                 </div>
                 {% endfor %}
             </div>
@@ -391,31 +428,27 @@ function _renderHistoryRow(h) {
 <!-- MODAL: DELIVERY -->
 <dialog id="modalDelivery" class="modal-premium">
     <div class="modal-header">
-        <h4 class="modal-title">Przyjęcie Dostawy (Nowa Paleta)</h4>
+        <h4 class="modal-title" id="modalDeliveryTitle">Przyjęcie Dostawy (Nowa Paleta)</h4>
         <button class="modal-close" onclick="closeModal('modalDelivery')">×</button>
     </div>
     <div class="modal-body">
-        <div class="form-group mb-15">
-            <label class="form-label">Nazwa Surowca</label>
-            <input type="text" id="del_nazwa" class="form-control" placeholder="Wpisz nazwę surowca..." list="surowceList">
-            <datalist id="surowceList">
-                {% for s in dictionary %}
-                <option value="{{ s.nazwa }}">
-                {% endfor %}
-            </datalist>
+        <input type="hidden" id="del_edit_id" value="">
+        <div class="form-group mb-10 row items-center gap-8" style="justify-content:space-between;">
+            <label class="form-label">Lista palet dostawy</label>
+            <button type="button" class="btn btn-outline btn-sm" onclick="addDeliveryRow()">+ Dodaj paletę</button>
         </div>
-        <div class="form-group mb-15">
-            <label class="form-label">Ilość na palecie (kg)</label>
-            <input type="number" id="del_ilosc" class="form-control" step="0.1" placeholder="0.0">
+        <div id="deliveryList" style="display:flex; flex-direction:column; gap:8px;">
+            <!-- rows inserted by JS -->
         </div>
-        <div class="form-group mb-15">
-            <label class="form-label">Komentarz / Nr WZ</label>
-            <textarea id="del_komentarz" class="form-control" rows="2"></textarea>
-        </div>
+        <datalist id="surowceList">
+            {% for s in dictionary %}
+            <option value="{{ s.nazwa }}">
+            {% endfor %}
+        </datalist>
     </div>
     <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeModal('modalDelivery')">{{ _('anuluj') }}</button>
-        <button class="btn btn-primary" onclick="submitDelivery()">Zgłoś Dostawę</button>
+        <button class="btn btn-primary" onclick="submitDelivery()" id="modalDeliverySubmit">Zgłoś Dostawę</button>
     </div>
 </dialog>
 
@@ -480,6 +513,7 @@ function _renderHistoryRow(h) {
         <div class="form-group mb-15">
             <label class="form-label">Zlecenie (Opcjonalnie)</label>
             <input type="number" id="usage_plan_id" class="form-control" placeholder="ID zlecenia">
+            <input type="text" id="usage_plan_name" class="form-control" placeholder="Nazwa zlecenia" readonly style="margin-top:6px; background:#f8fafc;" />
         </div>
         <div class="form-group mb-15">
             <label class="form-label">Komentarz</label>
@@ -521,6 +555,72 @@ function _renderHistoryRow(h) {
     </div>
 </dialog>
 
+<!-- MODAL: PRODUCTION MOVES -->
+<dialog id="modalProduction" class="modal-premium" style="max-width:900px;">
+    <div class="modal-header">
+        <h4 class="modal-title">Przesunięcia na Produkcję</h4>
+        <button class="modal-close" onclick="closeModal('modalProduction')">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="row items-center gap-10 mb-12">
+            <div style="flex:1;">
+                <label class="form-label small mb-4">Limit</label>
+                <input type="number" id="prod_limit" class="form-control" value="50" style="width:140px;">
+            </div>
+            <div style="flex:1; text-align:right;">
+                <button class="btn btn-primary" onclick="loadProductionMoves()">Odśwież</button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table" id="prodMovesTable">
+                <thead>
+                    <tr>
+                        <th>Paleta / Nazwa</th>
+                        <th>Ilość (kg)</th>
+                        <th>Skąd (lokalizacja)</th>
+                        <th>Gdzie (zbiornik)</th>
+                        <th>Zlecenie</th>
+                        <th>Zgłosił</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody id="prodMovesBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalProduction')">Zamknij</button>
+    </div>
+</dialog>
+
+<!-- MODAL: GENERIC REPORT -->
+<dialog id="modalReport" class="modal-premium" style="max-width:1000px;">
+    <div class="modal-header">
+        <h4 class="modal-title" id="reportModalTitle">Raport</h4>
+        <button class="modal-close" onclick="closeModal('modalReport')">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="row items-center gap-10 mb-12">
+            <div style="flex:1;">
+                <label class="form-label small mb-4">Limit</label>
+                <input type="number" id="report_limit" class="form-control" value="100" style="width:140px;">
+            </div>
+            <div style="flex:1; text-align:right;">
+                <button class="btn btn-primary" id="reportRefreshBtn" onclick="reloadReport()">Odśwież</button>
+            </div>
+        </div>
+        <div class="table-responsive" style="max-height:520px; overflow:auto;">
+            <table class="table" id="reportTable">
+                <thead id="reportHead"></thead>
+                <tbody id="reportBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalReport')">Zamknij</button>
+    </div>
+</dialog>
+
 <!-- MODAL: INVENTORY -->
 <dialog id="modalInventory" class="modal-premium">
     <div class="modal-header">
@@ -530,11 +630,7 @@ function _renderHistoryRow(h) {
     <div class="modal-body">
         <div class="form-group mb-15">
             <label class="form-label">Paleta</label>
-            <select id="inv_surowiec_id" class="form-control">
-                {% for s in inventory %}
-                <option value="{{ s.id }}">{{ s.nazwa }} - {{ s.lokalizacja or 'Brak' }}</option>
-                {% endfor %}
-            </select>
+            <select id="inv_surowiec_id" class="form-control"></select>
         </div>
         <div class="form-group mb-15">
             <label class="form-label">Aktualny stan stwierdzony (kg)</label>
@@ -551,6 +647,29 @@ function _renderHistoryRow(h) {
     </div>
 </dialog>
 
+<!-- MODAL: RENAME PALLET -->
+<dialog id="modalRename" class="modal-premium">
+    <div class="modal-header">
+        <h4 class="modal-title">Zmień nazwę palety</h4>
+        <button class="modal-close" onclick="closeModal('modalRename')">×</button>
+    </div>
+    <div class="modal-body">
+        <input type="hidden" id="rename_surowiec_id">
+        <div class="form-group mb-15">
+            <label class="form-label">Nowa nazwa</label>
+            <input type="text" id="rename_new_name" class="form-control" placeholder="Wpisz nową nazwę palety...">
+        </div>
+        <div class="form-group mb-15">
+            <label class="form-label">Komentarz (opcjonalnie)</label>
+            <textarea id="rename_komentarz" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalRename')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" onclick="submitRename()">Zmień nazwę</button>
+    </div>
+</dialog>
+
 <style>
     .agro-magazyn-container .badge-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .bg-success { background-color: #10b981; }
@@ -560,16 +679,57 @@ function _renderHistoryRow(h) {
     .tracking-wider { letter-spacing: 0.05em; }
     .hover-glow:hover { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); transform: translateY(-4px); border-color: var(--primary-color); }
     .btn-xs { padding: 4px 10px; font-size: 11px; height: auto; }
+    .btn-xxs { padding: 4px 8px; font-size: 10px; height: auto; min-width:58px; }
+    .group-details { width:100%; box-sizing:border-box; z-index:8; }
+    .group-details > div { max-height:280px; overflow-y:auto; }
+    .group-details .btn-xxs { padding:6px 8px; font-size:12px; }
+    .group-details .pallet-row { margin-bottom:8px; }
+    .group-details .pallet-info { overflow:hidden; }
+    .group-details .pallet-info .text-muted { color:#6b7280; }
+    .group-details .pallet-actions .btn { display:inline-block; }
+    .group-details .pallet-actions button { width:100%; box-sizing:border-box; }
+
+    /* Popup with pallet list (positioned near clicked tile) */
+    .group-popup {
+        position: absolute;
+        width: 320px;
+        max-height: 420px;
+        overflow: hidden;
+        box-sizing: border-box;
+        background: #fff;
+        border: 1px solid #e6edf8;
+        border-radius: 10px;
+        padding: 10px;
+        z-index: 1100;
+        box-shadow: 0 10px 30px rgba(2,6,23,0.12);
+    }
+    .group-popup .popup-body { max-height:360px; overflow:auto; }
+    .group-popup .pallet-row { margin-bottom:8px; }
+    .group-popup .pallet-actions button { width:100%; box-sizing:border-box; }
+    .group-popup .popup-close { position:absolute; right:8px; top:6px; cursor:pointer; color:#6b7280; }
 </style>
 
 <script>
 function openModal(id) {
     const d = document.getElementById(id);
-    if (d && typeof d.showModal === 'function') d.showModal();
+    if (!d) return;
+    if (typeof d.showModal === 'function') {
+        d.showModal();
+        return;
+    }
+    // fallback for browsers not supporting <dialog>.showModal()
+    d.style.display = 'block';
+    d.setAttribute('data-open', '1');
 }
 function closeModal(id) {
     const d = document.getElementById(id);
-    if (d) d.close();
+    if (!d) return;
+    if (typeof d.close === 'function') {
+        try { d.close(); return; } catch(e) {}
+    }
+    // fallback hide
+    d.style.display = 'none';
+    d.removeAttribute('data-open');
 }
 
 function openUsageFor(id, nazwa, lok, qty) {
@@ -590,6 +750,22 @@ function openUsageFor(id, nazwa, lok, qty) {
     document.getElementById('usage_zbiornik').value = '';
     document.getElementById('usage_plan_id').value = '';
     document.getElementById('usage_komentarz').value = '';
+    // Prefill plan id and name with current running plan if available — if not known, fetch it
+    try {
+        if (typeof window._current_plan !== 'undefined' && window._current_plan && window._current_plan.id) {
+            document.getElementById('usage_plan_id').value = window._current_plan.id || '';
+            document.getElementById('usage_plan_name').value = window._current_plan.name || '';
+        } else {
+            // fetch dynamically
+            fetch('/agro/api/current_plan?linia={{ linia }}').then(r => r.json()).then(res => {
+                if (res && res.success) {
+                    window._current_plan = { id: res.plan_id || null, name: res.plan_name || null };
+                    document.getElementById('usage_plan_id').value = res.plan_id || '';
+                    document.getElementById('usage_plan_name').value = res.plan_name || '';
+                }
+            }).catch(e => console.warn('Failed to fetch current plan id', e));
+        }
+    } catch(e) { console.warn('Unable to prefill plan id', e); }
     openModal('modalUsage');
 }
 
@@ -597,6 +773,266 @@ function openInventoryFor(id, nazwa, qty) {
     document.getElementById('inv_surowiec_id').value = id;
     document.getElementById('inv_qty').value = qty;
     openModal('modalInventory');
+}
+
+// Handlers used on grouped tile buttons to avoid reliance on global `event` in inline attrs
+function handleOpenUsageForGroup(e, nazwa, lok, total) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    openUsageForGroup(nazwa, lok, total);
+}
+function handleOpenInventoryForGroup(e, nazwa, total) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    openInventoryForGroup(nazwa, total);
+}
+function handleOpenRenameFromGroup(e, nazwa) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    openRenameModal(getFirstPalletIdForGroup(nazwa) || "", nazwa);
+}
+
+function openRenameModal(id, nazwa) {
+    document.getElementById('rename_surowiec_id').value = id;
+    document.getElementById('rename_new_name').value = nazwa || '';
+    document.getElementById('rename_komentarz').value = '';
+    openModal('modalRename');
+}
+
+function submitRename() {
+    const id = document.getElementById('rename_surowiec_id').value;
+    const newName = document.getElementById('rename_new_name').value.trim();
+    const koment = document.getElementById('rename_komentarz').value.trim();
+    if (!id || !newName) return alert('Podaj nową nazwę!');
+    fetch('/agro/api/rename', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ surowiec_id: id, new_name: newName, komentarz: koment, linia: '{{ linia }}' })
+    }).then(r => r.json()).then(res => {
+        if (res.success) location.reload();
+        else alert('Błąd: ' + (res.error || 'Nieznany'));
+    }).catch(e => { console.error(e); alert('Błąd połączenia'); });
+}
+
+function openProductionModal() {
+    document.getElementById('prod_limit').value = 50;
+    document.getElementById('prodMovesBody').innerHTML = '';
+    openModal('modalProduction');
+    loadProductionMoves();
+}
+
+function loadProductionMoves() {
+    const limit = parseInt(document.getElementById('prod_limit').value) || 50;
+    fetch('/agro/api/production_moves?linia={{ linia }}&limit=' + limit)
+        .then(r => r.json())
+        .then(res => {
+            if (!res.success) return alert('Błąd: ' + (res.error || 'Nieznany'));
+            const body = document.getElementById('prodMovesBody');
+            body.innerHTML = '';
+            res.moves.forEach(m => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${m.surowiec_nazwa || ''}</td>
+                    <td class="font-bold">${m.ilosc}</td>
+                    <td>${m.lokalizacja || ''}</td>
+                    <td>${m.zbiornik || ''}</td>
+                    <td>${m.plan_id || ''}</td>
+                    <td>${m.autor_login || ''}</td>
+                    <td>${m.autor_data || ''}</td>
+                `;
+                body.appendChild(tr);
+            });
+        }).catch(e => { console.error(e); alert('Błąd połączenia'); });
+}
+
+// Wrapper: accept group name, pick FIFO pallet, call existing handler
+function openUsageForGroup(nazwa, lok, total) {
+    const pid = getFirstPalletIdForGroup(nazwa);
+    if (!pid) return alert('Brak dostępnych palet dla: ' + nazwa);
+    openUsageFor(pid, nazwa, lok, total);
+}
+
+function openInventoryForGroup(nazwa, total) {
+    const pid = getFirstPalletIdForGroup(nazwa);
+    if (!pid) return alert('Brak dostępnych palet dla: ' + nazwa);
+    openInventoryFor(pid, nazwa, total);
+}
+
+// Toggle and render group pallet details
+// Open a positioned popup near the clicked tile showing pallet list. Event may be click event from tile.
+function openGroupPopup(evt, index, nazwa) {
+    if (evt && evt.stopPropagation) evt.stopPropagation();
+    closeGroupPopup();
+    const g = window._inventory_groups[index];
+    const popup = document.createElement('div');
+    popup.id = 'groupPopup';
+    popup.className = 'group-popup';
+    popup.innerHTML = '<div class="popup-close" onclick="closeGroupPopup()">✕</div>' + renderGroupPopupHtml(g, nazwa);
+    document.body.appendChild(popup);
+
+    // bind popup buttons
+    try { bindGroupPopupButtons(popup); } catch(e) { console.warn('bindGroupPopupButtons failed', e); }
+
+    // position relative to clicked tile
+    try {
+        const anchor = evt && evt.currentTarget ? evt.currentTarget : (evt && evt.target ? evt.target : null);
+        const rect = anchor ? anchor.getBoundingClientRect() : null;
+        let left = rect ? (rect.right + 8) : (window.innerWidth - popup.offsetWidth - 20);
+        let top = rect ? rect.top : 80;
+        // if overflow right, place to left
+        if (left + popup.offsetWidth > window.innerWidth - 8) {
+            left = (rect ? rect.left - popup.offsetWidth - 8 : 20);
+        }
+        // clamp top
+        if (top + popup.offsetHeight > window.innerHeight - 20) top = window.innerHeight - popup.offsetHeight - 20;
+        if (top < 10) top = 10;
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
+    } catch(e) {
+        // ignore positioning errors
+    }
+
+    // click outside to close
+    setTimeout(function(){
+        window.addEventListener('click', outsideClickHandler);
+        window.addEventListener('resize', closeGroupPopup);
+        window.addEventListener('keydown', escCloseHandler);
+    }, 10);
+}
+
+function renderGroupPopupHtml(g, nazwa) {
+    if (!g) return '<div class="popup-body"><div class="text-muted small">Brak palet</div></div>';
+    let html = '<div class="popup-title small text-muted" style="margin-bottom:8px;">Palety dla: ' + (g.nazwa || nazwa) + '</div>';
+    html += '<div class="popup-body">';
+    g.pallets.forEach(function(p){
+        html += '<div class="pallet-row" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px; border-radius:6px; background:#fff; border:1px solid #f1f5f9; margin-bottom:8px;">';
+        html += '<div class="pallet-info" style="flex:1; min-width:0; font-size:13px;">#' + p.id + ' — ' + (p.nazwa||'') + '<div class="text-muted" style="font-size:12px; margin-top:4px;">(' + (p.lokalizacja||'Brak') + ')</div></div>';
+        html += '<div class="pallet-actions" style="display:flex; gap:6px; flex-direction:column; width:120px;">';
+            html += '<button class="btn btn-ghost btn-xxs popup-usage" data-id="' + p.id + '" data-name=' + JSON.stringify(g.nazwa) + ' data-lok=' + JSON.stringify(p.lokalizacja||'') + ' data-stan=' + (p.stan||0) + '>Pobierz</button>';
+            html += '<button class="btn btn-ghost btn-xxs popup-inv" data-id="' + p.id + '" data-name=' + JSON.stringify(g.nazwa) + ' data-stan=' + (p.stan||0) + '>Korekta</button>';
+            html += '<button class="btn btn-ghost btn-xxs popup-rename" data-id="' + p.id + '" data-name=' + JSON.stringify(p.nazwa||g.nazwa) + '>Zmień nazwę</button>';
+        html += '</div></div>';
+    });
+    html += '</div>';
+    return html;
+}
+
+function closeGroupPopup() {
+    const existing = document.getElementById('groupPopup');
+    if (existing) existing.remove();
+    window.removeEventListener('click', outsideClickHandler);
+    window.removeEventListener('resize', closeGroupPopup);
+    window.removeEventListener('keydown', escCloseHandler);
+}
+
+// Bind handlers for popup buttons (called after popup appended to DOM)
+function bindGroupPopupButtons(popup) {
+    if (!popup) return;
+    // usage buttons
+    popup.querySelectorAll('.popup-usage').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            const lok = btn.dataset.lok;
+            const stan = parseFloat(btn.dataset.stan) || 0;
+            openUsageFor(id, name, lok, stan);
+        });
+    });
+    // inventory buttons
+    popup.querySelectorAll('.popup-inv').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            const stan = parseFloat(btn.dataset.stan) || 0;
+            openInventoryFor(id, name, stan);
+        });
+    });
+    // rename buttons
+    popup.querySelectorAll('.popup-rename').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            openRenameModal(id, name);
+        });
+    });
+}
+
+function outsideClickHandler(e) {
+    const p = document.getElementById('groupPopup');
+    if (!p) return;
+    if (!p.contains(e.target)) closeGroupPopup();
+}
+
+function escCloseHandler(e) { if (e.key === 'Escape') closeGroupPopup(); }
+
+
+// Generic report loader for warehouse/production/combined
+var _currentReportType = null;
+function openReportModal(type) {
+    _currentReportType = type;
+    document.getElementById('reportModalTitle').innerText = (type === 'warehouse') ? 'Raport Magazynu' : (type === 'production') ? 'Raport Produkcji' : 'Raport Połączony';
+    document.getElementById('report_limit').value = 100;
+    document.getElementById('reportHead').innerHTML = '';
+    document.getElementById('reportBody').innerHTML = '';
+    openModal('modalReport');
+    loadReport();
+}
+
+function reloadReport() { loadReport(); }
+
+function loadReport() {
+    if (!_currentReportType) return;
+    const limit = parseInt(document.getElementById('report_limit').value) || 100;
+    const url = '/agro/report/' + _currentReportType + '?format=json&linia={{ linia }}&limit=' + limit;
+    fetch(url).then(r => r.json()).then(res => {
+        if (!res.success) return alert('Błąd ładowania raportu: ' + (res.error || 'Nieznany'));
+        const rows = res.rows || res.moves || res.rows || [];
+        renderReportTable(rows);
+    }).catch(e => { console.error(e); alert('Błąd połączenia'); });
+}
+
+function toggleHamburgerMenu(e) {
+    const menu = document.getElementById('hamburgerMenu');
+    if (!menu) return;
+    const visible = menu.style.display !== 'none';
+    menu.style.display = visible ? 'none' : 'block';
+    if (!visible) {
+        // close on outside click
+        setTimeout(() => {
+            const onDoc = (ev) => { if (!document.getElementById('hamburgerBtn').contains(ev.target) && !menu.contains(ev.target)) { menu.style.display='none'; document.removeEventListener('click', onDoc); } };
+            document.addEventListener('click', onDoc);
+        }, 10);
+    }
+}
+
+// ensure menu closes on ESC
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') { const m=document.getElementById('hamburgerMenu'); if(m) m.style.display='none'; } });
+
+function renderReportTable(rows) {
+    const head = document.getElementById('reportHead');
+    const body = document.getElementById('reportBody');
+    head.innerHTML = ''; body.innerHTML = '';
+    if (!rows || rows.length === 0) {
+        head.innerHTML = '<tr><th>Brak danych</th></tr>';
+        return;
+    }
+    // Build columns from keys of first row
+    const keys = Object.keys(rows[0]);
+    const trh = document.createElement('tr');
+    keys.forEach(k => { const th = document.createElement('th'); th.innerText = k; trh.appendChild(th); });
+    head.appendChild(trh);
+
+    rows.forEach(r => {
+        const tr = document.createElement('tr');
+        keys.forEach(k => {
+            const td = document.createElement('td');
+            let v = r[k];
+            if (v === null || v === undefined) v = '';
+            td.innerText = (typeof v === 'object') ? JSON.stringify(v) : v;
+            tr.appendChild(td);
+        });
+        body.appendChild(tr);
+    });
 }
 
 async function apiCall(endpoint, data) {
@@ -618,12 +1054,100 @@ async function apiCall(endpoint, data) {
     }
 }
 
+function addDeliveryRow(nazwa = '', ilosc = '', komentarz = '') {
+    const container = document.getElementById('deliveryList');
+    const row = document.createElement('div');
+    row.className = 'delivery-row row items-center gap-8';
+    row.style.display = 'flex';
+
+    row.innerHTML = `
+        <input type="text" class="form-control del-name" placeholder="Nazwa surowca" list="surowceList" style="flex:1;" value="${nazwa}">
+        <input type="number" class="form-control del-qty" step="0.1" placeholder="Ilość (kg)" style="width:140px;" value="${ilosc}">
+        <input type="text" class="form-control del-note" placeholder="Komentarz (opcjonalnie)" style="flex:0.8;" value="${komentarz}">
+        <button type="button" class="btn btn-ghost" onclick="this.parentNode.remove()">Usuń</button>
+    `;
+    container.appendChild(row);
+}
+
+function clearDeliveryList() {
+    const container = document.getElementById('deliveryList');
+    container.innerHTML = '';
+}
+
+async function openEditDeliveryModal(rId) {
+    // find row data embedded in table
+    const tr = document.querySelector('[data-ruch-id="' + rId + '"]');
+    if (!tr) return alert('Nie znaleziono dostawy.');
+    const n = tr.getAttribute('data-nazwa') || '';
+    const q = tr.getAttribute('data-ilosc') || '';
+    const note = tr.getAttribute('data-komentarz') || '';
+
+    document.getElementById('del_edit_id').value = rId;
+    document.getElementById('modalDeliveryTitle').innerText = 'Edytuj Dostawę';
+    document.getElementById('modalDeliverySubmit').innerText = 'Zapisz zmiany';
+    clearDeliveryList();
+    addDeliveryRow(n, q, note);
+    openModal('modalDelivery');
+}
+
+function deleteDelivery(rId) {
+    if (!confirm('Na pewno usunąć tę dostawę?')) return;
+    fetch('/agro/api/delivery', {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ ruch_id: rId })
+    }).then(r => r.json()).then(res => {
+        if (res.success) location.reload();
+        else alert('Błąd: ' + (res.error || 'Nieznany'));
+    }).catch(e => { console.error(e); alert('Błąd połączenia'); });
+}
+
 function submitDelivery() {
-    const nameVal = document.getElementById('del_nazwa').value;
-    const qtyVal = document.getElementById('del_ilosc').value;
-    const noteVal = document.getElementById('del_komentarz').value;
-    if (!nameVal || !qtyVal) return alert("Wypełnij wszystkie pola!");
-    apiCall('/agro/api/delivery', { nazwa: nameVal, ilosc: qtyVal, komentarz: noteVal, linia: '{{ linia }}' });
+    const editId = document.getElementById('del_edit_id').value;
+    const rows = document.querySelectorAll('.delivery-row');
+    if (editId) {
+        // editing single pending delivery
+        if (rows.length === 0) return alert('Brak danych do zapisania');
+        const first = rows[0];
+        const nameVal = first.querySelector('.del-name').value.trim();
+        let qtyVal = first.querySelector('.del-qty').value;
+        qtyVal = qtyVal.toString().replace(',', '.');
+        const qtyNum = parseFloat(qtyVal);
+        if (!nameVal || !isFinite(qtyNum)) return alert('Wypełnij wszystkie pola prawidłowymi wartościami!');
+        const noteVal = first.querySelector('.del-note').value.trim();
+        if (!nameVal || !qtyVal) return alert('Wypełnij wszystkie pola!');
+        fetch('/agro/api/delivery', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ruch_id: editId, nazwa: nameVal, ilosc: qtyNum, komentarz: noteVal })
+        }).then(r => r.json()).then(res => {
+            if (res.success) location.reload();
+            else alert('Błąd: ' + (res.error || 'Nieznany'));
+        }).catch(e => { console.error(e); alert('Błąd połączenia'); });
+    } else {
+        // creating new delivery — collect all rows
+        const items = [];
+        rows.forEach(r => {
+            const nameVal = r.querySelector('.del-name').value.trim();
+            let qtyVal = r.querySelector('.del-qty').value;
+            qtyVal = qtyVal.toString().replace(',', '.');
+            const qtyNum = parseFloat(qtyVal);
+            const noteVal = r.querySelector('.del-note').value.trim();
+            if (nameVal && isFinite(qtyNum) && qtyNum > 0) items.push({ nazwa: nameVal, ilosc: qtyNum, komentarz: noteVal });
+        });
+        if (items.length === 0) return alert('Dodaj przynajmniej jedną paletę z prawidłowymi danymi');
+        apiCall('/agro/api/delivery', { items: items, linia: '{{ linia }}' });
+    }
+}
+
+function openCreateDeliveryModal() {
+    document.getElementById('del_edit_id').value = '';
+    document.getElementById('modalDeliveryTitle').innerText = 'Przyjęcie Dostawy (Nowa Paleta)';
+    document.getElementById('modalDeliverySubmit').innerText = 'Zgłoś Dostawę';
+    clearDeliveryList();
+    // prefill with 20 empty rows for pallet entries
+    for (let i = 0; i < 20; i++) addDeliveryRow();
+    openModal('modalDelivery');
 }
 
 async function openConfirmModal(ruch_id, nazwa, ilosc) {
@@ -741,21 +1265,67 @@ function confirmQrManual() {
 }
 
 // Inventory data for JS (for usage select rebuild)
-window._inventory = [
+// Inventory data for JS (grouped: each entry has `nazwa`, `total` and `pallets` array FIFO-ordered)
+window._inventory_groups = [
     {% for s in inventory %}
-    { id: {{ s.id }}, nazwa: {{ s.nazwa|tojson }}, lokalizacja: {{ (s.lokalizacja or '')|tojson }}, stan: {{ s.stan_magazynowy }} }{% if not loop.last %},{% endif %}
+    {
+        nazwa: {{ s.nazwa|tojson }},
+        total: {{ s.total }},
+        pallets: [
+            {% for p in s.pallets %}
+            { id: {{ p.id }}, nazwa: {{ p.nazwa|tojson }}, lokalizacja: {{ (p.lokalizacja or '')|tojson }}, stan: {{ p.stan_magazynowy or p.stan or 0 }} }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ]
+    }{% if not loop.last %},{% endif %}
     {% endfor %}
 ];
-// Populate usage select on page load
+
+// Flat list of pallets (legacy handlers expect flat inventory with id/stan)
+window._inventory = [];
+window._inventory_groups.forEach(function(g){
+    g.pallets.forEach(function(p){
+        const copy = Object.assign({}, p);
+        copy.parent_nazwa = g.nazwa;
+        // normalize property expected by old code
+        if (typeof copy.stan === 'undefined') copy.stan = 0;
+        window._inventory.push(copy);
+    });
+});
+
+// Helper: get first (FIFO) pallet id for a given group name
+function getFirstPalletIdForGroup(nazwa){
+    const g = window._inventory_groups.find(x => x.nazwa === nazwa);
+    if (!g || !g.pallets || g.pallets.length === 0) return null;
+    return g.pallets[0].id;
+}
+
+// Populate usage select on page load with flat pallets (value = pallet id)
 (function() {
     const sel = document.getElementById('usage_surowiec_id');
+    if (!sel) return;
     window._inventory.forEach(function(s) {
         const o = document.createElement('option');
         o.value = s.id;
-        o.textContent = s.nazwa + ' - ' + (s.lokalizacja || 'Brak') + ' (' + s.stan + ' kg)';
+        o.textContent = s.parent_nazwa + ' - ' + (s.lokalizacja || 'Brak') + ' (' + s.stan + ' kg)';
         sel.appendChild(o);
     });
 })();
+
+// Populate inventory modal select as well
+(function() {
+    const sel = document.getElementById('inv_surowiec_id');
+    if (!sel) return;
+    window._inventory.forEach(function(s) {
+        const o = document.createElement('option');
+        o.value = s.id;
+        o.textContent = s.parent_nazwa + ' - ' + (s.lokalizacja || 'Brak') + ' (' + s.stan + ' kg)';
+        sel.appendChild(o);
+    });
+})();
+
+// Current running production plan id provided by server (or null)
+// Current running plan info (id + name) provided by server or fetched dynamically
+window._current_plan = { id: {{ current_plan_id if current_plan_id is not none else 'null' }}, name: {{ current_plan_name|tojson if current_plan_name is not none else 'null' }} };
 
 function submitInventory() {
     const sId = document.getElementById('inv_surowiec_id').value;

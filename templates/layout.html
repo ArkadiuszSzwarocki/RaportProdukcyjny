@@ -435,6 +435,9 @@
                 <a href="{{ url_for('agro_warehouse.index', linia='AGRO') }}"
                     class="nav-item {% if request.blueprint == 'agro_warehouse' %}active{% endif %}">📔 <span
                         class="text-capitalize">Surowce Agro</span></a>
+                <a href="{{ url_for('agro_warehouse.opakowania', linia='AGRO') }}"
+                    class="nav-item {% if request.path.startswith('/agro/magazyn/opakowania') %}active{% endif %}">🧾 <span
+                        class="text-capitalize">Opakowania Agro</span></a>
                 {% endif %}
 
                 <div class="nav-divider"></div>

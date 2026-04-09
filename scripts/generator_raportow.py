@@ -32,7 +32,13 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
     
     # Awarie: spróbuj pobrać szczegółowe kolumny, ale jeśli ich nie ma w schemacie, użyj prostszego SELECT
     try:
-        df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem, start_czas, stop_czas, minuty FROM dziennik_zmiany WHERE data_wpisu = %s AND linia = %s", conn, params=(data_raportu, linia))
+        # db schema uses `czas_start`/`czas_stop` and we compute `minuty` dynamically
+        df_awarie = pd.read_sql(
+            "SELECT sekcja, kategoria, problem, czas_start AS start_czas, czas_stop AS stop_czas, "
+            "TIMESTAMPDIFF(MINUTE, czas_start, czas_stop) AS minuty "
+            "FROM dziennik_zmiany WHERE data_wpisu = %s AND linia = %s",
+            conn, params=(data_raportu, linia)
+        )
     except Exception:
         df_awarie = pd.read_sql("SELECT sekcja, kategoria, problem FROM dziennik_zmiany WHERE data_wpisu = %s AND linia = %s", conn, params=(data_raportu, linia))
     logger.info(f"[GENERATOR] Issues data: {len(df_awarie)} rows")

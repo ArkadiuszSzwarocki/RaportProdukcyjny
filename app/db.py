@@ -38,6 +38,8 @@ def get_table_name(base_table, linia='PSD'):
             return 'bufor_agro'
         elif base_table == 'magazyn_surowce':
             return 'magazyn_agro_surowce'
+        elif base_table == 'magazyn_opakowania':
+            return 'magazyn_agro_opakowania'
         elif base_table == 'magazyn_ruch':
             return 'magazyn_agro_ruch'
     # Default to base_table (PSD hall)
@@ -127,6 +129,28 @@ def _create_tables(cursor):
     """)
     
     cursor.execute("CREATE TABLE IF NOT EXISTS dziennik_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), problem TEXT, czas_start DATETIME, czas_stop DATETIME, status VARCHAR(30) DEFAULT 'zgłoszone', kategoria VARCHAR(50), pracownik_id INT)")
+    # Magazyn opakowań - struktura zgodna z magazyn_surowce
+    cursor.execute("CREATE TABLE IF NOT EXISTS magazyn_opakowania ("
+                   "id INT AUTO_INCREMENT PRIMARY KEY,"
+                   "nazwa VARCHAR(255) NOT NULL,"
+                   "stan_magazynowy FLOAT DEFAULT 0,"
+                   "lokalizacja VARCHAR(64) DEFAULT NULL,"
+                   "created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                   "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
+                   "INDEX idx_magazyn_opakowania_nazwa (nazwa(250)),"
+                   "INDEX idx_magazyn_opakowania_lokal (lokalizacja)"
+                   ")")
+    # Also create AGRO-specific table name to match get_table_name mapping
+    cursor.execute("CREATE TABLE IF NOT EXISTS magazyn_agro_opakowania ("
+                   "id INT AUTO_INCREMENT PRIMARY KEY,"
+                   "nazwa VARCHAR(255) NOT NULL,"
+                   "stan_magazynowy FLOAT DEFAULT 0,"
+                   "lokalizacja VARCHAR(64) DEFAULT NULL,"
+                   "created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                   "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
+                   "INDEX idx_magazyn_agro_opakowania_nazwa (nazwa(250)),"
+                   "INDEX idx_magazyn_agro_opakowania_lokal (lokalizacja)"
+                   ")")
     cursor.execute("CREATE TABLE IF NOT EXISTS obsada_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), pracownik_id INT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
     cursor.execute("CREATE TABLE IF NOT EXISTS obsada_liderzy (data_wpisu DATE PRIMARY KEY, lider_psd_id INT NULL, lider_agro_id INT NULL, FOREIGN KEY (lider_psd_id) REFERENCES pracownicy(id) ON DELETE SET NULL, FOREIGN KEY (lider_agro_id) REFERENCES pracownicy(id) ON DELETE SET NULL)")
     cursor.execute("CREATE TABLE IF NOT EXISTS obecnosc (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, pracownik_id INT, typ VARCHAR(50), ilosc_godzin FLOAT DEFAULT 0, komentarz TEXT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")

@@ -9,9 +9,131 @@ class AgroWarehouseService:
         try:
             cursor = conn.cursor(dictionary=True)
             # Show individual pallets/spots for warehouse precision
-            cursor.execute(f"SELECT * FROM {table_surowce} WHERE stan_magazynowy > 0 ORDER BY nazwa, lokalizacja")
+            cursor.execute(f"SELECT * FROM {table_surowce} WHERE stan_magazynowy > 0 ORDER BY nazwa, id")
             res = cursor.fetchall()
             return res
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_packaging_inventory(linia='Agro'):
+        """Return packaging inventory rows from magazyn_opakowania."""
+        table_opak = get_table_name('magazyn_opakowania', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(f"SELECT * FROM {table_opak} ORDER BY nazwa, id")
+            return cursor.fetchall()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def create_packaging(nazwa, ilosc, lokalizacja=None, linia='Agro'):
+        table_opak = get_table_name('magazyn_opakowania', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"INSERT INTO {table_opak} (nazwa, stan_magazynowy, lokalizacja) VALUES (%s, %s, %s)", (nazwa, ilosc, lokalizacja))
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
+
+    @staticmethod
+    def edit_packaging(record_id, nazwa=None, ilosc=None, lokalizacja=None, linia='Agro'):
+        table_opak = get_table_name('magazyn_opakowania', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            updates = []
+            params = []
+            if nazwa is not None:
+                updates.append('nazwa = %s')
+                params.append(nazwa)
+            if ilosc is not None:
+                updates.append('stan_magazynowy = %s')
+                params.append(ilosc)
+            if lokalizacja is not None:
+                updates.append('lokalizacja = %s')
+                params.append(lokalizacja)
+            if not updates:
+                return True
+            params.append(record_id)
+            q = f"UPDATE {table_opak} SET " + ', '.join(updates) + " WHERE id = %s"
+            cursor.execute(q, tuple(params))
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
+    @staticmethod
+    def delete_packaging(record_id, linia='Agro'):
+        table_opak = get_table_name('magazyn_opakowania', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"DELETE FROM {table_opak} WHERE id = %s", (record_id,))
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
+    @staticmethod
+    def adjust_packaging_inventory(record_id, actual_qty, worker_login=None, linia='Agro'):
+        table_opak = get_table_name('magazyn_opakowania', linia)
+        # We will reuse magazyn_ruch for audit if available
+        table_ruch = get_table_name('magazyn_ruch', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT stan_magazynowy FROM {table_opak} WHERE id = %s", (record_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            old_qty = row[0]
+            delta = actual_qty - old_qty
+            cursor.execute(f"UPDATE {table_opak} SET stan_magazynowy = %s WHERE id = %s", (actual_qty, record_id))
+            try:
+                cursor.execute(
+                    f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) VALUES (%s, 'INWENTARYZACJA', %s, %s, 'POTWIERDZONE', %s, %s, %s)",
+                    (record_id, delta, actual_qty, worker_login, datetime.now(), 'Inwentaryzacja opakowania')
+                )
+            except Exception:
+                # If ruch table missing or insert fails, ignore audit
+                pass
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_inventory_grouped(linia='Agro'):
+        """Return inventory grouped by material name. Each group contains total quantity and list of pallets ordered by FIFO (id asc)."""
+        table_surowce = get_table_name('magazyn_surowce', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            # get distinct materials with total quantity
+            cursor.execute(f"SELECT nazwa, SUM(stan_magazynowy) as total FROM {table_surowce} WHERE stan_magazynowy > 0 GROUP BY nazwa ORDER BY nazwa")
+            groups = cursor.fetchall()
+            result = []
+            for g in groups:
+                name = g['nazwa']
+                total = float(g['total']) if g.get('total') is not None else 0.0
+                # fetch individual pallets for this material ordered by id (FIFO)
+                cursor.execute(f"SELECT id, nazwa, stan_magazynowy, lokalizacja FROM {table_surowce} WHERE nazwa = %s AND stan_magazynowy > 0 ORDER BY id ASC", (name,))
+                pallets = cursor.fetchall()
+                # normalize pallet rows
+                pallets_norm = []
+                for p in pallets:
+                    pallets_norm.append({
+                        'id': p['id'],
+                        'nazwa': p.get('nazwa'),
+                        'stan_magazynowy': float(p.get('stan_magazynowy') or 0),
+                        'lokalizacja': p.get('lokalizacja')
+                    })
+                result.append({ 'nazwa': name, 'total': total, 'pallets': pallets_norm })
+            return result
         finally:
             conn.close()
 
@@ -43,6 +165,57 @@ class AgroWarehouseService:
                 (nazwa, ilosc, author_login, datetime.now(), komentarz)
             )
             
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
+    @staticmethod
+    def edit_delivery(ruch_id, nazwa=None, ilosc=None, komentarz=None):
+        table_ruch = get_table_name('magazyn_ruch', 'Agro')
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            # only allow editing pending deliveries
+            cursor.execute(f"SELECT typ_ruchu, status FROM {table_ruch} WHERE id = %s", (ruch_id,))
+            row = cursor.fetchone()
+            if not row or row[0] != 'PRZYJECIE' or row[1] != 'OCZEKUJACE':
+                return False
+
+            updates = []
+            params = []
+            if nazwa is not None:
+                updates.append('surowiec_nazwa = %s')
+                params.append(nazwa)
+            if ilosc is not None:
+                updates.append('ilosc = %s')
+                params.append(ilosc)
+            if komentarz is not None:
+                updates.append('komentarz = %s')
+                params.append(komentarz)
+
+            if not updates:
+                return True
+
+            q = f"UPDATE {table_ruch} SET " + ', '.join(updates) + " WHERE id = %s"
+            params.append(ruch_id)
+            cursor.execute(q, tuple(params))
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
+    @staticmethod
+    def delete_delivery(ruch_id):
+        table_ruch = get_table_name('magazyn_ruch', 'Agro')
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT typ_ruchu, status FROM {table_ruch} WHERE id = %s", (ruch_id,))
+            row = cursor.fetchone()
+            if not row or row[0] != 'PRZYJECIE' or row[1] != 'OCZEKUJACE':
+                return False
+            cursor.execute(f"DELETE FROM {table_ruch} WHERE id = %s", (ruch_id,))
             conn.commit()
             return True
         finally:
@@ -246,6 +419,34 @@ class AgroWarehouseService:
             conn.close()
 
     @staticmethod
+    def rename_pallet(surowiec_id, new_name, worker_login, linia='Agro'):
+        table_surowce = get_table_name('magazyn_surowce', linia)
+        table_ruch = get_table_name('magazyn_ruch', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            # get current qty
+            cursor.execute(f"SELECT stan_magazynowy FROM {table_surowce} WHERE id = %s", (surowiec_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            stan = row[0]
+
+            # update name
+            cursor.execute(f"UPDATE {table_surowce} SET nazwa = %s WHERE id = %s", (new_name, surowiec_id))
+
+            # insert history record for audit
+            cursor.execute(
+                f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, komentarz) "
+                "VALUES (%s, 'KOREKTA', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s)",
+                (surowiec_id, 0, stan, worker_login, datetime.now(), worker_login, datetime.now(), f'Zmiana nazwy na: {new_name}')
+            )
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_history(limit=100, status=None, linia='Agro', data=None, plan_id=None):
         """Return movement history with optional filters.
 
@@ -258,9 +459,18 @@ class AgroWarehouseService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
+            # Join plan table to include plan name when plan_id is present
+            try:
+                table_plan = get_table_name('plan_produkcji', linia)
+                plan_join = f" LEFT JOIN {table_plan} p ON r.plan_id = p.id "
+                plan_select = ", p.produkt as plan_name"
+            except Exception:
+                plan_join = ""
+                plan_select = ", NULL as plan_name"
+
             q = (
-                f"SELECT r.*, COALESCE(s.nazwa, r.surowiec_nazwa) as surowiec_nazwa "
-                f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id "
+                f"SELECT r.*, COALESCE(s.nazwa, r.surowiec_nazwa) as surowiec_nazwa{plan_select} "
+                f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id {plan_join} "
                 "WHERE 1=1 "
             )
             params = []
@@ -276,6 +486,122 @@ class AgroWarehouseService:
                     q += " AND r.plan_id = %s "
                 except (ValueError, TypeError):
                     pass
+            q += " ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
+            params.append(limit)
+            cursor.execute(q, tuple(params))
+            return cursor.fetchall()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_production_moves(limit=100, linia='Agro'):
+        table_surowce = get_table_name('magazyn_surowce', linia)
+        table_ruch = get_table_name('magazyn_ruch', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            # include plan name via join if available
+            try:
+                table_plan = get_table_name('plan_produkcji', linia)
+                plan_join = f" LEFT JOIN {table_plan} p ON r.plan_id = p.id "
+                plan_select = ", p.produkt as plan_name"
+            except Exception:
+                plan_join = ""
+                plan_select = ", NULL as plan_name"
+
+            q = (
+                f"SELECT r.*, COALESCE(s.nazwa, r.surowiec_nazwa) as surowiec_nazwa, s.lokalizacja as lokalizacja{plan_select} "
+                f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id {plan_join} "
+                "WHERE r.typ_ruchu = 'PRODUKCJA' "
+                "ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
+            )
+            cursor.execute(q, (limit,))
+            return cursor.fetchall()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_current_running_plan(linia='Agro'):
+        """Return current running production plan info for given line or None.
+
+        Returns dict: {'id': <int>, 'produkt': <str>} or None.
+        """
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            try:
+                table_plan = get_table_name('plan_produkcji', linia)
+            except Exception:
+                table_plan = get_table_name('plan_produkcji', None)
+            cursor.execute(f"SELECT id, produkt FROM {table_plan} WHERE status='w toku' ORDER BY real_start DESC LIMIT 1")
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return { 'id': int(row[0]), 'produkt': row[1] }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_warehouse_entries(limit=1000, linia='Agro', date_from=None, date_to=None):
+        table_surowce = get_table_name('magazyn_surowce', linia)
+        table_ruch = get_table_name('magazyn_ruch', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                table_plan = get_table_name('plan_produkcji', linia)
+                plan_join = f" LEFT JOIN {table_plan} p ON r.plan_id = p.id "
+                plan_select = ", p.produkt as plan_name"
+            except Exception:
+                plan_join = ""
+                plan_select = ", NULL as plan_name"
+
+            q = (
+                f"SELECT r.*, COALESCE(s.nazwa, r.surowiec_nazwa) as surowiec_nazwa, s.lokalizacja as obecna_lokalizacja{plan_select} "
+                f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id {plan_join} "
+                "WHERE r.typ_ruchu = 'PRZYJECIE' AND r.status = 'POTWIERDZONE' "
+            )
+            params = []
+            if date_from:
+                q += " AND DATE(r.autor_data) >= %s "
+                params.append(date_from)
+            if date_to:
+                q += " AND DATE(r.autor_data) <= %s "
+                params.append(date_to)
+            q += " ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
+            params.append(limit)
+            cursor.execute(q, tuple(params))
+            return cursor.fetchall()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_combined_report(limit=2000, linia='Agro', date_from=None, date_to=None):
+        table_surowce = get_table_name('magazyn_surowce', linia)
+        table_ruch = get_table_name('magazyn_ruch', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                table_plan = get_table_name('plan_produkcji', linia)
+                plan_join = f" LEFT JOIN {table_plan} p ON r.plan_id = p.id "
+                plan_select = ", p.produkt as plan_name"
+            except Exception:
+                plan_join = ""
+                plan_select = ", NULL as plan_name"
+
+            q = (
+                f"SELECT r.*, COALESCE(s.nazwa, r.surowiec_nazwa) as surowiec_nazwa, s.lokalizacja as obecna_lokalizacja{plan_select} "
+                f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id {plan_join} "
+                "WHERE r.typ_ruchu IN ('PRZYJECIE','PRODUKCJA','WYDANIE_ZEW','INWENTARYZACJA','KOREKTA') "
+            )
+            params = []
+            if date_from:
+                q += " AND DATE(r.autor_data) >= %s "
+                params.append(date_from)
+            if date_to:
+                q += " AND DATE(r.autor_data) <= %s "
+                params.append(date_to)
             q += " ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
             params.append(limit)
             cursor.execute(q, tuple(params))

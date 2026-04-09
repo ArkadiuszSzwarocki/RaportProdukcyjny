@@ -18,7 +18,7 @@ def bezpieczny_powrot():
     """Return to appropriate view based on user role."""
     role = session.get('rola', '')
     if role in ['lider', 'produkcja']:
-        return url_for('panels.bufor_page')
+        return url_for('planista.bufor_page')
     elif role == 'planista':
         return url_for('planista.panel_planisty', data=str(date.today()))
     elif role == 'admin':
