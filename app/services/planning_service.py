@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, timedelta
 import traceback
-from app.db import get_db_connection, get_table_name
+from app.db import get_db_connection, get_table_name, refresh_bufor_queue
 from flask import current_app, request, session
 import logging
 
@@ -553,25 +553,24 @@ class PlanningService:
             )
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] UPDATE {table_plan} rowcount: {cursor.rowcount}')
             
-            # NOW HANDLE BUFFER ENTRIES
-            # Look for all active buffer entries by zasyp_id (no date restriction —
-            # carry-over buffers may be on a different date than the plan itself)
-            current_app.logger.debug(f'[SERVICE-RESCHEDULE] === BUFFER LOOKUP === Checking for buffer entries: zasyp_id={plan_id}')
-            cursor.execute("""
+            # NOW HANDLE BUFFER ENTRIES (use line-specific table name)
+            table_bufor = get_table_name('bufor', linia)
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] === BUFFER LOOKUP === Checking for buffer entries: zasyp_id={plan_id} table={table_bufor}')
+            cursor.execute(f"""
                 SELECT id, tonaz_rzeczywisty, spakowano, produkt, typ_produkcji
-                FROM bufor
+                FROM {table_bufor}
                 WHERE zasyp_id=%s AND status='aktywny'
             """, (plan_id,))
-            
+
             buffer_entries = cursor.fetchall()
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] === BUFFER RESULT === Found {len(buffer_entries)} buffer entries')
             
             if buffer_entries:
                 current_app.logger.debug(f'[SERVICE-RESCHEDULE] Found buffer entries! Moving them...')
                 
-                # Get max kolejka for target date in buffer
+                # Get max kolejka for target date in buffer (line-specific table)
                 cursor.execute(
-                    "SELECT MAX(kolejka) FROM bufor WHERE data_planu=%s",
+                    f"SELECT MAX(kolejka) FROM {table_bufor} WHERE data_planu=%s",
                     (nowa_data_str,)
                 )
                 max_buf_seq = cursor.fetchone()
@@ -587,9 +586,9 @@ class PlanningService:
                     
                     current_app.logger.debug(f'[SERVICE-RESCHEDULE] Moving buffer entry {buf_id}: {produkt_buf} ({tonaz_rz}kg) spakowano={spakowano}...')
                     
-                    # Update buffer entry with new date and new kolejka
-                    cursor.execute("""
-                        UPDATE bufor
+                    # Update buffer entry with new date and new kolejka (line-specific table)
+                    cursor.execute(f"""
+                        UPDATE {table_bufor}
                         SET data_planu=%s, kolejka=%s
                         WHERE id=%s
                     """, (nowa_data_str, next_buf_kolejka, buf_id))
@@ -607,6 +606,13 @@ class PlanningService:
             # Commit ALL changes
             conn.commit()
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] COMMIT done')
+
+            # Refresh buffer queue for the line so kolejki zostaną przemianowane/renumerowane
+            try:
+                refresh_bufor_queue(conn, linia=linia)
+            except Exception as rb_err:
+                current_app.logger.warning(f'[SERVICE-RESCHEDULE] refresh_bufor_queue failed: {rb_err}')
+
             conn.close()
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] SUCCESS - Plan moved successfully\n')
             
