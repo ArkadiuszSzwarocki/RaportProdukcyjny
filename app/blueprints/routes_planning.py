@@ -1155,6 +1155,7 @@ def przesun_zlecenie_ajax():
     except Exception:
         return jsonify({'success': False, 'message': 'Nieprawidłowe id'}), 400
 
+    linia = data.get('linia') or request.args.get('linia') or 'PSD'
     success, message = PlanMovementService.shift_plan_order(pid, kierunek, linia=linia)
     
     if success:

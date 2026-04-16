@@ -3,7 +3,7 @@
 import os
 import logging
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
-from flask import render_template, flash, request
+from flask import render_template, flash, request, jsonify
 
 
 class NoiseFilter(logging.Filter):
@@ -219,11 +219,28 @@ def register_error_handlers(app):
             # Log structured header for easier parsing in Error Trap view
             app.logger.error(f"[TRAP_HEADER] URL: {path} | ACTION: {action}")
             app.logger.exception('Unhandled exception on %s %s: %s', request.method, request.path, error_msg)
-            
-            flash(f'❌ Błąd: {str(error)}', 'danger')
         except Exception as e:
             app.logger.exception('Error in error handler: %s', e)
         
+        # Return JSON for AJAX/API requests, HTML for normal page requests
+        try:
+            is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+            is_api = request.path.startswith('/api/')
+            content_json = (request.content_type or '').startswith('application/json')
+        except Exception:
+            is_xhr = False
+            accepts_json = False
+            is_api = False
+            content_json = False
+
+        if is_xhr or accepts_json or is_api or content_json:
+            return jsonify({'success': False, 'message': f'Błąd serwera: {str(error)}'}), 500
+
+        try:
+            flash(f'❌ Błąd: {str(error)}', 'danger')
+        except Exception:
+            pass
         # Return 500 error page
         response = render_template('500.html')
         return response, 500

@@ -409,19 +409,23 @@
         if (resp.ok) {
             return resp.json().catch(function(){ throw new Error('Nieprawidłowa odpowiedź JSON'); });
         }
-        // Try JSON error first
-        return resp.clone().json().then(function(j){
-            var m = (j && j.message) ? j.message : JSON.stringify(j);
-            throw new Error(m);
-        }).catch(function(){
-            return resp.text().then(function(t){
-                // Strip HTML tags and excessive whitespace
-                var s = t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-                if (!s) s = 'Błąd serwera';
-                if (s.length > 800) s = s.slice(0,800) + '...';
-                throw new Error(s);
-            });
-        });
+        // Try JSON error first; use second arg of .then() so intentional throw is not caught
+        return resp.clone().json().then(
+            function(j){
+                var m = (j && j.message) ? j.message : JSON.stringify(j);
+                throw new Error(m);
+            },
+            function(){
+                // JSON parse failed — fallback to text
+                return resp.text().then(function(t){
+                    // Strip HTML tags and excessive whitespace
+                    var s = t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                    if (!s) s = 'Błąd serwera';
+                    if (s.length > 800) s = s.slice(0,800) + '...';
+                    throw new Error(s);
+                });
+            }
+        );
     }
 
     function toggleDetails(id) { var row = document.getElementById('details-' + id); row.classList.toggle('hidden'); }
@@ -496,7 +500,7 @@
             safeAlert('Uwaga', 'Wybierz datę');
             return;
         }
-        fetch('/planista/przenies_zlecenie/' + id, {
+        fetch('/api/przenies_zlecenie/' + id, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: 'nowa_data=' + encodeURIComponent(newDate),

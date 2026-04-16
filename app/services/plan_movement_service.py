@@ -1,7 +1,7 @@
 """Production plan movement service for moving and shifting orders."""
 
 from datetime import date
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 from flask import current_app
 
 

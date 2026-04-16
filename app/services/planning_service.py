@@ -84,12 +84,19 @@ class PlanningService:
             nk = (res[0] if res and res[0] else 0) + 1
             
             # Insert new plan (include optional fields if provided)
-            # Make sure to support the 'linia' column if it exists in DB, or fallback
-            cursor.execute(f"""
-                INSERT INTO {table_plan} 
-                (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id, linia)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0, nazwa_zlecenia or '', typ_zlecenia or '', zasyp_id, linia))
+            # bufor_agro and plan_produkcji_agro don't have 'linia' column
+            if str(linia).upper() == 'AGRO':
+                cursor.execute(f"""
+                    INSERT INTO {table_plan} 
+                    (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0, nazwa_zlecenia or '', typ_zlecenia or '', zasyp_id))
+            else:
+                cursor.execute(f"""
+                    INSERT INTO {table_plan} 
+                    (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, nazwa_zlecenia, typ_zlecenia, zasyp_id, linia)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (data_planu, produkt, tonaz, initial_status, sekcja, nk, typ_produkcji, 0, nazwa_zlecenia or '', typ_zlecenia or '', zasyp_id, linia))
             
             plan_id = cursor.lastrowid
             conn.commit()
@@ -948,11 +955,18 @@ class PlanningService:
 
                                 update_cursor.execute(f"SELECT COALESCE(MAX(kolejka), 0) FROM {table_bufor} WHERE data_planu = %s AND status = 'aktywny'", (next_data_str,))
                                 max_kol = update_cursor.fetchone()[0] or 0
-                                sql_ins = (
-                                    f"INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status, linia)"
-                                    " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny', %s) ON DUPLICATE KEY UPDATE id = id"
-                                )
-                                update_cursor.execute(sql_ins, (new_zasyp_id, next_data_str, produkt_for_new, f'carry-over z {current_data}', typ_for_new, work_plan_amount, max_kol + 1, linia))
+                                if str(linia).upper() == 'AGRO':
+                                    sql_ins = (
+                                        f"INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)"
+                                        " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny') ON DUPLICATE KEY UPDATE id = id"
+                                    )
+                                    update_cursor.execute(sql_ins, (new_zasyp_id, next_data_str, produkt_for_new, f'carry-over z {current_data}', typ_for_new, work_plan_amount, max_kol + 1))
+                                else:
+                                    sql_ins = (
+                                        f"INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status, linia)"
+                                        " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny', %s) ON DUPLICATE KEY UPDATE id = id"
+                                    )
+                                    update_cursor.execute(sql_ins, (new_zasyp_id, next_data_str, produkt_for_new, f'carry-over z {current_data}', typ_for_new, work_plan_amount, max_kol + 1, linia))
                                 inserted_bufor_id = update_cursor.lastrowid if hasattr(update_cursor, 'lastrowid') else None
                                 conn.commit()
                                 current_app.logger.info(f'[PRZENIES] Bufor entry inserted for {produkt_for_new} on {next_data_str} (kolejka {max_kol + 1}) pointing to Zasyp #{new_zasyp_id}')
@@ -1015,11 +1029,18 @@ class PlanningService:
 
                                 update_cursor.execute(f"SELECT COALESCE(MAX(kolejka), 0) FROM {table_bufor} WHERE data_planu = %s AND status = 'aktywny'", (next_data_str,))
                                 max_kol = update_cursor.fetchone()[0] or 0
-                                sql_ins2 = (
-                                    f"INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status, linia)"
-                                    " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny', %s) ON DUPLICATE KEY UPDATE id = id"
-                                )
-                                update_cursor.execute(sql_ins2, (new_zasyp2_id, next_data_str, produkt, f'carry-over z {current_data}', typ_prod, zasyp_remaining, max_kol + 1, linia))
+                                if str(linia).upper() == 'AGRO':
+                                    sql_ins2 = (
+                                        f"INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)"
+                                        " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny') ON DUPLICATE KEY UPDATE id = id"
+                                    )
+                                    update_cursor.execute(sql_ins2, (new_zasyp2_id, next_data_str, produkt, f'carry-over z {current_data}', typ_prod, zasyp_remaining, max_kol + 1))
+                                else:
+                                    sql_ins2 = (
+                                        f"INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status, linia)"
+                                        " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny', %s) ON DUPLICATE KEY UPDATE id = id"
+                                    )
+                                    update_cursor.execute(sql_ins2, (new_zasyp2_id, next_data_str, produkt, f'carry-over z {current_data}', typ_prod, zasyp_remaining, max_kol + 1, linia))
                                 conn.commit()
                                 current_app.logger.info(f'[PRZENIES] Bufor entry inserted for {produkt} on {next_data_str} (kolejka {max_kol + 1}) pointing to Zasyp #{new_zasyp2_id}')
 

@@ -24,7 +24,7 @@
                     stack: error ? error.stack : '',
                     href: window.location.href
                 };
-                fetch('/log_frontend_error', {
+                fetch('/api/log_frontend_error', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)

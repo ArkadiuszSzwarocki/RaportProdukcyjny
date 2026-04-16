@@ -610,45 +610,84 @@ def bufor_create_zlecenie():
     try:
         if use_buffer:
             # OPCJA 2: Czytaj bezpośrednio z bufora (niezależnie od statusu Zasypu)
-            cursor.execute(f"""
-                SELECT 
-                    zasyp_id,
-                    data_planu,
-                    produkt,
-                    COALESCE(tonaz_rzeczywisty, 0) as tonaz_rzeczywisty,
-                    typ_produkcji,
-                    COALESCE(nazwa_zlecenia, '') as nazwa_zlecenia,
-                    COALESCE(SUM(spakowano), 0) as spakowano,
-                    MAX(linia) as linia
-                FROM {table_bufor}
-                WHERE zasyp_id = %s
-                GROUP BY zasyp_id, data_planu, produkt, typ_produkcji, nazwa_zlecenia
-                LIMIT 1
-            """, (zasyp_id,))
-            zasyp_data = cursor.fetchone()
-            
-            if not zasyp_data:
-                conn.close()
-                return jsonify({'success': False, 'message': 'Nie znaleziono wpisu w buforze dla tego Zasypu'}), 404
-            
-            z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa, spakowano, z_linia = zasyp_data
+            if str(linia).upper() == 'AGRO':
+                cursor.execute(f"""
+                    SELECT 
+                        zasyp_id,
+                        data_planu,
+                        produkt,
+                        COALESCE(tonaz_rzeczywisty, 0) as tonaz_rzeczywisty,
+                        typ_produkcji,
+                        COALESCE(nazwa_zlecenia, '') as nazwa_zlecenia,
+                        COALESCE(SUM(spakowano), 0) as spakowano
+                    FROM {table_bufor}
+                    WHERE zasyp_id = %s
+                    GROUP BY zasyp_id, data_planu, produkt, typ_produkcji, nazwa_zlecenia
+                    LIMIT 1
+                """, (zasyp_id,))
+                zasyp_data = cursor.fetchone()
+                
+                if not zasyp_data:
+                    conn.close()
+                    return jsonify({'success': False, 'message': 'Nie znaleziono wpisu w buforze dla tego Zasypu'}), 404
+                
+                z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa, spakowano = zasyp_data
+                z_linia = 'AGRO'
+            else:
+                cursor.execute(f"""
+                    SELECT 
+                        zasyp_id,
+                        data_planu,
+                        produkt,
+                        COALESCE(tonaz_rzeczywisty, 0) as tonaz_rzeczywisty,
+                        typ_produkcji,
+                        COALESCE(nazwa_zlecenia, '') as nazwa_zlecenia,
+                        COALESCE(SUM(spakowano), 0) as spakowano,
+                        MAX(linia) as linia
+                    FROM {table_bufor}
+                    WHERE zasyp_id = %s
+                    GROUP BY zasyp_id, data_planu, produkt, typ_produkcji, nazwa_zlecenia
+                    LIMIT 1
+                """, (zasyp_id,))
+                zasyp_data = cursor.fetchone()
+                
+                if not zasyp_data:
+                    conn.close()
+                    return jsonify({'success': False, 'message': 'Nie znaleziono wpisu w buforze dla tego Zasypu'}), 404
+                
+                z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa, spakowano, z_linia = zasyp_data
             # Calculate remainder from buffer directly
             roznicza = (z_tonaz_rz or 0) - spakowano
         else:
             # OPCJA 1 (standardowa): Czytaj z Zasypu
             # Get Zasyp details (tonaz_rzeczywisty, date, product, type, linia)
-            cursor.execute(f"""
-                SELECT id, data_planu, produkt, tonaz_rzeczywisty, typ_produkcji, nazwa_zlecenia, linia
-                FROM {table_plan}
-                WHERE id = %s AND sekcja = 'Zasyp'
-            """, (zasyp_id,))
-            zasyp = cursor.fetchone()
-            
-            if not zasyp:
-                conn.close()
-                return jsonify({'success': False, 'message': 'Nie znaleziono Zasypu'}), 404
-            
-            z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa, z_linia = zasyp
+            if str(linia).upper() == 'AGRO':
+                cursor.execute(f"""
+                    SELECT id, data_planu, produkt, tonaz_rzeczywisty, typ_produkcji, nazwa_zlecenia
+                    FROM {table_plan}
+                    WHERE id = %s AND sekcja = 'Zasyp'
+                """, (zasyp_id,))
+                zasyp = cursor.fetchone()
+                
+                if not zasyp:
+                    conn.close()
+                    return jsonify({'success': False, 'message': 'Nie znaleziono Zasypu'}), 404
+                
+                z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa = zasyp
+                z_linia = 'AGRO'
+            else:
+                cursor.execute(f"""
+                    SELECT id, data_planu, produkt, tonaz_rzeczywisty, typ_produkcji, nazwa_zlecenia, linia
+                    FROM {table_plan}
+                    WHERE id = %s AND sekcja = 'Zasyp'
+                """, (zasyp_id,))
+                zasyp = cursor.fetchone()
+                
+                if not zasyp:
+                    conn.close()
+                    return jsonify({'success': False, 'message': 'Nie znaleziono Zasypu'}), 404
+                
+                z_id, z_data, z_produkt, z_tonaz_rz, z_typ, z_nazwa, z_linia = zasyp
             
             # Get how much was already packed (sum from bufor.spakowano)
             cursor.execute(f"""
@@ -710,26 +749,45 @@ def bufor_create_zlecenie():
                 res_max = cursor.fetchone()
                 nk_zasyp = (res_max[0] or 0) + 1
                 
-                cursor.execute(f"""
-                    INSERT INTO {table_plan} 
-                    (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, typ_zlecenia, linia, tonaz_rzeczywisty)
-                    VALUES (%s, %s, %s, 0, 'zakonczone', %s, %s, %s, 'carry_over_ghost', %s, 0)
-                """, (
-                    work_date, 'Zasyp', z_produkt, nk_zasyp, 
-                    z_typ or 'worki_zgrzewane_25', f"Carry-over {source_date_str}", z_linia
-                ))
+                if str(linia).upper() == 'AGRO':
+                    cursor.execute(f"""
+                        INSERT INTO {table_plan} 
+                        (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, typ_zlecenia, tonaz_rzeczywisty)
+                        VALUES (%s, %s, %s, 0, 'zakonczone', %s, %s, %s, 'carry_over_ghost', 0)
+                    """, (
+                        work_date, 'Zasyp', z_produkt, nk_zasyp, 
+                        z_typ or 'worki_zgrzewane_25', f"Carry-over {source_date_str}"
+                    ))
+                else:
+                    cursor.execute(f"""
+                        INSERT INTO {table_plan} 
+                        (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, typ_zlecenia, linia, tonaz_rzeczywisty)
+                        VALUES (%s, %s, %s, 0, 'zakonczone', %s, %s, %s, 'carry_over_ghost', %s, 0)
+                    """, (
+                        work_date, 'Zasyp', z_produkt, nk_zasyp, 
+                        z_typ or 'worki_zgrzewane_25', f"Carry-over {source_date_str}", z_linia
+                    ))
                 final_zasyp_id = cursor.lastrowid
                 
                 # Also create a NEW buffer entry for the new day so it's visible there
                 cursor.execute(f"SELECT COALESCE(MAX(kolejka),0) FROM {table_bufor} WHERE data_planu=%s", (work_date,))
                 max_kol = cursor.fetchone()[0] or 0
-                cursor.execute(f"""
-                    INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status, linia)
-                    VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny', %s)
-                """, (
-                    final_zasyp_id, work_date, z_produkt, f"Carry-over {source_date_str}", 
-                    z_typ or 'worki_zgrzewane_25', round(roznicza, 1), max_kol + 1, z_linia
-                ))
+                if str(linia).upper() == 'AGRO':
+                    cursor.execute(f"""
+                        INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)
+                        VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny')
+                    """, (
+                        final_zasyp_id, work_date, z_produkt, f"Carry-over {source_date_str}", 
+                        z_typ or 'worki_zgrzewane_25', round(roznicza, 1), max_kol + 1
+                    ))
+                else:
+                    cursor.execute(f"""
+                        INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status, linia)
+                        VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny', %s)
+                    """, (
+                        final_zasyp_id, work_date, z_produkt, f"Carry-over {source_date_str}", 
+                        z_typ or 'worki_zgrzewane_25', round(roznicza, 1), max_kol + 1, z_linia
+                    ))
 
         # Get next sequence number for Workowanie section (dla dnia Workowania)
         cursor.execute(f"""
@@ -741,22 +799,39 @@ def bufor_create_zlecenie():
         next_kolejnosc = (result[0] or 0) + 1 if result else 1
         
         # Create new Workowanie zlecenie with plan = roznicza
-        cursor.execute(f"""
-            INSERT INTO {table_plan} 
-            (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, zasyp_id, linia, tonaz_rzeczywisty)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
-        """, (
-            work_date,
-            'Workowanie',
-            z_produkt,
-            round(roznicza, 1),  # plan = różnica
-            'zaplanowane',
-            next_kolejnosc,
-            z_typ or 'worki_zgrzewane_25',
-            z_nazwa or '',
-            final_zasyp_id,  # Link to local Ghost Zasyp or original Zasyp
-            z_linia
-        ))
+        if str(linia).upper() == 'AGRO':
+            cursor.execute(f"""
+                INSERT INTO {table_plan} 
+                (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, zasyp_id, tonaz_rzeczywisty)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
+            """, (
+                work_date,
+                'Workowanie',
+                z_produkt,
+                round(roznicza, 1),  # plan = różnica
+                'zaplanowane',
+                next_kolejnosc,
+                z_typ or 'worki_zgrzewane_25',
+                z_nazwa or '',
+                final_zasyp_id,  # Link to local Ghost Zasyp or original Zasyp
+            ))
+        else:
+            cursor.execute(f"""
+                INSERT INTO {table_plan} 
+                (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, zasyp_id, linia, tonaz_rzeczywisty)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
+            """, (
+                work_date,
+                'Workowanie',
+                z_produkt,
+                round(roznicza, 1),  # plan = różnica
+                'zaplanowane',
+                next_kolejnosc,
+                z_typ or 'worki_zgrzewane_25',
+                z_nazwa or '',
+                final_zasyp_id,  # Link to local Ghost Zasyp or original Zasyp
+                z_linia
+            ))
         
         conn.commit()
         new_id = cursor.lastrowid
