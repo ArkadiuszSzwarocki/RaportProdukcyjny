@@ -1,0 +1,286 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div style="padding: 20px; max-width: 1200px; margin: 0 auto;">
+
+    {# ── Header ──────────────────────────────────── #}
+    <div class="row items-center justify-between mb-20 gap-12">
+        <div>
+            <a href="/agro/mom" class="btn btn-ghost btn-sm" style="margin-bottom:8px;">
+                <span class="material-icons" style="font-size:18px;">arrow_back</span> Lista MOM
+            </a>
+            <h1 class="header-title" style="margin:0; display:flex; align-items:center; gap:10px;">
+                <span class="material-icons" style="font-size:32px; color:var(--primary-color);">assignment</span>
+                MOM #{{ mom.id }} — {{ mom.produkt }}
+            </h1>
+        </div>
+        <div class="row gap-8">
+            {% if mom.status == 'otwarty' %}
+            <button class="btn btn-outline btn-sm" onclick="refreshMom()">
+                <span class="material-icons" style="font-size:16px;">refresh</span> Odśwież przesunięcia
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="closeMom()">
+                <span class="material-icons" style="font-size:16px;">lock</span> Zamknij MOM
+            </button>
+            {% else %}
+            {% if session.get('rola') in ['admin', 'lider'] %}
+            <button class="btn btn-outline btn-sm" onclick="reopenMom()">
+                <span class="material-icons" style="font-size:16px;">lock_open</span> Otwórz ponownie
+            </button>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Info card ────────────────────────────────── #}
+    <div class="card mb-20" style="padding: 16px;">
+        <div class="row gap-30 wrap">
+            <div>
+                <small class="text-muted">Zlecenie</small><br>
+                <strong>{{ mom.nazwa_zlecenia or '—' }}</strong>
+            </div>
+            <div>
+                <small class="text-muted">Data planu</small><br>
+                <strong>{{ mom.data_planu }}</strong>
+            </div>
+            <div>
+                <small class="text-muted">Tonaż planowany</small><br>
+                <strong>{{ mom.tonaz_planowany | round(1) }} kg</strong>
+            </div>
+            <div>
+                <small class="text-muted">Tonaż rzeczywisty</small><br>
+                <strong>{{ mom.tonaz_rzeczywisty | round(1) }} kg</strong>
+            </div>
+            <div>
+                <small class="text-muted">Status</small><br>
+                {% if mom.status == 'otwarty' %}
+                <span style="color:#e67e22; font-weight:600;">● Otwarty</span>
+                {% else %}
+                <span style="color:#27ae60; font-weight:600;">✓ Zamknięty</span>
+                ({{ mom.zamknal_login }}, {{ mom.data_zamkniecia }})
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ── Pozycje ──────────────────────────────────── #}
+    <div class="card" style="padding: 16px;">
+        <h3 style="margin:0 0 12px 0;">Pozycje rozliczenia</h3>
+
+        <form id="formUsage">
+        <div class="table-responsive">
+        <table class="table" id="momTable">
+            <thead>
+                <tr>
+                    <th>Surowiec</th>
+                    <th style="text-align:right;">Przesunięto z mag. (kg)</th>
+                    <th style="text-align:right;">Zużycie wpisane (kg)</th>
+                    <th style="text-align:right;">Różnica (kg)</th>
+                    <th>Komentarz</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in mom.pozycje %}
+                <tr>
+                    <td>
+                        <strong>{{ p.surowiec_nazwa }}</strong>
+                        <input type="hidden" name="items[{{ loop.index0 }}][surowiec_nazwa]" value="{{ p.surowiec_nazwa }}">
+                    </td>
+                    <td style="text-align:right; font-weight:600; color:#2980b9;">
+                        {{ p.przesunieto_kg | round(1) }}
+                    </td>
+                    <td style="text-align:right;">
+                        {% if mom.status == 'otwarty' %}
+                        <input type="number" step="0.1" min="0"
+                               name="items[{{ loop.index0 }}][zuzycie_kg]"
+                               value="{{ p.zuzycie_kg | round(1) }}"
+                               class="input-sm zuzycie-input"
+                               style="width:120px; text-align:right;"
+                               data-row="{{ loop.index0 }}">
+                        {% else %}
+                        {{ p.zuzycie_kg | round(1) }}
+                        {% endif %}
+                    </td>
+                    <td style="text-align:right; font-weight:600;"
+                        class="roznica-cell"
+                        data-przesunieto="{{ p.przesunieto_kg }}"
+                        data-row="{{ loop.index0 }}">
+                        {% set diff = p.zuzycie_kg - p.przesunieto_kg %}
+                        <span style="color:{{ '#e74c3c' if diff > 0 else ('#27ae60' if diff < 0 else '#333') }}">
+                            {{ diff | round(1) }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if mom.status == 'otwarty' %}
+                        <input type="text" name="items[{{ loop.index0 }}][komentarz]"
+                               value="{{ p.komentarz or '' }}"
+                               class="input-sm" style="width:100%;" placeholder="opcjonalny">
+                        {% else %}
+                        {{ p.komentarz or '—' }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" style="text-align:center; color:#999;">Brak pozycji — odśwież przesunięcia</td></tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:700; background:#f8f9fa;">
+                    <td>SUMA</td>
+                    <td style="text-align:right;" id="sumPrzesunieto">
+                        {{ mom.pozycje | sum(attribute='przesunieto_kg') | round(1) }}
+                    </td>
+                    <td style="text-align:right;" id="sumZuzycie">
+                        {{ mom.pozycje | sum(attribute='zuzycie_kg') | round(1) }}
+                    </td>
+                    <td style="text-align:right;" id="sumRoznica">
+                        {% set total_diff = mom.pozycje | sum(attribute='zuzycie_kg') - mom.pozycje | sum(attribute='przesunieto_kg') %}
+                        <span style="color:{{ '#e74c3c' if total_diff > 0 else ('#27ae60' if total_diff < 0 else '#333') }}">
+                            {{ total_diff | round(1) }}
+                        </span>
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+        </div>
+
+        {% if mom.status == 'otwarty' and mom.pozycje %}
+        <div style="margin-top: 16px; display:flex; gap:10px;">
+            <button type="button" class="btn btn-primary" onclick="saveUsage()">
+                <span class="material-icons" style="font-size:16px;">save</span> Zapisz zużycie
+            </button>
+        </div>
+        {% endif %}
+
+        {% if mom.status == 'otwarty' and not mom.pozycje %}
+        <div style="margin-top:16px; padding:16px; background:#fff3cd; border-radius:8px; border-left:3px solid #ffc107;">
+            <strong>Brak przesunięć</strong> — żaden surowiec nie został jeszcze przesunięty na produkcję pod to zlecenie.<br>
+            Użyj <em>„Pobierz na Produkcję"</em> w <a href="/agro/magazyn">Magazynie Agro</a> z wybranym zleceniem, a potem kliknij <em>„Odśwież przesunięcia"</em>.
+        </div>
+        {% endif %}
+        </form>
+    </div>
+
+    {# ── Uwagi MOM ────────────────────────────────── #}
+    {% if mom.uwagi %}
+    <div class="card mt-20" style="padding:16px;">
+        <h4 style="margin:0 0 8px;">Uwagi</h4>
+        <p>{{ mom.uwagi }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+const MOM_ID = {{ mom.id }};
+const IS_OPEN = {{ 'true' if mom.status == 'otwarty' else 'false' }};
+
+/* Live recalculate differences */
+document.querySelectorAll('.zuzycie-input').forEach(inp => {
+    inp.addEventListener('input', function() {
+        const row = this.dataset.row;
+        const cell = document.querySelector(`.roznica-cell[data-row="${row}"]`);
+        const przesunieto = parseFloat(cell.dataset.przesunieto) || 0;
+        const zuzycie = parseFloat(this.value) || 0;
+        const diff = zuzycie - przesunieto;
+        const color = diff > 0 ? '#e74c3c' : (diff < 0 ? '#27ae60' : '#333');
+        cell.innerHTML = `<span style="color:${color}">${diff.toFixed(1)}</span>`;
+        recalcSums();
+    });
+});
+
+function recalcSums() {
+    let sumZ = 0, sumP = 0;
+    document.querySelectorAll('.zuzycie-input').forEach(inp => { sumZ += parseFloat(inp.value) || 0; });
+    document.querySelectorAll('.roznica-cell').forEach(cell => { sumP += parseFloat(cell.dataset.przesunieto) || 0; });
+    const sumD = sumZ - sumP;
+    const el = document.getElementById('sumZuzycie');
+    if (el) el.textContent = sumZ.toFixed(1);
+    const elR = document.getElementById('sumRoznica');
+    if (elR) {
+        const color = sumD > 0 ? '#e74c3c' : (sumD < 0 ? '#27ae60' : '#333');
+        elR.innerHTML = `<span style="color:${color}">${sumD.toFixed(1)}</span>`;
+    }
+}
+
+function collectItems() {
+    const items = [];
+    document.querySelectorAll('#momTable tbody tr').forEach(tr => {
+        const nazwaEl = tr.querySelector('input[name*="surowiec_nazwa"]');
+        const zuzycieEl = tr.querySelector('input[name*="zuzycie_kg"]');
+        const komEl = tr.querySelector('input[name*="komentarz"]');
+        if (nazwaEl && zuzycieEl) {
+            items.push({
+                surowiec_nazwa: nazwaEl.value,
+                zuzycie_kg: parseFloat(zuzycieEl.value) || 0,
+                komentarz: komEl ? komEl.value : ''
+            });
+        }
+    });
+    return items;
+}
+
+function saveUsage() {
+    const items = collectItems();
+    fetch(`/agro/api/mom/${MOM_ID}/usage`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({items})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            showToast('Zużycie zapisane', 'success');
+        } else {
+            alert(data.error || 'Błąd');
+        }
+    })
+    .catch(err => alert('Błąd: ' + err));
+}
+
+function refreshMom() {
+    fetch(`/agro/api/mom/${MOM_ID}/refresh`, {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) location.reload();
+        else alert(data.error);
+    });
+}
+
+function closeMom() {
+    if (!confirm('Czy na pewno zamknąć rozliczenie MOM? Po zamknięciu nie będzie można edytować zużycia (bez ponownego otwarcia).')) return;
+    // save usage first, then close
+    const items = collectItems();
+    fetch(`/agro/api/mom/${MOM_ID}/usage`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({items})
+    })
+    .then(() => fetch(`/agro/api/mom/${MOM_ID}/close`, {method: 'POST'}))
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) location.reload();
+        else alert(data.error);
+    });
+}
+
+function reopenMom() {
+    if (!confirm('Otworzyć ponownie to rozliczenie?')) return;
+    fetch(`/agro/api/mom/${MOM_ID}/reopen`, {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) location.reload();
+        else alert(data.error);
+    });
+}
+
+function showToast(msg, type) {
+    if (typeof window.showToast === 'function') { window.showToast(msg, type); return; }
+    const t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 24px;background:#27ae60;color:#fff;border-radius:8px;z-index:9999;font-weight:600;';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+</script>
+{% endblock %}

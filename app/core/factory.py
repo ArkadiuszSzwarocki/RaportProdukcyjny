@@ -29,6 +29,7 @@ from app.blueprints.routes_compat import compat_bp
 from app.blueprints.routes_main import main_bp
 from app.blueprints.routes_struktura import struktura_bp
 from app.blueprints.routes_agro_warehouse import agro_warehouse_bp
+from app.blueprints.routes_mom import mom_bp
 from app import db
 from app.core.middleware import register_middleware
 
@@ -108,6 +109,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(zarzad_bp)
     app.register_blueprint(struktura_bp)
     app.register_blueprint(agro_warehouse_bp)
+    app.register_blueprint(mom_bp)
     
     # Register Jinja2 filters
     app.jinja_env.filters['format_czasu'] = format_godziny

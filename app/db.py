@@ -316,6 +316,37 @@ def _create_tables(cursor):
         )
     """)
 
+    # MOM — rozliczenie materiałowe per zlecenie AGRO
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mom_rozliczenia (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            plan_id INT NOT NULL,
+            nazwa_zlecenia VARCHAR(255) DEFAULT '',
+            data_planu DATE NOT NULL,
+            produkt VARCHAR(100) NOT NULL,
+            tonaz_planowany FLOAT DEFAULT 0,
+            tonaz_rzeczywisty FLOAT DEFAULT 0,
+            status VARCHAR(20) DEFAULT 'otwarty',
+            zamknal_login VARCHAR(100) NULL,
+            data_zamkniecia DATETIME NULL,
+            uwagi TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mom_pozycje (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            mom_id INT NOT NULL,
+            surowiec_nazwa VARCHAR(255) NOT NULL,
+            przesunieto_kg FLOAT DEFAULT 0,
+            zuzycie_kg FLOAT DEFAULT 0,
+            roznica_kg FLOAT DEFAULT 0,
+            komentarz TEXT,
+            FOREIGN KEY (mom_id) REFERENCES mom_rozliczenia(id) ON DELETE CASCADE
+        )
+    """)
+
 
 def _add_column_if_missing(cursor, table, column, definition, description=""):
     """Helper to add column if it doesn't exist."""
