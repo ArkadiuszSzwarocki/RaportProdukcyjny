@@ -54,9 +54,18 @@
             <button class="btn btn-outline row items-center gap-8" onclick="openModal('modalUsage')" style="background: white;">
                 <span class="material-icons">production_quantity_limits</span> Pobierz na Produkcję
             </button>
+            <button class="btn btn-outline row items-center gap-8" onclick="openReturnModal()" style="background: white;">
+                <span class="material-icons">assignment_return</span> Zwrot z Produkcji
+            </button>
+            <button class="btn btn-outline row items-center gap-8" onclick="openModal('modalIssueWarehouse')" style="background: white;">
+                <span class="material-icons">output</span> Wydanie z Magazynu
+            </button>
             {% if session.get('rola') in ['lider', 'admin'] %}
             <button class="btn btn-outline row items-center gap-8" onclick="openModal('modalInventory')" style="background: white;">
                 <span class="material-icons">checklist</span> Inwentaryzacja
+            </button>
+            <button class="btn btn-outline row items-center gap-8" onclick="openBulkInventoryModal()" style="background: white;">
+                <span class="material-icons">fact_check</span> Inwentaryzacja Zbiorcza
             </button>
             {% endif %}
         </div>
@@ -86,7 +95,7 @@
                     {% for p in pending %}
                     <tr>
                         <td>
-                            <span class="badge {% if p.typ_ruchu == 'PRZYJECIE' %}badge-success{% else %}badge-warning{% endif %}" style="font-size: 11px;">
+                            <span class="badge {% if p.typ_ruchu == 'PRZYJECIE' %}badge-success{% elif p.typ_ruchu == 'WYDANIE_MAG' %}badge-primary{% else %}badge-warning{% endif %}" style="font-size: 11px;">
                                 {{ p.typ_ruchu }}
                             </span>
                         </td>
@@ -97,7 +106,7 @@
                         <td class="text-muted small">{{ p.komentarz or '—' }}</td>
                         <td class="text-right">
                             {% if (p.typ_ruchu == 'PRZYJECIE' and session.get('rola') != 'magazynier') or 
-                                  (p.typ_ruchu == 'WYDANIE_ZEW' and session.get('rola') in ['magazynier', 'admin']) %}
+                                  (p.typ_ruchu in ['WYDANIE_ZEW', 'WYDANIE_MAG'] and session.get('rola') in ['magazynier', 'admin']) %}
                             <button class="btn btn-success btn-sm btn-glow" onclick="openConfirmModal({{ p.id }}, '{{ p.surowiec_nazwa }}', {{ p.ilosc }})">
                                 <span class="row items-center gap-4"><span class="material-icons" style="font-size:16px;">check_circle</span> Potwierdź</span>
                             </button>
@@ -352,7 +361,7 @@ function _showAuditSummary(rows, data, planId) {
 }
 
 function _typBadge(typ) {
-    var map = { 'PRZYJECIE': 'badge-success', 'PRODUKCJA': 'badge-warning', 'INWENTARYZACJA': 'badge-info', 'WYDANIE_ZEW': 'badge-error' };
+    var map = { 'PRZYJECIE': 'badge-success', 'PRODUKCJA': 'badge-warning', 'INWENTARYZACJA': 'badge-info', 'WYDANIE_ZEW': 'badge-error', 'WYDANIE_MAG': 'badge-primary', 'ZWROT': 'badge-success' };
     return '<span class="badge ' + (map[typ] || 'badge-error') + '" style="font-size:10px;white-space:nowrap;">' + typ + '</span>';
 }
 
@@ -647,6 +656,128 @@ function _renderHistoryRow(h) {
     </div>
 </dialog>
 
+<!-- MODAL: WYDANIE Z MAGAZYNU (nie na produkcję) -->
+<dialog id="modalIssueWarehouse" class="modal-premium">
+    <div class="modal-header">
+        <h4 class="modal-title">Wydanie Surowca z Magazynu</h4>
+        <button class="modal-close" onclick="closeModal('modalIssueWarehouse')">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="form-group mb-15">
+            <label class="form-label">Wybierz Paletę / Regał</label>
+            <select id="issuew_surowiec_id" class="form-control"></select>
+        </div>
+        <div class="form-group mb-15">
+            <label class="form-label">Ilość wydania (kg)</label>
+            <input type="number" id="issuew_ilosc" class="form-control" step="0.1" placeholder="0.0">
+        </div>
+        <div class="form-group mb-15">
+            <label class="form-label">Komentarz / Cel wydania</label>
+            <textarea id="issuew_komentarz" class="form-control" rows="2" placeholder="Np. wydanie do innego magazynu, zwrot do dostawcy..."></textarea>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalIssueWarehouse')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" onclick="submitIssueWarehouse()">Zgłoś Wydanie</button>
+    </div>
+</dialog>
+
+<!-- MODAL: ZWROT Z PRODUKCJI -->
+<dialog id="modalReturn" class="modal-premium" style="max-width:900px;">
+    <div class="modal-header">
+        <h4 class="modal-title">Zwrot z Produkcji na Magazyn</h4>
+        <button class="modal-close" onclick="closeModal('modalReturn')">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="text-muted small mb-10">Wybierz pozycję pobraną na produkcję i podaj ilość zwrotu.</p>
+        <div class="table-responsive" style="max-height:350px; overflow:auto;">
+            <table class="table" id="returnItemsTable">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Surowiec</th>
+                        <th>Lokalizacja</th>
+                        <th>Pobrano (kg)</th>
+                        <th>Zwrócono</th>
+                        <th>Pozostało</th>
+                        <th>Zlecenie</th>
+                        <th>Zbiornik</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody id="returnItemsBody">
+                    <tr><td colspan="9" class="text-center text-muted">Ładowanie...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="returnFormSection" style="display:none; margin-top:16px; padding-top:12px; border-top:1px solid #e5e7eb;">
+            <input type="hidden" id="return_ruch_id">
+            <input type="hidden" id="return_surowiec_id">
+            <input type="hidden" id="return_plan_id">
+            <div class="row gap-15 items-end">
+                <div class="form-group" style="flex:1;">
+                    <label class="form-label">Wybrany surowiec</label>
+                    <input type="text" id="return_nazwa" class="form-control" readonly style="background:#f8fafc;">
+                </div>
+                <div class="form-group" style="width:180px;">
+                    <label class="form-label">Zwrot na lokalizację</label>
+                    <div class="row gap-6 items-center">
+                        <input type="text" id="return_lokalizacja" class="form-control" placeholder="Np. R010101" list="racksList" style="flex:1; text-transform:uppercase;">
+                        <button type="button" class="btn btn-outline row items-center gap-4" style="padding:8px 10px; white-space:nowrap;" onclick="openQrScanner('return_lokalizacja')" title="Skanuj QR regału">
+                            <span class="material-icons" style="font-size:16px;">qr_code_scanner</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group" style="width:140px;">
+                    <label class="form-label">Ilość zwrotu (kg)</label>
+                    <input type="number" id="return_ilosc" class="form-control" step="0.1" placeholder="0.0">
+                    <span class="text-muted small" id="return_max_hint"></span>
+                </div>
+            </div>
+            <div class="form-group mt-10">
+                <label class="form-label">Komentarz</label>
+                <textarea id="return_komentarz" class="form-control" rows="2" placeholder="Powód zwrotu..."></textarea>
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalReturn')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" onclick="submitReturn()" id="btnSubmitReturn" disabled>Potwierdź Zwrot</button>
+    </div>
+</dialog>
+
+<!-- MODAL: INWENTARYZACJA ZBIORCZA (produkcji i regałów) -->
+<dialog id="modalBulkInventory" class="modal-premium" style="max-width:900px;">
+    <div class="modal-header">
+        <h4 class="modal-title">Inwentaryzacja Produkcji i Regałów</h4>
+        <button class="modal-close" onclick="closeModal('modalBulkInventory')">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="text-muted small mb-15">Przejrzyj stany palet na regałach i skoryguj ilości. Zapisane zostaną tylko zmienione pozycje.</p>
+        <div class="form-group mb-10 row items-center gap-8">
+            <input type="text" id="bulkInvFilter" class="form-control" placeholder="Filtruj po nazwie lub lokalizacji..." style="flex:1;" oninput="filterBulkInventory()">
+        </div>
+        <div class="table-responsive" style="max-height:450px; overflow:auto;">
+            <table class="table" id="bulkInvTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nazwa</th>
+                        <th>Lokalizacja</th>
+                        <th>Stan systemowy (kg)</th>
+                        <th>Stan z natury (kg)</th>
+                    </tr>
+                </thead>
+                <tbody id="bulkInvBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalBulkInventory')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" onclick="submitBulkInventory()">Zapisz Inwentaryzację</button>
+    </div>
+</dialog>
+
 <!-- MODAL: RENAME PALLET -->
 <dialog id="modalRename" class="modal-premium">
     <div class="modal-header">
@@ -906,6 +1037,8 @@ function renderGroupPopupHtml(g, nazwa) {
         html += '<div class="pallet-info" style="flex:1; min-width:0; font-size:13px;">#' + p.id + ' — ' + (p.nazwa||'') + '<div class="text-muted" style="font-size:12px; margin-top:4px;">(' + (p.lokalizacja||'Brak') + ')</div></div>';
         html += '<div class="pallet-actions" style="display:flex; gap:6px; flex-direction:column; width:120px;">';
             html += '<button class="btn btn-ghost btn-xxs popup-usage" data-id="' + p.id + '" data-name=' + JSON.stringify(g.nazwa) + ' data-lok=' + JSON.stringify(p.lokalizacja||'') + ' data-stan=' + (p.stan||0) + '>Pobierz</button>';
+            html += '<button class="btn btn-ghost btn-xxs popup-return" data-id="' + p.id + '" data-name=' + JSON.stringify(g.nazwa) + ' data-lok=' + JSON.stringify(p.lokalizacja||'') + '>Zwrot</button>';
+            html += '<button class="btn btn-ghost btn-xxs popup-issuew" data-id="' + p.id + '" data-name=' + JSON.stringify(g.nazwa) + '>Wydanie</button>';
             html += '<button class="btn btn-ghost btn-xxs popup-inv" data-id="' + p.id + '" data-name=' + JSON.stringify(g.nazwa) + ' data-stan=' + (p.stan||0) + '>Korekta</button>';
             html += '<button class="btn btn-ghost btn-xxs popup-rename" data-id="' + p.id + '" data-name=' + JSON.stringify(p.nazwa||g.nazwa) + '>Zmień nazwę</button>';
         html += '</div></div>';
@@ -953,6 +1086,25 @@ function bindGroupPopupButtons(popup) {
             const id = btn.dataset.id;
             const name = btn.dataset.name;
             openRenameModal(id, name);
+        });
+    });
+    // return from production buttons
+    popup.querySelectorAll('.popup-return').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            const lok = btn.dataset.lok;
+            openReturnFor(id, name, lok);
+        });
+    });
+    // issue warehouse buttons
+    popup.querySelectorAll('.popup-issuew').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            openIssueWarehouseFor(id, name);
         });
     });
 }
@@ -1323,6 +1475,20 @@ function getFirstPalletIdForGroup(nazwa){
     });
 })();
 
+// Populate issue warehouse modal select
+(function() {
+    const sel = document.getElementById('issuew_surowiec_id');
+    if (!sel) return;
+    window._inventory.forEach(function(s) {
+        const o = document.createElement('option');
+        o.value = s.id;
+        o.textContent = s.parent_nazwa + ' - ' + (s.lokalizacja || 'Brak') + ' (' + s.stan + ' kg)';
+        sel.appendChild(o);
+    });
+})();
+
+// Return modal is now loaded dynamically — no static populate needed
+
 // Current running production plan id provided by server (or null)
 // Current running plan info (id + name) provided by server or fetched dynamically
 window._current_plan = { id: {{ current_plan_id if current_plan_id is not none else 'null' }}, name: {{ current_plan_name|tojson if current_plan_name is not none else 'null' }} };
@@ -1333,6 +1499,190 @@ function submitInventory() {
     const nVal = document.getElementById('inv_komentarz').value;
     if (!sId || qVal === "") return alert("Wypełnij wszystkie pola!");
     apiCall('/agro/api/inventory', { surowiec_id: sId, actual_qty: qVal, komentarz: nVal, linia: '{{ linia }}' });
+}
+
+function submitIssueWarehouse() {
+    const sId = document.getElementById('issuew_surowiec_id').value;
+    const qVal = document.getElementById('issuew_ilosc').value;
+    const nVal = document.getElementById('issuew_komentarz').value;
+    if (!sId || !qVal || parseFloat(qVal) <= 0) return alert("Wypełnij wszystkie pola!");
+    apiCall('/agro/api/issue_warehouse', { surowiec_id: sId, ilosc: qVal, komentarz: nVal, linia: '{{ linia }}' });
+}
+
+function submitReturn() {
+    const ruchId = document.getElementById('return_ruch_id').value;
+    const sId = document.getElementById('return_surowiec_id').value;
+    const qVal = document.getElementById('return_ilosc').value;
+    const pId = document.getElementById('return_plan_id').value;
+    const nVal = document.getElementById('return_komentarz').value;
+    const lokVal = document.getElementById('return_lokalizacja').value.trim();
+    if (!sId || !qVal || parseFloat(qVal) <= 0) return alert("Podaj ilość zwrotu!");
+    apiCall('/agro/api/return', { surowiec_id: sId, ilosc: qVal, plan_id: pId || null, komentarz: nVal, ruch_produkcja_id: ruchId || null, lokalizacja: lokVal || null, linia: '{{ linia }}' });
+}
+
+function openReturnModal(preselect_ruch_id) {
+    document.getElementById('returnFormSection').style.display = 'none';
+    document.getElementById('btnSubmitReturn').disabled = true;
+    document.getElementById('returnItemsBody').innerHTML = '<tr><td colspan="8" class="text-center text-muted">Ładowanie...</td></tr>';
+    openModal('modalReturn');
+    fetch('/agro/api/production_items_for_return?linia={{ linia }}')
+        .then(r => r.json())
+        .then(res => {
+            if (!res.success) return alert('Błąd: ' + (res.error || 'Nieznany'));
+            window._returnItems = res.items;
+            renderReturnItems(res.items, preselect_ruch_id);
+        }).catch(e => { console.error(e); alert('Błąd połączenia'); });
+}
+
+function renderReturnItems(items, preselect_ruch_id) {
+    const body = document.getElementById('returnItemsBody');
+    body.innerHTML = '';
+    if (!items || items.length === 0) {
+        body.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Brak pozycji do zwrotu</td></tr>';
+        return;
+    }
+    items.forEach(function(it) {
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.innerHTML =
+            '<td><input type="radio" name="return_select" value="' + it.ruch_id + '" data-sid="' + it.surowiec_id + '" data-plan="' + (it.plan_id||'') + '" data-max="' + it.do_zwrotu + '" data-nazwa="' + (it.nazwa||'') + '" data-lok="' + (it.lokalizacja||'') + '"></td>' +
+            '<td>' + (it.nazwa || '') + '</td>' +
+            '<td>' + (it.lokalizacja || '<span class="text-muted">—</span>') + '</td>' +
+            '<td class="font-bold">' + it.ilosc_pobrana + '</td>' +
+            '<td>' + it.ilosc_zwrocona + '</td>' +
+            '<td class="font-bold text-primary">' + it.do_zwrotu + '</td>' +
+            '<td>' + (it.plan_name ? it.plan_name + ' (#' + it.plan_id + ')' : (it.plan_id || '—')) + '</td>' +
+            '<td>' + (it.zbiornik || '—') + '</td>' +
+            '<td class="text-muted small">' + (it.data || '') + '</td>';
+        tr.addEventListener('click', function(e) {
+            if (e.target.tagName !== 'INPUT') {
+                const radio = tr.querySelector('input[type=radio]');
+                radio.checked = true;
+                radio.dispatchEvent(new Event('change'));
+            }
+        });
+        body.appendChild(tr);
+    });
+    // Bind radio change
+    body.querySelectorAll('input[name=return_select]').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            selectReturnItem(radio);
+        });
+    });
+    // Auto-select if preselect given
+    if (preselect_ruch_id) {
+        const preRadio = body.querySelector('input[value="' + preselect_ruch_id + '"]');
+        if (preRadio) { preRadio.checked = true; selectReturnItem(preRadio); }
+    }
+}
+
+function selectReturnItem(radio) {
+    document.getElementById('return_ruch_id').value = radio.value;
+    document.getElementById('return_surowiec_id').value = radio.dataset.sid;
+    document.getElementById('return_plan_id').value = radio.dataset.plan || '';
+    document.getElementById('return_nazwa').value = radio.dataset.nazwa || '';
+    document.getElementById('return_lokalizacja').value = radio.dataset.lok || '';
+    var maxQty = parseFloat(radio.dataset.max) || 0;
+    document.getElementById('return_ilosc').value = maxQty;
+    document.getElementById('return_ilosc').max = maxQty;
+    document.getElementById('return_max_hint').textContent = 'Max: ' + maxQty + ' kg';
+    document.getElementById('return_komentarz').value = '';
+    document.getElementById('returnFormSection').style.display = '';
+    document.getElementById('btnSubmitReturn').disabled = false;
+}
+
+// Pre-open return modal for specific pallet (from group popup) — find matching production item
+function openReturnFor(id, nazwa, lok) {
+    openReturnModal();
+}
+
+function openBulkInventoryModal() {
+    document.getElementById('bulkInvBody').innerHTML = '<tr><td colspan="5" class="text-center text-muted">Ładowanie...</td></tr>';
+    document.getElementById('bulkInvFilter').value = '';
+    openModal('modalBulkInventory');
+    fetch('/agro/api/locations_inventory?linia={{ linia }}')
+        .then(r => r.json())
+        .then(res => {
+            if (!res.success) return alert('Błąd: ' + (res.error || 'Nieznany'));
+            window._bulkInvItems = res.items;
+            renderBulkInventory(res.items);
+        }).catch(e => { console.error(e); alert('Błąd połączenia'); });
+}
+
+function renderBulkInventory(items) {
+    const body = document.getElementById('bulkInvBody');
+    body.innerHTML = '';
+    if (!items || items.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Brak pozycji</td></tr>';
+        return;
+    }
+    items.forEach(function(it) {
+        const tr = document.createElement('tr');
+        tr.className = 'bulk-inv-row';
+        tr.dataset.nazwa = (it.nazwa || '').toLowerCase();
+        tr.dataset.lok = (it.lokalizacja || '').toLowerCase();
+        tr.innerHTML =
+            '<td>' + it.id + '</td>' +
+            '<td>' + (it.nazwa || '') + '</td>' +
+            '<td>' + (it.lokalizacja || '<span class="text-muted">—</span>') + '</td>' +
+            '<td class="font-bold">' + it.stan_magazynowy + '</td>' +
+            '<td><input type="number" class="form-control bulk-inv-qty" data-id="' + it.id + '" step="0.1" value="' + it.stan_magazynowy + '" style="width:120px;"></td>';
+        body.appendChild(tr);
+    });
+}
+
+function filterBulkInventory() {
+    const q = (document.getElementById('bulkInvFilter').value || '').toLowerCase();
+    document.querySelectorAll('.bulk-inv-row').forEach(function(tr) {
+        const show = !q || tr.dataset.nazwa.indexOf(q) !== -1 || tr.dataset.lok.indexOf(q) !== -1;
+        tr.style.display = show ? '' : 'none';
+    });
+}
+
+function submitBulkInventory() {
+    const inputs = document.querySelectorAll('.bulk-inv-qty');
+    const items = [];
+    inputs.forEach(function(inp) {
+        const id = inp.dataset.id;
+        const orig = window._bulkInvItems.find(x => String(x.id) === String(id));
+        const newVal = parseFloat(inp.value);
+        if (orig && !isNaN(newVal) && newVal !== orig.stan_magazynowy) {
+            items.push({ surowiec_id: id, actual_qty: newVal, komentarz: 'Inwentaryzacja zbiorcza' });
+        }
+    });
+    if (items.length === 0) return alert('Brak zmian do zapisania.');
+    if (!confirm('Zapisać ' + items.length + ' zmian(y) w inwentaryzacji?')) return;
+    fetch('/agro/api/bulk_inventory', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ items: items, linia: '{{ linia }}' })
+    }).then(r => r.json()).then(res => {
+        if (res.success) { alert('Zaktualizowano ' + (res.updated || 0) + ' pozycji.'); location.reload(); }
+        else alert('Błąd: ' + (res.error || 'Nieznany'));
+    }).catch(e => { console.error(e); alert('Błąd połączenia'); });
+}
+
+// Pre-open return modal for specific pallet (from group popup)
+function openReturnFor(id, nazwa, lok) {
+    const sel = document.getElementById('return_surowiec_id');
+    sel.value = id;
+    document.getElementById('return_ilosc').value = '';
+    document.getElementById('return_plan_id').value = '';
+    document.getElementById('return_komentarz').value = '';
+    // Prefill plan id if available
+    if (window._current_plan && window._current_plan.id) {
+        document.getElementById('return_plan_id').value = window._current_plan.id || '';
+    }
+    openModal('modalReturn');
+}
+
+// Pre-open issue warehouse modal for specific pallet (from group popup)
+function openIssueWarehouseFor(id, nazwa) {
+    const sel = document.getElementById('issuew_surowiec_id');
+    sel.value = id;
+    document.getElementById('issuew_ilosc').value = '';
+    document.getElementById('issuew_komentarz').value = '';
+    openModal('modalIssueWarehouse');
 }
 </script>
 

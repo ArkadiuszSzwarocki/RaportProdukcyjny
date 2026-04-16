@@ -528,6 +528,11 @@
                     <td>Przenosi szarżę na inną datę z użyciem kalendarza.</td>
                     <td>Zawsze dostępny</td>
                 </tr>
+                <tr>
+                    <td>▲▼ <strong>Kolejność</strong></td>
+                    <td>Przesuwa pozycję w buforze w górę lub w dół (zamiana kolejki).</td>
+                    <td>Zawsze dostępny, gdy jest sąsiednia pozycja</td>
+                </tr>
 
             </tbody>
         </table>
@@ -585,7 +590,17 @@
                 {% for b in bufor_list %}
                 <tr{% if b.status=='zakonczone' %} class="bufor-row-finished" {% endif %}>
                     <td>
-                        <span class="badge badge-primary bufor-kolejka-badge">{{ b.kolejka }}</span>
+                        <div class="d-flex align-center gap-4">
+                            <div class="d-flex flex-column" style="gap:2px;">
+                                {% if b.kolejka > 1 %}
+                                <button class="btn btn-sm btn-reorder-up" data-buf-id="{{ b.buf_id }}" data-kolejka="{{ b.kolejka }}" title="Przesuń w górę" style="padding:1px 5px;font-size:0.7em;line-height:1;">▲</button>
+                                {% endif %}
+                                {% if not loop.last %}
+                                <button class="btn btn-sm btn-reorder-down" data-buf-id="{{ b.buf_id }}" data-kolejka="{{ b.kolejka }}" title="Przesuń w dół" style="padding:1px 5px;font-size:0.7em;line-height:1;">▼</button>
+                                {% endif %}
+                            </div>
+                            <span class="badge badge-primary bufor-kolejka-badge">{{ b.kolejka }}</span>
+                        </div>
                     </td>
                     <td class="bufor-date-cell">
                         {{ b.data }}
@@ -771,6 +786,26 @@
             });
     }
 
+    // Zmiana kolejności w buforze (przesuń w górę/dół)
+    function reorderBufor(bufId, direction) {
+        fetch('/bufor/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ buf_id: bufId, direction: direction, linia: '{{ wybrana_linia }}' })
+        })
+            .then(r => r.json().catch(() => ({ success: false, message: 'Nieprawidłowa odpowiedź serwera' })))
+            .then(j => {
+                if (j && j.success) {
+                    location.reload();
+                } else {
+                    try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ ' + ((j && j.message) || 'Nie udało się zmienić kolejności') + '</div>'); } catch(e){ alert('❌ ' + ((j && j.message) || 'Nie udało się zmienić kolejności')); }
+                }
+            })
+            .catch(e => {
+                try { showQuickPopup('Błąd', '<div class="p-10 text-error">❌ Błąd sieci</div>'); } catch(err){ alert('❌ Błąd sieci'); }
+            });
+    }
+
     // Zarchiwizuj zlecenie
     function archiwizujZlecenie(planId, produkt) {
         if (!confirm(`Czy na pewno chcesz usunąć zlecenie "${produkt}" z bufora?\n\nZlecenie zostanie oznaczone jako zarchiwizowane.`)) {
@@ -804,6 +839,20 @@
     document.addEventListener('DOMContentLoaded', () => {
         // ... (existing listeners)
         
+        // Przyciski zmiany kolejności (▲ / ▼)
+        document.querySelectorAll('.btn-reorder-up').forEach((button) => {
+            button.addEventListener('click', () => {
+                const bufId = button.dataset.bufId;
+                if (bufId) reorderBufor(bufId, 'up');
+            });
+        });
+        document.querySelectorAll('.btn-reorder-down').forEach((button) => {
+            button.addEventListener('click', () => {
+                const bufId = button.dataset.bufId;
+                if (bufId) reorderBufor(bufId, 'down');
+            });
+        });
+
         // Przyciski do śmietnika (archiwizacja)
         document.querySelectorAll('.js-trash-order').forEach((button) => {
             button.addEventListener('click', () => {

@@ -426,6 +426,10 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "magazyn_ruch", "zbiornik", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'zbiornik' do magazyn_ruch (nr zbiornika przy pobraniu)")
     _add_column_if_missing(cursor, "magazyn_agro_ruch", "zbiornik", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'zbiornik' do magazyn_agro_ruch (nr zbiornika przy pobraniu)")
 
+    # magazyn ruch – referencja do ruchu źródłowego (np. ZWROT → PRODUKCJA)
+    _add_column_if_missing(cursor, "magazyn_ruch", "ruch_zrodlowy_id", "INT NULL", "Dodawanie kolumny 'ruch_zrodlowy_id' do magazyn_ruch")
+    _add_column_if_missing(cursor, "magazyn_agro_ruch", "ruch_zrodlowy_id", "INT NULL", "Dodawanie kolumny 'ruch_zrodlowy_id' do magazyn_agro_ruch")
+
 
 def _seed_default_users(cursor):
     """Create default users if they don't exist."""

@@ -28,14 +28,17 @@ def test_przenies_niezrealizowane_creates_carryover(app, monkeypatch):
         }
     ]
 
-    # First fetchone() for duplicate check -> None, then for max kolejka -> (0,)
-    mock_cursor.fetchone.side_effect = [None, (0,)]
+    # fetchone() sequence:
+    # 1. bufor query for zasyp_id=1 -> None (no buffer entries)
+    # 2. duplicate Workowanie check -> None (no existing carry-over)
+    # 3. max kolejka for new bufor entry -> (0,)
+    mock_cursor.fetchone.side_effect = [None, None, (0,)]
 
     with patch('app.services.planning_service.get_db_connection', return_value=mock_conn):
         with app.app_context():
-            # Patch create_plan to simulate successful insert with id (only Workowanie created)
+            # Patch create_plan: first call creates ghost Zasyp, second creates Workowanie
             with patch('app.services.planning_service.PlanningService.create_plan') as mock_create:
-                mock_create.side_effect = [ (True, 'ok', 111) ]
+                mock_create.side_effect = [ (True, 'ok', 200), (True, 'ok', 201) ]
 
                 success, message, count = PlanningService.przenies_niezrealizowane('2026-03-27')
 

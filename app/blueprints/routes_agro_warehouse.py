@@ -239,6 +239,10 @@ def confirm_move():
         # If not a delivery (or already confirmed), try as external issue
         if not success:
             success = AgroWarehouseService.confirm_external_issue(ruch_id, worker_login, linia=linia)
+
+        # Try as warehouse issue
+        if not success:
+            success = AgroWarehouseService.confirm_warehouse_issue(ruch_id, worker_login, linia=linia)
             
         if success:
             return jsonify({'success': True})
@@ -502,6 +506,111 @@ def issue_external():
     except Exception as e:
         current_app.logger.error(f"Error in issue_external: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@agro_warehouse_bp.route('/agro/api/issue_warehouse', methods=['POST'])
+@login_required
+def issue_warehouse():
+    try:
+        data = request.get_json()
+        surowiec_id = data.get('surowiec_id')
+        ilosc = float(data.get('ilosc', 0))
+        komentarz = data.get('komentarz')
+        linia = data.get('linia', 'Agro')
+
+        if not surowiec_id or ilosc <= 0:
+            return jsonify({'success': False, 'error': 'Nieprawidłowe dane'}), 400
+
+        worker_login = session.get('login')
+        success = AgroWarehouseService.issue_warehouse(surowiec_id, ilosc, worker_login, linia=linia, komentarz=komentarz)
+        if success:
+            return jsonify({'success': True})
+        return jsonify({'success': False, 'error': 'Nie znaleziono palety'}), 400
+    except Exception as e:
+        current_app.logger.error(f"Error in issue_warehouse: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/return', methods=['POST'])
+@login_required
+def return_from_production():
+    try:
+        data = request.get_json()
+        surowiec_id = data.get('surowiec_id')
+        ilosc = float(data.get('ilosc', 0))
+        plan_id = data.get('plan_id')
+        komentarz = data.get('komentarz')
+        linia = data.get('linia', 'Agro')
+        ruch_produkcja_id = data.get('ruch_produkcja_id')
+        lokalizacja = data.get('lokalizacja')
+
+        if not surowiec_id or ilosc <= 0:
+            return jsonify({'success': False, 'error': 'Nieprawidłowe dane'}), 400
+
+        worker_login = session.get('login')
+        AgroWarehouseService.return_from_production(
+            surowiec_id, ilosc, worker_login,
+            plan_id=plan_id, linia=linia, komentarz=komentarz,
+            ruch_produkcja_id=ruch_produkcja_id, lokalizacja=lokalizacja
+        )
+        return jsonify({'success': True})
+    except Exception as e:
+        current_app.logger.error(f"Error in return_from_production: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/production_items_for_return', methods=['GET'])
+@login_required
+def production_items_for_return():
+    try:
+        linia = request.args.get('linia', 'Agro')
+        limit = min(int(request.args.get('limit', 200)), 1000)
+        items = AgroWarehouseService.get_production_items_for_return(linia=linia, limit=limit)
+        return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        current_app.logger.error(f"Error in production_items_for_return: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/locations_inventory', methods=['GET'])
+@login_required
+@roles_required('lider', 'admin')
+def locations_inventory():
+    try:
+        linia = request.args.get('linia', 'Agro')
+        rows = AgroWarehouseService.get_locations_inventory(linia=linia)
+        result = []
+        for r in rows:
+            result.append({
+                'id': r['id'],
+                'nazwa': r.get('nazwa') or '',
+                'stan_magazynowy': float(r.get('stan_magazynowy') or 0),
+                'lokalizacja': r.get('lokalizacja') or '',
+            })
+        return jsonify({'success': True, 'items': result})
+    except Exception as e:
+        current_app.logger.error(f"Error in locations_inventory: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/bulk_inventory', methods=['POST'])
+@login_required
+@roles_required('lider', 'admin')
+def bulk_inventory():
+    try:
+        data = request.get_json()
+        items = data.get('items', [])
+        linia = data.get('linia', 'Agro')
+
+        if not items:
+            return jsonify({'success': False, 'error': 'Brak pozycji do inwentaryzacji'}), 400
+
+        worker_login = session.get('login')
+        count = AgroWarehouseService.perform_bulk_inventory(items, worker_login, linia=linia)
+        return jsonify({'success': True, 'updated': count})
+    except Exception as e:
+        current_app.logger.error(f"Error in bulk_inventory: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @agro_warehouse_bp.route('/agro/api/suggest-location', methods=['POST'])
 @login_required

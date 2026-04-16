@@ -537,12 +537,12 @@
             var html = '<div style="max-height:400px;overflow:auto;padding:8px;">';
             html += '<p>Na dzień: <strong>' + j.current_date_formatted + '</strong></p>';
             html += '<p>Na następny dzień: <strong>' + j.next_date_formatted + '</strong></p>';
-            html += '<table class="modern-table" style="width:100%"><thead><tr><th>Produkt</th><th>Plan (kg)</th><th>Wykonanie (kg)</th><th>Remaining (kg)</th><th>Zasyp shortfall</th></tr></thead><tbody>';
+            html += '<table class="modern-table" style="width:100%"><thead><tr><th>Produkt</th><th>Plan work. (kg)</th><th>Spakowano (kg)</th><th>Pozostało (kg)</th><th>Niedobór zasypu</th></tr></thead><tbody>';
             j.plans.forEach(function (p) {
                 html += '<tr>' +
                         '<td>' + (p.produkt || '-') + '</td>' +
-                        '<td>' + (p.plan_kg || 0).toFixed(1) + '</td>' +
-                        '<td>' + (p.wykonanie_kg || 0).toFixed(1) + '</td>' +
+                        '<td>' + (p.w_plan_kg || 0).toFixed(1) + '</td>' +
+                        '<td>' + (p.w_real_kg || 0).toFixed(1) + '</td>' +
                         '<td>' + (p.remaining_kg || 0).toFixed(1) + '</td>' +
                         '<td>' + (p.zasyp_shortfall_kg || 0).toFixed(1) + '</td>' +
                         '</tr>';
@@ -950,7 +950,7 @@
             html += '    <input type="checkbox" id="' + planId + '" class="select-plan-checkbox" data-plan-id="' + plan.plan_id + '" data-remaining-kg="' + plan.remaining_kg + '" style="margin-right: 10px; cursor: pointer;" checked>';
             html += '    <div style="flex: 1;">';
             html += '      <strong style="color: #333;">' + plan.produkt + '</strong><br>';
-            html += '      <span style="font-size: 12px; color: #666;">Zasypano: ' + plan.plan_kg + ' kg | Spakowano: ' + plan.wykonanie_kg + ' kg | Do spakowania jutro: <strong style="color: #d9534f;">' + plan.remaining_kg + ' kg</strong></span>';
+            html += '      <span style="font-size: 12px; color: #666;">Plan workowania: ' + plan.w_plan_kg + ' kg | Spakowano: ' + plan.w_real_kg + ' kg | Do spakowania jutro: <strong style="color: #d9534f;">' + plan.remaining_kg + ' kg</strong></span>';
             if (plan.zasyp_shortfall_kg && plan.zasyp_shortfall_kg > 0) {
                 html += '<br><span style="font-size: 12px; color: #e67e22;">⚠ Niedobór Zasypu: <strong>' + plan.zasyp_shortfall_kg + ' kg</strong> → dodatkowe zlecenie Zasyp jutro</span>';
             }

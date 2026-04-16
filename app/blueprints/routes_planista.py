@@ -3,7 +3,7 @@ from app.db import get_db_connection, get_table_name
 from app.dto.paleta import PaletaDTO
 from app.services.notification_service import notify_workers_about_plan_change
 from app.services.planning_service import PlanningService
-from datetime import date
+from datetime import date, datetime, timedelta
 from app.decorators import roles_required, dynamic_role_required
 import json
 import os
@@ -207,16 +207,14 @@ def panel_planisty():
                 cursor.execute(f"SELECT COUNT(*) as cnt FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zakonczone' AND COALESCE(tonaz_rzeczywisty, 0) < COALESCE(tonaz, 0)", (wybrana_data,))
                 if cursor.fetchone()['cnt'] > 0: has_incomplete_plans = True; break
         
-        # 8. Bufor reminders
+        # 8. Bufor reminders (only previous day, not all past days)
         bufor_remaining = []
         bufor_source_date = None
         t_bf_now = get_table_name('bufor', wybrana_linia)
-        cursor.execute(f"SELECT produkt, SUM(COALESCE(tonaz_rzeczywisty, 0) - COALESCE(spakowano, 0)) as pozostalo FROM {t_bf_now} WHERE status = 'aktywny' AND data_planu < %s GROUP BY produkt HAVING pozostalo > 0", (wybrana_data,))
+        cursor.execute(f"SELECT produkt, SUM(COALESCE(tonaz_rzeczywisty, 0) - COALESCE(spakowano, 0)) as pozostalo FROM {t_bf_now} WHERE status = 'aktywny' AND data_planu = DATE_SUB(%s, INTERVAL 1 DAY) GROUP BY produkt HAVING pozostalo > 0", (wybrana_data,))
         bufor_remaining = [{'produkt': r['produkt'], 'pozostalo_kg': round(float(r['pozostalo']), 1)} for r in cursor.fetchall()]
         if bufor_remaining:
-            cursor.execute(f"SELECT MAX(data_planu) as max_date FROM {t_bf_now} WHERE status = 'aktywny' AND data_planu < %s", (wybrana_data,))
-            row = cursor.fetchone()
-            if row and row['max_date']: bufor_source_date = str(row['max_date'])
+            bufor_source_date = str((datetime.strptime(wybrana_data, '%Y-%m-%d') - timedelta(days=1)).date())
 
         rola = session.get('rola')
         return render_template('planista.html',
@@ -356,6 +354,8 @@ def bufor_page():
             
             bufor_list.append({
                 'id': z_id,
+                'buf_id': buf_id,
+                'zasyp_id': z_id,
                 'data': str(z_data),
                 'produkt': z_produkt,
                 'nazwa': z_nazwa or '',
@@ -496,6 +496,74 @@ def bufor_archiwizuj():
         except Exception:
             pass
         return jsonify({'ok': False, 'message': str(e)}), 500
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@planista_bp.route('/bufor/reorder', methods=['POST'])
+@roles_required('planista', 'lider', 'admin')
+def bufor_reorder():
+    """Swap kolejka of two adjacent bufor entries (move up/down)."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        data = request.get_json(silent=True) or {}
+        buf_id = data.get('buf_id')
+        direction = data.get('direction')  # 'up' or 'down'
+        linia = data.get('linia', 'PSD')
+
+        if not buf_id or direction not in ('up', 'down'):
+            return jsonify({'success': False, 'message': 'Brak wymaganych parametrów'}), 400
+
+        buf_id = int(buf_id)
+        table_bufor = get_table_name('bufor', linia)
+
+        # Get current entry
+        cursor.execute(f"SELECT id, kolejka, data_planu FROM {table_bufor} WHERE id = %s AND status = 'aktywny'", (buf_id,))
+        current = cursor.fetchone()
+        if not current:
+            return jsonify({'success': False, 'message': 'Nie znaleziono wpisu w buforze'}), 404
+
+        current_kolejka = current['kolejka']
+        data_planu = current['data_planu']
+
+        # Find neighbor
+        if direction == 'up':
+            cursor.execute(
+                f"SELECT id, kolejka FROM {table_bufor} WHERE data_planu = %s AND status = 'aktywny' AND kolejka < %s ORDER BY kolejka DESC LIMIT 1",
+                (data_planu, current_kolejka)
+            )
+        else:
+            cursor.execute(
+                f"SELECT id, kolejka FROM {table_bufor} WHERE data_planu = %s AND status = 'aktywny' AND kolejka > %s ORDER BY kolejka ASC LIMIT 1",
+                (data_planu, current_kolejka)
+            )
+
+        neighbor = cursor.fetchone()
+        if not neighbor:
+            return jsonify({'success': False, 'message': 'Brak sąsiedniej pozycji do zamiany'}), 400
+
+        # Swap kolejka values (use temp value to avoid unique constraint violation)
+        neighbor_id = neighbor['id']
+        neighbor_kolejka = neighbor['kolejka']
+
+        temp_kolejka = -1
+        cursor.execute(f"UPDATE {table_bufor} SET kolejka = %s WHERE id = %s", (temp_kolejka, buf_id))
+        cursor.execute(f"UPDATE {table_bufor} SET kolejka = %s WHERE id = %s", (current_kolejka, neighbor_id))
+        cursor.execute(f"UPDATE {table_bufor} SET kolejka = %s WHERE id = %s", (neighbor_kolejka, buf_id))
+        conn.commit()
+
+        return jsonify({'success': True, 'message': 'Kolejność zmieniona'}), 200
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        current_app.logger.exception(f'Error in bufor_reorder: {str(e)}')
+        return jsonify({'success': False, 'message': f'Błąd serwera: {str(e)}'}), 500
     finally:
         try:
             conn.close()

@@ -905,6 +905,13 @@ class PlanningService:
                     if exists:
                         current_app.logger.info(f'[PRZENIES] Carryover Workowanie already exists for {produkt_for_new} on {next_data_str}, skipping')
                         current_app.logger.debug(f"[PRZENIES-DEBUG] existing work row: {exists}")
+                        # Still close old bufor entries even if carry-over already exists
+                        zasyp_id_val = row.get('zasyp_id') if isinstance(row, dict) else row[0]
+                        update_cursor.execute(
+                            f"UPDATE {table_bufor} SET status = 'przeniesiony' WHERE zasyp_id = %s AND DATE(data_planu) = %s AND status = 'aktywny'",
+                            (zasyp_id_val, current_data)
+                        )
+                        conn.commit()
                     else:
                         s_z, msg_z, zasyp_created_id = PlanningService.create_plan(
                             data_planu=next_data_str,
@@ -951,6 +958,14 @@ class PlanningService:
                                 current_app.logger.info(f'[PRZENIES] Bufor entry inserted for {produkt_for_new} on {next_data_str} (kolejka {max_kol + 1}) pointing to Zasyp #{new_zasyp_id}')
                                 current_app.logger.debug(f"[PRZENIES-DEBUG] bufor_inserted_id={inserted_bufor_id}")
 
+                                # Close old bufor entries for this zasyp on the source date
+                                zasyp_id_val = row.get('zasyp_id') if isinstance(row, dict) else row[0]
+                                update_cursor.execute(
+                                    f"UPDATE {table_bufor} SET status = 'przeniesiony' WHERE zasyp_id = %s AND DATE(data_planu) = %s AND status = 'aktywny'",
+                                    (zasyp_id_val, current_data)
+                                )
+                                conn.commit()
+
                 # If Zasyp itself had shortfall, create companion Zasyp and Workowanie for that shortfall
                 if zasyp_remaining > 0:
                     cursor.execute(
@@ -959,6 +974,13 @@ class PlanningService:
                     )
                     if cursor.fetchone():
                         current_app.logger.info(f'[PRZENIES] Workowanie shortfall already exists for {produkt} on {next_data_str}, skipping')
+                        # Still close old bufor entries
+                        zasyp_id_val = row.get('zasyp_id') if isinstance(row, dict) else row[0]
+                        update_cursor.execute(
+                            f"UPDATE {table_bufor} SET status = 'przeniesiony' WHERE zasyp_id = %s AND DATE(data_planu) = %s AND status = 'aktywny'",
+                            (zasyp_id_val, current_data)
+                        )
+                        conn.commit()
                     else:
                         s_z2, msg_z2, zasyp_created2_id = PlanningService.create_plan(
                             data_planu=next_data_str,
@@ -1000,6 +1022,14 @@ class PlanningService:
                                 update_cursor.execute(sql_ins2, (new_zasyp2_id, next_data_str, produkt, f'carry-over z {current_data}', typ_prod, zasyp_remaining, max_kol + 1, linia))
                                 conn.commit()
                                 current_app.logger.info(f'[PRZENIES] Bufor entry inserted for {produkt} on {next_data_str} (kolejka {max_kol + 1}) pointing to Zasyp #{new_zasyp2_id}')
+
+                                # Close old bufor entries for this zasyp on the source date
+                                zasyp_id_val = row.get('zasyp_id') if isinstance(row, dict) else row[0]
+                                update_cursor.execute(
+                                    f"UPDATE {table_bufor} SET status = 'przeniesiony' WHERE zasyp_id = %s AND DATE(data_planu) = %s AND status = 'aktywny'",
+                                    (zasyp_id_val, current_data)
+                                )
+                                conn.commit()
 
             update_cursor.close()
             conn.close()
