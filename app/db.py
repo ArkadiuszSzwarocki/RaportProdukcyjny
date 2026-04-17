@@ -597,14 +597,18 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
                 added += 1
 
         # 4. Renumeruj kolejki
+        # Priorytet: zasypy z real_start (zakonczone/w toku) PRZED zaplanowanymi (bez real_start).
+        # Wewnątrz grupy z real_start — sortuj chronologicznie (najwcześniejszy start = najniższa kolejka).
+        # Zasypy bez real_start (zaplanowane) trafiają na koniec, posortowane po id.
         cursor.execute(f"""
             UPDATE {table_bufor} b
             JOIN (
                 SELECT b2.id, ROW_NUMBER() OVER (
                     PARTITION BY b2.data_planu
-                    ORDER BY b2.data_planu DESC, COALESCE((
-                        SELECT z.real_start FROM {table_plan} z WHERE z.id = b2.zasyp_id
-                    ), '00:00:00'), b2.id
+                    ORDER BY b2.data_planu DESC,
+                             CASE WHEN (SELECT z.real_start FROM {table_plan} z WHERE z.id = b2.zasyp_id) IS NOT NULL THEN 0 ELSE 1 END,
+                             COALESCE((SELECT z.real_start FROM {table_plan} z WHERE z.id = b2.zasyp_id), '9999-12-31'),
+                             b2.id
                 ) as nowa_kolejka
                 FROM {table_bufor} b2
                 WHERE b2.status = 'aktywny'

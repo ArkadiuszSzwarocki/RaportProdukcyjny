@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 # Wczytaj zmienne z pliku .env
-load_dotenv()
+load_dotenv(override=True)
 
 # Klucz do sesji (pobierany z .env, a jeśli brak - używa domyślnego)
 SECRET_KEY = os.getenv('SECRET_KEY', 'tajnyKluczAgronetzwerk')
