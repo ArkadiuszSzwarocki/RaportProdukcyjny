@@ -927,7 +927,8 @@ class PlanningService:
                             sekcja='Zasyp',
                             typ_produkcji=typ_prod,
                             status='zakonczone',  # Ghost Zasyp should be fully complete immediately
-                            nazwa_zlecenia=nazwa_for_new,
+                            nazwa_zlecenia=f'PRZENIESIONE z {current_data}',  # zawsze prefix z datą źródłową
+                            typ_zlecenia='carry_over_ghost',
                             linia=linia
                         )
                         new_zasyp_id = None

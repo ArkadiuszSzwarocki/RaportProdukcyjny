@@ -113,7 +113,7 @@ class QueryHelper:
         
         Returns list of tuples: (id, produkt, tonaz, status, real_start, real_stop, 
                                  minutes_diff, tonaz_rzeczywisty, kolejnosc, typ_produkcji, 
-                                 wyjasnienie_rozbieznosci, uszkodzone_worki, nazwa_zlecenia)
+                                 wyjasnienie_rozbieznosci, uszkodzone_worki, nazwa_zlecenia, data_planu, zasyp_id)
         """
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -122,7 +122,8 @@ class QueryHelper:
         cursor.execute(
             f"SELECT id, produkt, tonaz, status, real_start, real_stop, "
             "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
-            "typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, '') "
+            "typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), "
+            "data_planu, zasyp_id "
             f"FROM {table_plan} "
             "WHERE DATE(data_planu) = %s AND LOWER(sekcja) = LOWER(%s) AND status != 'nieoplacone' AND is_deleted = 0 "
             "ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, "

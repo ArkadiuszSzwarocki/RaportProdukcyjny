@@ -122,6 +122,16 @@ def start_zlecenie(id):
                 # Jeśli jest warning info - dodaj do flash message
                 if warning_info:
                     flash(f"ℹ️ {warning_info['message']}", 'info')
+
+                # Gdy Zasyp startuje — natychmiast dodaj do bufora i przelicz kolejkę
+                if sekcja == 'Zasyp':
+                    try:
+                        from app.db import refresh_bufor_queue
+                        conn.commit()  # commit real_start przed refresh
+                        refresh_bufor_queue(linia=linia)
+                        current_app.logger.info('[BUFOR] refresh po starcie Zasypu id=%s produkt=%s', id, produkt)
+                    except Exception as _rb_err:
+                        current_app.logger.warning('[BUFOR] refresh_bufor_queue po starcie Zasypu failed: %s', _rb_err)
             
         conn.commit()
         # commit done — ensure status change logged if not already

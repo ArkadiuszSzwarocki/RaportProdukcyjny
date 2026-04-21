@@ -390,6 +390,20 @@ def _migrate_columns(cursor):
         cursor.execute("UPDATE plan_produkcji SET typ_zlecenia='jakosc' WHERE LOWER(TRIM(produkt)) IN ('dezynfekcja linii','dezynfekcja')")
     except Exception:
         pass
+
+    # Backfill typ_zlecenia='carry_over_ghost' dla ghost Zasypów stworzonych przed wprowadzeniem pola
+    try:
+        cursor.execute("""
+            UPDATE plan_produkcji
+            SET typ_zlecenia = 'carry_over_ghost'
+            WHERE LOWER(sekcja) = 'zasyp'
+              AND status = 'zakonczone'
+              AND real_start IS NULL
+              AND (nazwa_zlecenia LIKE 'PRZENIESIONE z%' OR nazwa_zlecenia LIKE 'carry-over z%' OR nazwa_zlecenia LIKE 'Carry-over%')
+              AND (typ_zlecenia IS NULL OR typ_zlecenia = '')
+        """)
+    except Exception:
+        pass
     
     # plan_produkcji: Link Workowanie to Zasyp (1:1 relationship for exact order tracking)
     _add_column_if_missing(cursor, "plan_produkcji", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' - FK linkujacy Workowanie z Zasyp 1:1")
@@ -530,10 +544,59 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
         """)
         updated = cursor.rowcount
 
+        # 1b. Zamknij wpisy bufora, których Zasyp nigdy nie wystartował (real_start IS NULL).
+        #     Takie wpisy powstały przed regułą "tylko real_start IS NOT NULL" i nie powinny
+        #     blokować kolejki ani pojawiać się w modalach przenoszenia.
+        #     WYJĄTEK: Ghost Zasypy (status='zakonczone', real_start IS NULL) tworzone przez
+        #     przenies_niezrealizowane — mają status='zakonczone' bez real_start z założenia.
+        cursor.execute(f"""
+            UPDATE {table_bufor} b
+            JOIN {table_plan} z ON z.id = b.zasyp_id
+            SET b.status = 'zamkniete'
+            WHERE b.status = 'aktywny'
+              AND z.sekcja = 'Zasyp'
+              AND z.real_start IS NULL
+              AND z.status != 'zakonczone'
+        """)
+        if cursor.rowcount > 0:
+            print(f"[CLEANUP-{linia}] Zamknięto {cursor.rowcount} wpisów bufora z Zasypem bez real_start")
+
+        # 1d. Re-otwórz wpisy bufora dla ghost Zasypów (carry-over/przeniesione), które zostały
+        #     błędnie zamknięte przez krok 1b, gdy Workowanie jest nadal zaplanowane.
+        cursor.execute(f"""
+            UPDATE {table_bufor} b
+            JOIN {table_plan} z ON z.id = b.zasyp_id
+            SET b.status = 'aktywny'
+            WHERE b.status = 'zamkniete'
+              AND z.sekcja = 'Zasyp'
+              AND z.status = 'zakonczone'
+              AND z.real_start IS NULL
+              AND EXISTS (
+                  SELECT 1 FROM {table_plan} w
+                  WHERE w.sekcja = 'Workowanie' AND w.status IN ('w toku', 'zaplanowane')
+                    AND w.produkt = b.produkt AND w.data_planu = b.data_planu
+              )
+        """)
+        if cursor.rowcount > 0:
+            print(f"[CLEANUP-{linia}] Re-otwarto {cursor.rowcount} wpisów bufora dla ghost Zasypów (carry-over)")
+
+        # 1c. Zamknij osierocone wpisy bufora (zasyp_id wskazuje na nieistniejący plan).
+        cursor.execute(f"""
+            UPDATE {table_bufor} b
+            SET b.status = 'zamkniete'
+            WHERE b.status = 'aktywny'
+              AND NOT EXISTS (
+                  SELECT 1 FROM {table_plan} z WHERE z.id = b.zasyp_id
+              )
+        """)
+        if cursor.rowcount > 0:
+            print(f"[CLEANUP-{linia}] Zamknięto {cursor.rowcount} wpisów bufora z Zasypem bez real_start")
+
         # 2. Pobierz Zasypy dla skonfigurowanego zakresu dat.
-        #    Uwzględniamy 'zaplanowane' (przyszłe plany) - fix dla planów widocznych
-        #    w planowaniu ale niewidocznych na Zasypie.
-        #    Dla planów zaplanowanych używamy COALESCE(tonaz_rzeczywisty, tonaz) jako ilość.
+        #    ZASADA: do bufora trafia zasyp dopiero gdy pojawi się na zasypie (real_start IS NOT NULL).
+        #    Statusy 'w toku' i 'zakonczone' oznaczają, że zasyp faktycznie wystartował.
+        #    Zasypy 'zaplanowane' (bez real_start) NIE trafiają do bufora — kolejkowanie
+        #    zaczyna się dopiero gdy zlecenie pojawi się fizycznie na zasypie.
         cursor.execute(f"""
             SELECT z.id, z.data_planu, z.produkt, z.nazwa_zlecenia, z.typ_produkcji,
                    COALESCE(NULLIF(z.tonaz_rzeczywisty, 0), z.tonaz) AS efektywny_tonaz,
@@ -542,11 +605,11 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
             INNER JOIN {table_plan} w ON w.zasyp_id = z.id
             WHERE z.sekcja = 'Zasyp' AND w.sekcja = 'Workowanie'
               AND w.status IN ('w toku', 'zaplanowane')
-              AND z.status IN ('w toku', 'zakonczone', 'zaplanowane')
+              AND z.status IN ('w toku', 'zakonczone')
+              AND z.real_start IS NOT NULL
               AND z.data_planu >= %s AND z.data_planu <= %s
               AND COALESCE(NULLIF(z.tonaz_rzeczywisty, 0), z.tonaz, 0) > 0
-            ORDER BY z.data_planu DESC, CASE WHEN z.real_start IS NOT NULL THEN 0 ELSE 1 END ASC,
-                     COALESCE(z.real_start, '00:00:00') ASC, z.id ASC
+            ORDER BY z.data_planu DESC, COALESCE(z.real_start, '00:00:00') ASC, z.id ASC
         """, (start_date, end_date))
 
         zasypy_do_bufora = cursor.fetchall()
@@ -561,7 +624,7 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
             if cursor.fetchone():
                 continue
 
-            # Pobierz max kolejkę i ilość spakowanego w jednym zapytaniu
+            # Pobierz max kolejkę (po WSZYSTKICH statusach — unique key jest globalna) i ilość spakowanego
             cursor.execute(f"""
                 SELECT COALESCE(MAX(b.kolejka), 0), COALESCE(SUM(pw.waga), 0)
                 FROM {table_bufor} b
@@ -569,17 +632,16 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
                     SELECT id FROM {table_plan}
                     WHERE data_planu = %s AND produkt = %s AND sekcja = 'Workowanie'
                 )
-                WHERE b.data_planu = %s AND b.produkt = %s AND b.status = 'aktywny'
+                WHERE b.data_planu = %s AND b.produkt = %s
             """, (z_data, z_produkt, z_data, z_produkt))
 
             result = cursor.fetchone()
             next_kolejka = (result[0] or 0) + 1
             spakowano = result[1] or 0
 
-            # Sprawdź, czy dla tej daty/produktu/kolejki już istnieje wpis
+            # Sprawdź, czy dla tej daty/produktu/kolejki już istnieje wpis (dowolny status)
             cursor.execute(
-                f"SELECT id FROM {table_bufor} WHERE data_planu = %s AND produkt = %s AND kolejka = %s "
-                "AND status = 'aktywny'",
+                f"SELECT id FROM {table_bufor} WHERE data_planu = %s AND produkt = %s AND kolejka = %s",
                 (z_data, z_produkt, next_kolejka)
             )
             if cursor.fetchone():
@@ -596,20 +658,38 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
             if cursor.rowcount:
                 added += 1
 
-        # 4. Renumeruj kolejki
-        # Priorytet: zasypy z real_start (zakonczone/w toku) PRZED zaplanowanymi (bez real_start).
-        # Wewnątrz grupy z real_start — sortuj chronologicznie (najwcześniejszy start = najniższa kolejka).
-        # Zasypy bez real_start (zaplanowane) trafiają na koniec, posortowane po id.
+        # 4. Renumeruj kolejki (dwustopniowo — unikamy konfliktu z wpisami 'zamkniete')
+        #
+        # Problem: ROW_NUMBER zaczyna od 1, ale wpisy 'zamkniete' mogą zajmować niskie numery
+        # dla tego samego (data_planu, produkt). Bezpośrednia UPDATE-a powoduje Duplicate Key.
+        #
+        # Rozwiązanie:
+        #   Krok 4a — przesuń wszystkie aktywne do strefy tymczasowej (ujemne -id, gwarantowanie unikalne).
+        #   Krok 4b — przypisz właściwe numery startujące od MAX(zamkniete)+1 (globalnie na datę),
+        #             posortowane wg real_start zasypu (CASE WHEN, bo MySQL NULL < wartości w ASC).
+
+        cursor.execute(f"""
+            UPDATE {table_bufor}
+            SET kolejka = -id
+            WHERE status = 'aktywny'
+              AND data_planu >= %s AND data_planu <= %s
+        """, (start_date, end_date))
+
         cursor.execute(f"""
             UPDATE {table_bufor} b
             JOIN (
-                SELECT b2.id, ROW_NUMBER() OVER (
-                    PARTITION BY b2.data_planu
-                    ORDER BY b2.data_planu DESC,
-                             CASE WHEN (SELECT z.real_start FROM {table_plan} z WHERE z.id = b2.zasyp_id) IS NOT NULL THEN 0 ELSE 1 END,
-                             COALESCE((SELECT z.real_start FROM {table_plan} z WHERE z.id = b2.zasyp_id), '9999-12-31'),
-                             b2.id
-                ) as nowa_kolejka
+                SELECT b2.id,
+                       (SELECT COALESCE(MAX(b3.kolejka), 0)
+                        FROM {table_bufor} b3
+                        WHERE b3.data_planu = b2.data_planu
+                          AND b3.status != 'aktywny')
+                       + ROW_NUMBER() OVER (
+                           PARTITION BY b2.data_planu
+                           ORDER BY b2.data_planu DESC,
+                                    CASE WHEN (SELECT z.real_start FROM {table_plan} z WHERE z.id = b2.zasyp_id) IS NOT NULL THEN 0 ELSE 1 END ASC,
+                                    COALESCE((SELECT z.real_start FROM {table_plan} z WHERE z.id = b2.zasyp_id), '9999-12-31 23:59:59') ASC,
+                                    b2.id ASC
+                       ) AS nowa_kolejka
                 FROM {table_bufor} b2
                 WHERE b2.status = 'aktywny'
             ) ranked ON b.id = ranked.id

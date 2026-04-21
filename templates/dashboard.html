@@ -255,6 +255,12 @@
                         {% if sekcja == 'Zasyp' %}
                         <span class="zlecenie-id-badge" title="Nr zlecenia w systemie">#{{ p[0] }}</span>
                         {% endif %}
+                        {% if p[13] %}
+                        <br><span style="display:inline-block;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:10px;padding:1px 8px;font-size:0.75em;font-weight:700;margin-top:3px;">📦 przeniesione z {{ p[13] }}{% if p[14] and p[14]|int > 0 %}: {{ p[14]|int }} kg{% endif %}</span>
+                        {% if p[14] and p[14]|int > 0 and p[2]|int > p[14]|int %}
+                        <br><span style="display:inline-block;background:#d4edda;color:#155724;border:1px solid #28a745;border-radius:10px;padding:1px 8px;font-size:0.75em;font-weight:700;margin-top:2px;">➕ doplanowane: +{{ (p[2]|int - p[14]|int) }} kg</span>
+                        {% endif %}
+                        {% endif %}
                     </strong>
                     <div class="header-actions">
                         <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>

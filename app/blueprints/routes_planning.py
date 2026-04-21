@@ -701,7 +701,21 @@ def przenies_zlecenie(id):
     if not nowa_data:
         flash('Nowa data jest wymagana.', 'warning')
         return redirect(bezpieczny_powrot())
-    
+
+    # Blokada: z panelu planowania nie można przenosić zleceń z poprzednich dni
+    try:
+        from app.db import get_db_connection, get_table_name
+        _conn = get_db_connection()
+        _cur = _conn.cursor()
+        _cur.execute(f"SELECT data_planu FROM {get_table_name('plan_produkcji', linia)} WHERE id=%s", (id,))
+        _row = _cur.fetchone()
+        _conn.close()
+        if _row and str(_row[0]) < str(date.today()):
+            flash('Nie można przenosić zleceń z poprzednich dni.', 'warning')
+            return redirect(bezpieczny_powrot())
+    except Exception:
+        pass
+
     success, message = PlanningService.reschedule_plan(id, nowa_data, linia=linia)
     flash(message, 'success' if success else 'warning')
     return redirect(bezpieczny_powrot())
@@ -748,11 +762,12 @@ def edytuj_plan(id):
         cursor = conn.cursor()
         
         # Check if exists and get current state including updated_at
-        cursor.execute(f"SELECT id, status, sekcja, updated_at FROM {table_plan} WHERE id=%s", (id,))
+        cursor.execute(f"SELECT id, status, sekcja, updated_at, zasyp_id FROM {table_plan} WHERE id=%s", (id,))
         r = cursor.fetchone()
         if not r:
             flash('Nie znaleziono zlecenia', 'warning')
             return redirect(bezpieczny_powrot())
+        current_zasyp_id = r[4]  # zasyp_id planów Workowanie
             
         last_seen = request.form.get('last_updated')
         db_updated_at = str(r[3]) if r[3] else ''
@@ -827,6 +842,25 @@ def edytuj_plan(id):
             sql = f"UPDATE {table_plan} SET {', '.join(updates)} WHERE id=%s"
             params.append(id)
             cursor.execute(sql, tuple(params))
+
+            # Jeśli zmieniono tonaz dla planu Workowanie z zasyp_id (carry-over),
+            # zaktualizuj bufor.tonaz_rzeczywisty aby bufor zamknął się w odpowiednim momencie.
+            if tonaz_val is not None and r[2] == 'Workowanie' and current_zasyp_id:
+                try:
+                    table_bufor = get_table_name('bufor', linia)
+                    cursor.execute(
+                        f"UPDATE {table_bufor} SET tonaz_rzeczywisty = %s "
+                        f"WHERE zasyp_id = %s AND status IN ('aktywny', 'zamkniete')",
+                        (tonaz_val, current_zasyp_id)
+                    )
+                    if cursor.rowcount:
+                        current_app.logger.info(
+                            f'[BUFOR-SYNC] Zaktualizowano bufor.tonaz_rzeczywisty={tonaz_val} '
+                            f'dla zasyp_id={current_zasyp_id} (plan.id={id})'
+                        )
+                except Exception as buf_err:
+                    current_app.logger.warning(f'[BUFOR-SYNC] Nie udało się zsync bufor dla plan {id}: {buf_err}')
+
             conn.commit()
             notify_workers_about_plan_change(
                 plan_context=get_plan_notification_context(id, conn=conn, linia=linia),
@@ -895,14 +929,17 @@ def edytuj_plan_ajax():
         conn = get_db_connection()
         table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
-        cursor.execute(f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, '') FROM {table_plan} WHERE id=%s", (pid,))
+        cursor.execute(f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, '') FROM {table_plan} WHERE id=%s", (pid,))
         before = cursor.fetchone()
         if not before:
             return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
         
-        # If zakonczone, nobody can edit
+        # If zakonczone, nobody can edit — WYJĄTEK: carry_over_ghost Zasypy (planista może zmienić tonaż)
         if before[5] == 'zakonczone':
-            return jsonify({'success': False, 'message': 'Nie można edytować zakończonych zleceń'}), 403
+            if before[9] != 'carry_over_ghost':
+                return jsonify({'success': False, 'message': 'Nie można edytować zakończonych zleceń'}), 403
+            if tonaz_val is None:
+                return jsonify({'success': False, 'message': 'Dla przeniesionego planu można zmienić tylko tonaż'}), 403
         
         # If w toku, allow planista and admin to edit only tonaz (kg)
         current_role = session.get('rola', '')
@@ -962,6 +999,12 @@ def edytuj_plan_ajax():
             params.append(nk)
             changes['data_planu'] = {'before': str(before[4]), 'after': data_planu}
 
+        # carry_over_ghost: gdy tonaz zmieniony na >0, przełącz status na zaplanowane
+        if before[9] == 'carry_over_ghost' and before[5] == 'zakonczone' and tonaz_val is not None and tonaz_val > 0:
+            updates.append('status=%s')
+            params.append('zaplanowane')
+            changes['status'] = {'before': 'zakonczone', 'after': 'zaplanowane'}
+
         if updates:
             sql = f"UPDATE {table_plan} SET {', '.join(updates)} WHERE id=%s"
             params.append(pid)
@@ -976,7 +1019,20 @@ def edytuj_plan_ajax():
             )
             current_app.logger.info('Zlecenie ID=%s zaktualizowane (AJAX) przez %s: %s', pid, session.get('login'), changes)
             audit_log('Edytował zlecenie (AJAX)', f'ID={pid}, zmiany: {list(changes.keys())}')
-            
+
+            # Sync bufor.tonaz_rzeczywisty when Workowanie tonaz changes
+            try:
+                if 'tonaz' in changes and (before[3] or '').lower() == 'workowanie' and before[8]:
+                    table_bufor = get_table_name('bufor', linia)
+                    cursor.execute(
+                        f"UPDATE {table_bufor} SET tonaz_rzeczywisty = %s "
+                        f"WHERE zasyp_id = %s AND status IN ('aktywny', 'zamkniete')",
+                        (changes['tonaz']['after'], before[8])
+                    )
+                    conn.commit()
+            except Exception as e:
+                current_app.logger.error(f'Error syncing bufor.tonaz_rzeczywisty (AJAX): {e}', exc_info=True)
+
             # If this edited plan is a Zasyp, propagate key changes to linked Workowanie entries
             try:
                 sekcja_before = (before[3] or '').lower()
@@ -1109,11 +1165,27 @@ def przenies_zlecenie_ajax():
         return jsonify({'success': False, 'message': 'Brak parametrów'}), 400
 
     linia = data.get('linia') or request.args.get('linia') or 'PSD'
+    from_bufor = bool(data.get('from_bufor', False))
 
     try:
         pid = int(id)
     except Exception:
         return jsonify({'success': False, 'message': 'Błąd ID'}), 400
+
+    # Blokada: z panelu planowania nie można przenosić zleceń z poprzednich dni.
+    # Bufor może przenosić stare zaległości (from_bufor=True).
+    if not from_bufor:
+        try:
+            from app.db import get_db_connection, get_table_name
+            _conn = get_db_connection()
+            _cur = _conn.cursor()
+            _cur.execute(f"SELECT data_planu FROM {get_table_name('plan_produkcji', linia)} WHERE id=%s", (pid,))
+            _row = _cur.fetchone()
+            _conn.close()
+            if _row and str(_row[0]) < str(date.today()):
+                return jsonify({'success': False, 'message': 'Nie można przenosić zleceń z poprzednich dni.'}), 400
+        except Exception:
+            pass
 
     success, message = PlanningService.reschedule_plan(pid, to_date, linia=linia)
     status_code = 200 if success else 400

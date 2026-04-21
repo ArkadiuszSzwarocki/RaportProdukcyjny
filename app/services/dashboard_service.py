@@ -193,6 +193,103 @@ class DashboardService:
                 p[5] = p[5].strftime('%H:%M') if p[5] else ''
             except Exception:
                 p[5] = str(p[5]) if p[5] else ''
+            # p[13] (data_planu) zostanie nadpisany przez lookup plan_history poniżej
+
+        # Ustal "przeniesiony_z" dla każdego planu:
+        # Sprawdź plan_history (reschedule_plan) ORAZ nazwa_zlecenia (carry-over ghost Zasyp).
+        przeniesione_map = {}
+        if plan_dnia:
+            plan_ids = [p[0] for p in plan_dnia]
+            fmt_ids = ','.join(['%s'] * len(plan_ids))
+            try:
+                from datetime import datetime as _dt
+                conn_ph = get_db_connection()
+                cursor_ph = conn_ph.cursor()
+                cursor_ph.execute(f"""
+                    SELECT ph.plan_id,
+                           SUBSTRING_INDEX(SUBSTRING_INDEX(ph.changes, ' na ', 1), 'Z ', -1) AS stara_data
+                    FROM plan_history ph
+                    INNER JOIN (
+                        SELECT plan_id, MAX(id) AS max_id FROM plan_history
+                        WHERE action = 'przeniesienie' AND plan_id IN ({fmt_ids})
+                        GROUP BY plan_id
+                    ) last ON last.plan_id = ph.plan_id AND last.max_id = ph.id
+                """, plan_ids)
+                for row in cursor_ph.fetchall():
+                    stara = str(row[1]).strip() if row[1] else ''
+                    if stara:
+                        try:
+                            przeniesione_map[row[0]] = _dt.strptime(stara, '%Y-%m-%d').strftime('%d.%m.%Y')
+                        except Exception:
+                            pass
+                cursor_ph.close()
+                conn_ph.close()
+            except Exception:
+                pass
+        # Ustaw p[13]: sformatowana data źródłowa lub '' jeśli nie przeniesione
+        # Ustaw p[14]: oryginalna kwota przenosin z bufora (0 jeśli nie carry-over lub brak)
+        for p in plan_dnia:
+            src = przeniesione_map.get(p[0], '')
+            if not src:
+                # Carry-over ghost: nazwa_zlecenia zaczyna się od 'PRZENIESIONE z ' lub 'carry-over z '
+                nazwa = p[12] if len(p) > 12 else ''
+                from datetime import datetime as _dt
+                for prefix in ('PRZENIESIONE z ', 'carry-over z '):
+                    if nazwa.startswith(prefix):
+                        raw_date = nazwa[len(prefix):].strip()
+                        try:
+                            src = _dt.strptime(raw_date, '%Y-%m-%d').strftime('%d.%m.%Y')
+                        except Exception:
+                            pass
+                        break
+            p[13] = src
+            p[14] = 0  # placeholder: original transfer tonaz (filled below)
+
+        # Pobierz oryginalną kwotę przenosin z bufora dla planów carry-over
+        # bufor.tonaz_rzeczywisty = kwota przy przeniesieniu (nie zmienia się gdy planista edytuje plan.tonaz)
+        carry_over_plans = [p for p in plan_dnia if p[13] and len(p) > 14 and p[14] is not None]
+        if carry_over_plans:
+            try:
+                table_bufor = get_table_name('bufor', linia)
+                conn_buf = get_db_connection()
+                cursor_buf = conn_buf.cursor()
+                zasyp_ids = [p[14] for p in plan_dnia if p[13]]  # p[14] still zasyp_id here (from SELECT)
+                # Actually p[14] from SELECT is zasyp_id - we haven't overwritten it yet.
+                # Collect zasyp_ids for plans that have przeniesiony_z set
+                zasyp_id_map = {}  # plan_id -> zasyp_id
+                for p in plan_dnia:
+                    if p[13]:  # przeniesiony_z is set
+                        raw_zasyp_id = p[14]  # still zasyp_id from DB at this point
+                        if raw_zasyp_id:
+                            zasyp_id_map[p[0]] = raw_zasyp_id
+                if zasyp_id_map:
+                    all_zasyp_ids = list(zasyp_id_map.values())
+                    fmt = ','.join(['%s'] * len(all_zasyp_ids))
+                    cursor_buf.execute(f"""
+                        SELECT zasyp_id, tonaz_rzeczywisty
+                        FROM {table_bufor}
+                        WHERE zasyp_id IN ({fmt}) AND status IN ('aktywny', 'zamkniete', 'przeniesiony')
+                        ORDER BY id DESC
+                    """, all_zasyp_ids)
+                    bufor_tonaz_map = {}  # zasyp_id -> original tonaz
+                    for row in cursor_buf.fetchall():
+                        if row[0] not in bufor_tonaz_map:
+                            bufor_tonaz_map[row[0]] = int(row[1]) if row[1] else 0
+                    # Ustaw p[14] = original transfer tonaz
+                    for p in plan_dnia:
+                        zid = zasyp_id_map.get(p[0])
+                        p[14] = bufor_tonaz_map.get(zid, 0) if zid else 0
+                else:
+                    for p in plan_dnia:
+                        p[14] = 0
+                cursor_buf.close()
+                conn_buf.close()
+            except Exception:
+                for p in plan_dnia:
+                    p[14] = 0
+        else:
+            for p in plan_dnia:
+                p[14] = 0
 
         # For Workowanie: ensure displayed "plan" (p[2]) matches the
         # corresponding Zasyp.tonaz_rzeczywisty when available. This keeps
@@ -375,7 +472,8 @@ class DashboardService:
             cursor.execute(
                 f"""SELECT id, produkt, tonaz, status, real_start, real_stop, 
                    TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, 
-                   kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci 
+                   kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci,
+                   COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), data_planu, zasyp_id
                    FROM {table_plan} p
                    WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' 
                    AND p.status IN ('w toku', 'zaplanowane')

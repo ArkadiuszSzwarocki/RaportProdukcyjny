@@ -185,26 +185,8 @@ def start_daemon_threads(app, cleanup_enabled=False):
     except Exception:
         _safe_log_exception('Failed to start palety monitor thread')
 
-    # Start periodic refresh of bufor/Workowanie sync to keep DB in sync with Zasyp
-    try:
-        from app.db import refresh_bufor_queue
-
-        def _periodic_refresh(interval_seconds=60):
-            while True:
-                try:
-                    refresh_bufor_queue()
-                    app.logger.debug('Periodic refresh_bufor_queue executed')
-                except Exception:
-                    app.logger.exception('Periodic refresh_bufor_queue failed')
-                time.sleep(interval_seconds)
-
-        refresh_thread = threading.Thread(
-            target=_periodic_refresh,
-            kwargs={'interval_seconds': 300},
-            daemon=True
-        )
-        refresh_thread.start()
-        _safe_log_info('Started periodic refresh_bufor_queue thread')
-    except Exception:
-        _safe_log_exception('Failed to start periodic refresh_bufor_queue thread')
+    # Bufor jest odświeżany zdarzeniowo (start Zasypu), nie periodicznie.
+    # Periodyczny wątek wyłączony celowo — unikamy błędnych wpięć do kolejki
+    # zanim zlecenie faktycznie pojawi się na zasypie.
+    _safe_log_info('Periodic refresh_bufor_queue thread disabled (event-driven mode)')
 

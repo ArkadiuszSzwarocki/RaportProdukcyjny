@@ -354,6 +354,7 @@ def index() -> str:
         'suma_wykonanie': main_h_data['suma_wykonanie'],
         'rola': session.get('rola'),
         'dzisiaj': dzisiaj,
+        'dzisiaj_fmt': dzisiaj.strftime('%d.%m.%Y'),
         'raporty_hr': hr_data['raporty_hr'],
         'zasyp_rozpoczete': main_h_data['zasyp_rozpoczete'],
         'next_workowanie_id': main_h_data['next_workowanie_id'],

@@ -73,7 +73,7 @@ def panel_planisty():
  
         # 1. Fetch primary plans (Zasyp + Czyszczenie)
         cursor.execute(f"""
-            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
+            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), zasyp_id
             FROM {table_plan} 
             WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
             ORDER BY kolejnosc
@@ -82,7 +82,7 @@ def panel_planisty():
 
         # 2. Add standalone Workowanie rows (avoiding duplicates and cases already covered by Zasyp)
         cursor.execute(f"""
-            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0)
+            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), zasyp_id
             FROM {table_plan}
             WHERE data_planu = %s AND LOWER(sekcja) = 'workowanie'
             ORDER BY kolejnosc
@@ -91,8 +91,93 @@ def panel_planisty():
         for w in work_rows:
             if any(p['id'] == w['id'] for p in plany_list): continue
             prod_name = (w['produkt'] or '').strip().lower()
-            if any(p['sekcja'].lower() == 'zasyp' and (p['produkt'] or '').strip().lower() == prod_name for p in plany_list): continue
+            matching_zasyp = next(
+                (p for p in plany_list if p['sekcja'].lower() == 'zasyp' and (p['produkt'] or '').strip().lower() == prod_name),
+                None
+            )
+            if matching_zasyp is not None:
+                # Ghost Zasyp (zakonczone + carry-over): zapisz ID Workowania żeby planista mógł edytować tonaż
+                if matching_zasyp.get('status') == 'zakonczone':
+                    matching_zasyp['linked_workowanie_id'] = w['id']
+                    matching_zasyp['linked_workowanie_tonaz'] = w['tonaz'] or 0
+                    matching_zasyp['_work_nazwa'] = w.get('nazwa_zlecenia', '') or ''
+                continue
             plany_list.append(dict(w))
+
+        # 2b. Oznacz plany przeniesione z innego dnia (na podstawie plan_history + nazwa_zlecenia)
+        if plany_list:
+            from datetime import datetime as _dt
+            plan_ids = [p['id'] for p in plany_list]
+            fmt_ids = ','.join(['%s'] * len(plan_ids))
+            cursor.execute(f"""
+                SELECT ph.plan_id,
+                       SUBSTRING_INDEX(SUBSTRING_INDEX(ph.changes, ' na ', 1), 'Z ', -1) AS stara_data
+                FROM plan_history ph
+                INNER JOIN (
+                    SELECT plan_id, MAX(id) AS max_id FROM plan_history
+                    WHERE action = 'przeniesienie' AND plan_id IN ({fmt_ids})
+                    GROUP BY plan_id
+                ) last ON last.plan_id = ph.plan_id AND last.max_id = ph.id
+            """, plan_ids)
+            przeniesione_map = {r['plan_id']: r['stara_data'] for r in cursor.fetchall()}
+            for p in plany_list:
+                stara = przeniesione_map.get(p['id'])
+                if stara and stara != wybrana_data:
+                    try:
+                        p['przeniesiony_z'] = _dt.strptime(stara, '%Y-%m-%d').strftime('%d.%m.%Y')
+                    except Exception:
+                        p['przeniesiony_z'] = stara
+                else:
+                    # Sprawdź carry-over przez nazwa_zlecenia (lub fallback z powiązanego Workowania)
+                    nazwa = p.get('nazwa_zlecenia', '') or ''
+                    src = ''
+                    for prefix in ('PRZENIESIONE z ', 'carry-over z '):
+                        if nazwa.startswith(prefix):
+                            raw_date = nazwa[len(prefix):].strip()
+                            try:
+                                src = _dt.strptime(raw_date, '%Y-%m-%d').strftime('%d.%m.%Y')
+                            except Exception:
+                                pass
+                            break
+                    # Fallback: sprawdź nazwa_zlecenia powiązanego Workowania (gdy ghost Zasyp ma buf_nazwa)
+                    if not src and p.get('_work_nazwa'):
+                        work_nazwa = p['_work_nazwa']
+                        for prefix in ('PRZENIESIONE z ', 'carry-over z '):
+                            if work_nazwa.startswith(prefix):
+                                raw_date = work_nazwa[len(prefix):].strip()
+                                try:
+                                    src = _dt.strptime(raw_date, '%Y-%m-%d').strftime('%d.%m.%Y')
+                                except Exception:
+                                    pass
+                                break
+                    p['przeniesiony_z'] = src or None
+                p['przeniesiony_tonaz'] = 0  # placeholder, wypełniany poniżej
+
+            # Lookup bufor.tonaz_rzeczywisty dla planów carry-over (oryginalna kwota przenosin)
+            table_bufor_local = get_table_name('bufor', wybrana_linia)
+            zasyp_id_to_plan = {}
+            for p in plany_list:
+                if p.get('przeniesiony_z') and p.get('zasyp_id'):
+                    zasyp_id_to_plan[p['zasyp_id']] = p
+            if zasyp_id_to_plan:
+                fmt_zids = ','.join(['%s'] * len(zasyp_id_to_plan))
+                cursor.execute(f"""
+                    SELECT zasyp_id, tonaz_rzeczywisty
+                    FROM {table_bufor_local}
+                    WHERE zasyp_id IN ({fmt_zids}) AND status IN ('aktywny', 'zamkniete', 'przeniesiony')
+                    ORDER BY id DESC
+                """, list(zasyp_id_to_plan.keys()))
+                seen = set()
+                for row in cursor.fetchall():
+                    zid = row['zasyp_id']
+                    if zid not in seen:
+                        seen.add(zid)
+                        plan_ref = zasyp_id_to_plan[zid]
+                        plan_ref['przeniesiony_tonaz'] = int(row['tonaz_rzeczywisty']) if row['tonaz_rzeczywisty'] else 0
+        else:
+            for p in plany_list:
+                p['przeniesiony_z'] = None
+                p['przeniesiony_tonaz'] = 0
 
         # 3. Process primary list details (Execution, Time, Palety)
         suma_plan, suma_wyk, suma_minut_plan = 0, 0, 0
@@ -181,11 +266,16 @@ def panel_planisty():
             spak_kg = cursor.fetchone()['total'] or 0
             cursor.execute(f"SELECT SUM(tonaz_rzeczywisty - spakowano) as total FROM {t_bf_r} WHERE zasyp_id = %s AND data_planu = %s AND status = 'aktywny'", (z_id, wybrana_data))
             buf_kg = cursor.fetchone()['total'] or 0
+            cursor.execute(f"SELECT COALESCE(SUM(tonaz), 0) as total FROM {t_pp_r} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie' AND produkt = %s", (wybrana_data, prod_r))
+            plan_wor_kg = cursor.fetchone()['total'] or 0
+            # Dla ghost Zasyp (carry_over): jeśli nie znaleziono przez produkt, użyj linked_workowanie_tonaz
+            if plan_wor_kg == 0 and p.get('linked_workowanie_tonaz'):
+                plan_wor_kg = p['linked_workowanie_tonaz']
             
             rozliczenia.append({
                 'zasyp_id': z_id, 'produkt': prod_r, 'status': p['status'],
                 'planowany_zasyp': round(float(p_z), 1), 'zasyp_kg': round(float(z_kg), 1),
-                'plan_workowanie': round(float(z_kg), 1), 'spakowano_palety': round(float(spak_kg), 1),
+                'plan_workowanie': round(float(plan_wor_kg), 1), 'spakowano_palety': round(float(spak_kg), 1),
                 'bufor_spakowano': round(float(buf_kg), 1),
                 'diff_no_buf': round(float(z_kg) - float(spak_kg), 1), 'diff_with_buf': round(float(z_kg) - (float(spak_kg) + float(buf_kg)), 1)
             })
@@ -208,13 +298,40 @@ def panel_planisty():
                 if cursor.fetchone()['cnt'] > 0: has_incomplete_plans = True; break
         
         # 8. Bufor reminders (only previous day, not all past days)
+        #    Baner widoczny tylko do 7:30 rano - po tym czasie zmiana juz trwa i przenoszenie nieaktualne
         bufor_remaining = []
         bufor_source_date = None
+        bufor_source_date_fmt = None
         t_bf_now = get_table_name('bufor', wybrana_linia)
-        cursor.execute(f"SELECT produkt, SUM(COALESCE(tonaz_rzeczywisty, 0) - COALESCE(spakowano, 0)) as pozostalo FROM {t_bf_now} WHERE status = 'aktywny' AND data_planu = DATE_SUB(%s, INTERVAL 1 DAY) GROUP BY produkt HAVING pozostalo > 0", (wybrana_data,))
-        bufor_remaining = [{'produkt': r['produkt'], 'pozostalo_kg': round(float(r['pozostalo']), 1)} for r in cursor.fetchall()]
-        if bufor_remaining:
-            bufor_source_date = str((datetime.strptime(wybrana_data, '%Y-%m-%d') - timedelta(days=1)).date())
+        from datetime import time as _time
+        _now = datetime.now().time()
+        _show_bufor_banner = (_now <= _time(7, 30)) or (wybrana_data != date.today().strftime('%Y-%m-%d'))
+        if _show_bufor_banner:
+            cursor.execute(f"SELECT produkt, SUM(COALESCE(tonaz_rzeczywisty, 0) - COALESCE(spakowano, 0)) as pozostalo FROM {t_bf_now} WHERE status = 'aktywny' AND data_planu = DATE_SUB(%s, INTERVAL 1 DAY) GROUP BY produkt HAVING pozostalo > 0", (wybrana_data,))
+            bufor_remaining = [{'produkt': r['produkt'], 'pozostalo_kg': round(float(r['pozostalo']), 1)} for r in cursor.fetchall()]
+            if bufor_remaining:
+                # Ukryj produkty, dla których przeniesienie już zostało wykonane (carry_over_ghost istnieje na wybrana_data)
+                juz_przeniesione = set()
+                for linia_chk in ['PSD', 'AGRO']:
+                    t_pp_chk = get_table_name('plan_produkcji', linia_chk)
+                    try:
+                        produkty_buf = [r['produkt'] for r in bufor_remaining]
+                        fmt_buf = ','.join(['%s'] * len(produkty_buf))
+                        cursor.execute(
+                            f"SELECT DISTINCT produkt FROM {t_pp_chk} "
+                            f"WHERE DATE(data_planu) = %s AND COALESCE(typ_zlecenia,'') = 'carry_over_ghost' "
+                            f"AND produkt IN ({fmt_buf})",
+                            [wybrana_data] + produkty_buf
+                        )
+                        for row in cursor.fetchall():
+                            juz_przeniesione.add((row['produkt'] or '').strip().lower())
+                    except Exception:
+                        pass
+                bufor_remaining = [r for r in bufor_remaining if (r['produkt'] or '').strip().lower() not in juz_przeniesione]
+            if bufor_remaining:
+                bufor_source_date = str((datetime.strptime(wybrana_data, '%Y-%m-%d') - timedelta(days=1)).date())
+                _d = datetime.strptime(bufor_source_date, '%Y-%m-%d')
+                bufor_source_date_fmt = _d.strftime('%d.%m.%Y')
 
         rola = session.get('rola')
         return render_template('planista.html',
@@ -226,7 +343,7 @@ def panel_planisty():
                                plany_agro=plany_agro, suma_plan_agro=suma_plan_agro, suma_wyk_agro=suma_wyk_agro,
                                suma_minut_plan_agro=suma_minut_plan_agro, procent_agro=procent_agro,
                                has_incomplete_plans=has_incomplete_plans, bufor_remaining=bufor_remaining,
-                               bufor_source_date=bufor_source_date)
+                               bufor_source_date=bufor_source_date, bufor_source_date_fmt=bufor_source_date_fmt)
     except Exception as e:
         import traceback
         error_msg = f"Error loading panel_planisty: {str(e)}\n{traceback.format_exc()}"
@@ -352,6 +469,15 @@ def bufor_page():
             needs_reconciliation = round(pozostalo_do_spakowania, 1) != 0
             start_time = z_real_start.strftime('%H:%M') if z_real_start else 'N/A'
             
+            # Wpis z innego dnia niz wybrana_data = przeniesiony
+            przeniesiony_z = None
+            if str(z_data) != wybrana_data:
+                try:
+                    from datetime import datetime as _dt2
+                    przeniesiony_z = _dt2.strptime(str(z_data), '%Y-%m-%d').strftime('%d.%m.%Y')
+                except Exception:
+                    przeniesiony_z = str(z_data)
+            
             bufor_list.append({
                 'id': z_id,
                 'buf_id': buf_id,
@@ -368,7 +494,8 @@ def bufor_page():
                 'needs_reconciliation': needs_reconciliation,
                 'status': z_status or 'zaplanowane',
                 'real_start': z_real_start,
-                'start_time': start_time
+                'start_time': start_time,
+                'przeniesiony_z': przeniesiony_z
             })
         
         conn.close()
@@ -935,6 +1062,7 @@ def api_check_niezrealizowane():
             WHERE DATE(z.data_planu) = %s
               AND z.status = 'zakonczone'
               AND LOWER(z.sekcja) = 'zasyp'
+              AND z.real_start IS NOT NULL
             ORDER BY z.id
         """, (current_data,))
         

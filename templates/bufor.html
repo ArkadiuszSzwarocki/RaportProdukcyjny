@@ -606,7 +606,11 @@
                         {{ b.data }}
                         <small class="bufor-start-time">Start: {{ b.start_time }}</small>
                     </td>
-                    <td><strong class="text-primary">{{ b.produkt }}</strong></td>
+                    <td><strong class="text-primary">{{ b.produkt }}</strong>
+                        {% if b.przeniesiony_z %}
+                        <br><span style="display:inline-block;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:10px;padding:1px 7px;font-size:0.78em;font-weight:600;margin-top:2px;">📦 przeniesione z {{ b.przeniesiony_z }}</span>
+                        {% endif %}
+                    </td>
                     <td><span class="text-muted">{{ b.nazwa }}</span></td>
                     <td>{{ '%.1f'|format(b.do_spakowania) }} kg</td>
                     <td>{{ '%.1f'|format(b.spakowane) }} kg</td>
@@ -717,7 +721,7 @@
         fetch('/api/przenies_zlecenie_ajax', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: planId, to_date: toDate })
+            body: JSON.stringify({ id: planId, to_date: toDate, from_bufor: true })
         })
             .then(r => r.json().catch(() => ({ success: false, message: 'Nieprawidłowa odpowiedź serwera' })))
             .then(j => {
