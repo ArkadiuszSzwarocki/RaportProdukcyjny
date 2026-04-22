@@ -57,6 +57,7 @@ def zasyp_etap_start():
     linia = str(linia_input).upper()
     plan_id_raw = request.form.get('plan_id')
     etap_raw = request.form.get('etap')
+    kg_raw = request.form.get('wielkosc_szarzy_kg')
 
     try:
         plan_id = int(plan_id_raw)
@@ -95,6 +96,25 @@ def zasyp_etap_start():
         except Exception:
             pass
 
+    if etap == 1:
+        kg = _parse_float(kg_raw)
+        if kg is None:
+            param = ZasypEtapyService.get_parametry(plan_id, linia)
+            if param.get('wielkosc_szarzy_kg') is None:
+                flash('❌ Podaj wielkość szarży przed startem Naważania', 'danger')
+                return redirect(bezpieczny_powrot())
+        else:
+            ok_kg, msg_kg = ZasypEtapyService.set_wielkosc_szarzy(
+                plan_id=plan_id,
+                linia=linia,
+                data_planu=data_planu_date,
+                kg=kg,
+                user_login=session.get('login') or '',
+            )
+            if not ok_kg:
+                flash(f'❌ {msg_kg}', 'danger')
+                return redirect(bezpieczny_powrot())
+
     ok, msg = ZasypEtapyService.start_etap(
         plan_id=plan_id,
         linia=linia,
@@ -129,20 +149,21 @@ def zasyp_etap_stop():
         table_plan = get_table_name('plan_produkcji', linia)
         cursor = conn.cursor()
         cursor.execute(
-            f"SELECT sekcja, status, produkt FROM {table_plan} WHERE id=%s",
+            f"SELECT sekcja, status, data_planu, produkt FROM {table_plan} WHERE id=%s",
             (plan_id,),
         )
         row = cursor.fetchone()
         if not row:
             flash('❌ Zlecenie nie znalezione', 'danger')
             return redirect(bezpieczny_powrot())
-        sekcja, status, produkt = row[0], row[1], row[2]
+        sekcja, status, data_planu, produkt = row[0], row[1], row[2], row[3]
         if sekcja != 'Zasyp':
             flash('❌ To nie jest zlecenie Zasyp', 'danger')
             return redirect(bezpieczny_powrot())
         if status != 'w toku':
             flash('❌ Zlecenie musi być W TOKU', 'danger')
             return redirect(bezpieczny_powrot())
+        data_planu_date = _coerce_date(data_planu)
     except Exception as e:
         current_app.logger.error('zasyp_etap_stop failed: %s', e, exc_info=True)
         flash('❌ Błąd STOP etapu', 'danger')
@@ -159,6 +180,35 @@ def zasyp_etap_stop():
         etap=etap,
         user_login=session.get('login') or '',
     )
+
+    if ok:
+        next_etap = None
+        if linia == 'AGRO':
+            # AGRO flow: 1 -> 2, then PAUZA (no auto-start for 2). Dosypka starts after etap 3 stop.
+            if etap == 1:
+                next_etap = 2
+            elif etap == 3:
+                next_etap = 4
+            elif 30 < etap < 40:
+                # 31 (3a) -> 41 (4a), 32 (3b) -> 42 (4b), etc.
+                next_etap = etap + 10
+        elif etap < 6:
+            next_etap = etap + 1
+
+        if next_etap is not None:
+            next_ok, next_msg = ZasypEtapyService.start_etap(
+                plan_id=plan_id,
+                linia=linia,
+                data_planu=data_planu_date,
+                etap=next_etap,
+                user_login=session.get('login') or '',
+            )
+            if next_ok:
+                msg = f'{msg}; automatycznie uruchomiono etap {next_etap}'
+                audit_log('START etapu Zasyp', f'plan_id={plan_id}, etap={next_etap}, linia={linia}, produkt={produkt}')
+            else:
+                msg = f'{msg}; etap {next_etap}: {next_msg}'
+
     flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
     if ok:
         audit_log('STOP etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
@@ -235,7 +285,7 @@ def zasyp_etap_manual_set():
 
 @production_bp.route('/zasyp_etap_reset', methods=['POST'])
 @login_required
-@roles_required('lider', 'admin', 'zarzad')
+@roles_required('lider', 'admin', 'zarzad', 'pracownik', 'magazynier')
 def zasyp_etap_reset():
     """Reset etapu (kasuje zapis czasu START/STOP i podpisy)."""
     linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -252,36 +302,56 @@ def zasyp_etap_reset():
 
     # Validate that plan exists and is Zasyp (defensive)
     produkt = ''
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
         table_plan = get_table_name('plan_produkcji', linia)
-        cursor = conn.cursor()
-        cursor.execute(
-            f"SELECT sekcja, produkt FROM {table_plan} WHERE id=%s",
-            (plan_id,),
-        )
+        cursor = db_conn.cursor()
+        cursor.execute(f"SELECT produkt FROM {table_plan} WHERE id=%s", (plan_id,))
         row = cursor.fetchone()
-        if not row:
-            flash('❌ Zlecenie nie znalezione', 'danger')
-            return redirect(bezpieczny_powrot())
-        sekcja, produkt = row[0], row[1]
-        if sekcja != 'Zasyp':
-            flash('❌ To nie jest zlecenie Zasyp', 'danger')
-            return redirect(bezpieczny_powrot())
-    except Exception as e:
-        current_app.logger.error('zasyp_etap_reset failed: %s', e, exc_info=True)
-        flash('❌ Błąd resetu etapu', 'danger')
-        return redirect(bezpieczny_powrot())
+        produkt = row[0] if row else ''
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        db_conn.close()
 
     ok, msg = ZasypEtapyService.reset_etap(plan_id=plan_id, linia=linia, etap=etap)
     flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
     if ok:
         audit_log('RESET etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
+    return redirect(bezpieczny_powrot())
+
+
+@production_bp.route('/zasyp_etap_delete', methods=['POST'])
+@login_required
+@roles_required('lider', 'admin', 'zarzad', 'pracownik', 'magazynier')
+def zasyp_etap_delete():
+    """Całkowite usunięcie rekordu etapu (dla sub-etapów AGRO)."""
+    linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+    linia = str(linia_input).upper()
+    plan_id_raw = request.form.get('plan_id')
+    etap_raw = request.form.get('etap')
+
+    try:
+        plan_id = int(plan_id_raw)
+        etap = int(etap_raw)
+    except Exception:
+        flash('❌ Nieprawidłowe dane usuwania etapu', 'danger')
+        return redirect(bezpieczny_powrot())
+
+    # Validate
+    produkt = ''
+    db_conn = get_db_connection()
+    try:
+        table_plan = get_table_name('plan_produkcji', linia)
+        cursor = db_conn.cursor()
+        cursor.execute(f"SELECT produkt FROM {table_plan} WHERE id=%s", (plan_id,))
+        row = cursor.fetchone()
+        produkt = row[0] if row else ''
+    finally:
+        db_conn.close()
+
+    ok, msg = ZasypEtapyService.delete_etap(plan_id=plan_id, linia=linia, etap=etap)
+    flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
+    if ok:
+        audit_log('USUWANIE etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
     return redirect(bezpieczny_powrot())
 
 
@@ -1013,6 +1083,10 @@ def dodaj_dosypke():
         )
 
         conn.commit()
+
+        # Sygnał dla dashboardu (dźwięk/odświeżenie) - dosypka dodana
+        _mieszalnik_zwolnienia[linia.upper()] = time.time()
+
         if brak_dosypki:
             flash('Oznaczono, że brak dosypki dla tego zlecenia.', 'success')
         else:

@@ -261,7 +261,7 @@ def api_zespol_dodaj():
 @dynamic_role_required('ustawienia')
 def admin_ustawienia_roles():
     # pages and roles
-    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','bufor','moje_godziny','awarie','wyniki']
+    pages = ['dashboard', 'ustawienia', 'jakosc', 'planista', 'plan', 'zasyp', 'workowanie', 'magazyn', 'agro_magazyn', 'bufor', 'moje_godziny', 'awarie', 'wyniki', 'podsumowanie_szarz', 'dosypki']
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -459,7 +459,7 @@ def admin_ustawienia_roles_save():
     
     # Reorder merged_config to match pages order for consistency
     # Define canonical page order
-    pages = ['dashboard','ustawienia','jakosc','planista','plan','zasyp','workowanie','magazyn','bufor','moje_godziny','awarie','wyniki']
+    pages = ['dashboard', 'ustawienia', 'jakosc', 'planista', 'plan', 'zasyp', 'workowanie', 'magazyn', 'agro_magazyn', 'bufor', 'moje_godziny', 'awarie', 'wyniki', 'podsumowanie_szarz', 'dosypki']
     ordered_merged = {}
     for p in pages:
         if p in merged_config:

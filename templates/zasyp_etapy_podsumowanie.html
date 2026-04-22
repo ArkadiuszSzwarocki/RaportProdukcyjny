@@ -46,18 +46,19 @@
                 <tr>
                     <th>Data</th>
                     <th>Zleceń</th>
-                    <th style="color:#e67e22;">1: Wydozowanie</th>
+                    <th style="color:#e67e22;">1: Naważanie</th>
                     {% if linia == 'AGRO' %}
                     <th style="color:#e67e22;">2: Mieszanie i oczek. na LAB</th>
-                    <th style="color:#e67e22;">4: Dosypka</th>
-                    <th style="color:#e67e22;">5: Mieszanie i oczek. LAB po dosypce</th>
+                    <th style="color:#e67e22;">3: Dosypka</th>
+                    <th style="color:#e67e22;">4: Mieszanie i oczek. LAB po dosypce</th>
+                    <th style="color:#e67e22;">5: Opróżnianie</th>
                     {% else %}
                     <th style="color:#e67e22;">2: Mieszanie</th>
                     <th style="color:#e67e22;">3: Oczek. na LAB</th>
                     <th style="color:#e67e22;">4: Dosypka</th>
                     <th style="color:#e67e22;">5: Mieszanie</th>
-                    {% endif %}
                     <th style="color:#e67e22;">6: Opróżnianie</th>
+                    {% endif %}
                     <th>Łącznie</th>
                     <th>Szarże (szt/kg)</th>
                     <th>Dosypki (szt/kg)</th>
@@ -72,15 +73,15 @@
                 <td class="text-center">{{ r.tracked_zlecen }}</td>
                 {% if linia == 'AGRO' %}
                 {% set _e1s = (r.etap_s[0] if r.etap_s and r.etap_s|length > 0 else 0) | int %}
-                {% set _e23s = ((r.etap_s[1] if r.etap_s and r.etap_s|length > 1 else 0) | int) + ((r.etap_s[2] if r.etap_s and r.etap_s|length > 2 else 0) | int) %}
+                {% set _e2s = (r.etap_s[1] if r.etap_s and r.etap_s|length > 1 else 0) | int %}
+                {% set _e3s = (r.etap_s[2] if r.etap_s and r.etap_s|length > 2 else 0) | int %}
                 {% set _e4s = (r.etap_s[3] if r.etap_s and r.etap_s|length > 3 else 0) | int %}
                 {% set _e5s = (r.etap_s[4] if r.etap_s and r.etap_s|length > 4 else 0) | int %}
-                {% set _e6s = (r.etap_s[5] if r.etap_s and r.etap_s|length > 5 else 0) | int %}
                 <td class="text-center {% if _e1s > 0 %}text-warning-dark{% else %}text-muted{% endif %}">{{ fmt_dur(_e1s) if _e1s > 0 else '—' }}</td>
-                <td class="text-center {% if _e23s > 0 %}text-warning-dark{% else %}text-muted{% endif %}">{{ fmt_dur(_e23s) if _e23s > 0 else '—' }}</td>
+                <td class="text-center {% if _e2s > 0 %}text-warning-dark{% else %}text-muted{% endif %}">{{ fmt_dur(_e2s) if _e2s > 0 else '—' }}</td>
+                <td class="text-center {% if _e3s > 0 %}text-warning-dark{% else %}text-muted{% endif %}">{{ fmt_dur(_e3s) if _e3s > 0 else '—' }}</td>
                 <td class="text-center {% if _e4s > 0 %}text-warning-dark{% else %}text-muted{% endif %}">{{ fmt_dur(_e4s) if _e4s > 0 else '—' }}</td>
                 <td class="text-center {% if _e5s > 0 %}text-warning-dark{% else %}text-muted{% endif %}">{{ fmt_dur(_e5s) if _e5s > 0 else '—' }}</td>
-                <td class="text-center {% if _e6s > 0 %}text-warning-dark{% else %}text-muted{% endif %}">{{ fmt_dur(_e6s) if _e6s > 0 else '—' }}</td>
                 {% else %}
                 {% for es in r.etap_str %}
                 <td class="text-center {% if es != '0m' %}text-warning-dark{% else %}text-muted{% endif %}">
@@ -133,10 +134,10 @@
                     <td class="text-center">{{ sums.tracked }}</td>
                     {% if linia == 'AGRO' %}
                     <td class="text-center">{{ fmt_dur(sums.e1) }}</td>
-                    <td class="text-center">{{ fmt_dur(sums.e2 + sums.e3) }}</td>
+                    <td class="text-center">{{ fmt_dur(sums.e2) }}</td>
+                    <td class="text-center">{{ fmt_dur(sums.e3) }}</td>
                     <td class="text-center">{{ fmt_dur(sums.e4) }}</td>
                     <td class="text-center">{{ fmt_dur(sums.e5) }}</td>
-                    <td class="text-center">{{ fmt_dur(sums.e6) }}</td>
                     {% else %}
                     <td class="text-center">{{ fmt_dur(sums.e1) }}</td>
                     <td class="text-center">{{ fmt_dur(sums.e2) }}</td>
@@ -181,15 +182,16 @@
                     <th class="text-center" style="width:8%;">1: Wydozowanie</th>
                     {% if linia == 'AGRO' %}
                     <th class="text-center" style="width:12%;">2: Mieszanie i oczek. na LAB</th>
-                    <th class="text-center" style="width:8%;">4: Dosypka</th>
-                    <th class="text-center" style="width:12%;">5: Mieszanie i oczek. LAB po dosypce</th>
+                    <th class="text-center" style="width:8%;">3: Dosypka</th>
+                    <th class="text-center" style="width:12%;">4: Mieszanie i oczek. LAB po dosypce</th>
+                    <th class="text-center" style="width:7%;">5: Opróżnianie</th>
                     {% else %}
                     <th class="text-center" style="width:8%;">2: Mieszanie</th>
                     <th class="text-center" style="width:8%;">3: Oczek na LAB</th>
                     <th class="text-center" style="width:8%;">4: Dosypka</th>
                     <th class="text-center" style="width:7%;">5: Mieszanie</th>
-                    {% endif %}
                     <th class="text-center" style="width:7%;">6: Opróżnianie</th>
+                    {% endif %}
                     <th class="text-center" style="width:8%;">Łącznie Czas</th>
                     <th class="text-center" style="width:8%; color:#3498db;">Średnio / Szarża</th>
                     <th class="text-center" style="width:8%;">Szarże</th>
@@ -208,15 +210,15 @@
                 </td>
                 {% if linia == 'AGRO' %}
                 {% set _re1 = r.etap_str[0] if r.etap_str and r.etap_str|length > 0 else '0m' %}
-                {% set _re23s = ((r.etap_s[1] if r.etap_s and r.etap_s|length > 1 else 0) | int) + ((r.etap_s[2] if r.etap_s and r.etap_s|length > 2 else 0) | int) %}
+                {% set _re2 = r.etap_str[1] if r.etap_str and r.etap_str|length > 1 else '0m' %}
+                {% set _re3 = r.etap_str[2] if r.etap_str and r.etap_str|length > 2 else '0m' %}
                 {% set _re4 = r.etap_str[3] if r.etap_str and r.etap_str|length > 3 else '0m' %}
                 {% set _re5 = r.etap_str[4] if r.etap_str and r.etap_str|length > 4 else '0m' %}
-                {% set _re6 = r.etap_str[5] if r.etap_str and r.etap_str|length > 5 else '0m' %}
                 <td class="text-center {% if _re1 != '0m' %}text-warning-dark{% else %}text-muted{% endif %}">{{ _re1 if _re1 != '0m' else '—' }}</td>
-                <td class="text-center {% if _re23s > 0 %}text-warning-dark{% else %}text-muted{% endif %}">{{ fmt_dur(_re23s) if _re23s > 0 else '—' }}</td>
+                <td class="text-center {% if _re2 != '0m' %}text-warning-dark{% else %}text-muted{% endif %}">{{ _re2 if _re2 != '0m' else '—' }}</td>
+                <td class="text-center {% if _re3 != '0m' %}text-warning-dark{% else %}text-muted{% endif %}">{{ _re3 if _re3 != '0m' else '—' }}</td>
                 <td class="text-center {% if _re4 != '0m' %}text-warning-dark{% else %}text-muted{% endif %}">{{ _re4 if _re4 != '0m' else '—' }}</td>
                 <td class="text-center {% if _re5 != '0m' %}text-warning-dark{% else %}text-muted{% endif %}">{{ _re5 if _re5 != '0m' else '—' }}</td>
-                <td class="text-center {% if _re6 != '0m' %}text-warning-dark{% else %}text-muted{% endif %}">{{ _re6 if _re6 != '0m' else '—' }}</td>
                 {% else %}
                 {% for es in r.etap_str %}
                 <td class="text-center {% if es != '0m' %}text-warning-dark{% else %}text-muted{% endif %}">
@@ -255,15 +257,16 @@
                                 <th class="text-center" style="width:12%;">1: Wydozowanie</th>
                                 {% if linia == 'AGRO' %}
                                 <th class="text-center" style="width:16%;">2: Mieszanie i oczek. na LAB</th>
-                                <th class="text-center" style="width:12%;">4: Dosypka</th>
-                                <th class="text-center" style="width:16%;">5: Mieszanie i oczek. LAB po dosypce</th>
+                                <th class="text-center" style="width:12%;">3: Dosypka</th>
+                                <th class="text-center" style="width:16%;">4: Mieszanie i oczek. LAB po dosypce</th>
+                                <th class="text-center" style="width:12%;">5: Opróżnianie</th>
                                 {% else %}
                                 <th class="text-center" style="width:12%;">2: Mieszanie</th>
                                 <th class="text-center" style="width:12%;">3: Oczek na LAB</th>
                                 <th class="text-center" style="width:12%;">4: Dosypka</th>
                                 <th class="text-center" style="width:12%;">5: Mieszanie</th>
-                                {% endif %}
                                 <th class="text-center" style="width:12%;">6: Opróżnianie</th>
+                                {% endif %}
                                 <th class="text-center" style="width:15%;">Łączny czas cyklu</th>
                             </tr>
                         </thead>
@@ -275,6 +278,7 @@
                                     <td class="text-center">{{ s_det.e1 }}</td>
                                     {% if linia == 'AGRO' %}
                                     <td class="text-center">{{ s_det.e2 }}</td>
+                                    <td class="text-center">{{ s_det.e3 }}</td>
                                     <td class="text-center">{{ s_det.e4 }}</td>
                                     <td class="text-center">{{ s_det.e5 }}</td>
                                     {% else %}
@@ -282,8 +286,8 @@
                                     <td class="text-center">{{ s_det.e3 }}</td>
                                     <td class="text-center">{{ s_det.e4 }}</td>
                                     <td class="text-center">{{ s_det.e5 }}</td>
-                                    {% endif %}
                                     <td class="text-center">{{ s_det.e6 }}</td>
+                                    {% endif %}
                                     <td class="text-center font-bold">{{ s_det.total_str }}</td>
                                 </tr>
                                 {% endfor %}

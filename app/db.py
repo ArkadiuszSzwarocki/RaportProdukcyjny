@@ -467,6 +467,40 @@ def _add_column_if_missing(cursor, table, column, definition, description=""):
         print(f"[WARN] Error checking column {table}.{column}: {e}")
 
 
+def _ensure_unique_index(cursor, table, index_name, columns, description=""):
+    """Ensure that a UNIQUE index exists with the exact column order provided."""
+    try:
+        cursor.execute(
+            """
+            SELECT COLUMN_NAME
+            FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = %s
+              AND INDEX_NAME = %s
+            ORDER BY SEQ_IN_INDEX
+            """,
+            (table, index_name),
+        )
+        existing_columns = [row[0] for row in cursor.fetchall() or []]
+        desired_columns = list(columns)
+        if existing_columns == desired_columns:
+            return
+
+        if existing_columns:
+            try:
+                cursor.execute(f"ALTER TABLE {table} DROP INDEX {index_name}")
+            except Exception:
+                pass
+
+        cursor.execute(
+            f"ALTER TABLE {table} ADD UNIQUE KEY {index_name} ({', '.join(desired_columns)})"
+        )
+        if description:
+            print(f"[MIGRATE] {description}")
+    except Exception as e:
+        print(f"[WARN] Failed to ensure unique index {table}.{index_name}: {e}")
+
+
 def _migrate_columns(cursor):
     """Add missing columns to existing tables (schema migrations)."""
     # plan_produkcji columns
@@ -507,6 +541,17 @@ def _migrate_columns(cursor):
     
     # plan_produkcji: Link Workowanie to Zasyp (1:1 relationship for exact order tracking)
     _add_column_if_missing(cursor, "plan_produkcji", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' - FK linkujacy Workowanie z Zasyp 1:1")
+
+    # zasyp_etapy: one row per hall + plan + szarża + etap
+    _ensure_unique_index(
+        cursor,
+        "zasyp_etapy",
+        "uq_zasyp_etapy_linia_plan_etap",
+        ["linia", "plan_id", "szarza_nr", "etap"],
+        "Aktualizacja unikalności zasyp_etapy do (linia, plan_id, szarza_nr, etap)",
+    )
+
+    # AGRO etap 3 i 4 są opcjonalnymi krokami dosypki; nie scalać ich z etapem 2.
 
     # plan_produkcji_agro columns (AGRO hall)
     _add_column_if_missing(cursor, "plan_produkcji_agro", "typ_produkcji", "VARCHAR(20) DEFAULT 'agro'", "Dodawanie kolumny 'typ_produkcji' (AGRO)")

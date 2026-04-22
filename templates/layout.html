@@ -441,7 +441,7 @@
                         class="text-capitalize">Workowanie Agro</span></a>
                 {% endif %}
 
-                {% if role_has_access('magazyn') %}
+                {% if role_has_access('magazyn') or role_has_access('agro_magazyn') %}
                 <a href="{{ url_for('main.index', sekcja='Magazyn', linia='AGRO') }}"
                     class="nav-item {% if request.args.get('sekcja')=='Magazyn' and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">📦 <span
                         class="text-capitalize">Magazyn Agro</span></a>

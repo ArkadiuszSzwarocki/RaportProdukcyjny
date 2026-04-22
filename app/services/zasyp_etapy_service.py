@@ -11,6 +11,27 @@ ETAP_MIN = 1
 ETAP_MAX = 6
 
 
+def _visible_etaps_for_linia(linia: str) -> List[int]:
+    if _norm_linia(linia) == 'AGRO':
+        # AGRO: 1,2,3,4,5 (continuous sequence)
+        return [1, 2, 3, 4, 5]
+    return list(range(ETAP_MIN, ETAP_MAX + 1))
+
+
+def _is_valid_etap_for_linia(etap_nr: int, linia: str) -> bool:
+    linia_u = _norm_linia(linia)
+    if linia_u == 'AGRO':
+        if etap_nr in [1, 2, 3, 4, 5]:
+            return True
+        # Allow sub-stages like 31, 32, 41, 42... (suffixes for 3 and 4)
+        if 30 < etap_nr < 50:
+            base = etap_nr // 10
+            if base in [3, 4]:
+                return True
+        return False
+    return etap_nr in _visible_etaps_for_linia(linia)
+
+
 def _norm_linia(linia: Optional[str]) -> str:
     l = str(linia or 'PSD').upper()
     return 'AGRO' if l == 'AGRO' else 'PSD'
@@ -123,7 +144,43 @@ class ZasypEtapyService:
         active_etap: Optional[int] = None
         total_s = 0
 
-        for etap_nr in range(ETAP_MIN, ETAP_MAX + 1):
+        # Define the order and sub-stages for AGRO
+        base_etaps = _visible_etaps_for_linia(linia_u)
+        
+        # We will build a list of etapy to show. 
+        # For AGRO 3 and 4, we look for suffixes like 31, 32... 41, 42...
+        to_process = []
+        if linia_u == 'AGRO':
+            # Order: 1, 2, then (3,4), (31,41), (32,42)... then 5
+            to_process.append(1)
+            to_process.append(2)
+            
+            # Find max suffix
+            max_suf = 0
+            for en in etapy_by_nr.keys():
+                if en > 10:
+                    suf = en % 10
+                    if suf > max_suf: max_suf = suf
+            
+            # Add pair (3,4) and its derivatives
+            for s in range(max_suf + 1):
+                suffix = s if s > 0 else 0
+                e3 = 3 if suffix == 0 else (3 * 10 + suffix)
+                e4 = 4 if suffix == 0 else (4 * 10 + suffix)
+                # Add only if either exists or it's the first available increment slot
+                if e3 in etapy_by_nr or e4 in etapy_by_nr or suffix == 0:
+                    to_process.append(e3)
+                    to_process.append(e4)
+                else:
+                    # check if previous is done to show next possible slot? 
+                    # for now just show what exists
+                    pass
+            
+            to_process.append(5)
+        else:
+            to_process = base_etaps
+
+        for etap_nr in to_process:
             row = etapy_by_nr.get(etap_nr)
             start_dt = row.czas_start if row else None
             stop_dt = row.czas_stop if row else None
@@ -295,7 +352,7 @@ class ZasypEtapyService:
             etap_nr = int(etap)
         except Exception:
             return False, 'Nieprawidłowy etap'
-        if etap_nr < ETAP_MIN or etap_nr > ETAP_MAX:
+        if not _is_valid_etap_for_linia(etap_nr, linia_u):
             return False, 'Nieprawidłowy etap'
 
         conn = None
@@ -325,16 +382,47 @@ class ZasypEtapyService:
                 if czas_start and not czas_stop:
                     return True, f'Etap {etap_nr} już trwa'
                 if czas_start and czas_stop:
-                    return False, f'Etap {etap_nr} jest już zakończony'
+                    # AGRO: if stage 3 or 4 is done, we can ADD a new one (incremental sub-stages 3a, 4a...)
+                    base_etap = etap_nr
+                    if 30 < etap_nr < 50:
+                        base_etap = etap_nr // 10
+                        
+                    if linia_u == 'AGRO' and base_etap in [3, 4]:
+                        # Find next available suffix (3 -> 31 -> 32...)
+                        base = base_etap
+                        suffix = 1
+                        while True:
+                            check_etap = base * 10 + suffix
+                            cursor.execute(
+                                "SELECT id FROM zasyp_etapy WHERE linia=%s AND plan_id=%s AND szarza_nr=%s AND etap=%s",
+                                (linia_u, int(plan_id), curr_szarza_nr, check_etap)
+                            )
+                            if not cursor.fetchone():
+                                # This suffix is available
+                                cursor.execute(
+                                    """
+                                    INSERT INTO zasyp_etapy (linia, plan_id, data_planu, szarza_nr, etap, czas_start, czas_stop, start_login, stop_login)
+                                    VALUES (%s, %s, %s, %s, %s, NOW(), NULL, %s, NULL)
+                                    """,
+                                    (linia_u, int(plan_id), data_planu, curr_szarza_nr, check_etap, (user_login or '')[:100]),
+                                )
+                                conn.commit()
+                                return True, f'Dodano kolejną sekcję: {check_etap}'
+                            suffix += 1
+                            if suffix > 9: break # limit to 9 extra stages
+                        return False, 'Osiągnięto limit dodatkowych sekcji'
+                    else:
+                        return False, f'Etap {etap_nr} jest już zakończony'
                 # exists but empty — set start
-                cursor.execute(
-                    """
-                    UPDATE zasyp_etapy
-                    SET czas_start = NOW(), czas_stop = NULL, start_login = %s, stop_login = NULL
-                    WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s
-                    """,
-                    ((user_login or '')[:100], linia_u, int(plan_id), curr_szarza_nr, etap_nr),
-                )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE zasyp_etapy
+                        SET czas_start = NOW(), czas_stop = NULL, start_login = %s, stop_login = NULL
+                        WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s
+                        """,
+                        ((user_login or '')[:100], linia_u, int(plan_id), curr_szarza_nr, etap_nr),
+                    )
             else:
                 cursor.execute(
                     """
@@ -366,7 +454,7 @@ class ZasypEtapyService:
             etap_nr = int(etap)
         except Exception:
             return False, 'Nieprawidłowy etap'
-        if etap_nr < ETAP_MIN or etap_nr > ETAP_MAX:
+        if not _is_valid_etap_for_linia(etap_nr, linia_u):
             return False, 'Nieprawidłowy etap'
 
         conn = None
@@ -468,7 +556,7 @@ class ZasypEtapyService:
             etap_nr = int(etap)
         except Exception:
             return False, 'Nieprawidłowy etap'
-        if etap_nr < ETAP_MIN or etap_nr > ETAP_MAX:
+        if not _is_valid_etap_for_linia(etap_nr, linia_u):
             return False, 'Nieprawidłowy etap'
 
         start_dt_in = _parse_hhmm_to_dt(data_planu, czas_start_hhmm)
@@ -580,7 +668,7 @@ class ZasypEtapyService:
             etap_nr = int(etap)
         except Exception:
             return False, 'Nieprawidłowy etap'
-        if etap_nr < ETAP_MIN or etap_nr > ETAP_MAX:
+        if not _is_valid_etap_for_linia(etap_nr, linia_u):
             return False, 'Nieprawidłowy etap'
 
         conn = None
@@ -611,6 +699,32 @@ class ZasypEtapyService:
                     conn.close()
             except Exception:
                 pass
+
+    @staticmethod
+    def delete_etap(plan_id: int, linia: str, etap: int) -> Tuple[bool, str]:
+        """Permanently delete etap row (specifically for sub-stages)."""
+        # Logic is the same as reset, but with a different message
+        linia_u = _norm_linia(linia)
+        try:
+            etap_nr = int(etap)
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            # Calculate same szarza_nr as reset
+            table_szarze = get_table_name('szarze', linia_u)
+            cursor.execute(f"SELECT COUNT(*) FROM {table_szarze} WHERE plan_id=%s", (int(plan_id),))
+            r_sz = cursor.fetchone()
+            curr_szarza_nr = (r_sz[0] if r_sz else 0) + 1
+
+            cursor.execute(
+                "DELETE FROM zasyp_etapy WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s",
+                (linia_u, int(plan_id), curr_szarza_nr, etap_nr),
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True, f'Usunięto etap {etap_nr}'
+        except Exception:
+            return False, 'Błąd usuwania etapu'
             try:
                 if conn:
                     conn.close()
