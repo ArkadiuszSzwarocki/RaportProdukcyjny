@@ -907,6 +907,14 @@ class ZasypEtapyService:
                     'plan_id': plan_id,
                     'produkt': r.get('produkt'),
                     'data_planu': r.get('data_planu'),
+                    'etap_s': [
+                        int(r.get('e1') or 0),
+                        int(r.get('e2') or 0),
+                        int(r.get('e3') or 0),
+                        int(r.get('e4') or 0),
+                        int(r.get('e5') or 0),
+                        int(r.get('e6') or 0),
+                    ],
                     'etap_str': [
                         _format_duration(int(r.get('e1') or 0)),
                         _format_duration(int(r.get('e2') or 0)),

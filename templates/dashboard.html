@@ -592,6 +592,8 @@
                 <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:10px;">
                     {% if etapy %}
                     {% for etap in etapy %}
+                    {# Dla linii AGRO etap 3 (Oczek. na LAB) jest scalony z etapem 2 — ukryj kafelek #}
+                    {% if not (linia == 'AGRO' and etap.etap == 3) %}
                     <div style="border:1px solid {% if etap.is_running %}#e67e22{% elif etap.czas_stop %}#27ae60{% else %}#ddd{% endif %};
                                 border-radius:6px; padding:10px; word-break: break-word; overflow: hidden; position: relative;
                                 background:{% if etap.is_running %}#fdf3e7{% elif etap.czas_stop %}#f0faf4{% else %}#fafafa{% endif %};">
@@ -610,10 +612,10 @@
                         <div class="d-flex justify-between align-center mb-5" style="padding-right: 20px;">
                             <strong style="font-size:0.9em; line-height: 1.2;">
                             {% if etap.etap == 1 %}Wydozowanie
-                            {% elif etap.etap == 2 %}Mieszanie
+                            {% elif etap.etap == 2 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB{% else %}Mieszanie{% endif %}
                             {% elif etap.etap == 3 %}Oczek. na LAB
                             {% elif etap.etap == 4 %}Dosypka
-                            {% elif etap.etap == 5 %}Mieszanie
+                            {% elif etap.etap == 5 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB po dosypce{% else %}Mieszanie{% endif %}
                             {% elif etap.etap == 6 %}Opróżnianie
                             {% else %}Etap {{ etap.etap }}{% endif %}
                             </strong>
@@ -697,6 +699,7 @@
                         </div>
                         {% endif %}
                     </div>
+                    {% endif %}{# end if not AGRO etap 3 #}
                     {% endfor %}
                     {% else %}
                     <div class="small text-muted" style="grid-column:1/-1;">
