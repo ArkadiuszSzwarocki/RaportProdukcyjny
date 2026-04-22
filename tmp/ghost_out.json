@@ -1,0 +1,12 @@
+[
+  {
+    "id": 47,
+    "produkt": "MLECZNA PYCHA BRĄZOWA",
+    "sekcja": "Zasyp",
+    "status": "zaplanowane",
+    "typ_zlecenia": "carry_over_ghost",
+    "tonaz": 15000.0,
+    "tonaz_rzeczywisty": 0.0,
+    "data_planu": "2026-04-22"
+  }
+]
