@@ -715,25 +715,28 @@ class PlanningService:
             return (False, f'Błąd przy sprawdzaniu anomalii: {str(e)}', 0)
 
     @staticmethod
-    def ensure_status_after_tonaz_update(plan_id):
+    def ensure_status_after_tonaz_update(plan_id, linia='PSD'):
         """
         After tonaz_rzeczywisty is updated, ensure status reflects actual execution.
         If tonaz_rzeczywisty > 0 and status='zaplanowane', change to 'w toku'.
         
         Args:
             plan_id: Plan ID to validate
+            linia: Hall identifier (PSD or AGRO)
             
         Returns:
             Tuple (success: bool, message: str)
         """
         try:
+            from app.db import get_table_name
+            table_plan = get_table_name('plan_produkcji', linia)
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             
             # Check current state
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT id, status, tonaz_rzeczywisty, real_start, real_stop
-                FROM plan_produkcji
+                FROM {table_plan}
                 WHERE id=%s
             """, (plan_id,))
             
@@ -746,13 +749,12 @@ class PlanningService:
             status = result['status']
             tonaz_rz = result['tonaz_rzeczywisty'] or 0
             real_start = result['real_start']
-            real_stop = result['real_stop']
             
             # Logic: If tonaz_rzeczywisty > 0 but status is still 'zaplanowane'
             # and no real_start, update to 'w toku'
             if tonaz_rz > 0 and status == 'zaplanowane' and not real_start:
-                cursor.execute("""
-                    UPDATE plan_produkcji
+                cursor.execute(f"""
+                    UPDATE {table_plan}
                     SET status='w toku', real_start=NOW()
                     WHERE id=%s
                 """, (plan_id,))
@@ -926,7 +928,7 @@ class PlanningService:
                             tonaz=0,
                             sekcja='Zasyp',
                             typ_produkcji=typ_prod,
-                            status='zakonczone',  # Ghost Zasyp should be fully complete immediately
+                            status='zaplanowane',  # Ghost Zasyp should remain zaplanowane so it is editable
                             nazwa_zlecenia=f'PRZENIESIONE z {current_data}',  # zawsze prefix z datą źródłową
                             typ_zlecenia='carry_over_ghost',
                             linia=linia

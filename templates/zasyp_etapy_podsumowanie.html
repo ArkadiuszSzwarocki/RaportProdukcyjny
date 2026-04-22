@@ -1,0 +1,246 @@
+{% extends "layout.html" %}
+{% block content %}
+{% macro fmt_dur(seconds) -%}
+    {%- set s = (seconds or 0) | int -%}
+    {%- if s <= 0 -%}
+        0m
+    {%- else -%}
+        {%- set mins = s // 60 -%}
+        {%- set h = mins // 60 -%}
+        {%- set m = mins % 60 -%}
+        {%- if h > 0 -%}
+            {{ h }}h {{ "%02d"|format(m) }}m
+        {%- else -%}
+            {{ mins }}m
+        {%- endif -%}
+    {%- endif -%}
+{%- endmacro %}
+
+<div class="section-header">
+    <div class="header-title-row d-flex align-center gap-10 mb-15">
+        <h2 class="header-title m-0"><strong>📊 Podsumowanie etapów Zasyp — {{ linia }}</strong></h2>
+    </div>
+</div>
+
+<div class="section-box mb-15 p-15">
+    <form method="GET" action="{{ url_for('production.zasyp_etapy_podsumowanie') }}"
+          class="d-flex align-center gap-12 flex-wrap">
+        <input type="hidden" name="linia" value="{{ linia }}">
+        <label class="small text-muted m-0">Od:</label>
+        <input type="date" name="od" value="{{ d_od.isoformat() }}"
+               class="input-sm" style="width:145px;">
+        <label class="small text-muted m-0">Do:</label>
+        <input type="date" name="do" value="{{ d_do.isoformat() }}"
+               class="input-sm" style="width:145px;">
+        <button type="submit" class="btn-action btn-blue" style="padding:5px 14px;">Filtruj</button>
+        <a href="{{ url_for('main.index', sekcja='Zasyp', linia=linia) }}"
+           class="btn-action btn-outline" style="padding:5px 14px;">← Powrót</a>
+    </form>
+</div>
+
+{% if rows %}
+<div class="section-box p-0">
+    <div class="p-10" style="overflow-x:auto;">
+        <table class="modern-table" style="min-width:900px; font-size:0.88em;">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Zleceń</th>
+                    <th style="color:#e67e22;">1: Wydozowanie</th>
+                    <th style="color:#e67e22;">2: Mieszanie</th>
+                    <th style="color:#e67e22;">3: Oczek. na LAB</th>
+                    <th style="color:#e67e22;">4: Dosypka</th>
+                    <th style="color:#e67e22;">5: Mieszanie</th>
+                    <th style="color:#e67e22;">6: Opróżnianie</th>
+                    <th>Łącznie</th>
+                    <th>Szarże (szt/kg)</th>
+                    <th>Dosypki (szt/kg)</th>
+                    <th>Razem kg</th>
+                    <th>kg/h</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in rows %}
+            <tr>
+                <td><strong>{{ r.data_str }}</strong></td>
+                <td class="text-center">{{ r.tracked_zlecen }}</td>
+                {% for es in r.etap_str %}
+                <td class="text-center {% if es != '0m' %}text-warning-dark{% else %}text-muted{% endif %}">
+                    {{ es if es != '0m' else '—' }}
+                </td>
+                {% endfor %}
+                <td class="text-center font-bold">{{ r.total_str }}</td>
+                <td class="text-center">
+                    {% if r.szarze_count > 0 %}
+                    {{ r.szarze_count }} szt / {{ r.szarze_kg|int }} kg
+                    {% else %}—{% endif %}
+                </td>
+                <td class="text-center">
+                    {% if r.dosypki_count > 0 %}
+                    {{ r.dosypki_count }} szt / {{ r.dosypki_kg|int }} kg
+                    {% else %}—{% endif %}
+                </td>
+                <td class="text-center text-success font-bold">
+                    {% if r.total_kg > 0 %}{{ r.total_kg|int }} kg{% else %}—{% endif %}
+                </td>
+                <td class="text-center">
+                    {% if r.kg_h > 0 %}
+                    <span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(r.kg_h) }} kg/h</span>
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot>
+                {% set sums = namespace(tracked=0, e1=0, e2=0, e3=0, e4=0, e5=0, e6=0, total_s=0,
+                                        szarze_count=0, szarze_kg=0, dosypki_count=0, dosypki_kg=0, total_kg=0) %}
+                {% for r in rows %}
+                    {% set sums.tracked = sums.tracked + (r.tracked_zlecen or 0) %}
+                    {% set sums.e1 = sums.e1 + ((r.etap_s[0] if r.etap_s is defined and r.etap_s and (r.etap_s|length) > 0 else 0) or 0) %}
+                    {% set sums.e2 = sums.e2 + ((r.etap_s[1] if r.etap_s is defined and r.etap_s and (r.etap_s|length) > 1 else 0) or 0) %}
+                    {% set sums.e3 = sums.e3 + ((r.etap_s[2] if r.etap_s is defined and r.etap_s and (r.etap_s|length) > 2 else 0) or 0) %}
+                    {% set sums.e4 = sums.e4 + ((r.etap_s[3] if r.etap_s is defined and r.etap_s and (r.etap_s|length) > 3 else 0) or 0) %}
+                    {% set sums.e5 = sums.e5 + ((r.etap_s[4] if r.etap_s is defined and r.etap_s and (r.etap_s|length) > 4 else 0) or 0) %}
+                    {% set sums.e6 = sums.e6 + ((r.etap_s[5] if r.etap_s is defined and r.etap_s and (r.etap_s|length) > 5 else 0) or 0) %}
+                    {% set sums.total_s = sums.total_s + (r.total_s or 0) %}
+                    {% set sums.szarze_count = sums.szarze_count + (r.szarze_count or 0) %}
+                    {% set sums.szarze_kg = sums.szarze_kg + (r.szarze_kg or 0) %}
+                    {% set sums.dosypki_count = sums.dosypki_count + (r.dosypki_count or 0) %}
+                    {% set sums.dosypki_kg = sums.dosypki_kg + (r.dosypki_kg or 0) %}
+                    {% set sums.total_kg = sums.total_kg + (r.total_kg or 0) %}
+                {% endfor %}
+                <tr style="font-weight:700; background: var(--card-header-bg, #f5f5f5);">
+                    <td>Razem ({{ rows|length }} dni)</td>
+                    <td class="text-center">{{ sums.tracked }}</td>
+                    <td class="text-center">{{ fmt_dur(sums.e1) }}</td>
+                    <td class="text-center">{{ fmt_dur(sums.e2) }}</td>
+                    <td class="text-center">{{ fmt_dur(sums.e3) }}</td>
+                    <td class="text-center">{{ fmt_dur(sums.e4) }}</td>
+                    <td class="text-center">{{ fmt_dur(sums.e5) }}</td>
+                    <td class="text-center">{{ fmt_dur(sums.e6) }}</td>
+                    <td class="text-center font-bold">{{ fmt_dur(sums.total_s) }}</td>
+                    <td class="text-center">
+                        {{ sums.szarze_count }} szt /
+                        {{ sums.szarze_kg | int }} kg
+                    </td>
+                    <td class="text-center">
+                        {{ sums.dosypki_count }} szt /
+                        {{ sums.dosypki_kg | int }} kg
+                    </td>
+                    <td class="text-center text-success">
+                        {{ sums.total_kg | int }} kg
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="section-box p-30 text-center text-muted">
+    Brak danych etapów dla wybranego okresu ({{ d_od }} — {{ d_do }}).
+</div>
+{% endif %}
+
+{% if zlecenia_rows %}
+<h2 class="title" style="margin-top: 30px;">Wyniki ze zleceń</h2>
+<div class="section-box p-0">
+    <div class="p-10" style="overflow-x:auto;">
+        <table class="modern-table" style="min-width: 900px; width: 100%; border-collapse: separate; border-spacing: 0;">
+            <thead>
+                <tr>
+                    <th class="text-left" style="width:10%;">Data</th>
+                    <th class="text-left" style="width:15%;">Produkt</th>
+                    <th class="text-center" style="width:8%;">1: Wydozowanie</th>
+                    <th class="text-center" style="width:8%;">2: Mieszanie</th>
+                    <th class="text-center" style="width:8%;">3: Oczek na LAB</th>
+                    <th class="text-center" style="width:8%;">4: Dosypka</th>
+                    <th class="text-center" style="width:7%;">5: Mieszanie</th>
+                    <th class="text-center" style="width:7%;">6: Opróżnianie</th>
+                    <th class="text-center" style="width:8%;">Łącznie Czas</th>
+                    <th class="text-center" style="width:8%; color:#3498db;">Średnio / Szarża</th>
+                    <th class="text-center" style="width:8%;">Szarże</th>
+                    <th class="text-center" style="width:8%;">Dosypki</th>
+                    <th class="text-center" style="width:9%;">Razem kg</th>
+                    <th class="text-center" style="width:7%;">kg/h</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in zlecenia_rows %}
+            <tr style="cursor: pointer;" onclick="const t = document.getElementById('sz_det_tbl_{{ loop.index }}'); t.style.display = t.style.display === 'none' ? 'table-row' : 'none';">
+                <td><strong>{{ r.data_planu }}</strong><br><small class="text-muted">#{{ r.plan_id }}</small></td>
+                <td>
+                    {{ r.produkt }}
+                    <div style="font-size:0.75em; color:#3498db; margin-top:4px;">Kliknij by rozwinąć szarże ▼</div>
+                </td>
+                {% for es in r.etap_str %}
+                <td class="text-center {% if es != '0m' %}text-warning-dark{% else %}text-muted{% endif %}">
+                    {{ es if es != '0m' else '—' }}
+                </td>
+                {% endfor %}
+                <td class="text-center font-bold">{{ r.total_str }}</td>
+                <td class="text-center font-bold text-primary">{{ r.avg_szarza_str }}</td>
+                <td class="text-center">
+                    {% if r.szarze_count > 0 %}
+                    {{ r.szarze_count }} szt<br/><small class="text-muted">{{ r.szarze_kg|int }} kg</small>
+                    {% else %}—{% endif %}
+                </td>
+                <td class="text-center">
+                    {% if r.dosypki_count > 0 %}
+                    {{ r.dosypki_count }} szt<br/><small class="text-muted">{{ r.dosypki_kg|int }} kg</small>
+                    {% else %}—{% endif %}
+                </td>
+                <td class="text-center text-success font-bold">
+                    {% if r.total_kg > 0 %}{{ r.total_kg|int }} kg{% else %}—{% endif %}
+                </td>
+                <td class="text-center">
+                    {% if r.kg_h > 0 %}
+                    <span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(r.kg_h) }} kg/h</span>
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            <tr id="sz_det_tbl_{{ loop.index }}" style="display:none; background-color: #fafbfc;">
+                <td colspan="15" style="padding: 10px 15px; border-bottom: 2px solid #e1e4e8;">
+                    <strong style="margin-bottom: 8px; display:inline-block;">Historia zmierzonych cykli (Szarż) dla tego zlecenia:</strong>
+                    <table class="modern-table" style="width: 100%; border: 1px solid #ddd; font-size: 0.9em;">
+                        <thead>
+                            <tr style="background-color: #f1f3f5;">
+                                <th class="text-center" style="width:8%;">Zegar</th>
+                                <th class="text-center" style="width:12%;">1: Wydozowanie</th>
+                                <th class="text-center" style="width:12%;">2: Mieszanie</th>
+                                <th class="text-center" style="width:12%;">3: Oczek na LAB</th>
+                                <th class="text-center" style="width:12%;">4: Dosypka</th>
+                                <th class="text-center" style="width:12%;">5: Mieszanie</th>
+                                <th class="text-center" style="width:12%;">6: Opróżnianie</th>
+                                <th class="text-center" style="width:15%;">Łączny czas cyklu</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if r.szarze_det and r.szarze_det|length > 0 %}
+                                {% for s_det in r.szarze_det %}
+                                <tr>
+                                    <td class="text-center font-bold text-primary">Szarża #{{ s_det.szarza_nr }}</td>
+                                    <td class="text-center">{{ s_det.e1 }}</td>
+                                    <td class="text-center">{{ s_det.e2 }}</td>
+                                    <td class="text-center">{{ s_det.e3 }}</td>
+                                    <td class="text-center">{{ s_det.e4 }}</td>
+                                    <td class="text-center">{{ s_det.e5 }}</td>
+                                    <td class="text-center">{{ s_det.e6 }}</td>
+                                    <td class="text-center font-bold">{{ s_det.total_str }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="8" class="text-center text-muted p-10">Brak zarejestrowanych etapów dla tego zlecenia.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

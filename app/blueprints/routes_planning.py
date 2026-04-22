@@ -780,24 +780,26 @@ def edytuj_plan(id):
             # For now we allow them to proceed if they REALLY want, but we log the alert.
             # Ideally we would block it, but a warning is a good start as a "trap".
         
-        # Allow planista/admin to edit only tonaz (kg) when order is 'w toku' (NOT when 'zakonczone')
-        # If zakonczone, nobody can edit
+        # Allow planista/admin to edit only tonaz (kg) when order is 'w toku', or 'zakonczone'
+        current_role = session.get('rola', '')
+
+        # Normalize empty string inputs to None for cleaner comparison
+        produkt_provided = produkt if produkt and produkt.strip() else None
+        sekcja_provided = sekcja if sekcja and sekcja.strip() else None
+        data_provided = data_planu if data_planu and str(data_planu).strip() else None
+        
+        # Check if user is trying to change only tonaz field
+        is_tonaz_only = (tonaz_val is not None and 
+                       produkt_provided is None and 
+                       sekcja_provided is None and 
+                       data_provided is None)
+
         if r[1] == 'zakonczone':
-            flash('Nie można edytować zakończonych zleceń', 'warning')
-            return redirect(bezpieczny_powrot())
+            if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider']:
+                flash('Można jedynie edytować ilość (kg) dla zakończonych zleceń i wymagane są do tego uprawnienia', 'warning')
+                return redirect(bezpieczny_powrot())
+            # Zezwalamy przejść dalej w trybie "only tonaz"
         elif r[1] == 'w toku':
-            current_role = session.get('rola', '')
-            
-            # Normalize empty string inputs to None for cleaner comparison
-            produkt_provided = produkt if produkt and produkt.strip() else None
-            sekcja_provided = sekcja if sekcja and sekcja.strip() else None
-            data_provided = data_planu if data_planu and str(data_planu).strip() else None
-            
-            # Check if user is trying to change only tonaz field
-            is_tonaz_only = (tonaz_val is not None and 
-                           produkt_provided is None and 
-                           sekcja_provided is None and 
-                           data_provided is None)
             
             if current_role == 'planista':
                 # Planista: can edit ONLY tonaz when 'w toku'
@@ -935,26 +937,25 @@ def edytuj_plan_ajax():
             return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
         
         # If zakonczone, nobody can edit — WYJĄTEK: carry_over_ghost Zasypy (planista może zmienić tonaż)
-        if before[5] == 'zakonczone':
-            if before[9] != 'carry_over_ghost':
-                return jsonify({'success': False, 'message': 'Nie można edytować zakończonych zleceń'}), 403
-            if tonaz_val is None:
-                return jsonify({'success': False, 'message': 'Dla przeniesionego planu można zmienić tylko tonaż'}), 403
-        
-        # If w toku, allow planista and admin to edit only tonaz (kg)
+        # ORAZ: teraz również pozwalamy edytować sam tonaż dla dowolnego zakończonego
         current_role = session.get('rola', '')
         
         # Normalize empty string inputs to None for cleaner comparison
         produkt_provided = produkt if produkt and (produkt.strip() if isinstance(produkt, str) else str(produkt).strip()) else None
         sekcja_provided = sekcja if sekcja and (sekcja.strip() if isinstance(sekcja, str) else str(sekcja).strip()) else None
         data_provided = data_planu if data_planu and str(data_planu).strip() else None
+
+        is_tonaz_only = (tonaz is not None and str(tonaz).strip() != '' and
+                       produkt_provided is None and 
+                       sekcja_provided is None and 
+                       data_provided is None)
+
+        if before[5] == 'zakonczone':
+            if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider']:
+                return jsonify({'success': False, 'message': 'Można jedynie edytować ilość (kg) dla zakończonych zleceń i wymagane są uprawnienia'}), 403
         
-        if before[5] == 'w toku' and current_role in ['planista', 'admin']:
-            # Check if user is trying to change only tonaz field
-            is_tonaz_only = (tonaz is not None and str(tonaz).strip() != '' and
-                           produkt_provided is None and 
-                           sekcja_provided is None and 
-                           data_provided is None)
+        # If w toku, allow planista and admin to edit only tonaz (kg)
+        if before[5] == 'w toku' and current_role in ['planista', 'admin', 'lider', 'zarzad']:
             if not is_tonaz_only:
                 return jsonify({'success': False, 'message': 'Gdy zlecenie w toku, możesz zmieniać tylko kg'}), 403
         elif before[5] == 'w toku':

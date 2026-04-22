@@ -332,9 +332,29 @@ def index() -> str:
             conn.close()
         except Exception as e:
             app.logger.error(f"[ERROR-DOSYPKI] Błąd pobierania potwierdzonych dosypek: {e}")
-            
+
     # Build template context
     main_h_data = halls_data[halls_to_fetch[0]]
+
+    # Etapy Zasyp — wczytaj dla aktywnych zleceń Zasyp
+    etapy_mapa = {}      # plan_id -> list of etap dicts
+    etapy_parametry = {} # plan_id -> {wielkosc_szarzy_kg}
+    etapy_total = {}     # plan_id -> formatted total time string
+    etapy_curr_szarza = {} # plan_id -> curr_szarza_nr
+    if aktywna_sekcja == 'Zasyp':
+        try:
+            from app.services.zasyp_etapy_service import ZasypEtapyService
+            for p in main_h_data['plan_dnia']:
+                if p[3] == 'w toku':
+                    pid = p[0]
+                    data = ZasypEtapyService.get_etapy(plan_id=pid, linia=aktywna_linia)
+                    etapy_mapa[pid] = data.get('etapy') or []
+                    etapy_total[pid] = data.get('total_duration_str') or ''
+                    etapy_curr_szarza[pid] = data.get('curr_szarza_nr') or 1
+                    etapy_parametry[pid] = ZasypEtapyService.get_parametry(plan_id=pid, linia=aktywna_linia)
+        except Exception as _e:
+            app.logger.warning('Etapy Zasyp load failed: %s', _e)
+
     context = {
         'halls_data': halls_data,
         'halls_to_fetch': halls_to_fetch,
@@ -375,6 +395,10 @@ def index() -> str:
         'allowed_work_start_ids': allowed_work_start_ids,
         'dosypki_mapa': dosypki_mapa,
         'dosypki_oczekujace_mapa': dosypki_oczekujace_mapa,
+        'etapy_mapa': etapy_mapa,
+        'etapy_parametry': etapy_parametry,
+        'etapy_total': etapy_total,
+        'etapy_curr_szarza': etapy_curr_szarza,
     }
     
     # Render appropriate template
@@ -664,4 +688,54 @@ def zamknij_zmiane() -> Union[Response, Tuple[str, int]]:
 @main_bp.route('/wyslij_raport_email', methods=['POST'])
 def wyslij_raport_email() -> Response:
     """Email a generated report (placeholder for future functionality)."""
-    return redirect('/')
+    return redirect(url_for('main.index'))
+
+
+@main_bp.route('/api/zglos_blad_systemu', methods=['POST'])
+@login_required
+def zglos_blad_systemu() -> Response:
+    """Zgłoś błąd z możliwością uploadu do 3 zrzutów ekranu."""
+    from flask import current_app, jsonify
+    import time
+    
+    opis = request.form.get('opis', '')
+    sciezka = request.form.get('sciezka', '')
+    login = session.get('login', 'Nieznany')
+    
+    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'bugs')
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    report_id = int(time.time() * 1000)
+    saved_files = []
+    
+    files = request.files.getlist('zalaczniki')
+    for i, file in enumerate(files[:3]):
+        if file and file.filename:
+            ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'png'
+            # Tylko obrazy
+            if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp']:
+                filename = f"bug_{report_id}_{i}.{ext}"
+                try:
+                    file.save(os.path.join(upload_dir, filename))
+                    saved_files.append(filename)
+                except Exception as e:
+                    current_app.logger.warning("Błąd zapisu pliku: %s", e)
+                    
+    report_data = {
+        'id': report_id,
+        'timestamp': datetime.now().isoformat(),
+        'login': login,
+        'opis': opis,
+        'sciezka': sciezka,
+        'zalaczniki': saved_files,
+        'status': 'nowy'
+    }
+    
+    json_path = os.path.join(upload_dir, f"bug_{report_id}.json")
+    try:
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(report_data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return jsonify({'success': False, 'message': 'Błąd zapisu zgłoszenia'}), 500
+        
+    return jsonify({'success': True, 'message': 'Zgłoszenie zostało przyjęte.'})

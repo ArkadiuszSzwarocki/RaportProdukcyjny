@@ -291,11 +291,17 @@ def panel_planisty():
         quality_count = len(quality_orders)
         
         has_incomplete_plans = any(p['status'] == 'zakonczone' and (p['tonaz_rzeczywisty'] or 0) < (p['tonaz'] or 0) for p in plany_list + plany_agro)
-        if not has_incomplete_plans:
-            for l_chk in ['PSD', 'AGRO']:
-                t_p_chk = get_table_name('plan_produkcji', l_chk)
-                cursor.execute(f"SELECT COUNT(*) as cnt FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zakonczone' AND COALESCE(tonaz_rzeczywisty, 0) < COALESCE(tonaz, 0)", (wybrana_data,))
-                if cursor.fetchone()['cnt'] > 0: has_incomplete_plans = True; break
+        has_incomplete_psd = any(p['status'] == 'zakonczone' and (p['tonaz_rzeczywisty'] or 0) < (p['tonaz'] or 0) for p in plany_list)
+        has_incomplete_agro = any(p['status'] == 'zakonczone' and (p['tonaz_rzeczywisty'] or 0) < (p['tonaz'] or 0) for p in plany_agro)
+        if not has_incomplete_psd:
+            t_p_chk = get_table_name('plan_produkcji', 'PSD')
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zakonczone' AND COALESCE(tonaz_rzeczywisty, 0) < COALESCE(tonaz, 0)", (wybrana_data,))
+            if cursor.fetchone()['cnt'] > 0: has_incomplete_psd = True
+        if not has_incomplete_agro:
+            t_p_chk = get_table_name('plan_produkcji', 'AGRO')
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zakonczone' AND COALESCE(tonaz_rzeczywisty, 0) < COALESCE(tonaz, 0)", (wybrana_data,))
+            if cursor.fetchone()['cnt'] > 0: has_incomplete_agro = True
+        has_incomplete_plans = has_incomplete_psd or has_incomplete_agro
         
         # 8. Bufor reminders (only previous day, not all past days)
         #    Baner widoczny tylko do 7:30 rano - po tym czasie zmiana juz trwa i przenoszenie nieaktualne
@@ -342,7 +348,9 @@ def panel_planisty():
                                rozliczenia=rozliczenia, current_role=rola, aktywna_zakladka=aktywna_zakladka,
                                plany_agro=plany_agro, suma_plan_agro=suma_plan_agro, suma_wyk_agro=suma_wyk_agro,
                                suma_minut_plan_agro=suma_minut_plan_agro, procent_agro=procent_agro,
-                               has_incomplete_plans=has_incomplete_plans, bufor_remaining=bufor_remaining,
+                               has_incomplete_plans=has_incomplete_plans,
+                               has_incomplete_psd=has_incomplete_psd, has_incomplete_agro=has_incomplete_agro,
+                               bufor_remaining=bufor_remaining,
                                bufor_source_date=bufor_source_date, bufor_source_date_fmt=bufor_source_date_fmt)
     except Exception as e:
         import traceback
@@ -1044,11 +1052,13 @@ def api_check_niezrealizowane():
             current_data = date.today().strftime('%Y-%m-%d')
         
         table_plan = get_table_name('plan_produkcji', linia)
+        table_bufor = get_table_name('bufor', linia)
         
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
         # Query for unfinished production (Zasyp finished but Workowanie incomplete)
+        # For PSD: uses zasyp_id FK; for AGRO: falls back to product-name matching (zasyp_id not used in AGRO)
         cursor.execute(f"""
             SELECT z.id AS zasyp_id, z.produkt,
                    COALESCE(z.tonaz, 0) AS z_plan,
@@ -1062,11 +1072,44 @@ def api_check_niezrealizowane():
             WHERE DATE(z.data_planu) = %s
               AND z.status = 'zakonczone'
               AND LOWER(z.sekcja) = 'zasyp'
-              AND z.real_start IS NOT NULL
+              AND COALESCE(z.typ_zlecenia, '') != 'carry_over_ghost'
             ORDER BY z.id
         """, (current_data,))
         
         all_plans = cursor.fetchall()
+
+        # Bufor: dla podglądu przeniesienia trzymaj się tej samej definicji co w buforze/przenoszeniu:
+        # remaining = SUM(bufor.tonaz_rzeczywisty) - SUM(bufor.spakowano) dla aktywnych wpisów.
+        bufor_remaining_by_zasyp_id = {}
+        try:
+            zasyp_ids = sorted({int(p['zasyp_id']) for p in all_plans if p.get('zasyp_id')})
+            if zasyp_ids:
+                placeholders = ','.join(['%s'] * len(zasyp_ids))
+                cursor.execute(
+                    f"""
+                    SELECT zasyp_id,
+                           COALESCE(SUM(tonaz_rzeczywisty), 0) AS buf_tonaz_rzeczywisty,
+                           COALESCE(SUM(spakowano), 0) AS buf_spakowano
+                    FROM {table_bufor}
+                    WHERE DATE(data_planu) = %s
+                      AND status = 'aktywny'
+                      AND zasyp_id IN ({placeholders})
+                    GROUP BY zasyp_id
+                    """,
+                    tuple([current_data] + zasyp_ids),
+                )
+                for r in cursor.fetchall():
+                    try:
+                        zid = int(r.get('zasyp_id'))
+                    except Exception:
+                        continue
+                    buf_total = float(r.get('buf_tonaz_rzeczywisty') or 0.0)
+                    buf_packed = float(r.get('buf_spakowano') or 0.0)
+                    bufor_remaining_by_zasyp_id[zid] = max(0.0, buf_total - buf_packed)
+        except Exception:
+            # Bufor może być chwilowo niedostępny lub brak tabeli w środowisku testowym — wtedy fallback do starej logiki.
+            bufor_remaining_by_zasyp_id = {}
+
         conn.close()
         
         details = []
@@ -1078,21 +1121,36 @@ def api_check_niezrealizowane():
         next_data_str = next_date.strftime('%Y-%m-%d')
 
         for plan in all_plans:
+            zasyp_id = int(plan['zasyp_id'])
             w_plan = float(plan['w_plan'] or 0.0)
             w_real = float(plan['w_real'] or 0.0)
             z_plan = float(plan['z_plan'] or 0.0)
             z_real = float(plan['z_real'] or 0.0)
+            has_linked_workowanie = bool(plan.get('workowanie_id'))
 
+            # Workowanie remaining (plan - real)
             rem_kg = max(0.0, w_plan - w_real)
-            in_buf_kg = max(0.0, z_real - w_real)
+            # Legacy fallback buffer estimate from plans (only when we have a linked Workowanie)
+            in_buf_kg = max(0.0, z_real - w_real) if has_linked_workowanie else 0.0
+            # Workowanie shortfall vs Zasyp real (informational)
             short_kg = max(0.0, w_plan - z_real)
+            # Zasyp shortfall vs plan (may create companion Zasyp+Workowanie next day)
             z_short = max(0.0, z_plan - z_real)
 
-            if rem_kg <= 0 and in_buf_kg <= 0 and z_short <= 0:
-                continue
+            buf_rem = float(bufor_remaining_by_zasyp_id.get(zasyp_id, 0.0) or 0.0)
 
-            # We use buffer amount if remaining work is 0 but there is buffer
-            effective_rem = in_buf_kg if (in_buf_kg > 0 and rem_kg == 0) else rem_kg
+            # Preview should match actual move logic: buffer remainder first, then workowanie remainder.
+            if buf_rem > 0:
+                effective_rem = buf_rem
+            elif rem_kg > 0:
+                effective_rem = rem_kg
+            elif in_buf_kg > 0:
+                effective_rem = in_buf_kg
+            elif z_short > 0:
+                # Jeśli nie ma bufora i Workowania, a Zasyp ma niedobór — pokaż w liście (dla przeniesienia shortfall).
+                effective_rem = z_short
+            else:
+                continue
 
             total_remaining += effective_rem
             details.append({
@@ -1102,7 +1160,7 @@ def api_check_niezrealizowane():
                 'w_real_kg': float(w_real),
                 'remaining_kg': float(effective_rem),
                 'shortfall_kg': float(short_kg),
-                'in_buffer_kg': float(in_buf_kg),
+                'in_buffer_kg': float(buf_rem if buf_rem > 0 else in_buf_kg),
                 'zasyp_shortfall_kg': float(z_short)
             })
 

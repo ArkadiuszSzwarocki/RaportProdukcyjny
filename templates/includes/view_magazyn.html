@@ -69,10 +69,11 @@
     function editPalet(id, waga) {
         var newWaga = prompt('Nowa waga (kg):', waga);
         if (newWaga && newWaga !== waga) {
+            var linia = (typeof window._linia !== 'undefined' && window._linia) ? window._linia : 'PSD';
             fetch('/api/edytuj_palete_ajax', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id, waga: newWaga, data_planu: '{{ dzisiaj }}' })
+                body: JSON.stringify({ id: id, waga: newWaga, data_planu: '{{ dzisiaj }}', linia: linia })
             })
                 .then(r => r.json())
                 .then(j => {
@@ -87,10 +88,11 @@
     }
 
     function deletePalet(id, data) {
+        var linia = (typeof window._linia !== 'undefined' && window._linia) ? window._linia : 'PSD';
         fetch('/api/usun_palete_ajax', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, data_planu: data })
+            body: JSON.stringify({ id: id, data_planu: data, linia: linia })
         })
             .then(r => r.json())
             .then(j => {

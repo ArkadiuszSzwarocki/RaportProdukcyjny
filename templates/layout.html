@@ -276,6 +276,9 @@
         <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
             <span class="material-icons">report_problem</span>
         </a>
+        <button type="button" class="btn-icon text-warning" title="Zgłoś błąd w systemie" onclick="openBugReportModal()">
+            <span class="material-icons">bug_report</span>
+        </button>
         {% endif %}
 
         {% if session.get('zalogowany') %}
@@ -380,6 +383,11 @@
                 <a href="{{ url_for('main.index', sekcja='Zasyp', linia='PSD') }}"
                     class="nav-item {% if request.args.get('sekcja')=='Zasyp' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">📥 <span
                         class="text-capitalize">{{ _('zasyp') }}</span></a>
+                {% if role in ['lider', 'admin', 'zarzad', 'planista'] %}
+                <a href="{{ url_for('production.zasyp_etapy_podsumowanie', linia='PSD') }}"
+                    class="nav-item {% if request.path.startswith('/zasyp_etapy_podsumowanie') and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}" style="padding-left: 32px; font-size: 0.9em;">📊 <span
+                        class="text-capitalize">Raport Czasu Pracy</span></a>
+                {% endif %}
                 {% endif %}
 
                 {% if role_has_access('bufor') %}
@@ -414,6 +422,11 @@
                 <a href="{{ url_for('main.index', sekcja='Zasyp', linia='AGRO') }}"
                     class="nav-item {% if request.args.get('sekcja')=='Zasyp' and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">📥 <span
                         class="text-capitalize">Zasyp Agro</span></a>
+                {% if role in ['lider', 'admin', 'zarzad', 'planista'] %}
+                <a href="{{ url_for('production.zasyp_etapy_podsumowanie', linia='AGRO') }}"
+                    class="nav-item {% if request.path.startswith('/zasyp_etapy_podsumowanie') and request.args.get('linia')|upper == 'AGRO' %}active{% endif %}" style="padding-left: 32px; font-size: 0.9em;">📊 <span
+                        class="text-capitalize">Raport Czasu Pracy</span></a>
+                {% endif %}
                 {% endif %}
 
                 {% if role_has_access('bufor') %}
@@ -1006,7 +1019,77 @@
             }, true);
         })();
     </script>
-
+    <script>
+        // Zgłaszanie błędów (bug_report)
+        function openBugReportModal() {
+            var html = '<form id="bugReportForm" enctype="multipart/form-data">';
+            html += '<div class="form-group"><label>Krótki opis problemu, jak go wywołać:</label>';
+            html += '<textarea name="opis" rows="4" class="input-sm" required></textarea></div>';
+            html += '<div class="form-group"><label>Zrzuty ekranu (maksymalnie 3 zdjęcia):</label>';
+            html += '<input type="file" name="zalaczniki" accept="image/*" multiple id="bugScreenshots"></div>';
+            html += '<p class="text-muted small" id="bugFileCountMsg"></p>';
+            html += '<div class="d-flex gap-10 mt-15">';
+            html += '<button type="button" class="btn-action btn-success" onclick="submitBugReport()">Wyślij zgłoszenie</button>';
+            html += '<button type="button" class="btn-action btn-cancel" onclick="if(window.closeQuickPopup) { window.closeQuickPopup(); }">Anuluj</button>';
+            html += '</div></form>';
+            
+            if (window.showQuickPopup) {
+                showQuickPopup('🐞 Zgłoś błąd / usprawnienie w systemie', html);
+            }
+            
+            // Limit 3 files
+            var fileInput = document.getElementById('bugScreenshots');
+            if (fileInput) {
+                fileInput.addEventListener('change', function(e) {
+                    if (this.files.length > 3) {
+                        alert('Możesz dodać maksymalnie 3 zrzuty ekranu!');
+                        this.value = '';
+                        document.getElementById('bugFileCountMsg').innerText = '';
+                    } else {
+                        document.getElementById('bugFileCountMsg').innerText = 'Wybrano zrzutów: ' + this.files.length;
+                    }
+                });
+            }
+        }
+        
+        function submitBugReport() {
+            var form = document.getElementById('bugReportForm');
+            if(!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            
+            var btn = form.querySelector('.btn-success');
+            var originalText = btn.innerText;
+            btn.innerText = 'Wysyłanie...';
+            btn.disabled = true;
+            
+            var formData = new FormData(form);
+            formData.append('sciezka', window.location.pathname + window.location.search);
+            
+            fetch('/api/zglos_blad_systemu', {
+                method: 'POST',
+                body: formData
+            }).then(r => r.json()).then(j => {
+                btn.disabled = false;
+                btn.innerText = originalText;
+                if(j && j.success) {
+                    safeAlert('Sukces', 'Dziękujemy! Błąd został zapisany.');
+                    if (window.createQuickPopup && window.createQuickPopup._lastInst) {
+                        window.createQuickPopup._lastInst.close();
+                    } else if (window.closeQuickPopup) {
+                        window.closeQuickPopup();
+                    }
+                } else {
+                    safeAlert('Błąd', (j && j.message) || 'Wystąpił problem przy wysyłaniu zgłoszenia.');
+                }
+            }).catch(e => {
+                btn.disabled = false;
+                btn.innerText = originalText;
+                safeAlert('Błąd sieci', 'Nie udało się połączyć z serwerem.');
+            });
+        }
+    </script>
 </body>
 
 </html>

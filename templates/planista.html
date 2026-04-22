@@ -70,7 +70,7 @@
                 class="btn-action btn-action-success">+ DODAJ PLAN AGRO</a>
         </div>
     </div>
-    {% if has_incomplete_plans %}
+    {% if has_incomplete_agro %}
     <div style="padding: 10px 15px; background-color: #fff3cd; border-bottom: 1px solid #ddd; display: flex; gap: 10px;">
         <button type="button" class="btn btn-warning btn-sm" onclick="przeniesNiezrealizowane('{{ wybrana_data }}')">
             ⚠️ Przenieś niezrealizowane zlecenia na następny dzień
@@ -120,7 +120,12 @@
                             <button type="submit" class="btn-icon text-danger" title="Usuń">🗑️</button>
                         </form>
                         {% else %}
-                        <span class="text-muted" title="Zablokowane">🔒</span>
+                        <span class="text-muted" title="Zablokowane (usuwanie)">🔒</span>
+                        {% endif %}
+                        
+                        {% if session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
+                        <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
+                            data-plan-id="{{ p.id }}" title="Edytuj tonaż">📝</button>
                         {% endif %}
                     </div>
                 </td>
@@ -133,6 +138,143 @@
         </tbody>
     </table>
 </div>
+
+<!-- Modal: Wybór zleceń do przeniesienia (AGRO) -->
+<div id="selectBackdrop" class="select-backdrop" onclick="closeSelectModal()"></div>
+<div id="selectModal" class="select-modal">
+    <div class="qp-header d-flex justify-between align-center p-10" style="background: #fff3cd; border-bottom: 2px solid #ff9800;">
+        <div class="header-title">📦 Przeniesienie wybranych zleceń</div>
+        <div><button type="button" class="btn-action btn-small" onclick="closeSelectModal()">✖</button></div>
+    </div>
+    <div id="selectModalBody" class="qp-body p-10">
+        <div id="selectPlansContainer"></div>
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <div style="display: flex; gap: 10px; justify-content: space-between;">
+                <button type="button" class="btn-action btn-small" onclick="selectAllPlans()">✓ Zaznacz wszystkie</button>
+                <button type="button" class="btn-action btn-small" onclick="deselectAllPlans()">✗ Odznacz wszystkie</button>
+                <button type="button" class="btn-action btn-success" onclick="submitSelectedPlans()">Przenieś zaznaczone →</button>
+                <button type="button" class="btn-action btn-secondary" onclick="closeSelectModal()">Anuluj</button>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    .select-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: none; }
+    .select-backdrop.active { display: block; }
+    .select-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 1000; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; display: none; }
+    .select-modal.active { display: block; }
+</style>
+<script>
+    window.przeniesNiezrealizowane = function (data) {
+        var linia = (new URLSearchParams(window.location.search)).get('tab') || 'psd';
+        linia = linia === 'agro' ? 'AGRO' : 'PSD';
+        fetch('/api/check_niezrealizowane', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ data: data, linia: linia }),
+            credentials: 'same-origin'
+        })
+            .then(function(resp) {
+                return resp.json().then(function(j) { return { ok: resp.ok, status: resp.status, json: j }; });
+            })
+            .then(function (r) {
+                var j = r.json;
+                if (r.ok && j && j.success) {
+                    showSelectModal(j, data);
+                } else {
+                    var msg = (j && j.message) ? j.message : ('Błąd ' + r.status);
+                    alert('⚠️ ' + msg);
+                }
+            })
+            .catch(function (err) {
+                alert('✗ Błąd połączenia: ' + (err && err.message ? err.message : String(err)));
+            });
+    };
+
+    window.showSelectModal = function (data, currentDate) {
+        window.currentMoveData = data;
+        window.currentMoveDate = currentDate;
+        var html = '';
+        html += '<h3 style="margin-bottom: 15px; color: #ff9800;">📦 Przeniesienie z: ' + data.current_date_formatted + ' → na: ' + data.next_date_formatted + '</h3>';
+        if (!data.plans || data.plans.length === 0) {
+            html += '<p>Brak planów do przeniesienia.</p>';
+        } else {
+            html += '<p>Wybierz zlecenia do przeniesienia (' + data.plans.length + ' znaleziono):</p>';
+            html += '<div style="max-height: 300px; overflow-y: auto;">';
+            data.plans.forEach(function(plan) {
+                html += '<div style="display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid #eee;">';
+                html += '<input type="checkbox" class="select-plan-checkbox" data-plan-id="' + plan.plan_id + '" data-remaining-kg="' + (plan.remaining_kg || 0) + '" checked>';
+                html += '<div><strong>' + (plan.produkt || '?') + '</strong>';
+                html += '<br><small>Do przeniesienia: ' + (plan.remaining_kg || 0) + ' kg</small></div>';
+                html += '</div>';
+            });
+            html += '</div>';
+        }
+        document.getElementById('selectPlansContainer').innerHTML = html;
+        document.getElementById('selectBackdrop').classList.add('active');
+        document.getElementById('selectModal').classList.add('active');
+        document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) { cb.checked = true; });
+    };
+
+    window.closeSelectModal = function () {
+        document.getElementById('selectBackdrop').classList.remove('active');
+        document.getElementById('selectModal').classList.remove('active');
+        window.currentMoveData = null;
+        window.currentMoveDate = null;
+    };
+
+    window.selectAllPlans = function () {
+        document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) { cb.checked = true; });
+    };
+
+    window.deselectAllPlans = function () {
+        document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) { cb.checked = false; });
+    };
+
+    window.submitSelectedPlans = function () {
+        var selectedIds = [];
+        document.querySelectorAll('.select-plan-checkbox:checked').forEach(function(cb) {
+            selectedIds.push(parseInt(cb.dataset.planId));
+        });
+        if (selectedIds.length === 0) {
+            alert('⚠️ Wybierz przynajmniej jedno zlecenie!');
+            return;
+        }
+        var selectedTotalKg = 0;
+        document.querySelectorAll('.select-plan-checkbox:checked').forEach(function(cb) {
+            selectedTotalKg += parseFloat(cb.dataset.remainingKg) || 0;
+        });
+        var msg = '📦 PRZENIESIENIE WYBRANYCH ZLECEŃ\n\nLiczba wybranych: ' + selectedIds.length + '\nRazem: ' + selectedTotalKg + ' kg\n\nCzy potwierdzasz?';
+        if (confirm(msg)) {
+            performSelectiveMove(window.currentMoveDate, selectedIds);
+            closeSelectModal();
+        }
+    };
+
+    function performSelectiveMove(currentDate, planIds) {
+        var linia = (new URLSearchParams(window.location.search)).get('tab') || 'psd';
+        linia = linia === 'agro' ? 'AGRO' : 'PSD';
+        fetch('/api/przenies_wybrane_zlecenia', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ data: currentDate, plan_ids: planIds, linia: linia }),
+            credentials: 'same-origin'
+        })
+            .then(function(resp) { return resp.json().then(function(j){ return {ok: resp.ok, json: j}; }); })
+            .then(function (r) {
+                var j = r.json;
+                if (r.ok && j && j.success) {
+                    alert('✅ ' + (j.message || 'Zlecenia zostały pomyślnie przeniesione!'));
+                    setTimeout(function () { location.reload(); }, 400);
+                } else {
+                    alert('✗ ' + ((j && j.message) || 'Błąd podczas przenoszenia'));
+                }
+            })
+            .catch(function (err) {
+                alert('✗ Błąd: ' + (err && err.message ? err.message : String(err)));
+            });
+    }
+</script>
 
 {% else %}
 {# ===== ZAKŁADKA PSD (domyślna) ===== #}
@@ -213,7 +355,7 @@
             </div>
         </div>
     </div>
-    {% if has_incomplete_plans %}
+    {% if has_incomplete_psd %}
     <div style="padding: 10px 15px; background-color: #fff3cd; border-bottom: 1px solid #ddd; display: flex; gap: 10px;">
         <button type="button" class="btn btn-warning btn-sm" onclick="przeniesNiezrealizowane('{{ wybrana_data }}')">
             ⚠️ Przenieś niezrealizowane zlecenia na następny dzień
@@ -320,13 +462,9 @@
                         <span class="text-muted">-</span>
                         {% endif %}
 
-                        {% if session.get('rola') in ['planista', 'admin'] and p.status != 'zakonczone' %}
+                        {% if session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
                         <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
                             data-plan-id="{{ p.id }}" title="Edytuj tonaż">📝</button>
-                        {% elif session.get('rola') in ['planista', 'admin'] and p.status == 'zakonczone' and p.linked_workowanie_id %}
-                        {# Ghost Zasyp (carry-over): planista edytuje tonaż Zasypa — backend synci Workowanie #}
-                        <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
-                            data-plan-id="{{ p.id }}" title="Edytuj tonaż (przeniesione)">📝</button>
                         {% else %}
                         <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
                         {% endif %}
@@ -414,7 +552,12 @@
     </table>
 </div>
 
+{% endif %}{# koniec bloku PSD / else AGRO #}
+
 <script>
+    // Linia z jakiej wywoływana jest ta strona
+    var currentLinia = '{{ "Agro" if aktywna_zakladka == "agro" else "PSD" }}';
+    
     // Translation messages for Planista view
     var pnMsgs = {
         zapisz: '{{ _("zapisz") }}',
@@ -520,7 +663,7 @@
         fetch('/api/przenies_zlecenie/' + id, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'nowa_data=' + encodeURIComponent(newDate),
+            body: 'nowa_data=' + encodeURIComponent(newDate) + '&linia=' + encodeURIComponent(currentLinia),
             credentials: 'same-origin'
         }).then(r => r.text()).then(t => {
             if (window.createQuickPopup && window.createQuickPopup._lastInst) {
@@ -695,7 +838,7 @@
         var dt = document.getElementById('e_date_' + id).value;
         fetch('/api/edytuj_plan_ajax', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, produkt: prod, tonaz: ton, data_planu: dt })
+            body: JSON.stringify({ id: id, produkt: prod, tonaz: ton, data_planu: dt, linia: currentLinia })
         }).then(r => r.json()).then(j => {
             if (j && j.success) {
                 if (window.createQuickPopup && window.createQuickPopup._lastInst) {
@@ -737,7 +880,7 @@
         var ton = document.getElementById('e_ton_only_' + id).value;
         fetch('/api/edytuj_plan_ajax', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, tonaz: ton })
+            body: JSON.stringify({ id: id, tonaz: ton, linia: currentLinia })
         }).then(r => r.json()).then(j => {
             if (j && j.success) {
                 if (window.createQuickPopup && window.createQuickPopup._lastInst) {
@@ -920,38 +1063,29 @@
     window.przeniesNiezrealizowane = function (data) {
         var linia = (new URLSearchParams(window.location.search)).get('tab') || 'psd';
         linia = linia === 'agro' ? 'AGRO' : 'PSD';
-        console.log('[PRZENIES] Kliknięto przycisk dla daty:', data, 'linia:', linia);
         // First, fetch details about what would be moved
         fetch('/api/check_niezrealizowane', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ data: data, linia: linia }),
             credentials: 'same-origin'
         })
-            .then(handleFetchResponse)
-            .then(function (j) {
-                console.log('[PRZENIES] check_niezrealizowane response:', j);
-                if (j && j.success) {
-                    // Show modal with selectable plans
+            .then(function(resp) {
+                return resp.json().then(function(j) {
+                    return { ok: resp.ok, status: resp.status, json: j };
+                });
+            })
+            .then(function (r) {
+                var j = r.json;
+                if (r.ok && j && j.success) {
                     showSelectModal(j, data);
                 } else {
-                    console.log('[PRZENIES] Brak niezrealizowanych planów:', j && j.message);
-                    try {
-                        showQuickPopup('Błąd', `<div class="p-10 text-error">✗ ${ (j && j.message) ? j.message : 'Błąd podczas sprawdzania planów' }</div>`);
-                    } catch (e) {
-                        alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas sprawdzania planów'));
-                    }
+                    var msg = (j && j.message) ? j.message : ('Błąd ' + r.status);
+                    alert('⚠️ ' + msg);
                 }
             })
             .catch(function (err) {
-                console.error('[PRZENIES] ERROR:', err);
-                try {
-                    var msg = formatError(err && err.message ? err.message : err);
-                    showQuickPopup('Błąd sieci', '<div class="p-10 text-error">✗ Błąd: ' + (msg || 'Połączenie nieudane') + '</div>');
-                } catch (e) {
-                    safeAlert('Błąd sieci', '✗ Błąd: ' + (formatError(err) || 'Połączenie nieudane'));
-                }
-                console.error(err);
+                alert('✗ Błąd połączenia: ' + (err && err.message ? err.message : String(err)));
             });
     }
 
@@ -1061,7 +1195,7 @@
         console.log('[MOVE] Wysyłam request do przeniesienia wybranych planów:', planIds, 'linia:', linia);
         fetch('/api/przenies_wybrane_zlecenia', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ 
                 data: currentDate,
                 plan_ids: planIds,
@@ -1069,34 +1203,20 @@
             }),
             credentials: 'same-origin'
         })
-            .then(handleFetchResponse)
-            .then(function (j) {
-                console.log('[MOVE] Response:', j);
-                if (j && j.success) {
-                    try {
-                        showQuickPopup('Sukces', '<div class="p-10">✅ ' + (j.message || 'Zlecenia zostały pomyślnie przeniesione!') + '</div>');
-                    } catch (e) {
-                        safeAlert('Sukces', (j.message || 'Zlecenia zostały pomyślnie przeniesione!'));
-                    }
+            .then(function(resp) { return resp.json().then(function(j){ return {ok:resp.ok, json:j}; }); })
+            .then(function (r) {
+                console.log('[MOVE] Response:', r);
+                var j = r.json;
+                if (r.ok && j && j.success) {
+                    alert('✅ ' + (j.message || 'Zlecenia zostały pomyślnie przeniesione!'));
                     setTimeout(function () { location.reload(); }, 400);
                 } else {
-                    var msg = (j && j.message) ? formatError(j.message) : 'Błąd podczas przenoszenia';
-                    try {
-                        showQuickPopup('Błąd', '<div class="p-10 text-error">✗ ' + msg + '</div>');
-                    } catch (e) {
-                        safeAlert('Błąd', msg);
-                    }
+                    alert('✗ ' + ((j && j.message) || 'Błąd podczas przenoszenia'));
                 }
             })
             .catch(function (err) {
                 console.error('[MOVE] ERROR:', err);
-                var msg = formatError(err && err.message ? err.message : err);
-                try {
-                    showQuickPopup('Błąd sieci', '<div class="p-10 text-error">✗ Błąd: ' + (msg || 'Połączenie nieudane') + '</div>');
-                } catch (e) {
-                    safeAlert('Błąd sieci', '✗ Błąd: ' + (msg || 'Połączenie nieudane'));
-                }
-                console.error(err);
+                alert('✗ Błąd: ' + (err && err.message ? err.message : String(err)));
             });
     }
     
@@ -1197,6 +1317,48 @@
 </div>
 
 <style>
+    /* Select modal (przenies zlecenia) */
+    .select-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.18s ease, visibility 0s linear 0.18s;
+        z-index: 20001;
+        pointer-events: none;
+    }
+    .select-backdrop.active {
+        opacity: 1;
+        visibility: visible;
+        transition-delay: 0s;
+        pointer-events: auto;
+    }
+    .select-modal {
+        position: fixed;
+        left: 50%;
+        top: 8%;
+        transform: translateX(-50%) translateY(-8px) scale(0.98);
+        width: min(640px, calc(100% - 32px));
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+        z-index: 20002;
+        opacity: 0;
+        transition: transform 0.22s cubic-bezier(.2,.8,.2,1), opacity 0.16s ease;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        visibility: hidden;
+        pointer-events: none;
+    }
+    .select-modal.active {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0) scale(1);
+        pointer-events: auto;
+    }
+
     /* Drag and drop styles for Sortable.js */
     .sortable-tbody tr.sortable-ghost {
         opacity: 0.4;
@@ -1303,7 +1465,7 @@
     .modern-table tr.expanded td .d-flex { align-items: flex-start !important; }
 </style>
 
-{% endif %}{# koniec bloku PSD / else AGRO #}
+</style>
 <script>
 document.addEventListener('DOMContentLoaded', function(){
     document.querySelectorAll('form.czyszczenie-form').forEach(function(form){

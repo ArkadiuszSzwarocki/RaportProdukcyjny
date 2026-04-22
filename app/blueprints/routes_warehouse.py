@@ -39,23 +39,30 @@ def _update_paleta_workowanie(cursor, paleta_id, waga, linia='PSD'):
     return {'found': True, 'action': action, 'plan_id': plan_id, 'status': status}
 
 
-def _update_paleta_magazyn(cursor, paleta_id, nowa_waga):
+def _update_paleta_magazyn(cursor, paleta_id, nowa_waga, linia='PSD'):
     """Helper: update magazyn_palety weight and refresh plan aggregate."""
-    cursor.execute("SELECT plan_id FROM magazyn_palety WHERE id=%s", (paleta_id,))
+    table_mag = get_table_name('magazyn_palety', linia)
+    table_plan = get_table_name('plan_produkcji', linia)
+
+    cursor.execute(f"SELECT plan_id FROM {table_mag} WHERE id=%s", (paleta_id,))
     row = cursor.fetchone()
     if not row:
         return {'found': False}
     plan_id = row[0]
-    cursor.execute("UPDATE magazyn_palety SET waga_netto=%s WHERE id=%s", (nowa_waga, paleta_id))
-    cursor.execute("""
-            UPDATE plan_produkcji pp
+
+    cursor.execute(f"UPDATE {table_mag} SET waga_netto=%s WHERE id=%s", (nowa_waga, paleta_id))
+    cursor.execute(
+        f"""
+            UPDATE {table_plan} pp
             SET tonaz_rzeczywisty = (
                 SELECT COALESCE(SUM(mp.waga_netto), 0)
-                FROM magazyn_palety mp
+                FROM {table_mag} mp
                 WHERE mp.plan_id = pp.id
             )
             WHERE pp.id = %s
-        """, (plan_id,))
+        """,
+        (plan_id,)
+    )
     return {'found': True, 'plan_id': plan_id}
 
 def bezpieczny_powrot():
@@ -130,7 +137,7 @@ def dodaj_palete(plan_id):
         
         # Validate and fix status anomalies after tonaz update
         try:
-            PlanningService.ensure_status_after_tonaz_update(plan_id)
+            PlanningService.ensure_status_after_tonaz_update(plan_id, linia=linia)
         except Exception as e:
             try:
                 current_app.logger.warning(f'Warning during status validation: {str(e)}')
@@ -1639,6 +1646,12 @@ def start_from_queue(kolejka):
 @login_required
 def wazenie_magazyn(paleta_id):
     """Weigh paleta in warehouse and update weight"""
+    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+    linia = str(linia).upper()
+    table_pal = get_table_name('palety_workowanie', linia)
+    table_plan = get_table_name('plan_produkcji', linia)
+    table_mag = get_table_name('magazyn_palety', linia)
+
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -1646,7 +1659,7 @@ def wazenie_magazyn(paleta_id):
     except Exception:
         brutto = 0
     
-    cursor.execute("SELECT tara, plan_id FROM palety_workowanie WHERE id=%s", (paleta_id,))
+    cursor.execute(f"SELECT tara, plan_id FROM {table_pal} WHERE id=%s", (paleta_id,))
     res = cursor.fetchone()
     if res:
         tara, plan_id = res
@@ -1655,31 +1668,31 @@ def wazenie_magazyn(paleta_id):
         # Do not overwrite original Workowanie paleta weight here; store brutto
         # for warehouse audit and add netto to Magazyn aggregates only.
         try:
-            cursor.execute("UPDATE palety_workowanie SET waga_brutto=%s WHERE id=%s", (brutto, paleta_id))
+            cursor.execute(f"UPDATE {table_pal} SET waga_brutto=%s WHERE id=%s", (brutto, paleta_id))
         except Exception as e:
             current_app.logger.error(f'Failed to store brutto for paleta {paleta_id}: {e}', exc_info=True)
-        cursor.execute("SELECT data_planu, produkt FROM plan_produkcji WHERE id=%s", (plan_id,))
+        cursor.execute(f"SELECT data_planu, produkt FROM {table_plan} WHERE id=%s", (plan_id,))
         z = cursor.fetchone()
         if z:
             # For magazyn, insert a separate magazyn_palety record (or update existing)
-            cursor.execute("SELECT id FROM plan_produkcji WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (z[0], z[1]))
+            cursor.execute(f"SELECT id FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn' LIMIT 1", (z[0], z[1]))
             mp = cursor.fetchone()
             mp_id = mp[0] if mp else None
-            cursor.execute("SELECT id FROM magazyn_palety WHERE paleta_workowanie_id=%s", (paleta_id,))
+            cursor.execute(f"SELECT id FROM {table_mag} WHERE paleta_workowanie_id=%s", (paleta_id,))
             exists = cursor.fetchone()
             if not exists:
                 try:
                     cursor.execute(
-                        "INSERT IGNORE INTO magazyn_palety (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                        f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                         (paleta_id, mp_id, z[0], z[1], netto, brutto, tara, session.get('login'))
                     )
                 except mysql.connector.IntegrityError:
                     # If duplicate was somehow created concurrently between check and insert
                     pass
             else:
-                cursor.execute("UPDATE magazyn_palety SET waga_netto=%s, waga_brutto=%s, tara=%s, data_potwierdzenia=NOW() WHERE paleta_workowanie_id=%s", (netto, brutto, tara, paleta_id))
+                cursor.execute(f"UPDATE {table_mag} SET waga_netto=%s, waga_brutto=%s, tara=%s, data_potwierdzenia=NOW() WHERE paleta_workowanie_id=%s", (netto, brutto, tara, paleta_id))
             cursor.execute(
-                "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto),0) FROM magazyn_palety WHERE plan_id = plan_produkcji.id) WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'",
+                f"UPDATE {table_plan} SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto),0) FROM {table_mag} WHERE plan_id = {table_plan}.id) WHERE data_planu=%s AND produkt=%s AND sekcja='Magazyn'",
                 (z[0], z[1])
             )
     
@@ -1820,6 +1833,8 @@ def edytuj_palete(paleta_id):
 def edytuj_palete_ajax():
     """AJAX: Edytuj wagę palety w magazyn_palety (tylko potwierdzone w magazynie)."""
     data = request.get_json(force=True) or {}
+    linia = data.get('linia') or request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
+    linia = str(linia).upper()
     paleta_id = data.get('id')
     nowa_waga = data.get('waga')
     try:
@@ -1833,7 +1848,7 @@ def edytuj_palete_ajax():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        result = _update_paleta_magazyn(cursor, paleta_id, nowa_waga)
+        result = _update_paleta_magazyn(cursor, paleta_id, nowa_waga, linia=linia)
         if not result.get('found'):
             msg = f'Paleta ID={paleta_id} nie istnieje w magazynie lub nie została potwierdzona'
             current_app.logger.warning(f'[WAREHOUSE-AJAX-EDIT] {msg}')
@@ -1860,6 +1875,8 @@ def edytuj_palete_ajax():
 def usun_palete_ajax():
     """AJAX: Usuń paletę tylko z magazyn_palety (potwierdzone w magazynie)."""
     data = request.get_json(force=True) or {}
+    linia = data.get('linia') or request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
+    linia = str(linia).upper()
     paleta_id = data.get('id')
     try:
         paleta_id = int(paleta_id)
@@ -1870,9 +1887,13 @@ def usun_palete_ajax():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        table_mag = get_table_name('magazyn_palety', linia)
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_pal = get_table_name('palety_workowanie', linia)
         
         # Tylko usuń palety z magazyn_palety (potwierdzone)
-        cursor.execute("SELECT plan_id, paleta_workowanie_id FROM magazyn_palety WHERE id=%s", (paleta_id,))
+        cursor.execute(f"SELECT plan_id, paleta_workowanie_id FROM {table_mag} WHERE id=%s", (paleta_id,))
         row = cursor.fetchone()
         
         if not row:
@@ -1882,12 +1903,12 @@ def usun_palete_ajax():
         
         plan_id = row[0]
         paleta_workowanie_id = row[1] if len(row) > 1 else None
-        cursor.execute("DELETE FROM magazyn_palety WHERE id=%s", (paleta_id,))
+        cursor.execute(f"DELETE FROM {table_mag} WHERE id=%s", (paleta_id,))
         # If this magazyn entry pointed to a palety_workowanie row, mark it as no longer confirmed
         try:
             if paleta_workowanie_id:
                 cursor.execute(
-                    "UPDATE palety_workowanie SET status=%s, data_potwierdzenia=NULL, czas_potwierdzenia_s=NULL, czas_rzeczywistego_potwierdzenia=NULL, waga_potwierdzona=NULL WHERE id=%s",
+                    f"UPDATE {table_pal} SET status=%s, data_potwierdzenia=NULL, czas_potwierdzenia_s=NULL, czas_rzeczywistego_potwierdzenia=NULL, waga_potwierdzona=NULL WHERE id=%s",
                     ('zamknieta', paleta_workowanie_id)
                 )
         except Exception:
@@ -1898,7 +1919,7 @@ def usun_palete_ajax():
                 pass
         # Zaktualizuj agregat Magazyn
         cursor.execute(
-            "UPDATE plan_produkcji SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto), 0) FROM magazyn_palety WHERE plan_id = %s) WHERE id = %s",
+            f"UPDATE {table_plan} SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga_netto), 0) FROM {table_mag} WHERE plan_id = %s) WHERE id = %s",
             (plan_id, plan_id)
         )
         
@@ -1933,6 +1954,7 @@ def drukuj_etykiete(paleta_id):
     table_plan = get_table_name('plan_produkcji', linia)
     table_pal = get_table_name('palety_workowanie', linia)
     table_szarze = get_table_name('szarze', linia)
+    table_mag = get_table_name('magazyn_palety', linia)
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1946,7 +1968,7 @@ def drukuj_etykiete(paleta_id):
                 COALESCE(p.produkt, pw_p.produkt, mp.produkt) AS produkt,
                 mp.paleta_workowanie_id,
                 pw.data_dodania
-            FROM magazyn_palety mp
+            FROM {table_mag} mp
             LEFT JOIN {table_plan} p ON mp.plan_id = p.id
             LEFT JOIN {table_pal} pw ON mp.paleta_workowanie_id = pw.id
             LEFT JOIN {table_plan} pw_p ON pw.plan_id = pw_p.id
@@ -1969,9 +1991,9 @@ def drukuj_etykiete(paleta_id):
                     ''', (plan_id, workowanie_id))
                     cumulative_paleta_waga = cursor.fetchone()[0]
                 else:
-                    cursor.execute('''
+                    cursor.execute(f'''
                         SELECT COALESCE(SUM(waga_netto), 0) 
-                        FROM magazyn_palety 
+                        FROM {table_mag} 
                         WHERE plan_id = %s AND id <= %s
                     ''', (plan_id, paleta_id))
                     cumulative_paleta_waga = cursor.fetchone()[0]

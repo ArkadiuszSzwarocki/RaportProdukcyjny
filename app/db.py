@@ -34,6 +34,8 @@ def get_table_name(base_table, linia='PSD'):
             return 'dosypki_agro'
         elif base_table == 'palety_workowanie':
             return 'palety_agro'
+        elif base_table == 'magazyn_palety':
+            return 'magazyn_palety_agro'
         elif base_table == 'bufor':
             return 'bufor_agro'
         elif base_table == 'magazyn_surowce':
@@ -77,6 +79,32 @@ def _create_tables(cursor):
         )
     """)
 
+    # Tabela produkcyjna dla linii AGRO (analogiczna do plan_produkcji)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS plan_produkcji_agro (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data_planu DATE NOT NULL,
+            sekcja VARCHAR(50) NOT NULL,
+            produkt VARCHAR(100) NOT NULL,
+            tonaz FLOAT,
+            status VARCHAR(20) DEFAULT 'zaplanowane',
+            real_start DATETIME,
+            real_stop DATETIME,
+            tonaz_rzeczywisty FLOAT,
+            kolejnosc INT DEFAULT 0,
+            typ_produkcji VARCHAR(20) DEFAULT 'agro',
+            nazwa_zlecenia VARCHAR(255) DEFAULT '',
+            typ_zlecenia VARCHAR(50) DEFAULT '',
+            nr_receptury VARCHAR(64) DEFAULT '',
+            zasyp_id INT NULL DEFAULT NULL,
+            wyjasnienie_rozbieznosci TEXT,
+            uszkodzone_worki INT DEFAULT 0,
+            is_deleted BOOLEAN DEFAULT 0,
+            deleted_at DATETIME NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     # Tabela dla planowania AGRO (oddzielna od PSD/plan_produkcji)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS plan_agro (
@@ -111,6 +139,23 @@ def _create_tables(cursor):
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS palety_agro (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            plan_id INT,
+            waga FLOAT,
+            tara FLOAT DEFAULT 0,
+            waga_brutto FLOAT DEFAULT 0,
+            data_dodania DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status VARCHAR(20) DEFAULT 'do_przyjecia',
+            data_potwierdzenia DATETIME NULL,
+            czas_potwierdzenia_s INT NULL,
+            czas_rzeczywistego_potwierdzenia TIME NULL,
+            waga_potwierdzona FLOAT NULL,
+            FOREIGN KEY (plan_id) REFERENCES plan_produkcji_agro(id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS magazyn_palety (
             id INT AUTO_INCREMENT PRIMARY KEY,
             paleta_workowanie_id INT NULL,
@@ -125,6 +170,24 @@ def _create_tables(cursor):
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (paleta_workowanie_id) REFERENCES palety_workowanie(id) ON DELETE SET NULL,
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE SET NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_palety_agro (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            paleta_workowanie_id INT NULL,
+            plan_id INT NULL,
+            data_planu DATE NULL,
+            produkt VARCHAR(100) NULL,
+            waga_netto FLOAT DEFAULT 0,
+            waga_brutto FLOAT DEFAULT 0,
+            tara FLOAT DEFAULT 0,
+            user_login VARCHAR(100) DEFAULT NULL,
+            data_potwierdzenia DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (paleta_workowanie_id) REFERENCES palety_agro(id) ON DELETE SET NULL,
+            FOREIGN KEY (plan_id) REFERENCES plan_produkcji_agro(id) ON DELETE SET NULL
         )
     """)
     
@@ -203,6 +266,43 @@ def _create_tables(cursor):
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE,
             FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL,
             FOREIGN KEY (potwierdzil_pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
+        )
+    """)
+
+    # Zasyp — pomiar etapów (1-6) dla zlecenia w toku (obsługa PSD + AGRO przez kolumnę linia)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS zasyp_etapy (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            linia VARCHAR(10) NOT NULL,
+            plan_id INT NOT NULL,
+            data_planu DATE NOT NULL,
+            etap TINYINT NOT NULL,
+            czas_start DATETIME NULL,
+            czas_stop DATETIME NULL,
+            start_login VARCHAR(100) NULL,
+            stop_login VARCHAR(100) NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_zasyp_etapy_linia_plan_etap (linia, plan_id, etap),
+            INDEX idx_zasyp_etapy_linia_data (linia, data_planu),
+            INDEX idx_zasyp_etapy_linia_plan (linia, plan_id)
+        )
+    """)
+
+    # Zasyp — parametry per zlecenie (np. wielkość szarży do liczenia wydajności)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS zasyp_etapy_parametry (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            linia VARCHAR(10) NOT NULL,
+            plan_id INT NOT NULL,
+            data_planu DATE NOT NULL,
+            wielkosc_szarzy_kg FLOAT NULL,
+            updated_by_login VARCHAR(100) NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_zasyp_etapy_param_linia_plan (linia, plan_id),
+            INDEX idx_zasyp_etapy_param_linia_data (linia, data_planu),
+            INDEX idx_zasyp_etapy_param_linia_plan (linia, plan_id)
         )
     """)
 
@@ -407,6 +507,17 @@ def _migrate_columns(cursor):
     
     # plan_produkcji: Link Workowanie to Zasyp (1:1 relationship for exact order tracking)
     _add_column_if_missing(cursor, "plan_produkcji", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' - FK linkujacy Workowanie z Zasyp 1:1")
+
+    # plan_produkcji_agro columns (AGRO hall)
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "typ_produkcji", "VARCHAR(20) DEFAULT 'agro'", "Dodawanie kolumny 'typ_produkcji' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "nazwa_zlecenia", "VARCHAR(255) DEFAULT ''", "Dodawanie kolumny 'nazwa_zlecenia' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "typ_zlecenia", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'typ_zlecenia' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "nr_receptury", "VARCHAR(64) DEFAULT ''", "Dodawanie kolumny 'nr_receptury' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "uszkodzone_worki", "INT DEFAULT 0", "Dodawanie kolumny 'uszkodzone_worki' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "wyjasnienie_rozbieznosci", "TEXT", "Dodawanie kolumny 'wyjasnienie_rozbieznosci' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "is_deleted", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'is_deleted' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "deleted_at", "DATETIME NULL", "Dodawanie kolumny 'deleted_at' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' (AGRO)")
     
     # palety_workowanie columns
     _add_column_if_missing(cursor, "palety_workowanie", "tara", "FLOAT DEFAULT 0", "Dodawanie kolumny 'tara' do palet")
@@ -417,6 +528,20 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "palety_workowanie", "czas_rzeczywistego_potwierdzenia", "TIME NULL", "Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do palet")
     # Store confirmed weight separately to avoid overwriting original Workowanie weight
     _add_column_if_missing(cursor, "palety_workowanie", "waga_potwierdzona", "FLOAT NULL", "Dodawanie kolumny 'waga_potwierdzona' do palet")
+
+    # palety_agro columns (AGRO hall)
+    _add_column_if_missing(cursor, "palety_agro", "tara", "FLOAT DEFAULT 0", "Dodawanie kolumny 'tara' do palet (AGRO)")
+    _add_column_if_missing(cursor, "palety_agro", "waga_brutto", "FLOAT DEFAULT 0", "Dodawanie kolumny 'waga_brutto' do palet (AGRO)")
+    _add_column_if_missing(cursor, "palety_agro", "status", "VARCHAR(20) DEFAULT 'do_przyjecia'", "Dodawanie kolumny 'status' do palet (AGRO)")
+    _add_column_if_missing(cursor, "palety_agro", "data_potwierdzenia", "DATETIME NULL", "Dodawanie kolumny 'data_potwierdzenia' do palet (AGRO)")
+    _add_column_if_missing(cursor, "palety_agro", "czas_potwierdzenia_s", "INT NULL", "Dodawanie kolumny 'czas_potwierdzenia_s' do palet (AGRO)")
+    _add_column_if_missing(cursor, "palety_agro", "czas_rzeczywistego_potwierdzenia", "TIME NULL", "Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do palet (AGRO)")
+    _add_column_if_missing(cursor, "palety_agro", "waga_potwierdzona", "FLOAT NULL", "Dodawanie kolumny 'waga_potwierdzona' do palet (AGRO)")
+
+    # magazyn_palety_agro columns
+    _add_column_if_missing(cursor, "magazyn_palety_agro", "user_login", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'user_login' do magazyn_palety_agro")
+    _add_column_if_missing(cursor, "magazyn_palety_agro", "data_potwierdzenia", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'data_potwierdzenia' do magazyn_palety_agro")
+    _add_column_if_missing(cursor, "magazyn_palety_agro", "created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'created_at' do magazyn_palety_agro")
     
     # raporty_koncowe columns
     _add_column_if_missing(cursor, "raporty_koncowe", "sekcja", "VARCHAR(50)", "Dodawanie kolumny 'sekcja' do raporty_koncowe")
@@ -544,11 +669,6 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
         """)
         updated = cursor.rowcount
 
-        # 1b. Zamknij wpisy bufora, których Zasyp nigdy nie wystartował (real_start IS NULL).
-        #     Takie wpisy powstały przed regułą "tylko real_start IS NOT NULL" i nie powinny
-        #     blokować kolejki ani pojawiać się w modalach przenoszenia.
-        #     WYJĄTEK: Ghost Zasypy (status='zakonczone', real_start IS NULL) tworzone przez
-        #     przenies_niezrealizowane — mają status='zakonczone' bez real_start z założenia.
         cursor.execute(f"""
             UPDATE {table_bufor} b
             JOIN {table_plan} z ON z.id = b.zasyp_id
@@ -556,21 +676,21 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
             WHERE b.status = 'aktywny'
               AND z.sekcja = 'Zasyp'
               AND z.real_start IS NULL
-              AND z.status != 'zakonczone'
+              AND z.typ_zlecenia != 'carry_over_ghost'
         """)
         if cursor.rowcount > 0:
             print(f"[CLEANUP-{linia}] Zamknięto {cursor.rowcount} wpisów bufora z Zasypem bez real_start")
 
         # 1d. Re-otwórz wpisy bufora dla ghost Zasypów (carry-over/przeniesione), które zostały
-        #     błędnie zamknięte przez krok 1b, gdy Workowanie jest nadal zaplanowane.
+        #     błędnie zamknięte, gdy Workowanie jest nadal zaplanowane.
+        #     Ghost Zasyp ma teraz status='zaplanowane' (nie 'zakonczone'), sprawdzamy przez typ_zlecenia.
         cursor.execute(f"""
             UPDATE {table_bufor} b
             JOIN {table_plan} z ON z.id = b.zasyp_id
             SET b.status = 'aktywny'
             WHERE b.status = 'zamkniete'
               AND z.sekcja = 'Zasyp'
-              AND z.status = 'zakonczone'
-              AND z.real_start IS NULL
+              AND z.typ_zlecenia = 'carry_over_ghost'
               AND EXISTS (
                   SELECT 1 FROM {table_plan} w
                   WHERE w.sekcja = 'Workowanie' AND w.status IN ('w toku', 'zaplanowane')
@@ -605,10 +725,15 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
             INNER JOIN {table_plan} w ON w.zasyp_id = z.id
             WHERE z.sekcja = 'Zasyp' AND w.sekcja = 'Workowanie'
               AND w.status IN ('w toku', 'zaplanowane')
-              AND z.status IN ('w toku', 'zakonczone')
-              AND z.real_start IS NOT NULL
+              AND (
+                  -- Normalne Zasypy: muszą mieć real_start i status 'w toku' lub 'zakonczone'
+                  (z.status IN ('w toku', 'zakonczone') AND z.real_start IS NOT NULL)
+                  OR
+                  -- Ghost Zasypy (carry-over): zaplanowane, brak real_start, ale mają tonaz w zleceniu Workowanie
+                  (z.typ_zlecenia = 'carry_over_ghost' AND z.status = 'zaplanowane')
+              )
               AND z.data_planu >= %s AND z.data_planu <= %s
-              AND COALESCE(NULLIF(z.tonaz_rzeczywisty, 0), z.tonaz, 0) > 0
+              AND COALESCE(NULLIF(w.tonaz, 0), 0) > 0
             ORDER BY z.data_planu DESC, COALESCE(z.real_start, '00:00:00') ASC, z.id ASC
         """, (start_date, end_date))
 
@@ -709,6 +834,24 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
                 )
             WHERE b.status = 'aktywny'
               AND COALESCE(z.tonaz_rzeczywisty, 0) > 0
+              AND COALESCE(z.typ_zlecenia, '') != 'carry_over_ghost'
+        """)
+
+        # 5b. Dla ghost Zasypów (carry_over_ghost): tonaz_rzeczywisty bufora bierzemy z Workowanie.tonaz
+        #     bo Zasyp ghost ma tonaz_rzeczywisty=0 (nie był fizycznie sypany)
+        cursor.execute(f"""
+            UPDATE {table_bufor} b
+            JOIN {table_plan} z ON z.id = b.zasyp_id
+            JOIN {table_plan} w ON w.zasyp_id = z.id AND w.sekcja = 'Workowanie'
+            SET b.tonaz_rzeczywisty = COALESCE(w.tonaz, 0),
+                b.spakowano = (
+                    SELECT COALESCE(SUM(pw.waga), 0) FROM {table_palety} pw
+                    WHERE pw.plan_id = w.id
+                )
+            WHERE b.status = 'aktywny'
+              AND z.typ_zlecenia = 'carry_over_ghost'
+              AND z.sekcja = 'Zasyp'
+              AND COALESCE(w.tonaz, 0) > 0
         """)
 
         conn.commit()

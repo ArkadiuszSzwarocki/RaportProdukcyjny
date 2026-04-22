@@ -1,0 +1,38 @@
+[
+  {
+    "id": 42,
+    "produkt": "MAGIC MILK LEN",
+    "sekcja": "Workowanie",
+    "status": "zakonczone",
+    "tonaz": 1000.0,
+    "tonaz_rzeczywisty": 4280.0,
+    "data_planu": "2026-04-21"
+  },
+  {
+    "id": 41,
+    "produkt": "MAGIC MILK LEN",
+    "sekcja": "Zasyp",
+    "status": "zakonczone",
+    "tonaz": 1000.0,
+    "tonaz_rzeczywisty": 1050.0,
+    "data_planu": "2026-04-21"
+  },
+  {
+    "id": 40,
+    "produkt": "MLECZNA PYCHA BR\u0104ZOWA",
+    "sekcja": "Workowanie",
+    "status": "w toku",
+    "tonaz": 4500.0,
+    "tonaz_rzeczywisty": 3000.0,
+    "data_planu": "2026-04-21"
+  },
+  {
+    "id": 39,
+    "produkt": "MLECZNA PYCHA BR\u0104ZOWA",
+    "sekcja": "Zasyp",
+    "status": "zakonczone",
+    "tonaz": 22000.0,
+    "tonaz_rzeczywisty": 4700.0,
+    "data_planu": "2026-04-21"
+  }
+]

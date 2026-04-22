@@ -30,6 +30,15 @@
         <div class="header-title-row d-flex align-center gap-10">
             {% if sekcja != 'Zasyp' %}
             <h2 class="header-title m-0"><strong>{{ _(sekcja.lower()) }}</strong></h2>
+            {% else %}
+            <h2 class="header-title m-0 d-flex align-center gap-8">
+                <strong>Zasyp {{ linia }}</strong>
+                {% if linia == 'AGRO' and rola in ['laborant', 'admin', 'zarzad', 'lider'] %}
+                    <button class="btn-action" style="margin-left: 10px; background: #e67e22; color: #fff; border: none; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 0.85em; cursor: pointer; display:flex; align-items:center; gap:5px;" onclick="sendZwolnienieMieszalnika()" title="Wyślij ogromny komunikat do zasypu AGRO, że można wznawiać pracę">
+                        <span class="material-icons" style="font-size:16px;">lock_open</span> Zwolnienie mieszalnika
+                    </button>
+                {% endif %}
+            </h2>
             {% endif %}
             <div class="day-tile m-0" data-sekcja="{{ sekcja }}">
                 <button type="button" class="day-nav left" data-day-offset="-1"
@@ -69,7 +78,60 @@
         window._currentRole = "{{ rola }}";
         // Current hall/linia for AGRO-aware API calls
         window._linia = "{{ linia or 'PSD' }}";
+
+        {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
+        let zwolnienieLastSeen = Date.now() / 1000;
+
+        function sendZwolnienieMieszalnika() {
+            if(!confirm("Czy na pewno chcesz wysłać wielki komunikat o wyczyszczonym mieszalniku do wszystkich operatorów AGRO?")) return;
+            fetch('/api/zasyp/zwolnij_mieszalnik', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ linia: 'AGRO' })
+            }).then(r => r.json()).then(data => {
+                if(data.success) {
+                    alert('Sygnał został wystrzelony pomyślnie!');
+                    zwolnienieLastSeen = data.timestamp;
+                    showZwolnienieBanner();
+                } else {
+                    alert('Błąd podczas wysyłania sygnału.');
+                }
+            }).catch(e => alert('Błąd sieci: ' + e));
+        }
+
+        function showZwolnienieBanner() {
+            const banner = document.getElementById('zwolnienie-banner');
+            if(banner) {
+                banner.style.display = 'flex';
+                // Auto hide after 30 seconds
+                setTimeout(() => { banner.style.display = 'none'; }, 30000);
+            }
+        }
+
+        // Poll for zwolnienie signal unconditionally on Zasyp Agro
+        setInterval(() => {
+            fetch(`/api/zasyp/poll_zwolnienie?linia=AGRO&last_seen=${zwolnienieLastSeen}`)
+                .then(r => r.json())
+                .then(data => {
+                    if(data.new_zwolnienie) {
+                        zwolnienieLastSeen = data.timestamp;
+                        showZwolnienieBanner();
+                    }
+                }).catch(e => console.error("Poll err", e));
+        }, 3000); // exactly every 3s
+        {% endif %}
     </script>
+</div>
+
+<!-- OVERLAY DLA ZWOLNIENIA MIESZALNIKA AGRO -->
+<div id="zwolnienie-banner" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(39, 174, 96, 0.95); z-index: 999999; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: white; backdrop-filter: blur(10px);">
+    <span style="font-size: 120px; animation: rp-spin 2s linear infinite, popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;">✅</span>
+    <h1 style="font-size: 6vw; font-weight: 900; line-height: 1.2; text-shadow: 2px 2px 15px rgba(0,0,0,0.4); padding: 0 40px; margin-top: 20px;">
+        ZWOLNIONO MIESZALNIK<br>NA ZASYPIE AGRO
+    </h1>
+    <button onclick="document.getElementById('zwolnienie-banner').style.display='none';" style="margin-top: 60px; padding: 20px 50px; font-size: 30px; font-weight: 900; background: white; color: #27ae60; border: none; border-radius: 16px; cursor: pointer; box-shadow: 0 8px 30px rgba(0,0,0,0.3); transition: transform 0.2s;">
+        ZROZUMIAŁEM !
+    </button>
 </div>
 
 {# Date overview widget removed for Zasyp and Workowanie (not needed there) #}
@@ -463,6 +525,195 @@
             {% endfor %}
         </div>
         {% endif %}
+
+        {# === PANEL ETAPÓW ZASYP — widoczny tylko dla Zasyp gdy jest aktywne zlecenie === #}
+        {% if sekcja == 'Zasyp' and ns.is_active %}
+        {% for p in plan %}{% if p[3] == 'w toku' %}
+        <div class="section-box mt-20 p-0" id="etapy-panel-{{ p[0] }}" style="border-left: 4px solid #e67e22;">
+            <div class="p-10 p-10-bg d-flex justify-between align-center flex-wrap gap-8"
+                 style="background: var(--card-header-bg, #fdf3e7);">
+                <div class="d-flex align-center gap-8">
+                    <span style="font-size:1.3em;">⏱️</span>
+                    {% set cur_szarza = etapy_curr_szarza.get(p[0])|default(1) %}
+                    <strong>Punkt Kontrolny Szarży #{{ cur_szarza }}: {{ p[1] }}</strong>
+                    <span class="small text-muted">#{{ p[0] }}</span>
+
+                    {% if rola != 'laborant' %}
+                    <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin: 0; display: inline-block;">
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <button type="submit" class="btn-action btn-blue" style="padding: 4px 10px; font-size: 0.85em; margin-left: 10px;" onclick="return confirm('Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Poprzednie etapy zostaną zresetowane w widoku, ale zostaną zapisane w historii (dla podsumowania).');">
+                            + KOLEJNY POMIAR
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% if rola in ['lider', 'admin', 'zarzad'] %}
+                <a href="{{ url_for('production.zasyp_etapy_podsumowanie', linia=linia) }}"
+                   class="btn-action btn-outline" style="font-size:0.8em; padding:4px 10px;">
+                   📊 Podsumowanie (Punkt Kontrolny)
+                </a>
+                {% endif %}
+            </div>
+
+            {# Formularz wielkości szarży #}
+            {% set param = etapy_parametry.get(p[0]) if etapy_parametry is defined and etapy_parametry else {} %}
+            <div class="p-10 d-flex align-center gap-12 flex-wrap" style="border-bottom: 1px solid var(--border-color, #eee);">
+                <label class="small text-muted m-0" for="szarza-kg-{{ p[0] }}">Wielkość szarży (kg):</label>
+                <form action="{{ url_for('production.zasyp_etapy_set_szarza') }}"
+                      method="POST"
+                      class="d-flex align-center gap-8 m-0"
+                      style="flex-wrap:wrap;">
+                    <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                    <input type="hidden" name="linia" value="{{ linia }}">
+                    <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                    <input type="hidden" name="data_planu"
+                           value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
+                    <input type="number"
+                           id="szarza-kg-{{ p[0] }}"
+                           name="wielkosc_szarzy_kg"
+                           step="0.1" min="1" max="99999"
+                           placeholder="np. 1000"
+                           value="{{ param.wielkosc_szarzy_kg|int if param.wielkosc_szarzy_kg else '' }}"
+                           style="width:110px; padding:4px 8px; border:1px solid #ccc; border-radius:4px;">
+                    <button type="submit" class="btn-action btn-outline" style="padding:4px 10px; font-size:0.85em;">
+                        Zapisz
+                    </button>
+                    {% if param.wielkosc_szarzy_kg %}
+                    <span class="badge-info" style="font-size:0.8em;">
+                        Aktualnie: {{ param.wielkosc_szarzy_kg|int }} kg/szarżę
+                    </span>
+                    {% endif %}
+                </form>
+            </div>
+
+            {# Siatka etapów 1–6 #}
+            {% set etapy = etapy_mapa.get(p[0]) if etapy_mapa is defined and etapy_mapa else [] %}
+            <div class="p-10">
+                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:10px;">
+                    {% if etapy %}
+                    {% for etap in etapy %}
+                    <div style="border:1px solid {% if etap.is_running %}#e67e22{% elif etap.czas_stop %}#27ae60{% else %}#ddd{% endif %};
+                                border-radius:6px; padding:10px; word-break: break-word; overflow: hidden; position: relative;
+                                background:{% if etap.is_running %}#fdf3e7{% elif etap.czas_stop %}#f0faf4{% else %}#fafafa{% endif %};">
+                        
+                        {% if rola in ['lider', 'admin', 'zarzad'] %}
+                        <form action="{{ url_for('production.zasyp_etap_reset') }}" method="POST" style="position: absolute; top: 6px; right: 6px; margin: 0; z-index: 10;"
+                              onsubmit="return confirm('Zresetować?');">
+                            <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                            <input type="hidden" name="linia" value="{{ linia }}">
+                            <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                            <input type="hidden" name="etap" value="{{ etap.etap }}">
+                            <button type="submit" class="btn-icon text-muted" style="background: none; border: none; cursor: pointer; padding: 2px;" title="Reset etapu"><span class="material-icons" style="font-size: 16px;">refresh</span></button>
+                        </form>
+                        {% endif %}
+
+                        <div class="d-flex justify-between align-center mb-5" style="padding-right: 20px;">
+                            <strong style="font-size:0.9em; line-height: 1.2;">
+                            {% if etap.etap == 1 %}Wydozowanie
+                            {% elif etap.etap == 2 %}Mieszanie
+                            {% elif etap.etap == 3 %}Oczek. na LAB
+                            {% elif etap.etap == 4 %}Dosypka
+                            {% elif etap.etap == 5 %}Mieszanie
+                            {% elif etap.etap == 6 %}Opróżnianie
+                            {% else %}Etap {{ etap.etap }}{% endif %}
+                            </strong>
+                            <div>
+                                {% if etap.is_running %}
+                                <span class="badge-warning" style="font-size:0.7em; padding:2px 6px; display:inline-block;">▶ W TOKU</span>
+                                {% elif etap.czas_stop %}
+                                <span class="badge-success" style="font-size:0.7em; padding:2px 6px; display:inline-block;">✓ DONE</span>
+                                {% else %}
+                                <span class="small text-muted" style="font-size:0.7em;">–</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if etap.czas_start_str %}
+                        <div class="small text-muted">
+                            Start: <strong>{{ etap.czas_start_str }}</strong>
+                            {% if etap.start_login %}
+                            <span class="badge-info" style="font-size:0.75em;" title="Kto START">👤 {{ etap.start_login }}</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% if etap.czas_stop_str %}
+                        <div class="small text-muted">
+                            Stop: <strong>{{ etap.czas_stop_str }}</strong>
+                            {% if etap.stop_login %}
+                            <span class="badge-info" style="font-size:0.75em;" title="Kto STOP">👤 {{ etap.stop_login }}</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% if etap.duration_str and etap.duration_str != '0m' %}
+                        <div class="small" style="color:#555;">⏱ {{ etap.duration_str }}</div>
+                        {% endif %}
+                        <div class="d-flex gap-6 mt-6 flex-wrap">
+                            {% if not etap.czas_start %}
+                            <form action="{{ url_for('production.zasyp_etap_start') }}"
+                                  method="POST" style="margin:0;">
+                                <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                <input type="hidden" name="linia" value="{{ linia }}">
+                                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                                <input type="hidden" name="etap" value="{{ etap.etap }}">
+                                <input type="hidden" name="data_planu"
+                                       value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
+                                <button type="submit"
+                                        class="btn-action btn-green"
+                                        style="font-size:0.75em; padding:3px 8px;">▶ Start</button>
+                            </form>
+                            {% elif etap.is_running %}
+                            <form action="{{ url_for('production.zasyp_etap_stop') }}"
+                                  method="POST" style="margin:0;">
+                                <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                <input type="hidden" name="linia" value="{{ linia }}">
+                                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                                <input type="hidden" name="etap" value="{{ etap.etap }}">
+                                <button type="submit"
+                                        class="btn-action btn-stop"
+                                        style="font-size:0.75em; padding:3px 8px;">⏹ Stop</button>
+                            </form>
+                            {% endif %}
+                        </div>
+
+                        {% if rola in ['lider', 'admin', 'zarzad'] %}
+                        <div class="mt-6" style="border-top: 1px dashed var(--border-color, #eee); padding-top: 6px;">
+                            <div class="small text-muted mb-5">Ręcznie (HH:MM):</div>
+                            <div class="d-flex gap-6 align-center flex-wrap">
+                                <form action="{{ url_for('production.zasyp_etap_manual_set') }}" method="POST"
+                                      class="d-flex align-center gap-6 flex-wrap" style="margin:0;">
+                                    <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                    <input type="hidden" name="linia" value="{{ linia }}">
+                                    <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                                    <input type="hidden" name="etap" value="{{ etap.etap }}">
+                                    <input type="time" name="czas_start_hhmm" value="{{ etap.czas_start_str }}"
+                                           title="START (HH:MM)"
+                                           style="width:70px; padding:3px; border:1px solid #ccc; border-radius:4px; font-size:0.75em;">
+                                    <input type="time" name="czas_stop_hhmm" value="{{ etap.czas_stop_str }}"
+                                           title="STOP (HH:MM)"
+                                           style="width:70px; padding:3px; border:1px solid #ccc; border-radius:4px; font-size:0.75em;">
+                                    <button type="submit" class="btn-action btn-outline"
+                                            style="font-size:0.75em; padding:3px 8px;">Zapisz</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="small text-muted" style="grid-column:1/-1;">
+                        Brak danych etapów — rozpocznij pierwszy etap.
+                    </div>
+                    {% endif %}
+                </div>
+                {% set total = etapy_total.get(p[0]) if etapy_total is defined and etapy_total else '' %}
+                {% if total %}
+                <div class="small text-muted mt-8">Łączny czas etapów: <strong>{{ total }}</strong></div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}{% endfor %}
+        {% endif %}
+        {# === KONIEC PANELU ETAPÓW === #}
+
     </div>
 
     {# HR, Nadgodziny i Raport Końcowy usunięte z tego widoku — przeniesione do dashboard_global.html #}
