@@ -165,7 +165,7 @@ def hall_restricted(f):
     def decorated(*args, **kwargs):
         role = (session.get('rola') or '').lower()
         user_grupa = (session.get('grupa') or 'ALL').upper()
-        if user_grupa == 'ALL' or role in ['admin', 'zarzad', 'planista']:
+        if user_grupa == 'ALL' or role in ['admin', 'zarzad', 'planista', 'lider', 'magazynier', 'laborant']:
             return f(*args, **kwargs)
         
         # Determine target hall from request

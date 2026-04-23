@@ -351,9 +351,9 @@
             {% set user_hall = 'ALL' if role in ['admin', 'zarzad'] else (session.get('grupa') or 'ALL').upper() %}
             {% set hall_view = session.get('selected_hall_view') %}
             
-            {# Switcher is only for operational leaders and admins who have ALL hall access #}
-            {% set can_switch_halls = role in ['admin', 'zarzad', 'lider', 'planista'] and user_hall == 'ALL' %}
-            {% set effective_hall = hall_view or user_hall %}
+            {# Switcher is for anyone who has ALL hall access to focus their view #}
+            {% set can_switch_halls = user_hall == 'ALL' %}
+            {% set effective_hall = (hall_view or user_hall) if can_switch_halls else user_hall %}
 
             {% if can_switch_halls %}
             <div class="hall-switcher">
@@ -370,7 +370,7 @@
             {% endif %}
 
             <nav class="sidebar-nav">
-                {% if effective_hall in ['PSD', 'ALL'] %}
+                {% if effective_hall in ['PSD', 'ALL'] or role_has_access('magazyn') %}
                 <div class="nav-section-label">HALA 1 (PSD)</div>
                 
                 {% if role_has_access('dashboard') %}
@@ -409,7 +409,7 @@
                 {% endif %}
                 <div class="nav-divider"></div>
                 {% endif %}
-                {% if effective_hall in ['AGRO', 'ALL'] %}
+                {% if effective_hall in ['AGRO', 'ALL'] or role_has_access('agro_magazyn') %}
                 <div class="nav-section-label">HALA 2 (AGRO)</div>
 
                 {% if role_has_access('dashboard') %}
@@ -505,6 +505,7 @@
                         <a href="/admin/ustawienia/zalogowani" class="nav-sub-item {% if request.path == '/admin/ustawienia/zalogowani' %}active{% endif %}">— Zalogowani</a>
                         <a href="/admin/ustawienia/logs" class="nav-sub-item {% if request.path == '/admin/ustawienia/logs' %}active{% endif %}">— Dziennik akcji</a>
                         <a href="/admin/ustawienia/errors" class="nav-sub-item {% if request.path == '/admin/ustawienia/errors' %}active{% endif %}">— Pułapki błędów</a>
+                        <a href="/admin/ustawienia/bugs" class="nav-sub-item {% if request.path == '/admin/ustawienia/bugs' %}active{% endif %}">— Zgłoszone błędy</a>
                         <a href="/admin/ustawienia/backups" class="nav-sub-item {% if request.path == '/admin/ustawienia/backups' %}active{% endif %}">— Backupy</a>
                         <a href="/admin/centrum/audyt" class="nav-sub-item {% if request.path == '/admin/centrum/audyt' %}active{% endif %}">— Audyt ruchów</a>
                     </div>

@@ -334,11 +334,12 @@ def session_close():
 @api_bp.route('/update_uszkodzone_worki', methods=['POST'])
 @login_required
 def update_uszkodzone_worki():
-    """Aktualizuj ilość uszkodzonych worków dla planu Workowania"""
+    """Aktualizuj ilość uszkodzonych worków dla planu (Workowania lub Zasypu)"""
     try:
         data = request.get_json()
-        plan_id = data.get('plan_id')
+        plan_id = data.get('plan_id') or data.get('id')
         uszkodzone_worki = int(data.get('uszkodzone_worki', 0))
+        linia = data.get('linia', 'PSD').upper()
         
         if not plan_id:
             return jsonify({'success': False, 'message': 'Brak plan_id'}), 400
@@ -349,23 +350,22 @@ def update_uszkodzone_worki():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        linia = data.get('linia', 'PSD')
         table_plan = get_table_name('plan_produkcji', linia)
         
-        # Aktualizuj pole uszkodzone_worki
+        # Aktualizuj pole uszkodzone_worki (usuwamy wymóg sekcja='Workowanie' dla większej elastyczności, zwłaszcza w AGRO)
         cursor.execute(
-            f"UPDATE {table_plan} SET uszkodzone_worki = %s WHERE id = %s AND sekcja = 'Workowanie'",
+            f"UPDATE {table_plan} SET uszkodzone_worki = %s WHERE id = %s",
             (uszkodzone_worki, plan_id)
         )
         
         if cursor.rowcount == 0:
             conn.close()
-            return jsonify({'success': False, 'message': 'Plan nie znaleziony'}), 404
+            return jsonify({'success': False, 'message': 'Zlecenie nie zostało znalezione'}), 404
         
         # Loguj zmianę
         cursor.execute(
             "INSERT INTO plan_history (plan_id, action, changes, user_login, created_at) VALUES (%s, %s, %s, %s, NOW())",
-            (plan_id, 'uszkodzone_worki_update', f'Uszkodzono: {uszkodzone_worki} worków', session.get('login'), )
+            (plan_id, 'uszkodzone_worki_update', f'Uszkodzono: {uszkodzone_worki} worków ({linia})', session.get('login'))
         )
         
         conn.commit()
@@ -374,7 +374,8 @@ def update_uszkodzone_worki():
         return jsonify({
             'success': True,
             'message': f'Zaktualizowano: {uszkodzone_worki} uszkodzonych worków',
-            'uszkodzone_worki': uszkodzone_worki
+            'uszkodzone_worki': uszkodzone_worki,
+            'plan_id': plan_id
         })
     except ValueError:
         return jsonify({'success': False, 'message': 'Nieprawidłowa liczba'}), 400

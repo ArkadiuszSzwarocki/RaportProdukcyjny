@@ -87,6 +87,7 @@
                 <th>📋 Plan</th>
                 <th>⏱️ Estymacja</th>
                 <th>✅ Wykonanie</th>
+                <th>🧵 {{ _('uszkodzone_worki') }}</th>
                 <th>📊 Status</th>
                 <th class="text-right">⚙️ Akcje</th>
             </tr>
@@ -102,6 +103,11 @@
                 <td>
                     {% if (p.tonaz_rzeczywisty|default(0, true)) > 0 %}
                     <strong class="text-success">{{ p.tonaz_rzeczywisty|int }} kg</strong>
+                    {% else %}<span class="text-muted">-</span>{% endif %}
+                </td>
+                <td>
+                    {% if (p.uszkodzone_worki|default(0, true)|int) > 0 %}
+                    <strong class="text-danger">{{ p.uszkodzone_worki|int }} szt.</strong>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
@@ -415,9 +421,9 @@
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
-                    <input type="number" class="input-sm uszkodzone-worki-input" data-plan-id="{{ p.id }}"
-                        value="{{ p.uszkodzone_worki|default(0, true)|int }}" min="0" max="999999"
-                        title="Liczba uszkodzonych worków" />
+                    {% if (p.uszkodzone_worki|default(0, true)|int) > 0 %}
+                    <strong class="text-danger">{{ p.uszkodzone_worki|int }} szt.</strong>
+                    {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
                 <td>
                     {% if p.status == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
@@ -912,34 +918,6 @@
         if (bd) bd.classList.remove('show');
         setTimeout(function () { qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if (body) body.innerHTML = ''; }, 360);
     }
-
-    // Handle uszkodzone_worki input changes (auto-save via AJAX)
-    document.addEventListener('change', function (e) {
-        if (e.target.classList.contains('uszkodzone-worki-input')) {
-            var planId = parseInt(e.target.getAttribute('data-plan-id'));
-            var value = parseInt(e.target.value) || 0;
-
-            fetch('/api/update_uszkodzone_worki', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: planId, uszkodzone_worki: value })
-            })
-                .then(function (r) { return r.json(); })
-                .then(function (j) {
-                    if (j && j.success) {
-                        e.target.style.borderColor = '#4CAF50';
-                        setTimeout(function () { e.target.style.borderColor = ''; }, 1000);
-                    } else {
-                        safeAlert('Błąd', (j && j.message) || 'Błąd aktualizacji');
-                        e.target.value = e.target.getAttribute('data-original-value') || 0;
-                    }
-                })
-                    .catch(function (err) {
-                        safeAlert('Błąd sieci', 'Błąd sieci');
-                        console.error(err);
-                    });
-        }
-    }, false);
 
     // Event delegation for planista actions
     document.addEventListener('click', function (e) {

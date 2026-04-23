@@ -112,7 +112,7 @@ def index() -> str:
 
     # Hall Isolation: if user has a group and is not an admin/manager/lider/planista, restrict them to their hall
     # Users with group 'ALL' (like rotating leaders, admins, managers) are NOT isolated.
-    if user_grupa and user_grupa.upper() != 'ALL' and role not in ['admin', 'zarzad', 'planista', 'lider']:
+    if user_grupa and user_grupa.upper() != 'ALL' and role not in ['admin', 'zarzad', 'planista', 'lider', 'magazynier', 'laborant']:
         if aktywna_linia != user_grupa:
             return redirect(url_for('main.index', sekcja=aktywna_sekcja, linia=user_grupa))
 
@@ -133,7 +133,7 @@ def index() -> str:
             if aktywna_sekcja == 'Dashboard':
                 for fallback_sekcja, fallback_key in [('Zasyp','zasyp'),('Workowanie','workowanie'),('Magazyn','magazyn')]:
                     if _checker(fallback_key):
-                        return redirect(f'/?sekcja={fallback_sekcja}')
+                        return redirect(url_for('main.index', sekcja=fallback_sekcja, linia=aktywna_linia))
             # No accessible section found — show denied page (raw HTML, no template)
             return (
                 '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Brak dostępu</title>'
@@ -355,6 +355,33 @@ def index() -> str:
         except Exception as _e:
             app.logger.warning('Etapy Zasyp load failed: %s', _e)
 
+    # Fetch AGRO MIX data (only if on AGRO or ALL)
+    agro_mix_mapa = {}
+    agro_mix_dostepne = []
+    if aktywna_linia in ['AGRO', 'ALL']:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            # 1. Map for consumption display (linked to specific plan)
+            cursor.execute("""
+                SELECT id, nastepne_zlecenie_id, zuzyte_w_id, kategoria, waga_kg, created_at, autor_login, status
+                FROM agro_mix_rozliczenie 
+                WHERE (data_planu = %s OR status='DOSTEPNY')
+            """, (dzisiaj,))
+            mixes = cursor.fetchall()
+            for m in mixes:
+                # If specifically linked or consumed in this plan
+                nid = m['zuzyte_w_id'] or m['nastepne_zlecenie_id']
+                if nid:
+                    agro_mix_mapa.setdefault(nid, []).append(m)
+                
+                # If currently available for use
+                if m['status'] == 'DOSTEPNY':
+                    agro_mix_dostepne.append(m)
+            conn.close()
+        except Exception as _e:
+            app.logger.warning('AGRO MIX load failed: %s', _e)
+
     context = {
         'halls_data': halls_data,
         'halls_to_fetch': halls_to_fetch,
@@ -399,6 +426,8 @@ def index() -> str:
         'etapy_parametry': etapy_parametry,
         'etapy_total': etapy_total,
         'etapy_curr_szarza': etapy_curr_szarza,
+        'agro_mix_mapa': agro_mix_mapa,
+        'agro_mix_dostepne': agro_mix_dostepne,
     }
     
     # Render appropriate template
@@ -702,7 +731,7 @@ def zglos_blad_systemu() -> Response:
     sciezka = request.form.get('sciezka', '')
     login = session.get('login', 'Nieznany')
     
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'bugs')
+    upload_dir = os.path.join(current_app.static_folder, 'uploads', 'bugs')
     os.makedirs(upload_dir, exist_ok=True)
     
     report_id = int(time.time() * 1000)
@@ -712,7 +741,6 @@ def zglos_blad_systemu() -> Response:
     for i, file in enumerate(files[:3]):
         if file and file.filename:
             ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'png'
-            # Tylko obrazy
             if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp']:
                 filename = f"bug_{report_id}_{i}.{ext}"
                 try:
@@ -720,22 +748,28 @@ def zglos_blad_systemu() -> Response:
                     saved_files.append(filename)
                 except Exception as e:
                     current_app.logger.warning("Błąd zapisu pliku: %s", e)
-                    
-    report_data = {
-        'id': report_id,
-        'timestamp': datetime.now().isoformat(),
-        'login': login,
-        'opis': opis,
-        'sciezka': sciezka,
-        'zalaczniki': saved_files,
-        'status': 'nowy'
-    }
     
-    json_path = os.path.join(upload_dir, f"bug_{report_id}.json")
+    # Save to Database instead of just JSON file
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(report_data, f, ensure_ascii=False, indent=2)
+        cursor.execute("""
+            INSERT INTO zgloszenia_bledow (id, timestamp, login, opis, sciezka, zalaczniki, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (
+            report_id,
+            datetime.now(),
+            login,
+            opis,
+            sciezka,
+            json.dumps(saved_files),
+            'nowy'
+        ))
+        conn.commit()
     except Exception as e:
+        current_app.logger.error("Błąd zapisu zgłoszenia do bazy: %s", e)
         return jsonify({'success': False, 'message': 'Błąd zapisu zgłoszenia'}), 500
+    finally:
+        conn.close()
         
     return jsonify({'success': True, 'message': 'Zgłoszenie zostało przyjęte.'})

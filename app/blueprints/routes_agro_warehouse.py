@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, current_app
 from app.services.agro_warehouse_service import AgroWarehouseService
 from app.decorators import login_required, roles_required, dynamic_role_required
-from datetime import datetime
+from datetime import datetime, date
 from app.services.agro_warehouse_service import AgroWarehouseService
 from app.db import get_db_connection, get_table_name
 
@@ -628,3 +628,168 @@ def suggest_location():
     except Exception as e:
         current_app.logger.error(f"Error in suggest_location: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@agro_warehouse_bp.route('/agro/raport_palet', methods=['GET'])
+@login_required
+def raport_palet():
+    """Generates a printable pallet report for AGRO line."""
+    data_planu = request.args.get('data', str(date.today()))
+    plan_id = request.args.get('plan_id') # Specific order filter
+    
+    is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Fetch relevant Workowanie plans
+        query = """
+            SELECT w.id as work_id, w.produkt, w.tonaz_rzeczywisty as w_kg, 
+                   z.id as zasyp_id, z.tonaz_rzeczywisty as z_kg,
+                   w.nazwa_zlecenia
+            FROM plan_produkcji_agro w
+            LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id
+            WHERE w.data_planu = %s AND w.sekcja = 'Workowanie' AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
+        """
+        params = [data_planu]
+        
+        if plan_id:
+            query += " AND w.id = %s"
+            params.append(plan_id)
+            
+        cursor.execute(query, tuple(params))
+        plans = cursor.fetchall()
+
+        report_data = []
+        for p in plans:
+            # 1. Fetch Inputs (Szarże + Mixes)
+            # Batches (including confirmed add-ons)
+            cursor.execute("""
+                SELECT s.id, 
+                       (s.waga + COALESCE((SELECT SUM(d.kg) FROM dosypki_agro d WHERE d.szarza_id = s.id AND d.potwierdzone = 1 AND d.anulowana = 0), 0)) as waga, 
+                       s.data_dodania 
+                FROM szarze_agro s
+                WHERE s.plan_id = %s 
+                ORDER BY s.data_dodania ASC
+            """, (p['zasyp_id'],))
+            batches_raw = cursor.fetchall()
+            
+            # Mixes (already handled, but ensure we use correct plan_id branch)
+            cursor.execute("""
+                SELECT id, waga_kg as waga, COALESCE(zuzyte_kiedy, created_at) as data_dodania, kategoria 
+                FROM agro_mix_rozliczenie 
+                WHERE zuzyte_w_id = %s 
+                ORDER BY data_dodania ASC
+            """, (p['zasyp_id'],))
+            mixes_raw = cursor.fetchall()
+            
+            # Independent Dosypki (not linked to a specific batch)
+            cursor.execute("""
+                SELECT id, nazwa, kg, data_zlecenia 
+                FROM dosypki_agro 
+                WHERE plan_id = %s AND szarza_id IS NULL AND potwierdzone = 1 AND anulowana = 0
+                ORDER BY data_zlecenia ASC
+            """, (p['zasyp_id'],))
+            solo_dosypki = cursor.fetchall()
+            
+            # Combine Inputs
+            all_inputs = []
+            for b_raw in batches_raw:
+                all_inputs.append({
+                    'label': f"Szarża #{b_raw['id']}",
+                    'waga': b_raw['waga'] or 0,
+                    'time': b_raw['data_dodania']
+                })
+            for d_raw in solo_dosypki:
+                all_inputs.append({
+                    'label': f"Dosypka {d_raw['nazwa']} #{d_raw['id']}",
+                    'waga': d_raw['kg'] or 0,
+                    'time': d_raw['data_zlecenia']
+                })
+            for m_raw in mixes_raw:
+                all_inputs.append({
+                    'label': f"MIX {m_raw['kategoria'].replace('_',' ')} #{m_raw['id']}",
+                    'waga': m_raw['waga'] or 0,
+                    'time': m_raw['data_dodania']
+                })
+            
+            # Order inputs chronologically
+            all_inputs.sort(key=lambda x: x['time'] if x['time'] else datetime.min)
+            
+            # Calculate cumulative ranges for inputs
+            current_in_kg = 0
+            input_ranges = []
+            for inp in all_inputs:
+                start = current_in_kg
+                end = current_in_kg + inp['waga']
+                input_ranges.append({'label': inp['label'], 'start': start, 'end': end})
+                current_in_kg = end
+
+            # 2. Fetch Outputs (Pallets)
+            cursor.execute("""
+                SELECT 
+                    p.id, p.waga, p.status, p.data_dodania, 
+                    p.dodal_login,
+                    COALESCE(m.user_login, p.potwierdzil_login) as potwierdzil_login,
+                    COALESCE(m.data_potwierdzenia, p.data_potwierdzenia) as data_potwierdzenia
+                FROM palety_agro p
+                LEFT JOIN magazyn_palety_agro m ON p.id = m.paleta_workowanie_id
+                WHERE p.plan_id = %s
+                ORDER BY p.data_dodania ASC
+            """, (p['work_id'],))
+            pallets_raw = cursor.fetchall()
+            
+            # Calculate shares for each pallet
+            current_out_kg = 0
+            processed_pallets = []
+            for pal_raw in pallets_raw:
+                p_start = current_out_kg
+                p_end = current_out_kg + (pal_raw['waga'] or 0)
+                
+                # Check overlaps with input ranges
+                shares = []
+                for ir in input_ranges:
+                    # Overlap [max(p_start, ir_start), min(p_end, ir_end)]
+                    overlap_start = max(p_start, ir['start'])
+                    overlap_end = min(p_end, ir['end'])
+                    
+                    if overlap_end > overlap_start:
+                        overlap_kg = overlap_end - overlap_start
+                        waga_palety = float(pal_raw['waga'] or 0)
+                        percent = (overlap_kg / waga_palety) * 100 if waga_palety > 0 else 0
+                        
+                        # Only show if significant (> 0.5%)
+                        if percent >= 0.5:
+                            shares.append(f"{ir['label']} ({round(percent)}%)")
+                
+                pal_raw['sklad'] = ", ".join(shares) if shares else "Nieznany skład"
+                processed_pallets.append(pal_raw)
+                current_out_kg = p_end
+
+            # Additional Mix info for the summary table
+            cursor.execute("SELECT id, waga_kg as waga_kg, kategoria, autor_login, created_at FROM agro_mix_rozliczenie WHERE zuzyte_w_id = %s", (p['zasyp_id'],))
+            mixes_summary = cursor.fetchall()
+
+            report_data.append({
+                'plan': p,
+                'palety': processed_pallets,
+                'mixes': mixes_summary,
+                'total_pallet_kg': sum(pal['waga'] or 0 for pal in pallets_raw),
+                'total_mix_kg': sum(m['waga_kg'] or 0 for m in mixes_summary)
+            })
+
+        # If it's a selection call (header button without plan_id)
+        if not plan_id and len(plans) > 1 and request.args.get('select') == '1':
+            return render_template('agro_raport_palet_select.html', plans=plans, data_planu=data_planu, is_ajax=is_ajax)
+
+        return render_template('agro_raport_palet.html', 
+                               report_data=report_data, 
+                               data_planu=data_planu,
+                               single_view=bool(plan_id),
+                               is_ajax=is_ajax,
+                               print_date=datetime.now().strftime('%d.%m.%Y %H:%M'))
+    except Exception as e:
+        current_app.logger.error(f"Error generating raport_palet: {e}")
+        return f"Błąd generowania raportu: {str(e)}", 500
+    finally:
+        conn.close()

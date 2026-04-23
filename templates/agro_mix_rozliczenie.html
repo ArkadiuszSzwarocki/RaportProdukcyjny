@@ -1,0 +1,189 @@
+<div class="mix-settlement-container">
+    <style>
+        .mix-form {
+            background: #fdfefe;
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid #edeff2;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        }
+        .mix-form h3 { 
+            margin-top: 0; 
+            color: #2c3e50; 
+            font-size: 1.2em; 
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9em; color: #555; }
+        
+        .category-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .category-option {
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .category-option i { font-size: 24px; margin-bottom: 2px; }
+        .category-option:hover { border-color: #3498db; background: #f8f9fa; }
+        .category-option.active {
+            border-color: #3498db;
+            background: #ebf5fb;
+            color: #2980b9;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+
+        .context-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-size: 0.85em;
+            border-left: 4px solid #95a5a6;
+        }
+        
+        .btn-mix-save {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            width: 100%;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+        .btn-mix-save:hover { background: #219150; }
+
+        .mix-history {
+            max-height: 250px;
+            overflow-y: auto;
+            border-top: 2px solid #f0f2f5;
+            padding-top: 20px;
+        }
+        .history-card {
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .btn-print-sm {
+            background: #f1f3f5;
+            border-radius: 4px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #495057;
+            text-decoration: none;
+        }
+        .btn-print-sm:hover { background: #e9ecef; }
+    </style>
+
+    <div class="mix-form">
+        <h3><span class="material-icons">blender</span> Nowe Rozliczenie MIX</h3>
+        
+        <div class="context-box">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span>Poprzednie:</span>
+                <strong>{{ last_plan.produkt if last_plan else '---' }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #27ae60; font-weight: bold;">
+                <span>Następne:</span>
+                <span>{{ next_plan.produkt }} ({{ next_plan.status }})</span>
+            </div>
+        </div>
+
+        <form action="{{ url_for('production.agro_mix_rozliczenie_add') }}" method="POST" id="mix-submit-form">
+            <input type="hidden" name="data_planu" value="{{ data_planu }}">
+            <input type="hidden" name="poprz_id" value="{{ last_plan.id if last_plan else '' }}">
+            <input type="hidden" name="nast_id" value="{{ next_plan.id }}">
+            <input type="hidden" name="kategoria" id="mix-category-input" value="DO_LNU">
+            
+            <div class="form-group">
+                <label>Przeznaczenie MIXu:</label>
+                <div class="category-selector">
+                    <div class="category-option active" onclick="selectMixCategory('DO_LNU', this)">
+                        <span class="material-icons">eco</span>
+                        Do Lnu
+                    </div>
+                    <div class="category-option" onclick="selectMixCategory('DO_BIALEGO', this)">
+                        <span class="material-icons">water_drop</span>
+                        Do Białego
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group" style="display: flex; gap: 15px;">
+                <div style="flex: 1;">
+                    <label>Ilość worków:</label>
+                    <input type="number" name="ilosc_workow" placeholder="0" required min="1">
+                </div>
+                <div style="flex: 1;">
+                    <label>Suma kg:</label>
+                    <input type="number" step="0.1" name="waga_kg" placeholder="0.0" required min="0.1">
+                </div>
+            </div>
+
+            <button type="submit" class="btn-mix-save">ZAPISZ ROZLICZENIE</button>
+        </form>
+    </div>
+
+    <div class="mix-history">
+        <h4 class="m-0 mb-15" style="color: #6c757d; font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.5px;">Zarejestrowane dzisiaj:</h4>
+        {% for item in history %}
+        <div class="history-card">
+            <div>
+                <div style="font-weight: 700; color: #2c3e50;">
+                    {{ 'DO LNU' if item.kategoria == 'DO_LNU' else 'DO BIAŁEGO' }}
+                </div>
+                <div style="font-size: 0.85em; color: #666;">
+                    {{ item.ilosc_workow }} worków • <strong>{{ item.waga_kg }} kg</strong>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="text-align: right; font-size: 0.75em; color: #999;">
+                    {{ item.created_at.strftime('%H:%M') }}<br>
+                    👤 {{ item.autor_login }}
+                </div>
+                <a href="{{ url_for('production.agro_mix_rozliczenie_print', mix_id=item.id) }}" target="_blank" class="btn-print-sm" title="Drukuj potwierdzenie">
+                    <span class="material-icons" style="font-size: 18px;">print</span>
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 20px; color: #adb5bd; font-style: italic; font-size: 0.9em;">
+            Brak dzisiejszych wpisów MIX.
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function selectMixCategory(cat, el) {
+            document.getElementById('mix-category-input').value = cat;
+            document.querySelectorAll('.category-option').forEach(opt => opt.classList.remove('active'));
+            el.classList.add('active');
+        }
+    </script>
+</div>

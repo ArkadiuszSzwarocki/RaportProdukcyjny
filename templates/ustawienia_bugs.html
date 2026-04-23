@@ -1,0 +1,162 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .bug-container {
+        display: grid;
+        gap: 20px;
+    }
+    .bug-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e0e6ed;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        display: flex;
+        flex-direction: column;
+    }
+    .bug-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px 20px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e0e6ed;
+    }
+    .bug-user { font-weight: 700; color: #2c3e50; }
+    .bug-time { font-size: 0.85rem; color: #7f8c8d; }
+    .bug-status { 
+        margin-left: auto;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        background: #ebf5ff;
+        color: #2f7dd1;
+    }
+    .bug-body {
+        padding: 20px;
+        flex-grow: 1;
+    }
+    .bug-description {
+        line-height: 1.6;
+        color: #34495e;
+        white-space: pre-wrap;
+        margin-bottom: 15px;
+    }
+    .bug-path {
+        font-family: monospace;
+        font-size: 0.85rem;
+        background: #f1f3f5;
+        padding: 5px 10px;
+        border-radius: 4px;
+        color: #c0392b;
+        display: inline-block;
+        margin-bottom: 15px;
+    }
+    .bug-screenshots {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 15px;
+    }
+    .bug-screenshots img {
+        width: 150px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    .bug-screenshots img:hover {
+        transform: scale(1.05);
+    }
+    .bug-footer {
+        padding: 12px 20px;
+        background: #fff;
+        border-top: 1px solid #f1f3f5;
+        display: flex;
+        justify-content: flex-end;
+    }
+    
+    /* Fullscreen Image Overlay */
+    #imageOverlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        cursor: zoom-out;
+    }
+    #imageOverlay img {
+        max-width: 95%;
+        max-height: 95%;
+        box-shadow: 0 0 30px rgba(255,255,255,0.1);
+    }
+</style>
+
+<div class="section-box">
+    <div class="section-header">
+        <h2>🐞 Zgłoszone błędy i usprawnienia</h2>
+        <div>
+            <a href="/admin/ustawienia/errors" class="btn btn-secondary">Error Log</a>
+            <a href="/admin/centrum" class="btn">Powrót do Centrum</a>
+        </div>
+    </div>
+
+    {% if bugs %}
+        <div class="bug-container">
+            {% for bug in bugs %}
+            <div class="bug-card">
+                <div class="bug-header">
+                    <span class="user-avatar" style="background:#3498db; color:white; width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:14px; font-weight:bold;">{{ bug.login[0]|upper }}</span>
+                    <div>
+                        <div class="bug-user">{{ bug.login }}</div>
+                        <div class="bug-time">🕒 {{ bug.timestamp|replace('T', ' ')|truncate(19, True, '') }}</div>
+                    </div>
+                    <span class="bug-status">{{ bug.status }}</span>
+                </div>
+                <div class="bug-body">
+                    <div class="bug-path">📍 {{ bug.sciezka }}</div>
+                    <div class="bug-description">{{ bug.opis }}</div>
+                    
+                    {% if bug.zalaczniki %}
+                    <div class="bug-screenshots">
+                        {% for img in bug.zalaczniki %}
+                        <img src="{{ url_for('static', filename='uploads/bugs/' + img) }}" onclick="openOverlay(this.src)" alt="screenshot">
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="bug-footer">
+                    <form action="{{ url_for('admin.admin_delete_bug', bug_id=bug.id) }}" method="POST" onsubmit="return confirm('Czy na pewno chcesz usunąć to zgłoszenie?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Usuń zgłoszenie</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card" style="text-align: center; padding: 60px;">
+            <div style="font-size: 4rem; margin-bottom: 20px;">🧘‍♂️</div>
+            <h3>Brak zgłoszonych błędów</h3>
+            <p class="muted">Wygląda na to, że system działa idealnie (albo nikt nic nie zgłosił).</p>
+        </div>
+    {% endif %}
+</div>
+
+<div id="imageOverlay" onclick="this.style.display='none'">
+    <img id="overlayImg" src="" alt="fullscreen">
+</div>
+
+<script>
+    function openOverlay(src) {
+        document.getElementById('overlayImg').src = src;
+        document.getElementById('imageOverlay').style.display = 'flex';
+    }
+</script>
+{% endblock %}

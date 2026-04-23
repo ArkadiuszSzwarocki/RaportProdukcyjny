@@ -122,9 +122,10 @@ def dodaj_palete(plan_id):
     now_ts = _dt.now()
     
     try:
+        user_login = session.get('login', 'System')
         cursor.execute(
-            f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia')",
-            (plan_id, waga_input, now_ts)
+            f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s)",
+            (plan_id, waga_input, now_ts, user_login)
         )
         paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
         
@@ -1224,20 +1225,22 @@ def potwierdz_palete(paleta_id):
             current_app.logger.warning(f'Failed to fetch plan_id/status/weights for paleta {paleta_id}: {e}')
         
         # Step 6: Update paleta status to 'przyjeta' (accepted)
+        user_login = session.get('login', 'System')
         try:
             cursor.execute(
                 f"UPDATE {table_pal} SET status='przyjeta', "
                 "data_potwierdzenia = DATE_ADD(data_dodania, INTERVAL TIMESTAMPDIFF(SECOND, data_dodania, NOW()) SECOND), "
                 "czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()), "
-                "czas_rzeczywistego_potwierdzenia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_dodania, NOW())) "
+                "czas_rzeczywistego_potwierdzenia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_dodania, NOW())), "
+                "potwierdzil_login = %s "
                 "WHERE id=%s",
-                (paleta_id,)
+                (user_login, paleta_id)
             )
             conn.commit()
         except Exception as e:
             current_app.logger.warning(f'Complex update failed for paleta {paleta_id}: {e}, retrying simple update')
             try:
-                cursor.execute(f"UPDATE {table_pal} SET status='przyjeta' WHERE id=%s", (paleta_id,))
+                cursor.execute(f"UPDATE {table_pal} SET status='przyjeta', potwierdzil_login=%s WHERE id=%s", (user_login, paleta_id))
                 conn.commit()
             except Exception as e2:
                 current_app.logger.error(f'Simple status update also failed for paleta {paleta_id}: {e2}', exc_info=True)

@@ -85,6 +85,52 @@ def _cleanup_old_reports(folder='raporty', max_age_hours=24, interval_seconds=36
         current_app.logger.exception('Cleanup thread terminating unexpectedly')
 
 
+def _midnight_order_closer(interval_seconds=60):
+    """Background thread: at 00:00, closes all unclosed orders from previous days with stop time 15:00."""
+    from app.db import get_db_connection
+    from datetime import datetime, date
+    
+    _safe_log_info('Midnight Order Closer thread started')
+    
+    last_run_date = None
+    
+    while True:
+        try:
+            now = datetime.now()
+            # Check if it's midnight and we haven't run today yet
+            if now.hour == 0 and now.minute == 0 and last_run_date != now.date():
+                today_str = now.strftime('%Y-%m-%d')
+                _safe_log_info('Starting midnight order cleanup for date %s', today_str)
+                
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Close orders for both lines that are overdue (data_planu < today)
+                # Set real_stop to 15:00:00 of that plan date
+                for table in ['plan_produkcji', 'plan_produkcji_agro']:
+                    cursor.execute(f"""
+                        UPDATE {table} 
+                        SET status = 'zakonczone', 
+                            real_stop = CONCAT(data_planu, ' 15:00:00')
+                        WHERE status NOT IN ('zakonczone', 'anulowane')
+                          AND data_planu < %s
+                    """, (now.date(),))
+                    
+                    if cursor.rowcount > 0:
+                        _safe_log_info('Auto-closed %s orders in %s', cursor.rowcount, table)
+                
+                conn.commit()
+                conn.close()
+                
+                last_run_date = now.date()
+                _safe_log_info('Midnight cleanup completed')
+                
+        except Exception:
+            _safe_log_exception('Error in midnight order closer loop')
+            
+        time.sleep(interval_seconds)
+
+
 def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
     """Background thread: logs reminders for unconfirmed palety (waga==0).
     
@@ -184,6 +230,18 @@ def start_daemon_threads(app, cleanup_enabled=False):
         _safe_log_info('Started palety monitor daemon thread')
     except Exception:
         _safe_log_exception('Failed to start palety monitor thread')
+
+    # Start midnight closer thread
+    try:
+        closer_thread = threading.Thread(
+            target=_midnight_order_closer,
+            kwargs={'interval_seconds': 60},
+            daemon=True
+        )
+        closer_thread.start()
+        _safe_log_info('Started midnight order closer daemon thread')
+    except Exception:
+        _safe_log_exception('Failed to start midnight closer thread')
 
     # Bufor jest odświeżany zdarzeniowo (start Zasypu), nie periodicznie.
     # Periodyczny wątek wyłączony celowo — unikamy błędnych wpięć do kolejki

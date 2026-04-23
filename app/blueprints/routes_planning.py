@@ -1040,20 +1040,14 @@ def edytuj_plan_ajax():
                 if sekcja_before == 'zasyp':
                     linked_updates = []
                     linked_params = []
-                    if 'produkt' in changes:
-                        linked_updates.append('produkt=%s')
-                        linked_params.append(changes['produkt']['after'])
-                    if 'typ_produkcji' in changes:
-                        linked_updates.append('typ_produkcji=%s')
-                        linked_params.append(changes['typ_produkcji']['after'])
-                    if 'nazwa_zlecenia' in changes:
-                        linked_updates.append('nazwa_zlecenia=%s')
-                        linked_params.append(changes['nazwa_zlecenia']['after'])
-                    if 'data_planu' in changes:
-                        linked_updates.append('data_planu=%s')
-                        linked_params.append(changes['data_planu']['after'])
+                    for field in ['produkt', 'typ_produkcji', 'nazwa_zlecenia', 'data_planu', 'tonaz']:
+                        if field in changes:
+                            linked_updates.append(f'{field}=%s')
+                            linked_params.append(changes[field]['after'])
+                    
                     if linked_updates:
-                        linked_sql = f"UPDATE {table_plan} SET {', '.join(linked_updates)} WHERE zasyp_id=%s"
+                        # Only update Workowanie that is still 'zaplanowane'
+                        linked_sql = f"UPDATE {table_plan} SET {', '.join(linked_updates)} WHERE zasyp_id=%s AND status='zaplanowane' AND LOWER(sekcja)='workowanie'"
                         linked_params.append(pid)
                         cursor.execute(linked_sql, tuple(linked_params))
                         conn.commit()

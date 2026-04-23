@@ -447,6 +447,20 @@ def _create_tables(cursor):
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS zgloszenia_bledow (
+            id BIGINT PRIMARY KEY,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            login VARCHAR(50) NOT NULL,
+            opis TEXT NOT NULL,
+            sciezka VARCHAR(255),
+            zalaczniki JSON,
+            status VARCHAR(30) DEFAULT 'nowy',
+            INDEX idx_zgloszenia_login (login),
+            INDEX idx_zgloszenia_status (status)
+        )
+    """)
+
 
 def _add_column_if_missing(cursor, table, column, definition, description=""):
     """Helper to add column if it doesn't exist."""
@@ -587,6 +601,9 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "magazyn_palety_agro", "user_login", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'user_login' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "data_potwierdzenia", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'data_potwierdzenia' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'created_at' do magazyn_palety_agro")
+    
+    # agro_mix_rozliczenie columns
+    _add_column_if_missing(cursor, "agro_mix_rozliczenie", "zuzyte_kiedy", "DATETIME NULL", "Dodawanie kolumny 'zuzyte_kiedy' do agro_mix_rozliczenie")
     
     # raporty_koncowe columns
     _add_column_if_missing(cursor, "raporty_koncowe", "sekcja", "VARCHAR(50)", "Dodawanie kolumny 'sekcja' do raporty_koncowe")

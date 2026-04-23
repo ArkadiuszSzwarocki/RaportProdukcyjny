@@ -29,14 +29,26 @@
     <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-20">
         <div class="header-title-row d-flex align-center gap-10">
             {% if sekcja != 'Zasyp' %}
-            <h2 class="header-title m-0"><strong>{{ _(sekcja.lower()) }}</strong></h2>
+            <h2 class="header-title m-0 d-flex align-center gap-8">
+                <strong>{{ _(sekcja.lower()) }}</strong>
+                {% if linia == 'AGRO' and sekcja == 'Workowanie' and rola in ['lider', 'admin', 'zarzad'] %}
+                    <a href="{{ url_for('production.agro_mix_rozliczenie_page', data=dzisiaj) }}" class="btn-icon-action" style="background: #9b59b6; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; text-decoration: none;" data-slide title="Rozliczenie MIX">
+                        <span class="material-icons" style="font-size: 18px;">blender</span>
+                    </a>
+                    <a href="{{ url_for('agro_warehouse.raport_palet', data=dzisiaj, select=1) }}" class="btn-icon-action" style="background: #3498db; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; text-decoration: none;" data-slide title="Raport Palet">
+                        <span class="material-icons" style="font-size: 18px;">print</span>
+                    </a>
+                {% endif %}
+            </h2>
             {% else %}
             <h2 class="header-title m-0 d-flex align-center gap-8">
                 <strong>Zasyp {{ linia }}</strong>
-                {% if linia == 'AGRO' and rola in ['laborant', 'admin', 'zarzad', 'lider'] %}
-                    <button class="btn-action" style="margin-left: 10px; background: #e67e22; color: #fff; border: none; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 0.85em; cursor: pointer; display:flex; align-items:center; gap:5px;" onclick="sendZwolnienieMieszalnika()" title="Wyślij ogromny komunikat do zasypu AGRO, że można wznawiać pracę">
-                        <span class="material-icons" style="font-size:16px;">lock_open</span> Zwolnienie mieszalnika
-                    </button>
+                {% if linia == 'AGRO' %}
+                    {% if rola in ['laborant', 'admin', 'zarzad', 'lider'] %}
+                        <button class="btn-action" style="margin-left: 10px; background: #e67e22; color: #fff; border: none; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 0.85em; cursor: pointer; display:flex; align-items:center; gap:5px;" onclick="sendZwolnienieMieszalnika()" title="Wyślij ogromny komunikat do zasypu AGRO, że można wznawiać pracę">
+                            <span class="material-icons" style="font-size:16px;">lock_open</span> Zwolnienie mieszalnika
+                        </button>
+                    {% endif %}
                 {% endif %}
             </h2>
             {% endif %}
@@ -471,7 +483,7 @@
         <!-- INNE SEKCJE: Wyświetl plan_dnia (plany produkcji) jako karty -->
         <div class="cards">
             {% for p in plan %}
-            <div class="card {% if p[3] == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}">
+            <div class="card {% if p[3] == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}" style="position: relative; overflow: visible;">
                 <div class="card-header">
                     <strong class="card-title">
                         {{ loop.index }}. {{ p[1] }}
@@ -547,6 +559,15 @@
                     {% endif %}
                 </div>
 
+                {% if sekcja == 'Zasyp' and linia == 'AGRO' and p[3] == 'w toku' %}
+                <a href="{{ url_for('production.agro_mix_inventory', selected_plan_id=p[0]) }}" 
+                   class="card-side-mix-btn" 
+                   data-slide 
+                   style="position: absolute; right: -5px; top: 60px; width: 30px; height: 110px; background: #9b59b6; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; text-decoration: none; transition: all 0.2s; box-shadow: -2px 2px 8px rgba(0,0,0,0.2); z-index: 10;">
+                    <span style="writing-mode: vertical-rl; transform: rotate(180deg); color: white; font-weight: 800; font-size: 0.75em; letter-spacing: 1px; white-space: nowrap; padding: 10px 0;">DODAJ MIX</span>
+                </a>
+                {% endif %}
+
                 <div class="card-actions">
                     {% if sekcja != 'Magazyn' %}
                     {% if p[3] == 'w toku' %}
@@ -594,6 +615,33 @@
                 {% if sekcja == 'Zasyp' %}
                 <div id="details-{{ p[0] }}" class="details-row" style="display:none;">
                     <div class="p-10">
+                        
+                        {# List of AVAILABLE MIXes (Inventory) #}
+                        {% if linia == 'AGRO' and agro_mix_dostepne %}
+                        <div class="available-mix-container" style="background: #f8f9fa; border: 1px dashed #ccc; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+                            <div style="font-weight: bold; color: #7f8c8d; font-size: 0.85em; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                                <span class="material-icons" style="font-size: 16px;">inventory_2</span> Dostępne MIXy (Zasobnik)
+                            </div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                                {% for amix in agro_mix_dostepne %}
+                                <div class="mix-token" style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 5px 10px; display: flex; align-items: center; gap: 8px; font-size: 0.85em;">
+                                    <strong>{{ amix.kategoria.replace('_', ' ') }}</strong>
+                                    <span class="text-primary" style="font-weight: 700;">{{ amix.waga_kg }} kg</span>
+                                    {% if rola != 'pracownik' and p[3] != 'zakonczone' %}
+                                    <form action="{{ url_for('production.agro_mix_consume') }}" method="POST" style="margin: 0;">
+                                        <input type="hidden" name="mix_id" value="{{ amix.id }}">
+                                        <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                        <button type="submit" class="btn-action btn-green" style="font-size: 10px; padding: 2px 6px;" title="Dodaj ten MIX do tego Zasypu">
+                                            DO ZASYPU
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
                         <div class="small text-muted mb-5"><strong>Lista szarż zrobionych:</strong></div>
                         {% if palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]] %}
                         {% for pal in palety_mapa[p[0]] %}
@@ -606,9 +654,6 @@
                                     <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-'
                                         }}</span>
                                 </div>
-                                {# Minimal pencil icon in the top-right of the szarza card (tooltip shows note) #}
-                                <a href="{{ url_for('warehouse.edytuj_szarze_page', szarza_id=pal[2], linia=linia, data=dzisiaj, sekcja=sekcja) }}" title="Notatka" class="szarza-note" data-note="{{ (pal[6] if pal|length>6 else '')|e }}" style="position:absolute;right:8px;bottom:8px;font-size:14px;color:var(--muted-color);text-decoration:none;line-height:1;display:flex;align-items:center;gap:6px;">
-                                    <span style="font-size:14px;line-height:1;">✏️</span>
                                     {% if pal|length>6 and pal[6] %}
                                     <span class="note-badge" style="display:inline-block;width:9px;height:9px;background:#ff5a5f;border-radius:50%;vertical-align:middle;box-shadow:0 0 0 2px rgba(0,0,0,0.06);"></span>
                                     {% endif %}
@@ -633,6 +678,24 @@
                             </div>
                         </div>
                         {% endfor %}
+                        
+                        {# Display AGRO MIX records linked to this plan (Consumption/Odnotowanie) #}
+                        {% if linia == 'AGRO' and agro_mix_mapa and p[0] in agro_mix_mapa %}
+                        <div style="margin-top: 15px; border-top: 2px solid #edeff2; padding-top: 10px;">
+                            <div class="small text-muted mb-5"><strong>Zużycie MIX (Odnotowane):</strong></div>
+                            {% for mix in agro_mix_mapa[p[0]] %}
+                            <div class="card-row" style="background: #fdf3e7; padding: 8px; border-radius: 6px; margin-bottom: 5px; border: 1px solid #fabd8d;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span class="material-icons" style="font-size: 16px; color: #e67e22;">blender</span>
+                                    <strong>{{ mix.kategoria.replace('_', ' ') }}</strong>
+                                    <span class="text-primary" style="font-weight: 700;">{{ mix.waga_kg }} kg</span>
+                                    <span class="badge-info" style="font-size:0.75em;">👤 {{ mix.autor_login }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
                         {% else %}
                         <div class="small text-muted">Brak zarejestrowanych szarż dla tego zlecenia.</div>
                         {% endif %}

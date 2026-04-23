@@ -1129,6 +1129,73 @@ def ustawienia_errors():
     return render_template('ustawienia_errors.html', errors=parsed_errors, lines=lines_count)
 
 
+@admin_bp.route('/admin/ustawienia/bugs')
+@login_required
+@dynamic_role_required('ustawienia')
+def admin_ustawienia_bugs():
+    """View manually reported bugs from database."""
+    from app.db import get_db_connection
+    import json
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM zgloszenia_bledow ORDER BY id DESC")
+        bugs = cursor.fetchall()
+        
+        # Parse JSON attachments
+        for bug in bugs:
+            if isinstance(bug['zalaczniki'], str):
+                bug['zalaczniki'] = json.loads(bug['zalaczniki'])
+    except Exception as e:
+        current_app.logger.error("Błąd pobierania zgłoszeń: %s", e)
+        bugs = []
+    finally:
+        conn.close()
+    
+    return render_template('ustawienia_bugs.html', bugs=bugs)
+
+
+@admin_bp.route('/admin/ustawienia/bugs/delete/<int:bug_id>', methods=['POST'])
+@login_required
+@dynamic_role_required('ustawienia')
+def admin_delete_bug(bug_id):
+    """Delete a bug report and its associated attachments."""
+    from app.db import get_db_connection
+    import os, json
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT zalaczniki FROM zgloszenia_bledow WHERE id = %s", (bug_id,))
+        row = cursor.fetchone()
+        if row:
+            # Delete attachments from filesystem
+            attachments = row['zalaczniki']
+            if isinstance(attachments, str):
+                attachments = json.loads(attachments)
+                
+            bugs_dir = os.path.join(current_app.static_folder, 'uploads', 'bugs')
+            for att in attachments:
+                att_path = os.path.join(bugs_dir, att)
+                if os.path.exists(att_path):
+                    os.remove(att_path)
+            
+            # Delete from DB
+            cursor.execute("DELETE FROM zgloszenia_bledow WHERE id = %s", (bug_id,))
+            conn.commit()
+            flash("Zgłoszenie zostało usunięte.", "success")
+        else:
+            flash("Zgłoszenie nie istnieje.", "error")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Błąd podczas usuwania: {e}", "error")
+    finally:
+        conn.close()
+        
+    return redirect(url_for('admin.admin_ustawienia_bugs'))
+
+
 # Admin log viewer
 @admin_bp.route('/admin/ustawienia/logs')
 @admin_required

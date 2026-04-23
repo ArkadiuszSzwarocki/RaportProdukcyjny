@@ -73,7 +73,10 @@ def panel_planisty():
  
         # 1. Fetch primary plans (Zasyp + Czyszczenie)
         cursor.execute(f"""
-            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), zasyp_id
+            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, 
+                   COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki, 
+                   COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia, 
+                   zasyp_id
             FROM {table_plan} 
             WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
             ORDER BY kolejnosc
@@ -82,7 +85,10 @@ def panel_planisty():
 
         # 2. Add standalone Workowanie rows (avoiding duplicates and cases already covered by Zasyp)
         cursor.execute(f"""
-            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), zasyp_id
+            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, 
+                   COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki, 
+                   COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia, 
+                   zasyp_id
             FROM {table_plan}
             WHERE data_planu = %s AND LOWER(sekcja) = 'workowanie'
             ORDER BY kolejnosc
@@ -96,6 +102,9 @@ def panel_planisty():
                 None
             )
             if matching_zasyp is not None:
+                # Merge uszkodzone_worki from Workowanie into Zasyp
+                matching_zasyp['uszkodzone_worki'] = (matching_zasyp.get('uszkodzone_worki') or 0) + (w.get('uszkodzone_worki') or 0)
+                
                 # Ghost Zasyp (zakonczone + carry-over): zapisz ID Workowania żeby planista mógł edytować tonaż
                 if matching_zasyp.get('status') == 'zakonczone':
                     matching_zasyp['linked_workowanie_id'] = w['id']
@@ -218,12 +227,49 @@ def panel_planisty():
         t_ds_agro = get_table_name('dosypki', 'AGRO')
         t_pa_agro = get_table_name('palety_workowanie', 'AGRO')
 
-        cursor.execute(f"SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0) FROM {t_pp_agro} WHERE data_planu = %s ORDER BY kolejnosc", (wybrana_data,))
-        agro_all = cursor.fetchall()
+        cursor.execute(f"""
+            SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, 
+                   COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki 
+            FROM {t_pp_agro} 
+            WHERE data_planu = %s 
+            ORDER BY kolejnosc
+        """, (wybrana_data,))
+        agro_all = [dict(r) for r in cursor.fetchall()]
+        
+        # 1. First Pass: Collect products that have a 'Zasyp' entry
         z_prod_a = {(r['produkt'] or '').strip().lower() for r in agro_all if r['sekcja'].lower() == 'zasyp'}
+        
+        # 2. Second Pass: Filter and Merge
+        plany_agro = []
+        zasyp_lookup = {}
+        
         for r in agro_all:
-            if r['sekcja'].lower() == 'workowanie' and (r['produkt'] or '').strip().lower() in z_prod_a: continue
-            plany_agro.append(dict(r))
+            sect = r['sekcja'].lower()
+            p_name = (r['produkt'] or '').strip().lower()
+            
+            if sect == 'zasyp':
+                zasyp_lookup[p_name] = r
+                plany_agro.append(r)
+            elif sect == 'workowanie':
+                if p_name in z_prod_a:
+                    # Merge data into existing Zasyp row (if already encountered) or just wait for aggregation
+                    # Since we sorted by kolejnosc, Zasyp might come before OR after Workowanie
+                    # We'll handle aggregation in a separate step to be safe
+                    continue
+                else:
+                    # Standalone Workowanie
+                    plany_agro.append(r)
+            else:
+                # Czyszczenie etc
+                plany_agro.append(r)
+                
+        # 3. Third Pass: Aggregate uszkodzone_worki from ALL rows into the displayed row
+        for r in agro_all:
+            if r['sekcja'].lower() == 'workowanie' and (r['produkt'] or '').strip().lower() in z_prod_a:
+                p_name = (r['produkt'] or '').strip().lower()
+                target = zasyp_lookup.get(p_name)
+                if target:
+                    target['uszkodzone_worki'] = (target.get('uszkodzone_worki') or 0) + (r.get('uszkodzone_worki') or 0)
 
         for p in plany_agro:
             w_a = p['tonaz'] or 0
@@ -1156,7 +1202,7 @@ def api_check_niezrealizowane():
             details.append({
                 'plan_id': int(plan['zasyp_id']),
                 'produkt': str(plan['produkt']),
-                'w_plan_kg': float(w_plan),
+                'w_plan_kg': float(max(z_plan, w_plan)),
                 'w_real_kg': float(w_real),
                 'remaining_kg': float(effective_rem),
                 'shortfall_kg': float(short_kg),
