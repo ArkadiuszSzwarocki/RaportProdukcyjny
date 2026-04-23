@@ -894,7 +894,7 @@ def edytuj_plan(id):
 
 
 @planning_bp.route('/edytuj_plan_ajax', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'lider', 'zarzad')
 @hall_restricted
 def edytuj_plan_ajax():
     """Edit plan via AJAX."""
@@ -1012,7 +1012,7 @@ def edytuj_plan_ajax():
             cursor.execute(sql, tuple(params))
             conn.commit()
             notify_workers_about_plan_change(
-                plan_context=get_plan_notification_context(pid, conn=conn),
+                plan_context=get_plan_notification_context(pid, conn=conn, linia=linia),
                 action_label='zmienił',
                 author_name=session.get('imie_nazwisko') or session.get('login'),
                 created_by_user_id=session.get('user_id'),
@@ -1042,6 +1042,10 @@ def edytuj_plan_ajax():
                     linked_params = []
                     for field in ['produkt', 'typ_produkcji', 'nazwa_zlecenia', 'data_planu', 'tonaz']:
                         if field in changes:
+                            # Nie propaguj tonażu dla zleceń typu carry-over/ghost - tonaż workowania ma zostać taki jak był
+                            if field == 'tonaz' and (before[9] == 'carry_over_ghost' or 'carry-over' in (before[7] or '').lower()):
+                                continue
+                                
                             linked_updates.append(f'{field}=%s')
                             linked_params.append(changes[field]['after'])
                     

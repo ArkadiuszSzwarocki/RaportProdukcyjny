@@ -61,7 +61,9 @@ def calculate_kg_per_hour(product_type: str) -> int:
 def panel_planisty():
     wybrana_data = request.args.get('data', str(date.today()))
     wybrana_linia = request.args.get('linia', 'PSD').upper()
-    aktywna_zakladka = request.args.get('tab', 'psd').lower()
+    aktywna_zakladka = request.args.get('tab', '').lower()
+    if not aktywna_zakladka:
+        aktywna_zakladka = 'agro' if wybrana_linia == 'AGRO' else 'psd'
 
     conn = get_db_connection()
     try:
@@ -229,7 +231,9 @@ def panel_planisty():
 
         cursor.execute(f"""
             SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci, 
-                   COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki 
+                   COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki,
+                   COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
+                   zasyp_id
             FROM {t_pp_agro} 
             WHERE data_planu = %s 
             ORDER BY kolejnosc
@@ -270,6 +274,67 @@ def panel_planisty():
                 target = zasyp_lookup.get(p_name)
                 if target:
                     target['uszkodzone_worki'] = (target.get('uszkodzone_worki') or 0) + (r.get('uszkodzone_worki') or 0)
+
+        # 4. Fourth Pass: Detect carry-over (similar to PSD logic)
+        if plany_agro:
+            from datetime import datetime as _dt
+            agro_ids = [p['id'] for p in plany_agro]
+            fmt_a_ids = ','.join(['%s'] * len(agro_ids))
+            cursor.execute(f"""
+                SELECT ph.plan_id,
+                       SUBSTRING_INDEX(SUBSTRING_INDEX(ph.changes, ' na ', 1), 'Z ', -1) AS stara_data
+                FROM plan_history ph
+                INNER JOIN (
+                    SELECT plan_id, MAX(id) AS max_id FROM plan_history
+                    WHERE action = 'przeniesienie' AND plan_id IN ({fmt_a_ids})
+                    GROUP BY plan_id
+                ) last ON last.plan_id = ph.plan_id AND last.max_id = ph.id
+            """, agro_ids)
+            przeniesione_a_map = {r['plan_id']: r['stara_data'] for r in cursor.fetchall()}
+            
+            for p in plany_agro:
+                stara = przeniesione_a_map.get(p['id'])
+                if stara and stara != wybrana_data:
+                    try:
+                        p['przeniesiony_z'] = _dt.strptime(stara, '%Y-%m-%d').strftime('%d.%m.%Y')
+                    except Exception:
+                        p['przeniesiony_z'] = stara
+                else:
+                    nazwa = p.get('nazwa_zlecenia', '') or ''
+                    src = ''
+                    for prefix in ('PRZENIESIONE z ', 'carry-over z '):
+                        if nazwa.startswith(prefix):
+                            raw_date = nazwa[len(prefix):].strip()
+                            try:
+                                src = _dt.strptime(raw_date, '%Y-%m-%d').strftime('%d.%m.%Y')
+                            except Exception:
+                                pass
+                            break
+                    p['przeniesiony_z'] = src or None
+                p['przeniesiony_tonaz'] = 0
+
+            # Lookup bufor.tonaz_rzeczywisty for carry-over Agro
+            t_bf_agro = get_table_name('bufor', 'AGRO')
+            zasyp_id_to_agro = {p['zasyp_id']: p for p in plany_agro if p.get('przeniesiony_z') and p.get('zasyp_id')}
+            if zasyp_id_to_agro:
+                fmt_zids_a = ','.join(['%s'] * len(zasyp_id_to_agro))
+                cursor.execute(f"""
+                    SELECT zasyp_id, tonaz_rzeczywisty
+                    FROM {t_bf_agro}
+                    WHERE zasyp_id IN ({fmt_zids_a}) AND status IN ('aktywny', 'zamkniete', 'przeniesiony')
+                    ORDER BY id DESC
+                """, list(zasyp_id_to_agro.keys()))
+                seen_a = set()
+                for row in cursor.fetchall():
+                    zid = row['zasyp_id']
+                    if zid not in seen_a:
+                        seen_a.add(zid)
+                        plan_ref = zasyp_id_to_agro[zid]
+                        plan_ref['przeniesiony_tonaz'] = int(row['tonaz_rzeczywisty']) if row['tonaz_rzeczywisty'] else 0
+        else:
+            for p in plany_agro:
+                p['przeniesiony_z'] = None
+                p['przeniesiony_tonaz'] = 0
 
         for p in plany_agro:
             w_a = p['tonaz'] or 0

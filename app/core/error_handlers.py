@@ -245,3 +245,20 @@ def register_error_handlers(app):
         response = render_template('500.html')
         return response, 500
 
+    @app.errorhandler(403)
+    def handle_403_error(error):
+        """Handle 403 Forbidden errors with a descriptive message about permissions."""
+        try:
+            is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            is_api = request.path.startswith('/api/')
+            accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+        except Exception:
+            is_xhr = is_api = accepts_json = False
+
+        msg = "BRAK UPRAWNIEŃ: Twoja rola nie posiada uprawnień do wykonania tej operacji lub wejścia na tę stronę. To nie jest błąd aplikacji, lecz ograniczenie dostępowe Twojego konta."
+
+        if is_xhr or is_api or accepts_json:
+            return jsonify({'success': False, 'message': msg}), 403
+            
+        return render_template('403.html', message=msg), 403
+

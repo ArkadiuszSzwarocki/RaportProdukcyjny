@@ -18,8 +18,6 @@
             }}</a>
         <!-- Przycisk 'Sprawdź niezrealizowane' usunięty na życzenie -->
     </form>
-</div>
-
 <!-- Zakładki PSD / AGRO -->
 <div class="plan-tabs" style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--border-color);">
     <a href="/planista?data={{ wybrana_data }}&tab=psd"
@@ -96,7 +94,15 @@
             {% for p in plany_agro %}
             <tr data-plan-id="{{ p.id }}">
                 <td class="text-muted font-bold">{{ loop.index }}</td>
-                <td><strong class="text-primary">{{ p.produkt }}</strong></td>
+                <td>
+                    <strong class="text-primary">{{ p.produkt }}</strong>
+                    {% if p.przeniesiony_z %}
+                    <br><span style="display:inline-block;background:#e8f4fd;color:#1565c0;border:1px solid #90caf9;border-radius:10px;padding:1px 7px;font-size:0.78em;font-weight:600;margin-top:2px;">📦 przeniesione z {{ p.przeniesiony_z }}{% if p.przeniesiony_tonaz and p.przeniesiony_tonaz|int > 0 %}: {{ p.przeniesiony_tonaz|int }} kg{% endif %}</span>
+                    {% if p.przeniesiony_tonaz and p.przeniesiony_tonaz|int > 0 and p.tonaz|int > p.przeniesiony_tonaz|int %}
+                    <br><span style="display:inline-block;background:#d4edda;color:#155724;border:1px solid #28a745;border-radius:10px;padding:1px 7px;font-size:0.78em;font-weight:600;margin-top:2px;">➕ doplanowane: +{{ (p.tonaz|int - p.przeniesiony_tonaz|int) }} kg</span>
+                    {% endif %}
+                    {% endif %}
+                </td>
                 <td><span class="badge-sekcja">{{ (p.typ_produkcji or '-')|upper }}</span></td>
                 <td><strong class="text-success">{{ p.tonaz|int }} kg</strong></td>
                 <td><span class="duration-badge">{{ p.estymacja_minut|default(0) }} min</span></td>
@@ -117,7 +123,22 @@
                 </td>
                 <td class="text-right">
                     <div class="d-flex gap-5 align-center justify-end">
-                        {% if p.status not in ['w toku', 'zakonczone'] %}
+                        {% if p.status not in ['w toku', 'zakonczone'] and session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
+                        <!-- Zaplanowane - można reorderować -->
+                        <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon"
+                            aria-label="Przenieś w górę">⬆</button>
+                        <button type="button" data-action="move-down" data-plan-id="{{ p.id }}" class="btn-icon"
+                            aria-label="Przenieś w dół">⬇</button>
+                        <button type="button" data-action="open-move-modal" data-plan-id="{{ p.id }}"
+                            data-plan-day="{{ p.produkt }}" class="btn-icon text-primary"
+                            aria-label="Przenieś plan">📅</button>
+                        <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p.id }}"
+                            title="Edytuj">✎</button>
+                        {% elif p.status not in ['w toku', 'zakonczone'] %}
+                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get(\'rola\') }}) nie posiada uprawnień do modyfikacji planów AGRO. To nie jest błąd, lecz ograniczenie Twojego konta.')" title="Brak uprawnień">🔒</button>
+                        {% endif %}
+
+                        {% if p.status not in ['w toku', 'zakonczone'] and session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
                         <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST"
                             class="inline-form" onsubmit="return confirm('Usunąć zlecenie AGRO?');">
                             <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
@@ -432,7 +453,7 @@
                 </td>
                 <td>
                     <div class="d-flex gap-5 align-center">
-                        {% if p.status not in ['w toku', 'zakonczone'] %}
+                        {% if p.status not in ['w toku', 'zakonczone'] and session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
                         <!-- Zaplanowane - można reorderować -->
                         <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon"
                             aria-label="Przenieś w górę">⬆</button>
@@ -443,20 +464,22 @@
                             aria-label="Przenieś plan">📅</button>
                         <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p.id }}"
                             title="{{ _('edytuj') }}">✎</button>
-                        {% elif p.status == 'zakonczone' %}
+                        {% elif p.status not in ['w toku', 'zakonczone'] %}
+                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get(\'rola\') }}) nie pozwala na modyfikację planów PSD. To nie jest błąd systemu.')" title="Brak uprawnień">🔒</button>
+                        {% endif %}
                         {# Compute remaining explicitly to avoid type issues #}
                         {% set plan_kg = (p.tonaz or 0) | float %}
                         {% set wykonanie_kg = (p.tonaz_rzeczywisty or 0) | float %}
                         {% set remaining = plan_kg - wykonanie_kg %}
                         {% if remaining > 0 %}
                             <span class="badge badge-warning">Niezrealizowane: {{ remaining|round(1) }} kg</span>
-                            {% if (session.get('rola') or '')|lower in ['planista', 'admin', 'zarzad'] %}
+                            {% if (session.get('rola') or '')|lower in ['planista', 'admin', 'lider', 'zarzad'] %}
                             <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ p.id }}, '{{ p.produkt }}')"
                                 title="Przenieś niezrealizowane zlecenie na następny dzień">📦➡️</button>
                             {% endif %}
                         {% endif %}
                         {% endif %}
-                        {% if p.status not in ['w toku', 'zakonczone'] %}
+                        {% if p.status not in ['w toku', 'zakonczone'] and session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
                         <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form"
                             onsubmit="return confirm('Usunąć zlecenie?');">
                             <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
@@ -464,6 +487,8 @@
                             <input type="hidden" name="tab" value="psd">
                             <button type="submit" class="btn-icon text-danger" title="{{ _('usun_plan') }}">🗑️</button>
                         </form>
+                        {% elif p.status not in ['w toku', 'zakonczone'] %}
+                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get(\'rola\') }}) nie pozwala na usuwanie planów.')" title="Brak uprawnień do usuwania">🗑️🔒</button>
                         {% else %}
                         <span class="text-muted">-</span>
                         {% endif %}
@@ -472,7 +497,7 @@
                         <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
                             data-plan-id="{{ p.id }}" title="Edytuj tonaż">📝</button>
                         {% else %}
-                        <span class="text-muted fs-120" title="{{ _('zablokowane') }}">🔒</span>
+                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get(\'rola\') }}) nie pozwala na edycję tonażu. To nie jest błąd systemu, lecz ograniczenie dostępowe.')" title="Zablokowane">🔒</button>
                         {% endif %}
                     </div>
                 </td>
@@ -563,8 +588,9 @@
 <script>
     // Linia z jakiej wywoływana jest ta strona
     var currentLinia = '{{ "Agro" if aktywna_zakladka == "agro" else "PSD" }}';
-    
-    // Translation messages for Planista view
+    if (!currentLinia || currentLinia === '') {
+        currentLinia = '{{ wybrana_linia or "PSD" }}';
+    }
     var pnMsgs = {
         zapisz: '{{ _("zapisz") }}',
         anuluj: '{{ _("anuluj") }}'
@@ -575,6 +601,12 @@
         if (resp.ok) {
             return resp.json().catch(function(){ throw new Error('Nieprawidłowa odpowiedź JSON'); });
         }
+        
+        // Specjalna obsługa braku uprawnień (403 Forbidden)
+        if (resp.status === 403) {
+            throw new Error('ODMOWA DOSTĘPU (Uprawnienia): Twoja rola (' + '{{ session.get("rola") }}' + ') nie posiada uprawnień do wykonania tej operacji. To nie jest błąd aplikacji, lecz brak odpowiednich dostępów przypisanych do Twojego konta.');
+        }
+
         // Try JSON error first; use second arg of .then() so intentional throw is not caught
         return resp.clone().json().then(
             function(j){
@@ -773,7 +805,7 @@
 
 <script>
     function moveUp(id) {
-        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'gora', data: '{{ wybrana_data }}' }) })
+        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'gora', data: '{{ wybrana_data }}', linia: currentLinia }) })
             .then(handleFetchResponse)
             .then(function (j) {
                 if (j && j.success) {
@@ -789,7 +821,7 @@
             .catch(function (err) { safeAlert('Błąd sieci', err && err.message ? err.message : 'Błąd sieci'); });
     }
     function moveDown(id) {
-        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'dol', data: '{{ wybrana_data }}' }) })
+        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'dol', data: '{{ wybrana_data }}', linia: currentLinia }) })
             .then(handleFetchResponse)
             .then(function (j) {
                 if (j && j.success) {
@@ -821,7 +853,7 @@
         // Table columns: 0=Lp, 1=Produkt, 2=Typ, 3=Plan
         var produkt = tr.children[1].innerText.trim();
         var typ = tr.querySelector('.badge-sekcja') ? tr.querySelector('.badge-sekcja').innerText : '';
-        var tonaz = tr.children[3].innerText.replace(/[^0-9\.\,]/g, '') || 0;
+        var tonaz = tr.children[3].innerText.replace(/[^0-9\.\,]/g, '').replace(',', '.') || 0;
 
         var html = '<form id="editForm_' + id + '" class="form-group">';
         html += '<div class="form-group"><label>Produkt:</label><input id="e_prod_' + id + '" name="produkt" value="' + produkt + '" required></div>';
@@ -861,7 +893,7 @@
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
         var tonaz;
         if (tr) {
-            tonaz = tr.children[3].innerText.replace(/[^0-9\.\,]/g, '') || 0;
+            tonaz = tr.children[3].innerText.replace(/[^0-9\.\,]/g, '').replace(',', '.') || 0;
         } else if (btn && btn.getAttribute('data-linked-tonaz') !== null) {
             // Workowanie row not in DOM (ghost Zasyp carry-over) — use stored tonaz from button
             tonaz = btn.getAttribute('data-linked-tonaz') || 0;
@@ -963,78 +995,82 @@
 
     // Initialize Sortable for plan reordering via drag-and-drop
     if (typeof Sortable !== 'undefined') {
-        var plansTbody = document.getElementById('plans-tbody');
-        if (plansTbody) {
-            // Check if ANY plan on this day is w toku or zakonczone
-            var hasActiveOrComplete = false;
-            var allRows = plansTbody.querySelectorAll('tr:not(.details-row)');
-            allRows.forEach(function (row) {
-                if (row.querySelector('[title*="zablokowane"]')) {
-                    hasActiveOrComplete = true;
-                }
-            });
-
-            // Only enable drag if NO plans are w toku/zakonczone
-            if (hasActiveOrComplete) {
-                // Show message that reordering is disabled
-                var msg = document.createElement('div');
-                msg.className = 'alert alert-warning mt-2 mb-2';
-                msg.innerHTML = '⚠️ {{ _("Reorderowanie wyłączone - na tym dniu jest plan w toku lub zakończony") }}';
-                plansTbody.parentNode.parentNode.insertAdjacentElement('afterend', msg);
-            } else {
-                Sortable.create(plansTbody, {
-                    animation: 150,
-                    ghostClass: 'sortable-ghost',
-                    dragClass: 'sortable-drag',
-                    handle: 'tr',  // Allow dragging entire row
-                    filter: function(evt) {
-                        // Don't allow dragging details rows or locked plans
-                        var row = evt;
-                        if (row.classList.contains('details-row')) return true;
-                        if (row.classList.contains('plan-locked')) return true;
-                        return false;
-                    },
-                    onEnd: function (evt) {
-                        // Get new order of plan IDs
-                        var rows = plansTbody.querySelectorAll('tr:not(.details-row):not(.plan-locked)');
-                        var newOrder = [];
-                        rows.forEach(function (row) {
-                            var planId = row.getAttribute('data-plan-id');
-                            if (planId) {
-                                newOrder.push(parseInt(planId));
-                            }
-                        });
-
-                        if (newOrder.length > 0) {
-                            // Send reorder request to backend
-                            var data = {
-                                plan_ids: newOrder,
-                                data: '{{ wybrana_data }}',
-                                sekcja: 'zasyp'
-                            };
-
-                            fetch('/api/reorder_plans_bulk', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(data)
-                            })
-                                .then(handleFetchResponse)
-                                    .then(function (j) {
-                                    if (j && j.success) {
-                                        // Silently update UI without reload
-                                        console.log('Reorder success - no reload needed');
-                                    } else {
-                                        safeAlert('Błąd', (j && j.message) || 'Błąd przy reorderowaniu');
-                                    }
-                                })
-                                .catch(function (err) {
-                                    safeAlert('Błąd', 'Błąd: ' + (err && err.message ? err.message : 'Nie wiadomo'));
-                                });
-                        }
+        var tbodies = ['plans-tbody', 'plans-agro-tbody'];
+        tbodies.forEach(function(tbodyId) {
+            var plansTbody = document.getElementById(tbodyId);
+            if (plansTbody) {
+                // Check if ANY plan on this day is w toku or zakonczone
+                var hasActiveOrComplete = false;
+                var allRows = plansTbody.querySelectorAll('tr:not(.details-row)');
+                allRows.forEach(function (row) {
+                    if (row.querySelector('[title*="zablokowane"]') || row.querySelector('.text-muted[title*="Zablokowane"]')) {
+                        hasActiveOrComplete = true;
                     }
                 });
+
+                // Only enable drag if NO plans are w toku/zakonczone
+                if (hasActiveOrComplete) {
+                    // Show message that reordering is disabled
+                    var msg = document.createElement('div');
+                    msg.className = 'alert alert-warning mt-2 mb-2';
+                    msg.innerHTML = '⚠️ {{ _("Reorderowanie wyłączone - na tym dniu jest plan w toku lub zakończony") }}';
+                    plansTbody.parentNode.parentNode.insertAdjacentElement('afterend', msg);
+                } else {
+                    Sortable.create(plansTbody, {
+                        animation: 150,
+                        ghostClass: 'sortable-ghost',
+                        dragClass: 'sortable-drag',
+                        handle: 'tr',  // Allow dragging entire row
+                        filter: function(evt) {
+                            // Don't allow dragging details rows or locked plans
+                            var row = evt;
+                            if (row.classList.contains('details-row')) return true;
+                            if (row.classList.contains('plan-locked')) return true;
+                            return false;
+                        },
+                        onEnd: function (evt) {
+                            // Get new order of plan IDs
+                            var rows = plansTbody.querySelectorAll('tr:not(.details-row):not(.plan-locked)');
+                            var newOrder = [];
+                            rows.forEach(function (row) {
+                                var planId = row.getAttribute('data-plan-id');
+                                if (planId) {
+                                    newOrder.push(parseInt(planId));
+                                }
+                            });
+
+                            if (newOrder.length > 0) {
+                                // Send reorder request to backend
+                                var data = {
+                                    plan_ids: newOrder,
+                                    data: '{{ wybrana_data }}',
+                                    sekcja: (tbodyId === 'plans-agro-tbody' ? 'Agro' : 'Zasyp'),
+                                    linia: (tbodyId === 'plans-agro-tbody' ? 'Agro' : 'PSD')
+                                };
+
+                                fetch('/api/reorder_plans_bulk', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(data)
+                                })
+                                    .then(handleFetchResponse)
+                                        .then(function (j) {
+                                        if (j && j.success) {
+                                            // Silently update UI without reload
+                                            console.log('Reorder success - no reload needed');
+                                        } else {
+                                            safeAlert('Błąd', (j && j.message) || 'Błąd przy reorderowaniu');
+                                        }
+                                    })
+                                    .catch(function (err) {
+                                        safeAlert('Błąd', 'Błąd: ' + (err && err.message ? err.message : 'Nie wiadomo'));
+                                    });
+                            }
+                        }
+                    });
+                }
             }
-        }
+        });
     }
 
     // Przenieś niezrealizowane zlecenia na następny dzień
@@ -1242,7 +1278,8 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 data: currentDate,
-                plan_ids: [planId]
+                plan_ids: [planId],
+                linia: currentLinia
             }),
             credentials: 'same-origin'
         })
