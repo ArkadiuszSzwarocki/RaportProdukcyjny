@@ -255,7 +255,7 @@ def index() -> str:
               AND EXISTS (
                   SELECT 1 FROM {table_plan} w
                   WHERE w.sekcja = 'Workowanie' AND w.status IN ('zaplanowane', 'w toku')
-                    AND w.produkt = b.produkt AND w.data_planu = b.data_planu
+                    AND w.produkt = b.produkt
               )
         """, (dzisiaj,))
         
@@ -277,9 +277,10 @@ def index() -> str:
             
             # Krok 3: Dla tych produktów, aktywuj START jeśli mają Workowanie
             for prod in products_with_min_queue:
-                if prod in work_first_map:
-                    allowed_work_start_ids.add(work_first_map[prod])
-                    app.logger.info(f"[DEBUG-START] Aktywny START dla {prod} (id={work_first_map[prod]}, kolejka={global_min_queue})")
+                matched_key = next((k for k in work_first_map if k.strip().casefold() == prod.strip().casefold()), None)
+                if matched_key:
+                    allowed_work_start_ids.add(work_first_map[matched_key])
+                    app.logger.info(f"[DEBUG-START] Aktywny START dla {prod} (id={work_first_map[matched_key]}, kolejka={global_min_queue})")
 
         cursor.close()
         conn.close()
