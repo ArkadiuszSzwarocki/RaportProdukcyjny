@@ -281,11 +281,33 @@ def index() -> str:
             app.logger.info(f"[DEBUG-START] Produkty z kolejka={global_min_queue}: {products_with_min_queue}")
             
             # Krok 3: Dla tych produktów, aktywuj START jeśli mają Workowanie
+            # Szukamy w pełnym planie (bez ograniczenia daty) — obsługuje carry-over z poprzednich dni
             for prod in products_with_min_queue:
+                # Najpierw sprawdź w work_first_map (dzisiejsze plany)
                 matched_key = next((k for k in work_first_map if k.strip().casefold() == prod.strip().casefold()), None)
                 if matched_key:
                     allowed_work_start_ids.add(work_first_map[matched_key])
                     app.logger.info(f"[DEBUG-START] Aktywny START dla {prod} (id={work_first_map[matched_key]}, kolejka={global_min_queue})")
+                else:
+                    # Fallback: szukaj w bazie danych (carry-over z poprzednich dni)
+                    try:
+                        cursor.execute(f"""
+                            SELECT id FROM {table_plan}
+                            WHERE sekcja = 'Workowanie'
+                              AND status IN ('zaplanowane', 'w toku')
+                              AND LOWER(TRIM(produkt)) = LOWER(TRIM(%s))
+                              AND is_deleted = 0
+                            ORDER BY CASE status WHEN 'w toku' THEN 1 ELSE 2 END, data_planu DESC, kolejnosc ASC, id ASC
+                            LIMIT 1
+                        """, (prod,))
+                        row = cursor.fetchone()
+                        if row:
+                            allowed_work_start_ids.add(row[0])
+                            app.logger.info(f"[DEBUG-START] Aktywny START (fallback carry-over) dla {prod} (id={row[0]}, kolejka={global_min_queue})")
+                        else:
+                            app.logger.warning(f"[DEBUG-START] Brak Workowania dla produktu: '{prod}' (work_first_map keys: {list(work_first_map.keys())})")
+                    except Exception as fe:
+                        app.logger.error(f"[DEBUG-START] Błąd fallback dla '{prod}': {fe}")
 
         cursor.close()
         conn.close()
