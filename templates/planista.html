@@ -478,7 +478,6 @@
                                 title="Przenieś niezrealizowane zlecenie na następny dzień">📦➡️</button>
                             {% endif %}
                         {% endif %}
-                        {% endif %}
                         {% if p.status not in ['w toku', 'zakonczone'] and session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
                         <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form"
                             onsubmit="return confirm('Usunąć zlecenie?');">
