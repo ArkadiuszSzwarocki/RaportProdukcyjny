@@ -135,7 +135,7 @@
                         <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p.id }}"
                             title="Edytuj">✎</button>
                         {% elif p.status not in ['w toku', 'zakonczone'] %}
-                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get(\'rola\') }}) nie posiada uprawnień do modyfikacji planów AGRO. To nie jest błąd, lecz ograniczenie Twojego konta.')" title="Brak uprawnień">🔒</button>
+                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola')|e }}) nie posiada uprawnień do modyfikacji planów AGRO. To nie jest błąd, lecz ograniczenie Twojego konta.')" title="Brak uprawnień">🔒</button>
                         {% endif %}
 
                         {% if p.status not in ['w toku', 'zakonczone'] and session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
@@ -465,7 +465,7 @@
                         <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p.id }}"
                             title="{{ _('edytuj') }}">✎</button>
                         {% elif p.status not in ['w toku', 'zakonczone'] %}
-                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get(\'rola\') }}) nie pozwala na modyfikację planów PSD. To nie jest błąd systemu.')" title="Brak uprawnień">🔒</button>
+                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola') }}) nie pozwala na modyfikację planów PSD. To nie jest błąd systemu.')" title="Brak uprawnień">🔒</button>
                         {% endif %}
                         {# Compute remaining explicitly to avoid type issues #}
                         {% set plan_kg = (p.tonaz or 0) | float %}
@@ -488,7 +488,7 @@
                             <button type="submit" class="btn-icon text-danger" title="{{ _('usun_plan') }}">🗑️</button>
                         </form>
                         {% elif p.status not in ['w toku', 'zakonczone'] %}
-                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get(\'rola\') }}) nie pozwala na usuwanie planów.')" title="Brak uprawnień do usuwania">🗑️🔒</button>
+                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola') }}) nie pozwala na usuwanie planów.')" title="Brak uprawnień do usuwania">🗑️🔒</button>
                         {% else %}
                         <span class="text-muted">-</span>
                         {% endif %}
@@ -497,7 +497,7 @@
                         <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
                             data-plan-id="{{ p.id }}" title="Edytuj tonaż">📝</button>
                         {% else %}
-                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get(\'rola\') }}) nie pozwala na edycję tonażu. To nie jest błąd systemu, lecz ograniczenie dostępowe.')" title="Zablokowane">🔒</button>
+                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola') }}) nie pozwala na edycję tonażu. To nie jest błąd systemu, lecz ograniczenie dostępowe.')" title="Zablokowane">🔒</button>
                         {% endif %}
                     </div>
                 </td>
