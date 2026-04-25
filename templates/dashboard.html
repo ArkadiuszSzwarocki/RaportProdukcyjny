@@ -230,7 +230,7 @@
         window._urls.anuluj_dosypke = "{{ url_for('production.anuluj_dosypke', dosypka_id=0) }}";
         // Current user role for conditional UI features
         window._currentRole = "{{ rola }}";
-        window._isAgroZasypOperator = ['pracownik', 'produkcja'].includes(String(window._currentRole || '').toLowerCase());
+        window._isAgroZasypOperator = !['laborant', 'laboratorium', 'magazyn', 'magazynier', 'planista'].includes(String(window._currentRole || '').toLowerCase());
         // Current hall/linia for AGRO-aware API calls
         window._linia = "{{ linia or 'PSD' }}";
 

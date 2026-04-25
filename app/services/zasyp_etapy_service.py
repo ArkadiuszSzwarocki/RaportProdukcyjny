@@ -1058,7 +1058,21 @@ class ZasypEtapyService:
                 etap_times[e] = (start_dt, stop_dt)
 
             seq = _build_sequence_for_szarza(linia_u, existing_etaps, include_etap=etap_nr)
-            prev_etap, next_etap = _prev_next_etap_in_sequence(seq, etap_nr)
+            prev_etap, next_etap = None, None
+            try:
+                idx = seq.index(int(etap_nr))
+                for i in range(idx - 1, -1, -1):
+                    pe = seq[i]
+                    if pe in etap_times:
+                        prev_etap = pe
+                        break
+                for i in range(idx + 1, len(seq)):
+                    ne = seq[i]
+                    if ne in etap_times:
+                        next_etap = ne
+                        break
+            except Exception:
+                pass
             curr_name = _etap_display_name(linia_u, etap_nr)
 
             if prev_etap is not None and new_start is not None:

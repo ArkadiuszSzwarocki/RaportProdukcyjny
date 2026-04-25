@@ -1245,7 +1245,7 @@ def api_zwolnij_mieszalnik():
 def api_poll_zwolnienie():
     """Skrypt w dashboard.html pyta co X sekund czy był sygnał."""
     role = str(session.get('rola') or '').lower()
-    if role not in ['pracownik', 'produkcja']:
+    if role in ['laborant', 'laboratorium', 'magazyn', 'magazynier', 'planista']:
         return jsonify({"new_zwolnienie": False})
 
     linia = request.args.get('linia', 'AGRO').upper()
