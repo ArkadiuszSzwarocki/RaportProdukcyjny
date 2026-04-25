@@ -49,6 +49,22 @@ def _parse_float(value: object) -> Optional[float]:
         return None
 
 
+def _is_modal_sequence_error(msg: str) -> bool:
+    s = str(msg or '').lower()
+    return ('nie może' in s and ('start' in s or 'rozpocząć' in s)) or ('najwcześniej' in s)
+
+
+def _flash_zasyp_result(ok: bool, msg: str) -> None:
+    prefixed = ('✅ ' if ok else '❌ ') + str(msg or '')
+    if ok:
+        flash(prefixed, 'success')
+        return
+    if _is_modal_sequence_error(msg):
+        flash(prefixed, 'modal_error')
+    else:
+        flash(prefixed, 'danger')
+
+
 @production_bp.route('/zasyp_etap_start', methods=['POST'])
 @login_required
 def zasyp_etap_start():
@@ -58,6 +74,8 @@ def zasyp_etap_start():
     plan_id_raw = request.form.get('plan_id')
     etap_raw = request.form.get('etap')
     kg_raw = request.form.get('wielkosc_szarzy_kg')
+    szarza_nr_raw = request.form.get('szarza_nr')
+    auto_szarza_mode = str(request.form.get('auto_szarza_mode') or 'manual').strip().lower()
 
     try:
         plan_id = int(plan_id_raw)
@@ -96,6 +114,7 @@ def zasyp_etap_start():
         except Exception:
             pass
 
+    kg_for_auto = None
     if etap == 1:
         kg = _parse_float(kg_raw)
         if kg is None:
@@ -103,6 +122,10 @@ def zasyp_etap_start():
             if param.get('wielkosc_szarzy_kg') is None:
                 flash('❌ Podaj wielkość szarży przed startem Naważania', 'danger')
                 return redirect(bezpieczny_powrot())
+            try:
+                kg_for_auto = float(param.get('wielkosc_szarzy_kg'))
+            except Exception:
+                kg_for_auto = None
         else:
             ok_kg, msg_kg = ZasypEtapyService.set_wielkosc_szarzy(
                 plan_id=plan_id,
@@ -114,6 +137,7 @@ def zasyp_etap_start():
             if not ok_kg:
                 flash(f'❌ {msg_kg}', 'danger')
                 return redirect(bezpieczny_powrot())
+            kg_for_auto = kg
 
     ok, msg = ZasypEtapyService.start_etap(
         plan_id=plan_id,
@@ -121,8 +145,64 @@ def zasyp_etap_start():
         data_planu=data_planu_date,
         etap=etap,
         user_login=session.get('login') or '',
+        szarza_nr=szarza_nr_raw,
     )
-    flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
+
+    # AUTO SZARZA mode: when Naważanie starts, add one szarża automatically
+    if ok and etap == 1 and auto_szarza_mode == 'auto' and 'zapisany' in str(msg).lower():
+        try:
+            auto_kg = float(kg_for_auto) if kg_for_auto is not None else None
+        except Exception:
+            auto_kg = None
+
+        if auto_kg and auto_kg > 0:
+            auto_conn = None
+            try:
+                auto_conn = get_db_connection()
+                auto_cursor = auto_conn.cursor()
+                table_szarze = get_table_name('szarze', linia)
+                table_plan = get_table_name('plan_produkcji', linia)
+                table_dosypki = get_table_name('dosypki', linia)
+
+                auto_cursor.execute(f"SELECT MAX(nr_szarzy) FROM {table_szarze} WHERE plan_id=%s", (plan_id,))
+                row = auto_cursor.fetchone()
+                next_nr = (row[0] if row and row[0] else 0) + 1
+
+                now = datetime.now()
+                godzina = now.strftime('%H:%M:%S')
+                pracownik_id = session.get('pracownik_id') if 'pracownik_id' in session else None
+
+                auto_cursor.execute(
+                    f"INSERT INTO {table_szarze} (plan_id, waga, data_dodania, godzina, pracownik_id, status, nr_szarzy) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    (plan_id, auto_kg, now, godzina, pracownik_id, 'zarejestowana', next_nr),
+                )
+
+                auto_cursor.execute(
+                    f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
+                    f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
+                    f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
+                    f"WHERE id = %s",
+                    (plan_id, plan_id, plan_id),
+                )
+
+                auto_conn.commit()
+                msg = f"{msg}; AUTO SZARŻA: dodano nr {next_nr} ({auto_kg:g} kg)"
+                audit_log('AUTO dodał szarżę', f'zlecenie_id={plan_id}, produkt={produkt}, tonaz={auto_kg:g} kg, nr={next_nr}, linia={linia}')
+            except Exception as auto_err:
+                try:
+                    if auto_conn:
+                        auto_conn.rollback()
+                except Exception:
+                    pass
+                msg = f"{msg}; AUTO SZARŻA: błąd dodania ({auto_err})"
+            finally:
+                try:
+                    if auto_conn:
+                        auto_conn.close()
+                except Exception:
+                    pass
+
+    _flash_zasyp_result(ok, msg)
     if ok:
         audit_log('START etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
     return redirect(bezpieczny_powrot())
@@ -136,6 +216,8 @@ def zasyp_etap_stop():
     linia = str(linia_input).upper()
     plan_id_raw = request.form.get('plan_id')
     etap_raw = request.form.get('etap')
+    szarza_nr_raw = request.form.get('szarza_nr')
+    next_action = str(request.form.get('next_action') or '').strip().lower()
 
     try:
         plan_id = int(plan_id_raw)
@@ -179,19 +261,49 @@ def zasyp_etap_stop():
         linia=linia,
         etap=etap,
         user_login=session.get('login') or '',
+        szarza_nr=szarza_nr_raw,
     )
 
     if ok:
         next_etap = None
+        wants_new_point_after_empty = False
         if linia == 'AGRO':
             # AGRO flow: 1 -> 2, then PAUZA (no auto-start for 2). Dosypka starts after etap 3 stop.
             if etap == 1:
                 next_etap = 2
+            elif etap == 2 or etap == 4 or str(etap).startswith('4'):
+                if next_action in ('oprozniamy', 'oprozniamy_end_today', 'oprozniamy_new_point'):
+                    next_etap = 5
+                    wants_new_point_after_empty = next_action == 'oprozniamy_new_point'
+                elif next_action == 'add_pair':
+                    pair_ok, pair_msg = ZasypEtapyService.add_agro_dosypka_pair(
+                        plan_id=plan_id,
+                        linia=linia,
+                        data_planu=data_planu_date,
+                        user_login=session.get('login') or '',
+                        szarza_nr=szarza_nr_raw,
+                    )
+                    if pair_ok:
+                        pair_start = None
+                        cleaned = str(pair_msg).replace('/', ' ').replace(',', ' ')
+                        for token in cleaned.split():
+                            try:
+                                pair_start = int(token)
+                                break
+                            except Exception:
+                                continue
+                        if pair_start is not None:
+                            next_etap = pair_start
+                            msg = f"{msg}; {pair_msg}"
+                        else:
+                            msg = f"{msg}; {pair_msg}; brak automatycznego START (nierozpoznana para)"
+                    else:
+                        msg = f"{msg}; {pair_msg}"
             elif etap == 3:
                 next_etap = 4
-            elif 30 < etap < 40:
-                # 31 (3a) -> 41 (4a), 32 (3b) -> 42 (4b), etc.
-                next_etap = etap + 10
+            elif str(etap).startswith('3') and etap != 3:
+                # 31 -> 41, 32 -> 42, 310 -> 410, etc.
+                next_etap = int('4' + str(etap)[1:])
         elif etap < 6:
             next_etap = etap + 1
 
@@ -202,14 +314,98 @@ def zasyp_etap_stop():
                 data_planu=data_planu_date,
                 etap=next_etap,
                 user_login=session.get('login') or '',
+                szarza_nr=szarza_nr_raw,
             )
             if next_ok:
                 msg = f'{msg}; automatycznie uruchomiono etap {next_etap}'
                 audit_log('START etapu Zasyp', f'plan_id={plan_id}, etap={next_etap}, linia={linia}, produkt={produkt}')
+
+                if wants_new_point_after_empty:
+                    km_ok, km_msg = ZasypEtapyService.kolejny_pomiar(plan_id, linia, session.get('login') or '')
+                    if km_ok:
+                        new_szarza_nr = None
+                        for token in str(km_msg).replace('#', ' ').split():
+                            try:
+                                new_szarza_nr = int(token)
+                                break
+                            except Exception:
+                                continue
+
+                        if new_szarza_nr is not None:
+                            st_ok, st_msg = ZasypEtapyService.start_etap(
+                                plan_id=plan_id,
+                                linia=linia,
+                                data_planu=data_planu_date,
+                                etap=1,
+                                user_login=session.get('login') or '',
+                                szarza_nr=new_szarza_nr,
+                            )
+                            if st_ok:
+                                msg = f"{msg}; {km_msg}; automatycznie uruchomiono Naważanie dla nowego punktu"
+                                audit_log('START etapu Zasyp', f'plan_id={plan_id}, etap=1, linia={linia}, produkt={produkt}, szarza_nr={new_szarza_nr}')
+
+                                # New-point flow should also create production batch entry for the new szarza.
+                                param = ZasypEtapyService.get_parametry(plan_id, linia)
+                                kg_auto_new = param.get('wielkosc_szarzy_kg')
+                                try:
+                                    kg_auto_new = float(kg_auto_new) if kg_auto_new is not None else None
+                                except Exception:
+                                    kg_auto_new = None
+
+                                if kg_auto_new and kg_auto_new > 0:
+                                    auto_conn = None
+                                    try:
+                                        auto_conn = get_db_connection()
+                                        auto_cursor = auto_conn.cursor()
+                                        table_szarze = get_table_name('szarze', linia)
+                                        table_plan = get_table_name('plan_produkcji', linia)
+                                        table_dosypki = get_table_name('dosypki', linia)
+
+                                        now = datetime.now()
+                                        godzina = now.strftime('%H:%M:%S')
+                                        pracownik_id = session.get('pracownik_id') if 'pracownik_id' in session else None
+
+                                        auto_cursor.execute(
+                                            f"INSERT INTO {table_szarze} (plan_id, waga, data_dodania, godzina, pracownik_id, status, nr_szarzy) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                                            (plan_id, kg_auto_new, now, godzina, pracownik_id, 'zarejestowana', new_szarza_nr),
+                                        )
+
+                                        auto_cursor.execute(
+                                            f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
+                                            f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id = %s), 0) + "
+                                            f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0) "
+                                            f"WHERE id = %s",
+                                            (plan_id, plan_id, plan_id),
+                                        )
+
+                                        auto_conn.commit()
+                                        msg = f"{msg}; dodano szarżę #{new_szarza_nr} ({kg_auto_new:g} kg)"
+                                        audit_log('AUTO dodał szarżę', f'zlecenie_id={plan_id}, produkt={produkt}, tonaz={kg_auto_new:g} kg, nr={new_szarza_nr}, linia={linia}')
+                                    except Exception as auto_new_err:
+                                        try:
+                                            if auto_conn:
+                                                auto_conn.rollback()
+                                        except Exception:
+                                            pass
+                                        msg = f"{msg}; nie udało się dodać szarży dla nowego punktu: {auto_new_err}"
+                                    finally:
+                                        try:
+                                            if auto_conn:
+                                                auto_conn.close()
+                                        except Exception:
+                                            pass
+                                else:
+                                    msg = f"{msg}; brak wielkości szarży - nie dodano rekordu szarży"
+                            else:
+                                msg = f"{msg}; {km_msg}; nie udało się uruchomić Naważania: {st_msg}"
+                        else:
+                            msg = f"{msg}; {km_msg}; nie rozpoznano numeru nowej szarży"
+                    else:
+                        msg = f"{msg}; nie udało się utworzyć nowego punktu: {km_msg}"
             else:
                 msg = f'{msg}; etap {next_etap}: {next_msg}'
 
-    flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
+    _flash_zasyp_result(ok, msg)
     if ok:
         audit_log('STOP etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
     return redirect(bezpieczny_powrot())
@@ -225,6 +421,7 @@ def zasyp_etap_manual_set():
 
     plan_id_raw = request.form.get('plan_id')
     etap_raw = request.form.get('etap')
+    szarza_nr_raw = request.form.get('szarza_nr')
     czas_start_hhmm = (request.form.get('czas_start_hhmm') or '').strip()
     czas_stop_hhmm = (request.form.get('czas_stop_hhmm') or '').strip()
 
@@ -273,6 +470,7 @@ def zasyp_etap_manual_set():
         czas_start_hhmm=czas_start_hhmm,
         czas_stop_hhmm=czas_stop_hhmm,
         user_login=session.get('login') or '',
+        szarza_nr=szarza_nr_raw,
     )
     flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
     if ok:
@@ -292,6 +490,7 @@ def zasyp_etap_reset():
     linia = str(linia_input).upper()
     plan_id_raw = request.form.get('plan_id')
     etap_raw = request.form.get('etap')
+    szarza_nr_raw = request.form.get('szarza_nr')
 
     try:
         plan_id = int(plan_id_raw)
@@ -312,7 +511,7 @@ def zasyp_etap_reset():
     finally:
         db_conn.close()
 
-    ok, msg = ZasypEtapyService.reset_etap(plan_id=plan_id, linia=linia, etap=etap)
+    ok, msg = ZasypEtapyService.reset_etap(plan_id=plan_id, linia=linia, etap=etap, szarza_nr=szarza_nr_raw)
     flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
     if ok:
         audit_log('RESET etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
@@ -328,6 +527,7 @@ def zasyp_etap_delete():
     linia = str(linia_input).upper()
     plan_id_raw = request.form.get('plan_id')
     etap_raw = request.form.get('etap')
+    szarza_nr_raw = request.form.get('szarza_nr')
 
     try:
         plan_id = int(plan_id_raw)
@@ -348,7 +548,7 @@ def zasyp_etap_delete():
     finally:
         db_conn.close()
 
-    ok, msg = ZasypEtapyService.delete_etap(plan_id=plan_id, linia=linia, etap=etap)
+    ok, msg = ZasypEtapyService.delete_etap(plan_id=plan_id, linia=linia, etap=etap, szarza_nr=szarza_nr_raw)
     flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
     if ok:
         audit_log('USUWANIE etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
@@ -809,9 +1009,222 @@ def szarza_page(plan_id):
 def zasyp_kolejny_pomiar(plan_id):
     """Zwiększa licznik szarż dla zasyp_etapy i resetuje punkty kontrolne przed dodaniem fizycznej szarży z wagi."""
     linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+    auto_szarza_mode = str(request.form.get('auto_szarza_mode') or 'manual').strip().lower()
     user_login = session.get('login') or 'unknown'
     ok, msg = ZasypEtapyService.kolejny_pomiar(plan_id, linia, user_login)
+
+    # Optional auto-create batch for the freshly opened control point/session.
+    if ok and auto_szarza_mode == 'auto':
+        conn = None
+        try:
+            next_szarza_nr = None
+            if '#' in msg:
+                try:
+                    next_szarza_nr = int(msg.split('#', 1)[1].split()[0])
+                except Exception:
+                    next_szarza_nr = None
+
+            if next_szarza_nr is not None:
+                table_plan = get_table_name('plan_produkcji', linia)
+                table_szarze = get_table_name('szarze', linia)
+
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"SELECT sekcja, status, data_planu, produkt FROM {table_plan} WHERE id=%s",
+                    (plan_id,),
+                )
+                row = cursor.fetchone()
+                if row and row[0] == 'Zasyp' and row[1] == 'w toku':
+                    data_planu_date = _coerce_date(row[2])
+                    produkt = row[3]
+                    param = ZasypEtapyService.get_parametry(plan_id, linia)
+                    kg_auto = _parse_float(param.get('wielkosc_szarzy_kg'))
+                    if kg_auto and kg_auto > 0:
+                        cursor.execute(
+                            f"SELECT id FROM {table_szarze} WHERE plan_id=%s AND nr_szarzy=%s AND status='zarejestowana' LIMIT 1",
+                            (plan_id, next_szarza_nr),
+                        )
+                        exists_row = cursor.fetchone()
+                        if not exists_row:
+                            now_dt = datetime.now()
+                            cursor.execute(
+                                f"""
+                                INSERT INTO {table_szarze}
+                                (plan_id, produkt, nr_szarzy, waga, godzina, data_dodania, pracownik_id, status, typ_produkcji, data_planu, potwierdzone_workowanie)
+                                VALUES (%s, %s, %s, %s, %s, %s, NULL, 'zarejestowana', 'N/A', %s, 0)
+                                """,
+                                (
+                                    plan_id,
+                                    produkt,
+                                    next_szarza_nr,
+                                    kg_auto,
+                                    now_dt.strftime('%H:%M:%S'),
+                                    now_dt,
+                                    data_planu_date,
+                                ),
+                            )
+                            cursor.execute(
+                                f"UPDATE {table_plan} SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id=%s",
+                                (kg_auto, plan_id),
+                            )
+                            conn.commit()
+                            msg = f"{msg} + auto-szarża {kg_auto:.1f} kg"
+        except Exception as e:
+            current_app.logger.warning('Auto batch after kolejny_pomiar failed: %s', e, exc_info=True)
+        finally:
+            try:
+                if conn:
+                    conn.close()
+            except Exception:
+                pass
+
     flash(msg, 'success' if ok else 'danger')
+    return redirect(bezpieczny_powrot())
+
+
+@production_bp.route('/zasyp_dodaj_pare_dosypki/<int:plan_id>', methods=['POST'])
+@roles_required('pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'magazynier')
+def zasyp_dodaj_pare_dosypki(plan_id):
+    """Dodaje do bieżącej szarży AGRO parę etapów: dosypka + mieszanie po dosypce."""
+    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+    szarza_nr_raw = request.form.get('szarza_nr')
+    user_login = session.get('login') or 'unknown'
+
+    conn = get_db_connection()
+    try:
+        table_plan = get_table_name('plan_produkcji', linia)
+        cursor = conn.cursor()
+        cursor.execute(
+            f"SELECT sekcja, status, data_planu, produkt FROM {table_plan} WHERE id=%s",
+            (plan_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            flash('❌ Zlecenie nie znalezione', 'danger')
+            return redirect(bezpieczny_powrot())
+        sekcja, status, data_planu, produkt = row[0], row[1], row[2], row[3]
+        if sekcja != 'Zasyp':
+            flash('❌ To nie jest zlecenie Zasyp', 'danger')
+            return redirect(bezpieczny_powrot())
+        if status != 'w toku':
+            flash('❌ Zlecenie musi być W TOKU', 'danger')
+            return redirect(bezpieczny_powrot())
+        data_planu_date = _coerce_date(data_planu)
+    except Exception as e:
+        current_app.logger.error('zasyp_dodaj_pare_dosypki failed: %s', e, exc_info=True)
+        flash('❌ Błąd dodawania pary dosypki', 'danger')
+        return redirect(bezpieczny_powrot())
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    ok, msg = ZasypEtapyService.add_agro_dosypka_pair(
+        plan_id=plan_id,
+        linia=linia,
+        data_planu=data_planu_date,
+        user_login=user_login,
+        szarza_nr=szarza_nr_raw,
+    )
+    flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
+    if ok:
+        audit_log('DODANIE pary dosypki Zasyp', f'plan_id={plan_id}, linia={linia}, szarza_nr={szarza_nr_raw}, produkt={produkt}')
+    return redirect(bezpieczny_powrot())
+
+
+@production_bp.route('/zasyp_usun_ostatnia_pare_dosypki/<int:plan_id>', methods=['POST'])
+@roles_required('pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'magazynier')
+def zasyp_usun_ostatnia_pare_dosypki(plan_id):
+    """Usuwa ostatnio dodaną parę AGRO (39/49..31/41, a na końcu 3/4) dla bieżącej szarży."""
+    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+    szarza_nr_raw = request.form.get('szarza_nr')
+
+    conn = get_db_connection()
+    try:
+        table_plan = get_table_name('plan_produkcji', linia)
+        cursor = conn.cursor()
+        cursor.execute(
+            f"SELECT sekcja, status, produkt FROM {table_plan} WHERE id=%s",
+            (plan_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            flash('❌ Zlecenie nie znalezione', 'danger')
+            return redirect(bezpieczny_powrot())
+        sekcja, status, produkt = row[0], row[1], row[2]
+        if sekcja != 'Zasyp':
+            flash('❌ To nie jest zlecenie Zasyp', 'danger')
+            return redirect(bezpieczny_powrot())
+        if status != 'w toku':
+            flash('❌ Zlecenie musi być W TOKU', 'danger')
+            return redirect(bezpieczny_powrot())
+    except Exception as e:
+        current_app.logger.error('zasyp_usun_ostatnia_pare_dosypki failed: %s', e, exc_info=True)
+        flash('❌ Błąd usuwania pary dosypki', 'danger')
+        return redirect(bezpieczny_powrot())
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    ok, msg = ZasypEtapyService.remove_last_agro_dosypka_pair(
+        plan_id=plan_id,
+        linia=linia,
+        szarza_nr=szarza_nr_raw,
+    )
+    flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
+    if ok:
+        audit_log('USUNIĘCIE ostatniej pary dosypki Zasyp', f'plan_id={plan_id}, linia={linia}, szarza_nr={szarza_nr_raw}, produkt={produkt}')
+    return redirect(bezpieczny_powrot())
+
+
+@production_bp.route('/zasyp_usun_punkt_kontrolny/<int:plan_id>', methods=['POST'])
+@roles_required('pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'magazynier')
+def zasyp_usun_punkt_kontrolny(plan_id):
+    """Usuwa cały punkt kontrolny (całą sesję szarży) dla wskazanego planu."""
+    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+    szarza_nr_raw = request.form.get('szarza_nr')
+
+    conn = get_db_connection()
+    try:
+        table_plan = get_table_name('plan_produkcji', linia)
+        cursor = conn.cursor()
+        cursor.execute(
+            f"SELECT sekcja, status, produkt FROM {table_plan} WHERE id=%s",
+            (plan_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            flash('❌ Zlecenie nie znalezione', 'danger')
+            return redirect(bezpieczny_powrot())
+        sekcja, status, produkt = row[0], row[1], row[2]
+        if sekcja != 'Zasyp':
+            flash('❌ To nie jest zlecenie Zasyp', 'danger')
+            return redirect(bezpieczny_powrot())
+        if status != 'w toku':
+            flash('❌ Zlecenie musi być W TOKU', 'danger')
+            return redirect(bezpieczny_powrot())
+    except Exception as e:
+        current_app.logger.error('zasyp_usun_punkt_kontrolny failed: %s', e, exc_info=True)
+        flash('❌ Błąd usuwania punktu kontrolnego', 'danger')
+        return redirect(bezpieczny_powrot())
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    ok, msg = ZasypEtapyService.remove_kontrolny_session(
+        plan_id=plan_id,
+        linia=linia,
+        szarza_nr=szarza_nr_raw,
+    )
+    flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
+    if ok:
+        audit_log('USUNIĘCIE punktu kontrolnego Zasyp', f'plan_id={plan_id}, linia={linia}, szarza_nr={szarza_nr_raw}, produkt={produkt}')
     return redirect(bezpieczny_powrot())
 
 # --- ZWOLNIENIE MIESZALNIKA ---
@@ -831,6 +1244,10 @@ def api_zwolnij_mieszalnik():
 @login_required
 def api_poll_zwolnienie():
     """Skrypt w dashboard.html pyta co X sekund czy był sygnał."""
+    role = str(session.get('rola') or '').lower()
+    if role not in ['pracownik', 'produkcja']:
+        return jsonify({"new_zwolnienie": False})
+
     linia = request.args.get('linia', 'AGRO').upper()
     try:
         last_seen = float(request.args.get('last_seen', 0))

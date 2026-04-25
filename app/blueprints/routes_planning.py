@@ -16,22 +16,24 @@ planning_bp = Blueprint('planning', __name__)
 
 def bezpieczny_powrot():
     """Return to appropriate view based on user role."""
+    # Prefer returning to explicit context from current action.
+    sekcja = request.args.get('sekcja') or request.form.get('sekcja')
+    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+    data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+
+    if sekcja:
+        return url_for('main.index', sekcja=sekcja, data=data, linia=linia)
+
+    if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
+        return url_for('planista.panel_planisty', data=data)
+
     role = session.get('rola', '')
     if role in ['lider', 'produkcja']:
         return url_for('planista.bufor_page')
-    elif role == 'planista':
-        return url_for('planista.panel_planisty', data=str(date.today()))
-    elif role == 'admin':
+    if role == 'admin':
         return url_for('admin.admin_panel')
-    """Wraca do Planisty jeśli to on klikał, w przeciwnym razie na Dashboard"""
-    if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
-        data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-        return url_for('planista.panel_planisty', data=data)
-    
-    # Try to get sekcja from query string first (URL parameters), then from form
-    sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
-    data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-    return url_for('main.index', sekcja=sekcja, data=data)
+
+    return url_for('main.index', sekcja='Zasyp', data=data, linia=linia)
 
 
 # Use `log_plan_history` implementation from `app.db` to avoid duplicate logic
@@ -1033,6 +1035,19 @@ def edytuj_plan_ajax():
                     conn.commit()
             except Exception as e:
                 current_app.logger.error(f'Error syncing bufor.tonaz_rzeczywisty (AJAX): {e}', exc_info=True)
+
+            # Sync bufor.produkt when Zasyp produkt changes
+            try:
+                if 'produkt' in changes and (before[3] or '').lower() == 'zasyp':
+                    table_bufor = get_table_name('bufor', linia)
+                    cursor.execute(
+                        f"UPDATE {table_bufor} SET produkt = %s "
+                        f"WHERE zasyp_id = %s",
+                        (changes['produkt']['after'], pid)
+                    )
+                    conn.commit()
+            except Exception as e:
+                current_app.logger.error(f'Error syncing bufor.produkt (AJAX): {e}', exc_info=True)
 
             # If this edited plan is a Zasyp, propagate key changes to linked Workowanie entries
             try:

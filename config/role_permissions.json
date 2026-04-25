@@ -59,7 +59,7 @@
       "readonly": true
     },
     "laborant": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "lider": {
@@ -331,7 +331,7 @@
       "readonly": false
     },
     "laborant": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "lider": {

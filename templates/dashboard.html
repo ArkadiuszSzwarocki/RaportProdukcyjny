@@ -81,6 +81,148 @@
             {% endif %}
         </div>
     </div>
+    <style>
+        .active-order-floating-bar-wrap {
+            display: flex;
+            justify-content: flex-end;
+            margin: 8px 14px 2px;
+        }
+
+        .active-order-floating-bar {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            max-width: 100%;
+        }
+
+        .active-order-szarze-wrap {
+            margin: 0;
+            align-self: start;
+        }
+
+        .active-order-szarze-panel {
+            width: min(420px, calc(100vw - 48px));
+            border: 1px solid #d7e1eb;
+            border-radius: 10px;
+            background: #f7fafc;
+            box-shadow: 0 2px 8px rgba(31, 58, 86, 0.08);
+            padding: 10px 12px;
+        }
+
+        .active-order-szarze-title {
+            font-size: 0.9em;
+            color: #647684;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .active-order-szarze-item {
+            border-bottom: 1px solid #dfe7ef;
+            padding: 6px 0;
+        }
+
+        .active-order-szarze-item:last-child {
+            border-bottom: 0;
+        }
+
+        .active-order-szarze-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .active-order-szarze-left {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.92em;
+        }
+
+        .agro-header-controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-left: 0;
+        }
+
+        .agro-kgph-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 0;
+            flex-wrap: wrap;
+        }
+
+        .agro-kgph-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 0.74em;
+            font-weight: 700;
+            border: 1px solid #d7e3ee;
+            background: #f6fbff;
+            color: #1f4f7a;
+            white-space: nowrap;
+        }
+
+        .active-order-floating-bar .agro-header-controls .btn-action {
+            font-size: 0.74em !important;
+            line-height: 1.1;
+            padding: 4px 8px !important;
+            white-space: nowrap;
+        }
+
+        .active-order-floating-bar .agro-kgph-pill {
+            font-size: 0.71em;
+            padding: 3px 7px;
+        }
+
+        @media (max-width: 1280px) {
+            .active-order-floating-bar-wrap {
+                margin: 8px 10px 2px;
+            }
+
+            .active-order-szarze-panel {
+                width: 100%;
+            }
+
+            .active-order-floating-bar {
+                width: 100%;
+                justify-content: flex-end;
+            }
+
+            .active-order-floating-bar .agro-kgph-inline {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .active-order-floating-bar .agro-kgph-pill {
+                width: 100%;
+                justify-content: space-between;
+            }
+        }
+
+        @media (min-width: 1380px) {
+            .szarza-row-layout {
+                display: grid;
+                grid-template-columns: minmax(280px, 1.2fr) minmax(240px, 0.8fr);
+                gap: 12px;
+                align-items: start;
+            }
+
+            .szarza-dosypki-side {
+                margin-top: 0 !important;
+                padding-left: 12px !important;
+                border-left: 1px dashed #cad7e3;
+            }
+        }
+    </style>
     <script>
         // URL template for confirming dosypka (use replace to insert id)
         window._urls = window._urls || {};
@@ -88,8 +230,56 @@
         window._urls.anuluj_dosypke = "{{ url_for('production.anuluj_dosypke', dosypka_id=0) }}";
         // Current user role for conditional UI features
         window._currentRole = "{{ rola }}";
+        window._isAgroZasypOperator = ['pracownik', 'produkcja'].includes(String(window._currentRole || '').toLowerCase());
         // Current hall/linia for AGRO-aware API calls
         window._linia = "{{ linia or 'PSD' }}";
+
+        function getAutoSzarzaMode() {
+            try {
+                const mode = (localStorage.getItem('zasyp_auto_szarza_mode') || 'manual').toLowerCase();
+                return mode === 'auto' ? 'auto' : 'manual';
+            } catch (e) {
+                return 'manual';
+            }
+        }
+
+        function applyAutoSzarzaMode() {
+            const mode = getAutoSzarzaMode();
+
+            document.querySelectorAll('.auto-szarza-mode-input').forEach((el) => {
+                el.value = mode;
+            });
+
+            document.querySelectorAll('.auto-szarza-switch').forEach((el) => {
+                el.checked = (mode === 'auto');
+            });
+
+            document.querySelectorAll('.manual-szarza-btn').forEach((el) => {
+                if (mode === 'auto') {
+                    el.style.opacity = '0.45';
+                    el.style.filter = 'grayscale(35%)';
+                    el.style.pointerEvents = 'none';
+                    el.title = 'Tryb AUTO SZARŻA jest włączony. Dodanie nastąpi przy starcie Naważania.';
+                } else {
+                    el.style.opacity = '';
+                    el.style.filter = '';
+                    el.style.pointerEvents = '';
+                    el.title = '+ SZARŻA';
+                }
+            });
+        }
+
+        function toggleAutoSzarzaMode(checkbox) {
+            const mode = checkbox && checkbox.checked ? 'auto' : 'manual';
+            try {
+                localStorage.setItem('zasyp_auto_szarza_mode', mode);
+            } catch (e) {}
+            applyAutoSzarzaMode();
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            applyAutoSzarzaMode();
+        });
 
         {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
         let zwolnienieLastSeen = Date.now() / 1000;
@@ -104,7 +294,6 @@
                 if(data.success) {
                     alert('Sygnał został wystrzelony pomyślnie!');
                     zwolnienieLastSeen = data.timestamp;
-                    showZwolnienieBanner();
                 } else {
                     alert('Błąd podczas wysyłania sygnału.');
                 }
@@ -160,6 +349,7 @@
 
                 // store reference to form to submit later
                 window._pendingZasypForm = form;
+                form.dataset.waitingSzarzaConfirm = '1';
                 modal.classList.add('open');
                 modalInput.focus();
                 return false;
@@ -185,6 +375,100 @@
             }
         }
 
+        function _setFormSubmitButtonsLoading(form, isLoading) {
+            if (!form) return;
+            const buttons = form.querySelectorAll('button[type="submit"]');
+            buttons.forEach((btn) => {
+                if (!btn.dataset.originalText) {
+                    btn.dataset.originalText = btn.textContent || '';
+                }
+                if (isLoading) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                    btn.textContent = '⏳ Przetwarzanie...';
+                } else {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                    btn.textContent = btn.dataset.originalText || btn.textContent;
+                }
+            });
+        }
+
+        function handleEtapStopForm(form) {
+            if (!form) return true;
+            const etap = String(form.dataset.etap || '');
+            const linia = String(form.dataset.linia || '').toUpperCase();
+            const isAgroDecisionStop = linia === 'AGRO' && (
+                etap === '2' ||
+                etap === '4' ||
+                (etap.length > 1 && etap.startsWith('4'))
+            );
+            if (!isAgroDecisionStop) {
+                return true;
+            }
+
+            const modal = document.getElementById('etap2-choice-modal');
+            if (!modal) {
+                return true;
+            }
+
+            window._pendingEtap2StopForm = form;
+            modal.classList.add('open');
+            return false;
+        }
+
+        function _etap2ChoiceSelect(nextAction) {
+            const modal = document.getElementById('etap2-choice-modal');
+            const followModal = document.getElementById('etap2-oprozniamy-modal');
+            if (modal) modal.classList.remove('open');
+
+            if (nextAction === 'oprozniamy') {
+                if (followModal) {
+                    followModal.classList.add('open');
+                    return;
+                }
+                _etap2FinalSubmit('oprozniamy_end_today');
+                return;
+            }
+
+            _etap2FinalSubmit('add_pair');
+        }
+
+        function _etap2FinalSubmit(nextAction) {
+            const form = window._pendingEtap2StopForm;
+            if (!form) {
+                return;
+            }
+            let hidden = form.querySelector('input[name="next_action"]');
+            if (!hidden) {
+                hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'next_action';
+                form.appendChild(hidden);
+            }
+            hidden.value = nextAction;
+
+            window._pendingEtap2StopForm = null;
+            try { form.submit(); } catch (e) { console.error('Stop form submit failed', e); }
+        }
+
+        function _etap2OprozniamySelect(mode) {
+            const followModal = document.getElementById('etap2-oprozniamy-modal');
+            if (followModal) followModal.classList.remove('open');
+            const nextAction = mode === 'new_point' ? 'oprozniamy_new_point' : 'oprozniamy_end_today';
+            _etap2FinalSubmit(nextAction);
+        }
+
+        function _etap2ChoiceCancel() {
+            const modal = document.getElementById('etap2-choice-modal');
+            const followModal = document.getElementById('etap2-oprozniamy-modal');
+            if (modal) modal.classList.remove('open');
+            if (followModal) followModal.classList.remove('open');
+            window._pendingEtap2StopForm = null;
+        }
+
         // Modal confirm/cancel handlers
         function _szarzaModalConfirm() {
             const modal = document.getElementById('szarza-modal');
@@ -202,6 +486,8 @@
             let hidden = form.querySelector('input[name="wielkosc_szarzy_kg"]');
             if (!hidden) { hidden = document.createElement('input'); hidden.type = 'hidden'; hidden.name = 'wielkosc_szarzy_kg'; form.appendChild(hidden); }
             hidden.value = String(parsed);
+            delete form.dataset.waitingSzarzaConfirm;
+            _setFormSubmitButtonsLoading(form, true);
             modal.classList.remove('open');
             // submit the stored form
             try { form.submit(); } catch (e) { console.error('Form submit failed', e); }
@@ -210,20 +496,96 @@
         function _szarzaModalCancel() {
             const modal = document.getElementById('szarza-modal');
             if (modal) modal.classList.remove('open');
+            const form = window._pendingZasypForm;
+            if (form) {
+                delete form.dataset.waitingSzarzaConfirm;
+                _setFormSubmitButtonsLoading(form, false);
+            }
             window._pendingZasypForm = null;
         }
 
-        // Poll for zwolnienie signal unconditionally on Zasyp Agro
-        setInterval(() => {
-            fetch(`/api/zasyp/poll_zwolnienie?linia=AGRO&last_seen=${zwolnienieLastSeen}`)
-                .then(r => r.json())
-                .then(data => {
-                    if(data.new_zwolnienie) {
-                        zwolnienieLastSeen = data.timestamp;
-                        showZwolnienieBanner();
+        function toggleManualEtapForm(targetId) {
+            const el = document.getElementById(targetId);
+            if (!el) return;
+            const isHidden = el.style.display === 'none' || !el.style.display;
+            el.style.display = isHidden ? 'block' : 'none';
+            if (isHidden) {
+                applyNowMaxToTimeInputs(el);
+            }
+        }
+
+        function currentHhMm() {
+            const now = new Date();
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            return `${hh}:${mm}`;
+        }
+
+        function applyNowMaxToTimeInputs(root) {
+            const scope = root || document;
+            const maxVal = currentHhMm();
+            scope.querySelectorAll('input.manual-time-input[type="time"]').forEach((inp) => {
+                inp.max = maxVal;
+            });
+        }
+
+        function formatMmSs(totalSeconds) {
+            const sec = Math.max(0, Number(totalSeconds) || 0);
+            const ss = String(Math.floor(sec % 60)).padStart(2, '0');
+            const totalMinutes = Math.floor(sec / 60);
+            if (totalMinutes < 60) {
+                const mm = String(totalMinutes).padStart(2, '0');
+                return `${mm}:${ss}`;
+            }
+            const hh = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+            const mm = String(totalMinutes % 60).padStart(2, '0');
+            return `${hh}:${mm}:${ss}`;
+        }
+
+        function startEtapyTimers() {
+            const etapTimers = Array.from(document.querySelectorAll('.etap-live-timer'));
+            const totalTimers = Array.from(document.querySelectorAll('.etapy-total-live-timer'));
+            if (!etapTimers.length && !totalTimers.length) return;
+
+            const tick = () => {
+                etapTimers.forEach((el) => {
+                    const running = String(el.dataset.running || '0') === '1';
+                    let seconds = Number(el.dataset.seconds || '0');
+                    if (running) {
+                        seconds += 1;
+                        el.dataset.seconds = String(seconds);
                     }
-                }).catch(e => console.error("Poll err", e));
-        }, 3000); // exactly every 3s
+                    el.textContent = formatMmSs(seconds);
+                });
+
+                totalTimers.forEach((el) => {
+                    const running = String(el.dataset.running || '0') === '1';
+                    let seconds = Number(el.dataset.seconds || '0');
+                    if (running) {
+                        seconds += 1;
+                        el.dataset.seconds = String(seconds);
+                    }
+                    el.textContent = formatMmSs(seconds);
+                });
+            };
+
+            tick();
+            setInterval(tick, 1000);
+        }
+
+        // Poll for zwolnienie only for AGRO Zasyp operators.
+        if (window._isAgroZasypOperator) {
+            setInterval(() => {
+                fetch(`/api/zasyp/poll_zwolnienie?linia=AGRO&last_seen=${zwolnienieLastSeen}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if(data.new_zwolnienie) {
+                            zwolnienieLastSeen = data.timestamp;
+                            showZwolnienieBanner();
+                        }
+                    }).catch(e => console.error("Poll err", e));
+            }, 3000); // exactly every 3s
+        }
         {% endif %}
 
         /* --- Modal markup and styles for entering wielkość szarży --- */
@@ -257,6 +619,19 @@
             #szarza-modal .btn-prim:hover { background: #219150; }
             #szarza-modal .btn-sec { background:#f1f2f6; color:#2f3542; }
             #szarza-modal .btn-sec:hover { background: #dfe4ea; }
+
+            #etap2-choice-modal, #etap2-oprozniamy-modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:9999; backdrop-filter: blur(4px); }
+            #etap2-choice-modal.open, #etap2-oprozniamy-modal.open { display:flex; }
+            #etap2-choice-modal .modal-card, #etap2-oprozniamy-modal .modal-card { background:#fff; border-radius:12px; padding:24px; width:460px; box-shadow:0 15px 35px rgba(0,0,0,0.3); border:1px solid #ddd; }
+            #etap2-choice-modal h3, #etap2-oprozniamy-modal h3 { margin:0 0 8px 0; font-size:1.1em; color:#2c3e50; text-align:center; }
+            #etap2-choice-modal .modal-sub, #etap2-oprozniamy-modal .modal-sub { margin:0 0 16px 0; font-size:0.9em; color:#6c7a89; text-align:center; }
+            .choice-actions { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+            .choice-btn { min-height:68px; border:none; border-radius:10px; cursor:pointer; font-weight:700; font-size:0.95em; color:#fff; }
+            .choice-add { background:#2980b9; }
+            .choice-empty { background:#16a085; }
+            .choice-new { background:#8e44ad; }
+            .choice-end { background:#7f8c8d; }
+            .choice-cancel { margin-top:12px; width:100%; min-height:42px; border:none; border-radius:8px; background:#ecf0f1; color:#2f3542; cursor:pointer; font-weight:700; }
             `;
             document.head.appendChild(style);
 
@@ -280,9 +655,42 @@
                     </div>
                 </div>
             </div>`;
+
+            const etap2ChoiceHtml = `
+            <div id="etap2-choice-modal" role="dialog" aria-modal="true">
+                <div class="modal-card">
+                    <h3>Co dalej po Mieszaniu i oczekiwaniu na LAB?</h3>
+                    <p class="modal-sub">Wybierz następny krok. START uruchomi się automatycznie.</p>
+                    <div class="choice-actions">
+                        <button type="button" class="choice-btn choice-add" id="etap2-choice-add">Dodaj parę<br>i START dosypki</button>
+                        <button type="button" class="choice-btn choice-empty" id="etap2-choice-empty">Opróżniamy<br>i dalej...</button>
+                    </div>
+                    <button type="button" class="choice-cancel" id="etap2-choice-cancel">Anuluj</button>
+                </div>
+            </div>`;
+            const etap2OprozniamyHtml = `
+            <div id="etap2-oprozniamy-modal" role="dialog" aria-modal="true">
+                <div class="modal-card">
+                    <h3>Po opróżnianiu co robimy?</h3>
+                    <p class="modal-sub">Wybierz, czy zaczynamy nowy punkt, czy kończymy na dziś.</p>
+                    <div class="choice-actions">
+                        <button type="button" class="choice-btn choice-new" id="etap2-opr-new">Nowy punkt<br>ze STARTEM Naważania</button>
+                        <button type="button" class="choice-btn choice-end" id="etap2-opr-end">Kończymy<br>na dziś</button>
+                    </div>
+                    <button type="button" class="choice-cancel" id="etap2-opr-cancel">Anuluj</button>
+                </div>
+            </div>`;
             document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.body.insertAdjacentHTML('beforeend', etap2ChoiceHtml);
+            document.body.insertAdjacentHTML('beforeend', etap2OprozniamyHtml);
             document.getElementById('szarza-confirm').addEventListener('click', _szarzaModalConfirm);
             document.getElementById('szarza-cancel').addEventListener('click', _szarzaModalCancel);
+            document.getElementById('etap2-choice-add').addEventListener('click', function(){ _etap2ChoiceSelect('add_pair'); });
+            document.getElementById('etap2-choice-empty').addEventListener('click', function(){ _etap2ChoiceSelect('oprozniamy'); });
+            document.getElementById('etap2-choice-cancel').addEventListener('click', _etap2ChoiceCancel);
+            document.getElementById('etap2-opr-new').addEventListener('click', function(){ _etap2OprozniamySelect('new_point'); });
+            document.getElementById('etap2-opr-end').addEventListener('click', function(){ _etap2OprozniamySelect('end_today'); });
+            document.getElementById('etap2-opr-cancel').addEventListener('click', _etap2ChoiceCancel);
             
             const input = document.querySelector('#szarza-modal input[name="modal_wielkosc_szarzy_kg"]');
             if (input) {
@@ -291,7 +699,12 @@
                 });
             }
 
-            document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ if(window._szarzaModalCancel) _szarzaModalCancel(); } });
+            document.addEventListener('keydown', (e)=>{
+                if(e.key==='Escape'){
+                    if(window._szarzaModalCancel) _szarzaModalCancel();
+                    if(window._etap2ChoiceCancel) _etap2ChoiceCancel();
+                }
+            });
         })();
     </script>
 </div>
@@ -404,8 +817,14 @@
     {% endif %}
 </div>
 
-{% set ns = namespace(is_active=false) %}
-{% for p in plan %}{% if p[3] == 'w toku' %}{% set ns.is_active = true %}{% endif %}{% endfor %}
+{% set ns = namespace(is_active=false, active_plan_id=None) %}
+{% for p in plan %}
+{% if p[3] == 'w toku' %}
+{% set ns.is_active = true %}
+{% if ns.active_plan_id is none %}{% set ns.active_plan_id = p[0] %}{% endif %}
+{% endif %}
+{% endfor %}
+{% set agro_focus_mode = (sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active) %}
 
 {# Defensive: prefer server-provided `hr_pracownicy`; fallback to full lists if not provided #}
 {% if hr_pracownicy is not defined %}
@@ -481,9 +900,51 @@
         </table>
         {% else %}
         <!-- INNE SEKCJE: Wyświetl plan_dnia (plany produkcji) jako karty -->
+        {% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active and rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant'] %}
+        {% set fb_pid = ns.active_plan_id %}
+        {% set fb_szarza_nr = (etapy_curr_szarza.get(fb_pid, 1) if etapy_curr_szarza is defined and etapy_curr_szarza else 1) %}
+        {% set fb_etapy = (etapy_mapa.get(fb_pid, []) if etapy_mapa is defined and etapy_mapa else []) %}
+        {% set fb_controls = namespace(show_remove_last_pair=false) %}
+        {% for e in fb_etapy %}
+            {% set e_str = e.etap|string %}
+            {% if e.etap == 3 or e.etap == 4 or (e_str|length > 1 and (e_str[0] == '3' or e_str[0] == '4')) %}
+                {% set fb_controls.show_remove_last_pair = true %}
+            {% endif %}
+        {% endfor %}
+        {% set fb_kstats = kgph_stats_mapa.get(fb_pid) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
+        <div class="active-order-floating-bar-wrap">
+            <div class="active-order-floating-bar">
+                {% if fb_kstats %}
+                <div class="agro-kgph-inline">
+                    <span class="agro-kgph-pill" title="Wydajność rzeczywista (czas od startu do stopu lub do teraz, jeśli zlecenie trwa)">
+                        Wydajność rzeczywista: {{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '-' }} kg/h
+                    </span>
+                    <span class="agro-kgph-pill" title="Wydajność produkcyjna (czas produkcyjny na podstawie etapów)">
+                        Wydajność produkcyjna: {{ (fb_kstats.timeline|round(1)) if fb_kstats.timeline else '-' }} kg/h
+                    </span>
+                </div>
+                {% endif %}
+                <div class="agro-header-controls">
+                    {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] %}
+                    <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=fb_pid) }}" style="margin:0; display:inline-block;">
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                        <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
+                        <button type="submit" class="btn-action btn-blue" onclick="return confirm('Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel szarży, a obecne pozostaną poniżej.');">
+                            + Kolejny etap
+                        </button>
+                    </form>
+                    {% endif %}
+
+                </div>
+            </div>
+        </div>
+
+        {% endif %}
         <div class="cards">
+            {% set active_szarze_panel = namespace(rendered=false) %}
             {% for p in plan %}
-            <div class="card {% if p[3] == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}" style="position: relative; overflow: visible;">
+            <div class="card {% if p[3] == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}" style="position: relative; overflow: visible; {% if agro_focus_mode and p[3] != 'w toku' %}display:none;{% endif %}">
                 <div class="card-header">
                     <strong class="card-title">
                         {{ loop.index }}. {{ p[1] }}
@@ -531,12 +992,54 @@
                         {% endif %}
                         {% endif %}
                         {% elif p[3] == 'w toku' %}
+                        {% set header_szarza_nr = (etapy_curr_szarza.get(p[0], 1) if etapy_curr_szarza is defined and etapy_curr_szarza else 1) %}
+                        {% set header_etapy = (etapy_mapa.get(p[0], []) if etapy_mapa is defined and etapy_mapa else []) %}
+                        {% set header_controls = namespace(show_remove_last_pair=false) %}
+                        {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
+                            {% for e in header_etapy %}
+                                {% set e_str = e.etap|string %}
+                                {% if e.etap == 3 or e.etap == 4 or (e_str|length > 1 and (e_str[0] == '3' or e_str[0] == '4')) %}
+                                    {% set header_controls.show_remove_last_pair = true %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+
+                        {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant'] and (not ns.is_active or p[0] != ns.active_plan_id) %}
+                        <div class="agro-header-controls">
+                            {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] %}
+                            <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;">
+                                <input type="hidden" name="linia" value="{{ linia }}">
+                                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                                <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
+                                <button type="submit" class="btn-action btn-blue" style="padding: 4px 8px; font-size: 0.78em;" onclick="return confirm('Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel szarży, a obecne pozostaną poniżej.');">
+                                    + Kolejny etap
+                                </button>
+                            </form>
+                            {% endif %}
+
+                        </div>
+
+                        {% set kstats = kgph_stats_mapa.get(p[0]) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
+                        {% if kstats %}
+                        <div class="agro-kgph-inline">
+                            <span class="agro-kgph-pill" title="Wydajność rzeczywista (czas od startu do stopu lub do teraz, jeśli zlecenie trwa)">
+                                Wydajność rzeczywista: {{ (kstats.real_work|round(1)) if kstats.real_work else '-' }} kg/h
+                            </span>
+                            <span class="agro-kgph-pill" title="Wydajność produkcyjna (czas produkcyjny na podstawie etapów)">
+                                Wydajność produkcyjna: {{ (kstats.timeline|round(1)) if kstats.timeline else '-' }} kg/h
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% endif %}
+
+                        {% if rola not in ['laborant', 'laboratorium'] %}
                         <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja, linia=linia) }}"
                             class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
+                        {% endif %}
                         {% elif p[3] == 'zakonczone' %}
                         {% if rola in ['lider', 'admin'] %}
                         <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]|int) }}" method="POST"
-                            onsubmit="return confirm('Wznowić {{ p[1] }}?');" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><button
+                            onsubmit="return confirm('Wznowić {{ p[1] }}?');" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_planu" value="{{ dzisiaj }}"><button
                                 type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button></form>
                         {% endif %}
                         {% endif %}
@@ -551,6 +1054,9 @@
                     <div class="card-row"><strong>Typ:</strong> {{ p[9]|upper }}</div>
                     {% if p[4] %}<div class="card-row"><strong>🟢 Start:</strong> {{ p[4] }}</div>{% endif %}
                     {% if p[5] %}<div class="card-row"><strong>🔴 Stop:</strong> {{ p[5] }}</div>{% endif %}
+                    {% if p[3] == 'w toku' and p[4] %}
+                    <div class="card-row"><strong>⏳ Czas od startu:</strong> <span class="order-elapsed duration-badge" data-start="{{ dzisiaj }} {{ p[4] }}:00">0s</span></div>
+                    {% endif %}
                     {% if p[6] is not none and p[6] > 0 %}
                     {% set mins = p[6] %}
                     {% set h = (mins // 60) %}
@@ -558,15 +1064,6 @@
                     <div class="card-row"><strong>⏱️ Czas:</strong> {% if h > 0 %}{{ h }}h {% endif %}{{ m }}m</div>
                     {% endif %}
                 </div>
-
-                {% if sekcja == 'Zasyp' and linia == 'AGRO' and p[3] == 'w toku' %}
-                <a href="{{ url_for('production.agro_mix_inventory', selected_plan_id=p[0]) }}" 
-                   class="card-side-mix-btn" 
-                   data-slide 
-                   style="position: absolute; right: -5px; top: 60px; width: 30px; height: 110px; background: #9b59b6; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; text-decoration: none; transition: all 0.2s; box-shadow: -2px 2px 8px rgba(0,0,0,0.2); z-index: 10;">
-                    <span style="writing-mode: vertical-rl; transform: rotate(180deg); color: white; font-weight: 800; font-size: 0.75em; letter-spacing: 1px; white-space: nowrap; padding: 10px 0;">DODAJ MIX</span>
-                </a>
-                {% endif %}
 
                 <div class="card-actions">
                     {% if sekcja != 'Magazyn' %}
@@ -580,22 +1077,16 @@
                         onclick="toggleDetails('{{ p[0] }}')">Palety ({{ palety_count }})</button>
                     {% elif sekcja == 'Zasyp' %}
                     {% if rola != 'laborant' %}
-                    <a href="{{ url_for('production.szarza_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green"
+                    <a href="{{ url_for('production.szarza_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green manual-szarza-btn"
                         data-slide>+ SZARŻA</a>
                     {% endif %}
-                    {% set dosypki_pending_count = dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa else
-                    0 %}
-                    <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}"
-                        class="btn-action btn-blue btn-with-badge" data-slide data-plan-id="{{ p[0] }}">
-                        <span>Dosypki</span>
-                        {% if dosypki_pending_count > 0 %}
-                        <span class="action-badge">{{ dosypki_pending_count }}</span>
-                        {% endif %}
-                    </a>
                     {% set szarze_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and
                     palety_mapa[p[0]]) else 0 %}
+                    {% set active_agro_external = (sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active and p[0] == ns.active_plan_id) %}
+                    {% if not active_agro_external %}
                     <button type="button" class="btn-action btn-outline-warning"
                         onclick="toggleDetails('{{ p[0] }}')">Szarże ({{ szarze_count }})</button>
+                    {% endif %}
                     {% else %}
                     {% endif %}
                     {% elif p[3] == 'zakonczone' %}
@@ -616,38 +1107,13 @@
                 <div id="details-{{ p[0] }}" class="details-row" style="display:none;">
                     <div class="p-10">
                         
-                        {# List of AVAILABLE MIXes (Inventory) #}
-                        {% if linia == 'AGRO' and agro_mix_dostepne %}
-                        <div class="available-mix-container" style="background: #f8f9fa; border: 1px dashed #ccc; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
-                            <div style="font-weight: bold; color: #7f8c8d; font-size: 0.85em; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                                <span class="material-icons" style="font-size: 16px;">inventory_2</span> Dostępne MIXy (Zasobnik)
-                            </div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                                {% for amix in agro_mix_dostepne %}
-                                <div class="mix-token" style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 5px 10px; display: flex; align-items: center; gap: 8px; font-size: 0.85em;">
-                                    <strong>{{ amix.kategoria.replace('_', ' ') }}</strong>
-                                    <span class="text-primary" style="font-weight: 700;">{{ amix.waga_kg }} kg</span>
-                                    {% if rola != 'pracownik' and p[3] != 'zakonczone' %}
-                                    <form action="{{ url_for('production.agro_mix_consume') }}" method="POST" style="margin: 0;">
-                                        <input type="hidden" name="mix_id" value="{{ amix.id }}">
-                                        <input type="hidden" name="plan_id" value="{{ p[0] }}">
-                                        <button type="submit" class="btn-action btn-green" style="font-size: 10px; padding: 2px 6px;" title="Dodaj ten MIX do tego Zasypu">
-                                            DO ZASYPU
-                                        </button>
-                                    </form>
-                                    {% endif %}
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endif %}
-
                         <div class="small text-muted mb-5"><strong>Lista szarż zrobionych:</strong></div>
                         {% if palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]] %}
                         {% for pal in palety_mapa[p[0]] %}
                         <div class="card-row"
                             style="position:relative; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-color); padding: 6px 0;">
-                            <div style="flex: 1;">
+                            <div class="szarza-row-layout" style="width: 100%;">
+                                <div style="flex: 1; min-width: 0;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span>#{{ loop.index }} • {{ pal[1] }}</span>
                                     <strong class="text-primary">{{ pal[0]|int }} kg</strong>
@@ -659,15 +1125,11 @@
                                     {% endif %}
                                 </a>
                                 <div style="display: flex; align-items: center; gap: 8px;">
-                                    {% if rola != 'pracownik' and p[3] != 'zakonczone' %}
-                                    <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2], linia=linia) }}"
-                                        class="btn-action btn-green"
-                                        style="font-size: 11px; padding: 4px 8px; white-space: nowrap;" data-slide>+
-                                        dosypka</a>
-                                    {% endif %}
                                 </div>
+                                </div>
+
                                 {% if pal[3] and pal[3]|length > 0 %}
-                                <div style="margin-top: 6px; padding-left: 20px; font-size: 0.85em; color: #555;">
+                                <div class="szarza-dosypki-side" style="margin-top: 6px; padding-left: 20px; font-size: 0.85em; color: #555;">
                                     <div style="font-weight: 600; margin-bottom: 3px;">Dosypki:</div>
                                     {% for dosypka_item in pal[3] %}
                                     <div style="line-height: 1.4;">{{ dosypka_item[0] }}: {{ dosypka_item[1] }} kg {% if
@@ -708,6 +1170,8 @@
                                 <script>
                                     document.addEventListener('DOMContentLoaded', function(){
                                         try{
+                                        startEtapyTimers();
+                                        applyNowMaxToTimeInputs(document);
                                             if (typeof tippy !== 'undefined'){
                                                 tippy('.szarza-note', {
                                                     content: (el)=>el.getAttribute('data-note') || 'Brak notatki',
@@ -744,78 +1208,261 @@
                 </div>
                 {% endif %}
             </div>
+            {% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active and p[0] == ns.active_plan_id and not active_szarze_panel.rendered %}
+            {% set active_szarze_panel.rendered = true %}
+            <div class="active-order-szarze-wrap">
+                <div class="active-order-szarze-panel">
+                    <div class="active-order-szarze-title">Lista szarż zrobionych:</div>
+                    {% set fb_palety = (palety_mapa.get(p[0]) if palety_mapa and (p[0] in palety_mapa) else []) %}
+                    {% if fb_palety %}
+                        {% for pal in fb_palety %}
+                        <div class="active-order-szarze-item">
+                            <div class="active-order-szarze-line">
+                                <div class="active-order-szarze-left">
+                                    <span>#{{ loop.index }} • {{ pal[1] }}</span>
+                                    <strong class="text-primary">{{ pal[0]|int }} kg</strong>
+                                    <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-' }}</span>
+                                </div>
+                            </div>
+                            {% if pal[3] and pal[3]|length > 0 %}
+                            <div style="margin-top:4px; font-size:0.82em; color:#495a69;">
+                                {% for dosypka_item in pal[3] %}
+                                <div>{{ dosypka_item[0] }}: {{ dosypka_item[1] }} kg {% if dosypka_item[2] %}({{ dosypka_item[2] }}){% endif %}</div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="small text-muted">Brak zarejestrowanych szarż.</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
             {% else %}
             <div style="grid-column: 1/-1; text-align: center; padding: 30px; color: #999;">{{ _('brak_danych') }}</div>
             {% endfor %}
         </div>
         {% endif %}
 
+        {% if agro_focus_mode and ns.active_plan_id and not (sekcja == 'Zasyp' and linia == 'AGRO') %}
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var details = document.getElementById('details-{{ ns.active_plan_id }}');
+                if (details) {
+                    details.style.display = 'block';
+                }
+            });
+        </script>
+        {% endif %}
+
         {# === PANEL ETAPÓW ZASYP — widoczny tylko dla Zasyp gdy jest aktywne zlecenie === #}
         {% if sekcja == 'Zasyp' and ns.is_active %}
         {% for p in plan %}{% if p[3] == 'w toku' %}
-        <div class="section-box mt-20 p-0" id="etapy-panel-{{ p[0] }}" style="border-left: 4px solid #e67e22;">
+        {% set etapy_sesje = etapy_sesje_mapa.get(p[0]) if etapy_sesje_mapa is defined and etapy_sesje_mapa else [] %}
+        {% set param = etapy_parametry.get(p[0]) if etapy_parametry is defined and etapy_parametry else {} %}
+        {% for sesja in etapy_sesje %}
+        {% set cur_szarza = sesja.szarza_nr|default(1) %}
+        {% set etapy = sesja.etapy|default([]) %}
+        <div class="section-box mt-20 p-0" id="etapy-panel-{{ p[0] }}-{{ cur_szarza }}" style="border-left: 4px solid {% if sesja.is_current %}#e67e22{% else %}#cfd6dd{% endif %}; {% if not sesja.is_current %}opacity:0.92; margin-left:18px;{% endif %}">
             <div class="p-10 p-10-bg d-flex justify-between align-center flex-wrap gap-8"
-                 style="background: var(--card-header-bg, #fdf3e7);">
-                <div class="d-flex align-center gap-8">
+                 style="background: {% if sesja.is_current %}var(--card-header-bg, #fdf3e7){% else %}#f5f7fa{% endif %};">
+                <div class="d-flex align-center gap-8 flex-wrap">
                     <span style="font-size:1.3em;">⏱️</span>
-                    {% set cur_szarza = etapy_curr_szarza.get(p[0])|default(1) %}
-                    <strong>Punkt Kontrolny Szarży #{{ cur_szarza }}: {{ p[1] }}</strong>
-                    <span class="small text-muted">#{{ p[0] }}</span>
+                    {% if rola in ['laborant', 'laboratorium'] %}
+                    <strong>Statusy etapów — Szarża {{ cur_szarza }}:</strong>
+                    {% else %}
+                    <strong>Punkt Kontrolny Szarży {{ cur_szarza }}:</strong>
+                    {% endif %}
+                    {% if sesja.is_current %}
+                    <span class="badge-warning" style="font-size:0.72em; padding:2px 6px;">AKTUALNA</span>
+                    {% else %}
+                    <span class="badge-info" style="font-size:0.72em; padding:2px 6px;">WCZEŚNIEJSZA</span>
+                    {% endif %}
+                    {% if sesja.has_running %}
+                    <span class="badge-success" style="font-size:0.72em; padding:2px 6px;">AKTYWNA W TOKU</span>
+                    {% endif %}
 
-                    {% if rola != 'laborant' %}
-                    <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin: 0; display: inline-block;">
+                    {% if rola != 'laborant' and sesja.is_current %}
+                    {% if linia == 'AGRO' and p[3] == 'w toku' %}
+                    <a href="{{ url_for('production.agro_mix_inventory', selected_plan_id=p[0]) }}"
+                       class="btn-action"
+                       data-slide
+                       style="padding: 4px 10px; font-size: 0.85em; margin-left: 10px; background:#9b59b6; color:#fff; font-weight:700;">
+                        DODAJ MIX (szarża #{{ cur_szarza }})
+                    </a>
+                    {% endif %}
+                    <form method="POST"
+                          action="{{ url_for('production.zasyp_usun_punkt_kontrolny', plan_id=p[0]) }}"
+                          style="margin: 0; display: inline-block;">
                         <input type="hidden" name="linia" value="{{ linia }}">
-                        <button type="submit" class="btn-action btn-blue" style="padding: 4px 10px; font-size: 0.85em; margin-left: 10px;" onclick="return confirm('Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Poprzednie etapy zostaną zresetowane w widoku, ale zostaną zapisane w historii (dla podsumowania).');">
-                            + KOLEJNY POMIAR
+                        <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                        <button type="submit"
+                                class="btn-action"
+                                style="padding: 4px 10px; font-size: 0.85em; margin-left: 8px; background:#c0392b; color:#fff;"
+                                onclick="return confirm('Usunąć CAŁY punkt kontrolny szarży #{{ cur_szarza }}? Tej operacji nie da się cofnąć.');">
+                            X
                         </button>
                     </form>
                     {% endif %}
                 </div>
-                {% if rola in ['lider', 'admin', 'zarzad'] %}
-                <a href="{{ url_for('production.zasyp_etapy_podsumowanie', linia=linia) }}"
-                   class="btn-action btn-outline" style="font-size:0.8em; padding:4px 10px;">
-                   📊 Podsumowanie (Punkt Kontrolny)
-                </a>
-                {% endif %}
             </div>
 
-            {# Formularz wielkości szarży #}
-            {% set param = etapy_parametry.get(p[0]) if etapy_parametry is defined and etapy_parametry else {} %}
-            <div class="p-10 d-flex align-center gap-12 flex-wrap" style="border-bottom: 1px solid var(--border-color, #eee);">
-                <label class="small text-muted m-0" for="szarza-kg-{{ p[0] }}">Wielkość szarży (kg):</label>
-                <form action="{{ url_for('production.zasyp_etapy_set_szarza') }}"
-                      method="POST"
-                      class="d-flex align-center gap-8 m-0"
-                      style="flex-wrap:wrap;">
-                    <input type="hidden" name="plan_id" value="{{ p[0] }}">
-                    <input type="hidden" name="linia" value="{{ linia }}">
-                    <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                    <input type="hidden" name="data_planu"
-                           value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
-                    <input type="number"
-                           id="szarza-kg-{{ p[0] }}"
-                           name="wielkosc_szarzy_kg"
-                           step="0.1" min="1" max="99999"
-                           placeholder="np. 1000"
-                           value="{{ param.wielkosc_szarzy_kg|int if param.wielkosc_szarzy_kg else '' }}"
-                           style="width:110px; padding:4px 8px; border:1px solid #ccc; border-radius:4px;">
-                    <button type="submit" class="btn-action btn-outline" style="padding:4px 10px; font-size:0.85em;">
-                        Zapisz
-                    </button>
-                    {% if param.wielkosc_szarzy_kg %}
-                    <span class="badge-info" style="font-size:0.8em;">
-                        Aktualnie: {{ param.wielkosc_szarzy_kg|int }} kg/szarżę
-                    </span>
-                    {% endif %}
-                </form>
-            </div>
-
-            {# Siatka etapów 1–6 #}
-            {% set etapy = etapy_mapa.get(p[0]) if etapy_mapa is defined and etapy_mapa else [] %}
             <div class="p-10">
+                {% set lab_status_view = rola in ['laborant', 'laboratorium'] %}
+                {% if lab_status_view %}
+                {% set lab_ns = namespace(e1=None, e2=None, eop=None, has_extra=false) %}
+                {% set op_etap_num = 5 if linia == 'AGRO' else 6 %}
+                {% for e in etapy %}
+                    {% if e.etap == 1 %}{% set lab_ns.e1 = e %}{% endif %}
+                    {% if e.etap == 2 %}{% set lab_ns.e2 = e %}{% endif %}
+                    {% if e.etap == op_etap_num %}{% set lab_ns.eop = e %}{% endif %}
+                    {% if e.etap|string|length > 1 %}{% set lab_ns.has_extra = true %}{% endif %}
+                {% endfor %}
+
+                <div style="display:grid; grid-template-columns: 1fr; gap:8px;">
+                    {% set e = lab_ns.e1 %}
+                    {% if e and e.czas_stop %}
+                        {% set status_label = 'Zakończone' %}
+                        {% set status_icon = '✓' %}
+                        {% set status_bg = '#dcfce7' %}
+                        {% set status_color = '#166534' %}
+                    {% elif e and (e.is_running or e.czas_start) %}
+                        {% set status_label = 'Rozpoczęte' %}
+                        {% set status_icon = '▶' %}
+                        {% set status_bg = '#16a34a' %}
+                        {% set status_color = '#ffffff' %}
+                    {% else %}
+                        {% set status_label = 'Oczekuje' %}
+                        {% set status_icon = '⏳' %}
+                        {% set status_bg = '#e5e7eb' %}
+                        {% set status_color = '#374151' %}
+                    {% endif %}
+                    <div style="border:1px solid #dbe3ea; border-radius:8px; padding:10px; background:#f9fbfd; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <div>
+                            <strong style="font-size:0.92em;">Naważanie</strong>
+                            <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) if e else 0 }}" data-running="{{ 1 if e and e.is_running else 0 }}">{{ e.duration_str if e and e.duration_str else '00:00' }}</span></strong></div>
+                        </div>
+                        <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
+                    </div>
+
+                    {% set e = lab_ns.e2 %}
+                    {% if e and e.czas_stop %}
+                        {% set status_label = 'Zakończone' %}
+                        {% set status_icon = '✓' %}
+                        {% set status_bg = '#dcfce7' %}
+                        {% set status_color = '#166534' %}
+                    {% elif e and (e.is_running or e.czas_start) %}
+                        {% set status_label = 'Rozpoczęte' %}
+                        {% set status_icon = '▶' %}
+                        {% set status_bg = '#16a34a' %}
+                        {% set status_color = '#ffffff' %}
+                    {% else %}
+                        {% set status_label = 'Oczekuje' %}
+                        {% set status_icon = '⏳' %}
+                        {% set status_bg = '#e5e7eb' %}
+                        {% set status_color = '#374151' %}
+                    {% endif %}
+                    <div style="border:1px solid #dbe3ea; border-radius:8px; padding:10px; background:#f9fbfd; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <div>
+                            <strong style="font-size:0.92em;">Mieszanie i oczekiwanie na LAB</strong>
+                            <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) if e else 0 }}" data-running="{{ 1 if e and e.is_running else 0 }}">{{ e.duration_str if e and e.duration_str else '00:00' }}</span></strong></div>
+                        </div>
+                        <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
+                    </div>
+
+                    {% set e = lab_ns.eop %}
+                    {% if e and e.czas_stop %}
+                        {% set status_label = 'Zakończone' %}
+                        {% set status_icon = '✓' %}
+                        {% set status_bg = '#dcfce7' %}
+                        {% set status_color = '#166534' %}
+                    {% elif e and (e.is_running or e.czas_start) %}
+                        {% set status_label = 'Rozpoczęte' %}
+                        {% set status_icon = '▶' %}
+                        {% set status_bg = '#16a34a' %}
+                        {% set status_color = '#ffffff' %}
+                    {% else %}
+                        {% set status_label = 'Oczekuje' %}
+                        {% set status_icon = '⏳' %}
+                        {% set status_bg = '#e5e7eb' %}
+                        {% set status_color = '#374151' %}
+                    {% endif %}
+                    <div style="border:1px solid #dbe3ea; border-radius:8px; padding:10px; background:#f9fbfd; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <div>
+                            <strong style="font-size:0.92em;">Opróżnianie</strong>
+                            <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) if e else 0 }}" data-running="{{ 1 if e and e.is_running else 0 }}">{{ e.duration_str if e and e.duration_str else '00:00' }}</span></strong></div>
+                        </div>
+                        <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
+                    </div>
+                </div>
+                {% if lab_ns.has_extra %}
+                <div class="small text-muted mt-6">Wykryto dodatkowe etapy operatora — statusy powyżej pozostają aktualne dla głównych etapów.</div>
+                {% endif %}
+                {% else %}
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                    <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.8em; color:#2f3b4a; user-select:none;">
+                        <span>AUTO SZARŻA</span>
+                        <input type="checkbox" class="auto-szarza-switch" onchange="toggleAutoSzarzaMode(this)">
+                    </label>
+                </div>
+
                 <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:10px;">
                     {% if etapy %}
+                    {% set agro_dosypka_ns = namespace(has_extra=false, rendered_plus=false, max_mixer_etap=4) %}
                     {% for etap in etapy %}
+                    {% set etap_str = etap.etap|string %}
+                    {% if linia == 'AGRO' and etap_str|length > 1 and (etap_str[0] == '3' or etap_str[0] == '4') %}
+                    {% set agro_dosypka_ns.has_extra = true %}
+                    {% endif %}
+                    {% if linia == 'AGRO' and (etap.etap == 4 or (etap_str|length > 1 and etap_str[0] == '4')) and etap.etap > agro_dosypka_ns.max_mixer_etap %}
+                    {% set agro_dosypka_ns.max_mixer_etap = etap.etap %}
+                    {% endif %}
+                    {% endfor %}
+
+                    {% set agro_next_ns = namespace(existing=[], label='', suffix=None, has_slot=false, base_pair_exists=false) %}
+                    {% set flow_ns = namespace(next_start_etap=None) %}
+                    {% if linia == 'AGRO' %}
+                        {% for e in etapy %}
+                            {% do agro_next_ns.existing.append(e.etap) %}
+                        {% endfor %}
+                        {% set has3 = 3 in agro_next_ns.existing %}
+                        {% set has4 = 4 in agro_next_ns.existing %}
+                        {% set agro_next_ns.base_pair_exists = has3 and has4 %}
+                        {% if not has3 and not has4 %}
+                            {% set agro_next_ns.label = '3/4' %}
+                            {% set agro_next_ns.has_slot = true %}
+                        {% else %}
+                            {% set suffix_ns = namespace(max_suffix=0) %}
+                            {% for e in etapy %}
+                                {% set e_str = e.etap|string %}
+                                {% if e_str|length > 1 and (e_str[0] == '3' or e_str[0] == '4') %}
+                                    {% set suf = e_str[1:]|int %}
+                                    {% if suf > suffix_ns.max_suffix %}{% set suffix_ns.max_suffix = suf %}{% endif %}
+                                {% endif %}
+                            {% endfor %}
+                            {% set agro_next_ns.suffix = suffix_ns.max_suffix + 1 %}
+                            {% set agro_next_ns.label = ("3" ~ agro_next_ns.suffix) ~ "/" ~ ("4" ~ agro_next_ns.suffix) %}
+                            {% set agro_next_ns.has_slot = true %}
+                        {% endif %}
+                    {% endif %}
+
+                    {% if not sesja.has_running %}
+                        {% for e in etapy %}
+                            {% if flow_ns.next_start_etap is none and not e.czas_start %}
+                                {% set flow_ns.next_start_etap = e.etap %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+
+                    {% for etap in etapy %}
+                    {% set hide_agro_base_etap = linia == 'AGRO' and not agro_dosypka_ns.has_extra and etap.etap in [3, 4] and not etap.exists and not etap.czas_start and not etap.czas_stop %}
+                    {% if hide_agro_base_etap %}
+                    {# hidden placeholder for AGRO 3/4 when pair not yet created #}
+                    {% else %}
+                    {% set manual_box_id = 'manual-box-' ~ p[0] ~ '-' ~ cur_szarza ~ '-' ~ etap.etap %}
+                    {% set can_manual_time_edit = (rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier']) and etap.czas_stop %}
                     <div style="border:1px solid {% if etap.is_running %}#e67e22{% elif etap.czas_stop %}#27ae60{% else %}#ddd{% endif %};
                                 border-radius:6px; padding:10px; word-break: break-word; overflow: hidden; position: relative;
                                 background:{% if etap.is_running %}#fdf3e7{% elif etap.czas_stop %}#f0faf4{% else %}#fafafa{% endif %};">
@@ -826,6 +1473,7 @@
                             <form action="{{ url_for('production.zasyp_etap_reset') }}" method="POST" style="margin: 0;"
                                   onsubmit="return confirm('Zresetować czas? (Będziesz mógł wprowadzić go ręcznie)');">
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                                                <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                 <input type="hidden" name="etap" value="{{ etap.etap }}">
@@ -835,12 +1483,23 @@
                                     <span class="material-icons" style="font-size: 20px;">refresh</span>
                                 </button>
                             </form>
+
+                            {% if can_manual_time_edit %}
+                            <button type="button"
+                                    class="btn-icon"
+                                    onclick="toggleManualEtapForm('{{ manual_box_id }}')"
+                                    title="Pokaż/ukryj ręczne wpisanie czasu"
+                                    style="background:none; border:none; cursor:pointer; padding:4px; color:#4b5f75; display:flex; align-items:center; justify-content:center;">
+                                <span class="material-icons" style="font-size:18px;">schedule</span>
+                            </button>
+                            {% endif %}
                             
                             {# Przycisk USUŃ (X) - dla sub-etapów AGRO #}
                             {% if linia == 'AGRO' and etap.etap > 10 %}
                             <form action="{{ url_for('production.zasyp_etap_delete') }}" method="POST" style="margin: 0;"
                                   onsubmit="return confirm('Czy na pewno chcesz USUNĄĆ ten kafelek ({{ etap.etap }})?');">
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                                                <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                 <input type="hidden" name="etap" value="{{ etap.etap }}">
@@ -854,8 +1513,17 @@
                             {% endif %}
                         </div>
 
-                        <div class="d-flex justify-between align-center mb-5" style="padding-right: 40px;">
-                            <strong style="font-size:0.9em; line-height: 1.2;">
+                        <div class="mb-5" style="padding-right: 40px; min-height: 68px; display: flex; flex-direction: column; justify-content: flex-start;">
+                            <div class="small" style="font-size:0.72em; color:#6b7280; min-height:16px; line-height:1.1; margin-bottom:4px;">
+                                {% if etap.is_running %}
+                                ▶ W TOKU
+                                {% elif etap.czas_stop %}
+                                ✓ DONE
+                                {% else %}
+                                -
+                                {% endif %}
+                            </div>
+                            <strong style="font-size:0.9em; line-height: 1.2; display:block;">
                             {% if etap.etap == 1 %}Naważanie
                             {% elif etap.etap == 2 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB{% else %}Mieszanie{% endif %}
                             {% elif etap.etap == 3 %}Dosypka
@@ -870,15 +1538,6 @@
                             {% elif etap.etap == 6 %}Opróżnianie
                             {% else %}Etap {{ etap.etap }}{% endif %}
                             </strong>
-                            <div>
-                                {% if etap.is_running %}
-                                <span class="badge-warning" style="font-size:0.7em; padding:2px 6px; display:inline-block;">▶ W TOKU</span>
-                                {% elif etap.czas_stop %}
-                                <span class="badge-success" style="font-size:0.7em; padding:2px 6px; display:inline-block;">✓ DONE</span>
-                                {% else %}
-                                <span class="small text-muted" style="font-size:0.7em;">–</span>
-                                {% endif %}
-                            </div>
                         </div>
                         {% if etap.czas_start_str %}
                         <div class="small text-muted">
@@ -896,12 +1555,15 @@
                             {% endif %}
                         </div>
                         {% endif %}
-                        {% if etap.duration_str and etap.duration_str != '0m' %}
-                        <div class="small" style="color:#555;">⏱ {{ etap.duration_str }}</div>
+                        {% if etap.is_running or (etap.duration_str and etap.duration_str != '0m') %}
+                        <div class="small" style="color:#555;">⏱ <span class="etap-live-timer" data-seconds="{{ etap.duration_s|default(0) }}" data-running="{{ 1 if etap.is_running else 0 }}">{{ etap.duration_str }}</span></div>
                         {% endif %}
-                        <div class="d-flex gap-6 mt-6 flex-wrap">
-                            {% set is_agro_clickable = linia == 'AGRO' and (etap.etap == 3 or etap.etap == 4 or (etap.etap > 10 and (etap.etap // 10 == 3 or etap.etap // 10 == 4))) %}
-                            {% set can_restart = is_agro_clickable and etap.czas_stop %}
+                        <div class="d-flex gap-6 mt-6 flex-wrap" style="justify-content:center; align-items:center; min-height:32px;">
+                            {% set is_agro_pair_etap = linia == 'AGRO' and (etap.etap == 3 or etap.etap == 4 or (etap.etap > 10 and (etap.etap // 10 == 3 or etap.etap // 10 == 4))) %}
+                            {% set can_restart = false %}
+                            {% set lock_other_starts = sesja.has_running and sesja.active_etap != etap.etap %}
+                            {% set lock_by_sequence = (not sesja.has_running) and (flow_ns.next_start_etap is not none) and (etap.etap != flow_ns.next_start_etap) and (not can_restart) %}
+                            {% set lock_start_button = lock_other_starts or lock_by_sequence %}
                             {% if not etap.czas_start or can_restart %}
                                                         <form action="{{ url_for('production.zasyp_etap_start') }}"
                                                                     method="POST"
@@ -910,9 +1572,11 @@
                                                                     data-szarza-default="{{ '%.1f'|format(param.wielkosc_szarzy_kg) if etap.etap == 1 and param.wielkosc_szarzy_kg else '' }}"
                                                                     onsubmit="return handleZasypStartForm(this);">
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                 <input type="hidden" name="etap" value="{{ etap.etap }}">
+                                    <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
                                 <input type="hidden" name="data_planu"
                                        value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
                                                                 {% if etap.etap == 1 %}
@@ -920,36 +1584,48 @@
                                                                 {% endif %}
                                 <button type="submit"
                                         class="btn-action btn-green"
-                                        style="font-size:0.75em; padding:3px 8px;">{% if can_restart %}↺ Start ponownie{% else %}▶ Start{% endif %}</button>
+                                    {% if lock_start_button %}disabled{% endif %}
+                                    title="{% if lock_other_starts %}Najpierw zakończ aktywny etap {{ sesja.active_etap }}{% elif lock_by_sequence %}Najpierw uruchom etap {{ flow_ns.next_start_etap }}{% else %}Start etapu{% endif %}"
+                                    style="font-size:0.75em; padding:3px 8px; min-width:110px; text-align:center; {% if lock_start_button %}opacity:0.45; cursor:not-allowed; filter:grayscale(35%);{% endif %}">{% if can_restart %}↺ Start ponownie{% else %}▶ Start{% endif %}</button>
                             </form>
                                 {% elif etap.is_running %}
-                            <form action="{{ url_for('production.zasyp_etap_stop') }}"
-                                  method="POST" style="margin:0;">
+                                {% if rola not in ['laborant', 'laboratorium'] %}
+                                                        <form action="{{ url_for('production.zasyp_etap_stop') }}"
+                                                                    method="POST" style="margin:0;"
+                                                                    data-etap="{{ etap.etap }}"
+                                                                    data-linia="{{ linia }}"
+                                                                    onsubmit="return handleEtapStopForm(this);">
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                                                <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                 <input type="hidden" name="etap" value="{{ etap.etap }}">
+                                                                <input type="hidden" name="next_action" value="">
                                 <button type="submit"
                                         class="btn-action btn-stop"
-                                        style="font-size:0.75em; padding:3px 8px;">⏹ Stop</button>
+                                        style="font-size:0.75em; padding:3px 8px; min-width:110px; text-align:center;">⏹ Stop</button>
                             </form>
+                                {% endif %}
                             {% endif %}
                         </div>
 
-                        {% if rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier'] %}
-                        <div class="mt-6" style="border-top: 1px dashed var(--border-color, #eee); padding-top: 6px;">
+                        {% if can_manual_time_edit %}
+                        <div id="{{ manual_box_id }}" class="mt-6" style="display:none; border-top: 1px dashed var(--border-color, #eee); padding-top: 6px;">
                             <div class="small text-muted mb-5">Ręcznie (HH:MM):</div>
                             <div class="d-flex gap-6 align-center flex-wrap">
                                 <form action="{{ url_for('production.zasyp_etap_manual_set') }}" method="POST"
                                       class="d-flex align-center gap-6 flex-wrap" style="margin:0;">
                                     <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                                                        <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
                                     <input type="hidden" name="linia" value="{{ linia }}">
                                     <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                     <input type="hidden" name="etap" value="{{ etap.etap }}">
-                                    <input type="time" name="czas_start_hhmm" value="{{ etap.czas_start_str }}"
+                                     <input type="time" name="czas_start_hhmm" value="{{ etap.czas_start_str }}"
+                                         class="manual-time-input"
                                            title="START (HH:MM)"
                                            style="width:70px; padding:3px; border:1px solid #ccc; border-radius:4px; font-size:0.75em;">
-                                    <input type="time" name="czas_stop_hhmm" value="{{ etap.czas_stop_str }}"
+                                     <input type="time" name="czas_stop_hhmm" value="{{ etap.czas_stop_str }}"
+                                         class="manual-time-input"
                                            title="STOP (HH:MM)"
                                            style="width:70px; padding:3px; border:1px solid #ccc; border-radius:4px; font-size:0.75em;">
                                     <button type="submit" class="btn-action btn-outline"
@@ -959,6 +1635,7 @@
                         </div>
                         {% endif %}
                     </div>
+                    {% endif %}
                     {% endfor %}
                     {% else %}
                     <div class="small text-muted" style="grid-column:1/-1;">
@@ -966,12 +1643,14 @@
                     </div>
                     {% endif %}
                 </div>
-                {% set total = etapy_total.get(p[0]) if etapy_total is defined and etapy_total else '' %}
-                {% if total %}
-                <div class="small text-muted mt-8">Łączny czas etapów: <strong>{{ total }}</strong></div>
+                {% endif %}
+                    {% set total = sesja.total_duration_str if sesja.total_duration_str else '' %}
+                {% if total or sesja.has_running %}
+                <div class="small text-muted mt-8">Łączny czas etapów: <strong class="etapy-total-live-timer" data-seconds="{{ sesja.total_duration_s|default(0) }}" data-running="{{ 1 if sesja.has_running else 0 }}">{{ total if total else '00:00' }}</strong></div>
                 {% endif %}
             </div>
         </div>
+            {% endfor %}
         {% endif %}{% endfor %}
         {% endif %}
         {# === KONIEC PANELU ETAPÓW === #}
@@ -1048,6 +1727,18 @@
                 const now = Date.now();
                 const secs = Math.floor((now - start) / 1000);
                 if (el) el.textContent = '⏱️ ' + formatElapsed(secs);
+            });
+
+            // Live elapsed from order start for active order cards
+            document.querySelectorAll('.order-elapsed').forEach(function (el) {
+                const ds = el.getAttribute('data-start');
+                if (!ds) return;
+                const t = ds.replace(' ', 'T');
+                const start = Date.parse(t);
+                if (isNaN(start)) return;
+                const now = Date.now();
+                const secs = Math.floor((now - start) / 1000);
+                el.textContent = formatElapsed(secs);
             });
         }
         function initUpdatePaletaTimers() {

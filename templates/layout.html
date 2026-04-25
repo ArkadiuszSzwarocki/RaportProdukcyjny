@@ -251,7 +251,14 @@
     </style>
 </head>
 
-<body>
+{% set role = session.get('rola', '').lower() %}
+{% set user_hall = 'ALL' if role in ['admin', 'zarzad', 'laborant', 'laboratorium'] else (session.get('grupa') or 'ALL').upper() %}
+{% set hall_view = session.get('selected_hall_view') %}
+{% set can_switch_halls = user_hall == 'ALL' %}
+{% set effective_hall = (hall_view or user_hall) if can_switch_halls else user_hall %}
+{% set current_theme = linia|default(effective_hall)|upper %}
+
+<body class="{% if current_theme == 'AGRO' or current_theme == '2' %}theme-agro{% endif %}">
 
     <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
@@ -345,24 +352,14 @@
         <aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
             <div class="sidebar-logo">AGRO<span class="logo-accent">MES</span></div>
             
-            {# Hall isolation logic for rotating leaders/admins #}
-            {% set role = session.get('rola', '').lower() %}
-            {# Force user_hall to ALL for admin/zarzad even if session hasn't refreshed yet #}
-            {% set user_hall = 'ALL' if role in ['admin', 'zarzad'] else (session.get('grupa') or 'ALL').upper() %}
-            {% set hall_view = session.get('selected_hall_view') %}
-            
-            {# Switcher is for anyone who has ALL hall access to focus their view #}
-            {% set can_switch_halls = user_hall == 'ALL' %}
-            {% set effective_hall = (hall_view or user_hall) if can_switch_halls else user_hall %}
-
             {% if can_switch_halls %}
             <div class="hall-switcher">
                 <div class="switcher-label">Pracujesz dziś na:</div>
                 <div class="switcher-controls">
                     <a href="{{ url_for('main.set_hall_view', hall='PSD', sekcja=request.args.get('sekcja'), data=request.args.get('data')) }}" 
-                       class="switcher-btn {% if effective_hall == 'PSD' %}active{% endif %}" title="Hala 1 (PSD)">1</a>
+                       class="switcher-btn {% if effective_hall == 'PSD' %}active{% endif %}" title="Hala PSD">PSD</a>
                     <a href="{{ url_for('main.set_hall_view', hall='AGRO', sekcja=request.args.get('sekcja'), data=request.args.get('data')) }}" 
-                       class="switcher-btn {% if effective_hall or effective_hall == 'AGRO' %}{% if effective_hall == 'AGRO' %}active{% endif %}{% endif %}" title="Hala 2 (Agro)">2</a>
+                       class="switcher-btn {% if effective_hall == 'AGRO' %}active{% endif %}" title="Hala AGRO">AGRO</a>
                     <a href="{{ url_for('main.set_hall_view', hall='ALL', sekcja=request.args.get('sekcja'), data=request.args.get('data')) }}" 
                        class="switcher-btn {% if effective_hall == 'ALL' %}active{% endif %}" title="Wszystkie hale">A</a>
                 </div>
@@ -370,8 +367,8 @@
             {% endif %}
 
             <nav class="sidebar-nav">
-                {% if effective_hall in ['PSD', 'ALL'] or role_has_access('magazyn') %}
-                <div class="nav-section-label">HALA 1 (PSD)</div>
+                {% if effective_hall in ['PSD', 'ALL'] %}
+                <div class="nav-section-label">HALA PSD</div>
                 
                 {% if role_has_access('dashboard') %}
                 <a href="{{ url_for('main.index', linia='PSD') }}"
@@ -409,8 +406,8 @@
                 {% endif %}
                 <div class="nav-divider"></div>
                 {% endif %}
-                {% if effective_hall in ['AGRO', 'ALL'] or role_has_access('agro_magazyn') %}
-                <div class="nav-section-label">HALA 2 (AGRO)</div>
+                {% if effective_hall in ['AGRO', 'ALL'] %}
+                <div class="nav-section-label">HALA AGRO</div>
 
                 {% if role_has_access('dashboard') %}
                 <a href="{{ url_for('main.index', linia='AGRO') }}"
@@ -441,7 +438,7 @@
                         class="text-capitalize">Workowanie Agro</span></a>
                 {% endif %}
 
-                {% if role_has_access('magazyn') or role_has_access('agro_magazyn') %}
+                {% if (role_has_access('magazyn') or role_has_access('agro_magazyn')) and role not in ['laborant', 'laboratorium'] %}
                 <a href="{{ url_for('main.index', sekcja='Magazyn', linia='AGRO') }}"
                     class="nav-item {% if request.args.get('sekcja')=='Magazyn' and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">📦 <span
                         class="text-capitalize">Magazyn Agro</span></a>
@@ -539,7 +536,13 @@
             {% if messages %}
             <div class="flash-container">
                 {% for category, message in messages %}
-                    {% if category == 'modal_error' %}
+                    {% set msg_lower = (message|string)|lower %}
+                    {% set force_modal = (
+                        category == 'modal_error'
+                        or (('nie może' in msg_lower or 'najwcześniej' in msg_lower)
+                            and ('start' in msg_lower or 'rozpocząć' in msg_lower or 'stop:' in msg_lower))
+                    ) %}
+                    {% if force_modal %}
                         <div id="customModalError-{{ loop.index }}" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; backdrop-filter: blur(2px);">
                             <div style="background:#fff; padding:24px; border-radius:12px; max-width:450px; width:90%; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
                                 <span class="material-icons" style="color:#d9342b; font-size:48px; margin-bottom:12px;">error_outline</span>
@@ -917,6 +920,9 @@
             forms.forEach(form => {
                 let isSubmitting = false;
                 form.addEventListener('submit', function (e) {
+                    if (form.dataset.waitingSzarzaConfirm === '1' || e.defaultPrevented) {
+                        return;
+                    }
                     if (isSubmitting) {
                         e.preventDefault();
                         return false;

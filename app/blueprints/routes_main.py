@@ -110,6 +110,11 @@ def index() -> str:
     # 4. Fallback default 'PSD'
     aktywna_linia = request.args.get('linia') or sess_hall or user_grupa or 'PSD'
 
+    # Laborant should not access AGRO warehouse views.
+    if role in ['laborant', 'laboratorium'] and aktywna_sekcja == 'Magazyn' and str(aktywna_linia).upper() == 'AGRO':
+        flash('Brak dostępu do magazynu AGRO dla roli laboratorium.', 'warning')
+        return redirect(url_for('main.index', sekcja='Zasyp', linia='AGRO'))
+
     # Hall Isolation: if user has a group and is not an admin/manager/lider/planista, restrict them to their hall
     # Users with group 'ALL' (like rotating leaders, admins, managers) are NOT isolated.
     if user_grupa and user_grupa.upper() != 'ALL' and role not in ['admin', 'zarzad', 'planista', 'lider', 'magazynier', 'laborant']:
@@ -338,23 +343,118 @@ def index() -> str:
     main_h_data = halls_data[halls_to_fetch[0]]
 
     # Etapy Zasyp — wczytaj dla aktywnych zleceń Zasyp
-    etapy_mapa = {}      # plan_id -> list of etap dicts
+    etapy_mapa = {}      # plan_id -> latest session list of etap dicts (compat)
     etapy_parametry = {} # plan_id -> {wielkosc_szarzy_kg}
-    etapy_total = {}     # plan_id -> formatted total time string
-    etapy_curr_szarza = {} # plan_id -> curr_szarza_nr
+    etapy_total = {}     # plan_id -> latest session formatted total time string (compat)
+    etapy_curr_szarza = {} # plan_id -> latest session curr_szarza_nr (compat)
+    etapy_sesje_mapa = {} # plan_id -> list of session payloads
+    kgph_stats_mapa = {}  # plan_id -> {'real_work': float|None, 'timeline': float|None}
     if aktywna_sekcja == 'Zasyp':
         try:
             from app.services.zasyp_etapy_service import ZasypEtapyService
             for p in main_h_data['plan_dnia']:
                 if p[3] == 'w toku':
                     pid = p[0]
-                    data = ZasypEtapyService.get_etapy(plan_id=pid, linia=aktywna_linia)
-                    etapy_mapa[pid] = data.get('etapy') or []
-                    etapy_total[pid] = data.get('total_duration_str') or ''
-                    etapy_curr_szarza[pid] = data.get('curr_szarza_nr') or 1
+                    sessions = ZasypEtapyService.get_etapy_sessions(plan_id=pid, linia=aktywna_linia)
+                    latest = sessions[0] if sessions else ZasypEtapyService.get_etapy(plan_id=pid, linia=aktywna_linia)
+                    etapy_sesje_mapa[pid] = sessions
+                    etapy_mapa[pid] = latest.get('etapy') or []
+                    etapy_total[pid] = latest.get('total_duration_str') or ''
+                    etapy_curr_szarza[pid] = latest.get('curr_szarza_nr') or 1
                     etapy_parametry[pid] = ZasypEtapyService.get_parametry(plan_id=pid, linia=aktywna_linia)
         except Exception as _e:
             app.logger.warning('Etapy Zasyp load failed: %s', _e)
+
+        # Metrics: kg/h from plan START/STOP (real) and from summed etap production time.
+        try:
+            table_plan = get_table_name('plan_produkcji', aktywna_linia)
+            plan_ids = [int(p[0]) for p in main_h_data['plan_dnia'] if p and len(p) > 0]
+            plan_realized_kg = {}
+            plan_status = {}
+            for p in main_h_data['plan_dnia']:
+                try:
+                    plan_realized_kg[int(p[0])] = float(p[7] or 0.0)
+                    plan_status[int(p[0])] = str(p[3] or '').strip().lower()
+                except Exception:
+                    continue
+            if plan_ids:
+                conn_stats = get_db_connection()
+                cursor_stats = conn_stats.cursor(dictionary=True)
+                fmt_ids = ','.join(['%s'] * len(plan_ids))
+
+                cursor_stats.execute(
+                    f"SELECT id, COALESCE(tonaz_rzeczywisty, 0) AS tonaz_rzeczywisty, real_start, real_stop FROM {table_plan} WHERE id IN ({fmt_ids})",
+                    plan_ids,
+                )
+                plan_meta = {int(r['id']): r for r in (cursor_stats.fetchall() or [])}
+
+                # Aggregate directly from DB so manual operator edits in zasyp_etapy are reflected immediately.
+                cursor_stats.execute(
+                    f"""
+                    SELECT
+                        plan_id,
+                        MIN(czas_start) AS first_start,
+                        MAX(COALESCE(czas_stop, NOW())) AS last_end,
+                        MAX(CASE WHEN czas_stop IS NULL THEN 1 ELSE 0 END) AS has_running,
+                        COALESCE(SUM(TIMESTAMPDIFF(SECOND, czas_start, COALESCE(czas_stop, NOW()))), 0) AS total_prod_s
+                    FROM zasyp_etapy
+                    WHERE linia = %s AND plan_id IN ({fmt_ids}) AND czas_start IS NOT NULL
+                    GROUP BY plan_id
+                    """,
+                    [aktywna_linia] + plan_ids,
+                )
+                etapy_agg_map = {int(r['plan_id']): r for r in (cursor_stats.fetchall() or [])}
+
+                now_dt = datetime.now()
+                for pid in plan_ids:
+                    meta = plan_meta.get(pid) or {}
+                    tonaz_plan = float(meta.get('tonaz_rzeczywisty') or 0.0)
+                    tonaz_realized = float(plan_realized_kg.get(pid) or 0.0)
+                    status = plan_status.get(pid, '')
+                    agg = etapy_agg_map.get(pid) or {}
+
+                    # Real efficiency should always use actually produced mass when available.
+                    # Fallback to plan tonaz only if execution is still zero/missing.
+                    tonaz = tonaz_realized if tonaz_realized > 0 else tonaz_plan
+                    real_start = meta.get('real_start')
+                    real_stop = meta.get('real_stop')
+
+                    real_work_kgph = None
+                    if tonaz > 0:
+                        metric_start = agg.get('first_start') or real_start
+                        # For active order, real metric should progress with current clock even between etaps.
+                        if status == 'w toku':
+                            metric_end = now_dt
+                        else:
+                            metric_end = agg.get('last_end') or real_stop or now_dt
+
+                        if metric_start:
+                            try:
+                                real_hours = max(0.0, (metric_end - metric_start).total_seconds() / 3600.0)
+                                if real_hours > 0:
+                                    real_work_kgph = tonaz / real_hours
+                            except Exception:
+                                real_work_kgph = None
+
+                    timeline_kgph = None
+                    if tonaz > 0:
+                        total_prod_s = int(agg.get('total_prod_s') or 0)
+
+                        if total_prod_s > 0:
+                            try:
+                                timeline_kgph = tonaz / (total_prod_s / 3600.0)
+                            except Exception:
+                                timeline_kgph = None
+
+                    kgph_stats_mapa[pid] = {
+                        'real_work': real_work_kgph,
+                        'timeline': timeline_kgph,
+                    }
+
+                cursor_stats.close()
+                conn_stats.close()
+        except Exception as _e:
+            app.logger.warning('kgph stats load failed: %s', _e)
 
     # Fetch AGRO MIX data (only if on AGRO or ALL)
     agro_mix_mapa = {}
@@ -427,6 +527,8 @@ def index() -> str:
         'etapy_parametry': etapy_parametry,
         'etapy_total': etapy_total,
         'etapy_curr_szarza': etapy_curr_szarza,
+        'etapy_sesje_mapa': etapy_sesje_mapa,
+        'kgph_stats_mapa': kgph_stats_mapa,
         'agro_mix_mapa': agro_mix_mapa,
         'agro_mix_dostepne': agro_mix_dostepne,
     }

@@ -321,9 +321,9 @@ body.sidebar-open {
     color: #fff;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
-.hall-switcher .switcher-btn.active[title*="Hala 1"] { background: var(--accent-color); }
-.hall-switcher .switcher-btn.active[title*="Hala 2"] { background: var(--warning-dark); }
-.hall-switcher .switcher-btn.active[title*="Wszystkie"] { background: var(--success-color); }
+.hall-switcher .switcher-btn.active[title*="PSD"] { background: var(--accent-color); }
+.hall-switcher .switcher-btn.active[title*="AGRO"] { background: var(--success-color); }
+.hall-switcher .switcher-btn.active[title*="Wszystkie"] { background: var(--primary-color); }
 
 @media (max-width: 900px) {
     .hamburger-btn {
@@ -5417,3 +5417,26 @@ button[type="submit"]:hover {
             padding: 14px 16px;
         }
     }
+
+/* THEME AGRO overrides */
+body.theme-agro {
+    --primary-color: #2e593e;    /* Ciemniejszy, wyraźny zielony jako główny akcent (np. pasek górny) */
+    --accent-color: #d35400;     /* Kontrastowy pomarańczowy */
+    --bg-body: #f4f8f4;          /* Tło całej strony z drobnym odcieniem zieleni */
+    --bg-card: #f4f8f4;          /* Tło kart aby pasowało do tła */
+}
+
+body.theme-agro .sidebar {
+    background-color: #e8f5e9 !important;   /* Wyraźnie zielonkawe tło dla całego bocznego menu AGRO */
+    border-inline-end: 1px solid #c8e6c9;
+}
+
+body.theme-agro .sidebar .nav-item:hover {
+    background-color: #c8e6c9 !important;   /* Ciemniejszy zielony po najechaniu myszką */
+}
+
+body.theme-agro .sidebar .nav-item.active {
+    background-color: #a5d6a7 !important;   /* Jeszcze wyraźniejszy dla aktywnej zakładki */
+    color: #003300 !important;
+    font-weight: bold;
+}

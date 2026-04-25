@@ -23,11 +23,13 @@ def _is_valid_etap_for_linia(etap_nr: int, linia: str) -> bool:
     if linia_u == 'AGRO':
         if etap_nr in [1, 2, 3, 4, 5]:
             return True
-        # Allow sub-stages like 31, 32, 41, 42... (suffixes for 3 and 4)
-        if 30 < etap_nr < 50:
-            base = etap_nr // 10
-            if base in [3, 4]:
+        # Allow sub-stages like 31/41, 310/410, 311/411... for unlimited cycles.
+        try:
+            etap_s = str(int(etap_nr))
+            if len(etap_s) > 1 and etap_s[0] in ['3', '4']:
                 return True
+        except Exception:
+            pass
         return False
     return etap_nr in _visible_etaps_for_linia(linia)
 
@@ -59,12 +61,13 @@ def _format_hhmm(dt: Any) -> str:
 def _format_duration(seconds: int) -> str:
     if seconds <= 0:
         return '0m'
-    mins = seconds // 60
-    h = mins // 60
-    m = mins % 60
+    sec = int(seconds)
+    h = sec // 3600
+    m = (sec % 3600) // 60
+    s = sec % 60
     if h > 0:
-        return f"{h}h {m:02d}m"
-    return f"{m}m"
+        return f"{h}h {m:02d}m {s:02d}s"
+    return f"{m}m {s:02d}s"
 
 
 def _parse_hhmm_to_dt(d: date, hhmm: Optional[str]) -> Optional[datetime]:
@@ -88,6 +91,94 @@ def _parse_hhmm_to_dt(d: date, hhmm: Optional[str]) -> Optional[datetime]:
         return None
 
 
+def _agro_suffix_for_etap(etap_nr: int) -> Optional[int]:
+    try:
+        s = str(int(etap_nr))
+    except Exception:
+        return None
+    if len(s) > 1 and s[0] in ['3', '4']:
+        try:
+            return int(s[1:])
+        except Exception:
+            return None
+    return None
+
+
+def _build_sequence_for_szarza(linia_u: str, existing_etaps: List[int], include_etap: Optional[int] = None) -> List[int]:
+    if linia_u != 'AGRO':
+        return list(range(ETAP_MIN, ETAP_MAX + 1))
+
+    suffixes: set[int] = set()
+    for e in existing_etaps:
+        suf = _agro_suffix_for_etap(e)
+        if suf is not None:
+            suffixes.add(suf)
+    if include_etap is not None:
+        suf = _agro_suffix_for_etap(include_etap)
+        if suf is not None:
+            suffixes.add(suf)
+
+    ordered: List[int] = [1, 2, 3, 4]
+    for suf in sorted(suffixes):
+        ordered.append(int(f'3{suf}'))
+        ordered.append(int(f'4{suf}'))
+    ordered.append(5)
+
+    # Deduplicate while preserving order.
+    out: List[int] = []
+    seen: set[int] = set()
+    for e in ordered:
+        if e in seen:
+            continue
+        seen.add(e)
+        out.append(e)
+    return out
+
+
+def _prev_next_etap_in_sequence(seq: List[int], etap_nr: int) -> Tuple[Optional[int], Optional[int]]:
+    try:
+        idx = seq.index(int(etap_nr))
+    except Exception:
+        return None, None
+    prev_etap = seq[idx - 1] if idx > 0 else None
+    next_etap = seq[idx + 1] if idx + 1 < len(seq) else None
+    return prev_etap, next_etap
+
+
+def _etap_display_name(linia_u: str, etap_nr: int) -> str:
+    e = int(etap_nr)
+    if linia_u == 'AGRO':
+        if e == 1:
+            return 'Naważanie'
+        if e == 2:
+            return 'Mieszanie i oczekiwanie na LAB'
+        if e == 3:
+            return 'Dosypka'
+        if e == 4:
+            return 'Mieszanie i oczekiwanie na LAB po dosypce'
+        if e == 5:
+            return 'Opróżnianie'
+        if 30 < e < 40:
+            return f'Dosypka ({e})'
+        if 40 < e < 50:
+            return f'Mieszanie po dosypce ({e})'
+        return f'Etap {e}'
+
+    if e == 1:
+        return 'Naważanie'
+    if e == 2:
+        return 'Mieszanie'
+    if e == 3:
+        return 'Oczekiwanie na LAB'
+    if e == 4:
+        return 'Dosypka'
+    if e == 5:
+        return 'Mieszanie'
+    if e == 6:
+        return 'Opróżnianie'
+    return f'Etap {e}'
+
+
 @dataclass(frozen=True)
 class EtapRow:
     etap: int
@@ -99,46 +190,99 @@ class EtapRow:
 
 class ZasypEtapyService:
     @staticmethod
-    def get_etapy(plan_id: int, linia: str) -> Dict[str, Any]:
-        """Return etap 1..6 status for a given Zasyp plan.
-
-        Safe-by-default: on any DB error, returns empty (all stages unset).
-        """
-        linia_u = _norm_linia(linia)
-        etapy_by_nr: Dict[int, EtapRow] = {}
-
+    def _max_szarza_from_batches(cursor, plan_id: int, linia_u: str) -> int:
+        """Return max batch number from szarze table (fallback when zasyp_etapy is empty)."""
+        table_szarze = get_table_name('szarze', linia_u)
+        cursor.execute(
+            f"SELECT COALESCE(MAX(COALESCE(nr_szarzy, 1)), 0) FROM {table_szarze} WHERE plan_id=%s",
+            (int(plan_id),),
+        )
+        row = cursor.fetchone()
         try:
-            conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT MAX(szarza_nr) as c FROM zasyp_etapy WHERE linia=%s AND plan_id=%s", (linia_u, int(plan_id)))
-            r_sz = cursor.fetchone()
-            curr_szarza_nr = r_sz.get('c') if r_sz and r_sz.get('c') else 1
-            cursor.execute(
-                """
-                SELECT etap, czas_start, czas_stop, start_login, stop_login
-                FROM zasyp_etapy
-                WHERE linia = %s AND plan_id = %s AND szarza_nr = %s
-                ORDER BY etap ASC
-                """,
-                (linia_u, int(plan_id), curr_szarza_nr),
-            )
-            for r in cursor.fetchall() or []:
-                try:
-                    etap_nr = int(r.get('etap'))
-                except Exception:
-                    continue
-                etapy_by_nr[etap_nr] = EtapRow(
-                    etap=etap_nr,
-                    czas_start=r.get('czas_start'),
-                    czas_stop=r.get('czas_stop'),
-                    start_login=r.get('start_login'),
-                    stop_login=r.get('stop_login'),
-                )
-            cursor.close()
-            conn.close()
+            value = int(row[0] if row else 0)
+            return value if value > 0 else 0
         except Exception:
-            etapy_by_nr = {}
+            return 0
 
+    @staticmethod
+    def _resolve_szarza_nr(cursor, plan_id: int, linia_u: str, szarza_nr: Optional[int] = None) -> int:
+        if szarza_nr is not None:
+            try:
+                candidate = int(szarza_nr)
+                if candidate > 0:
+                    return candidate
+            except Exception:
+                pass
+
+        cursor.execute(
+            "SELECT COALESCE(MAX(szarza_nr), 1) FROM zasyp_etapy WHERE linia=%s AND plan_id=%s",
+            (linia_u, int(plan_id)),
+        )
+        row = cursor.fetchone()
+        try:
+            resolved = int(row[0] if row else 1)
+            if resolved > 0:
+                return resolved
+        except Exception:
+            pass
+
+        # Fallback for legacy/partial data: no etapy rows, but there are production batches.
+        batch_nr = ZasypEtapyService._max_szarza_from_batches(cursor, plan_id, linia_u)
+        if batch_nr > 0:
+            return batch_nr
+        return 1
+
+    @staticmethod
+    def _list_szarza_nrs(cursor, plan_id: int, linia_u: str) -> List[int]:
+        cursor.execute(
+            """
+            SELECT DISTINCT szarza_nr
+            FROM zasyp_etapy
+            WHERE linia=%s AND plan_id=%s
+            ORDER BY szarza_nr DESC
+            """,
+            (linia_u, int(plan_id)),
+        )
+        out: List[int] = []
+        for row in cursor.fetchall() or []:
+            try:
+                out.append(int(row[0] if isinstance(row, (tuple, list)) else row.get('szarza_nr')))
+            except Exception:
+                continue
+        if out:
+            return out
+
+        batch_nr = ZasypEtapyService._max_szarza_from_batches(cursor, plan_id, linia_u)
+        return [batch_nr] if batch_nr > 0 else [1]
+
+    @staticmethod
+    def _load_etapy_rows(cursor, plan_id: int, linia_u: str, szarza_nr: int) -> Dict[int, EtapRow]:
+        etapy_by_nr: Dict[int, EtapRow] = {}
+        cursor.execute(
+            """
+            SELECT etap, czas_start, czas_stop, start_login, stop_login
+            FROM zasyp_etapy
+            WHERE linia = %s AND plan_id = %s AND szarza_nr = %s
+            ORDER BY etap ASC
+            """,
+            (linia_u, int(plan_id), int(szarza_nr)),
+        )
+        for r in cursor.fetchall() or []:
+            try:
+                etap_nr = int(r.get('etap') if isinstance(r, dict) else r[0])
+            except Exception:
+                continue
+            etapy_by_nr[etap_nr] = EtapRow(
+                etap=etap_nr,
+                czas_start=(r.get('czas_start') if isinstance(r, dict) else r[1]),
+                czas_stop=(r.get('czas_stop') if isinstance(r, dict) else r[2]),
+                start_login=(r.get('start_login') if isinstance(r, dict) else r[3]),
+                stop_login=(r.get('stop_login') if isinstance(r, dict) else r[4]),
+            )
+        return etapy_by_nr
+
+    @staticmethod
+    def _build_etapy_payload(plan_id: int, linia_u: str, szarza_nr: int, etapy_by_nr: Dict[int, EtapRow]) -> Dict[str, Any]:
         now = datetime.now()
         out: List[Dict[str, Any]] = []
         active_etap: Optional[int] = None
@@ -147,34 +291,30 @@ class ZasypEtapyService:
         # Define the order and sub-stages for AGRO
         base_etaps = _visible_etaps_for_linia(linia_u)
         
-        # We will build a list of etapy to show. 
-        # For AGRO 3 and 4, we look for suffixes like 31, 32... 41, 42...
+        # We will build a list of etapy to show.
+        # For AGRO 3 and 4, we support unlimited suffixes: 31/41, 32/42 ... 310/410 ...
         to_process = []
         if linia_u == 'AGRO':
-            # Order: 1, 2, then (3,4), (31,41), (32,42)... then 5
+            # Order: 1, 2, then (3,4), then existing extra pairs ordered by suffix, then 5
             to_process.append(1)
             to_process.append(2)
-            
-            # Find max suffix
-            max_suf = 0
+
+            extra_suffixes: set[int] = set()
             for en in etapy_by_nr.keys():
-                if en > 10:
-                    suf = en % 10
-                    if suf > max_suf: max_suf = suf
-            
-            # Add pair (3,4) and its derivatives
-            for s in range(max_suf + 1):
-                suffix = s if s > 0 else 0
-                e3 = 3 if suffix == 0 else (3 * 10 + suffix)
-                e4 = 4 if suffix == 0 else (4 * 10 + suffix)
-                # Add only if either exists or it's the first available increment slot
-                if e3 in etapy_by_nr or e4 in etapy_by_nr or suffix == 0:
-                    to_process.append(e3)
-                    to_process.append(e4)
-                else:
-                    # check if previous is done to show next possible slot? 
-                    # for now just show what exists
-                    pass
+                try:
+                    etap_s = str(int(en))
+                except Exception:
+                    continue
+                if len(etap_s) > 1 and etap_s[0] in ['3', '4']:
+                    try:
+                        extra_suffixes.add(int(etap_s[1:]))
+                    except Exception:
+                        continue
+
+            to_process.extend([3, 4])
+            for suffix in sorted(extra_suffixes):
+                to_process.append(int(f'3{suffix}'))
+                to_process.append(int(f'4{suffix}'))
             
             to_process.append(5)
         else:
@@ -202,6 +342,7 @@ class ZasypEtapyService:
             out.append(
                 {
                     'etap': etap_nr,
+                    'exists': row is not None,
                     'czas_start': start_dt,
                     'czas_stop': stop_dt,
                     'czas_start_str': _format_hhmm(start_dt),
@@ -217,12 +358,62 @@ class ZasypEtapyService:
         return {
             'plan_id': int(plan_id),
             'linia': linia_u,
+            'szarza_nr': int(szarza_nr),
             'active_etap': active_etap,
+            'has_running': active_etap is not None,
             'total_duration_s': total_s,
             'total_duration_str': _format_duration(total_s),
             'etapy': out,
-            'curr_szarza_nr': curr_szarza_nr,
+            'curr_szarza_nr': int(szarza_nr),
         }
+
+    @staticmethod
+    def get_etapy(plan_id: int, linia: str, szarza_nr: Optional[int] = None) -> Dict[str, Any]:
+        """Return etap status for one selected szarza/session.
+
+        Safe-by-default: on any DB error, returns a default empty session payload.
+        """
+        linia_u = _norm_linia(linia)
+
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            target_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
+            etapy_by_nr = ZasypEtapyService._load_etapy_rows(cursor, plan_id, linia_u, target_szarza_nr)
+            cursor.close()
+            conn.close()
+            return ZasypEtapyService._build_etapy_payload(plan_id, linia_u, target_szarza_nr, etapy_by_nr)
+        except Exception:
+            target_szarza_nr = 1
+            if szarza_nr is not None:
+                try:
+                    target_szarza_nr = max(1, int(szarza_nr))
+                except Exception:
+                    target_szarza_nr = 1
+            return ZasypEtapyService._build_etapy_payload(plan_id, linia_u, target_szarza_nr, {})
+
+    @staticmethod
+    def get_etapy_sessions(plan_id: int, linia: str) -> List[Dict[str, Any]]:
+        """Return all measurement sessions (szarza_nr) for a plan, newest first."""
+        linia_u = _norm_linia(linia)
+        sessions: List[Dict[str, Any]] = []
+
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            for session_szarza_nr in ZasypEtapyService._list_szarza_nrs(cursor, plan_id, linia_u):
+                etapy_by_nr = ZasypEtapyService._load_etapy_rows(cursor, plan_id, linia_u, session_szarza_nr)
+                sessions.append(
+                    ZasypEtapyService._build_etapy_payload(plan_id, linia_u, session_szarza_nr, etapy_by_nr)
+                )
+            cursor.close()
+            conn.close()
+        except Exception:
+            sessions = [ZasypEtapyService._build_etapy_payload(plan_id, linia_u, 1, {})]
+
+        for idx, session_data in enumerate(sessions):
+            session_data['is_current'] = idx == 0
+        return sessions
 
     @staticmethod
     def kolejny_pomiar(plan_id: int, linia: str, user_login: str) -> Tuple[bool, str]:
@@ -254,6 +445,206 @@ class ZasypEtapyService:
             if conn:
                 try: conn.close()
                 except: pass
+
+    @staticmethod
+    def add_agro_dosypka_pair(plan_id: int, linia: str, data_planu: date, user_login: str, szarza_nr: Optional[int] = None) -> Tuple[bool, str]:
+        linia_u = _norm_linia(linia)
+        if linia_u != 'AGRO':
+            return False, 'Para dosypki jest dostępna tylko dla AGRO'
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            target_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
+
+            cursor.execute(
+                "SELECT etap FROM zasyp_etapy WHERE linia=%s AND plan_id=%s AND szarza_nr=%s",
+                (linia_u, int(plan_id), target_szarza_nr),
+            )
+            existing = {
+                int(row[0] if isinstance(row, (tuple, list)) else row.get('etap'))
+                for row in (cursor.fetchall() or [])
+            }
+
+            if 3 not in existing and 4 not in existing:
+                pair = (3, 4)
+            else:
+                used_suffixes: set[int] = set()
+                for etap_nr in existing:
+                    try:
+                        etap_s = str(int(etap_nr))
+                    except Exception:
+                        continue
+                    if len(etap_s) > 1 and etap_s[0] in ['3', '4']:
+                        try:
+                            used_suffixes.add(int(etap_s[1:]))
+                        except Exception:
+                            continue
+
+                suffix = 1
+                while suffix in used_suffixes:
+                    suffix += 1
+                pair = (int(f'3{suffix}'), int(f'4{suffix}'))
+
+            created_any = False
+            for etap_nr in pair:
+                if etap_nr in existing:
+                    continue
+                cursor.execute(
+                    """
+                    INSERT INTO zasyp_etapy (linia, plan_id, data_planu, szarza_nr, etap, czas_start, czas_stop, start_login, stop_login)
+                    VALUES (%s, %s, %s, %s, %s, NULL, NULL, %s, NULL)
+                    """,
+                    (linia_u, int(plan_id), data_planu, target_szarza_nr, etap_nr, (user_login or '')[:100]),
+                )
+                created_any = True
+
+            conn.commit()
+            if not created_any:
+                return True, f'Para etapów {pair[0]} / {pair[1]} już istnieje'
+            return True, f'Dodano parę etapów {pair[0]} / {pair[1]}'
+        except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            return False, f'Błąd dodawania pary dosypki: {e}'
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    @staticmethod
+    def remove_last_agro_dosypka_pair(plan_id: int, linia: str, szarza_nr: Optional[int] = None) -> Tuple[bool, str]:
+        """Remove the latest AGRO pair in current session: 39/49..31/41, then 3/4."""
+        linia_u = _norm_linia(linia)
+        if linia_u != 'AGRO':
+            return False, 'Usuwanie pary dosypki jest dostępne tylko dla AGRO'
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            target_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
+
+            cursor.execute(
+                "SELECT etap FROM zasyp_etapy WHERE linia=%s AND plan_id=%s AND szarza_nr=%s",
+                (linia_u, int(plan_id), target_szarza_nr),
+            )
+            existing = {
+                int(row[0] if isinstance(row, (tuple, list)) else row.get('etap'))
+                for row in (cursor.fetchall() or [])
+            }
+
+            pair = None
+            for suffix in range(9, 0, -1):
+                candidate = (30 + suffix, 40 + suffix)
+                if candidate[0] in existing or candidate[1] in existing:
+                    pair = candidate
+                    break
+
+            if pair is None and (3 in existing or 4 in existing):
+                pair = (3, 4)
+
+            if pair is None:
+                return False, 'Brak par dosypki do usunięcia'
+
+            cursor.execute(
+                "DELETE FROM zasyp_etapy WHERE linia=%s AND plan_id=%s AND szarza_nr=%s AND etap IN (%s, %s)",
+                (linia_u, int(plan_id), target_szarza_nr, pair[0], pair[1]),
+            )
+            conn.commit()
+            return True, f'Usunięto parę etapów {pair[0]} / {pair[1]}'
+        except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            return False, f'Błąd usuwania pary dosypki: {e}'
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    @staticmethod
+    def remove_kontrolny_session(plan_id: int, linia: str, szarza_nr: Optional[int] = None) -> Tuple[bool, str]:
+        """Delete all control-point rows for one measurement session (szarza_nr)."""
+        linia_u = _norm_linia(linia)
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            target_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
+
+            cursor.execute(
+                "SELECT COUNT(*) FROM zasyp_etapy WHERE linia=%s AND plan_id=%s AND szarza_nr=%s",
+                (linia_u, int(plan_id), target_szarza_nr),
+            )
+            row = cursor.fetchone()
+            rows_count = int(row[0] if row else 0)
+
+            cursor.execute(
+                "DELETE FROM zasyp_etapy WHERE linia=%s AND plan_id=%s AND szarza_nr=%s",
+                (linia_u, int(plan_id), target_szarza_nr),
+            )
+            deleted_etapy = int(cursor.rowcount or 0)
+
+            # Keep production batches in sync with control points: remove matching szarza row too.
+            table_szarze = get_table_name('szarze', linia_u)
+            cursor.execute(
+                f"DELETE FROM {table_szarze} WHERE plan_id=%s AND nr_szarzy=%s",
+                (int(plan_id), int(target_szarza_nr)),
+            )
+            deleted_szarze = int(cursor.rowcount or 0)
+
+            # Legacy fallback: old rows may have NULL nr_szarzy.
+            if deleted_szarze <= 0 and int(target_szarza_nr) == 1:
+                cursor.execute(
+                    f"DELETE FROM {table_szarze} WHERE plan_id=%s AND (nr_szarzy IS NULL OR nr_szarzy=0) ORDER BY data_dodania DESC LIMIT 1",
+                    (int(plan_id),),
+                )
+                deleted_szarze = int(cursor.rowcount or 0)
+
+            if rows_count <= 0 and deleted_szarze <= 0:
+                return False, f'Punkt kontrolny szarży #{target_szarza_nr} jest już pusty'
+
+            # Keep realized tonnage consistent after removing a batch.
+            table_plan = get_table_name('plan_produkcji', linia_u)
+            table_dosypki = get_table_name('dosypki', linia_u)
+            cursor.execute(
+                f"UPDATE {table_plan} SET tonaz_rzeczywisty = "
+                f"COALESCE((SELECT SUM(waga) FROM {table_szarze} WHERE plan_id=%s), 0) + "
+                f"COALESCE((SELECT SUM(kg) FROM {table_dosypki} WHERE plan_id=%s AND potwierdzone=1 AND COALESCE(anulowana, 0)=0), 0) "
+                "WHERE id=%s",
+                (int(plan_id), int(plan_id), int(plan_id)),
+            )
+            conn.commit()
+
+            if deleted_etapy > 0 and deleted_szarze > 0:
+                return True, f'Usunięto cały punkt kontrolny szarży #{target_szarza_nr}'
+            if deleted_szarze > 0:
+                return True, f'Usunięto szarżę #{target_szarza_nr} i odświeżono punkt kontrolny'
+            return True, f'Usunięto wpisy punktu kontrolnego szarży #{target_szarza_nr}'
+        except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            return False, f'Błąd usuwania punktu kontrolnego: {e}'
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     @staticmethod
     def get_parametry(plan_id: int, linia: str) -> Dict[str, Any]:
@@ -346,7 +737,7 @@ class ZasypEtapyService:
             return None
 
     @staticmethod
-    def start_etap(plan_id: int, linia: str, data_planu: date, etap: int, user_login: str) -> Tuple[bool, str]:
+    def start_etap(plan_id: int, linia: str, data_planu: date, etap: int, user_login: str, szarza_nr: Optional[int] = None) -> Tuple[bool, str]:
         linia_u = _norm_linia(linia)
         try:
             etap_nr = int(etap)
@@ -359,9 +750,39 @@ class ZasypEtapyService:
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT MAX(szarza_nr) FROM zasyp_etapy WHERE linia=%s AND plan_id=%s", (linia_u, int(plan_id)))
-            r_sz = cursor.fetchone()
-            curr_szarza_nr = r_sz[0] if r_sz and r_sz[0] else 1
+            curr_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
+
+            cursor.execute(
+                """
+                SELECT etap, czas_start, czas_stop
+                FROM zasyp_etapy
+                WHERE linia = %s AND plan_id = %s AND szarza_nr = %s
+                """,
+                (linia_u, int(plan_id), curr_szarza_nr),
+            )
+            all_rows = cursor.fetchall() or []
+            etap_times: Dict[int, Tuple[Optional[datetime], Optional[datetime]]] = {}
+            existing_etaps: List[int] = []
+            for r in all_rows:
+                try:
+                    e = int(r[0] if isinstance(r, (tuple, list)) else r.get('etap'))
+                except Exception:
+                    continue
+                existing_etaps.append(e)
+                start_dt = r[1] if isinstance(r, (tuple, list)) else r.get('czas_start')
+                stop_dt = r[2] if isinstance(r, (tuple, list)) else r.get('czas_stop')
+                etap_times[e] = (start_dt, stop_dt)
+
+            seq = _build_sequence_for_szarza(linia_u, existing_etaps, include_etap=etap_nr)
+            prev_etap, _ = _prev_next_etap_in_sequence(seq, etap_nr)
+            if prev_etap is not None:
+                prev_stop = (etap_times.get(prev_etap) or (None, None))[1]
+                curr_name = _etap_display_name(linia_u, etap_nr)
+                prev_name = _etap_display_name(linia_u, prev_etap)
+                if prev_stop is None:
+                    return False, f'{curr_name} nie może się rozpocząć przed zakończeniem: {prev_name} (najpierw ustaw STOP)'
+                if prev_stop > datetime.now():
+                    return False, f'{curr_name} może rozpocząć się najwcześniej o {_format_hhmm(prev_stop)} (po STOP: {prev_name})'
 
             running = ZasypEtapyService._get_running_etap(cursor, plan_id, linia_u, curr_szarza_nr)
             if running is not None and running != etap_nr:
@@ -398,6 +819,16 @@ class ZasypEtapyService:
                                 (linia_u, int(plan_id), curr_szarza_nr, check_etap)
                             )
                             if not cursor.fetchone():
+                                seq_extra = _build_sequence_for_szarza(linia_u, existing_etaps, include_etap=check_etap)
+                                prev_extra, _ = _prev_next_etap_in_sequence(seq_extra, check_etap)
+                                if prev_extra is not None:
+                                    prev_extra_stop = (etap_times.get(prev_extra) or (None, None))[1]
+                                    curr_extra_name = _etap_display_name(linia_u, check_etap)
+                                    prev_extra_name = _etap_display_name(linia_u, prev_extra)
+                                    if prev_extra_stop is None:
+                                        return False, f'{curr_extra_name} nie może się rozpocząć przed zakończeniem: {prev_extra_name} (najpierw ustaw STOP)'
+                                    if prev_extra_stop > datetime.now():
+                                        return False, f'{curr_extra_name} może rozpocząć się najwcześniej o {_format_hhmm(prev_extra_stop)} (po STOP: {prev_extra_name})'
                                 # This suffix is available
                                 cursor.execute(
                                     """
@@ -448,7 +879,7 @@ class ZasypEtapyService:
                 pass
 
     @staticmethod
-    def stop_etap(plan_id: int, linia: str, etap: int, user_login: str) -> Tuple[bool, str]:
+    def stop_etap(plan_id: int, linia: str, etap: int, user_login: str, szarza_nr: Optional[int] = None) -> Tuple[bool, str]:
         linia_u = _norm_linia(linia)
         try:
             etap_nr = int(etap)
@@ -461,9 +892,7 @@ class ZasypEtapyService:
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT MAX(szarza_nr) FROM zasyp_etapy WHERE linia=%s AND plan_id=%s", (linia_u, int(plan_id)))
-            r_sz = cursor.fetchone()
-            curr_szarza_nr = r_sz[0] if r_sz and r_sz[0] else 1
+            curr_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
 
             cursor.execute(
                 """
@@ -507,16 +936,14 @@ class ZasypEtapyService:
                 pass
 
     @staticmethod
-    def stop_any_running_etap(plan_id: int, linia: str, user_login: str) -> None:
+    def stop_any_running_etap(plan_id: int, linia: str, user_login: str, szarza_nr: Optional[int] = None) -> None:
         """Best-effort: stop any running etap for plan."""
         linia_u = _norm_linia(linia)
         conn = None
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT MAX(szarza_nr) FROM zasyp_etapy WHERE linia=%s AND plan_id=%s", (linia_u, int(plan_id)))
-            r_sz = cursor.fetchone()
-            curr_szarza_nr = r_sz[0] if r_sz and r_sz[0] else 1
+            curr_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
 
             cursor.execute(
                 """
@@ -544,6 +971,7 @@ class ZasypEtapyService:
         czas_start_hhmm: Optional[str],
         czas_stop_hhmm: Optional[str],
         user_login: str,
+        szarza_nr: Optional[int] = None,
     ) -> Tuple[bool, str]:
         """Manual override of etap start/stop times (HH:MM on plan date).
 
@@ -566,6 +994,12 @@ class ZasypEtapyService:
         if czas_stop_hhmm and stop_dt_in is None:
             return False, 'Nieprawidłowy format STOP (HH:MM)'
 
+        now_dt = datetime.now()
+        if start_dt_in is not None and start_dt_in > now_dt:
+            return False, 'START nie może być późniejszy niż aktualny czas'
+        if stop_dt_in is not None and stop_dt_in > now_dt:
+            return False, 'STOP nie może być późniejszy niż aktualny czas'
+
         if start_dt_in is None and stop_dt_in is None:
             return False, 'Wpisz START i/lub STOP do zapisania'
 
@@ -573,9 +1007,7 @@ class ZasypEtapyService:
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT MAX(szarza_nr) FROM zasyp_etapy WHERE linia=%s AND plan_id=%s", (linia_u, int(plan_id)))
-            r_sz = cursor.fetchone()
-            curr_szarza_nr = r_sz[0] if r_sz and r_sz[0] else 1
+            curr_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
 
             cursor.execute(
                 """
@@ -592,6 +1024,10 @@ class ZasypEtapyService:
             existing_start_login = row[2] if row else None
             existing_stop_login = row[3] if row else None
 
+            # Manual editing is allowed only for finished stages.
+            if existing_stop is None:
+                return False, 'Ręczna edycja czasu jest dozwolona tylko dla zakończonych etapów'
+
             new_start = start_dt_in if start_dt_in is not None else existing_start
             new_stop = stop_dt_in if stop_dt_in is not None else existing_stop
 
@@ -599,6 +1035,48 @@ class ZasypEtapyService:
                 return False, 'Nie można ustawić STOP bez START'
             if new_start is not None and new_stop is not None and new_stop < new_start:
                 return False, 'STOP nie może być wcześniejszy niż START'
+
+            cursor.execute(
+                """
+                SELECT etap, czas_start, czas_stop
+                FROM zasyp_etapy
+                WHERE linia = %s AND plan_id = %s AND szarza_nr = %s
+                """,
+                (linia_u, int(plan_id), curr_szarza_nr),
+            )
+            seq_rows = cursor.fetchall() or []
+            etap_times: Dict[int, Tuple[Optional[datetime], Optional[datetime]]] = {}
+            existing_etaps: List[int] = []
+            for r in seq_rows:
+                try:
+                    e = int(r[0] if isinstance(r, (tuple, list)) else r.get('etap'))
+                except Exception:
+                    continue
+                existing_etaps.append(e)
+                start_dt = r[1] if isinstance(r, (tuple, list)) else r.get('czas_start')
+                stop_dt = r[2] if isinstance(r, (tuple, list)) else r.get('czas_stop')
+                etap_times[e] = (start_dt, stop_dt)
+
+            seq = _build_sequence_for_szarza(linia_u, existing_etaps, include_etap=etap_nr)
+            prev_etap, next_etap = _prev_next_etap_in_sequence(seq, etap_nr)
+            curr_name = _etap_display_name(linia_u, etap_nr)
+
+            if prev_etap is not None and new_start is not None:
+                prev_stop = (etap_times.get(prev_etap) or (None, None))[1]
+                prev_name = _etap_display_name(linia_u, prev_etap)
+                if prev_stop is None:
+                    return False, f'{curr_name} nie może się rozpocząć przed zakończeniem: {prev_name} (najpierw ustaw STOP)'
+                if new_start < prev_stop:
+                    return False, f'START: {curr_name} nie może być wcześniejszy niż {_format_hhmm(prev_stop)} (STOP: {prev_name})'
+
+            if next_etap is not None:
+                next_start = (etap_times.get(next_etap) or (None, None))[0]
+                if next_start is not None:
+                    next_name = _etap_display_name(linia_u, next_etap)
+                    if new_start is not None and new_start > next_start:
+                        return False, f'START: {curr_name} nie może być późniejszy niż {_format_hhmm(next_start)} (START: {next_name})'
+                    if new_stop is not None and new_stop > next_start:
+                        return False, f'STOP: {curr_name} nie może być późniejszy niż {_format_hhmm(next_start)} (START: {next_name})'
 
             # Prevent two stages "running" at once.
             would_be_running = bool(new_start and not new_stop)
@@ -661,7 +1139,7 @@ class ZasypEtapyService:
                 pass
 
     @staticmethod
-    def reset_etap(plan_id: int, linia: str, etap: int) -> Tuple[bool, str]:
+    def reset_etap(plan_id: int, linia: str, etap: int, szarza_nr: Optional[int] = None) -> Tuple[bool, str]:
         """Delete etap row (clears manual/auto times and signatures)."""
         linia_u = _norm_linia(linia)
         try:
@@ -675,15 +1153,32 @@ class ZasypEtapyService:
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            table_szarze = get_table_name('szarze', linia_u)
-            cursor.execute(f"SELECT COUNT(*) FROM {table_szarze} WHERE plan_id=%s", (int(plan_id),))
-            r_sz = cursor.fetchone()
-            curr_szarza_nr = (r_sz[0] if r_sz else 0) + 1
+            curr_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
 
             cursor.execute(
                 "DELETE FROM zasyp_etapy WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s",
                 (linia_u, int(plan_id), curr_szarza_nr, etap_nr),
             )
+            
+            # AGRO pairs are non-separable: resetting one side also resets its pair.
+            # Supported pairs: 3<->4, 31<->41, 32<->42, ...
+            paired_etap = None
+            if linia_u == 'AGRO':
+                if etap_nr == 3:
+                    paired_etap = 4
+                elif etap_nr == 4:
+                    paired_etap = 3
+                elif 30 < etap_nr < 40:
+                    paired_etap = etap_nr + 10
+                elif 40 < etap_nr < 50:
+                    paired_etap = etap_nr - 10
+
+            if paired_etap is not None:
+                cursor.execute(
+                    "DELETE FROM zasyp_etapy WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s",
+                    (linia_u, int(plan_id), curr_szarza_nr, paired_etap),
+                )
+
             conn.commit()
             return True, f'Zresetowano etap {etap_nr}'
         except Exception:
@@ -701,7 +1196,7 @@ class ZasypEtapyService:
                 pass
 
     @staticmethod
-    def delete_etap(plan_id: int, linia: str, etap: int) -> Tuple[bool, str]:
+    def delete_etap(plan_id: int, linia: str, etap: int, szarza_nr: Optional[int] = None) -> Tuple[bool, str]:
         """Permanently delete etap row (specifically for sub-stages)."""
         # Logic is the same as reset, but with a different message
         linia_u = _norm_linia(linia)
@@ -709,16 +1204,32 @@ class ZasypEtapyService:
             etap_nr = int(etap)
             conn = get_db_connection()
             cursor = conn.cursor()
-            # Calculate same szarza_nr as reset
-            table_szarze = get_table_name('szarze', linia_u)
-            cursor.execute(f"SELECT COUNT(*) FROM {table_szarze} WHERE plan_id=%s", (int(plan_id),))
-            r_sz = cursor.fetchone()
-            curr_szarza_nr = (r_sz[0] if r_sz else 0) + 1
+            curr_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
 
             cursor.execute(
                 "DELETE FROM zasyp_etapy WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s",
                 (linia_u, int(plan_id), curr_szarza_nr, etap_nr),
             )
+            
+            # AGRO pairs are non-separable: deleting one side also deletes its pair.
+            # Supported pairs: 3<->4, 31<->41, 32<->42, ...
+            paired_etap = None
+            if linia_u == 'AGRO':
+                if etap_nr == 3:
+                    paired_etap = 4
+                elif etap_nr == 4:
+                    paired_etap = 3
+                elif 30 < etap_nr < 40:
+                    paired_etap = etap_nr + 10
+                elif 40 < etap_nr < 50:
+                    paired_etap = etap_nr - 10
+
+            if paired_etap is not None:
+                cursor.execute(
+                    "DELETE FROM zasyp_etapy WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s",
+                    (linia_u, int(plan_id), curr_szarza_nr, paired_etap),
+                )
+                
             conn.commit()
             cursor.close()
             conn.close()
@@ -958,7 +1469,7 @@ class ZasypEtapyService:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(f"""
                 SELECT 
-                    z.plan_id, p.produkt, p.data_planu,
+                    z.plan_id, p.produkt, p.data_planu, p.real_start, p.real_stop,
                     SUM(CASE WHEN z.etap = 1 THEN TIMESTAMPDIFF(SECOND, z.czas_start, COALESCE(z.czas_stop, NOW())) ELSE 0 END) AS e1,
                     SUM(CASE WHEN z.etap = 2 THEN TIMESTAMPDIFF(SECOND, z.czas_start, COALESCE(z.czas_stop, NOW())) ELSE 0 END) AS e2,
                     SUM(CASE WHEN z.etap = 3 THEN TIMESTAMPDIFF(SECOND, z.czas_start, COALESCE(z.czas_stop, NOW())) ELSE 0 END) AS e3,
@@ -974,6 +1485,7 @@ class ZasypEtapyService:
             """, (linia_u, d_od, d_do))
             zlecenia = cursor.fetchall() or []
             
+            now_dt = datetime.now()
             for r in zlecenia:
                 plan_id = r.get('plan_id')
                 cursor.execute(f"SELECT COUNT(*), COALESCE(SUM(waga),0) FROM {table_szarze} WHERE plan_id=%s", (plan_id,))
@@ -987,6 +1499,19 @@ class ZasypEtapyService:
                 total_kg = sz_kg + dos_kg
                 total_s = int(r.get('total_s') or 0)
                 kg_h = (total_kg / (total_s / 3600.0)) if total_s > 0 else 0.0
+
+                # elapsed (real) time since plan real_start until real_stop (or now if running)
+                kg_h_elapsed = None
+                try:
+                    real_start = r.get('real_start')
+                    real_stop = r.get('real_stop')
+                    if total_kg > 0 and real_start:
+                        end_dt = real_stop or now_dt
+                        elapsed_hours = max(0.0, (end_dt - real_start).total_seconds() / 3600.0)
+                        if elapsed_hours > 0:
+                            kg_h_elapsed = total_kg / elapsed_hours
+                except Exception:
+                    kg_h_elapsed = None
 
                 cursor.execute("""
                     SELECT szarza_nr, 
@@ -1044,6 +1569,7 @@ class ZasypEtapyService:
                     'dosypki_kg': dos_kg,
                     'total_kg': total_kg,
                     'kg_h': kg_h,
+                    'kg_h_elapsed': kg_h_elapsed,
                     'avg_szarza_str': avg_szarza_str,
                     'szarze_det': szarze_det
                 })

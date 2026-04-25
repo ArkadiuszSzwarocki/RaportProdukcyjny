@@ -5,13 +5,13 @@
     {%- if s <= 0 -%}
         0m
     {%- else -%}
-        {%- set mins = s // 60 -%}
-        {%- set h = mins // 60 -%}
-        {%- set m = mins % 60 -%}
+        {%- set h = s // 3600 -%}
+        {%- set m = (s % 3600) // 60 -%}
+        {%- set sec = s % 60 -%}
         {%- if h > 0 -%}
-            {{ h }}h {{ "%02d"|format(m) }}m
+            {{ h }}h {{ "%02d"|format(m) }}m {{ "%02d"|format(sec) }}s
         {%- else -%}
-            {{ mins }}m
+            {{ m }}m {{ "%02d"|format(sec) }}s
         {%- endif -%}
     {%- endif -%}
 {%- endmacro %}
@@ -63,7 +63,7 @@
                     <th>Szarże (szt/kg)</th>
                     <th>Dosypki (szt/kg)</th>
                     <th>Razem kg</th>
-                    <th>kg/h</th>
+                    <th>kg/h<br><small>prod. / rzeczyw.</small></th>
                 </tr>
             </thead>
             <tbody>
@@ -104,9 +104,18 @@
                     {% if r.total_kg > 0 %}{{ r.total_kg|int }} kg{% else %}—{% endif %}
                 </td>
                 <td class="text-center">
-                    {% if r.kg_h > 0 %}
-                    <span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(r.kg_h) }} kg/h</span>
-                    {% else %}—{% endif %}
+                    {% set prod_val = (r.kg_h if r.kg_h is defined else None) %}
+                    {% set real_val = (r.kg_h_elapsed if r.kg_h_elapsed is defined else None) %}
+                    {% if (prod_val and prod_val > 0) or (real_val and real_val > 0) %}
+                        {% if prod_val and prod_val > 0 %}
+                            <div><span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(prod_val) }} kg/h</span><br><small>czas produkcyjny</small></div>
+                        {% endif %}
+                        {% if real_val and real_val > 0 %}
+                            <div style="margin-top:4px;"><span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(real_val) }} kg/h</span><br><small>czas rzeczywisty</small></div>
+                        {% endif %}
+                    {% else %}
+                        —
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
@@ -197,7 +206,7 @@
                     <th class="text-center" style="width:8%;">Szarże</th>
                     <th class="text-center" style="width:8%;">Dosypki</th>
                     <th class="text-center" style="width:9%;">Razem kg</th>
-                    <th class="text-center" style="width:7%;">kg/h</th>
+                    <th class="text-center" style="width:12%;">kg/h<br><small>prod. / rzeczyw.</small></th>
                 </tr>
             </thead>
             <tbody>
@@ -242,9 +251,18 @@
                     {% if r.total_kg > 0 %}{{ r.total_kg|int }} kg{% else %}—{% endif %}
                 </td>
                 <td class="text-center">
-                    {% if r.kg_h > 0 %}
-                    <span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(r.kg_h) }} kg/h</span>
-                    {% else %}—{% endif %}
+                    {% set prod_val = (r.kg_h if r.kg_h is defined else None) %}
+                    {% set real_val = (r.kg_h_elapsed if r.kg_h_elapsed is defined else None) %}
+                    {% if (prod_val and prod_val > 0) or (real_val and real_val > 0) %}
+                        {% if prod_val and prod_val > 0 %}
+                            <div><span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(prod_val) }} kg/h</span><br><small>czas produkcyjny</small></div>
+                        {% endif %}
+                        {% if real_val and real_val > 0 %}
+                            <div style="margin-top:4px;"><span class="badge-info" style="font-size:0.85em;">{{ "%.0f"|format(real_val) }} kg/h</span><br><small>czas rzeczywisty</small></div>
+                        {% endif %}
+                    {% else %}
+                        —
+                    {% endif %}
                 </td>
             </tr>
             <tr id="sz_det_tbl_{{ loop.index }}" style="display:none; background-color: #fafbfc;">

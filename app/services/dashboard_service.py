@@ -226,13 +226,22 @@ class DashboardService:
                 conn_ph.close()
             except Exception:
                 pass
+        # Preserve original zasyp_id from index 14 (if present in SELECT row)
+        # before we reuse index 14 as "original transfer tonaz".
+        zasyp_id_original_map = {}
+        for p in plan_dnia:
+            if len(p) > 14 and p[14]:
+                zasyp_id_original_map[p[0]] = p[14]
+
         # Ustaw p[13]: sformatowana data źródłowa lub '' jeśli nie przeniesione
         # Ustaw p[14]: oryginalna kwota przenosin z bufora (0 jeśli nie carry-over lub brak)
         for p in plan_dnia:
+            while len(p) <= 14:
+                p.append(None)
             src = przeniesione_map.get(p[0], '')
             if not src:
                 # Carry-over ghost: nazwa_zlecenia zaczyna się od 'PRZENIESIONE z ' lub 'carry-over z '
-                nazwa = p[12] if len(p) > 12 else ''
+                nazwa = (p[12] if len(p) > 12 and p[12] is not None else '')
                 from datetime import datetime as _dt
                 for prefix in ('PRZENIESIONE z ', 'carry-over z '):
                     if nazwa.startswith(prefix):
@@ -253,13 +262,10 @@ class DashboardService:
                 table_bufor = get_table_name('bufor', linia)
                 conn_buf = get_db_connection()
                 cursor_buf = conn_buf.cursor()
-                zasyp_ids = [p[14] for p in plan_dnia if p[13]]  # p[14] still zasyp_id here (from SELECT)
-                # Actually p[14] from SELECT is zasyp_id - we haven't overwritten it yet.
-                # Collect zasyp_ids for plans that have przeniesiony_z set
                 zasyp_id_map = {}  # plan_id -> zasyp_id
                 for p in plan_dnia:
                     if p[13]:  # przeniesiony_z is set
-                        raw_zasyp_id = p[14]  # still zasyp_id from DB at this point
+                        raw_zasyp_id = zasyp_id_original_map.get(p[0])
                         if raw_zasyp_id:
                             zasyp_id_map[p[0]] = raw_zasyp_id
                 if zasyp_id_map:
@@ -748,7 +754,13 @@ class DashboardService:
     @staticmethod
     def get_quality_and_leave_requests(role: str, linia='PSD') -> Dict[str, Any]:
         """Get quality orders count and pending leave requests for leaders."""
-        quality_count = QueryHelper.get_quality_orders_count(linia=linia)
+        # Backward-compatible quality counter: prefer current API, fallback to legacy helper.
+        try:
+            quality_count = QueryHelper.get_quality_orders_count(linia=linia)
+            if not isinstance(quality_count, (int, float)):
+                quality_count = QueryHelper.get_pending_quality_count()
+        except Exception:
+            quality_count = QueryHelper.get_pending_quality_count()
         wnioski_pending = []
         
         try:

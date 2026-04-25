@@ -195,12 +195,19 @@
         container.__dosypki_inited = true;
 
         // delegate click for confirmation buttons
+        // Only handle clicks on buttons explicitly rendered as dosypka confirmation
         container.addEventListener('click', function (ev) {
-            const btn = ev.target.closest && ev.target.closest('button[data-id]');
+            const btn = ev.target.closest && ev.target.closest('button.dosypka-confirm-btn[data-id]');
             if (!btn) return;
             const id = btn.getAttribute('data-id');
             if (!id) return;
-            if (!confirm('Potwierdzić dosypkę?')) return;
+
+            // Resolve linia to allow line-specific behavior in future (not enforced here)
+            const p15 = btn.closest && btn.closest('.p-15');
+            const linia = (p15 && p15.getAttribute('data-linia')) || (typeof window._linia !== 'undefined' ? window._linia : 'PSD');
+
+            // Directly confirm dosypka without blocking browser confirm dialog
+            // (removed native confirm per UX request)
             confirmDosypka(id, btn);
         });
 
