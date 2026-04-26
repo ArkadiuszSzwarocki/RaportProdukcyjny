@@ -7,7 +7,11 @@
             <span class="material-icons" style="color: #3498db; font-size: 32px;">print</span>
             Wybierz zlecenie do raportu
         </h2>
-        <p style="color: #666; margin-bottom: 25px;">Data planu: <strong>{{ data_planu }}</strong></p>
+        <p style="color: #666; margin-bottom: 8px;">Data planu: <strong id="selected-plan-date">{{ data_planu }}</strong></p>
+        <div style="margin-bottom:16px; display:flex; gap:8px; align-items:center; justify-content:center;">
+            <input type="date" id="reportDatePicker" value="{{ data_planu }}" style="padding:6px;border-radius:6px;border:1px solid #d1d5db;">
+            <button type="button" class="btn-action" onclick="changeReportDate()" style="padding:8px 12px;background:#3498db;color:#fff;border-radius:6px;border:none;">Pokaż</button>
+        </div>
 
         <div class="plans-list">
             {% for p in plans %}
@@ -38,4 +42,15 @@
         </div>
     </div>
 </div>
+<script>
+    function changeReportDate(){
+        try{
+            var d = document.getElementById('reportDatePicker').value || '';
+            if(!d) return;
+            var url = '/agro/raport_palet?data=' + encodeURIComponent(d) + '&select=1';
+            // navigate to the same selector page for the chosen date
+            window.location.href = url;
+        }catch(e){ console.error('changeReportDate error', e); }
+    }
+</script>
 {% endblock %}

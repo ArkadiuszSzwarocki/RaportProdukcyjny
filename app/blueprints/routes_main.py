@@ -346,6 +346,7 @@ def index() -> str:
     etapy_mapa = {}      # plan_id -> latest session list of etap dicts (compat)
     etapy_parametry = {} # plan_id -> {wielkosc_szarzy_kg}
     etapy_total = {}     # plan_id -> latest session formatted total time string (compat)
+    etapy_total_s = {}   # plan_id -> latest session total duration in seconds
     etapy_curr_szarza = {} # plan_id -> latest session curr_szarza_nr (compat)
     etapy_sesje_mapa = {} # plan_id -> list of session payloads
     kgph_stats_mapa = {}  # plan_id -> {'real_work': float|None, 'timeline': float|None}
@@ -360,6 +361,7 @@ def index() -> str:
                     etapy_sesje_mapa[pid] = sessions
                     etapy_mapa[pid] = latest.get('etapy') or []
                     etapy_total[pid] = latest.get('total_duration_str') or ''
+                    etapy_total_s[pid] = int(latest.get('total_duration_s') or 0)
                     etapy_curr_szarza[pid] = latest.get('curr_szarza_nr') or 1
                     etapy_parametry[pid] = ZasypEtapyService.get_parametry(plan_id=pid, linia=aktywna_linia)
         except Exception as _e:
@@ -395,8 +397,7 @@ def index() -> str:
                         plan_id,
                         MIN(czas_start) AS first_start,
                         MAX(COALESCE(czas_stop, NOW())) AS last_end,
-                        MAX(CASE WHEN czas_stop IS NULL THEN 1 ELSE 0 END) AS has_running,
-                        COALESCE(SUM(TIMESTAMPDIFF(SECOND, czas_start, COALESCE(czas_stop, NOW()))), 0) AS total_prod_s
+                            MAX(CASE WHEN czas_stop IS NULL THEN 1 ELSE 0 END) AS has_running
                     FROM zasyp_etapy
                     WHERE linia = %s AND plan_id IN ({fmt_ids}) AND czas_start IS NOT NULL
                     GROUP BY plan_id
@@ -410,19 +411,21 @@ def index() -> str:
                     meta = plan_meta.get(pid) or {}
                     tonaz_plan = float(meta.get('tonaz_rzeczywisty') or 0.0)
                     tonaz_realized = float(plan_realized_kg.get(pid) or 0.0)
+                    parametry = etapy_parametry.get(pid) or {}
                     status = plan_status.get(pid, '')
                     agg = etapy_agg_map.get(pid) or {}
 
                     # Real efficiency should always use actually produced mass when available.
                     # Fallback to plan tonaz only if execution is still zero/missing.
                     tonaz = tonaz_realized if tonaz_realized > 0 else tonaz_plan
+                    batch_tonaz = float(parametry.get('wielkosc_szarzy_kg') or 0.0)
                     real_start = meta.get('real_start')
                     real_stop = meta.get('real_stop')
+                    real_seconds = 0
 
                     real_work_kgph = None
                     if tonaz > 0:
-                        metric_start = agg.get('first_start') or real_start
-                        # For active order, real metric should progress with current clock even between etaps.
+                        metric_start = real_start or agg.get('first_start')
                         if status == 'w toku':
                             metric_end = now_dt
                         else:
@@ -430,25 +433,86 @@ def index() -> str:
 
                         if metric_start:
                             try:
-                                real_hours = max(0.0, (metric_end - metric_start).total_seconds() / 3600.0)
+                                real_seconds = max(0, int((metric_end - metric_start).total_seconds()))
+                                real_hours = real_seconds / 3600.0
                                 if real_hours > 0:
                                     real_work_kgph = tonaz / real_hours
                             except Exception:
                                 real_work_kgph = None
+                                real_seconds = 0
 
                     timeline_kgph = None
-                    if tonaz > 0:
-                        total_prod_s = int(agg.get('total_prod_s') or 0)
-
-                        if total_prod_s > 0:
+                    sessions_for_plan = etapy_sesje_mapa.get(pid) or []
+                    def _session_etapy_breakdown(session_payload):
+                        etapy_out = []
+                        for e in (session_payload.get('etapy') or []):
                             try:
-                                timeline_kgph = tonaz / (total_prod_s / 3600.0)
+                                dur_s = int(e.get('duration_s') or 0)
+                            except Exception:
+                                dur_s = 0
+                            if dur_s <= 0:
+                                continue
+                            try:
+                                etap_nr = int(e.get('etap'))
+                            except Exception:
+                                etap_nr = e.get('etap')
+                            etapy_out.append({
+                                'etap': etap_nr,
+                                'duration_s': dur_s,
+                                'duration_str': e.get('duration_str') or '',
+                            })
+                        return etapy_out
+
+                    closed_sessions = [
+                        s for s in sessions_for_plan
+                        if int(s.get('total_duration_s') or 0) > 0 and not bool(s.get('has_running'))
+                    ]
+
+                    if closed_sessions:
+                        timeline_seconds = sum(int(s.get('total_duration_s') or 0) for s in closed_sessions)
+                        timeline_mass = (batch_tonaz * len(closed_sessions)) if batch_tonaz > 0 else tonaz
+                        timeline_sources = []
+                        for s in closed_sessions:
+                            timeline_sources.append({
+                                'szarza_nr': int(s.get('szarza_nr') or s.get('curr_szarza_nr') or 0),
+                                'total_duration_s': int(s.get('total_duration_s') or 0),
+                                'total_duration_str': s.get('total_duration_str') or '',
+                                'etapy': _session_etapy_breakdown(s),
+                            })
+                    else:
+                        timeline_seconds = int(etapy_total_s.get(pid) or 0)
+                        timeline_mass = batch_tonaz if batch_tonaz > 0 else tonaz
+                        current_session = sessions_for_plan[0] if sessions_for_plan else None
+                        if current_session:
+                            timeline_sources = [{
+                                'szarza_nr': int(current_session.get('szarza_nr') or current_session.get('curr_szarza_nr') or 0),
+                                'total_duration_s': int(current_session.get('total_duration_s') or 0),
+                                'total_duration_str': current_session.get('total_duration_str') or '',
+                                'etapy': _session_etapy_breakdown(current_session),
+                            }]
+                        else:
+                            timeline_sources = []
+
+                    if timeline_mass > 0:
+                        if timeline_seconds > 0:
+                            try:
+                                timeline_hours = timeline_seconds / 3600.0
+                                if timeline_hours > 0:
+                                    timeline_kgph = timeline_mass / timeline_hours
                             except Exception:
                                 timeline_kgph = None
 
                     kgph_stats_mapa[pid] = {
                         'real_work': real_work_kgph,
                         'timeline': timeline_kgph,
+                        'real_mass_kg': tonaz,
+                        'real_seconds': real_seconds,
+                        'timeline_mass_kg': timeline_mass,
+                        'timeline_batch_mass_kg': batch_tonaz if batch_tonaz > 0 else None,
+                        'timeline_seconds': timeline_seconds,
+                        'timeline_closed_sessions': len(closed_sessions),
+                        'timeline_mode': 'closed_sessions' if closed_sessions else 'current_session',
+                        'timeline_sources': timeline_sources,
                     }
 
                 cursor_stats.close()
@@ -830,9 +894,16 @@ def zglos_blad_systemu() -> Response:
     from flask import current_app, jsonify
     import time
     
-    opis = request.form.get('opis', '')
+    opis = (request.form.get('opis', '') or '').strip()
+    gdzie = (request.form.get('gdzie', '') or '').strip()
     sciezka = request.form.get('sciezka', '')
     login = session.get('login', 'Nieznany')
+
+    if not opis:
+        return jsonify({'success': False, 'message': 'Opis problemu jest wymagany.'}), 400
+
+    if gdzie:
+        opis = f"[Miejsce występowania] {gdzie}\n\n{opis}"
     
     upload_dir = os.path.join(current_app.static_folder, 'uploads', 'bugs')
     os.makedirs(upload_dir, exist_ok=True)

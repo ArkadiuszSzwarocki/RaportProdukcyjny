@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+    <div class="section-header">
+        <h2>Moje zgłoszenia błędów</h2>
+        <div class="d-flex gap-10">
+            <button type="button" class="btn" onclick="openBugReportModal()">+ Nowe zgłoszenie</button>
+            <a href="/" class="btn btn-secondary">Powrót</a>
+        </div>
+    </div>
+
+    {% if reports %}
+    <div class="d-flex flex-column gap-10">
+        {% for r in reports %}
+        <div class="card p-15">
+            <div class="d-flex justify-between align-center" style="gap:10px; flex-wrap:wrap;">
+                <strong>Zgłoszenie #{{ r.id }}</strong>
+                <span class="badge-info">{{ (r.timestamp|string)|replace('T', ' ')|truncate(19, True, '') }}</span>
+            </div>
+
+            {% if r.sciezka %}
+            <div class="small text-muted mt-5">Miejsce: {{ r.sciezka }}</div>
+            {% endif %}
+
+            <div class="mt-10" style="white-space:pre-wrap;">{{ r.opis }}</div>
+
+            {% if r.zalaczniki %}
+            <div class="d-flex gap-10 mt-10" style="flex-wrap:wrap;">
+                {% for img in r.zalaczniki %}
+                <a href="{{ url_for('static', filename='uploads/bugs/' + img) }}" target="_blank" rel="noopener" class="btn btn-sm">Screen {{ loop.index }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if r.odpowiedz_admina %}
+            <div class="mt-10 p-10" style="border:1px solid #d1fae5; background:#ecfdf5; border-radius:8px;">
+                <div class="small text-muted">Odpowiedział: {{ r.odpowiedz_by_login or 'admin' }} • {{ (r.odpowiedz_timestamp|string)|replace('T', ' ')|truncate(19, True, '') }}</div>
+                <div style="white-space:pre-wrap; margin-top:6px;"><strong>Odpowiedź:</strong> {{ r.odpowiedz_admina }}</div>
+            </div>
+            {% else %}
+            <div class="mt-10 small text-muted">Status: {{ r.status or 'nowe' }}. Odpowiedź jeszcze nie została udzielona.</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card p-20 text-center">
+        Brak Twoich zgłoszeń. Kliknij + Nowe zgłoszenie, aby dodać pierwsze.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

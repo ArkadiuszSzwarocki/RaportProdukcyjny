@@ -142,6 +142,48 @@
             text-align: center;
         }
 
+        .bug-icon-onboarding-highlight {
+            position: relative;
+            isolation: isolate;
+            animation: bugIconNudge 2.4s ease-in-out infinite;
+        }
+
+        .bug-icon-onboarding-highlight::after {
+            content: '';
+            position: absolute;
+            inset: -6px;
+            border-radius: 12px;
+            border: 2px solid rgba(245, 158, 11, 0.85);
+            box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.35);
+            animation: bugIconPulse 1.8s ease-out infinite;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        @keyframes bugIconPulse {
+            0% {
+                transform: scale(0.98);
+                opacity: 0.95;
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45);
+            }
+            70% {
+                transform: scale(1.04);
+                opacity: 0.15;
+                box-shadow: 0 0 0 12px rgba(245, 158, 11, 0);
+            }
+            100% {
+                transform: scale(1.04);
+                opacity: 0;
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+            }
+        }
+
+        @keyframes bugIconNudge {
+            0%, 85%, 100% { transform: translateY(0); }
+            90% { transform: translateY(-1px); }
+            95% { transform: translateY(1px); }
+        }
+
         @media (max-width: 768px) {
             .notifications-wrapper {
                 position: static;
@@ -191,6 +233,32 @@
             color: var(--text-secondary, #64748b);
             font-size: 13px;
             text-decoration: none;
+        }
+
+        .nav-badge-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        .nav-badge-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            margin-left: 6px;
+            vertical-align: middle;
         }
 
         .nav-item { cursor: pointer; }
@@ -283,7 +351,7 @@
         <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
             <span class="material-icons">report_problem</span>
         </a>
-        <button type="button" class="btn-icon text-warning" title="Zgłoś błąd w systemie" onclick="openBugReportModal()">
+        <button type="button" id="bugReportTopButton" class="btn-icon text-warning {% if session.get('show_bug_icon_intro') %}bug-icon-onboarding-highlight{% endif %}" title="Zgłoś błąd w systemie" onclick="openBugReportModal()">
             <span class="material-icons">bug_report</span>
         </button>
         {% endif %}
@@ -495,14 +563,14 @@
                 {% if role_has_access('ustawienia') %}
                 <div class="nav-item-group">
                     <button type="button" class="nav-item {% if request.path.startswith('/admin/centrum') or '/admin/ustawienia/zalogowani' in request.path or '/admin/ustawienia/logs' in request.path or '/admin/ustawienia/errors' in request.path or '/admin/ustawienia/backups' in request.path or '/admin/centrum/audyt' in request.path %}active{% endif %}" aria-expanded="false">
-                        🖥️ <span class="text-capitalize">Centrum Systemowe</span>
+                        🖥️ <span class="text-capitalize">Centrum Systemowe</span>{% if unread_bug_reports_count|default(0) > 0 %}<span class="nav-badge-dot" aria-hidden="true"></span>{% endif %}
                     </button>
                     <div class="nav-sub {% if request.path.startswith('/admin/centrum') or '/admin/ustawienia/zalogowani' in request.path or '/admin/ustawienia/logs' in request.path or '/admin/ustawienia/errors' in request.path or '/admin/ustawienia/backups' in request.path or '/admin/centrum/audyt' in request.path %}open{% endif %}">
                         <a href="/admin/centrum" class="nav-sub-item {% if request.path == '/admin/centrum' %}active{% endif %}">— Dashboard Systemu</a>
                         <a href="/admin/ustawienia/zalogowani" class="nav-sub-item {% if request.path == '/admin/ustawienia/zalogowani' %}active{% endif %}">— Zalogowani</a>
                         <a href="/admin/ustawienia/logs" class="nav-sub-item {% if request.path == '/admin/ustawienia/logs' %}active{% endif %}">— Dziennik akcji</a>
                         <a href="/admin/ustawienia/errors" class="nav-sub-item {% if request.path == '/admin/ustawienia/errors' %}active{% endif %}">— Pułapki błędów</a>
-                        <a href="/admin/ustawienia/bugs" class="nav-sub-item {% if request.path == '/admin/ustawienia/bugs' %}active{% endif %}">— Zgłoszone błędy</a>
+                        <a href="/admin/ustawienia/bugs" class="nav-sub-item {% if request.path == '/admin/ustawienia/bugs' %}active{% endif %}">— Zgłoszone błędy{% if unread_bug_reports_count|default(0) > 0 %}<span class="nav-badge-dot" aria-hidden="true"></span><span class="nav-badge-count">{{ '99+' if unread_bug_reports_count > 99 else unread_bug_reports_count }}</span>{% endif %}</a>
                         <a href="/admin/ustawienia/backups" class="nav-sub-item {% if request.path == '/admin/ustawienia/backups' %}active{% endif %}">— Backupy</a>
                         <a href="/admin/centrum/audyt" class="nav-sub-item {% if request.path == '/admin/centrum/audyt' %}active{% endif %}">— Audyt ruchów</a>
                     </div>
@@ -510,7 +578,7 @@
 
                 <div class="nav-item-group">
                     <button type="button" class="nav-item {% if request.path == '/admin/ustawienia' or '/admin/ustawienia/zespol' in request.path or '/admin/ustawienia/roles' in request.path or '/admin/ustawienia/workowanie_times' in request.path or '/admin/ustawienia/produkcja' in request.path %}active{% endif %}" aria-expanded="false">
-                        ⚙️ <span class="text-capitalize">{{ _('ustawienia') }}</span>
+                        ⚙️ <span class="text-capitalize">{{ _('ustawienia') }}</span>{% if unread_bug_reports_count|default(0) > 0 %}<span class="nav-badge-dot" aria-hidden="true"></span>{% endif %}
                     </button>
                     <div class="nav-sub {% if request.path == '/admin/ustawienia' or '/admin/ustawienia/zespol' in request.path or '/admin/ustawienia/roles' in request.path or '/admin/ustawienia/workowanie_times' in request.path or '/admin/ustawienia/produkcja' in request.path %}open{% endif %}">
                         <a href="/admin/ustawienia" class="nav-sub-item {% if request.path == '/admin/ustawienia' %}active{% endif %}">— Główne Ustawienia</a>
@@ -574,6 +642,26 @@
             {% endif %}
         </main>
     </div>
+
+    {% if session.get('zalogowany') and session.get('show_bug_icon_intro') %}
+    <div id="bugIconIntroModal" style="position:fixed;inset:0;z-index:99998;background:rgba(15,23,42,0.65);display:flex;align-items:center;justify-content:center;padding:16px;">
+        <div style="background:#ffffff;max-width:560px;width:100%;border-radius:14px;box-shadow:0 20px 50px rgba(2,6,23,.35);border:1px solid rgba(15,23,42,.12);padding:22px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                <span class="material-icons" style="font-size:34px;color:#f59e0b;">bug_report</span>
+                <h3 style="margin:0;font-size:22px;color:#0f172a;">Nowa ikona: Zgłoś błąd</h3>
+            </div>
+            <p style="margin:0 0 10px 0;color:#334155;line-height:1.5;">
+                W górnym pasku pojawiła się nowa ikona <strong>bug_report</strong>. Służy do szybkiego zgłaszania problemów i propozycji usprawnień w systemie.
+            </p>
+            <p style="margin:0 0 18px 0;color:#334155;line-height:1.5;">
+                Po kliknięciu ikony otworzy się formularz, gdzie możesz opisać błąd i dodać do 3 zrzutów ekranu.
+            </p>
+            <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;">
+                <button type="button" onclick="ackBugIconIntro()" style="border:0;background:#16a34a;color:#fff;font-weight:700;padding:10px 16px;border-radius:8px;cursor:pointer;">Zapoznałem się</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <script src="{{ url_for('static', filename='js/toasts.js') }}?v={{ static_version }}"></script>
     <script src="{{ url_for('static', filename='scripts.js') }}?v={{ static_version }}"></script>
@@ -825,6 +913,7 @@
         document.addEventListener('DOMContentLoaded', function () {
             const menu = document.getElementById('languageMenu');
             if (menu) {
+                menu.classList.remove('open');
                 menu.style.display = 'none';
             }
         });
@@ -846,15 +935,26 @@
         function toggleLanguageMenu() {
             const menu = document.getElementById('languageMenu');
             if (menu) {
-                menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+                const isVisible = menu.classList.contains('open') || window.getComputedStyle(menu).display !== 'none';
+                if (isVisible) {
+                    menu.classList.remove('open');
+                    menu.style.display = 'none';
+                } else {
+                    menu.classList.add('open');
+                    menu.style.display = 'flex';
+                }
             }
         }
 
         // Zamykanie menu ponad innymi klikami w dokumencie
         document.addEventListener('click', function (event) {
+            // Ignore clicks triggered during partial reloads (programmatic clicks
+            // executed by inline scripts). Prevents auto-closing of dropdowns.
+            if (window.__partialReloadSuppressClick) return;
             const selector = document.querySelector('.language-selector');
             const menu = document.getElementById('languageMenu');
             if (selector && menu && !selector.contains(event.target)) {
+                menu.classList.remove('open');
                 menu.style.display = 'none';
             }
 
@@ -1027,17 +1127,68 @@
         })();
     </script>
     <script>
+        function ackBugIconIntro() {
+            fetch('/api/ack_bug_icon_intro', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            }).catch(function () { /* ignore network issues, still hide modal */ })
+            .finally(function () {
+                var modal = document.getElementById('bugIconIntroModal');
+                if (modal) modal.remove();
+                var bugButton = document.getElementById('bugReportTopButton');
+                if (bugButton) bugButton.classList.remove('bug-icon-onboarding-highlight');
+            });
+        }
+
+        function closeBugReportModal() {
+            try {
+                if (window.createQuickPopup && window.createQuickPopup._lastInst) {
+                    try { window.createQuickPopup._lastInst.close(); } catch (e) { }
+                }
+                if (window.closeQuickPopup) {
+                    try { window.closeQuickPopup(); } catch (e) { }
+                }
+
+                // Hard fallback: force hide overlay/popup even if helper couldn't close current instance.
+                var qp = document.getElementById('quickPopup');
+                var qb = document.getElementById('quickBackdrop');
+                if (qp) {
+                    qp.classList.remove('open');
+                    qp.setAttribute('aria-hidden', 'true');
+                    qp.style.display = 'none';
+                    qp.style.pointerEvents = 'none';
+                }
+                if (qb) {
+                    qb.classList.remove('show');
+                    qb.setAttribute('aria-hidden', 'true');
+                    qb.style.display = 'none';
+                    qb.style.pointerEvents = 'none';
+                }
+            } catch (e) { }
+        }
+
         // Zgłaszanie błędów (bug_report)
         function openBugReportModal() {
             var html = '<form id="bugReportForm" enctype="multipart/form-data">';
-            html += '<div class="form-group"><label>Krótki opis problemu, jak go wywołać:</label>';
-            html += '<textarea name="opis" rows="4" class="input-sm" required></textarea></div>';
+            html += '<div class="form-group">';
+            html += '<div class="text-muted small" style="margin-bottom:8px; line-height:1.45;">';
+            html += '<strong>Jak zgłosić skutecznie:</strong><br>';
+            html += '1) Co dokładnie klikasz (krok po kroku), 2) jaki jest efekt, 3) jaki efekt powinien być.<br>';
+            html += 'Dodaj też gdzie problem występuje (sekcja, linia, ekran).';
+            html += '</div></div>';
+            html += '<div class="form-group"><label>Gdzie występuje problem? (sekcja/linia/ekran):</label>';
+            html += '<input type="text" name="gdzie" class="input-sm" placeholder="Np. Zasyp AGRO - popup dosypki" required></div>';
+            html += '<div class="form-group"><label>Opis problemu i kroki odtworzenia:</label>';
+            html += '<textarea name="opis" rows="5" class="input-sm" placeholder="Np. 1. Wchodzę w ... 2. Klikam ... 3. Wyskakuje ..." required></textarea></div>';
             html += '<div class="form-group"><label>Zrzuty ekranu (maksymalnie 3 zdjęcia):</label>';
             html += '<input type="file" name="zalaczniki" accept="image/*" multiple id="bugScreenshots"></div>';
+            html += '<div class="text-muted small" style="margin-top:4px;">Najlepiej dodaj screen z wnętrza aplikacji z widocznym komunikatem lub błędnym stanem.</div>';
             html += '<p class="text-muted small" id="bugFileCountMsg"></p>';
             html += '<div class="d-flex gap-10 mt-15">';
             html += '<button type="button" class="btn-action btn-success" onclick="submitBugReport()">Wyślij zgłoszenie</button>';
-            html += '<button type="button" class="btn-action btn-cancel" onclick="if(window.closeQuickPopup) { window.closeQuickPopup(); }">Anuluj</button>';
+            html += '<button type="button" class="btn-action btn-cancel" onclick="closeBugReportModal()">Anuluj</button>';
+            html += '<a href="/moje_zgloszenia_bledow" class="btn-action btn-outline" style="text-decoration:none;">Moje zgłoszenia</a>';
             html += '</div></form>';
             
             if (window.showQuickPopup) {

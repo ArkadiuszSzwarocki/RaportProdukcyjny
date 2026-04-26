@@ -313,12 +313,14 @@ def _create_tables(cursor):
             tytul VARCHAR(255) NOT NULL,
             tresc TEXT NOT NULL,
             odbiorca_rola VARCHAR(50) NOT NULL,
+            odbiorca_login VARCHAR(100) NULL,
             link_url VARCHAR(255) NULL,
             plan_id INT NULL,
             created_by_user_id INT NULL,
             is_active BOOLEAN DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_powiadomienia_rola_data (odbiorca_rola, created_at),
+            INDEX idx_powiadomienia_login_data (odbiorca_login, created_at),
             INDEX idx_powiadomienia_active (is_active, created_at),
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE SET NULL,
             FOREIGN KEY (created_by_user_id) REFERENCES uzytkownicy(id) ON DELETE SET NULL
@@ -630,6 +632,12 @@ def _migrate_columns(cursor):
     # magazyn ruch – referencja do ruchu źródłowego (np. ZWROT → PRODUKCJA)
     _add_column_if_missing(cursor, "magazyn_ruch", "ruch_zrodlowy_id", "INT NULL", "Dodawanie kolumny 'ruch_zrodlowy_id' do magazyn_ruch")
     _add_column_if_missing(cursor, "magazyn_agro_ruch", "ruch_zrodlowy_id", "INT NULL", "Dodawanie kolumny 'ruch_zrodlowy_id' do magazyn_agro_ruch")
+
+    # notifications targeting and bug replies
+    _add_column_if_missing(cursor, "powiadomienia", "odbiorca_login", "VARCHAR(100) NULL", "Dodawanie kolumny 'odbiorca_login' do powiadomienia")
+    _add_column_if_missing(cursor, "zgloszenia_bledow", "odpowiedz_admina", "TEXT NULL", "Dodawanie kolumny 'odpowiedz_admina' do zgloszenia_bledow")
+    _add_column_if_missing(cursor, "zgloszenia_bledow", "odpowiedz_timestamp", "DATETIME NULL", "Dodawanie kolumny 'odpowiedz_timestamp' do zgloszenia_bledow")
+    _add_column_if_missing(cursor, "zgloszenia_bledow", "odpowiedz_by_login", "VARCHAR(50) NULL", "Dodawanie kolumny 'odpowiedz_by_login' do zgloszenia_bledow")
 
 
 def _seed_default_users(cursor):
@@ -1279,8 +1287,8 @@ def create_notifications(typ, tytul, tresc, recipient_roles, link_url=None, plan
             local_cursor.execute(
                 """
                 INSERT INTO powiadomienia
-                    (typ, tytul, tresc, odbiorca_rola, link_url, plan_id, created_by_user_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    (typ, tytul, tresc, odbiorca_rola, odbiorca_login, link_url, plan_id, created_by_user_id)
+                VALUES (%s, %s, %s, %s, NULL, %s, %s, %s)
                 """,
                 (typ, tytul, tresc, role, link_url, plan_id, created_by_user_id)
             )
@@ -1313,7 +1321,63 @@ def create_notifications(typ, tytul, tresc, recipient_roles, link_url=None, plan
                 pass
 
 
-def list_unread_notifications(user_id, role, limit=20, linia='PSD'):
+def create_notification_for_login(typ, tytul, tresc, recipient_login, link_url=None, plan_id=None, created_by_user_id=None, conn=None, cursor=None):
+    """Create a notification targeted to a single user login."""
+    login_value = str(recipient_login or '').strip()
+    if not login_value:
+        return None
+
+    own_conn = conn is None
+    own_cursor = cursor is None
+    local_conn = conn
+    local_cursor = cursor
+
+    try:
+        if own_conn:
+            local_conn = get_db_connection()
+        if own_cursor:
+            local_cursor = local_conn.cursor()
+
+        local_cursor.execute(
+            """
+            INSERT INTO powiadomienia
+                (typ, tytul, tresc, odbiorca_rola, odbiorca_login, link_url, plan_id, created_by_user_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (typ, tytul, tresc, '__login__', login_value, link_url, plan_id, created_by_user_id),
+        )
+
+        inserted_id = None
+        try:
+            inserted_id = local_cursor.lastrowid
+        except Exception:
+            inserted_id = None
+
+        if own_conn:
+            local_conn.commit()
+
+        return inserted_id
+    except Exception:
+        if own_conn and local_conn:
+            try:
+                local_conn.rollback()
+            except Exception:
+                pass
+        return None
+    finally:
+        if own_cursor and local_cursor:
+            try:
+                local_cursor.close()
+            except Exception:
+                pass
+        if own_conn and local_conn:
+            try:
+                local_conn.close()
+            except Exception:
+                pass
+
+
+def list_unread_notifications(user_id, role, login=None, limit=20, linia='PSD'):
     """Return unread notifications for a single user and role."""
     if not user_id or not role:
         return []
@@ -1330,12 +1394,15 @@ def list_unread_notifications(user_id, role, limit=20, linia='PSD'):
             LEFT JOIN powiadomienia_odczyty po
                 ON po.notification_id = p.id AND po.user_id = %s
             WHERE p.is_active = 1
-              AND p.odbiorca_rola = %s
+              AND (
+                    p.odbiorca_rola = %s
+                    OR (p.odbiorca_login IS NOT NULL AND LOWER(p.odbiorca_login) = LOWER(%s))
+                  )
               AND po.notification_id IS NULL
             ORDER BY p.created_at DESC, p.id DESC
             LIMIT %s
             """,
-            (user_id, str(role).strip().lower(), safe_limit)
+            (user_id, str(role).strip().lower(), str(login or '').strip(), safe_limit)
         )
         rows = cursor.fetchall()
         cursor.close()
@@ -1349,7 +1416,7 @@ def list_unread_notifications(user_id, role, limit=20, linia='PSD'):
         return []
 
 
-def mark_notification_read(notification_id, user_id, linia='PSD'):
+def mark_notification_read(notification_id, user_id, role=None, login=None, linia='PSD'):
     """Mark a single notification as read for the given user."""
     if not notification_id or not user_id:
         return False
@@ -1358,6 +1425,24 @@ def mark_notification_read(notification_id, user_id, linia='PSD'):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id FROM powiadomienia
+            WHERE id = %s
+              AND is_active = 1
+              AND (
+                    odbiorca_rola = %s
+                    OR (odbiorca_login IS NOT NULL AND LOWER(odbiorca_login) = LOWER(%s))
+                  )
+            LIMIT 1
+            """,
+            (notification_id, str(role or '').strip().lower(), str(login or '').strip()),
+        )
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return False
+
         cursor.execute(
             """
             INSERT IGNORE INTO powiadomienia_odczyty (notification_id, user_id)
@@ -1381,7 +1466,7 @@ def mark_notification_read(notification_id, user_id, linia='PSD'):
         return False
 
 
-def mark_all_notifications_read(user_id, role, linia='PSD'):
+def mark_all_notifications_read(user_id, role, login=None, linia='PSD'):
     """Mark all unread notifications for a role as read for the given user."""
     if not user_id or not role:
         return False
@@ -1398,10 +1483,13 @@ def mark_all_notifications_read(user_id, role, linia='PSD'):
             LEFT JOIN powiadomienia_odczyty po
                 ON po.notification_id = p.id AND po.user_id = %s
             WHERE p.is_active = 1
-              AND p.odbiorca_rola = %s
+              AND (
+                    p.odbiorca_rola = %s
+                    OR (p.odbiorca_login IS NOT NULL AND LOWER(p.odbiorca_login) = LOWER(%s))
+                  )
               AND po.notification_id IS NULL
             """,
-            (user_id, user_id, str(role).strip().lower())
+            (user_id, user_id, str(role).strip().lower(), str(login or '').strip())
         )
         conn.commit()
         cursor.close()
@@ -1560,7 +1648,7 @@ def sync_dosypka_notifications(plan_id, author_name=None, created_by_user_id=Non
     own_cursor = cursor is None
     local_conn = conn
     local_cursor = cursor
-    recipient_roles = ('pracownik', 'produkcja', 'lider', 'laborant', 'admin')
+    recipient_roles = ('operator', 'pracownik', 'produkcja', 'lider', 'laborant', 'admin', 'zarzad')
 
     table_plan = get_table_name('plan_produkcji', linia)
     table_dosypki = get_table_name('dosypki', linia)

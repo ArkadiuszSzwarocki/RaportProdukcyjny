@@ -220,6 +220,7 @@ def get_notifications():
     """Zwraca listę nieprzeczytanych powiadomień dla aktualnego użytkownika."""
     user_id = session.get('user_id')
     role = (session.get('rola') or '').lower()
+    login = session.get('login')
     if not user_id or not role:
         return jsonify({'success': False, 'message': 'Brak danych użytkownika'}), 400
 
@@ -230,7 +231,7 @@ def get_notifications():
         limit = 20
         linia = 'PSD'
 
-    notifications = list_unread_notifications(user_id, role, limit=limit, linia=linia)
+    notifications = list_unread_notifications(user_id, role, login=login, limit=limit, linia=linia)
     result = []
     for item in notifications:
         created_at = item.get('created_at')
@@ -253,11 +254,13 @@ def get_notifications():
 def read_notification(notification_id):
     """Oznacza pojedyncze powiadomienie jako przeczytane."""
     user_id = session.get('user_id')
-    if not user_id:
+    role = (session.get('rola') or '').lower()
+    login = session.get('login')
+    if not user_id or not role:
         return jsonify({'success': False, 'message': 'Brak danych użytkownika'}), 400
 
     linia = request.args.get('linia', 'PSD')
-    if not mark_notification_read(notification_id, user_id, linia=linia):
+    if not mark_notification_read(notification_id, user_id, role=role, login=login, linia=linia):
         return jsonify({'success': False, 'message': 'Nie udało się oznaczyć powiadomienia'}), 500
 
     return jsonify({'success': True})
@@ -269,11 +272,12 @@ def read_all_notifications():
     """Oznacza wszystkie powiadomienia dla roli użytkownika jako przeczytane."""
     user_id = session.get('user_id')
     role = (session.get('rola') or '').lower()
+    login = session.get('login')
     if not user_id or not role:
         return jsonify({'success': False, 'message': 'Brak danych użytkownika'}), 400
 
     linia = request.args.get('linia', 'PSD')
-    if not mark_all_notifications_read(user_id, role, linia=linia):
+    if not mark_all_notifications_read(user_id, role, login=login, linia=linia):
         return jsonify({'success': False, 'message': 'Nie udało się oznaczyć powiadomień'}), 500
 
     return jsonify({'success': True})

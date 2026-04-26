@@ -225,6 +225,24 @@ def inject_app_version():
     return dict(app_version=version)
 
 
+def inject_bug_report_counters():
+    """Inject unread bug reports count for templates (shown where applicable)."""
+    try:
+        if not session.get('zalogowany'):
+            return dict(unread_bug_reports_count=0)
+
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM zgloszenia_bledow WHERE status = 'nowy'")
+        row = cursor.fetchone()
+        conn.close()
+        count = int(row[0]) if row else 0
+        return dict(unread_bug_reports_count=count)
+    except Exception:
+        return dict(unread_bug_reports_count=0)
+
+
 def register_contexts(app):
     """Register all context processors with Flask app."""
     app.context_processor(inject_static_version)
@@ -232,4 +250,5 @@ def register_contexts(app):
     app.context_processor(inject_translations)
     app.context_processor(inject_app_into_templates)
     app.context_processor(inject_app_version)
+    app.context_processor(inject_bug_report_counters)
 

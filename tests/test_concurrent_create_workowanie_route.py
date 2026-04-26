@@ -1,5 +1,6 @@
 import threading
 import time
+import uuid
 from datetime import date
 
 import pytest
@@ -26,11 +27,12 @@ def test_concurrent_create_workowanie_route(app):
     cur = conn.cursor()
     today = date.today()
     zasyp_id = None
+    product_name = f'TEST_CONC_{uuid.uuid4().hex[:10].upper()}'
     try:
         # insert a Zasyp plan
         cur.execute(
             "INSERT INTO plan_produkcji (data_planu, sekcja, produkt, tonaz, tonaz_rzeczywisty, typ_produkcji, nazwa_zlecenia, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-            (today, 'Zasyp', 'ROUTE_TEST_PROD', 200.0, 200.0, 'worki_zgrzewane_25', 'ROUTETEST', 'w toku')
+            (today, 'Zasyp', product_name, 200.0, 200.0, 'worki_zgrzewane_25', 'ROUTETEST', 'w toku')
         )
         zasyp_id = cur.lastrowid
         conn.commit()
@@ -61,6 +63,7 @@ def test_concurrent_create_workowanie_route(app):
         try:
             if zasyp_id:
                 cur.execute("DELETE FROM plan_produkcji WHERE zasyp_id=%s", (zasyp_id,))
+                cur.execute("DELETE FROM plan_produkcji WHERE produkt=%s AND data_planu=%s", (product_name, today))
                 conn.commit()
         except Exception:
             pass

@@ -409,6 +409,65 @@ class DashboardService:
                         (p[0],)
                     )
                     rows = cursor.fetchall()
+
+                    szarza_ids = [int(r[0]) for r in rows if r and r[0] is not None]
+                    extra_by_szarza_id = {sid: [] for sid in szarza_ids}
+                    extra_kg_by_szarza_id = {sid: 0.0 for sid in szarza_ids}
+
+                    # Confirmed dosypki without szarza_id should still be visible on the szarza list.
+                    if szarza_ids:
+                        fmt_ids = ','.join(['%s'] * len(szarza_ids))
+                        cursor.execute(
+                            f"""SELECT nazwa, kg, data_zlecenia, szarza_id
+                                 FROM {table_dosypki}
+                                 WHERE plan_id = %s
+                                   AND potwierdzone = 1
+                                   AND COALESCE(anulowana, 0) = 0
+                                   AND (szarza_id IS NULL OR szarza_id NOT IN ({fmt_ids}))
+                                 ORDER BY data_zlecenia ASC""",
+                            [p[0], *szarza_ids]
+                        )
+                    else:
+                        cursor.execute(
+                            f"""SELECT nazwa, kg, data_zlecenia, szarza_id
+                                 FROM {table_dosypki}
+                                 WHERE plan_id = %s
+                                   AND potwierdzone = 1
+                                   AND COALESCE(anulowana, 0) = 0
+                                 ORDER BY data_zlecenia ASC""",
+                            (p[0],)
+                        )
+                    orphan_rows = cursor.fetchall()
+                    orphan_dosypki = []
+                    orphan_total_kg = 0.0
+                    for d in orphan_rows:
+                        nazwa = d[0]
+                        kg = float(d[1] or 0)
+                        godzina_str = ''
+                        if d[2]:
+                            try:
+                                godzina_str = d[2].strftime('%H:%M') if hasattr(d[2], 'strftime') else str(d[2])[:5]
+                            except Exception:
+                                godzina_str = ''
+                        dosypka_item = (nazwa, kg, godzina_str)
+
+                        target_szarza_id = None
+                        ref_szarza = d[3] if len(d) > 3 else None
+                        try:
+                            ref_int = int(ref_szarza) if ref_szarza is not None else None
+                        except Exception:
+                            ref_int = None
+
+                        if ref_int is not None and szarza_ids and 1 <= ref_int <= len(szarza_ids):
+                            # Legacy rows may keep sequence number instead of real szarza.id.
+                            target_szarza_id = szarza_ids[ref_int - 1]
+
+                        if target_szarza_id and target_szarza_id in extra_by_szarza_id:
+                            extra_by_szarza_id[target_szarza_id].append(dosypka_item)
+                            extra_kg_by_szarza_id[target_szarza_id] += kg
+                        else:
+                            orphan_total_kg += kg
+                            orphan_dosypki.append(dosypka_item)
                     
                     # For each szarża, also fetch its dosypki
                     szarze_with_dosypki = []
@@ -433,8 +492,26 @@ class DashboardService:
                                 except:
                                     godzina_str = ''
                             dosypki_list.append((nazwa, kg, godzina_str))
+
+                        extra_items = extra_by_szarza_id.get(int(szarza_id), [])
+                        if extra_items:
+                            dosypki_list.extend(extra_items)
+
+                        extra_kg = float(extra_kg_by_szarza_id.get(int(szarza_id), 0.0))
+                        waga_total_with_extra = float(r[1] or 0) + extra_kg
                         # Store as (waga_total, godzina, id, dosypki_list, status, pracownik_name, uwagi)
-                        szarze_with_dosypki.append((r[1], r[2], r[0], dosypki_list, r[5] if len(r) > 5 else '', r[6] if len(r) > 6 else '', r[7] if len(r) > 7 else ''))
+                        szarze_with_dosypki.append((waga_total_with_extra, r[2], r[0], dosypki_list, r[5] if len(r) > 5 else '', r[6] if len(r) > 6 else '', r[7] if len(r) > 7 else ''))
+
+                    if orphan_dosypki:
+                        if szarze_with_dosypki:
+                            last = list(szarze_with_dosypki[-1])
+                            last[0] = float(last[0] or 0) + orphan_total_kg
+                            base_list = list(last[3] or [])
+                            last[3] = base_list + orphan_dosypki
+                            szarze_with_dosypki[-1] = tuple(last)
+                        else:
+                            # Fallback: keep orphan dosypki visible even when there are no registered szarze.
+                            szarze_with_dosypki.append((orphan_total_kg, '-', 0, orphan_dosypki, 'zarejestowana', '', ''))
                     
                     cursor.close()
                     conn.close()

@@ -109,19 +109,30 @@ def _build_sequence_for_szarza(linia_u: str, existing_etaps: List[int], include_
         return list(range(ETAP_MIN, ETAP_MAX + 1))
 
     suffixes: set[int] = set()
+    has_pair_stage = False
     for e in existing_etaps:
+        if e in [3, 4]:
+            has_pair_stage = True
         suf = _agro_suffix_for_etap(e)
         if suf is not None:
-            suffixes.add(suf)
-    if include_etap is not None:
-        suf = _agro_suffix_for_etap(include_etap)
-        if suf is not None:
+            has_pair_stage = True
             suffixes.add(suf)
 
-    ordered: List[int] = [1, 2, 3, 4]
-    for suf in sorted(suffixes):
-        ordered.append(int(f'3{suf}'))
-        ordered.append(int(f'4{suf}'))
+    include_pair_stage = has_pair_stage
+    if include_etap is not None:
+        if include_etap in [3, 4]:
+            include_pair_stage = True
+        suf = _agro_suffix_for_etap(include_etap)
+        if suf is not None:
+            include_pair_stage = True
+            suffixes.add(suf)
+
+    ordered: List[int] = [1, 2]
+    if include_pair_stage:
+        ordered.extend([3, 4])
+        for suf in sorted(suffixes):
+            ordered.append(int(f'3{suf}'))
+            ordered.append(int(f'4{suf}'))
     ordered.append(5)
 
     # Deduplicate while preserving order.
@@ -781,8 +792,6 @@ class ZasypEtapyService:
                 prev_name = _etap_display_name(linia_u, prev_etap)
                 if prev_stop is None:
                     return False, f'{curr_name} nie może się rozpocząć przed zakończeniem: {prev_name} (najpierw ustaw STOP)'
-                if prev_stop > datetime.now():
-                    return False, f'{curr_name} może rozpocząć się najwcześniej o {_format_hhmm(prev_stop)} (po STOP: {prev_name})'
 
             running = ZasypEtapyService._get_running_etap(cursor, plan_id, linia_u, curr_szarza_nr)
             if running is not None and running != etap_nr:
@@ -827,8 +836,6 @@ class ZasypEtapyService:
                                     prev_extra_name = _etap_display_name(linia_u, prev_extra)
                                     if prev_extra_stop is None:
                                         return False, f'{curr_extra_name} nie może się rozpocząć przed zakończeniem: {prev_extra_name} (najpierw ustaw STOP)'
-                                    if prev_extra_stop > datetime.now():
-                                        return False, f'{curr_extra_name} może rozpocząć się najwcześniej o {_format_hhmm(prev_extra_stop)} (po STOP: {prev_extra_name})'
                                 # This suffix is available
                                 cursor.execute(
                                     """

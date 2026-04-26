@@ -154,6 +154,7 @@
             // --- NEW: Block refresh if standard dropdown menus (.show) are open ---
             document.querySelector('.dropdown-menu.show') ||
             // --- NEW: Block refresh if the language or notifications menu is open ---
+            document.querySelector('#languageMenu.open') ||
             document.querySelector('#languageMenu[style*="display: flex"]') ||
             document.querySelector('#notificationsMenu[style*="display: block"]') ||
             document.querySelector('#notificationsMenu[aria-hidden="false"]')
@@ -406,23 +407,33 @@
             if (dateInput) {
                 var restoreDateClicks = function (ev) {
                     try {
+                        var hasOpenOverlay = false;
+                        var qb = document.getElementById('quickBackdrop');
+                        var qp = document.getElementById('quickPopup');
+                        var sb = document.getElementById('selectBackdrop');
+                        var sm = document.getElementById('selectModal');
+                        if (qb && qb.classList.contains('show')) hasOpenOverlay = true;
+                        if (qp && qp.classList.contains('open')) hasOpenOverlay = true;
+                        if (sb && sb.classList.contains('active')) hasOpenOverlay = true;
+                        if (sm && sm.classList.contains('active')) hasOpenOverlay = true;
+                        if (document.body.classList.contains('modal-open') || document.body.classList.contains('slide-over-open')) hasOpenOverlay = true;
+
+                        // Do not touch anything when overlays are already closed.
+                        if (!hasOpenOverlay) return;
+
                         // If quick popup/backdrop or select modal are open, close/hide them so datepicker can open
                         if (window.createQuickPopup && window.createQuickPopup._lastInst) {
                             try { window.createQuickPopup._lastInst.close(); } catch (e) { }
                         }
-                        var qb = document.getElementById('quickBackdrop');
-                        if (qb) { qb.classList.remove('show'); qb.style.display = 'none'; qb.setAttribute('aria-hidden', 'true'); qb.style.pointerEvents = 'none'; }
-                        var qp = document.getElementById('quickPopup');
-                        if (qp) { qp.classList.remove('open'); qp.style.display = 'none'; qp.setAttribute('aria-hidden', 'true'); qp.style.pointerEvents = 'none'; }
-                        var sb = document.getElementById('selectBackdrop');
-                        if (sb) { sb.classList.remove('active'); sb.style.display = 'none'; sb.style.pointerEvents = 'none'; }
-                        var sm = document.getElementById('selectModal'); if (sm) sm.classList.remove('active');
+                        if (qb) { qb.classList.remove('show'); qb.setAttribute('aria-hidden', 'true'); }
+                        if (qp) { qp.classList.remove('open'); qp.setAttribute('aria-hidden', 'true'); }
+                        if (sb) { sb.classList.remove('active'); }
+                        if (sm) { sm.classList.remove('active'); }
                         // Remove any body-level modal classes that may block clicks
                         try { document.body.classList.remove('modal-open', 'slide-over-open'); } catch (e) { }
                     } catch (e) { /* ignore */ }
                 };
                 dateInput.addEventListener('focus', restoreDateClicks);
-                dateInput.addEventListener('click', restoreDateClicks);
             }
         } catch (e) { /* ignore */ }
 
@@ -542,6 +553,13 @@
             const newMain = tmp.querySelector('#mainContent');
             const curMain = document.getElementById('mainContent');
             if (newMain && curMain) {
+                // Suppress document-level click handlers during partial reload.
+                // Some inline scripts executed below may trigger programmatic
+                // clicks (e.g. a.click()) which would otherwise bubble and
+                // close UI elements like dropdowns. We set a short-lived flag
+                // to ignore those synthetic clicks.
+                try { window.__partialReloadSuppressClick = true; } catch (e) { }
+
                 // Clear any existing event listeners by replacing entire content
                 curMain.innerHTML = newMain.innerHTML;
 
@@ -555,6 +573,9 @@
                         }
                     } catch (e) { console.warn('exec partial script failed', e); }
                 });
+
+                // Clear suppression shortly after inline scripts executed
+                try { setTimeout(function () { try { window.__partialReloadSuppressClick = false; } catch (e) { } }, 300); } catch (e) { }
 
                 // Restore scroll position after content update
                 setTimeout(() => {

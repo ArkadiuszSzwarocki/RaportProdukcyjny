@@ -400,6 +400,14 @@
         <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
         <input type="hidden" name="brak_dosypki" id="brak_dosypki" value="0">
 
+        {% if dostepne_surowce %}
+        <datalist id="surowce-agro-list">
+            {% for s in dostepne_surowce %}
+            <option value="{{ s }}"></option>
+            {% endfor %}
+        </datalist>
+        {% endif %}
+
         <div class="dosypka-info">
             <div class="info-item">
                 <span class="info-label">Zlecenie:</span>
@@ -409,7 +417,7 @@
                     {% if typ %}<span class="info-type">({{ typ }})</span>{% endif %}
                 </span>
             </div>
-            <p class="dosypka-description">Dodaj pozycje dosypki (nazwa surowca + ilość w kg). Maksymalnie 10 pól.<br>Pola puste będą zignorowane.</p>
+            <p class="dosypka-description">Dodaj pozycje dosypki (nazwa surowca + ilość w kg). Maksymalnie 10 pól.<br>Dozwolone są wyłącznie nazwy z listy magazynu surowców.</p>
         </div>
 
         <div class="dosypka-layout">
@@ -428,7 +436,7 @@
                                 Pozycja <span class="field-number">{{ i }}</span>
                             </label>
                             <div class="dosypka-row">
-                                <input type="text" name="nazwa_{{ i }}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Nazwa surowca, składnika...">
+                                <input type="text" name="nazwa_{{ i }}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Wybierz surowiec z listy..." {% if dostepne_surowce %}list="surowce-agro-list"{% endif %} autocomplete="off" spellcheck="false">
                                 <input type="number" name="kg_{{ i }}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
                             </div>
                         </div>
@@ -465,6 +473,8 @@
                             <div class="dosypka-existing-actions">
                                 {% if item.anulowana %}
                                 <span class="dosypka-existing-badge">Anulowana</span>
+                                {% elif item.potwierdzone %}
+                                <span class="dosypka-existing-badge">Potwierdzona</span>
                                 {% else %}
                                 <button type="button" class="dosypka-btn dosypka-btn-cancel js-cancel-existing-dosypka" data-id="{{ item.id }}">✕ Anuluj wpis</button>
                                 {% endif %}
@@ -496,8 +506,77 @@
 </div>
 
 <script>
+function focusFirstDosypkaNameInput() {
+    const container = document.querySelector('.dosypka-popup-container');
+    if (!container) return;
+
+    const nameInputs = container.querySelectorAll('.dosypka-input-nazwa');
+    if (!nameInputs || !nameInputs.length) return;
+
+    let target = null;
+    for (const input of nameInputs) {
+        if (input && !input.disabled && String(input.value || '').trim() === '') {
+            target = input;
+            break;
+        }
+    }
+    if (!target) target = nameInputs[0];
+    if (!target) return;
+
+    try {
+        target.focus();
+        target.select();
+    } catch (e) {
+        // ignore focus errors from transient DOM states
+    }
+}
+
 function initDosypkaPopup() {
     updateAddFieldButton();
+    focusFirstDosypkaNameInput();
+    setTimeout(focusFirstDosypkaNameInput, 60);
+
+    const form = document.getElementById('dosypka-form');
+    if (form && form.dataset.boundWarehouseValidation !== '1') {
+        form.dataset.boundWarehouseValidation = '1';
+        form.addEventListener('submit', function (event) {
+            const noDosypki = document.getElementById('brak_dosypki');
+            if (noDosypki && noDosypki.value === '1') return;
+
+            const datalist = document.getElementById('surowce-agro-list');
+            const allowed = new Map();
+            if (datalist) {
+                Array.from(datalist.options || []).forEach(function (opt) {
+                    const value = String((opt && opt.value) || '').trim();
+                    if (value) allowed.set(value.toLowerCase(), value);
+                });
+            }
+
+            const nameInputs = Array.from(form.querySelectorAll('.dosypka-input-nazwa'));
+            const filled = nameInputs
+                .map(function (input) { return { input: input, value: String((input && input.value) || '').trim() }; })
+                .filter(function (item) { return item.value.length > 0; });
+
+            if (!filled.length) return;
+            if (!allowed.size) {
+                event.preventDefault();
+                alert('Brak dostępnego słownika surowców magazynu. Nie można zapisać własnych nazw.');
+                return;
+            }
+
+            const invalid = filled.find(function (item) {
+                return !allowed.has(item.value.toLowerCase());
+            });
+            if (invalid) {
+                event.preventDefault();
+                alert('Nazwa "' + invalid.value + '" nie jest dozwolona. Wybierz surowiec z listy magazynu.');
+                try {
+                    invalid.input.focus();
+                    invalid.input.select();
+                } catch (e) {}
+            }
+        });
+    }
 
     document.querySelectorAll('.js-cancel-existing-dosypka').forEach(function (btn) {
         if (btn.dataset.boundCancel === '1') return;
@@ -510,12 +589,13 @@ function initDosypkaPopup() {
             const container = document.querySelector('.dosypka-popup-container');
             const planId = container ? container.getAttribute('data-plan-id') : '';
             const szarzaId = container ? container.getAttribute('data-szarza-id') : '';
+            const liniaVal = document.querySelector('input[name="linia"]')?.value || 'PSD';
             const originalText = btn.textContent;
             btn.disabled = true;
             btn.textContent = '⏳...';
 
             try {
-                const res = await fetch('/anuluj_dosypke/' + dosypkaId, {
+                const res = await fetch('/anuluj_dosypke/' + dosypkaId + '?linia=' + encodeURIComponent(liniaVal), {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: {
@@ -630,7 +710,7 @@ function addDosypkaField() {
             <button type="button" class="dosypka-btn-remove" onclick="removeDosypkaField(this)" title="Usuń pole">✕</button>
         </label>
         <div class="dosypka-row">
-            <input type="text" name="nazwa_${newIndex}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Nazwa surowca, składnika...">
+            <input type="text" name="nazwa_${newIndex}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Wybierz surowiec z listy..." {% if dostepne_surowce %}list="surowce-agro-list"{% endif %} autocomplete="off" spellcheck="false">
             <input type="number" name="kg_${newIndex}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
         </div>
     `;

@@ -45,8 +45,8 @@
     }
 
     function renderActionCell(d) {
-        const role = window._currentRole;
-        if (role === 'pracownik' || role === 'produkcja' || role === 'lider' || role === 'admin') {
+        const role = String(window._currentRole || '').toLowerCase();
+        if (role === 'operator' || role === 'pracownik' || role === 'produkcja' || role === 'lider' || role === 'admin' || role === 'zarzad') {
             return '<button class="btn-action btn-save dosypka-confirm-btn" data-id="' + d.id + '" data-action="confirm">✓ Potwierdź</button>';
         }
         return '';

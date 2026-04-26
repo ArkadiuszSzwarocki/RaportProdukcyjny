@@ -264,6 +264,7 @@ body.sidebar-open {
 .app-layout {
     display: flex;
     min-block-size: calc(100vh - 60px);
+    overflow-x: hidden;
 }
 
 .sidebar {
@@ -457,6 +458,8 @@ body.sidebar-open {
     flex: 1;
     padding: 20px;
     box-sizing: border-box;
+    min-width: 0;
+    overflow-x: auto;
 }
 
 /* --- TOP BAR --- */
@@ -1711,6 +1714,244 @@ button[type="submit"]:hover {
     font-size: 0.85em;
 }
 
+/* Planner page compact/responsive tuning */
+.planista-viewport .plan-tabs {
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+@media (max-width: 1200px) {
+    .planista-viewport .section-header {
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .planista-viewport .section-box {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    .planista-viewport .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .planista-viewport .header-lg {
+        font-size: 1.35em;
+    }
+
+    .planista-viewport .modern-table {
+        font-size: 0.9em;
+    }
+
+    .planista-viewport .modern-table th,
+    .planista-viewport .modern-table td {
+        padding: 6px 8px;
+    }
+}
+
+@media (max-width: 768px) {
+    .planista-viewport .section-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .planista-viewport .section-header form {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+    }
+
+    .planista-viewport .section-header form .btn {
+        width: auto;
+        min-height: 42px;
+    }
+
+    .planista-viewport .stat-grid {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
+    .planista-viewport .stat-card {
+        min-width: 230px;
+        flex: 0 0 230px;
+    }
+
+    .planista-viewport .p-15 {
+        padding: 10px;
+    }
+
+    .planista-viewport .d-flex.justify-between.align-center.p-15.p-15-bg {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .planista-viewport .d-flex.gap-10.align-center {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .planista-viewport .planista-main-table {
+        border: 0;
+    }
+
+    .planista-viewport .planista-main-table thead {
+        display: none;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id],
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] {
+        display: block;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        margin: 0 0 10px;
+        padding: 8px;
+        background: #fff;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        border: 0;
+        padding: 6px 4px;
+        text-align: left;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td::before {
+        font-weight: 700;
+        color: var(--text-muted);
+        min-width: 92px;
+        flex: 0 0 92px;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(1)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(1)::before { content: 'Lp.'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(2)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(2)::before { content: 'Produkt'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(3)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(3)::before { content: 'Typ'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(4)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(4)::before { content: 'Plan'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(5)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(5)::before { content: 'Estymacja'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(6)::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(6)::before { content: 'Wykonanie'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(7)::before { content: 'Palety'; }
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(7)::before { content: 'Uszkodzone'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(8)::before { content: 'Uszkodzone'; }
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(8)::before { content: 'Status'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(9)::before { content: 'Status'; }
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:nth-child(9)::before { content: 'Akcje'; }
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:nth-child(10)::before { content: 'Akcje'; }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:last-child .d-flex,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:last-child .d-flex {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 6px;
+    }
+
+    .planista-viewport .planista-main-table tr.details-row > td {
+        display: block;
+        padding: 0;
+    }
+}
+
+@media (max-width: 420px) {
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id],
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] {
+        padding: 6px;
+        border-radius: 8px;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td {
+        gap: 6px;
+        padding: 5px 2px;
+        font-size: 0.9em;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td::before {
+        min-width: 74px;
+        flex: 0 0 74px;
+        font-size: 0.86em;
+    }
+
+    .planista-viewport .planista-main-table .status-badge {
+        font-size: 0.72em;
+        padding: 4px 6px;
+    }
+}
+
+@media (max-width: 360px) {
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id],
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] {
+        margin-bottom: 8px;
+        padding: 5px;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td {
+        gap: 4px;
+        padding: 4px 1px;
+        font-size: 0.86em;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td::before,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td::before {
+        min-width: 68px;
+        flex: 0 0 68px;
+        font-size: 0.82em;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:last-child,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:last-child {
+        align-items: center;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:last-child .d-flex,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:last-child .d-flex {
+        flex-wrap: nowrap;
+        gap: 3px;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 1px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:last-child .inline-form,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:last-child .inline-form {
+        flex-wrap: nowrap;
+        gap: 0;
+        flex: 0 0 auto;
+    }
+
+    .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id] > td:last-child .btn-icon,
+    .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] > td:last-child .btn-icon {
+        min-width: 28px;
+        min-height: 28px;
+        width: 28px;
+        height: 28px;
+        padding: 2px;
+        border-radius: 5px;
+        font-size: 0.95em;
+        flex: 0 0 28px;
+    }
+}
+
 .bufor-row-finished {
     opacity: 0.5;
     background-color: #f5f5f5;
@@ -1735,6 +1976,24 @@ button[type="submit"]:hover {
 
 .table-responsive .modern-table {
     margin: 0;
+}
+.planista-viewport .section-header form {
+    position: relative;
+    z-index: 2;
+}
+.planista-viewport .planista-date-input {
+    appearance: auto;
+    -webkit-appearance: auto;
+    min-height: 40px;
+    padding-right: 40px;
+    cursor: pointer;
+    position: relative;
+    z-index: 2;
+    pointer-events: auto;
+}
+.planista-viewport .planista-date-input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 1;
 }
 
 /* ═══════════════════════════════════════════════════════════ */
@@ -2307,10 +2566,14 @@ button[type="submit"]:hover {
     border-radius: 6px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     z-index: 1000;
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: 0;
     min-width: 150px;
+}
+
+.language-menu.open {
+    display: flex;
 }
 
 .language-option {

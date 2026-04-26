@@ -1,9 +1,12 @@
 {% extends "layout.html" %}
 
 {% block content %}
+{% set can_manage_plans = (session.get('rola') or '')|lower in ['planista', 'admin', 'zarzad'] %}
 
 <!-- Sortable.js for drag-and-drop reordering -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+<div class="planista-viewport">
 
 <div class="section-header">
     <div>
@@ -12,12 +15,13 @@
     </div>
     <form action="/planista" method="GET" class="d-flex align-center gap-10">
         <input type="hidden" name="tab" value="{{ aktywna_zakladka }}">
-        <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm"
+        <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm planista-date-input"
             aria-label="Wybierz datę">
         <a href="/planista?data={{ wybrana_data }}&tab={{ aktywna_zakladka }}" class="btn btn-primary">{{ _('odswiez')
             }}</a>
         <!-- Przycisk 'Sprawdź niezrealizowane' usunięty na życzenie -->
     </form>
+    </div>
 <!-- Zakładki PSD / AGRO -->
 <div class="plan-tabs" style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--border-color);">
     <a href="/planista?data={{ wybrana_data }}&tab=psd"
@@ -37,6 +41,21 @@
         🌿 AGRO
     </a>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var plannerDateInput = document.querySelector('.planista-viewport .planista-date-input');
+    if (!plannerDateInput) return;
+    var tryOpenPicker = function () {
+        if (typeof plannerDateInput.showPicker === 'function') {
+            try { plannerDateInput.showPicker(); } catch (e) { }
+        }
+    };
+    plannerDateInput.addEventListener('pointerdown', tryOpenPicker);
+    plannerDateInput.addEventListener('click', tryOpenPicker);
+    plannerDateInput.addEventListener('pointerup', tryOpenPicker);
+});
+</script>
 
 {% if aktywna_zakladka == 'agro' %}
 {# ===== ZAKŁADKA AGRO ===== #}
@@ -64,19 +83,23 @@
     <div class="d-flex justify-between align-center p-15 p-15-bg">
         <h3 class="m-0">🌿 Plan AGRO: <strong>{{ wybrana_data }}</strong></h3>
         <div class="d-flex gap-10 align-center">
+            {% if can_manage_plans %}
             <a href="{{ url_for('planista.planista_bulk_page', data=wybrana_data, sekcja='Agro') }}"
                 class="btn-action btn-action-success">+ DODAJ PLAN AGRO</a>
+            {% endif %}
         </div>
     </div>
     {% if has_incomplete_agro %}
     <div style="padding: 10px 15px; background-color: #fff3cd; border-bottom: 1px solid #ddd; display: flex; gap: 10px;">
+        {% if can_manage_plans %}
         <button type="button" class="btn btn-warning btn-sm" onclick="przeniesNiezrealizowane('{{ wybrana_data }}')">
             ⚠️ Przenieś niezrealizowane zlecenia na następny dzień
         </button>
+        {% endif %}
         <span class="text-muted small" style="margin-top: 6px;">Automatycznie przeniesie niezrealizowaną pracę ze zasypu i workowania na następny dzień</span>
     </div>
     {% endif %}
-    <table class="modern-table">
+    <table class="modern-table planista-main-table">
         <thead>
             <tr>
                 <th>Lp.</th>
@@ -123,7 +146,7 @@
                 </td>
                 <td class="text-right">
                     <div class="d-flex gap-5 align-center justify-end">
-                        {% if p.status not in ['w toku', 'zakonczone'] and session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
+                        {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
                         <!-- Zaplanowane - można reorderować -->
                         <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon"
                             aria-label="Przenieś w górę">⬆</button>
@@ -138,7 +161,7 @@
                         <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola')|e }}) nie posiada uprawnień do modyfikacji planów AGRO. To nie jest błąd, lecz ograniczenie Twojego konta.')" title="Brak uprawnień">🔒</button>
                         {% endif %}
 
-                        {% if p.status not in ['w toku', 'zakonczone'] and session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
+                        {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
                         <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST"
                             class="inline-form" onsubmit="return confirm('Usunąć zlecenie AGRO?');">
                             <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
@@ -150,7 +173,7 @@
                         <span class="text-muted" title="Zablokowane (usuwanie)">🔒</span>
                         {% endif %}
                         
-                        {% if session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
+                        {% if can_manage_plans %}
                         <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
                             data-plan-id="{{ p.id }}" title="Edytuj tonaż">📝</button>
                         {% endif %}
@@ -165,143 +188,6 @@
         </tbody>
     </table>
 </div>
-
-<!-- Modal: Wybór zleceń do przeniesienia (AGRO) -->
-<div id="selectBackdrop" class="select-backdrop" onclick="closeSelectModal()"></div>
-<div id="selectModal" class="select-modal">
-    <div class="qp-header d-flex justify-between align-center p-10" style="background: #fff3cd; border-bottom: 2px solid #ff9800;">
-        <div class="header-title">📦 Przeniesienie wybranych zleceń</div>
-        <div><button type="button" class="btn-action btn-small" onclick="closeSelectModal()">✖</button></div>
-    </div>
-    <div id="selectModalBody" class="qp-body p-10">
-        <div id="selectPlansContainer"></div>
-        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
-            <div style="display: flex; gap: 10px; justify-content: space-between;">
-                <button type="button" class="btn-action btn-small" onclick="selectAllPlans()">✓ Zaznacz wszystkie</button>
-                <button type="button" class="btn-action btn-small" onclick="deselectAllPlans()">✗ Odznacz wszystkie</button>
-                <button type="button" class="btn-action btn-success" onclick="submitSelectedPlans()">Przenieś zaznaczone →</button>
-                <button type="button" class="btn-action btn-secondary" onclick="closeSelectModal()">Anuluj</button>
-            </div>
-        </div>
-    </div>
-</div>
-<style>
-    .select-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; display: none; }
-    .select-backdrop.active { display: block; }
-    .select-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 1000; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; display: none; }
-    .select-modal.active { display: block; }
-</style>
-<script>
-    window.przeniesNiezrealizowane = function (data) {
-        var linia = (new URLSearchParams(window.location.search)).get('tab') || 'psd';
-        linia = linia === 'agro' ? 'AGRO' : 'PSD';
-        fetch('/api/check_niezrealizowane', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ data: data, linia: linia }),
-            credentials: 'same-origin'
-        })
-            .then(function(resp) {
-                return resp.json().then(function(j) { return { ok: resp.ok, status: resp.status, json: j }; });
-            })
-            .then(function (r) {
-                var j = r.json;
-                if (r.ok && j && j.success) {
-                    showSelectModal(j, data);
-                } else {
-                    var msg = (j && j.message) ? j.message : ('Błąd ' + r.status);
-                    alert('⚠️ ' + msg);
-                }
-            })
-            .catch(function (err) {
-                alert('✗ Błąd połączenia: ' + (err && err.message ? err.message : String(err)));
-            });
-    };
-
-    window.showSelectModal = function (data, currentDate) {
-        window.currentMoveData = data;
-        window.currentMoveDate = currentDate;
-        var html = '';
-        html += '<h3 style="margin-bottom: 15px; color: #ff9800;">📦 Przeniesienie z: ' + data.current_date_formatted + ' → na: ' + data.next_date_formatted + '</h3>';
-        if (!data.plans || data.plans.length === 0) {
-            html += '<p>Brak planów do przeniesienia.</p>';
-        } else {
-            html += '<p>Wybierz zlecenia do przeniesienia (' + data.plans.length + ' znaleziono):</p>';
-            html += '<div style="max-height: 300px; overflow-y: auto;">';
-            data.plans.forEach(function(plan) {
-                html += '<div style="display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid #eee;">';
-                html += '<input type="checkbox" class="select-plan-checkbox" data-plan-id="' + plan.plan_id + '" data-remaining-kg="' + (plan.remaining_kg || 0) + '" checked>';
-                html += '<div><strong>' + (plan.produkt || '?') + '</strong>';
-                html += '<br><small>Do przeniesienia: ' + (plan.remaining_kg || 0) + ' kg</small></div>';
-                html += '</div>';
-            });
-            html += '</div>';
-        }
-        document.getElementById('selectPlansContainer').innerHTML = html;
-        document.getElementById('selectBackdrop').classList.add('active');
-        document.getElementById('selectModal').classList.add('active');
-        document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) { cb.checked = true; });
-    };
-
-    window.closeSelectModal = function () {
-        document.getElementById('selectBackdrop').classList.remove('active');
-        document.getElementById('selectModal').classList.remove('active');
-        window.currentMoveData = null;
-        window.currentMoveDate = null;
-    };
-
-    window.selectAllPlans = function () {
-        document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) { cb.checked = true; });
-    };
-
-    window.deselectAllPlans = function () {
-        document.querySelectorAll('.select-plan-checkbox').forEach(function(cb) { cb.checked = false; });
-    };
-
-    window.submitSelectedPlans = function () {
-        var selectedIds = [];
-        document.querySelectorAll('.select-plan-checkbox:checked').forEach(function(cb) {
-            selectedIds.push(parseInt(cb.dataset.planId));
-        });
-        if (selectedIds.length === 0) {
-            alert('⚠️ Wybierz przynajmniej jedno zlecenie!');
-            return;
-        }
-        var selectedTotalKg = 0;
-        document.querySelectorAll('.select-plan-checkbox:checked').forEach(function(cb) {
-            selectedTotalKg += parseFloat(cb.dataset.remainingKg) || 0;
-        });
-        var msg = '📦 PRZENIESIENIE WYBRANYCH ZLECEŃ\n\nLiczba wybranych: ' + selectedIds.length + '\nRazem: ' + selectedTotalKg + ' kg\n\nCzy potwierdzasz?';
-        if (confirm(msg)) {
-            performSelectiveMove(window.currentMoveDate, selectedIds);
-            closeSelectModal();
-        }
-    };
-
-    function performSelectiveMove(currentDate, planIds) {
-        var linia = (new URLSearchParams(window.location.search)).get('tab') || 'psd';
-        linia = linia === 'agro' ? 'AGRO' : 'PSD';
-        fetch('/api/przenies_wybrane_zlecenia', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ data: currentDate, plan_ids: planIds, linia: linia }),
-            credentials: 'same-origin'
-        })
-            .then(function(resp) { return resp.json().then(function(j){ return {ok: resp.ok, json: j}; }); })
-            .then(function (r) {
-                var j = r.json;
-                if (r.ok && j && j.success) {
-                    alert('✅ ' + (j.message || 'Zlecenia zostały pomyślnie przeniesione!'));
-                    setTimeout(function () { location.reload(); }, 400);
-                } else {
-                    alert('✗ ' + ((j && j.message) || 'Błąd podczas przenoszenia'));
-                }
-            })
-            .catch(function (err) {
-                alert('✗ Błąd: ' + (err && err.message ? err.message : String(err)));
-            });
-    }
-</script>
 
 {% else %}
 {# ===== ZAKŁADKA PSD (domyślna) ===== #}
@@ -374,24 +260,28 @@
     <div class="d-flex justify-between align-center p-15 p-15-bg">
         <h3 class="m-0">📋 {{ _('glowny_plan') }}: <strong>{{ wybrana_data }}</strong></h3>
         <div class="d-flex gap-10 align-center">
+            {% if can_manage_plans %}
             <a href="{{ url_for('planista.planista_bulk_page', data=wybrana_data) }}" id="btnDodajPlan"
                 class="btn-action btn-action-success">+ DODAJ PLAN</a>
             <!-- Quick add cleaning popup trigger (styled like + DODAJ PLAN) -->
             <div style="display:flex;align-items:center;gap:8px;">
                 <button id="openAddCleaningBtn" class="btn-action btn-action-success" type="button">+ DODAJ CZYSZCZENIE</button>
             </div>
+            {% endif %}
         </div>
     </div>
     {% if has_incomplete_psd %}
     <div style="padding: 10px 15px; background-color: #fff3cd; border-bottom: 1px solid #ddd; display: flex; gap: 10px;">
+        {% if can_manage_plans %}
         <button type="button" class="btn btn-warning btn-sm" onclick="przeniesNiezrealizowane('{{ wybrana_data }}')">
             ⚠️ Przenieś niezrealizowane zlecenia na następny dzień
         </button>
+        {% endif %}
         <span class="text-muted small" style="margin-top: 6px;">Automatycznie przeniesie niezrealizowaną pracę ze zasypu i workowania na następny dzień</span>
     </div>
     {% endif %}
 
-    <table class="modern-table">
+    <table class="modern-table planista-main-table">
         <thead>
             <tr>
                 <th>Lp.</th>
@@ -453,7 +343,7 @@
                 </td>
                 <td>
                     <div class="d-flex gap-5 align-center">
-                        {% if p.status not in ['w toku', 'zakonczone'] and session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
+                        {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
                         <!-- Zaplanowane - można reorderować -->
                         <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon"
                             aria-label="Przenieś w górę">⬆</button>
@@ -473,12 +363,12 @@
                         {% set remaining = plan_kg - wykonanie_kg %}
                         {% if remaining > 0 %}
                             <span class="badge badge-warning">Niezrealizowane: {{ remaining|round(1) }} kg</span>
-                            {% if (session.get('rola') or '')|lower in ['planista', 'admin', 'lider', 'zarzad'] %}
-                            <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ p.id }}, '{{ p.produkt }}')"
+                            {% if can_manage_plans %}
+                            <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ p.id }}, '{{ wybrana_data }}')"
                                 title="Przenieś niezrealizowane zlecenie na następny dzień">📦➡️</button>
                             {% endif %}
                         {% endif %}
-                        {% if p.status not in ['w toku', 'zakonczone'] and session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
+                        {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
                         <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form"
                             onsubmit="return confirm('Usunąć zlecenie?');">
                             <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
@@ -492,7 +382,7 @@
                         <span class="text-muted">-</span>
                         {% endif %}
 
-                        {% if session.get('rola') in ['planista', 'admin', 'lider', 'zarzad'] %}
+                        {% if can_manage_plans %}
                         <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
                             data-plan-id="{{ p.id }}" title="Edytuj tonaż">📝</button>
                         {% else %}
@@ -1570,5 +1460,7 @@ document.addEventListener('DOMContentLoaded', function(){
     });
 });
 </script>
+
+</div>
 
 {% endblock %}

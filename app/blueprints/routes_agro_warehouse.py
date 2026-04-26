@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, current_app
 from app.services.agro_warehouse_service import AgroWarehouseService
+from app.services.dashboard_service import DashboardService
 from app.decorators import login_required, roles_required, dynamic_role_required
 from datetime import datetime, date
 from app.services.agro_warehouse_service import AgroWarehouseService
@@ -12,6 +13,13 @@ agro_warehouse_bp = Blueprint('agro_warehouse', __name__)
 @dynamic_role_required('agro_magazyn')
 def index():
     linia = request.args.get('linia', 'Agro')
+    # Parse optional date (useful for viewing pallets by day)
+    from datetime import datetime, date as _date
+    try:
+        dzisiaj = datetime.strptime(request.args.get('data'), '%Y-%m-%d').date() if request.args.get('data') else _date.today()
+    except Exception:
+        dzisiaj = _date.today()
+
     # inventory grouped by material (for compact view)
     inventory = AgroWarehouseService.get_inventory_grouped(linia=linia)
     history = AgroWarehouseService.get_history(limit=50, linia=linia)
@@ -26,6 +34,9 @@ def index():
         current_plan_id = None
         current_plan_name = None
     
+    # Also include confirmed pallets for this day/line using DashboardService
+    magazyn_palety, unconfirmed_palety, suma_wykonanie = DashboardService.get_warehouse_data(dzisiaj, linia=linia)
+
     return render_template(
         'agro_magazyn.html',
         inventory=inventory,
@@ -34,7 +45,11 @@ def index():
         dictionary=dictionary,
         linia=linia,
         current_plan_id=current_plan_id,
-        current_plan_name=current_plan_name
+        current_plan_name=current_plan_name,
+        magazyn_palety=magazyn_palety,
+        unconfirmed_palety=unconfirmed_palety,
+        dzisiaj=str(dzisiaj),
+        rola=session.get('rola')
     )
 
 

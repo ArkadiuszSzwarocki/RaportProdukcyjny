@@ -513,7 +513,11 @@ class PlanningService:
             
             # Validate plan exists and check status
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] Fetching plan {plan_id}...')
-            cursor.execute(f"SELECT status, data_planu, produkt, tonaz_rzeczywisty FROM {table_plan} WHERE id=%s", (plan_id,))
+            cursor.execute(
+                f"SELECT id, status, data_planu, produkt, tonaz_rzeczywisty, sekcja, zasyp_id "
+                f"FROM {table_plan} WHERE id=%s",
+                (plan_id,)
+            )
             res = cursor.fetchone()
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] Result: {res}')
             
@@ -521,10 +525,12 @@ class PlanningService:
                 current_app.logger.debug(f'[SERVICE-RESCHEDULE] Plan not found!')
                 return False, 'Plan nie istnieje.'
             
-            status = res[0]
-            stara_data = res[1]
-            produkt = res[2]
-            tonaz_rzeczywisty = res[3]
+            status = res[1]
+            stara_data = res[2]
+            produkt = res[3]
+            tonaz_rzeczywisty = res[4]
+            sekcja = (res[5] or '').strip()
+            parent_zasyp_id = res[6]
             
             # Convert date object to string for safe comparison
             if hasattr(stara_data, 'isoformat'):
@@ -545,29 +551,78 @@ class PlanningService:
                 current_app.logger.debug(f'[SERVICE-RESCHEDULE] Plan has actual tonnage ({tonaz_rzeczywisty}kg) - cannot reschedule!')
                 return False, 'Nie można przesunąć zlecenia, na którym odnotowano już tonaż rzeczywisty.'
             
-            # Get max sequence for target date
-            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Fetching max sequence for target date {nowa_data_str}...')
-            cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s", (nowa_data_str,))
-            max_seq = cursor.fetchone()
-            nowa_kolejnosc = (max_seq[0] if max_seq and max_seq[0] else 0) + 1
-            current_app.logger.debug(f'[SERVICE-RESCHEDULE] New sequence: {nowa_kolejnosc}')
-            
-            # Update date and reset sequence FOR PLAN
-            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Updating {table_plan}: id={plan_id}, nowa_data={nowa_data_str}...')
+            # Build a set of linked plans that should move together (Zasyp + Workowanie).
+            move_plan_ids = [plan_id]
+            move_base_zasyp_id = plan_id if sekcja == 'Zasyp' else parent_zasyp_id
+
+            if sekcja == 'Zasyp':
+                cursor.execute(
+                    f"SELECT id FROM {table_plan} "
+                    f"WHERE zasyp_id=%s AND sekcja='Workowanie' AND (is_deleted=0 OR is_deleted IS NULL)",
+                    (plan_id,)
+                )
+                linked_work = [int(r[0]) for r in cursor.fetchall() if r and r[0]]
+                move_plan_ids.extend(linked_work)
+            elif sekcja == 'Workowanie' and parent_zasyp_id:
+                move_plan_ids.append(int(parent_zasyp_id))
+
+            # De-duplicate while keeping insertion order.
+            seen = set()
+            ordered_move_ids = []
+            for pid in move_plan_ids:
+                if pid not in seen:
+                    seen.add(pid)
+                    ordered_move_ids.append(pid)
+
+            fmt_ids = ','.join(['%s'] * len(ordered_move_ids))
             cursor.execute(
-                f"UPDATE {table_plan} SET data_planu=%s, kolejnosc=%s WHERE id=%s",
-                (nowa_data_str, nowa_kolejnosc, plan_id)
+                f"SELECT id, sekcja, status, tonaz_rzeczywisty FROM {table_plan} WHERE id IN ({fmt_ids})",
+                tuple(ordered_move_ids)
             )
-            current_app.logger.debug(f'[SERVICE-RESCHEDULE] UPDATE {table_plan} rowcount: {cursor.rowcount}')
+            rows = cursor.fetchall()
+            plan_meta = {int(r[0]): {'sekcja': (r[1] or '').strip(), 'status': r[2], 'tonaz_rzeczywisty': r[3] or 0} for r in rows}
+
+            # For consistency, block move if any linked plan is in progress or has already reported actual tonnage.
+            for pid in ordered_move_ids:
+                meta = plan_meta.get(pid)
+                if not meta:
+                    continue
+                if meta['status'] == 'w toku':
+                    return False, 'Nie można przesunąć zlecenia powiązanego ze statusem w toku.'
+                if meta['tonaz_rzeczywisty'] and meta['tonaz_rzeczywisty'] > 0:
+                    return False, 'Nie można przesunąć zlecenia powiązanego z odnotowanym tonażem rzeczywistym.'
+
+            # Keep section-specific order on target day.
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] Fetching section sequences for target date {nowa_data_str}...')
+            cursor.execute(
+                f"SELECT sekcja, MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s GROUP BY sekcja",
+                (nowa_data_str,)
+            )
+            seq_map = {str(r[0]): (int(r[1]) if r and r[1] else 0) for r in cursor.fetchall()}
+
+            # Move Zasyp first, then other sections to preserve intuitive ordering.
+            ordered_move_ids.sort(key=lambda pid: 0 if (plan_meta.get(pid, {}).get('sekcja') == 'Zasyp') else 1)
+            for pid in ordered_move_ids:
+                meta = plan_meta.get(pid)
+                if not meta:
+                    continue
+                sec = meta['sekcja'] or 'Zasyp'
+                next_seq = seq_map.get(sec, 0) + 1
+                seq_map[sec] = next_seq
+                cursor.execute(
+                    f"UPDATE {table_plan} SET data_planu=%s, kolejnosc=%s WHERE id=%s",
+                    (nowa_data_str, next_seq, pid)
+                )
+                current_app.logger.debug(f'[SERVICE-RESCHEDULE] Moved linked plan {pid} (sekcja={sec}) -> seq {next_seq}')
             
             # NOW HANDLE BUFFER ENTRIES (use line-specific table name)
             table_bufor = get_table_name('bufor', linia)
-            current_app.logger.debug(f'[SERVICE-RESCHEDULE] === BUFFER LOOKUP === Checking for buffer entries: zasyp_id={plan_id} table={table_bufor}')
+            current_app.logger.debug(f'[SERVICE-RESCHEDULE] === BUFFER LOOKUP === Checking for buffer entries: zasyp_id={move_base_zasyp_id} table={table_bufor}')
             cursor.execute(f"""
                 SELECT id, tonaz_rzeczywisty, spakowano, produkt, typ_produkcji
                 FROM {table_bufor}
                 WHERE zasyp_id=%s AND status='aktywny'
-            """, (plan_id,))
+            """, (move_base_zasyp_id,))
 
             buffer_entries = cursor.fetchall()
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] === BUFFER RESULT === Found {len(buffer_entries)} buffer entries')
@@ -624,10 +679,13 @@ class PlanningService:
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] SUCCESS - Plan moved successfully\n')
             
             if buffer_entries:
-                msg = f'Plan i bufor przesunięte na nową datę ({len(buffer_entries)} wpisów: {", ".join([str(e[3]) for e in buffer_entries])}).'
+                msg = (
+                    f'Przesunięto {len(ordered_move_ids)} powiązane plany oraz bufor '
+                    f'({len(buffer_entries)} wpisów: {", ".join([str(e[3]) for e in buffer_entries])}).'
+                )
                 current_app.logger.critical(f'[RESCHEDULE-SUCCESS] {msg}')
             else:
-                msg = 'Plan przesunięty na nową datę (bez wpisów w buforze).'
+                msg = f'Przesunięto {len(ordered_move_ids)} powiązane plany (bez wpisów w buforze).'
             
             return True, msg
             
@@ -825,7 +883,7 @@ class PlanningService:
                     " COALESCE(w.tonaz_rzeczywisty, 0) AS w_real"
                     f" FROM {table_plan} z"
                     f" LEFT JOIN {table_plan} w ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'"
-                    f" WHERE DATE(z.data_planu) = %s AND z.status = 'zakonczone' AND LOWER(z.sekcja) = 'zasyp' AND z.id IN ({placeholders})"
+                    f" WHERE DATE(z.data_planu) = %s AND LOWER(z.status) IN ('zakonczone', 'zaplanowane') AND LOWER(z.sekcja) = 'zasyp' AND z.id IN ({placeholders})"
                     " ORDER BY z.id"
                 )
                 params = tuple([current_data] + list(plan_ids_to_move))
@@ -840,7 +898,7 @@ class PlanningService:
                     " COALESCE(w.tonaz_rzeczywisty, 0) AS w_real"
                     f" FROM {table_plan} z"
                     f" LEFT JOIN {table_plan} w ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'"
-                    " WHERE DATE(z.data_planu) = %s AND z.status = 'zakonczone' AND LOWER(z.sekcja) = 'zasyp'"
+                    " WHERE DATE(z.data_planu) = %s AND LOWER(z.status) IN ('zakonczone', 'zaplanowane') AND LOWER(z.sekcja) = 'zasyp'"
                     " ORDER BY z.id"
                 )
                 cursor.execute(sql, (current_data,))
@@ -986,10 +1044,26 @@ class PlanningService:
                 # If Zasyp itself had shortfall, create companion Zasyp and Workowanie for that shortfall
                 if zasyp_remaining > 0:
                     cursor.execute(
-                        f"SELECT id FROM {table_plan} WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'",
+                        f"SELECT id, COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia, COALESCE(tonaz, 0) AS tonaz FROM {table_plan} WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'",
                         (next_data_str, produkt)
                     )
-                    if cursor.fetchone():
+                    existing_shortfall_work = cursor.fetchone()
+                    if existing_shortfall_work:
+                        # Self-heal old carry-over rows created with non-zero tonaz.
+                        try:
+                            existing_name = (existing_shortfall_work.get('nazwa_zlecenia') or '').upper() if isinstance(existing_shortfall_work, dict) else ''
+                            existing_tonaz = float(existing_shortfall_work.get('tonaz') or 0) if isinstance(existing_shortfall_work, dict) else 0.0
+                            existing_id = existing_shortfall_work.get('id') if isinstance(existing_shortfall_work, dict) else None
+                            if existing_id and 'PRZENIESIONE' in existing_name and existing_tonaz != 0:
+                                update_cursor.execute(
+                                    f"UPDATE {table_plan} SET tonaz = 0 WHERE id = %s",
+                                    (existing_id,)
+                                )
+                                conn.commit()
+                                current_app.logger.info(f'[PRZENIES] Normalized existing shortfall Workowanie #{existing_id} tonaz to 0kg')
+                        except Exception:
+                            current_app.logger.debug('[PRZENIES] Could not normalize existing shortfall Workowanie tonaz', exc_info=True)
+
                         current_app.logger.info(f'[PRZENIES] Workowanie shortfall already exists for {produkt} on {next_data_str}, skipping')
                         # Still close old bufor entries
                         zasyp_id_val = row.get('zasyp_id') if isinstance(row, dict) else row[0]
@@ -1017,7 +1091,8 @@ class PlanningService:
                             s_w2, msg_w2, new_work2_id = PlanningService.create_plan(
                                 data_planu=next_data_str,
                                 produkt=produkt,
-                                tonaz=zasyp_remaining,
+                                # For Zasyp shortfall, create an empty linked Workowanie plan.
+                                tonaz=0,
                                 sekcja='Workowanie',
                                 typ_produkcji=typ_prod,
                                 status='zaplanowane',
@@ -1028,24 +1103,7 @@ class PlanningService:
                             if isinstance(new_work2_id, int):
                                 conn.commit()
                                 created_count += 1
-                                current_app.logger.info(f'[PRZENIES] Workowanie shortfall created/linked: {produkt} {zasyp_remaining}kg -> Workowanie #{new_work2_id} (Zasyp #{new_zasyp2_id})')
-
-                                update_cursor.execute(f"SELECT COALESCE(MAX(kolejka), 0) FROM {table_bufor} WHERE data_planu = %s AND status = 'aktywny'", (next_data_str,))
-                                max_kol = update_cursor.fetchone()[0] or 0
-                                if str(linia).upper() == 'AGRO':
-                                    sql_ins2 = (
-                                        f"INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status)"
-                                        " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny') ON DUPLICATE KEY UPDATE id = id"
-                                    )
-                                    update_cursor.execute(sql_ins2, (new_zasyp2_id, next_data_str, produkt, f'carry-over z {current_data}', typ_prod, zasyp_remaining, max_kol + 1))
-                                else:
-                                    sql_ins2 = (
-                                        f"INSERT INTO {table_bufor} (zasyp_id, data_planu, produkt, nazwa_zlecenia, typ_produkcji, tonaz_rzeczywisty, spakowano, kolejka, status, linia)"
-                                        " VALUES (%s, %s, %s, %s, %s, %s, 0, %s, 'aktywny', %s) ON DUPLICATE KEY UPDATE id = id"
-                                    )
-                                    update_cursor.execute(sql_ins2, (new_zasyp2_id, next_data_str, produkt, f'carry-over z {current_data}', typ_prod, zasyp_remaining, max_kol + 1, linia))
-                                conn.commit()
-                                current_app.logger.info(f'[PRZENIES] Bufor entry inserted for {produkt} on {next_data_str} (kolejka {max_kol + 1}) pointing to Zasyp #{new_zasyp2_id}')
+                                current_app.logger.info(f'[PRZENIES] Workowanie shortfall created/linked: {produkt} 0kg -> Workowanie #{new_work2_id} (Zasyp #{new_zasyp2_id})')
 
                                 # Close old bufor entries for this zasyp on the source date
                                 zasyp_id_val = row.get('zasyp_id') if isinstance(row, dict) else row[0]

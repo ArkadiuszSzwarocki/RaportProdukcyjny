@@ -40,7 +40,7 @@ def bezpieczny_powrot():
 
 
 @planning_bp.route('/przywroc_zlecenie_page/<int:id>', methods=['GET'])
-@roles_required('lider', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 def przywroc_zlecenie_page(id):
     """Render a confirmation page for resuming an order."""
     linia = request.args.get('linia') or 'PSD'
@@ -63,7 +63,7 @@ def przywroc_zlecenie_page(id):
 
 
 @planning_bp.route('/reanimate_zlecenie/<int:id>', methods=['POST'])
-@roles_required('lider', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 @hall_restricted
 def reanimate_zlecenie(id):
     """Przywraca zakończone lub zarchiwizowane zlecenie do statusu 'zaplanowane'."""
@@ -74,7 +74,7 @@ def reanimate_zlecenie(id):
 
 
 @planning_bp.route('/przywroc_usunietego_zlecenia/<int:id>', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 def przywroc_usunietego_zlecenia(id):
     """Restore (undelete) a deleted plan - delegated to PlanningService."""
     linia = request.args.get('linia') or request.form.get('linia', 'PSD')
@@ -83,7 +83,7 @@ def przywroc_usunietego_zlecenia(id):
 
 
 @planning_bp.route('/zmien_status_zlecenia/<int:id>', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 @hall_restricted
 def zmien_status_zlecenia(id):
     """Change plan status - delegated to PlanningService."""
@@ -100,7 +100,7 @@ def zmien_status_zlecenia(id):
 
 
 @planning_bp.route('/usun_plan/<int:id>', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 def usun_plan(id):
     """
     Unified route for plan deletion (PSD/AGRO).
@@ -127,7 +127,7 @@ def usun_plan(id):
 
 
 @planning_bp.route('/dodaj_plan_zaawansowany', methods=['POST'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'zarzad')
 def dodaj_plan_zaawansowany():
     """Add plan with advanced options - delegated to PlanningService."""
     data_planu = request.form.get('data_planu')
@@ -172,7 +172,7 @@ def dodaj_plan_zaawansowany():
 
 
 @planning_bp.route('/dodaj_plan', methods=['POST'])
-@roles_required('planista', 'admin', 'lider', 'produkcja', 'pracownik')
+@roles_required('planista', 'admin', 'zarzad')
 @hall_restricted
 def dodaj_plan():
     """Add a plan (legacy simple add)."""
@@ -181,15 +181,6 @@ def dodaj_plan():
     
     # Get all fields - allow empty produkt since it comes from hidden field
     produkt = request.form.get('produkt', '').strip()
-    # Block known test product to avoid accidental seeding
-    if produkt and produkt.strip().upper() == 'ROUTE_TEST_PROD':
-        try:
-            current_app.logger.warning(f'[DODAJ_PLAN] Rejected attempt to create forbidden product: {produkt} by user {session.get("login")}')
-            audit_log('Odrzucono zlecenie (zablokowany produkt)', f'produkt={produkt}, data_planu={data_planu}, user={session.get("login")}')
-        except Exception:
-            pass
-        flash('Dodawanie zlecenia testowego jest zablokowane.', 'error')
-        return redirect(bezpieczny_powrot())
     try:
         tonaz = int(float(request.form.get('tonaz', 0)))
     except Exception:
@@ -553,7 +544,7 @@ def dodaj_plan():
 
 
 @planning_bp.route('/dodaj_plany_batch', methods=['POST'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'zarzad')
 def dodaj_plany_batch():
     """Add multiple plans in batch."""
     try:
@@ -590,9 +581,6 @@ def dodaj_plany_batch():
         
         for idx, p in enumerate(plans, start=1):
             produkt = (p.get('produkt') or '').strip()
-            # Prevent adding forbidden test product in batch
-            if produkt and produkt.strip().upper() == 'ROUTE_TEST_PROD':
-                return jsonify({'success': False, 'message': f'Wiersz {idx}: dodawanie testowego produktu jest zablokowane'})
             try:
                 tonaz = int(float(p.get('tonaz') or 0))
             except Exception as parse_err:
@@ -694,7 +682,7 @@ def dodaj_plany_batch():
 
 
 @planning_bp.route('/przenies_zlecenie/<int:id>', methods=['POST'])
-@login_required
+@roles_required('planista', 'admin', 'zarzad')
 @hall_restricted
 def przenies_zlecenie(id):
     """Move a plan to a different date - delegated to PlanningService."""
@@ -728,7 +716,7 @@ def przenies_zlecenie(id):
 
 
 @planning_bp.route('/przesun_zlecenie/<int:id>/<kierunek>', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 @hall_restricted
 def przesun_zlecenie(id, kierunek):
     """Move a plan up or down in the sequence - delegated to PlanMovementService."""
@@ -741,7 +729,7 @@ def przesun_zlecenie(id, kierunek):
 
 
 @planning_bp.route('/edytuj_plan/<int:id>', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 @hall_restricted
 def edytuj_plan(id):
     """Save plan edits: product, tonnage, section, date."""
@@ -797,7 +785,7 @@ def edytuj_plan(id):
                        data_provided is None)
 
         if r[1] == 'zakonczone':
-            if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider']:
+            if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad']:
                 flash('Można jedynie edytować ilość (kg) dla zakończonych zleceń i wymagane są do tego uprawnienia', 'warning')
                 return redirect(bezpieczny_powrot())
             # Zezwalamy przejść dalej w trybie "only tonaz"
@@ -896,7 +884,7 @@ def edytuj_plan(id):
 
 
 @planning_bp.route('/edytuj_plan_ajax', methods=['POST'])
-@roles_required('planista', 'admin', 'lider', 'zarzad')
+@roles_required('planista', 'admin', 'zarzad')
 @hall_restricted
 def edytuj_plan_ajax():
     """Edit plan via AJAX."""
@@ -953,11 +941,11 @@ def edytuj_plan_ajax():
                        data_provided is None)
 
         if before[5] == 'zakonczone':
-            if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider']:
+            if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad']:
                 return jsonify({'success': False, 'message': 'Można jedynie edytować ilość (kg) dla zakończonych zleceń i wymagane są uprawnienia'}), 403
         
         # If w toku, allow planista and admin to edit only tonaz (kg)
-        if before[5] == 'w toku' and current_role in ['planista', 'admin', 'lider', 'zarzad']:
+        if before[5] == 'w toku' and current_role in ['planista', 'admin', 'zarzad']:
             if not is_tonaz_only:
                 return jsonify({'success': False, 'message': 'Gdy zlecenie w toku, możesz zmieniać tylko kg'}), 403
         elif before[5] == 'w toku':
@@ -1106,7 +1094,7 @@ def edytuj_plan_ajax():
 
 
 @planning_bp.route('/update_uszkodzone_worki', methods=['POST'])
-@roles_required('planista', 'admin', 'produkcja')
+@roles_required('planista', 'admin', 'zarzad')
 def update_uszkodzone_worki():
     """Update uszkodzone_worki field via AJAX."""
     try:
@@ -1163,7 +1151,7 @@ def update_uszkodzone_worki():
 
 
 @planning_bp.route('/przenies_zlecenie_ajax', methods=['POST'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'zarzad')
 def przenies_zlecenie_ajax():
     """Move a plan to different date via AJAX - delegated to PlanningService."""
     try:
@@ -1223,7 +1211,7 @@ def przenies_zlecenie_ajax():
 
 
 @planning_bp.route('/przesun_zlecenie_ajax', methods=['POST'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'zarzad')
 def przesun_zlecenie_ajax():
     """Move a plan up/down in sequence via AJAX - delegated to PlanMovementService."""
     try:
@@ -1257,7 +1245,7 @@ def przesun_zlecenie_ajax():
 
 
 @planning_bp.route('/usun_plan_ajax/<int:id>', methods=['POST'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'zarzad')
 def api_usun_plan(id):
     """Soft delete plan via AJAX - delegated to PlanningService."""
     from app.core.audit import audit_log
@@ -1294,7 +1282,7 @@ def api_usun_plan(id):
 
 # ================= JAKOŚĆ -> DODAJ DO PLANÓW =================
 @planning_bp.route('/jakosc/dodaj_do_planow/<int:id>', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 def jakosc_dodaj_do_planow(id):
     """Create a scheduled production order based on a quality order."""
     conn = get_db_connection()
@@ -1336,7 +1324,7 @@ def jakosc_dodaj_do_planow(id):
 
 
 @planning_bp.route('/reorder_plans_bulk', methods=['POST'])
-@roles_required('planista', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 def reorder_plans_bulk():
     """Reorder plans via drag-and-drop - only zaplanowane plans."""
     try:

@@ -474,7 +474,7 @@ def panel_planisty():
 
 
 @planista_bp.route('/planista/add_czyszczenie', methods=['POST'])
-@roles_required('planista', 'zarzad', 'lider', 'admin')
+@roles_required('planista', 'zarzad', 'admin')
 def add_czyszczenie():
     """Dodaj wpis "Czyszczenie" do plan_produkcji na konkretną datę i pozycję (kolejnosc)."""
     from flask import request, redirect, url_for, current_app
@@ -627,7 +627,7 @@ def bufor_page():
 
 
 @planista_bp.route('/bufor/rozlicz', methods=['POST'])
-@roles_required('planista', 'lider', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 def bufor_rozlicz():
     """Endpoint obsługujący rozliczenie zasypu: zapisuje `tonaz_rzeczywisty` i opcjonalnie zamyka zlecenie."""
     from flask import request, redirect
@@ -704,7 +704,7 @@ def bufor_rozlicz():
 
 
 @planista_bp.route('/bufor/archiwizuj', methods=['POST'])
-@roles_required('planista', 'lider', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 def bufor_archiwizuj():
     """Endpoint obsługujący archiwizację zlecenia — zmienia status na 'archiwizowany'."""
     from flask import request, jsonify
@@ -750,7 +750,7 @@ def bufor_archiwizuj():
 
 
 @planista_bp.route('/bufor/reorder', methods=['POST'])
-@roles_required('planista', 'lider', 'admin')
+@roles_required('planista', 'admin', 'zarzad')
 def bufor_reorder():
     """Swap kolejka of two adjacent bufor entries (move up/down)."""
     conn = get_db_connection()
@@ -818,7 +818,7 @@ def bufor_reorder():
 
 
 @planista_bp.route('/bufor/create_zlecenie', methods=['POST'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'zarzad')
 def bufor_create_zlecenie():
     """Create new Workowanie zlecenie based on buffer remainder (Zasyp.tonaz_rzeczywisty - spakowano).
     
@@ -1105,7 +1105,7 @@ def bufor_create_zlecenie():
 
 
 @planista_bp.route('/api/przenies_niezrealizowane', methods=['POST'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'zarzad')
 def api_przenies_niezrealizowane():
     """Move incomplete plans to next day, creating new Zasyp and Workowanie plans."""
     import traceback
@@ -1146,7 +1146,7 @@ def api_przenies_niezrealizowane():
 
 
 @planista_bp.route('/api/check_niezrealizowane', methods=['POST', 'GET'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'zarzad')
 def api_check_niezrealizowane():
     """Check what incomplete plans exist and would be moved."""
     try:
@@ -1295,7 +1295,7 @@ def api_check_niezrealizowane():
 
 
 @planista_bp.route('/api/check_zlecenie', methods=['POST', 'GET'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'zarzad')
 def api_check_zlecenie():
     """Check given plan (zlecenie) and report which parts are still active / not closed and in which section."""
     try:
@@ -1408,7 +1408,7 @@ def api_check_zlecenie():
 
 
 @planista_bp.route('/api/przenies_wybrane_zlecenia', methods=['POST'])
-@roles_required('planista', 'admin', 'lider', 'zarzad')
+@roles_required('planista', 'admin', 'zarzad')
 def api_przenies_wybrane_zlecenia():
     """Move selected incomplete plans to next day."""
     try:
@@ -1434,16 +1434,7 @@ def api_przenies_wybrane_zlecenia():
         )
         
         if success:
-            from datetime import datetime, timedelta
-            try:
-                next_date_str = (datetime.strptime(current_data, '%Y-%m-%d') + timedelta(days=1)).strftime('%d.%m.%Y')
-            except Exception:
-                next_date_str = '?'
-            product_count = count // 2 if count >= 2 else count
-            if product_count == 0:
-                resp_msg = f'Zlecenia były już wcześniej przeniesione na {next_date_str} — brak duplikatów do dodania.'
-            else:
-                resp_msg = f'✓ Przeniesiono {product_count} {"zlecenie" if product_count == 1 else "zlecenia" if product_count in (2,3,4) else "zleceń"} na {next_date_str}'
+            resp_msg = message or 'Operacja zakończona pomyślnie.'
             return jsonify({
                 'success': True,
                 'message': resp_msg
@@ -1460,7 +1451,7 @@ def api_przenies_wybrane_zlecenia():
 
 
 @planista_bp.route('/planista/bulk', methods=['GET'])
-@roles_required('planista', 'admin', 'lider')
+@roles_required('planista', 'admin', 'zarzad')
 def planista_bulk_page():
     """Render page for bulk adding plans."""
     wybrana_data = request.args.get('data', str(date.today()))

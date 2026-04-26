@@ -78,7 +78,39 @@
         background: #fff;
         border-top: 1px solid #f1f3f5;
         display: flex;
-        justify-content: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+    .bug-reply-box {
+        width: 100%;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 10px 12px;
+    }
+    .bug-reply-meta {
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 6px;
+    }
+    .bug-reply-text {
+        font-size: 14px;
+        color: #0f172a;
+        white-space: pre-wrap;
+        line-height: 1.45;
+    }
+    .bug-reply-form {
+        width: 100%;
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+    .bug-reply-form textarea {
+        flex: 1;
+        min-width: 260px;
     }
     
     /* Fullscreen Image Overlay */
@@ -133,6 +165,18 @@
                     {% endif %}
                 </div>
                 <div class="bug-footer">
+                    {% if bug.odpowiedz_admina %}
+                    <div class="bug-reply-box">
+                        <div class="bug-reply-meta">Odpowiedź: {{ bug.odpowiedz_by_login or 'admin' }} • {{ (bug.odpowiedz_timestamp|string)|replace('T', ' ')|truncate(19, True, '') }}</div>
+                        <div class="bug-reply-text">{{ bug.odpowiedz_admina }}</div>
+                    </div>
+                    {% else %}
+                    <form action="{{ url_for('admin.admin_respond_bug', bug_id=bug.id) }}" method="POST" class="bug-reply-form">
+                        <textarea name="odpowiedz_admina" rows="3" class="input-sm" required placeholder="Wpisz odpowiedź dla użytkownika (konkretnie: co sprawdzone, co poprawione, co zrobić dalej)..."></textarea>
+                        <button type="submit" class="btn btn-sm btn-primary">Wyślij odpowiedź</button>
+                    </form>
+                    {% endif %}
+
                     <form action="{{ url_for('admin.admin_delete_bug', bug_id=bug.id) }}" method="POST" onsubmit="return confirm('Czy na pewno chcesz usunąć to zgłoszenie?')">
                         <button type="submit" class="btn btn-sm btn-danger">Usuń zgłoszenie</button>
                     </form>

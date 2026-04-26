@@ -1,6 +1,6 @@
 """Authentication routes (login, logout, issue reporting)."""
 
-from flask import Blueprint, render_template, request, redirect, session, flash, make_response
+from flask import Blueprint, render_template, request, redirect, session, flash, make_response, jsonify
 from datetime import datetime
 import time
 from werkzeug.security import check_password_hash
@@ -60,6 +60,7 @@ def login():
                 session['login'] = login_field
                 session['pracownik_id'] = int(pracownik_id) if pracownik_id is not None else None
                 session['session_tracking_id'] = ensure_session_tracking_id(session.get('session_tracking_id'))
+                session['show_bug_icon_intro'] = True
                 
                 # Log login with current process PID
                 from flask import current_app
@@ -143,5 +144,56 @@ def report_issue():
     sekcja = request.args.get('sekcja', 'Zasyp')
     now_time = datetime.now().strftime('%H:%M')
     return render_template('report_issue.html', sekcja=sekcja, now_time=now_time)
+
+
+@auth_bp.route('/moje_zgloszenia_bledow')
+@login_required
+def my_bug_reports():
+    """Show bug reports submitted by the currently logged user."""
+    login_value = (session.get('login') or '').strip()
+    if not login_value:
+        flash('Brak danych użytkownika.', 'warning')
+        return redirect('/')
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    reports = []
+    try:
+        cursor.execute(
+            """
+            SELECT id, timestamp, opis, sciezka, status, zalaczniki, odpowiedz_admina, odpowiedz_timestamp, odpowiedz_by_login
+            FROM zgloszenia_bledow
+            WHERE LOWER(login) = LOWER(%s)
+            ORDER BY id DESC
+            LIMIT 200
+            """,
+            (login_value,)
+        )
+        reports = cursor.fetchall() or []
+
+        import json
+        for report in reports:
+            attachments = report.get('zalaczniki')
+            if isinstance(attachments, str):
+                try:
+                    report['zalaczniki'] = json.loads(attachments)
+                except Exception:
+                    report['zalaczniki'] = []
+            elif not attachments:
+                report['zalaczniki'] = []
+    except Exception:
+        flash('Nie udało się pobrać Twoich zgłoszeń.', 'error')
+    finally:
+        conn.close()
+
+    return render_template('my_bug_reports.html', reports=reports)
+
+
+@auth_bp.route('/api/ack_bug_icon_intro', methods=['POST'])
+@login_required
+def ack_bug_icon_intro():
+    """Mark bug-report icon intro as acknowledged for current login session."""
+    session['show_bug_icon_intro'] = False
+    return jsonify({'success': True})
 
 

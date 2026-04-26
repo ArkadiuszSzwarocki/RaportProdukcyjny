@@ -135,7 +135,12 @@
     <div class="header">
         <div class="header-title">
             <h1>Raport Palet AGRO</h1>
-            <p>Data planu: <strong>{{ data_planu }}</strong></p>
+            <p>Data planu: <strong id="report-date-display">{{ data_planu }}</strong></p>
+            <div class="no-print" style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                <label for="reportDatePicker" style="font-size:0.9em; color:#666; margin-right:6px;">Zmień datę:</label>
+                <input type="date" id="reportDatePicker" value="{{ data_planu }}" style="padding:6px;border-radius:6px;border:1px solid #d1d5db;">
+                <button type="button" onclick="changeReportDate()" style="padding:8px 12px;background:#3498db;color:#fff;border-radius:6px;border:none;cursor:pointer;">Pokaż</button>
+            </div>
         </div>
         <div class="header-meta">
             Wygenerowano: {{ print_date }}<br>
@@ -225,5 +230,23 @@
     <div class="footer">
         Raport wygenerowany automatycznie przez System Zarządzania Produkcją. 
     </div>
+    <script>
+        function changeReportDate(){
+            try{
+                var d = document.getElementById('reportDatePicker').value || '';
+                if(!d) return;
+                var planId = '{{ request.args.get("plan_id") or "" }}';
+                var url = '/agro/raport_palet?data=' + encodeURIComponent(d);
+                if(planId) url += '&plan_id=' + encodeURIComponent(planId);
+                // If slide-over helper exists, use it so modal updates in-place
+                if(typeof showSlideOver === 'function'){
+                    showSlideOver(url, { backdrop: true });
+                    return;
+                }
+                // Fallback: navigate top-level
+                window.location.href = url;
+            }catch(e){ console.error('changeReportDate error', e); }
+        }
+    </script>
 </body>
 </html>

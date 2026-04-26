@@ -35,7 +35,7 @@
                     <a href="{{ url_for('production.agro_mix_rozliczenie_page', data=dzisiaj) }}" class="btn-icon-action" style="background: #9b59b6; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; text-decoration: none;" data-slide title="Rozliczenie MIX">
                         <span class="material-icons" style="font-size: 18px;">blender</span>
                     </a>
-                    <a href="{{ url_for('agro_warehouse.raport_palet', data=dzisiaj, select=1) }}" class="btn-icon-action" style="background: #3498db; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; text-decoration: none;" data-slide title="Raport Palet">
+                    <a href="#" id="raportPaletBtn" class="btn-icon-action" style="background: #3498db; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; text-decoration: none;" title="Raport Palet" onclick="openRaportPalet(); return false;">
                         <span class="material-icons" style="font-size: 18px;">print</span>
                     </a>
                 {% endif %}
@@ -44,7 +44,7 @@
             <h2 class="header-title m-0 d-flex align-center gap-8">
                 <strong>Zasyp {{ linia }}</strong>
                 {% if linia == 'AGRO' %}
-                    {% if rola in ['laborant', 'admin', 'zarzad', 'lider'] %}
+                    {% if rola in ['laborant', 'laboratorium', 'admin', 'zarzad'] %}
                         <button class="btn-action" style="margin-left: 10px; background: #e67e22; color: #fff; border: none; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 0.85em; cursor: pointer; display:flex; align-items:center; gap:5px;" onclick="sendZwolnienieMieszalnika()" title="Wyślij ogromny komunikat do zasypu AGRO, że można wznawiać pracę">
                             <span class="material-icons" style="font-size:16px;">lock_open</span> Zwolnienie mieszalnika
                         </button>
@@ -63,6 +63,21 @@
                     aria-label="{{ _('nastepny_dzien') }}">▶</button>
                 <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') }}">
             </div>
+            <script>
+                function openRaportPalet() {
+                    try {
+                        var d = document.getElementById('current-date-iso');
+                        var dateIso = (d && d.value) ? d.value : (new Date()).toISOString().slice(0,10);
+                        var url = '/agro/raport_palet?data=' + encodeURIComponent(dateIso) + '&select=1';
+                        if (typeof showSlideOver === 'function') {
+                            showSlideOver(url, { backdrop: true });
+                            return;
+                        }
+                        // Fallback: open in new tab
+                        window.open(url, '_blank');
+                    } catch (e) { console.error('openRaportPalet error', e); }
+                }
+            </script>
         </div>
         <div class="d-flex align-center gap-12 header-stats">
             {% if sekcja == 'Magazyn' %}
@@ -171,6 +186,11 @@
             white-space: nowrap;
         }
 
+        .agro-kgph-pill.js-kgph-explain {
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
         .active-order-floating-bar .agro-header-controls .btn-action {
             font-size: 0.74em !important;
             line-height: 1.1;
@@ -230,13 +250,17 @@
         window._urls.anuluj_dosypke = "{{ url_for('production.anuluj_dosypke', dosypka_id=0) }}";
         // Current user role for conditional UI features
         window._currentRole = "{{ rola }}";
-        window._isAgroZasypOperator = !['laborant', 'laboratorium', 'magazyn', 'magazynier', 'planista'].includes(String(window._currentRole || '').toLowerCase());
+        const _roleLower = String(window._currentRole || '').toLowerCase();
+        window._isAgroZasypOperator = !['laborant', 'laboratorium', 'magazyn', 'magazynier', 'planista'].includes(_roleLower);
+        window._isAgroDosypkiObserver = ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium'].includes(_roleLower);
         // Current hall/linia for AGRO-aware API calls
         window._linia = "{{ linia or 'PSD' }}";
 
         function getAutoSzarzaMode() {
             try {
-                const mode = (localStorage.getItem('zasyp_auto_szarza_mode') || 'manual').toLowerCase();
+                const role = String(window._currentRole || '').toLowerCase();
+                const roleDefault = ['pracownik', 'produkcja', 'lider'].includes(role) ? 'auto' : 'manual';
+                const mode = (localStorage.getItem('zasyp_auto_szarza_mode') || roleDefault).toLowerCase();
                 return mode === 'auto' ? 'auto' : 'manual';
             } catch (e) {
                 return 'manual';
@@ -244,6 +268,9 @@
         }
 
         function applyAutoSzarzaMode() {
+            {% if not (sekcja == 'Zasyp' and linia == 'AGRO') %}
+            return;
+            {% endif %}
             const mode = getAutoSzarzaMode();
 
             document.querySelectorAll('.auto-szarza-mode-input').forEach((el) => {
@@ -282,7 +309,15 @@
         });
 
         {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
-        let zwolnienieLastSeen = Date.now() / 1000;
+        let zwolnienieLastSeen = 0;
+        let dosypkiLastSeen = 0;
+        try {
+            zwolnienieLastSeen = Number(localStorage.getItem('agro_zwolnienie_last_seen') || '0') || 0;
+            dosypkiLastSeen = Number(localStorage.getItem('agro_dosypki_last_seen') || '0') || 0;
+        } catch (e) {
+            zwolnienieLastSeen = 0;
+            dosypkiLastSeen = 0;
+        }
 
         function sendZwolnienieMieszalnika() {
             if(!confirm("Czy na pewno chcesz wysłać wielki komunikat o wyczyszczonym mieszalniku do wszystkich operatorów AGRO?")) return;
@@ -294,6 +329,9 @@
                 if(data.success) {
                     alert('Sygnał został wystrzelony pomyślnie!');
                     zwolnienieLastSeen = data.timestamp;
+                    try {
+                        localStorage.setItem('agro_zwolnienie_last_seen', String(zwolnienieLastSeen));
+                    } catch (e) {}
                 } else {
                     alert('Błąd podczas wysyłania sygnału.');
                 }
@@ -409,38 +447,7 @@
                 return true;
             }
 
-            const modal = document.getElementById('etap2-choice-modal');
-            if (!modal) {
-                return true;
-            }
-
-            window._pendingEtap2StopForm = form;
-            modal.classList.add('open');
-            return false;
-        }
-
-        function _etap2ChoiceSelect(nextAction) {
-            const modal = document.getElementById('etap2-choice-modal');
-            const followModal = document.getElementById('etap2-oprozniamy-modal');
-            if (modal) modal.classList.remove('open');
-
-            if (nextAction === 'oprozniamy') {
-                if (followModal) {
-                    followModal.classList.add('open');
-                    return;
-                }
-                _etap2FinalSubmit('oprozniamy_end_today');
-                return;
-            }
-
-            _etap2FinalSubmit('add_pair');
-        }
-
-        function _etap2FinalSubmit(nextAction) {
-            const form = window._pendingEtap2StopForm;
-            if (!form) {
-                return;
-            }
+            // Dosypka confirmation modal removed: proceed directly with default action.
             let hidden = form.querySelector('input[name="next_action"]');
             if (!hidden) {
                 hidden = document.createElement('input');
@@ -448,25 +455,8 @@
                 hidden.name = 'next_action';
                 form.appendChild(hidden);
             }
-            hidden.value = nextAction;
-
-            window._pendingEtap2StopForm = null;
-            try { form.submit(); } catch (e) { console.error('Stop form submit failed', e); }
-        }
-
-        function _etap2OprozniamySelect(mode) {
-            const followModal = document.getElementById('etap2-oprozniamy-modal');
-            if (followModal) followModal.classList.remove('open');
-            const nextAction = mode === 'new_point' ? 'oprozniamy_new_point' : 'oprozniamy_end_today';
-            _etap2FinalSubmit(nextAction);
-        }
-
-        function _etap2ChoiceCancel() {
-            const modal = document.getElementById('etap2-choice-modal');
-            const followModal = document.getElementById('etap2-oprozniamy-modal');
-            if (modal) modal.classList.remove('open');
-            if (followModal) followModal.classList.remove('open');
-            window._pendingEtap2StopForm = null;
+            hidden.value = 'add_pair';
+            return true;
         }
 
         // Modal confirm/cancel handlers
@@ -581,10 +571,35 @@
                     .then(data => {
                         if(data.new_zwolnienie) {
                             zwolnienieLastSeen = data.timestamp;
+                            try {
+                                localStorage.setItem('agro_zwolnienie_last_seen', String(zwolnienieLastSeen));
+                            } catch (e) {}
                             showZwolnienieBanner();
                         }
                     }).catch(e => console.error("Poll err", e));
             }, 3000); // exactly every 3s
+        }
+
+        // Laboratorium view should auto-refresh after operator confirms/cancels/adds dosypka.
+        if (window._isAgroDosypkiObserver) {
+            setInterval(() => {
+                fetch(`/api/zasyp/poll_dosypki_update?linia=AGRO&last_seen=${dosypkiLastSeen}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.new_update) {
+                            dosypkiLastSeen = Number(data.timestamp || 0) || dosypkiLastSeen;
+                            try {
+                                localStorage.setItem('agro_dosypki_last_seen', String(dosypkiLastSeen));
+                            } catch (e) {}
+                            if (typeof window.performPartialReload === 'function') {
+                                window.performPartialReload({ preserveScroll: true, source: 'dosypki-sync' });
+                            } else {
+                                window.location.reload();
+                            }
+                        }
+                    })
+                    .catch(e => console.error('Dosypki poll err', e));
+            }, 3000);
         }
         {% endif %}
 
@@ -619,19 +634,6 @@
             #szarza-modal .btn-prim:hover { background: #219150; }
             #szarza-modal .btn-sec { background:#f1f2f6; color:#2f3542; }
             #szarza-modal .btn-sec:hover { background: #dfe4ea; }
-
-            #etap2-choice-modal, #etap2-oprozniamy-modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:9999; backdrop-filter: blur(4px); }
-            #etap2-choice-modal.open, #etap2-oprozniamy-modal.open { display:flex; }
-            #etap2-choice-modal .modal-card, #etap2-oprozniamy-modal .modal-card { background:#fff; border-radius:12px; padding:24px; width:460px; box-shadow:0 15px 35px rgba(0,0,0,0.3); border:1px solid #ddd; }
-            #etap2-choice-modal h3, #etap2-oprozniamy-modal h3 { margin:0 0 8px 0; font-size:1.1em; color:#2c3e50; text-align:center; }
-            #etap2-choice-modal .modal-sub, #etap2-oprozniamy-modal .modal-sub { margin:0 0 16px 0; font-size:0.9em; color:#6c7a89; text-align:center; }
-            .choice-actions { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-            .choice-btn { min-height:68px; border:none; border-radius:10px; cursor:pointer; font-weight:700; font-size:0.95em; color:#fff; }
-            .choice-add { background:#2980b9; }
-            .choice-empty { background:#16a085; }
-            .choice-new { background:#8e44ad; }
-            .choice-end { background:#7f8c8d; }
-            .choice-cancel { margin-top:12px; width:100%; min-height:42px; border:none; border-radius:8px; background:#ecf0f1; color:#2f3542; cursor:pointer; font-weight:700; }
             `;
             document.head.appendChild(style);
 
@@ -655,42 +657,15 @@
                     </div>
                 </div>
             </div>`;
-
-            const etap2ChoiceHtml = `
-            <div id="etap2-choice-modal" role="dialog" aria-modal="true">
-                <div class="modal-card">
-                    <h3>Co dalej po Mieszaniu i oczekiwaniu na LAB?</h3>
-                    <p class="modal-sub">Wybierz następny krok. START uruchomi się automatycznie.</p>
-                    <div class="choice-actions">
-                        <button type="button" class="choice-btn choice-add" id="etap2-choice-add">Dodaj parę<br>i START dosypki</button>
-                        <button type="button" class="choice-btn choice-empty" id="etap2-choice-empty">Opróżniamy<br>i dalej...</button>
-                    </div>
-                    <button type="button" class="choice-cancel" id="etap2-choice-cancel">Anuluj</button>
-                </div>
-            </div>`;
-            const etap2OprozniamyHtml = `
-            <div id="etap2-oprozniamy-modal" role="dialog" aria-modal="true">
-                <div class="modal-card">
-                    <h3>Po opróżnianiu co robimy?</h3>
-                    <p class="modal-sub">Wybierz, czy zaczynamy nowy punkt, czy kończymy na dziś.</p>
-                    <div class="choice-actions">
-                        <button type="button" class="choice-btn choice-new" id="etap2-opr-new">Nowy punkt<br>ze STARTEM Naważania</button>
-                        <button type="button" class="choice-btn choice-end" id="etap2-opr-end">Kończymy<br>na dziś</button>
-                    </div>
-                    <button type="button" class="choice-cancel" id="etap2-opr-cancel">Anuluj</button>
-                </div>
-            </div>`;
             document.body.insertAdjacentHTML('beforeend', modalHtml);
-            document.body.insertAdjacentHTML('beforeend', etap2ChoiceHtml);
-            document.body.insertAdjacentHTML('beforeend', etap2OprozniamyHtml);
-            document.getElementById('szarza-confirm').addEventListener('click', _szarzaModalConfirm);
-            document.getElementById('szarza-cancel').addEventListener('click', _szarzaModalCancel);
-            document.getElementById('etap2-choice-add').addEventListener('click', function(){ _etap2ChoiceSelect('add_pair'); });
-            document.getElementById('etap2-choice-empty').addEventListener('click', function(){ _etap2ChoiceSelect('oprozniamy'); });
-            document.getElementById('etap2-choice-cancel').addEventListener('click', _etap2ChoiceCancel);
-            document.getElementById('etap2-opr-new').addEventListener('click', function(){ _etap2OprozniamySelect('new_point'); });
-            document.getElementById('etap2-opr-end').addEventListener('click', function(){ _etap2OprozniamySelect('end_today'); });
-            document.getElementById('etap2-opr-cancel').addEventListener('click', _etap2ChoiceCancel);
+            const szarzaConfirmBtn = document.getElementById('szarza-confirm');
+            const szarzaCancelBtn = document.getElementById('szarza-cancel');
+            if (szarzaConfirmBtn && typeof _szarzaModalConfirm === 'function') {
+                szarzaConfirmBtn.addEventListener('click', _szarzaModalConfirm);
+            }
+            if (szarzaCancelBtn && typeof _szarzaModalCancel === 'function') {
+                szarzaCancelBtn.addEventListener('click', _szarzaModalCancel);
+            }
             
             const input = document.querySelector('#szarza-modal input[name="modal_wielkosc_szarzy_kg"]');
             if (input) {
@@ -702,7 +677,6 @@
             document.addEventListener('keydown', (e)=>{
                 if(e.key==='Escape'){
                     if(window._szarzaModalCancel) _szarzaModalCancel();
-                    if(window._etap2ChoiceCancel) _etap2ChoiceCancel();
                 }
             });
         })();
@@ -713,7 +687,7 @@
 <div id="zwolnienie-banner" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(39, 174, 96, 0.95); z-index: 999999; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: white; backdrop-filter: blur(10px);">
     <span style="font-size: 120px; animation: rp-spin 2s linear infinite, popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;">✅</span>
     <h1 style="font-size: 6vw; font-weight: 900; line-height: 1.2; text-shadow: 2px 2px 15px rgba(0,0,0,0.4); padding: 0 40px; margin-top: 20px;">
-        ZWOLNIENIE / DOSYPKA<br>NA ZASYPIE AGRO
+        LABORATORIUM ZWOLNIŁO MIESZALNIK<br>DO WYSYPU
     </h1>
     <button onclick="document.getElementById('zwolnienie-banner').style.display='none';" style="margin-top: 60px; padding: 20px 50px; font-size: 30px; font-weight: 900; background: white; color: #27ae60; border: none; border-radius: 16px; cursor: pointer; box-shadow: 0 8px 30px rgba(0,0,0,0.3); transition: transform 0.2s;">
         ZROZUMIAŁEM !
@@ -900,7 +874,7 @@
         </table>
         {% else %}
         <!-- INNE SEKCJE: Wyświetl plan_dnia (plany produkcji) jako karty -->
-        {% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active and rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant'] %}
+        {% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active and rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] %}
         {% set fb_pid = ns.active_plan_id %}
         {% set fb_szarza_nr = (etapy_curr_szarza.get(fb_pid, 1) if etapy_curr_szarza is defined and etapy_curr_szarza else 1) %}
         {% set fb_etapy = (etapy_mapa.get(fb_pid, []) if etapy_mapa is defined and etapy_mapa else []) %}
@@ -916,10 +890,26 @@
             <div class="active-order-floating-bar">
                 {% if fb_kstats %}
                 <div class="agro-kgph-inline">
-                    <span class="agro-kgph-pill" title="Wydajność rzeczywista (czas od startu do stopu lub do teraz, jeśli zlecenie trwa)">
+                    <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
+                        onclick="return window.forceOpenKgphExplain(this);"
+                        data-kind="real" data-plan-id="{{ fb_pid }}"
+                        data-value="{{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '' }}"
+                        data-mass="{{ fb_kstats.real_mass_kg if fb_kstats.real_mass_kg is not none else '' }}"
+                        data-seconds="{{ fb_kstats.real_seconds if fb_kstats.real_seconds is not none else '' }}"
+                        title="Wydajność rzeczywista (kliknij aby zobaczyć wzór i dane)">
                         Wydajność rzeczywista: {{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '-' }} kg/h
                     </span>
-                    <span class="agro-kgph-pill" title="Wydajność produkcyjna (czas produkcyjny na podstawie etapów)">
+                    <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
+                        onclick="return window.forceOpenKgphExplain(this);"
+                        data-kind="timeline" data-plan-id="{{ fb_pid }}"
+                        data-value="{{ (fb_kstats.timeline|round(1)) if fb_kstats.timeline else '' }}"
+                        data-mass="{{ fb_kstats.timeline_mass_kg if fb_kstats.timeline_mass_kg is not none else '' }}"
+                        data-batch-mass="{{ fb_kstats.timeline_batch_mass_kg if fb_kstats.timeline_batch_mass_kg is not none else '' }}"
+                        data-seconds="{{ fb_kstats.timeline_seconds if fb_kstats.timeline_seconds is not none else '' }}"
+                        data-mode="{{ fb_kstats.timeline_mode or '' }}"
+                        data-closed-sessions="{{ fb_kstats.timeline_closed_sessions if fb_kstats.timeline_closed_sessions is not none else 0 }}"
+                        data-stage-sources='{{ (fb_kstats.timeline_sources if fb_kstats.timeline_sources is not none else [])|tojson|forceescape }}'
+                        title="Wydajność produkcyjna (kliknij aby zobaczyć wzór i dane)">
                         Wydajność produkcyjna: {{ (fb_kstats.timeline|round(1)) if fb_kstats.timeline else '-' }} kg/h
                     </span>
                 </div>
@@ -961,10 +951,13 @@
                     <div class="header-actions">
                         <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>
                         {% if p[3] == 'zaplanowane' %}
+                        {% set can_start_role = rola not in ['laborant', 'laboratorium'] %}
                         {% set product_active = (active_products is defined and active_products and p[1] in
                         active_products)
                         %}
-                        {% if sekcja == 'Workowanie' %}
+                        {% if not can_start_role %}
+                        <span class="btn-icon-disabled" title="Brak uprawnień">🔒</span>
+                        {% elif sekcja == 'Workowanie' %}
                         {% set allowed = (allowed_work_start_ids is defined and (p[0] in allowed_work_start_ids)) %}
                         {% if allowed and not product_active %}
                         <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
@@ -1004,7 +997,7 @@
                             {% endfor %}
                         {% endif %}
 
-                        {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant'] and (not ns.is_active or p[0] != ns.active_plan_id) %}
+                        {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] and (not ns.is_active or p[0] != ns.active_plan_id) %}
                         <div class="agro-header-controls">
                             {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] %}
                             <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;">
@@ -1022,10 +1015,26 @@
                         {% set kstats = kgph_stats_mapa.get(p[0]) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
                         {% if kstats %}
                         <div class="agro-kgph-inline">
-                            <span class="agro-kgph-pill" title="Wydajność rzeczywista (czas od startu do stopu lub do teraz, jeśli zlecenie trwa)">
+                            <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
+                                onclick="return window.forceOpenKgphExplain(this);"
+                                data-kind="real" data-plan-id="{{ p[0] }}"
+                                data-value="{{ (kstats.real_work|round(1)) if kstats.real_work else '' }}"
+                                data-mass="{{ kstats.real_mass_kg if kstats.real_mass_kg is not none else '' }}"
+                                data-seconds="{{ kstats.real_seconds if kstats.real_seconds is not none else '' }}"
+                                title="Wydajność rzeczywista (kliknij aby zobaczyć wzór i dane)">
                                 Wydajność rzeczywista: {{ (kstats.real_work|round(1)) if kstats.real_work else '-' }} kg/h
                             </span>
-                            <span class="agro-kgph-pill" title="Wydajność produkcyjna (czas produkcyjny na podstawie etapów)">
+                            <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
+                                onclick="return window.forceOpenKgphExplain(this);"
+                                data-kind="timeline" data-plan-id="{{ p[0] }}"
+                                data-value="{{ (kstats.timeline|round(1)) if kstats.timeline else '' }}"
+                                data-mass="{{ kstats.timeline_mass_kg if kstats.timeline_mass_kg is not none else '' }}"
+                                data-batch-mass="{{ kstats.timeline_batch_mass_kg if kstats.timeline_batch_mass_kg is not none else '' }}"
+                                data-seconds="{{ kstats.timeline_seconds if kstats.timeline_seconds is not none else '' }}"
+                                data-mode="{{ kstats.timeline_mode or '' }}"
+                                data-closed-sessions="{{ kstats.timeline_closed_sessions if kstats.timeline_closed_sessions is not none else 0 }}"
+                                data-stage-sources='{{ (kstats.timeline_sources if kstats.timeline_sources is not none else [])|tojson|forceescape }}'
+                                title="Wydajność produkcyjna (kliknij aby zobaczyć wzór i dane)">
                                 Wydajność produkcyjna: {{ (kstats.timeline|round(1)) if kstats.timeline else '-' }} kg/h
                             </span>
                         </div>
@@ -1076,7 +1085,14 @@
                     <button type="button" class="btn-action btn-outline-warning"
                         onclick="toggleDetails('{{ p[0] }}')">Palety ({{ palety_count }})</button>
                     {% elif sekcja == 'Zasyp' %}
-                    {% if rola != 'laborant' %}
+                    {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
+                    {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
+                    <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}"
+                        class="btn-action btn-outline-warning btn-with-badge"
+                        data-plan-id="{{ p[0] }}"
+                        data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
+                    {% endif %}
+                    {% if rola not in ['laborant', 'laboratorium'] %}
                     <a href="{{ url_for('production.szarza_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green manual-szarza-btn"
                         data-slide>+ SZARŻA</a>
                     {% endif %}
@@ -1117,15 +1133,29 @@
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span>#{{ loop.index }} • {{ pal[1] }}</span>
                                     <strong class="text-primary">{{ pal[0]|int }} kg</strong>
-                                    <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-'
-                                        }}</span>
-                                </div>
-                                    {% if pal|length>6 and pal[6] %}
-                                    <span class="note-badge" style="display:inline-block;width:9px;height:9px;background:#ff5a5f;border-radius:50%;vertical-align:middle;box-shadow:0 0 0 2px rgba(0,0,0,0.06);"></span>
+                                    <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-' }}</span>
+                                    {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'admin', 'zarzad'] %}
+                                    <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2], linia=linia) }}"
+                                       class="btn-action btn-blue"
+                                       data-slide
+                                       style="padding:2px 8px; font-size:0.75em; line-height:1.2;"
+                                       title="Dodaj dosypkę do tej szarży">+ DOSYPKA</a>
                                     {% endif %}
-                                </a>
-                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    {% if pal[2] and pal[2]|int > 0 %}
+                                                <a href="{{ url_for('production.szarza_notatka_page', szarza_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
+                                       class="btn-action btn-outline-secondary szarza-note"
+                                       data-slide
+                                       data-note="{{ (pal[6] if pal|length>6 else '')|e }}"
+                                       style="padding:2px 8px; font-size:0.75em;"
+                                       title="Dodaj/edytuj notatkę do szarży">📝 Notatka</a>
+                                    {% endif %}
                                 </div>
+                                {% if pal|length>6 and pal[6] %}
+                                <div style="margin-top: 3px;">
+                                    <span class="note-badge" style="display:inline-block;width:9px;height:9px;background:#ff5a5f;border-radius:50%;vertical-align:middle;box-shadow:0 0 0 2px rgba(0,0,0,0.06);"></span>
+                                    <span style="font-size:0.78em; color:#8a94a6; margin-left:4px;">Notatka dodana</span>
+                                </div>
+                                {% endif %}
                                 </div>
 
                                 {% if pal[3] and pal[3]|length > 0 %}
@@ -1223,6 +1253,25 @@
                                     <strong class="text-primary">{{ pal[0]|int }} kg</strong>
                                     <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-' }}</span>
                                 </div>
+                                <div style="display:inline-flex; align-items:center; gap:6px;">
+                                    {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'admin', 'zarzad'] %}
+                                    <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2], linia=linia) }}"
+                                       class="btn-action btn-blue"
+                                       data-slide
+                                       style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
+                                       title="Dodaj dosypkę do tej szarży">+ DOSYPKA</a>
+                                    {% endif %}
+                                    {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'lider', 'admin', 'zarzad'] %}
+                                    <a href="{{ url_for('production.szarza_notatka_page', szarza_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
+                                       class="btn-action btn-outline-secondary szarza-note"
+                                       data-slide
+                                       data-note="{{ (pal[6] if pal|length>6 else '')|e }}"
+                                       style="padding:2px 6px; font-size:0.75em; line-height:1; min-width:30px; text-align:center;"
+                                       title="Dodaj/edytuj notatkę do szarży">
+                                        <span class="material-icons" style="font-size:16px; vertical-align:middle;">edit_note</span>
+                                    </a>
+                                    {% endif %}
+                                </div>
                             </div>
                             {% if pal[3] and pal[3]|length > 0 %}
                             <div style="margin-top:4px; font-size:0.82em; color:#495a69;">
@@ -1257,7 +1306,7 @@
         {% endif %}
 
         {# === PANEL ETAPÓW ZASYP — widoczny tylko dla Zasyp gdy jest aktywne zlecenie === #}
-        {% if sekcja == 'Zasyp' and ns.is_active %}
+        {% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active %}
         {% for p in plan %}{% if p[3] == 'w toku' %}
         {% set etapy_sesje = etapy_sesje_mapa.get(p[0]) if etapy_sesje_mapa is defined and etapy_sesje_mapa else [] %}
         {% set param = etapy_parametry.get(p[0]) if etapy_parametry is defined and etapy_parametry else {} %}
@@ -1600,7 +1649,7 @@
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                 <input type="hidden" name="etap" value="{{ etap.etap }}">
-                                                                <input type="hidden" name="next_action" value="">
+                                <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
                                 <button type="submit"
                                         class="btn-action btn-stop"
                                         style="font-size:0.75em; padding:3px 8px; min-width:110px; text-align:center;">⏹ Stop</button>
@@ -1973,6 +2022,181 @@
     </script>
     {% endif %}
 
+    <script>
+        (function () {
+            if (window.forceOpenKgphExplain) return;
+
+            function ensureKgphModal() {
+                var existingModal = document.getElementById('kgphExplainModalDyn');
+                var existingBackdrop = document.getElementById('kgphExplainBackdropDyn');
+                if (existingModal && existingBackdrop) return { modal: existingModal, backdrop: existingBackdrop };
+
+                var backdrop = document.createElement('div');
+                backdrop.id = 'kgphExplainBackdropDyn';
+                backdrop.className = 'quick-backdrop show';
+                backdrop.style.display = 'none';
+
+                var modal = document.createElement('div');
+                modal.id = 'kgphExplainModalDyn';
+                modal.className = 'quick-popup';
+                modal.setAttribute('aria-hidden', 'true');
+                modal.style.display = 'none';
+                modal.style.maxWidth = '560px';
+                modal.innerHTML = '' +
+                    '<div class="qp-header d-flex justify-between align-center p-10">' +
+                    '<div class="header-title" id="kgphTitleDyn">Wydajność</div>' +
+                    '<div><button type="button" class="btn-action btn-small" id="kgphCloseDyn">✖</button></div>' +
+                    '</div>' +
+                    '<div class="qp-body p-10">' +
+                    '<div class="card-row"><strong>Plan:</strong> <span id="kgphPlanDyn">-</span></div>' +
+                    '<div class="card-row"><strong>Aktualny wynik:</strong> <span id="kgphValueDyn">-</span></div>' +
+                    '<div class="card-row"><strong>Licznik (co liczy):</strong> <span id="kgphMassDyn">-</span></div>' +
+                    '<div class="card-row" style="align-items:flex-start;"><strong>Mianownik (co dzieli):</strong> <span id="kgphTimeDyn">-</span></div>' +
+                    '<div class="card-row" style="align-items:flex-start;"><strong>Etapy użyte do obliczenia :</strong> <span id="kgphStagesDyn">-</span></div>' +
+                    '<div class="card-row"><strong>Wzór:</strong> <span id="kgphFormulaDyn">-</span></div>' +
+                    '<div class="small text-muted" id="kgphModeDyn" style="margin-top:8px;"></div>' +
+                    '</div>';
+
+                document.body.appendChild(backdrop);
+                document.body.appendChild(modal);
+
+                function closeModal() {
+                    modal.classList.remove('open');
+                    modal.setAttribute('aria-hidden', 'true');
+                    backdrop.classList.remove('show');
+                    setTimeout(function () {
+                        modal.style.display = 'none';
+                        backdrop.style.display = 'none';
+                    }, 140);
+                }
+
+                backdrop.addEventListener('click', closeModal);
+                document.getElementById('kgphCloseDyn').addEventListener('click', closeModal);
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') closeModal();
+                });
+
+                modal._closeKgph = closeModal;
+                return { modal: modal, backdrop: backdrop };
+            }
+
+            function secToHuman(sec) {
+                var s = parseInt(sec || '0', 10);
+                if (!Number.isFinite(s) || s <= 0) return '0s';
+                var h = Math.floor(s / 3600);
+                var m = Math.floor((s % 3600) / 60);
+                var ss = s % 60;
+                var out = [];
+                if (h > 0) out.push(h + 'h');
+                if (m > 0 || h > 0) out.push(m + 'm');
+                out.push(ss + 's');
+                return out.join(' ');
+            }
+
+            function secToClock(sec) {
+                var s = parseInt(sec || '0', 10);
+                if (!Number.isFinite(s) || s < 0) s = 0;
+                var h = Math.floor(s / 3600);
+                var m = Math.floor((s % 3600) / 60);
+                var ss = s % 60;
+                if (h > 0) {
+                    return h + ':' + String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+                }
+                return m + ':' + String(ss).padStart(2, '0');
+            }
+
+            function secToMsPadded(sec) {
+                var s = parseInt(sec || '0', 10);
+                if (!Number.isFinite(s) || s < 0) s = 0;
+                var m = Math.floor(s / 60);
+                var ss = s % 60;
+                if (m < 60) {
+                    return String(m).padStart(2, '0') + 'm ' + String(ss).padStart(2, '0') + 's';
+                }
+                var h = Math.floor(m / 60);
+                var rm = m % 60;
+                return h + 'h ' + String(rm).padStart(2, '0') + 'm ' + String(ss).padStart(2, '0') + 's';
+            }
+
+            window.forceOpenKgphExplain = function (el) {
+                try {
+                    var ui = ensureKgphModal();
+                    var modal = ui.modal;
+                    var backdrop = ui.backdrop;
+                    var d = (el && el.dataset) ? el.dataset : {};
+                    var kind = d.kind === 'timeline' ? 'timeline' : 'real';
+                    var sec = parseInt(d.seconds || '0', 10);
+                    if (!Number.isFinite(sec) || sec < 0) sec = 0;
+                    var batchMass = parseFloat(d.batchMass || '0');
+                    if (!Number.isFinite(batchMass) || batchMass < 0) batchMass = 0;
+                    var stageSources = [];
+                    if (d.stageSources) {
+                        try {
+                            stageSources = JSON.parse(d.stageSources);
+                        } catch (e) {
+                            stageSources = [];
+                        }
+                    }
+
+                    var stagesText = 'Nie dotyczy tej metryki.';
+                    if (kind === 'timeline') {
+                        if (Array.isArray(stageSources) && stageSources.length > 0) {
+                            var lines = stageSources.map(function (sObj) {
+                                var nr = sObj && sObj.szarza_nr ? String(sObj.szarza_nr) : '?';
+                                var totalSec = (sObj && sObj.total_duration_s) ? sObj.total_duration_s : 0;
+                                var total = secToMsPadded(totalSec);
+                                var waga = batchMass > 0 ? batchMass : 0;
+                                return 'Szarża ' + nr + ' - Waga ' + waga + ' kg - ' + total;
+                            });
+                            stagesText = lines.join(' | ');
+                        } else {
+                            stagesText = 'Brak szczegółów etapów dla tej chwili.';
+                        }
+                    }
+
+                    var title = (kind === 'timeline') ? 'Wydajność produkcyjna - rozbicie wzoru' : 'Wydajność rzeczywista - rozbicie wzoru';
+                    var plan = '#' + (d.planId || '-');
+                    var value = d.value ? (d.value + ' kg/h') : '-';
+                    var mass = d.mass ? (d.mass + ' kg') : '-';
+                    var time = 'Suma czasowa etapów : ' + sec + ' s (' + secToHuman(sec) + ', ' + (sec / 3600.0).toFixed(4) + ' h)';
+                    var formula = (d.mass && sec > 0)
+                        ? (d.mass + ' / (' + sec + ' / 3600) = ' + (d.value || '-'))
+                        : 'Brak kompletu danych do wyliczenia.';
+                    var mode = '';
+                    if (kind === 'timeline') {
+                        mode = (d.mode === 'closed_sessions')
+                            ? ('Tryb: suma zakończonych punktów kontrolnych. Liczba punktów: ' + (d.closedSessions || '0') + '.')
+                            : 'Tryb: bieżąca sesja punktu kontrolnego.';
+                    } else {
+                        mode = 'Tryb: wykonanie zlecenia / czas rzeczywisty od startu planu.';
+                    }
+
+                    var t = document.getElementById('kgphTitleDyn'); if (t) t.textContent = title;
+                    var p = document.getElementById('kgphPlanDyn'); if (p) p.textContent = plan;
+                    var v = document.getElementById('kgphValueDyn'); if (v) v.textContent = value;
+                    var m = document.getElementById('kgphMassDyn'); if (m) m.textContent = mass;
+                    var tt = document.getElementById('kgphTimeDyn'); if (tt) tt.textContent = time;
+                    var st = document.getElementById('kgphStagesDyn'); if (st) st.textContent = stagesText;
+                    var f = document.getElementById('kgphFormulaDyn'); if (f) f.textContent = formula;
+                    var mi = document.getElementById('kgphModeDyn'); if (mi) mi.textContent = mode;
+
+                    backdrop.style.display = 'block';
+                    backdrop.classList.add('show');
+                    modal.style.display = 'block';
+                    setTimeout(function () {
+                        modal.classList.add('open');
+                        modal.setAttribute('aria-hidden', 'false');
+                    }, 10);
+                } catch (err) {
+                    console.error('forceOpenKgphExplain error', err);
+                }
+                return false;
+            };
+
+            window.openKgphExplainFromPill = window.forceOpenKgphExplain;
+        })();
+    </script>
+
     {% endblock %}
 
     {% if sekcja == 'Magazyn' %}
@@ -2184,7 +2408,186 @@
         <div id="quickPopupBody" class="qp-body p-10">{{ _('ladowanie') }}</div>
     </div>
 
+    <div id="kgphExplainBackdrop" class="quick-backdrop" style="display:none;"></div>
+    <div id="kgphExplainModal" class="quick-popup" aria-hidden="true" style="display:none; max-width: 560px;">
+        <div class="qp-header d-flex justify-between align-center p-10">
+            <div class="header-title" id="kgphExplainTitle">Wydajność</div>
+            <div><button type="button" class="btn-action btn-small" id="kgphExplainCloseBtn">✖</button></div>
+        </div>
+        <div class="qp-body p-10">
+            <div class="card-row"><strong>Plan:</strong> <span id="kgphExplainPlan">-</span></div>
+            <div class="card-row"><strong>Aktualny wynik:</strong> <span id="kgphExplainValue">-</span></div>
+            <div class="card-row"><strong>Licznik (co liczy):</strong> <span id="kgphExplainMass">-</span></div>
+            <div class="card-row"><strong>Mianownik (co dzieli):</strong> <span id="kgphExplainTime">-</span></div>
+            <div class="card-row"><strong>Wzór:</strong> <span id="kgphExplainFormula">-</span></div>
+            <div class="small text-muted" id="kgphExplainModeInfo" style="margin-top:8px;"></div>
+        </div>
+    </div>
+
     <script>
+        window.forceOpenKgphExplain = function (el) {
+            try {
+                if (window.openKgphExplainFromPill) {
+                    window.openKgphExplainFromPill(el);
+                    return false;
+                }
+
+                var d = (el && el.dataset) ? el.dataset : {};
+                var kind = d.kind === 'timeline' ? 'timeline' : 'real';
+                var planId = d.planId || '-';
+                var val = d.value ? (d.value + ' kg/h') : '-';
+                var mass = d.mass ? (d.mass + ' kg') : '-';
+                var sec = parseInt(d.seconds || '0', 10);
+                if (!Number.isFinite(sec) || sec < 0) sec = 0;
+                var h = Math.floor(sec / 3600);
+                var m = Math.floor((sec % 3600) / 60);
+                var s = sec % 60;
+                var human = (h > 0 ? (h + 'h ') : '') + m + 'm ' + s + 's';
+                var formula = (d.mass && sec > 0)
+                    ? (d.mass + ' / (' + sec + ' / 3600) = ' + (d.value || '-'))
+                    : 'Brak kompletu danych do wyliczenia.';
+
+                var titleEl = document.getElementById('kgphExplainTitle');
+                var planEl = document.getElementById('kgphExplainPlan');
+                var valueEl = document.getElementById('kgphExplainValue');
+                var massEl = document.getElementById('kgphExplainMass');
+                var timeEl = document.getElementById('kgphExplainTime');
+                var formulaEl = document.getElementById('kgphExplainFormula');
+                var modeEl = document.getElementById('kgphExplainModeInfo');
+                if (titleEl) titleEl.textContent = (kind === 'timeline') ? 'Wydajność produkcyjna - rozbicie wzoru' : 'Wydajność rzeczywista - rozbicie wzoru';
+                if (planEl) planEl.textContent = '#' + planId;
+                if (valueEl) valueEl.textContent = val;
+                if (massEl) massEl.textContent = mass;
+                if (timeEl) timeEl.textContent = sec + ' s (' + human + ', ' + (sec / 3600.0).toFixed(4) + ' h)';
+                if (formulaEl) formulaEl.textContent = formula;
+                if (modeEl) {
+                    if (kind === 'timeline') {
+                        modeEl.textContent = (d.mode === 'closed_sessions')
+                            ? ('Tryb: suma zakończonych punktów kontrolnych. Liczba punktów: ' + (d.closedSessions || '0') + '.')
+                            : 'Tryb: bieżąca sesja punktu kontrolnego.';
+                    } else {
+                        modeEl.textContent = 'Tryb: wykonanie zlecenia / czas rzeczywisty od startu planu.';
+                    }
+                }
+
+                var backdrop = document.getElementById('kgphExplainBackdrop');
+                var modal = document.getElementById('kgphExplainModal');
+                if (backdrop) { backdrop.style.display = 'block'; backdrop.classList.add('show'); }
+                if (modal) { modal.style.display = 'block'; modal.classList.add('open'); modal.setAttribute('aria-hidden', 'false'); }
+            } catch (e) {
+                console.error('kgph modal open failed', e);
+            }
+            return false;
+        };
+
+        (function () {
+            function formatDurationFromSeconds(totalSeconds) {
+                var sec = parseInt(totalSeconds, 10);
+                if (!Number.isFinite(sec) || sec <= 0) return '0s';
+                var h = Math.floor(sec / 3600);
+                var m = Math.floor((sec % 3600) / 60);
+                var s = sec % 60;
+                var out = [];
+                if (h > 0) out.push(h + 'h');
+                if (m > 0 || h > 0) out.push(m + 'm');
+                out.push(s + 's');
+                return out.join(' ');
+            }
+
+            function openKgphExplain(el) {
+                if (!el) return;
+                var d = el.dataset || {};
+                var kind = d.kind === 'timeline' ? 'timeline' : 'real';
+                var planId = d.planId || '-';
+                var val = d.value ? (d.value + ' kg/h') : '-';
+                var mass = d.mass ? (d.mass + ' kg') : '-';
+                var seconds = parseInt(d.seconds || '0', 10);
+                if (!Number.isFinite(seconds)) seconds = 0;
+                var timeHuman = formatDurationFromSeconds(seconds);
+                var timeHours = seconds > 0 ? (seconds / 3600.0).toFixed(4) : '0.0000';
+
+                var title = kind === 'timeline' ? 'Wydajność produkcyjna - rozbicie wzoru' : 'Wydajność rzeczywista - rozbicie wzoru';
+                var modeInfo = '';
+                if (kind === 'timeline') {
+                    if (d.mode === 'closed_sessions') {
+                        modeInfo = 'Tryb: suma zakończonych punktów kontrolnych. Liczba punktów: ' + (d.closedSessions || '0') + '.';
+                    } else {
+                        modeInfo = 'Tryb: bieżąca sesja punktu kontrolnego.';
+                    }
+                } else {
+                    modeInfo = 'Tryb: wykonanie zlecenia / czas rzeczywisty od startu planu.';
+                }
+
+                var formula = d.mass && seconds > 0
+                    ? (d.mass + ' / (' + seconds + ' / 3600) = ' + (d.value || '-'))
+                    : 'Brak kompletu danych do wyliczenia.';
+
+                var titleEl = document.getElementById('kgphExplainTitle');
+                var planEl = document.getElementById('kgphExplainPlan');
+                var valueEl = document.getElementById('kgphExplainValue');
+                var massEl = document.getElementById('kgphExplainMass');
+                var timeEl = document.getElementById('kgphExplainTime');
+                var formulaEl = document.getElementById('kgphExplainFormula');
+                var modeEl = document.getElementById('kgphExplainModeInfo');
+                if (titleEl) titleEl.textContent = title;
+                if (planEl) planEl.textContent = '#' + planId;
+                if (valueEl) valueEl.textContent = val;
+                if (massEl) massEl.textContent = mass;
+                if (timeEl) timeEl.textContent = seconds + ' s (' + timeHuman + ', ' + timeHours + ' h)';
+                if (formulaEl) formulaEl.textContent = formula;
+                if (modeEl) modeEl.textContent = modeInfo;
+
+                var backdrop = document.getElementById('kgphExplainBackdrop');
+                var modal = document.getElementById('kgphExplainModal');
+                if (backdrop) { backdrop.style.display = 'block'; backdrop.classList.add('show'); }
+                if (modal) { modal.style.display = 'block'; modal.classList.add('open'); modal.setAttribute('aria-hidden', 'false'); }
+            }
+
+            function closeKgphExplain() {
+                var backdrop = document.getElementById('kgphExplainBackdrop');
+                var modal = document.getElementById('kgphExplainModal');
+                if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden', 'true'); }
+                if (backdrop) { backdrop.classList.remove('show'); }
+                setTimeout(function () {
+                    if (modal) modal.style.display = 'none';
+                    if (backdrop) backdrop.style.display = 'none';
+                }, 160);
+            }
+
+            document.addEventListener('click', function (e) {
+                var pill = e.target.closest('.js-kgph-explain');
+                if (pill) {
+                    e.preventDefault();
+                    openKgphExplain(pill);
+                    return;
+                }
+                if (e.target && e.target.id === 'kgphExplainBackdrop') {
+                    closeKgphExplain();
+                }
+            });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    closeKgphExplain();
+                    return;
+                }
+                var active = document.activeElement;
+                if ((e.key === 'Enter' || e.key === ' ') && active && active.classList && active.classList.contains('js-kgph-explain')) {
+                    e.preventDefault();
+                    openKgphExplain(active);
+                }
+            });
+
+            var closeBtn = document.getElementById('kgphExplainCloseBtn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeKgphExplain);
+            }
+
+            // Expose helpers globally so inline onclick always works even if delegated listeners are blocked.
+            window.openKgphExplainFromPill = openKgphExplain;
+            window.closeKgphExplainModal = closeKgphExplain;
+        })();
+
         function openQuickPopup(html) {
             var qp = document.getElementById('quickPopup');
             var bd = document.getElementById('quickBackdrop');

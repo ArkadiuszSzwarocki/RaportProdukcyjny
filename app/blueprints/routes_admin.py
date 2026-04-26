@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, flash, current_app, session, jsonify, url_for
 from flask import send_from_directory, abort
 from datetime import date
-from app.db import get_db_connection, list_online_users
+from app.db import get_db_connection, list_online_users, create_notification_for_login
 from werkzeug.security import generate_password_hash
 
 from app.decorators import admin_required, login_required, dynamic_role_required
@@ -1145,8 +1145,10 @@ def admin_ustawienia_bugs():
         
         # Parse JSON attachments
         for bug in bugs:
-            if isinstance(bug['zalaczniki'], str):
+            if isinstance(bug.get('zalaczniki'), str):
                 bug['zalaczniki'] = json.loads(bug['zalaczniki'])
+            elif not bug.get('zalaczniki'):
+                bug['zalaczniki'] = []
     except Exception as e:
         current_app.logger.error("Błąd pobierania zgłoszeń: %s", e)
         bugs = []
@@ -1154,6 +1156,63 @@ def admin_ustawienia_bugs():
         conn.close()
     
     return render_template('ustawienia_bugs.html', bugs=bugs)
+
+
+@admin_bp.route('/admin/ustawienia/bugs/respond/<int:bug_id>', methods=['POST'])
+@login_required
+@dynamic_role_required('ustawienia')
+def admin_respond_bug(bug_id):
+    """Add admin reply to a bug report and notify the reporting user."""
+    odpowiedz = (request.form.get('odpowiedz_admina') or '').strip()
+    if not odpowiedz:
+        flash('Treść odpowiedzi nie może być pusta.', 'error')
+        return redirect(url_for('admin.admin_ustawienia_bugs'))
+
+    admin_login = session.get('login') or 'admin'
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id, login FROM zgloszenia_bledow WHERE id = %s", (bug_id,))
+        bug = cursor.fetchone()
+        if not bug:
+            flash('Zgłoszenie nie istnieje.', 'error')
+            return redirect(url_for('admin.admin_ustawienia_bugs'))
+
+        cursor.execute(
+            """
+            UPDATE zgloszenia_bledow
+            SET odpowiedz_admina = %s,
+                odpowiedz_timestamp = NOW(),
+                odpowiedz_by_login = %s,
+                status = 'odpowiedziano'
+            WHERE id = %s
+            """,
+            (odpowiedz, admin_login, bug_id)
+        )
+        conn.commit()
+
+        try:
+            create_notification_for_login(
+                typ='bug_reply',
+                tytul='Odpowiedź na Twoje zgłoszenie błędu',
+                tresc=f'Zgłoszenie #{bug_id}: {odpowiedz[:380]}',
+                recipient_login=bug.get('login'),
+                link_url='/moje_zgloszenia_bledow',
+                created_by_user_id=session.get('user_id')
+            )
+        except Exception:
+            current_app.logger.exception('Nie udało się utworzyć powiadomienia o odpowiedzi na zgłoszenie #%s', bug_id)
+
+        flash('Odpowiedź została zapisana i wysłano powiadomienie.', 'success')
+    except Exception as e:
+        conn.rollback()
+        current_app.logger.exception('Błąd odpowiadania na zgłoszenie #%s: %s', bug_id, e)
+        flash('Nie udało się zapisać odpowiedzi.', 'error')
+    finally:
+        conn.close()
+
+    return redirect(url_for('admin.admin_ustawienia_bugs'))
 
 
 @admin_bp.route('/admin/ustawienia/bugs/delete/<int:bug_id>', methods=['POST'])
