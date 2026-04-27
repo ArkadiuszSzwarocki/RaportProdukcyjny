@@ -427,13 +427,14 @@ def dodaj_plan():
                 # No automatic increase of buffer
                 
                 conn.commit()
-                # Odśwież bufor natychmiast po dodaniu szarży, żeby Workowanie pojawiło się w kolejce
+                conn.close()
+                # Odśwież bufor natychmiast po dodaniu szarży — nowe połączenie (conn=None)
+                # żeby uniknąć deadlocka na już zamkniętym/committed conn
                 try:
                     from app.db import refresh_bufor_queue
-                    refresh_bufor_queue(conn, linia=linia)
+                    refresh_bufor_queue(None, linia=linia)
                 except Exception:
                     pass
-                conn.close()
                 try:
                     current_app.logger.debug(f'[DODAJ_PLAN] SUCCESS: committed and returning')
                 except Exception:
