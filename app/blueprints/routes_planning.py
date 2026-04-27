@@ -210,6 +210,7 @@ def dodaj_plan():
         pass
     
     # Validate required fields
+    # v2026-04-27b: deadlock fix — refresh_bufor_queue uzywany z wlasnym polaczeniem
     if not produkt:
         try:
             current_app.logger.debug(f'[DODAJ_PLAN] MISSING produkt - redirecting')
