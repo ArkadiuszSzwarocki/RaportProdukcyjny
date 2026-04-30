@@ -2,12 +2,25 @@ from flask import Blueprint, request, redirect, url_for, flash, session, render_
 import logging
 import os
 import glob
+import uuid
 from datetime import date, datetime, timedelta
 from typing import Optional
 from app.db import get_db_connection, get_table_name, rollover_unfinished, sync_dosypka_notifications
 from app.decorators import login_required, roles_required
 from app.core.audit import audit_log
 from app.services.zasyp_etapy_service import ZasypEtapyService
+from app.services.zasyp_start_notification_service import (
+    add_start_event,
+    build_sound_url_if_exists,
+    build_start_tts_text,
+    get_latest_start_event,
+)
+from app.services.zasyp_mieszanie_notification_service import (
+    add_mieszanie_event,
+    build_mieszanie_tts_text,
+    get_latest_mieszanie_event,
+    is_mieszanie_after_dosypka,
+)
 
 production_bp = Blueprint('production', __name__)
 
@@ -156,6 +169,63 @@ def _insert_szarza_compatible(cursor, table_szarze: str, *, plan_id: int, nr_sza
         f"INSERT INTO {table_szarze} ({cols_sql}) VALUES ({placeholders})",
         tuple(insert_vals),
     )
+
+
+def _notify_laboratory_stage_start(linia: str, plan_id: int, etap: int, produkt: str) -> None:
+    """Emit laboratorium notification for start of selected Zasyp stages (1=Naważanie, 2=Mieszanie)."""
+    try:
+        etap_i = int(etap)
+    except Exception:
+        return
+    if etap_i not in (1, 2, 4) and not (40 < etap_i < 50):
+        return
+
+    # Try to resolve current szarza number (if any)
+    szarza_nr = None
+    conn2 = None
+    try:
+        conn2 = get_db_connection()
+        cur2 = conn2.cursor()
+        table_szarze = get_table_name('szarze', linia)
+        cur2.execute(f"SELECT MAX(nr_szarzy) FROM {table_szarze} WHERE plan_id=%s", (plan_id,))
+        r = cur2.fetchone()
+        if r and r[0] is not None:
+            try:
+                szarza_nr = int(r[0])
+            except Exception:
+                szarza_nr = None
+    except Exception:
+        szarza_nr = None
+    finally:
+        try:
+            if conn2:
+                conn2.close()
+        except Exception:
+            pass
+
+    try:
+        ts_ms = int(time.time() * 1000)
+        uniq = uuid.uuid4().hex[:8]
+        is_nawazanie = etap_i == 1
+        filename_prefix = 'zasyp_start' if is_nawazanie else 'zasyp_mieszanie_start'
+        filename = f"{filename_prefix}_{plan_id}_{ts_ms}_{uniq}.mp3"
+        text = build_start_tts_text(produkt, szarza_nr) if is_nawazanie else build_mieszanie_tts_text(produkt, szarza_nr, etap_i)
+
+        try:
+            generate_tts_async(text, filename)
+        except Exception:
+            current_app.logger.exception('Failed to kick off TTS for zasyp stage notification')
+            filename = None
+
+        try:
+            if is_nawazanie:
+                add_start_event(linia, plan_id, produkt, szarza_nr, filename)
+            else:
+                add_mieszanie_event(linia, plan_id, etap_i, produkt, szarza_nr, filename)
+        except Exception:
+            current_app.logger.exception('Failed to register zasyp stage notification event')
+    except Exception:
+        current_app.logger.exception('Unexpected error while preparing zasyp stage notification event')
 
 
 @production_bp.route('/zasyp_etap_start', methods=['POST'])
@@ -310,6 +380,11 @@ def zasyp_etap_start():
     _flash_zasyp_result(ok, msg)
     if ok:
         audit_log('START etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
+        # If stage start requires laboratorium notification, register event + optional TTS file.
+        try:
+            _notify_laboratory_stage_start(linia, plan_id, etap, produkt)
+        except Exception:
+            current_app.logger.exception('Failed post-start zasyp notification')
     return redirect(bezpieczny_powrot())
 
 
@@ -431,6 +506,10 @@ def zasyp_etap_stop():
             if next_ok:
                 msg = f'{msg}; automatycznie uruchomiono etap {next_etap}'
                 audit_log('START etapu Zasyp', f'plan_id={plan_id}, etap={next_etap}, linia={linia}, produkt={produkt}')
+                try:
+                    _notify_laboratory_stage_start(linia, plan_id, next_etap, produkt)
+                except Exception:
+                    current_app.logger.exception('Failed post-auto-start zasyp notification')
 
                 if wants_new_point_after_empty:
                     km_ok, km_msg = ZasypEtapyService.kolejny_pomiar(plan_id, linia, session.get('login') or '')
@@ -455,6 +534,10 @@ def zasyp_etap_stop():
                             if st_ok:
                                 msg = f"{msg}; {km_msg}; automatycznie uruchomiono Naważanie dla nowego punktu"
                                 audit_log('START etapu Zasyp', f'plan_id={plan_id}, etap=1, linia={linia}, produkt={produkt}, szarza_nr={new_szarza_nr}')
+                                try:
+                                    _notify_laboratory_stage_start(linia, plan_id, 1, produkt)
+                                except Exception:
+                                    current_app.logger.exception('Failed post-auto-start (new point) zasyp notification')
 
                                 if auto_szarza_enabled or wants_new_point_after_empty:
                                     # New-point flow must keep etap 1 start and szarza row in sync.
@@ -1387,6 +1470,8 @@ import time
 _mieszalnik_zwolnienia = {'AGRO': 0, 'PSD': 0}
 _dosypki_updates = {'AGRO': 0, 'PSD': 0}
 ZWOLNIENIE_BANNER_TTL_SECONDS = 180
+import threading
+ZASYP_START_BANNER_TTL_SECONDS = 180
 
 
 def _mark_dosypki_updated(linia: str) -> None:
@@ -1465,6 +1550,44 @@ def _get_zwolnienie_timestamp(linia: str) -> float:
             pass
     return float(_mieszalnik_zwolnienia.get(linia_u, 0.0) or 0.0)
 
+
+def _tts_filename_for_linia(linia: str) -> str:
+    return f"zwolnienie_{str(linia or 'AGRO').lower()}.mp3"
+
+
+def generate_tts_async(text: str, filename: str) -> None:
+    """Generate TTS in a background thread and save to static/sounds/filename."""
+    try:
+        app_root = current_app.root_path
+        logger = current_app.logger
+    except Exception:
+        # Fallbacks if no app context - try to proceed anyway
+        app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        logger = logging.getLogger('raportprodukcyjny')
+
+    def _job():
+        try:
+            try:
+                from gtts import gTTS
+            except Exception:
+                logger.warning('gTTS not installed or import failed; skipping TTS generation')
+                return
+            out_dir = os.path.join(app_root, 'static', 'sounds')
+            os.makedirs(out_dir, exist_ok=True)
+            out_path = os.path.join(out_dir, filename)
+            # Generate TTS (may require network)
+            tts = gTTS(text=text, lang='pl')
+            tts.save(out_path)
+            logger.info('TTS saved: %s', out_path)
+        except Exception:
+            logger.exception('TTS generation failed')
+
+    try:
+        t = threading.Thread(target=_job, daemon=True)
+        t.start()
+    except Exception:
+        logger.exception('Failed to start TTS thread')
+
 @production_bp.route('/api/zasyp/zwolnij_mieszalnik', methods=['POST'])
 @roles_required('laborant', 'laboratorium', 'admin', 'zarzad')
 def api_zwolnij_mieszalnik():
@@ -1472,10 +1595,17 @@ def api_zwolnij_mieszalnik():
     linia = request.form.get('linia') or request.json.get('linia') or 'AGRO'
     linia = linia.upper()
     ts = _set_zwolnienie_timestamp(linia)
-    return jsonify({"success": True, "timestamp": ts})
+    # Kick off TTS generation for this zwolnienie (async)
+    try:
+        text = f"Laboratorium zwolniło mieszalnik do wysypu na linii {linia}"
+        filename = _tts_filename_for_linia(linia)
+        generate_tts_async(text, filename)
+        audio_url = build_sound_url_if_exists(filename)
+    except Exception:
+        audio_url = None
+    return jsonify({"success": True, "timestamp": ts, "audio_url": audio_url})
 
 @production_bp.route('/api/zasyp/poll_zwolnienie', methods=['GET'])
-@login_required
 def api_poll_zwolnienie():
     """Skrypt w dashboard.html pyta co X sekund czy był sygnał."""
     role = str(session.get('rola') or '').lower()
@@ -1490,12 +1620,97 @@ def api_poll_zwolnienie():
     current = _get_zwolnienie_timestamp(linia)
     is_fresh = (time.time() - current) <= ZWOLNIENIE_BANNER_TTL_SECONDS if current > 0 else False
     if current > last_seen and is_fresh:
-        return jsonify({"new_zwolnienie": True, "timestamp": current})
+        try:
+            filename = _tts_filename_for_linia(linia)
+            audio_url = build_sound_url_if_exists(filename)
+        except Exception:
+            audio_url = None
+        return jsonify({"new_zwolnienie": True, "timestamp": current, "audio_url": audio_url})
     return jsonify({"new_zwolnienie": False})
 
 
+@production_bp.route('/api/zasyp/poll_etap_start', methods=['GET'])
+def api_poll_etap_start():
+    """Poll for recent zasyp ETAP START events (Naważanie). Only returns events to `laborant`/`laboratorium` roles."""
+    role = str(session.get('rola') or '').strip().lower()
+    if role not in ['laborant', 'laboratorium']:
+        return jsonify({"new_start": False})
+
+    linia = request.args.get('linia', 'AGRO').upper()
+    try:
+        last_seen = float(request.args.get('last_seen', 0))
+    except Exception:
+        last_seen = 0.0
+
+    latest = get_latest_start_event(linia, last_seen)
+    if not latest:
+        return jsonify({"new_start": False})
+
+    ts = float(latest.get('event_timestamp') if 'event_timestamp' in latest else (latest.get('timestamp') or 0.0) or 0.0)
+    is_fresh = (time.time() - ts) <= ZASYP_START_BANNER_TTL_SECONDS if ts > 0 else False
+    if ts > last_seen and is_fresh:
+        audio_filename = latest.get('audio_filename') or None
+        if audio_filename and not str(audio_filename).startswith('zasyp_start_'):
+            audio_filename = None
+        if not audio_filename and latest.get('audio_url'):
+            try:
+                audio_filename = str(latest.get('audio_url')).split('/')[-1]
+            except Exception:
+                audio_filename = None
+        voice_text = build_start_tts_text(latest.get('produkt'), latest.get('szarza_nr'))
+        return jsonify({
+            "new_start": True,
+            "timestamp": ts,
+            "plan_id": latest.get('plan_id'),
+            "produkt": latest.get('produkt'),
+            "szarza_nr": latest.get('szarza_nr'),
+            "tts_text": voice_text,
+            "audio_url": build_sound_url_if_exists(audio_filename),
+        })
+    return jsonify({"new_start": False})
+
+
+@production_bp.route('/api/zasyp/poll_mieszanie_start', methods=['GET'])
+def api_poll_mieszanie_start():
+    """Poll for recent zasyp Mieszanie START events. Only returns events to `laborant`/`laboratorium` roles."""
+    role = str(session.get('rola') or '').strip().lower()
+    if role not in ['laborant', 'laboratorium']:
+        return jsonify({"new_start": False})
+
+    linia = request.args.get('linia', 'AGRO').upper()
+    try:
+        last_seen = float(request.args.get('last_seen', 0))
+    except Exception:
+        last_seen = 0.0
+
+    latest = get_latest_mieszanie_event(linia, last_seen)
+    if not latest:
+        return jsonify({"new_start": False})
+
+    ts = float(latest.get('event_timestamp') if 'event_timestamp' in latest else (latest.get('timestamp') or 0.0) or 0.0)
+    is_fresh = (time.time() - ts) <= ZASYP_START_BANNER_TTL_SECONDS if ts > 0 else False
+    if ts > last_seen and is_fresh:
+        audio_filename = latest.get('audio_filename') or None
+        if audio_filename and not str(audio_filename).startswith('zasyp_mieszanie_start_'):
+            audio_filename = None
+        etap_nr = latest.get('etap_nr')
+        voice_text = build_mieszanie_tts_text(latest.get('produkt'), latest.get('szarza_nr'), etap_nr)
+        banner_title = 'OPERATOR DODAŁ DOSYPKĘ - TRWA MIESZANIE' if is_mieszanie_after_dosypka(etap_nr) else 'OPERATOR ROZPOCZĄŁ MIESZANIE'
+        return jsonify({
+            "new_start": True,
+            "timestamp": ts,
+            "plan_id": latest.get('plan_id'),
+            "etap_nr": etap_nr,
+            "produkt": latest.get('produkt'),
+            "szarza_nr": latest.get('szarza_nr'),
+            "banner_title": banner_title,
+            "tts_text": voice_text,
+            "audio_url": build_sound_url_if_exists(audio_filename),
+        })
+    return jsonify({"new_start": False})
+
+
 @production_bp.route('/api/zasyp/poll_dosypki_update', methods=['GET'])
-@login_required
 def api_poll_dosypki_update():
     """Return update timestamp for dosypki so dashboards can refresh after confirm/cancel/add."""
     linia = request.args.get('linia', 'AGRO').upper()

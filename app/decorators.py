@@ -12,6 +12,17 @@ def login_required(f):
                 accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
             except Exception:
                 is_xhr = False; accepts_json = False
+            # Log unauthenticated requests for diagnostics (avoid logging cookies/credentials)
+            try:
+                if is_xhr or accepts_json:
+                    current_app.logger.info(
+                        "[login_required] Unauthenticated AJAX to %s from %s Accept=%s X-Requested-With=%s User-Agent=%s",
+                        request.path, request.remote_addr, request.headers.get('Accept'), request.headers.get('X-Requested-With'), request.headers.get('User-Agent')
+                    )
+                else:
+                    current_app.logger.info("[login_required] Unauthenticated page request to %s from %s", request.path, request.remote_addr)
+            except Exception:
+                pass
             if is_xhr or accepts_json:
                 return jsonify({'success': False, 'error': 'unauthenticated'}), 401
             return redirect('/login')

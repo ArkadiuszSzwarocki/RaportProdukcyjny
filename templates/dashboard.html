@@ -250,9 +250,11 @@
         window._urls.anuluj_dosypke = "{{ url_for('production.anuluj_dosypke', dosypka_id=0) }}";
         // Current user role for conditional UI features
         window._currentRole = "{{ rola }}";
-        const _roleLower = String(window._currentRole || '').toLowerCase();
+        const _roleLower = String(window._currentRole || '').trim().toLowerCase();
         window._isAgroZasypOperator = !['laborant', 'laboratorium', 'magazyn', 'magazynier', 'planista'].includes(_roleLower);
         window._isAgroDosypkiObserver = ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium'].includes(_roleLower);
+        // laborant flag: used to show banner + voice notification when operator starts Naważanie
+        window._isAgroLaborant = ['laborant', 'laboratorium'].includes(_roleLower);
         // Current hall/linia for AGRO-aware API calls
         window._linia = "{{ linia or 'PSD' }}";
 
@@ -311,19 +313,50 @@
         {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
         let zwolnienieLastSeen = 0;
         let dosypkiLastSeen = 0;
+        let zasypStartLastSeen = 0;
+        let zasypMieszanieStartLastSeen = 0;
         try {
             zwolnienieLastSeen = Number(localStorage.getItem('agro_zwolnienie_last_seen') || '0') || 0;
+            zasypStartLastSeen = Number(localStorage.getItem('agro_zasyp_start_last_seen') || '0') || 0;
+            zasypMieszanieStartLastSeen = Number(localStorage.getItem('agro_zasyp_mieszanie_start_last_seen') || '0') || 0;
             dosypkiLastSeen = Number(localStorage.getItem('agro_dosypki_last_seen') || '0') || 0;
         } catch (e) {
             zwolnienieLastSeen = 0;
             dosypkiLastSeen = 0;
+            zasypStartLastSeen = 0;
+            zasypMieszanieStartLastSeen = 0;
         }
+
+        // Avoid replaying stale start-announcements after refresh/open.
+        try {
+            const nowTs = Date.now() / 1000;
+            if (!zasypStartLastSeen || zasypStartLastSeen < (nowTs - 30)) {
+                zasypStartLastSeen = nowTs;
+                localStorage.setItem('agro_zasyp_start_last_seen', String(zasypStartLastSeen));
+            }
+            if (!zasypMieszanieStartLastSeen || zasypMieszanieStartLastSeen < (nowTs - 30)) {
+                zasypMieszanieStartLastSeen = nowTs;
+                localStorage.setItem('agro_zasyp_mieszanie_start_last_seen', String(zasypMieszanieStartLastSeen));
+            }
+        } catch (e) {}
+
+        // Load local sound generator for zwolnienie (if available)
+        try {
+            if (!document.getElementById('zwolnienie-sound-script')) {
+                var _s = document.createElement('script');
+                _s.id = 'zwolnienie-sound-script';
+                _s.src = '/static/js/zwolnienie_sound.js';
+                _s.defer = true;
+                document.head.appendChild(_s);
+            }
+        } catch (e) { console.warn('Failed to load zwolnienie sound script', e); }
 
         function sendZwolnienieMieszalnika() {
             if(!confirm("Czy na pewno chcesz wysłać wielki komunikat o wyczyszczonym mieszalniku do wszystkich operatorów AGRO?")) return;
             fetch('/api/zasyp/zwolnij_mieszalnik', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 body: JSON.stringify({ linia: 'AGRO' })
             }).then(r => r.json()).then(data => {
                 if(data.success) {
@@ -338,18 +371,69 @@
             }).catch(e => alert('Błąd sieci: ' + e));
         }
 
-        function showZwolnienieBanner() {
+        function showZwolnienieBanner(audioUrl) {
             const banner = document.getElementById('zwolnienie-banner');
             if(banner) {
                 banner.style.display = 'flex';
                 
-                // Play notification sound
+                // Play notification sound — try multiple local files first (including uploaded name),
+                // then fallback to synth (`playZwolnienieSound`) or external file.
                 try {
-                    // Using a Google Actions sound (doorbell chime - more distinct)
-                    const audio = new Audio('https://actions.google.com/sounds/v1/household/doorbell_1.ogg');
-                    audio.play().catch(e => console.warn("Audio play blocked by browser:", e));
+                    var _localCandidates = [
+                        '/static/sounds/doorbell.ogg',
+                        '/static/sounds/doorbell.m4a',
+                        '/static/sounds/doorbell.mp3',
+                        '/static/sounds/Nagrywanie%20(5).m4a',
+                        '/static/sounds/Nagrywanie (5).m4a'
+                    ];
+                    // If backend provided a generated audio_url, try it first
+                    try { if (audioUrl) { _localCandidates.unshift(audioUrl); } } catch (e) {}
+                    var _externalFallback = 'https://actions.google.com/sounds/v1/household/doorbell_1.ogg';
+
+                    function _tryPlayCandidates(cands, extFallback) {
+                        var i = 0;
+                        var played = false;
+                        function _next() {
+                            if (i >= cands.length) {
+                                if (!played) {
+                                    // none of local candidates played — try synth if available, else external
+                                    if (typeof window.playZwolnienieSound === 'function') {
+                                        try {
+                                            window.playZwolnienieSound();
+                                            return;
+                                        } catch (e) {
+                                            console.warn('playZwolnienieSound fallback failed:', e);
+                                        }
+                                    }
+                                    if (extFallback) {
+                                        try { var fa = new Audio(extFallback); fa.play().catch(function(e){ console.warn('external fallback play failed', e); }); } catch (e) { console.warn('external fallback error', e); }
+                                    }
+                                }
+                                return;
+                            }
+                            var url = cands[i++];
+                            try {
+                                console.debug('[zwolnienie] trying audio candidate:', url);
+                                var a = new Audio(url);
+                                var p = a.play();
+                                if (p && typeof p.then === 'function') {
+                                    p.then(function(){ played = true; console.debug('[zwolnienie] played', url); }).catch(function(err){ console.warn('[zwolnienie] play failed for', url, err); _next(); });
+                                } else {
+                                    // assume play started on older browsers
+                                    played = true;
+                                    console.debug('[zwolnienie] assumed play (no promise) for', url);
+                                }
+                            } catch (e) {
+                                console.warn('[zwolnienie] audio exception for', url, e);
+                                _next();
+                            }
+                        }
+                        _next();
+                    }
+
+                    _tryPlayCandidates(_localCandidates, _externalFallback);
                 } catch(err) {
-                    console.error("Critical audio error:", err);
+                    console.error('Critical audio error:', err);
                 }
 
                 // Auto hide after 30 seconds
@@ -447,7 +531,8 @@
                 return true;
             }
 
-            // Dosypka confirmation modal removed: proceed directly with default action.
+            // For AGRO decision stops (mixing), show decision modal asking what to do next.
+            // Keep form pending in window._pendingStopForm and wait for user choice.
             let hidden = form.querySelector('input[name="next_action"]');
             if (!hidden) {
                 hidden = document.createElement('input');
@@ -455,6 +540,12 @@
                 hidden.name = 'next_action';
                 form.appendChild(hidden);
             }
+            window._pendingStopForm = form;
+            if (typeof openStopDecisionModal === 'function') {
+                openStopDecisionModal();
+                return false; // prevent submit until user chooses
+            }
+            // Fallback: default to add_pair
             hidden.value = 'add_pair';
             return true;
         }
@@ -566,15 +657,15 @@
         // Poll for zwolnienie only for AGRO Zasyp operators.
         if (window._isAgroZasypOperator) {
             setInterval(() => {
-                fetch(`/api/zasyp/poll_zwolnienie?linia=AGRO&last_seen=${zwolnienieLastSeen}`)
-                    .then(r => r.json())
+                    fetch(`/api/zasyp/poll_zwolnienie?linia=AGRO&last_seen=${zwolnienieLastSeen}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+                        .then(r => r.json())
                     .then(data => {
                         if(data.new_zwolnienie) {
                             zwolnienieLastSeen = data.timestamp;
                             try {
                                 localStorage.setItem('agro_zwolnienie_last_seen', String(zwolnienieLastSeen));
                             } catch (e) {}
-                            showZwolnienieBanner();
+                            showZwolnienieBanner(data.audio_url);
                         }
                     }).catch(e => console.error("Poll err", e));
             }, 3000); // exactly every 3s
@@ -583,8 +674,8 @@
         // Laboratorium view should auto-refresh after operator confirms/cancels/adds dosypka.
         if (window._isAgroDosypkiObserver) {
             setInterval(() => {
-                fetch(`/api/zasyp/poll_dosypki_update?linia=AGRO&last_seen=${dosypkiLastSeen}`)
-                    .then(r => r.json())
+                    fetch(`/api/zasyp/poll_dosypki_update?linia=AGRO&last_seen=${dosypkiLastSeen}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+                        .then(r => r.json())
                     .then(data => {
                         if (data.new_update) {
                             dosypkiLastSeen = Number(data.timestamp || 0) || dosypkiLastSeen;
@@ -600,6 +691,221 @@
                     })
                     .catch(e => console.error('Dosypki poll err', e));
             }, 3000);
+        }
+
+        // Poll for Zasyp ETAP START events only for laborant role (show banner + voice)
+        if (window._isAgroLaborant) {
+            setInterval(() => {
+                    fetch(`/api/zasyp/poll_etap_start?linia=${window._linia}&last_seen=${zasypStartLastSeen}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+                        .then(r => r.json())
+                    .then(data => {
+                        if (data.new_start) {
+                            zasypStartLastSeen = data.timestamp;
+                            try { localStorage.setItem('agro_zasyp_start_last_seen', String(zasypStartLastSeen)); } catch (e) {}
+                            try {
+                                showZasypStartBanner(data);
+                            } catch (e) { console.error('showZasypStartBanner err', e); }
+                        }
+                    }).catch(e => console.error('Zasyp start poll err', e));
+            }, 3000);
+
+            setInterval(() => {
+                    fetch(`/api/zasyp/poll_mieszanie_start?linia=${window._linia}&last_seen=${zasypMieszanieStartLastSeen}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+                        .then(r => r.json())
+                    .then(data => {
+                        if (data.new_start) {
+                            zasypMieszanieStartLastSeen = data.timestamp;
+                            try { localStorage.setItem('agro_zasyp_mieszanie_start_last_seen', String(zasypMieszanieStartLastSeen)); } catch (e) {}
+                            try {
+                                showZasypMieszanieStartBanner(data);
+                            } catch (e) { console.error('showZasypMieszanieStartBanner err', e); }
+                        }
+                    }).catch(e => console.error('Zasyp mieszanie start poll err', e));
+            }, 3000);
+        }
+
+        function showZasypStartBanner(data) {
+            try {
+                var existing = document.getElementById('zasyp-start-banner');
+                if (existing) { try { existing.remove(); } catch (e) {} }
+
+                var prod = data.produkt || '';
+                var sz = (data.szarza_nr !== undefined && data.szarza_nr !== null) ? data.szarza_nr : '';
+                var msg = '<div style="font-weight:700; margin-bottom:6px;">OPERATOR ROZPOCZĄŁ NAWAŻANIE</div>' +
+                          '<div style="font-size:0.95em;">' + (prod ? prod : '') + (sz ? (' — SZARŻA NR ' + sz) : '') + '</div>';
+
+                var banner = document.createElement('div');
+                banner.id = 'zasyp-start-banner';
+                banner.setAttribute('role','status');
+                banner.style.position = 'fixed';
+                banner.style.left = '50%';
+                banner.style.transform = 'translateX(-50%)';
+                banner.style.top = '80px';
+                banner.style.zIndex = 99999;
+                banner.style.minWidth = '320px';
+                banner.style.maxWidth = '720px';
+                banner.style.background = '#fff7ed';
+                banner.style.border = '1px solid #f6bd56';
+                banner.style.boxShadow = '0 8px 30px rgba(0,0,0,0.12)';
+                banner.style.padding = '14px 16px';
+                banner.style.borderRadius = '10px';
+                banner.style.fontFamily = 'inherit';
+
+                banner.innerHTML = '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">' +
+                    '<div style="flex:1">' + msg + '</div>' +
+                    '<div style="margin-left:8px"><button id="zasyp-start-dismiss" style="background:#f1f2f6;border:none;padding:6px 10px;border-radius:8px;cursor:pointer">OK</button></div>' +
+                    '</div>';
+
+                document.body.appendChild(banner);
+                try { document.getElementById('zasyp-start-dismiss').addEventListener('click', function(){ try{ banner.remove(); }catch(e){} }); } catch (e) {}
+
+                // Try to play audio: prefer provided audio_url, fallback to static TTS file, then to synth
+                var tryPlayUrl = function(url) {
+                    if (!url) return Promise.reject('no-url');
+                    try {
+                        var a = new Audio(url);
+                        a.volume = 1.0;
+                        return a.play().then(()=>true).catch(function(err){ return Promise.reject(err); });
+                    } catch (e) {
+                        return Promise.reject(e);
+                    }
+                };
+
+                var trySpeakText = function(text) {
+                    if (!text || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+                        return Promise.reject('no-speech');
+                    }
+                    return new Promise(function(resolve, reject) {
+                        try {
+                            var u = new SpeechSynthesisUtterance(String(text));
+                            u.lang = 'pl-PL';
+                            u.rate = 1.0;
+                            u.pitch = 1.0;
+                            u.volume = 1.0;
+                            var done = false;
+                            u.onend = function(){ if (!done) { done = true; resolve(true); } };
+                            u.onerror = function(e){ if (!done) { done = true; reject(e); } };
+                            window.speechSynthesis.cancel();
+                            window.speechSynthesis.speak(u);
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                };
+
+                // sequence of candidates
+                var candidates = [];
+                if (data.audio_url && String(data.audio_url).indexOf('zasyp_start_') !== -1) candidates.push(data.audio_url);
+                candidates.push('/static/sounds/doorbell.m4a');
+
+                trySpeakText(data.tts_text).catch(function(){
+                    (function tryCandidates(i){
+                        if (i >= candidates.length) {
+                            // last resort: synth
+                            try { if (typeof window.playZwolnienieSound === 'function') window.playZwolnienieSound(); } catch(e){}
+                            return;
+                        }
+                        var url = candidates[i];
+                        tryPlayUrl(url).then(function(){ /* played */ }).catch(function(){ tryCandidates(i+1); });
+                    })(0);
+                });
+
+                // auto dismiss after TTL
+                setTimeout(function(){ try{ banner.remove(); }catch(e){} }, 12000);
+            } catch (e) {
+                console.error('showZasypStartBanner error', e);
+            }
+        }
+
+        function showZasypMieszanieStartBanner(data) {
+            try {
+                var existing = document.getElementById('zasyp-mieszanie-start-banner');
+                if (existing) { try { existing.remove(); } catch (e) {} }
+
+                var prod = data.produkt || '';
+                var sz = (data.szarza_nr !== undefined && data.szarza_nr !== null) ? data.szarza_nr : '';
+                var title = data.banner_title || 'OPERATOR ROZPOCZĄŁ MIESZANIE';
+                var etapInfo = (data.etap_nr !== undefined && data.etap_nr !== null) ? (' — ETAP ' + data.etap_nr) : '';
+                var msg = '<div style="font-weight:700; margin-bottom:6px;">' + title + etapInfo + '</div>' +
+                          '<div style="font-size:0.95em;">' + (prod ? prod : '') + (sz ? (' — SZARŻA NR ' + sz) : '') + '</div>';
+
+                var banner = document.createElement('div');
+                banner.id = 'zasyp-mieszanie-start-banner';
+                banner.setAttribute('role','status');
+                banner.style.position = 'fixed';
+                banner.style.left = '50%';
+                banner.style.transform = 'translateX(-50%)';
+                banner.style.top = '140px';
+                banner.style.zIndex = 99999;
+                banner.style.minWidth = '320px';
+                banner.style.maxWidth = '720px';
+                banner.style.background = '#ecfeff';
+                banner.style.border = '1px solid #67e8f9';
+                banner.style.boxShadow = '0 8px 30px rgba(0,0,0,0.12)';
+                banner.style.padding = '14px 16px';
+                banner.style.borderRadius = '10px';
+                banner.style.fontFamily = 'inherit';
+
+                banner.innerHTML = '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">' +
+                    '<div style="flex:1">' + msg + '</div>' +
+                    '<div style="margin-left:8px"><button id="zasyp-mieszanie-start-dismiss" style="background:#f1f2f6;border:none;padding:6px 10px;border-radius:8px;cursor:pointer">OK</button></div>' +
+                    '</div>';
+
+                document.body.appendChild(banner);
+                try { document.getElementById('zasyp-mieszanie-start-dismiss').addEventListener('click', function(){ try{ banner.remove(); }catch(e){} }); } catch (e) {}
+
+                var tryPlayUrl = function(url) {
+                    if (!url) return Promise.reject('no-url');
+                    try {
+                        var a = new Audio(url);
+                        a.volume = 1.0;
+                        return a.play().then(()=>true).catch(function(err){ return Promise.reject(err); });
+                    } catch (e) {
+                        return Promise.reject(e);
+                    }
+                };
+
+                var trySpeakText = function(text) {
+                    if (!text || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+                        return Promise.reject('no-speech');
+                    }
+                    return new Promise(function(resolve, reject) {
+                        try {
+                            var u = new SpeechSynthesisUtterance(String(text));
+                            u.lang = 'pl-PL';
+                            u.rate = 1.0;
+                            u.pitch = 1.0;
+                            u.volume = 1.0;
+                            var done = false;
+                            u.onend = function(){ if (!done) { done = true; resolve(true); } };
+                            u.onerror = function(e){ if (!done) { done = true; reject(e); } };
+                            window.speechSynthesis.cancel();
+                            window.speechSynthesis.speak(u);
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                };
+
+                var candidates = [];
+                if (data.audio_url && String(data.audio_url).indexOf('zasyp_mieszanie_start_') !== -1) candidates.push(data.audio_url);
+                candidates.push('/static/sounds/doorbell.m4a');
+
+                trySpeakText(data.tts_text).catch(function(){
+                    (function tryCandidates(i){
+                        if (i >= candidates.length) {
+                            try { if (typeof window.playZwolnienieSound === 'function') window.playZwolnienieSound(); } catch(e){}
+                            return;
+                        }
+                        var url = candidates[i];
+                        tryPlayUrl(url).then(function(){ /* played */ }).catch(function(){ tryCandidates(i+1); });
+                    })(0);
+                });
+
+                setTimeout(function(){ try{ banner.remove(); }catch(e){} }, 12000);
+            } catch (e) {
+                console.error('showZasypMieszanieStartBanner error', e);
+            }
         }
         {% endif %}
 
@@ -679,6 +985,65 @@
                     if(window._szarzaModalCancel) _szarzaModalCancel();
                 }
             });
+            // --- Stop decision modal (shown after clicking Stop on mixing stages) ---
+            const stopStyle = document.createElement('style');
+            stopStyle.textContent = `
+            #stop-decision-modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:10000; }
+            #stop-decision-modal.open { display:flex; }
+            #stop-decision-modal .card { background:#fff; border-radius:12px; padding:18px; width:420px; box-shadow:0 15px 35px rgba(0,0,0,0.25); border:1px solid #e6eef2; }
+            #stop-decision-modal h3 { margin:0 0 10px 0; font-size:1.1em; text-align:center; }
+            #stop-decision-modal .actions { display:grid; grid-template-columns: 1fr; gap:8px; margin-top:12px; }
+            #stop-decision-modal .actions .btn { padding:12px; border-radius:8px; font-weight:700; cursor:pointer; border:none; }
+            #stop-decision-modal .btn-primary { background:#10b981; color:#fff; }
+            #stop-decision-modal .btn-warning { background:#f59e0b; color:#fff; }
+            #stop-decision-modal .btn-danger { background:#ef4444; color:#fff; }
+            #stop-decision-modal .btn-cancel { background:#f1f2f6; color:#2f3542; }
+            `;
+            document.head.appendChild(stopStyle);
+
+            const decisionHtml = `
+            <div id="stop-decision-modal" role="dialog" aria-modal="true">
+                <div class="card">
+                    <h3>Co teraz zrobić po STOP mieszania?</h3>
+                    <div class="small text-muted">Wybierz jedną z opcji, aby kontynuować proces produkcji.</div>
+                    <div class="actions">
+                        <button type="button" id="stop-add-pair" class="btn btn-primary">Dodaj parę: dosypka + mieszanie</button>
+                        <button type="button" id="stop-oprozniamy" class="btn btn-warning">Opróżniamy (kontynuuj opróżnianie)</button>
+                        <button type="button" id="stop-oprozniamy-end" class="btn btn-danger">Opróżniamy i kończymy dziś</button>
+                        <button type="button" id="stop-oprozniamy-new" class="btn btn-primary">Opróżniamy i dodaj nowy punkt</button>
+                        <button type="button" id="stop-decision-cancel" class="btn btn-cancel">Anuluj</button>
+                    </div>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', decisionHtml);
+
+            window.openStopDecisionModal = function() {
+                const m = document.getElementById('stop-decision-modal');
+                if (!m) return;
+                m.classList.add('open');
+                try { document.getElementById('stop-add-pair')?.focus(); } catch (e) {}
+            };
+            window._closeStopDecisionModal = function() {
+                const m = document.getElementById('stop-decision-modal');
+                if (!m) return; m.classList.remove('open');
+            };
+            window._stopDecisionChoose = function(action) {
+                const form = window._pendingStopForm;
+                window._closeStopDecisionModal();
+                if (!form) return;
+                let hidden = form.querySelector('input[name="next_action"]');
+                if (!hidden) { hidden = document.createElement('input'); hidden.type='hidden'; hidden.name='next_action'; form.appendChild(hidden); }
+                hidden.value = action;
+                window._pendingStopForm = null;
+                try { form.submit(); } catch (e) { console.error('submit failed', e); }
+            };
+
+            document.getElementById('stop-add-pair')?.addEventListener('click', function(){ window._stopDecisionChoose('add_pair'); });
+            document.getElementById('stop-oprozniamy')?.addEventListener('click', function(){ window._stopDecisionChoose('oprozniamy'); });
+            document.getElementById('stop-oprozniamy-end')?.addEventListener('click', function(){ window._stopDecisionChoose('oprozniamy_end_today'); });
+            document.getElementById('stop-oprozniamy-new')?.addEventListener('click', function(){ window._stopDecisionChoose('oprozniamy_new_point'); });
+            document.getElementById('stop-decision-cancel')?.addEventListener('click', function(){ window._pendingStopForm = null; window._closeStopDecisionModal(); });
+            document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') window._closeStopDecisionModal(); });
         })();
     </script>
 </div>
