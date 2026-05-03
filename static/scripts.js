@@ -976,6 +976,11 @@
                             const txt = await resp.text();
                             try {
                                 const j = JSON.parse(txt);
+                                if (!resp.ok) {
+                                    if (typeof showToast === 'function') showToast(j && j.message ? j.message : 'Błąd zapisu', 'warning');
+                                    restoreSubmitButtons();
+                                    return;
+                                }
                                 if (j && j.success) {
                                     if (typeof showToast === 'function' && j.message) showToast(j.message, 'success');
                                     finalizeSuccess();
