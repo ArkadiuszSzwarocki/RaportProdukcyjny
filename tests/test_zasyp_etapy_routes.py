@@ -5,12 +5,13 @@ from unittest.mock import MagicMock, patch
 
 @pytest.mark.usefixtures("app")
 class TestZasypEtapStartRoute:
+    @patch('app.blueprints.routes_production.generate_tts_async')
     @patch('app.blueprints.routes_production.audit_log')
     @patch('app.blueprints.routes_production.ZasypEtapyService.set_wielkosc_szarzy')
     @patch('app.blueprints.routes_production.ZasypEtapyService.start_etap')
     @patch('app.blueprints.routes_production.get_table_name')
     @patch('app.blueprints.routes_production.get_db_connection')
-    def test_start_etap_invokes_service(self, mock_get_conn, mock_get_table_name, mock_start_etap, mock_set_szarza, mock_audit_log, client, app):
+    def test_start_etap_invokes_service(self, mock_get_conn, mock_get_table_name, mock_start_etap, mock_set_szarza, mock_audit_log, mock_generate_tts, client, app):
         with app.app_context():
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
@@ -57,12 +58,13 @@ class TestZasypEtapStartRoute:
 
 @pytest.mark.usefixtures("app")
 class TestZasypEtapStopRoute:
+    @patch('app.blueprints.routes_production.generate_tts_async')
     @patch('app.blueprints.routes_production.audit_log')
     @patch('app.blueprints.routes_production.ZasypEtapyService.start_etap')
     @patch('app.blueprints.routes_production.ZasypEtapyService.stop_etap')
     @patch('app.blueprints.routes_production.get_table_name')
     @patch('app.blueprints.routes_production.get_db_connection')
-    def test_stop_etap_starts_next_stage(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, client, app):
+    def test_stop_etap_starts_next_stage(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, mock_generate_tts, client, app):
         with app.app_context():
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
@@ -100,12 +102,13 @@ class TestZasypEtapStopRoute:
             mock_audit_log.assert_any_call('STOP etapu Zasyp', 'plan_id=123, etap=1, linia=PSD, produkt=Produkt testowy')
             mock_audit_log.assert_any_call('START etapu Zasyp', 'plan_id=123, etap=2, linia=PSD, produkt=Produkt testowy')
 
+    @patch('app.blueprints.routes_production.generate_tts_async')
     @patch('app.blueprints.routes_production.audit_log')
     @patch('app.blueprints.routes_production.ZasypEtapyService.start_etap')
     @patch('app.blueprints.routes_production.ZasypEtapyService.stop_etap')
     @patch('app.blueprints.routes_production.get_table_name')
     @patch('app.blueprints.routes_production.get_db_connection')
-    def test_stop_last_etap_does_not_start_next(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, client, app):
+    def test_stop_last_etap_does_not_start_next(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, mock_generate_tts, client, app):
         with app.app_context():
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
@@ -132,12 +135,13 @@ class TestZasypEtapStopRoute:
             mock_start_etap.assert_not_called()
             mock_audit_log.assert_called_once_with('STOP etapu Zasyp', 'plan_id=123, etap=6, linia=PSD, produkt=Produkt testowy')
 
+    @patch('app.blueprints.routes_production.generate_tts_async')
     @patch('app.blueprints.routes_production.audit_log')
     @patch('app.blueprints.routes_production.ZasypEtapyService.start_etap')
     @patch('app.blueprints.routes_production.ZasypEtapyService.stop_etap')
     @patch('app.blueprints.routes_production.get_table_name')
     @patch('app.blueprints.routes_production.get_db_connection')
-    def test_agro_stop_etap_2_does_not_auto_start_next(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, client, app):
+    def test_agro_stop_etap_2_does_not_auto_start_next(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, mock_generate_tts, client, app):
         with app.app_context():
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
@@ -164,12 +168,13 @@ class TestZasypEtapStopRoute:
             mock_start_etap.assert_not_called()
             mock_audit_log.assert_any_call('STOP etapu Zasyp', 'plan_id=123, etap=2, linia=AGRO, produkt=Produkt testowy')
 
+    @patch('app.blueprints.routes_production.generate_tts_async')
     @patch('app.blueprints.routes_production.audit_log')
     @patch('app.blueprints.routes_production.ZasypEtapyService.start_etap')
     @patch('app.blueprints.routes_production.ZasypEtapyService.stop_etap')
     @patch('app.blueprints.routes_production.get_table_name')
     @patch('app.blueprints.routes_production.get_db_connection')
-    def test_agro_stop_etap_3_starts_etap_4(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, client, app):
+    def test_agro_stop_etap_3_starts_etap_4(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, mock_generate_tts, client, app):
         with app.app_context():
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
