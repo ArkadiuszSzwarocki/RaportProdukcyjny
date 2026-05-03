@@ -436,7 +436,13 @@ class TestReschedulePlan:
             success, message = PlanningService.reschedule_plan(123, '2025-02-15')
             
             assert success is True
-            assert 'przesuni' in message.lower() or 'dat' in message.lower()
+            msg_l = message.lower()
+            assert (
+                'przesunięty' in msg_l
+                or 'przesunięta' in msg_l
+                or 'przesunięto' in msg_l
+                or 'dat' in msg_l
+            )
             mock_conn.commit.assert_called_once()
 
     @patch('app.services.planning_service.get_db_connection')

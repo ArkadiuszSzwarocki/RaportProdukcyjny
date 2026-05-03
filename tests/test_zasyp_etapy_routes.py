@@ -49,7 +49,9 @@ class TestZasypEtapStartRoute:
                 user_login='test.user',
                 szarza_nr=None,
             )
-            assert mock_conn.close.call_count >= 1
+            # Route may open additional internal DB connections (np. powiadomienia/TTS),
+            # więc asercja potwierdza domknięcie bez zakładania pojedynczego wywołania.
+            assert mock_conn.close.called
             mock_audit_log.assert_called_once_with('START etapu Zasyp', 'plan_id=123, etap=1, linia=PSD, produkt=Produkt testowy')
 
 
@@ -93,7 +95,8 @@ class TestZasypEtapStopRoute:
                 user_login='test.user',
                 szarza_nr=None,
             )
-            assert mock_conn.close.call_count >= 1
+            # Route może uruchamiać dodatkowe ścieżki z własnymi połączeniami DB.
+            assert mock_conn.close.called
             mock_audit_log.assert_any_call('STOP etapu Zasyp', 'plan_id=123, etap=1, linia=PSD, produkt=Produkt testowy')
             mock_audit_log.assert_any_call('START etapu Zasyp', 'plan_id=123, etap=2, linia=PSD, produkt=Produkt testowy')
 
