@@ -32,7 +32,7 @@ class TestCloseShiftAndGenerateReports:
                     with patch.object(ReportGenerationService, '_send_to_outlook'):
                         ReportGenerationService.close_shift_and_generate_reports('Test notes')
                         
-                        mock_close.assert_called_once_with('Test notes')
+                        mock_close.assert_called_once_with('Test notes', linia='PSD')
     
     def test_close_shift_generates_reports(self):
         """Test that reports are generated."""

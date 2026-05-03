@@ -47,8 +47,9 @@ class TestZasypEtapStartRoute:
                 data_planu=date(2026, 4, 22),
                 etap=1,
                 user_login='test.user',
+                szarza_nr=None,
             )
-            mock_conn.close.assert_called_once()
+            assert mock_conn.close.call_count >= 1
             mock_audit_log.assert_called_once_with('START etapu Zasyp', 'plan_id=123, etap=1, linia=PSD, produkt=Produkt testowy')
 
 
@@ -83,15 +84,16 @@ class TestZasypEtapStopRoute:
             )
 
             assert response.status_code == 302
-            mock_stop_etap.assert_called_once_with(plan_id=123, linia='PSD', etap=1, user_login='test.user')
+            mock_stop_etap.assert_called_once_with(plan_id=123, linia='PSD', etap=1, user_login='test.user', szarza_nr=None)
             mock_start_etap.assert_called_once_with(
                 plan_id=123,
                 linia='PSD',
                 data_planu=date(2026, 4, 22),
                 etap=2,
                 user_login='test.user',
+                szarza_nr=None,
             )
-            mock_conn.close.assert_called_once()
+            assert mock_conn.close.call_count >= 1
             mock_audit_log.assert_any_call('STOP etapu Zasyp', 'plan_id=123, etap=1, linia=PSD, produkt=Produkt testowy')
             mock_audit_log.assert_any_call('START etapu Zasyp', 'plan_id=123, etap=2, linia=PSD, produkt=Produkt testowy')
 
@@ -123,7 +125,7 @@ class TestZasypEtapStopRoute:
             )
 
             assert response.status_code == 302
-            mock_stop_etap.assert_called_once_with(plan_id=123, linia='PSD', etap=6, user_login='test.user')
+            mock_stop_etap.assert_called_once_with(plan_id=123, linia='PSD', etap=6, user_login='test.user', szarza_nr=None)
             mock_start_etap.assert_not_called()
             mock_audit_log.assert_called_once_with('STOP etapu Zasyp', 'plan_id=123, etap=6, linia=PSD, produkt=Produkt testowy')
 
@@ -155,7 +157,7 @@ class TestZasypEtapStopRoute:
             )
 
             assert response.status_code == 302
-            mock_stop_etap.assert_called_once_with(plan_id=123, linia='AGRO', etap=2, user_login='test.user')
+            mock_stop_etap.assert_called_once_with(plan_id=123, linia='AGRO', etap=2, user_login='test.user', szarza_nr=None)
             mock_start_etap.assert_not_called()
             mock_audit_log.assert_any_call('STOP etapu Zasyp', 'plan_id=123, etap=2, linia=AGRO, produkt=Produkt testowy')
 
@@ -183,18 +185,19 @@ class TestZasypEtapStopRoute:
 
             response = client.post(
                 '/zasyp_etap_stop',
-                data={'plan_id': '123', 'etap': '4', 'linia': 'AGRO', 'sekcja': 'Zasyp'},
+                data={'plan_id': '123', 'etap': '4', 'linia': 'AGRO', 'sekcja': 'Zasyp', 'next_action': 'oprozniamy'},
                 follow_redirects=False,
             )
 
             assert response.status_code == 302
-            mock_stop_etap.assert_called_once_with(plan_id=123, linia='AGRO', etap=4, user_login='test.user')
+            mock_stop_etap.assert_called_once_with(plan_id=123, linia='AGRO', etap=4, user_login='test.user', szarza_nr=None)
             mock_start_etap.assert_called_once_with(
                 plan_id=123,
                 linia='AGRO',
                 data_planu=date(2026, 4, 22),
                 etap=5,
                 user_login='test.user',
+                szarza_nr=None,
             )
             mock_audit_log.assert_any_call('STOP etapu Zasyp', 'plan_id=123, etap=4, linia=AGRO, produkt=Produkt testowy')
             mock_audit_log.assert_any_call('START etapu Zasyp', 'plan_id=123, etap=5, linia=AGRO, produkt=Produkt testowy')

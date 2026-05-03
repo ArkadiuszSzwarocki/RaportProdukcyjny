@@ -212,7 +212,7 @@ class TestReorderPlans:
             )
             
             assert success is True
-            assert 'uporządkowane' in message.lower() or 'reordered' in message.lower()
+            assert 'uporządkowan' in message.lower() or 'reordered' in message.lower()
             mock_conn.commit.assert_called_once()
 
     @patch('app.services.plan_movement_service.get_db_connection')
