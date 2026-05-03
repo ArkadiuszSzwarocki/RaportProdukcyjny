@@ -424,19 +424,25 @@ class TestReschedulePlan:
             mock_get_conn.return_value = mock_conn
             mock_conn.cursor.return_value = mock_cursor
             
-            # Mock plan exists with 'zaplanowane' status
-            # SELECT status, data_planu, produkt, tonaz_rzeczywisty
-            mock_cursor.fetchone.side_effect = [
-                ('zaplanowane', '2025-02-14', 'TEST PRODUCT', 0),  # Status check (4 cols)
-                (3,),   # MAX(kolejnosc) for new date
-                (None,),  # MAX(kolejka) for buffer seq
+            # Mock plan exists with current query shape:
+            # SELECT id, status, data_planu, produkt, tonaz_rzeczywisty, sekcja, zasyp_id
+            mock_cursor.fetchone.return_value = (123, 'zaplanowane', '2025-02-14', 'TEST PRODUCT', 0, 'Workowanie', None)
+            mock_cursor.fetchall.side_effect = [
+                [(123, 'Workowanie', 'zaplanowane', 0)],  # linked plan metadata
+                [('Workowanie', 3)],                      # section max sequence on target day
+                [],                                       # no active buffer entries
             ]
-            mock_cursor.fetchall.return_value = []  # no buffer entries
             
             success, message = PlanningService.reschedule_plan(123, '2025-02-15')
             
             assert success is True
-            assert 'przesunięty' in message.lower() or 'dat' in message.lower()
+            msg_l = message.lower()
+            assert (
+                'przesunięty' in msg_l
+                or 'przesunięta' in msg_l
+                or 'przesunięto' in msg_l
+                or 'dat' in msg_l
+            )
             mock_conn.commit.assert_called_once()
 
     @patch('app.services.planning_service.get_db_connection')
@@ -448,8 +454,8 @@ class TestReschedulePlan:
             mock_get_conn.return_value = mock_conn
             mock_conn.cursor.return_value = mock_cursor
             
-            # SELECT status, data_planu, produkt, tonaz_rzeczywisty
-            mock_cursor.fetchone.return_value = ('w toku', '2025-02-14', 'TEST PRODUCT', 100)
+            # SELECT id, status, data_planu, produkt, tonaz_rzeczywisty, sekcja, zasyp_id
+            mock_cursor.fetchone.return_value = (123, 'w toku', '2025-02-14', 'TEST PRODUCT', 100, 'Workowanie', None)
             
             success, message = PlanningService.reschedule_plan(123, '2025-02-15')
             

@@ -22,6 +22,3 @@ jobs:
       - name: Run cspell
         run: |
           cspell --config .cspell.json "**/*" || true
-words:
-  - arkadiuszszwarocki
-  - Buildx

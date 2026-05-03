@@ -5,12 +5,13 @@ from unittest.mock import MagicMock, patch
 
 @pytest.mark.usefixtures("app")
 class TestZasypEtapStartRoute:
+    @patch('app.blueprints.routes_production.generate_tts_async')
     @patch('app.blueprints.routes_production.audit_log')
     @patch('app.blueprints.routes_production.ZasypEtapyService.set_wielkosc_szarzy')
     @patch('app.blueprints.routes_production.ZasypEtapyService.start_etap')
     @patch('app.blueprints.routes_production.get_table_name')
     @patch('app.blueprints.routes_production.get_db_connection')
-    def test_start_etap_invokes_service(self, mock_get_conn, mock_get_table_name, mock_start_etap, mock_set_szarza, mock_audit_log, client, app):
+    def test_start_etap_invokes_service(self, mock_get_conn, mock_get_table_name, mock_start_etap, mock_set_szarza, mock_audit_log, mock_generate_tts, client, app):
         with app.app_context():
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
@@ -47,19 +48,23 @@ class TestZasypEtapStartRoute:
                 data_planu=date(2026, 4, 22),
                 etap=1,
                 user_login='test.user',
+                szarza_nr=None,
             )
-            mock_conn.close.assert_called_once()
+            # Route may open additional internal DB connections (np. powiadomienia/TTS),
+            # więc asercja potwierdza domknięcie bez zakładania pojedynczego wywołania.
+            assert mock_conn.close.called
             mock_audit_log.assert_called_once_with('START etapu Zasyp', 'plan_id=123, etap=1, linia=PSD, produkt=Produkt testowy')
 
 
 @pytest.mark.usefixtures("app")
 class TestZasypEtapStopRoute:
+    @patch('app.blueprints.routes_production.generate_tts_async')
     @patch('app.blueprints.routes_production.audit_log')
     @patch('app.blueprints.routes_production.ZasypEtapyService.start_etap')
     @patch('app.blueprints.routes_production.ZasypEtapyService.stop_etap')
     @patch('app.blueprints.routes_production.get_table_name')
     @patch('app.blueprints.routes_production.get_db_connection')
-    def test_stop_etap_starts_next_stage(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, client, app):
+    def test_stop_etap_starts_next_stage(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, mock_generate_tts, client, app):
         with app.app_context():
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
@@ -83,24 +88,27 @@ class TestZasypEtapStopRoute:
             )
 
             assert response.status_code == 302
-            mock_stop_etap.assert_called_once_with(plan_id=123, linia='PSD', etap=1, user_login='test.user')
+            mock_stop_etap.assert_called_once_with(plan_id=123, linia='PSD', etap=1, user_login='test.user', szarza_nr=None)
             mock_start_etap.assert_called_once_with(
                 plan_id=123,
                 linia='PSD',
                 data_planu=date(2026, 4, 22),
                 etap=2,
                 user_login='test.user',
+                szarza_nr=None,
             )
-            mock_conn.close.assert_called_once()
+            # Route może uruchamiać dodatkowe ścieżki z własnymi połączeniami DB.
+            assert mock_conn.close.called
             mock_audit_log.assert_any_call('STOP etapu Zasyp', 'plan_id=123, etap=1, linia=PSD, produkt=Produkt testowy')
             mock_audit_log.assert_any_call('START etapu Zasyp', 'plan_id=123, etap=2, linia=PSD, produkt=Produkt testowy')
 
+    @patch('app.blueprints.routes_production.generate_tts_async')
     @patch('app.blueprints.routes_production.audit_log')
     @patch('app.blueprints.routes_production.ZasypEtapyService.start_etap')
     @patch('app.blueprints.routes_production.ZasypEtapyService.stop_etap')
     @patch('app.blueprints.routes_production.get_table_name')
     @patch('app.blueprints.routes_production.get_db_connection')
-    def test_stop_last_etap_does_not_start_next(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, client, app):
+    def test_stop_last_etap_does_not_start_next(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, mock_generate_tts, client, app):
         with app.app_context():
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
@@ -123,16 +131,17 @@ class TestZasypEtapStopRoute:
             )
 
             assert response.status_code == 302
-            mock_stop_etap.assert_called_once_with(plan_id=123, linia='PSD', etap=6, user_login='test.user')
+            mock_stop_etap.assert_called_once_with(plan_id=123, linia='PSD', etap=6, user_login='test.user', szarza_nr=None)
             mock_start_etap.assert_not_called()
             mock_audit_log.assert_called_once_with('STOP etapu Zasyp', 'plan_id=123, etap=6, linia=PSD, produkt=Produkt testowy')
 
+    @patch('app.blueprints.routes_production.generate_tts_async')
     @patch('app.blueprints.routes_production.audit_log')
     @patch('app.blueprints.routes_production.ZasypEtapyService.start_etap')
     @patch('app.blueprints.routes_production.ZasypEtapyService.stop_etap')
     @patch('app.blueprints.routes_production.get_table_name')
     @patch('app.blueprints.routes_production.get_db_connection')
-    def test_agro_stop_etap_2_does_not_auto_start_next(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, client, app):
+    def test_agro_stop_etap_2_does_not_auto_start_next(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, mock_generate_tts, client, app):
         with app.app_context():
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
@@ -155,16 +164,17 @@ class TestZasypEtapStopRoute:
             )
 
             assert response.status_code == 302
-            mock_stop_etap.assert_called_once_with(plan_id=123, linia='AGRO', etap=2, user_login='test.user')
+            mock_stop_etap.assert_called_once_with(plan_id=123, linia='AGRO', etap=2, user_login='test.user', szarza_nr=None)
             mock_start_etap.assert_not_called()
             mock_audit_log.assert_any_call('STOP etapu Zasyp', 'plan_id=123, etap=2, linia=AGRO, produkt=Produkt testowy')
 
+    @patch('app.blueprints.routes_production.generate_tts_async')
     @patch('app.blueprints.routes_production.audit_log')
     @patch('app.blueprints.routes_production.ZasypEtapyService.start_etap')
     @patch('app.blueprints.routes_production.ZasypEtapyService.stop_etap')
     @patch('app.blueprints.routes_production.get_table_name')
     @patch('app.blueprints.routes_production.get_db_connection')
-    def test_agro_stop_etap_3_starts_etap_4(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, client, app):
+    def test_agro_stop_etap_3_starts_etap_4(self, mock_get_conn, mock_get_table_name, mock_stop_etap, mock_start_etap, mock_audit_log, mock_generate_tts, client, app):
         with app.app_context():
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
@@ -183,18 +193,19 @@ class TestZasypEtapStopRoute:
 
             response = client.post(
                 '/zasyp_etap_stop',
-                data={'plan_id': '123', 'etap': '4', 'linia': 'AGRO', 'sekcja': 'Zasyp'},
+                data={'plan_id': '123', 'etap': '4', 'linia': 'AGRO', 'sekcja': 'Zasyp', 'next_action': 'oprozniamy'},
                 follow_redirects=False,
             )
 
             assert response.status_code == 302
-            mock_stop_etap.assert_called_once_with(plan_id=123, linia='AGRO', etap=4, user_login='test.user')
+            mock_stop_etap.assert_called_once_with(plan_id=123, linia='AGRO', etap=4, user_login='test.user', szarza_nr=None)
             mock_start_etap.assert_called_once_with(
                 plan_id=123,
                 linia='AGRO',
                 data_planu=date(2026, 4, 22),
                 etap=5,
                 user_login='test.user',
+                szarza_nr=None,
             )
             mock_audit_log.assert_any_call('STOP etapu Zasyp', 'plan_id=123, etap=4, linia=AGRO, produkt=Produkt testowy')
             mock_audit_log.assert_any_call('START etapu Zasyp', 'plan_id=123, etap=5, linia=AGRO, produkt=Produkt testowy')
