@@ -916,6 +916,16 @@
                     if (confirmMsg && !confirm(confirmMsg)) return;
 
                     evt.preventDefault();
+                    function restoreSubmitButtons() {
+                        try {
+                            innerForm.querySelectorAll('button[type="submit"]').forEach(b => {
+                                if (b.dataset._disabled_by_js === '1') {
+                                    b.disabled = false;
+                                    b.innerHTML = b.dataset._original_html || 'Wyślij';
+                                }
+                            });
+                        } catch (e) { }
+                    }
                     try {
                         innerForm.querySelectorAll('button[type="submit"]').forEach(b => {
                             b.dataset._original_html = b.innerHTML;
@@ -928,6 +938,7 @@
                     const url = innerForm.getAttribute('action');
                     if (!url || url === '#' || url === '') {
                         // Skip if no action defined - avoid unintended POST / that lead to 405 errors
+                        restoreSubmitButtons();
                         return;
                     }
                     const method = (innerForm.getAttribute('method') || 'POST').toUpperCase();
@@ -969,15 +980,23 @@
                                     if (typeof showToast === 'function' && j.message) showToast(j.message, 'success');
                                     finalizeSuccess();
                                 }
-                                else { if (typeof showToast === 'function') showToast(j && j.message ? j.message : 'Błąd', 'warning'); }
+                                else {
+                                    if (typeof showToast === 'function') showToast(j && j.message ? j.message : 'Błąd', 'warning');
+                                    restoreSubmitButtons();
+                                }
                             } catch (e) {
+                                if (!resp.ok) {
+                                    if (typeof showToast === 'function') showToast('Błąd zapisu', 'warning');
+                                    restoreSubmitButtons();
+                                    return;
+                                }
                                 // Default fallback if not JSON
                                 finalizeSuccess();
                             }
                         }).catch(err => {
                             console.error('Quick popup form submit failed', err);
                             if (typeof showToast === 'function') showToast('Błąd sieci', 'danger');
-                            try { innerForm.querySelectorAll('button[type="submit"]').forEach(b => { if (b.dataset._disabled_by_js === '1') { b.disabled = false; b.innerHTML = b.dataset._original_html || 'Wyślij'; } }); } catch (e) { }
+                            restoreSubmitButtons();
                         });
                 });
             });
