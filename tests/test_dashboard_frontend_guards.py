@@ -4,8 +4,11 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_TEMPLATE = ROOT / 'templates' / 'dashboard.html'
+LAYOUT_TEMPLATE = ROOT / 'templates' / 'layout.html'
+DOSYPKI_LIST_TEMPLATE = ROOT / 'templates' / 'dosypki_list.html'
 CONFIG_JS = ROOT / 'static' / 'js' / 'dashboard' / 'config.js'
 DASHBOARD_JS_DIR = ROOT / 'static' / 'js' / 'dashboard'
+DOSYPKI_JS = ROOT / 'static' / 'js' / 'dosypki.js'
 CACHE_BUST_SUFFIX = '&dashboard_refactor=4'
 EXPECTED_DASHBOARD_ASSETS = [
     'js/dashboard/scheduler.js',
@@ -101,3 +104,45 @@ def test_dashboard_template_keeps_cache_busting_suffix_for_dashboard_assets():
     matches = re.findall(r'js/dashboard/[^\"]+dashboard_refactor=\d+', content)
     assert len(matches) == len(EXPECTED_DASHBOARD_ASSETS)
     assert all(CACHE_BUST_SUFFIX in match for match in matches)
+
+
+def test_sidebar_time_report_is_only_exposed_for_agro_and_laboratory_roles():
+    content = LAYOUT_TEMPLATE.read_text(encoding='utf-8')
+
+    assert "url_for('production.zasyp_etapy_podsumowanie', linia='PSD')" not in content
+    assert "{% if role in ['lider', 'admin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %}" in content
+
+
+def test_dosypki_fragment_uses_fragment_role_context_instead_of_removed_legacy_globals():
+    template_content = DOSYPKI_LIST_TEMPLATE.read_text(encoding='utf-8')
+    script_content = DOSYPKI_JS.read_text(encoding='utf-8')
+
+    assert 'data-current-role="{{ rola or \"\" }}"' in template_content or "data-current-role=\"{{ rola or '' }}\"" in template_content
+    assert 'window._currentRole' not in script_content
+    assert 'window._linia' not in script_content
+    assert 'getCurrentRole' in script_content
+    assert 'getCurrentLinia' in script_content
+
+
+def test_agro_open_stage_hint_is_bound_to_control_point_header_not_global_banner():
+    content = DASHBOARD_TEMPLATE.read_text(encoding='utf-8')
+
+    assert 'agro-open-etap-alert-wrap' not in content
+    assert 'agro-session-running-hint' in content
+
+
+def test_batch_lists_wrap_dosypki_inside_tiles():
+    content = DASHBOARD_TEMPLATE.read_text(encoding='utf-8')
+
+    assert '.active-order-szarze-dosypki {' in content
+    assert 'overflow-wrap: anywhere;' in content
+    assert '.active-order-szarze-actions {' in content
+    assert '.szarza-dosypki-item' in content
+
+
+def test_dosypki_are_rendered_below_batch_not_in_side_column():
+    content = DASHBOARD_TEMPLATE.read_text(encoding='utf-8')
+
+    assert 'grid-template-columns: minmax(280px, 1.2fr) minmax(240px, 0.8fr);' not in content
+    assert '.szarza-row-layout {' in content
+    assert 'display: block;' in content

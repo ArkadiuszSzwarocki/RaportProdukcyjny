@@ -216,7 +216,7 @@ def register_production_zasyp_etapy_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_etapy_podsumowanie', methods=['GET'])
-    @roles_required('lider', 'admin', 'zarzad')
+    @roles_required('lider', 'admin', 'zarzad', 'laborant', 'laboratorium')
     def zasyp_etapy_podsumowanie():
         """Podsumowanie etapów Zasyp (per data) + metryki szarże/dosypki."""
         linia_input = request.args.get('linia') or session.get('selected_hall_view') or 'AGRO'

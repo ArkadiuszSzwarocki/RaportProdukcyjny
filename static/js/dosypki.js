@@ -2,6 +2,29 @@
 (function () {
     'use strict';
 
+    function getDashboardConfigState() {
+        if (!window.dashboardConfig || typeof window.dashboardConfig.getState !== 'function') {
+            return null;
+        }
+        return window.dashboardConfig.getState();
+    }
+
+    function getCurrentRole(root) {
+        const config = getDashboardConfigState();
+        const container = root && root.closest ? (root.closest('.p-15') || root) : root;
+        const roleFromAttr = container && container.getAttribute ? container.getAttribute('data-current-role') : '';
+        const roleFromConfig = config && config.currentRole ? config.currentRole : '';
+        return String(roleFromAttr || roleFromConfig || '').toLowerCase();
+    }
+
+    function getCurrentLinia(root) {
+        const config = getDashboardConfigState();
+        const container = root && root.closest ? (root.closest('.p-15') || root) : root;
+        const liniaFromAttr = container && container.getAttribute ? container.getAttribute('data-linia') : '';
+        const urlParams = new URLSearchParams(window.location.search);
+        return String(liniaFromAttr || (config && config.linia) || urlParams.get('linia') || 'PSD');
+    }
+
     function escapeHtml(value) {
         return String(value == null ? '' : value)
             .replace(/&/g, '&amp;')
@@ -44,15 +67,14 @@
         badge.textContent = String(next);
     }
 
-    function renderActionCell(d) {
-        const role = String(window._currentRole || '').toLowerCase();
+    function renderActionCell(d, role) {
         if (role === 'operator' || role === 'pracownik' || role === 'produkcja' || role === 'lider' || role === 'admin' || role === 'zarzad') {
             return '<button class="btn-action btn-save dosypka-confirm-btn" data-id="' + d.id + '" data-action="confirm">✓ Potwierdź</button>';
         }
         return '';
     }
 
-    function buildRowHtml(d, idx) {
+    function buildRowHtml(d, idx, role) {
         const nameHtml = d.nazwa ? escapeHtml(d.nazwa) : '<em>— brak nazwy —</em>';
         return `
             <tr data-plan-id="${escapeHtml(d.plan_id)}">
@@ -61,7 +83,7 @@
                 <td>${nameHtml}</td>
                 <td>${escapeHtml(d.kg)} kg</td>
                 <td>${escapeHtml(d.data_zlecenia)}</td>
-                <td>${renderActionCell(d)}</td>
+                <td>${renderActionCell(d, role)}</td>
             </tr>
         `;
     }
@@ -83,14 +105,13 @@
             const urlParams = new URLSearchParams(window.location.search);
             const planIdFromUrl = urlParams.get('plan_id');
             const planId = planIdFromAttr || planIdFromUrl;
+            const role = getCurrentRole(container);
 
-            // Get linia: prefer data-linia on container, then window._linia, then URL param
-            const liniaFromAttr = (p15 && p15.getAttribute('data-linia')) || (container.getAttribute && container.getAttribute('data-linia'));
-            const liniaFromUrl = urlParams.get('linia');
-            const linia = liniaFromAttr || liniaFromUrl || (typeof window._linia !== 'undefined' ? window._linia : 'PSD');
+            // Get linia from the fragment first, then dashboard config, then URL param.
+            const linia = getCurrentLinia(container);
 
             console.log('[dosypki.fetch] planIdFromAttr:', planIdFromAttr, 'planIdFromUrl:', planIdFromUrl, 'planId:', planId);
-            console.log('[dosypki.fetch] linia:', linia, 'Current role:', window._currentRole);
+            console.log('[dosypki.fetch] linia:', linia, 'Current role:', role);
 
             let fetchUrl = '/api/dosypki?linia=' + encodeURIComponent(linia);
             if (planId) fetchUrl += '&plan_id=' + encodeURIComponent(planId);
@@ -118,7 +139,7 @@
             if (tbody) tbody.innerHTML = '';
             list.forEach(function (d, idx) {
                 if (!tbody) return;
-                tbody.insertAdjacentHTML('beforeend', buildRowHtml(d, idx));
+                tbody.insertAdjacentHTML('beforeend', buildRowHtml(d, idx, role));
             });
             console.log('[dosypki.fetch] Populated tbody with', list.length, 'rows');
         } catch (e) {
@@ -137,9 +158,8 @@
             const row = btn.closest('tr');
             const planId = row ? row.getAttribute('data-plan-id') : null;
 
-            // Resolve linia from container data attribute or global window._linia
             const p15 = btn.closest && btn.closest('.p-15');
-            const linia = (p15 && p15.getAttribute('data-linia')) || (typeof window._linia !== 'undefined' ? window._linia : 'PSD');
+            const linia = getCurrentLinia(p15 || btn);
 
             btn.disabled = true;
             originalText = btn.textContent;
@@ -201,10 +221,6 @@
             if (!btn) return;
             const id = btn.getAttribute('data-id');
             if (!id) return;
-
-            // Resolve linia to allow line-specific behavior in future (not enforced here)
-            const p15 = btn.closest && btn.closest('.p-15');
-            const linia = (p15 && p15.getAttribute('data-linia')) || (typeof window._linia !== 'undefined' ? window._linia : 'PSD');
 
             // Directly confirm dosypka without blocking browser confirm dialog
             // (removed native confirm per UX request)

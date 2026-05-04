@@ -250,6 +250,28 @@ class TestZasypEtapStopRoute:
 
 
 @pytest.mark.usefixtures("app")
+class TestZasypEtapySummaryRoute:
+    @patch('app.blueprints.routes_production.ZasypEtapyService.get_zlecenia_summary')
+    @patch('app.blueprints.routes_production.ZasypEtapyService.get_summary')
+    def test_laborant_can_open_zasyp_time_report(self, mock_get_summary, mock_get_zlecenia_summary, client):
+        mock_get_summary.return_value = []
+        mock_get_zlecenia_summary.return_value = []
+
+        with client.session_transaction() as sess:
+            sess['zalogowany'] = True
+            sess['login'] = 'lab.user'
+            sess['rola'] = 'laborant'
+            sess['selected_hall_view'] = 'AGRO'
+
+        response = client.get('/zasyp_etapy_podsumowanie?linia=AGRO', follow_redirects=False)
+
+        assert response.status_code == 200
+        assert 'Podsumowanie etapów Zasyp'.encode('utf-8') in response.data
+        mock_get_summary.assert_called_once()
+        mock_get_zlecenia_summary.assert_called_once()
+
+
+@pytest.mark.usefixtures("app")
 class TestZasypLaboratoryNotifications:
     @patch('app.blueprints.routes_production.add_mieszanie_event')
     @patch('app.blueprints.routes_production.generate_tts_async')

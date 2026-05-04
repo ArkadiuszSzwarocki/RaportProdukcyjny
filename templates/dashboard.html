@@ -88,6 +88,9 @@
             display: flex;
             justify-content: flex-end;
             margin: 8px 14px 2px;
+            position: sticky;
+            top: 76px;
+            z-index: 35;
         }
 
         .active-order-floating-bar {
@@ -96,6 +99,22 @@
             gap: 8px;
             flex-wrap: wrap;
             max-width: 100%;
+        }
+
+        .agro-session-running-hint {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            max-width: 100%;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid #f6c453;
+            background: linear-gradient(135deg, #fff4cc 0%, #ffe4a3 100%);
+            color: #6d4c00;
+            font-size: 0.72em;
+            font-weight: 700;
+            line-height: 1.2;
+            white-space: normal;
         }
 
         .active-order-szarze-wrap {
@@ -122,6 +141,7 @@
         .active-order-szarze-item {
             border-bottom: 1px solid #dfe7ef;
             padding: 6px 0;
+            min-width: 0;
         }
 
         .active-order-szarze-item:last-child {
@@ -129,18 +149,63 @@
         }
 
         .active-order-szarze-line {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: start;
             gap: 8px;
-            flex-wrap: wrap;
+            min-width: 0;
         }
 
         .active-order-szarze-left {
-            display: inline-flex;
+            display: flex;
             align-items: center;
             gap: 8px;
+            flex-wrap: wrap;
             font-size: 0.92em;
+            min-width: 0;
+        }
+
+        .active-order-szarze-actions {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .active-order-szarze-dosypki {
+            margin-top: 4px;
+            max-width: 100%;
+            font-size: 0.82em;
+            color: #495a69;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .active-order-szarze-dosypki-item {
+            line-height: 1.35;
+        }
+
+        .szarza-row-main {
+            min-width: 0;
+        }
+
+        .szarza-row-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
+
+        .szarza-dosypki-side {
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .szarza-dosypki-item {
+            line-height: 1.4;
         }
 
         .agro-header-controls {
@@ -213,20 +278,19 @@
                 width: 100%;
                 justify-content: space-between;
             }
+
+            .active-order-szarze-line {
+                grid-template-columns: 1fr;
+            }
+
+            .active-order-szarze-actions {
+                justify-content: flex-start;
+            }
         }
 
         @media (min-width: 1380px) {
             .szarza-row-layout {
-                display: grid;
-                grid-template-columns: minmax(280px, 1.2fr) minmax(240px, 0.8fr);
-                gap: 12px;
-                align-items: start;
-            }
-
-            .szarza-dosypki-side {
-                margin-top: 0 !important;
-                padding-left: 12px !important;
-                border-left: 1px dashed #cad7e3;
+                display: block;
             }
         }
     </style>
@@ -675,8 +739,8 @@
                         <div class="card-row"
                             style="position:relative; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-color); padding: 6px 0;">
                             <div class="szarza-row-layout" style="width: 100%;">
-                                <div style="flex: 1; min-width: 0;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
+                                <div class="szarza-row-main" style="flex: 1; min-width: 0;">
+                                <div class="szarza-row-head">
                                     <span>#{{ loop.index }} • {{ pal[1] }}</span>
                                     <strong class="text-primary">{{ pal[0]|int }} kg</strong>
                                     <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-' }}</span>
@@ -702,17 +766,16 @@
                                     <span style="font-size:0.78em; color:#8a94a6; margin-left:4px;">Notatka dodana</span>
                                 </div>
                                 {% endif %}
-                                </div>
-
                                 {% if pal[3] and pal[3]|length > 0 %}
                                 <div class="szarza-dosypki-side" style="margin-top: 6px; padding-left: 20px; font-size: 0.85em; color: #555;">
                                     <div style="font-weight: 600; margin-bottom: 3px;">Dosypki:</div>
                                     {% for dosypka_item in pal[3] %}
-                                    <div style="line-height: 1.4;">{{ dosypka_item[0] }}: {{ dosypka_item[1] }} kg {% if
+                                    <div class="szarza-dosypki-item">{{ dosypka_item[0] }}: {{ dosypka_item[1] }} kg {% if
                                         dosypka_item[2] %}({{ dosypka_item[2] }}){% endif %}</div>
                                     {% endfor %}
                                 </div>
                                 {% endif %}
+                                </div>
                             </div>
                         </div>
                         {% endfor %}
@@ -777,7 +840,7 @@
                                     <strong class="text-primary">{{ pal[0]|int }} kg</strong>
                                     <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-' }}</span>
                                 </div>
-                                <div style="display:inline-flex; align-items:center; gap:6px;">
+                                <div class="active-order-szarze-actions">
                                     {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'admin', 'zarzad'] %}
                                     <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2], linia=linia) }}"
                                        class="btn-action btn-blue"
@@ -798,9 +861,9 @@
                                 </div>
                             </div>
                             {% if pal[3] and pal[3]|length > 0 %}
-                            <div style="margin-top:4px; font-size:0.82em; color:#495a69;">
+                            <div class="active-order-szarze-dosypki">
                                 {% for dosypka_item in pal[3] %}
-                                <div>{{ dosypka_item[0] }}: {{ dosypka_item[1] }} kg {% if dosypka_item[2] %}({{ dosypka_item[2] }}){% endif %}</div>
+                                <div class="active-order-szarze-dosypki-item">{{ dosypka_item[0] }}: {{ dosypka_item[1] }} kg {% if dosypka_item[2] %}({{ dosypka_item[2] }}){% endif %}</div>
                                 {% endfor %}
                             </div>
                             {% endif %}
@@ -826,6 +889,30 @@
         {% for sesja in etapy_sesje %}
         {% set cur_szarza = sesja.szarza_nr|default(1) %}
         {% set etapy = sesja.etapy|default([]) %}
+        {% set sesja_running = namespace(etap=None, label='') %}
+        {% for etap_info in etapy %}
+            {% if sesja_running.etap is none and etap_info.is_running %}
+                {% set sesja_running.etap = etap_info.etap %}
+                {% set etap_info_str = etap_info.etap|string %}
+                {% if etap_info.etap == 1 %}
+                    {% set sesja_running.label = 'Naważanie' %}
+                {% elif etap_info.etap == 2 %}
+                    {% set sesja_running.label = 'Mieszanie i oczekiwanie na LAB' %}
+                {% elif etap_info.etap == 5 %}
+                    {% set sesja_running.label = 'Opróżnianie' %}
+                {% elif etap_info_str|length > 1 and etap_info_str[0] == '3' %}
+                    {% set sesja_running.label = 'Dosypka do mieszania' %}
+                {% elif etap_info_str|length > 1 and etap_info_str[0] == '4' %}
+                    {% set sesja_running.label = 'Mieszanie po dosypce' %}
+                {% elif etap_info.etap == 3 %}
+                    {% set sesja_running.label = 'Dosypka do mieszania' %}
+                {% elif etap_info.etap == 4 %}
+                    {% set sesja_running.label = 'Mieszanie po dosypce' %}
+                {% else %}
+                    {% set sesja_running.label = 'Etap ' ~ etap_info.etap %}
+                {% endif %}
+            {% endif %}
+        {% endfor %}
         <div class="section-box mt-20 p-0" id="etapy-panel-{{ p[0] }}-{{ cur_szarza }}" style="border-left: 4px solid {% if sesja.is_current %}#e67e22{% else %}#cfd6dd{% endif %}; {% if not sesja.is_current %}opacity:0.92; margin-left:18px;{% endif %}">
             <div class="p-10 p-10-bg d-flex justify-between align-center flex-wrap gap-8"
                  style="background: {% if sesja.is_current %}var(--card-header-bg, #fdf3e7){% else %}#f5f7fa{% endif %};">
@@ -843,6 +930,9 @@
                     {% endif %}
                     {% if sesja.has_running %}
                     <span class="badge-success" style="font-size:0.72em; padding:2px 6px;">AKTYWNA W TOKU</span>
+                    {% endif %}
+                    {% if sesja_running.etap is not none and rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
+                    <span class="agro-session-running-hint">Otwarte: {{ sesja_running.label }} • etap {{ sesja_running.etap }}</span>
                     {% endif %}
 
                     {% if rola != 'laborant' and sesja.is_current %}

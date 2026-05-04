@@ -448,11 +448,6 @@
                 <a href="{{ url_for('main.index', sekcja='Zasyp', linia='PSD') }}"
                     class="nav-item {% if request.args.get('sekcja')=='Zasyp' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">📥 <span
                         class="text-capitalize">{{ _('zasyp') }}</span></a>
-                {% if role in ['lider', 'admin', 'zarzad', 'planista'] %}
-                <a href="{{ url_for('production.zasyp_etapy_podsumowanie', linia='PSD') }}"
-                    class="nav-item {% if request.path.startswith('/zasyp_etapy_podsumowanie') and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}" style="padding-left: 32px; font-size: 0.9em;">📊 <span
-                        class="text-capitalize">Raport Czasu Pracy</span></a>
-                {% endif %}
                 {% endif %}
 
                 {% if role_has_access('bufor') %}
@@ -487,7 +482,7 @@
                 <a href="{{ url_for('main.index', sekcja='Zasyp', linia='AGRO') }}"
                     class="nav-item {% if request.args.get('sekcja')=='Zasyp' and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">📥 <span
                         class="text-capitalize">Zasyp Agro</span></a>
-                {% if role in ['lider', 'admin', 'zarzad', 'planista'] %}
+                {% if role in ['lider', 'admin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %}
                 <a href="{{ url_for('production.zasyp_etapy_podsumowanie', linia='AGRO') }}"
                     class="nav-item {% if request.path.startswith('/zasyp_etapy_podsumowanie') and request.args.get('linia')|upper == 'AGRO' %}active{% endif %}" style="padding-left: 32px; font-size: 0.9em;">📊 <span
                         class="text-capitalize">Raport Czasu Pracy</span></a>
