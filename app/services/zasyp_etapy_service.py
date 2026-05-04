@@ -1161,7 +1161,7 @@ class ZasypEtapyService:
 
     @staticmethod
     def reset_etap(plan_id: int, linia: str, etap: int, szarza_nr: Optional[int] = None) -> Tuple[bool, str]:
-        """Delete etap row (clears manual/auto times and signatures)."""
+        """Reset etap times/signatures without deleting the etap row."""
         linia_u = _norm_linia(linia)
         try:
             etap_nr = int(etap)
@@ -1177,28 +1177,27 @@ class ZasypEtapyService:
             curr_szarza_nr = ZasypEtapyService._resolve_szarza_nr(cursor, plan_id, linia_u, szarza_nr)
 
             cursor.execute(
-                "DELETE FROM zasyp_etapy WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s",
+                "SELECT id FROM zasyp_etapy WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s LIMIT 1",
                 (linia_u, int(plan_id), curr_szarza_nr, etap_nr),
             )
-            
-            # AGRO pairs are non-separable: resetting one side also resets its pair.
-            # Supported pairs: 3<->4, 31<->41, 32<->42, ...
-            paired_etap = None
-            if linia_u == 'AGRO':
-                if etap_nr == 3:
-                    paired_etap = 4
-                elif etap_nr == 4:
-                    paired_etap = 3
-                elif 30 < etap_nr < 40:
-                    paired_etap = etap_nr + 10
-                elif 40 < etap_nr < 50:
-                    paired_etap = etap_nr - 10
+            row = cursor.fetchone()
 
-            if paired_etap is not None:
-                cursor.execute(
-                    "DELETE FROM zasyp_etapy WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s",
-                    (linia_u, int(plan_id), curr_szarza_nr, paired_etap),
-                )
+            if not row:
+                conn.commit()
+                return True, f'Etap {etap_nr} już był zresetowany'
+
+            cursor.execute(
+                """
+                UPDATE zasyp_etapy
+                SET czas_start = NULL,
+                    czas_stop = NULL,
+                    start_login = NULL,
+                    stop_login = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s
+                """,
+                (linia_u, int(plan_id), curr_szarza_nr, etap_nr),
+            )
 
             conn.commit()
             return True, f'Zresetowano etap {etap_nr}'
@@ -1231,7 +1230,7 @@ class ZasypEtapyService:
                 "DELETE FROM zasyp_etapy WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s",
                 (linia_u, int(plan_id), curr_szarza_nr, etap_nr),
             )
-            
+
             # AGRO pairs are non-separable: deleting one side also deletes its pair.
             # Supported pairs: 3<->4, 31<->41, 32<->42, ...
             paired_etap = None

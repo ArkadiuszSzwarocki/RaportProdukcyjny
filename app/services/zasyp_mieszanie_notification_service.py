@@ -3,10 +3,19 @@ import time
 from typing import Optional
 
 from app.db import get_db_connection
+from app.services.tts_product_utils import normalize_product_for_tts, should_speak_product_for_szarza
 
 # In-memory fallback when DB is temporarily unavailable.
 _mieszanie_events: list[dict] = []
 _mieszanie_events_lock = threading.Lock()
+
+
+def is_dosypka_stage(etap_nr: Optional[int]) -> bool:
+    try:
+        e = int(etap_nr)
+    except Exception:
+        return False
+    return e == 3 or (30 < e < 40)
 
 
 def is_mieszanie_after_dosypka(etap_nr: Optional[int]) -> bool:
@@ -18,13 +27,19 @@ def is_mieszanie_after_dosypka(etap_nr: Optional[int]) -> bool:
 
 
 def build_mieszanie_tts_text(produkt: Optional[str], szarza_nr: Optional[int], etap_nr: Optional[int] = None) -> str:
-    produkt_text = str(produkt or '').strip()
-    if is_mieszanie_after_dosypka(etap_nr):
+    produkt_text = normalize_product_for_tts(produkt)
+    if is_dosypka_stage(etap_nr):
+        text = "Operator rozpoczął dosypkę do mieszania"
+        if produkt_text and should_speak_product_for_szarza(szarza_nr):
+            text += f" {produkt_text}"
+    elif is_mieszanie_after_dosypka(etap_nr):
         text = "Operator dodał dosypkę do mieszania i trwa proces mieszania"
-        if produkt_text:
+        if produkt_text and should_speak_product_for_szarza(szarza_nr):
             text += f" {produkt_text}"
     else:
-        text = f"Operator rozpoczął mieszanie {produkt_text}" if produkt_text else "Operator rozpoczął mieszanie"
+        text = "Operator rozpoczął mieszanie"
+        if produkt_text and should_speak_product_for_szarza(szarza_nr):
+            text += f" {produkt_text}"
     if szarza_nr is not None:
         text += f" szarża nr {szarza_nr}"
     return text

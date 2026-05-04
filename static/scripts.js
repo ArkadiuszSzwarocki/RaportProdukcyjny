@@ -590,7 +590,11 @@
                 }, 50);
 
                 // call update timer function if available
-                try { if (typeof updatePaletaTimers === 'function') updatePaletaTimers(); } catch (e) { }
+                try {
+                    if (window.dashboardPageHelpers && typeof window.dashboardPageHelpers.updatePaletaTimers === 'function') {
+                        window.dashboardPageHelpers.updatePaletaTimers();
+                    }
+                } catch (e) { }
 
                 // Dispatch event so other parts of app know content changed
                 try { window.dispatchEvent(new CustomEvent('app:partialReload')); } catch (e) { }

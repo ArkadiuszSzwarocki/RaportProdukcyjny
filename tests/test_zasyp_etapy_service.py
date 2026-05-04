@@ -80,3 +80,47 @@ def test_restart_completed_agro_stage_4(mock_get_conn):
     ok, msg = ZasypEtapyService.start_etap(plan_id=49, linia='AGRO', data_planu=datetime(2026, 4, 22).date(), etap=4, user_login='test')
     assert ok is True
     assert 'Dodano kolejną sekcję: 41' in msg
+
+
+@patch('app.services.zasyp_etapy_service.get_db_connection')
+def test_reset_etap_clears_single_stage_without_deleting_pair(mock_get_conn):
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_get_conn.return_value = mock_conn
+
+    # 1) _resolve_szarza_nr, 2) existing etap row for reset
+    mock_cursor.fetchone.side_effect = [
+        (2,),
+        (123,),
+    ]
+
+    ok, msg = ZasypEtapyService.reset_etap(plan_id=49, linia='AGRO', etap=3, szarza_nr=2)
+
+    assert ok is True
+    assert 'Zresetowano etap 3' in msg
+
+    executed_sql = [str(call.args[0]) for call in mock_cursor.execute.call_args_list]
+    assert any('SELECT id FROM zasyp_etapy' in sql for sql in executed_sql)
+    assert any('UPDATE zasyp_etapy' in sql for sql in executed_sql)
+    assert not any('DELETE FROM zasyp_etapy' in sql for sql in executed_sql)
+
+    update_calls = [call for call in mock_cursor.execute.call_args_list if 'UPDATE zasyp_etapy' in str(call.args[0])]
+    assert update_calls, 'Expected UPDATE call for reset'
+    assert update_calls[0].args[1][-1] == 3
+
+
+@patch('app.services.zasyp_etapy_service.get_db_connection')
+def test_reset_etap_returns_success_when_stage_already_cleared(mock_get_conn):
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_get_conn.return_value = mock_conn
+
+    # missing etap row
+    mock_cursor.fetchone.return_value = None
+
+    ok, msg = ZasypEtapyService.reset_etap(plan_id=49, linia='AGRO', etap=31, szarza_nr=2)
+
+    assert ok is True
+    assert 'już był zresetowany' in msg

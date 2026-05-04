@@ -1,0 +1,298 @@
+(function (global) {
+    'use strict';
+
+    var initialized = false;
+    var state = {
+        zwolnienieLastSeen: 0,
+        dosypkiLastSeen: 0,
+        zasypStartLastSeen: 0,
+        zasypMieszanieStartLastSeen: 0,
+        zasypDosypkaAddedLastSeen: 0,
+        lastRenderedZasypDosypkaAddedTs: 0,
+    };
+
+    function getConfigState() {
+        if (!global.dashboardConfig || typeof global.dashboardConfig.getState !== 'function') {
+            return null;
+        }
+        return global.dashboardConfig.getState();
+    }
+
+    function persistLocalStorage(key, value) {
+        try {
+            localStorage.setItem(key, String(value));
+        } catch (error) {
+        }
+    }
+
+    function fetchJson(url) {
+        return fetch(url, {
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+        }).then(function (response) {
+            return response.json();
+        });
+    }
+
+    function readNumber(key, fallback) {
+        try {
+            var value = Number(localStorage.getItem(key) || fallback || 0);
+            return Number.isFinite(value) ? value : (fallback || 0);
+        } catch (error) {
+            return fallback || 0;
+        }
+    }
+
+    function syncStateFromWindow() {
+        var nowSec = Date.now() / 1000;
+
+        state.zwolnienieLastSeen = readNumber('agro_zwolnienie_last_seen', state.zwolnienieLastSeen);
+        state.dosypkiLastSeen = readNumber('agro_dosypki_last_seen', state.dosypkiLastSeen);
+        state.zasypStartLastSeen = readNumber('agro_zasyp_start_last_seen', state.zasypStartLastSeen);
+        state.zasypMieszanieStartLastSeen = readNumber('agro_zasyp_mieszanie_start_last_seen', state.zasypMieszanieStartLastSeen);
+        state.zasypDosypkaAddedLastSeen = readNumber('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
+
+        if (state.zasypDosypkaAddedLastSeen > (nowSec + 5)) {
+            state.zasypDosypkaAddedLastSeen = 0;
+            persistLocalStorage('agro_zasyp_dosypka_added_last_seen', 0);
+        }
+    }
+
+    function addTask(name, intervalMs, callback, runImmediately) {
+        if (!global.dashboardScheduler) {
+            return;
+        }
+        global.dashboardScheduler.addTask(name, intervalMs, callback, {
+            runImmediately: runImmediately,
+        });
+    }
+
+    function initAgroZasypOperatorPolling() {
+        var config = getConfigState();
+        if (!config || !config.isAgroZasypOperator) {
+            return;
+        }
+
+        addTask('agro-zwolnienie-poll', 3000, function () {
+            return fetchJson('/api/zasyp/poll_zwolnienie?linia=AGRO&last_seen=' + state.zwolnienieLastSeen)
+                .then(function (data) {
+                    if (!data.new_zwolnienie) {
+                        return;
+                    }
+                    state.zwolnienieLastSeen = Number(data.timestamp || 0) || state.zwolnienieLastSeen;
+                    persistLocalStorage('agro_zwolnienie_last_seen', state.zwolnienieLastSeen);
+                    if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZwolnienieBanner === 'function') {
+                        global.dashboardAgroBanners.showZwolnienieBanner(data.audio_url);
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Poll err', error);
+                });
+        }, false);
+
+        addTask('agro-dosypka-added-poll', 3000, function () {
+            var nowSec = Date.now() / 1000;
+            var safeLastSeen = Number(state.zasypDosypkaAddedLastSeen || 0);
+            if (!isFinite(safeLastSeen) || safeLastSeen < 0) {
+                safeLastSeen = 0;
+            }
+            if (safeLastSeen > (nowSec + 5)) {
+                safeLastSeen = 0;
+                state.zasypDosypkaAddedLastSeen = 0;
+                persistLocalStorage('agro_zasyp_dosypka_added_last_seen', '0');
+            }
+
+            return fetchJson('/api/zasyp/poll_dosypka_added?linia=AGRO&last_seen=' + safeLastSeen)
+                .then(function (data) {
+                    if (!data.new_event) {
+                        return;
+                    }
+                    state.zasypDosypkaAddedLastSeen = Number(data.timestamp || 0) || state.zasypDosypkaAddedLastSeen;
+                    persistLocalStorage('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
+                    try {
+                        global.showZasypDosypkaAddedBanner(data);
+                        state.lastRenderedZasypDosypkaAddedTs = Number(data.timestamp || 0) || state.lastRenderedZasypDosypkaAddedTs;
+                    } catch (error) {
+                        console.error('showZasypDosypkaAddedBanner err', error);
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Dosypka added poll err', error);
+                });
+        }, false);
+
+        if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner === 'function') {
+            global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
+            addTask('agro-dosypki-badge-sync', 4000, function () {
+                global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
+            }, false);
+        }
+
+        addTask('agro-dosypki-emergency-poll', 3000, function () {
+            return fetchJson('/api/zasyp/poll_dosypki_update?linia=AGRO&last_seen=' + state.dosypkiLastSeen)
+                .then(function (data) {
+                    if (!data.new_update) {
+                        return;
+                    }
+
+                    state.dosypkiLastSeen = Number(data.timestamp || 0) || state.dosypkiLastSeen;
+                    persistLocalStorage('agro_dosypki_last_seen', state.dosypkiLastSeen);
+
+                    if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner === 'function') {
+                        global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
+                    }
+
+                    return fetchJson('/api/zasyp/poll_dosypka_added?linia=AGRO&last_seen=0')
+                        .then(function (eventData) {
+                            if (!eventData || !eventData.new_event) {
+                                return;
+                            }
+                            state.zasypDosypkaAddedLastSeen = Number(eventData.timestamp || 0) || state.zasypDosypkaAddedLastSeen;
+                            persistLocalStorage('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
+                            try {
+                                if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZasypDosypkaAddedBanner === 'function') {
+                                    global.dashboardAgroBanners.showZasypDosypkaAddedBanner(eventData);
+                                }
+                                state.lastRenderedZasypDosypkaAddedTs = Number(eventData.timestamp || 0) || state.lastRenderedZasypDosypkaAddedTs;
+                            } catch (error) {
+                                console.error('Emergency showZasypDosypkaAddedBanner err', error);
+                            }
+                        })
+                        .catch(function (error) {
+                            console.error('Emergency poll_dosypka_added err', error);
+                        });
+                })
+                .catch(function (error) {
+                    console.error('Emergency poll_dosypki_update err', error);
+                });
+        }, false);
+
+        addTask('agro-dosypka-hard-fallback-poll', 5000, function () {
+            return fetchJson('/api/zasyp/poll_dosypka_added?linia=AGRO&last_seen=0')
+                .then(function (eventData) {
+                    if (!eventData || !eventData.new_event) {
+                        return;
+                    }
+
+                    var eventTs = Number((eventData && eventData.timestamp) || 0) || 0;
+                    if (eventTs && eventTs <= state.lastRenderedZasypDosypkaAddedTs) {
+                        return;
+                    }
+
+                    state.zasypDosypkaAddedLastSeen = eventTs || state.zasypDosypkaAddedLastSeen;
+                    persistLocalStorage('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
+                    try {
+                        if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZasypDosypkaAddedBanner === 'function') {
+                            global.dashboardAgroBanners.showZasypDosypkaAddedBanner(eventData);
+                        }
+                        state.lastRenderedZasypDosypkaAddedTs = eventTs || state.lastRenderedZasypDosypkaAddedTs;
+                    } catch (error) {
+                        console.error('Hard fallback showZasypDosypkaAddedBanner err', error);
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Hard fallback poll_dosypka_added err', error);
+                });
+        }, false);
+    }
+
+    function initAgroDosypkiObserverPolling() {
+        var config = getConfigState();
+        if (!config || !config.isAgroDosypkiObserver || config.isAgroZasypOperator) {
+            return;
+        }
+
+        addTask('agro-dosypki-observer-poll', 3000, function () {
+            return fetchJson('/api/zasyp/poll_dosypki_update?linia=AGRO&last_seen=' + state.dosypkiLastSeen)
+                .then(function (data) {
+                    if (!data.new_update) {
+                        return;
+                    }
+
+                    state.dosypkiLastSeen = Number(data.timestamp || 0) || state.dosypkiLastSeen;
+                    persistLocalStorage('agro_dosypki_last_seen', state.dosypkiLastSeen);
+
+                    if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.isBannerLocked === 'function' && global.dashboardAgroBanners.isBannerLocked()) {
+                        return;
+                    }
+                    if (typeof global.performPartialReload === 'function') {
+                        global.performPartialReload({ preserveScroll: true, source: 'dosypki-sync' });
+                        return;
+                    }
+                    global.location.reload();
+                })
+                .catch(function (error) {
+                    console.error('Dosypki poll err', error);
+                });
+        }, false);
+    }
+
+    function initAgroLaborantPolling() {
+        var config = getConfigState();
+        if (!config || !config.isAgroLaborant) {
+            return;
+        }
+
+        addTask('agro-zasyp-start-poll', 3000, function () {
+            return fetchJson('/api/zasyp/poll_etap_start?linia=' + config.linia + '&last_seen=' + state.zasypStartLastSeen)
+                .then(function (data) {
+                    if (!data.new_start) {
+                        return;
+                    }
+                    state.zasypStartLastSeen = Number(data.timestamp || 0) || state.zasypStartLastSeen;
+                    persistLocalStorage('agro_zasyp_start_last_seen', state.zasypStartLastSeen);
+                    try {
+                        if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZasypStartBanner === 'function') {
+                            global.dashboardAgroBanners.showZasypStartBanner(data);
+                        }
+                    } catch (error) {
+                        console.error('showZasypStartBanner err', error);
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Zasyp start poll err', error);
+                });
+        }, false);
+
+        addTask('agro-mieszanie-start-poll', 3000, function () {
+            return fetchJson('/api/zasyp/poll_mieszanie_start?linia=' + config.linia + '&last_seen=' + state.zasypMieszanieStartLastSeen)
+                .then(function (data) {
+                    if (!data.new_start) {
+                        return;
+                    }
+                    state.zasypMieszanieStartLastSeen = Number(data.timestamp || 0) || state.zasypMieszanieStartLastSeen;
+                    persistLocalStorage('agro_zasyp_mieszanie_start_last_seen', state.zasypMieszanieStartLastSeen);
+                    try {
+                        if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZasypMieszanieStartBanner === 'function') {
+                            global.dashboardAgroBanners.showZasypMieszanieStartBanner(data);
+                        }
+                    } catch (error) {
+                        console.error('showZasypMieszanieStartBanner err', error);
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Zasyp mieszanie start poll err', error);
+                });
+        }, false);
+    }
+
+    function init() {
+        if (initialized) {
+            return;
+        }
+        initialized = true;
+
+        syncStateFromWindow();
+
+        initAgroZasypOperatorPolling();
+        initAgroDosypkiObserverPolling();
+        initAgroLaborantPolling();
+    }
+
+    global.dashboardPolling = {
+        init: init,
+    };
+})(window);

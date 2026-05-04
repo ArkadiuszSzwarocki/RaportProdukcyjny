@@ -3,7 +3,9 @@
 
 {% block content %}
 <!-- modalOverlay removed (mechanizm popup wyłączony) -->
-<div class="section-header">
+<div class="section-header" id="dashboard-config"
+    data-current-role="{{ rola }}"
+    data-linia="{{ linia or 'PSD' }}">
     <div class="top-submenu" style="padding: 0; box-shadow: none; margin-bottom: 20px;">
         <div class="top-submenu-inner" style="margin-left: 0;">
             <nav class="top-menu">
@@ -35,7 +37,7 @@
                     <a href="{{ url_for('production.agro_mix_rozliczenie_page', data=dzisiaj) }}" class="btn-icon-action" style="background: #9b59b6; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; text-decoration: none;" data-slide title="Rozliczenie MIX">
                         <span class="material-icons" style="font-size: 18px;">blender</span>
                     </a>
-                    <a href="#" id="raportPaletBtn" class="btn-icon-action" style="background: #3498db; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; text-decoration: none;" title="Raport Palet" onclick="openRaportPalet(); return false;">
+                    <a href="#" id="raportPaletBtn" class="btn-icon-action" style="background: #3498db; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; text-decoration: none;" title="Raport Palet">
                         <span class="material-icons" style="font-size: 18px;">print</span>
                     </a>
                 {% endif %}
@@ -45,7 +47,7 @@
                 <strong>Zasyp {{ linia }}</strong>
                 {% if linia == 'AGRO' %}
                     {% if rola in ['laborant', 'laboratorium', 'admin', 'zarzad'] %}
-                        <button class="btn-action" style="margin-left: 10px; background: #e67e22; color: #fff; border: none; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 0.85em; cursor: pointer; display:flex; align-items:center; gap:5px;" onclick="sendZwolnienieMieszalnika()" title="Wyślij ogromny komunikat do zasypu AGRO, że można wznawiać pracę">
+                        <button class="btn-action" data-action="send-zwolnienie-mieszalnika" style="margin-left: 10px; background: #e67e22; color: #fff; border: none; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 0.85em; cursor: pointer; display:flex; align-items:center; gap:5px;" title="Wyślij ogromny komunikat do zasypu AGRO, że można wznawiać pracę">
                             <span class="material-icons" style="font-size:16px;">lock_open</span> Zwolnienie mieszalnika
                         </button>
                     {% endif %}
@@ -63,21 +65,6 @@
                     aria-label="{{ _('nastepny_dzien') }}">▶</button>
                 <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') }}">
             </div>
-            <script>
-                function openRaportPalet() {
-                    try {
-                        var d = document.getElementById('current-date-iso');
-                        var dateIso = (d && d.value) ? d.value : (new Date()).toISOString().slice(0,10);
-                        var url = '/agro/raport_palet?data=' + encodeURIComponent(dateIso) + '&select=1';
-                        if (typeof showSlideOver === 'function') {
-                            showSlideOver(url, { backdrop: true });
-                            return;
-                        }
-                        // Fallback: open in new tab
-                        window.open(url, '_blank');
-                    } catch (e) { console.error('openRaportPalet error', e); }
-                }
-            </script>
         </div>
         <div class="d-flex align-center gap-12 header-stats">
             {% if sekcja == 'Magazyn' %}
@@ -243,818 +230,15 @@
             }
         }
     </style>
-    <script>
-        // URL template for confirming dosypka (use replace to insert id)
-        window._urls = window._urls || {};
-        window._urls.potwierdz_dosypke = "{{ url_for('production.potwierdz_dosypke', dosypka_id=0) }}";
-        window._urls.anuluj_dosypke = "{{ url_for('production.anuluj_dosypke', dosypka_id=0) }}";
-        // Current user role for conditional UI features
-        window._currentRole = "{{ rola }}";
-        const _roleLower = String(window._currentRole || '').trim().toLowerCase();
-        window._isAgroZasypOperator = !['laborant', 'laboratorium', 'magazyn', 'magazynier', 'planista'].includes(_roleLower);
-        window._isAgroDosypkiObserver = ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium'].includes(_roleLower);
-        // laborant flag: used to show banner + voice notification when operator starts Naważanie
-        window._isAgroLaborant = ['laborant', 'laboratorium'].includes(_roleLower);
-        // Current hall/linia for AGRO-aware API calls
-        window._linia = "{{ linia or 'PSD' }}";
-
-        function getAutoSzarzaMode() {
-            try {
-                const role = String(window._currentRole || '').toLowerCase();
-                const roleDefault = ['pracownik', 'produkcja', 'lider'].includes(role) ? 'auto' : 'manual';
-                const mode = (localStorage.getItem('zasyp_auto_szarza_mode') || roleDefault).toLowerCase();
-                return mode === 'auto' ? 'auto' : 'manual';
-            } catch (e) {
-                return 'manual';
-            }
-        }
-
-        function applyAutoSzarzaMode() {
-            {% if not (sekcja == 'Zasyp' and linia == 'AGRO') %}
-            return;
-            {% endif %}
-            const mode = getAutoSzarzaMode();
-
-            document.querySelectorAll('.auto-szarza-mode-input').forEach((el) => {
-                el.value = mode;
-            });
-
-            document.querySelectorAll('.auto-szarza-switch').forEach((el) => {
-                el.checked = (mode === 'auto');
-            });
-
-            document.querySelectorAll('.manual-szarza-btn').forEach((el) => {
-                if (mode === 'auto') {
-                    el.style.opacity = '0.45';
-                    el.style.filter = 'grayscale(35%)';
-                    el.style.pointerEvents = 'none';
-                    el.title = 'Tryb AUTO SZARŻA jest włączony. Dodanie nastąpi przy starcie Naważania.';
-                } else {
-                    el.style.opacity = '';
-                    el.style.filter = '';
-                    el.style.pointerEvents = '';
-                    el.title = '+ SZARŻA';
-                }
-            });
-        }
-
-        function toggleAutoSzarzaMode(checkbox) {
-            const mode = checkbox && checkbox.checked ? 'auto' : 'manual';
-            try {
-                localStorage.setItem('zasyp_auto_szarza_mode', mode);
-            } catch (e) {}
-            applyAutoSzarzaMode();
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            applyAutoSzarzaMode();
-        });
-
-        {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
-        let zwolnienieLastSeen = 0;
-        let dosypkiLastSeen = 0;
-        let zasypStartLastSeen = 0;
-        let zasypMieszanieStartLastSeen = 0;
-        try {
-            zwolnienieLastSeen = Number(localStorage.getItem('agro_zwolnienie_last_seen') || '0') || 0;
-            zasypStartLastSeen = Number(localStorage.getItem('agro_zasyp_start_last_seen') || '0') || 0;
-            zasypMieszanieStartLastSeen = Number(localStorage.getItem('agro_zasyp_mieszanie_start_last_seen') || '0') || 0;
-            dosypkiLastSeen = Number(localStorage.getItem('agro_dosypki_last_seen') || '0') || 0;
-        } catch (e) {
-            zwolnienieLastSeen = 0;
-            dosypkiLastSeen = 0;
-            zasypStartLastSeen = 0;
-            zasypMieszanieStartLastSeen = 0;
-        }
-
-        // Avoid replaying stale start-announcements after refresh/open.
-        try {
-            const nowTs = Date.now() / 1000;
-            if (!zasypStartLastSeen || zasypStartLastSeen < (nowTs - 30)) {
-                zasypStartLastSeen = nowTs;
-                localStorage.setItem('agro_zasyp_start_last_seen', String(zasypStartLastSeen));
-            }
-            if (!zasypMieszanieStartLastSeen || zasypMieszanieStartLastSeen < (nowTs - 30)) {
-                zasypMieszanieStartLastSeen = nowTs;
-                localStorage.setItem('agro_zasyp_mieszanie_start_last_seen', String(zasypMieszanieStartLastSeen));
-            }
-        } catch (e) {}
-
-        // Load local sound generator for zwolnienie (if available)
-        try {
-            if (!document.getElementById('zwolnienie-sound-script')) {
-                var _s = document.createElement('script');
-                _s.id = 'zwolnienie-sound-script';
-                _s.src = '/static/js/zwolnienie_sound.js';
-                _s.defer = true;
-                document.head.appendChild(_s);
-            }
-        } catch (e) { console.warn('Failed to load zwolnienie sound script', e); }
-
-        function sendZwolnienieMieszalnika() {
-            if(!confirm("Czy na pewno chcesz wysłać wielki komunikat o wyczyszczonym mieszalniku do wszystkich operatorów AGRO?")) return;
-            fetch('/api/zasyp/zwolnij_mieszalnik', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify({ linia: 'AGRO' })
-            }).then(r => r.json()).then(data => {
-                if(data.success) {
-                    alert('Sygnał został wystrzelony pomyślnie!');
-                    zwolnienieLastSeen = data.timestamp;
-                    try {
-                        localStorage.setItem('agro_zwolnienie_last_seen', String(zwolnienieLastSeen));
-                    } catch (e) {}
-                } else {
-                    alert('Błąd podczas wysyłania sygnału.');
-                }
-            }).catch(e => alert('Błąd sieci: ' + e));
-        }
-
-        function showZwolnienieBanner(audioUrl) {
-            const banner = document.getElementById('zwolnienie-banner');
-            if(banner) {
-                banner.style.display = 'flex';
-                
-                // Play notification sound — try multiple local files first (including uploaded name),
-                // then fallback to synth (`playZwolnienieSound`) or external file.
-                try {
-                    var _localCandidates = [
-                        '/static/sounds/doorbell.ogg',
-                        '/static/sounds/doorbell.m4a',
-                        '/static/sounds/doorbell.mp3',
-                        '/static/sounds/Nagrywanie%20(5).m4a',
-                        '/static/sounds/Nagrywanie (5).m4a'
-                    ];
-                    // If backend provided a generated audio_url, try it first
-                    try { if (audioUrl) { _localCandidates.unshift(audioUrl); } } catch (e) {}
-                    var _externalFallback = 'https://actions.google.com/sounds/v1/household/doorbell_1.ogg';
-
-                    function _tryPlayCandidates(cands, extFallback) {
-                        var i = 0;
-                        var played = false;
-                        function _next() {
-                            if (i >= cands.length) {
-                                if (!played) {
-                                    // none of local candidates played — try synth if available, else external
-                                    if (typeof window.playZwolnienieSound === 'function') {
-                                        try {
-                                            window.playZwolnienieSound();
-                                            return;
-                                        } catch (e) {
-                                            console.warn('playZwolnienieSound fallback failed:', e);
-                                        }
-                                    }
-                                    if (extFallback) {
-                                        try { var fa = new Audio(extFallback); fa.play().catch(function(e){ console.warn('external fallback play failed', e); }); } catch (e) { console.warn('external fallback error', e); }
-                                    }
-                                }
-                                return;
-                            }
-                            var url = cands[i++];
-                            try {
-                                console.debug('[zwolnienie] trying audio candidate:', url);
-                                var a = new Audio(url);
-                                var p = a.play();
-                                if (p && typeof p.then === 'function') {
-                                    p.then(function(){ played = true; console.debug('[zwolnienie] played', url); }).catch(function(err){ console.warn('[zwolnienie] play failed for', url, err); _next(); });
-                                } else {
-                                    // assume play started on older browsers
-                                    played = true;
-                                    console.debug('[zwolnienie] assumed play (no promise) for', url);
-                                }
-                            } catch (e) {
-                                console.warn('[zwolnienie] audio exception for', url, e);
-                                _next();
-                            }
-                        }
-                        _next();
-                    }
-
-                    _tryPlayCandidates(_localCandidates, _externalFallback);
-                } catch(err) {
-                    console.error('Critical audio error:', err);
-                }
-
-                // Auto hide after 30 seconds
-                setTimeout(() => { banner.style.display = 'none'; }, 30000);
-            }
-        }
-
-        function handleZasypStartForm(form) {
-            if (!form || String(form.dataset.etap || '') !== '1') {
-                return true;
-            }
-
-            const modal = document.getElementById('szarza-modal');
-            const modalInput = modal ? modal.querySelector('input[name="modal_wielkosc_szarzy_kg"]') : null;
-
-            // If modal is available, open it and fill default; submission continues from modal confirm
-            if (modal && modalInput) {
-                const defaultSize = String(form.dataset.szarzaDefault || '').trim();
-                // try to prefill from per-plan input if present
-                try {
-                    const planInput = form.querySelector('input[name="plan_id"]');
-                    if (planInput && planInput.value) {
-                        const planEl = document.getElementById('szarza-kg-' + planInput.value);
-                        if (planEl && String(planEl.value || '').trim()) {
-                            modalInput.value = String(planEl.value || '').trim();
-                        } else {
-                            modalInput.value = defaultSize || '';
-                        }
-                    } else {
-                        modalInput.value = defaultSize || '';
-                    }
-                } catch (e) {
-                    modalInput.value = defaultSize || '';
-                }
-
-                // store reference to form to submit later
-                window._pendingZasypForm = form;
-                form.dataset.waitingSzarzaConfirm = '1';
-                modal.classList.add('open');
-                modalInput.focus();
-                return false;
-            }
-
-            // Fallback: try prompt() or plan-level input
-            try {
-                const defaultSize = String(form.dataset.szarzaDefault || '').trim();
-                let value = null;
-                try { value = prompt('Jaka wielkość szarży (kg)?', defaultSize); } catch (e) { value = defaultSize || ''; }
-                if (value === null) return false;
-                value = String(value || '').trim().replace(',', '.');
-                if (!value) { alert('Podaj wielkość szarży.'); return false; }
-                const parsed = Number(value);
-                if (!Number.isFinite(parsed) || parsed <= 0) { alert('Podaj poprawną wielkość szarży większą od 0.'); return false; }
-                let hidden = form.querySelector('input[name="wielkosc_szarzy_kg"]');
-                if (!hidden) { hidden = document.createElement('input'); hidden.type = 'hidden'; hidden.name = 'wielkosc_szarzy_kg'; form.appendChild(hidden); }
-                hidden.value = String(parsed);
-                return true;
-            } catch (e) {
-                alert('Nie można otworzyć okna wprowadzenia wielkości szarży. Najpierw wpisz wartość w polu "Wielkość szarży" obok i spróbuj ponownie.');
-                return false;
-            }
-        }
-
-        function _setFormSubmitButtonsLoading(form, isLoading) {
-            if (!form) return;
-            const buttons = form.querySelectorAll('button[type="submit"]');
-            buttons.forEach((btn) => {
-                if (!btn.dataset.originalText) {
-                    btn.dataset.originalText = btn.textContent || '';
-                }
-                if (isLoading) {
-                    btn.disabled = true;
-                    btn.style.opacity = '0.5';
-                    btn.style.cursor = 'not-allowed';
-                    btn.textContent = '⏳ Przetwarzanie...';
-                } else {
-                    btn.disabled = false;
-                    btn.style.opacity = '1';
-                    btn.style.cursor = 'pointer';
-                    btn.textContent = btn.dataset.originalText || btn.textContent;
-                }
-            });
-        }
-
-        function handleEtapStopForm(form) {
-            if (!form) return true;
-            const etap = String(form.dataset.etap || '');
-            const linia = String(form.dataset.linia || '').toUpperCase();
-            const isAgroDecisionStop = linia === 'AGRO' && (
-                etap === '2' ||
-                etap === '4' ||
-                (etap.length > 1 && etap.startsWith('4'))
-            );
-            if (!isAgroDecisionStop) {
-                return true;
-            }
-
-            // For AGRO decision stops (mixing), show decision modal asking what to do next.
-            // Keep form pending in window._pendingStopForm and wait for user choice.
-            let hidden = form.querySelector('input[name="next_action"]');
-            if (!hidden) {
-                hidden = document.createElement('input');
-                hidden.type = 'hidden';
-                hidden.name = 'next_action';
-                form.appendChild(hidden);
-            }
-            window._pendingStopForm = form;
-            if (typeof openStopDecisionModal === 'function') {
-                openStopDecisionModal();
-                return false; // prevent submit until user chooses
-            }
-            // Fallback: default to add_pair
-            hidden.value = 'add_pair';
-            return true;
-        }
-
-        // Modal confirm/cancel handlers
-        function _szarzaModalConfirm() {
-            const modal = document.getElementById('szarza-modal');
-            if (!modal) return;
-            const input = modal.querySelector('input[name="modal_wielkosc_szarzy_kg"]');
-            const raw = String(input.value || '').trim().replace(',', '.');
-            const parsed = Number(raw);
-            if (!raw || !Number.isFinite(parsed) || parsed <= 0) {
-                alert('Podaj poprawną wielkość szarży większą od 0.');
-                input.focus();
-                return;
-            }
-            const form = window._pendingZasypForm;
-            if (!form) { modal.classList.remove('open'); return; }
-            let hidden = form.querySelector('input[name="wielkosc_szarzy_kg"]');
-            if (!hidden) { hidden = document.createElement('input'); hidden.type = 'hidden'; hidden.name = 'wielkosc_szarzy_kg'; form.appendChild(hidden); }
-            hidden.value = String(parsed);
-            delete form.dataset.waitingSzarzaConfirm;
-            _setFormSubmitButtonsLoading(form, true);
-            modal.classList.remove('open');
-            // submit the stored form
-            try { form.submit(); } catch (e) { console.error('Form submit failed', e); }
-        }
-
-        function _szarzaModalCancel() {
-            const modal = document.getElementById('szarza-modal');
-            if (modal) modal.classList.remove('open');
-            const form = window._pendingZasypForm;
-            if (form) {
-                delete form.dataset.waitingSzarzaConfirm;
-                _setFormSubmitButtonsLoading(form, false);
-            }
-            window._pendingZasypForm = null;
-        }
-
-        function toggleManualEtapForm(targetId) {
-            const el = document.getElementById(targetId);
-            if (!el) return;
-            const isHidden = el.style.display === 'none' || !el.style.display;
-            el.style.display = isHidden ? 'block' : 'none';
-            if (isHidden) {
-                applyNowMaxToTimeInputs(el);
-            }
-        }
-
-        function currentHhMm() {
-            const now = new Date();
-            const hh = String(now.getHours()).padStart(2, '0');
-            const mm = String(now.getMinutes()).padStart(2, '0');
-            return `${hh}:${mm}`;
-        }
-
-        function applyNowMaxToTimeInputs(root) {
-            const scope = root || document;
-            const maxVal = currentHhMm();
-            scope.querySelectorAll('input.manual-time-input[type="time"]').forEach((inp) => {
-                inp.max = maxVal;
-            });
-        }
-
-        function formatMmSs(totalSeconds) {
-            const sec = Math.max(0, Number(totalSeconds) || 0);
-            const ss = String(Math.floor(sec % 60)).padStart(2, '0');
-            const totalMinutes = Math.floor(sec / 60);
-            if (totalMinutes < 60) {
-                const mm = String(totalMinutes).padStart(2, '0');
-                return `${mm}:${ss}`;
-            }
-            const hh = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
-            const mm = String(totalMinutes % 60).padStart(2, '0');
-            return `${hh}:${mm}:${ss}`;
-        }
-
-        function startEtapyTimers() {
-            const etapTimers = Array.from(document.querySelectorAll('.etap-live-timer'));
-            const totalTimers = Array.from(document.querySelectorAll('.etapy-total-live-timer'));
-            if (!etapTimers.length && !totalTimers.length) return;
-
-            const tick = () => {
-                etapTimers.forEach((el) => {
-                    const running = String(el.dataset.running || '0') === '1';
-                    let seconds = Number(el.dataset.seconds || '0');
-                    if (running) {
-                        seconds += 1;
-                        el.dataset.seconds = String(seconds);
-                    }
-                    el.textContent = formatMmSs(seconds);
-                });
-
-                totalTimers.forEach((el) => {
-                    const running = String(el.dataset.running || '0') === '1';
-                    let seconds = Number(el.dataset.seconds || '0');
-                    if (running) {
-                        seconds += 1;
-                        el.dataset.seconds = String(seconds);
-                    }
-                    el.textContent = formatMmSs(seconds);
-                });
-            };
-
-            tick();
-            setInterval(tick, 1000);
-        }
-
-        // Poll for zwolnienie only for AGRO Zasyp operators.
-        if (window._isAgroZasypOperator) {
-            setInterval(() => {
-                    fetch(`/api/zasyp/poll_zwolnienie?linia=AGRO&last_seen=${zwolnienieLastSeen}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-                        .then(r => r.json())
-                    .then(data => {
-                        if(data.new_zwolnienie) {
-                            zwolnienieLastSeen = data.timestamp;
-                            try {
-                                localStorage.setItem('agro_zwolnienie_last_seen', String(zwolnienieLastSeen));
-                            } catch (e) {}
-                            showZwolnienieBanner(data.audio_url);
-                        }
-                    }).catch(e => console.error("Poll err", e));
-            }, 3000); // exactly every 3s
-        }
-
-        // Laboratorium view should auto-refresh after operator confirms/cancels/adds dosypka.
-        if (window._isAgroDosypkiObserver) {
-            setInterval(() => {
-                    fetch(`/api/zasyp/poll_dosypki_update?linia=AGRO&last_seen=${dosypkiLastSeen}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-                        .then(r => r.json())
-                    .then(data => {
-                        if (data.new_update) {
-                            dosypkiLastSeen = Number(data.timestamp || 0) || dosypkiLastSeen;
-                            try {
-                                localStorage.setItem('agro_dosypki_last_seen', String(dosypkiLastSeen));
-                            } catch (e) {}
-                            if (typeof window.performPartialReload === 'function') {
-                                window.performPartialReload({ preserveScroll: true, source: 'dosypki-sync' });
-                            } else {
-                                window.location.reload();
-                            }
-                        }
-                    })
-                    .catch(e => console.error('Dosypki poll err', e));
-            }, 3000);
-        }
-
-        // Poll for Zasyp ETAP START events only for laborant role (show banner + voice)
-        if (window._isAgroLaborant) {
-            setInterval(() => {
-                    fetch(`/api/zasyp/poll_etap_start?linia=${window._linia}&last_seen=${zasypStartLastSeen}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-                        .then(r => r.json())
-                    .then(data => {
-                        if (data.new_start) {
-                            zasypStartLastSeen = data.timestamp;
-                            try { localStorage.setItem('agro_zasyp_start_last_seen', String(zasypStartLastSeen)); } catch (e) {}
-                            try {
-                                showZasypStartBanner(data);
-                            } catch (e) { console.error('showZasypStartBanner err', e); }
-                        }
-                    }).catch(e => console.error('Zasyp start poll err', e));
-            }, 3000);
-
-            setInterval(() => {
-                    fetch(`/api/zasyp/poll_mieszanie_start?linia=${window._linia}&last_seen=${zasypMieszanieStartLastSeen}`, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-                        .then(r => r.json())
-                    .then(data => {
-                        if (data.new_start) {
-                            zasypMieszanieStartLastSeen = data.timestamp;
-                            try { localStorage.setItem('agro_zasyp_mieszanie_start_last_seen', String(zasypMieszanieStartLastSeen)); } catch (e) {}
-                            try {
-                                showZasypMieszanieStartBanner(data);
-                            } catch (e) { console.error('showZasypMieszanieStartBanner err', e); }
-                        }
-                    }).catch(e => console.error('Zasyp mieszanie start poll err', e));
-            }, 3000);
-        }
-
-        function showZasypStartBanner(data) {
-            try {
-                var existing = document.getElementById('zasyp-start-banner');
-                if (existing) { try { existing.remove(); } catch (e) {} }
-
-                var prod = data.produkt || '';
-                var sz = (data.szarza_nr !== undefined && data.szarza_nr !== null) ? data.szarza_nr : '';
-                var msg = '<div style="font-weight:700; margin-bottom:6px;">OPERATOR ROZPOCZĄŁ NAWAŻANIE</div>' +
-                          '<div style="font-size:0.95em;">' + (prod ? prod : '') + (sz ? (' — SZARŻA NR ' + sz) : '') + '</div>';
-
-                var banner = document.createElement('div');
-                banner.id = 'zasyp-start-banner';
-                banner.setAttribute('role','status');
-                banner.style.position = 'fixed';
-                banner.style.left = '50%';
-                banner.style.transform = 'translateX(-50%)';
-                banner.style.top = '80px';
-                banner.style.zIndex = 99999;
-                banner.style.minWidth = '320px';
-                banner.style.maxWidth = '720px';
-                banner.style.background = '#fff7ed';
-                banner.style.border = '1px solid #f6bd56';
-                banner.style.boxShadow = '0 8px 30px rgba(0,0,0,0.12)';
-                banner.style.padding = '14px 16px';
-                banner.style.borderRadius = '10px';
-                banner.style.fontFamily = 'inherit';
-
-                banner.innerHTML = '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">' +
-                    '<div style="flex:1">' + msg + '</div>' +
-                    '<div style="margin-left:8px"><button id="zasyp-start-dismiss" style="background:#f1f2f6;border:none;padding:6px 10px;border-radius:8px;cursor:pointer">OK</button></div>' +
-                    '</div>';
-
-                document.body.appendChild(banner);
-                try { document.getElementById('zasyp-start-dismiss').addEventListener('click', function(){ try{ banner.remove(); }catch(e){} }); } catch (e) {}
-
-                // Try to play audio: prefer provided audio_url, fallback to static TTS file, then to synth
-                var tryPlayUrl = function(url) {
-                    if (!url) return Promise.reject('no-url');
-                    try {
-                        var a = new Audio(url);
-                        a.volume = 1.0;
-                        return a.play().then(()=>true).catch(function(err){ return Promise.reject(err); });
-                    } catch (e) {
-                        return Promise.reject(e);
-                    }
-                };
-
-                var trySpeakText = function(text) {
-                    if (!text || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
-                        return Promise.reject('no-speech');
-                    }
-                    return new Promise(function(resolve, reject) {
-                        try {
-                            var u = new SpeechSynthesisUtterance(String(text));
-                            u.lang = 'pl-PL';
-                            u.rate = 1.0;
-                            u.pitch = 1.0;
-                            u.volume = 1.0;
-                            var done = false;
-                            u.onend = function(){ if (!done) { done = true; resolve(true); } };
-                            u.onerror = function(e){ if (!done) { done = true; reject(e); } };
-                            window.speechSynthesis.cancel();
-                            window.speechSynthesis.speak(u);
-                        } catch (e) {
-                            reject(e);
-                        }
-                    });
-                };
-
-                // sequence of candidates
-                var candidates = [];
-                if (data.audio_url && String(data.audio_url).indexOf('zasyp_start_') !== -1) candidates.push(data.audio_url);
-                candidates.push('/static/sounds/doorbell.m4a');
-
-                trySpeakText(data.tts_text).catch(function(){
-                    (function tryCandidates(i){
-                        if (i >= candidates.length) {
-                            // last resort: synth
-                            try { if (typeof window.playZwolnienieSound === 'function') window.playZwolnienieSound(); } catch(e){}
-                            return;
-                        }
-                        var url = candidates[i];
-                        tryPlayUrl(url).then(function(){ /* played */ }).catch(function(){ tryCandidates(i+1); });
-                    })(0);
-                });
-
-                // auto dismiss after TTL
-                setTimeout(function(){ try{ banner.remove(); }catch(e){} }, 12000);
-            } catch (e) {
-                console.error('showZasypStartBanner error', e);
-            }
-        }
-
-        function showZasypMieszanieStartBanner(data) {
-            try {
-                var existing = document.getElementById('zasyp-mieszanie-start-banner');
-                if (existing) { try { existing.remove(); } catch (e) {} }
-
-                var prod = data.produkt || '';
-                var sz = (data.szarza_nr !== undefined && data.szarza_nr !== null) ? data.szarza_nr : '';
-                var title = data.banner_title || 'OPERATOR ROZPOCZĄŁ MIESZANIE';
-                var etapInfo = (data.etap_nr !== undefined && data.etap_nr !== null) ? (' — ETAP ' + data.etap_nr) : '';
-                var msg = '<div style="font-weight:700; margin-bottom:6px;">' + title + etapInfo + '</div>' +
-                          '<div style="font-size:0.95em;">' + (prod ? prod : '') + (sz ? (' — SZARŻA NR ' + sz) : '') + '</div>';
-
-                var banner = document.createElement('div');
-                banner.id = 'zasyp-mieszanie-start-banner';
-                banner.setAttribute('role','status');
-                banner.style.position = 'fixed';
-                banner.style.left = '50%';
-                banner.style.transform = 'translateX(-50%)';
-                banner.style.top = '140px';
-                banner.style.zIndex = 99999;
-                banner.style.minWidth = '320px';
-                banner.style.maxWidth = '720px';
-                banner.style.background = '#ecfeff';
-                banner.style.border = '1px solid #67e8f9';
-                banner.style.boxShadow = '0 8px 30px rgba(0,0,0,0.12)';
-                banner.style.padding = '14px 16px';
-                banner.style.borderRadius = '10px';
-                banner.style.fontFamily = 'inherit';
-
-                banner.innerHTML = '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">' +
-                    '<div style="flex:1">' + msg + '</div>' +
-                    '<div style="margin-left:8px"><button id="zasyp-mieszanie-start-dismiss" style="background:#f1f2f6;border:none;padding:6px 10px;border-radius:8px;cursor:pointer">OK</button></div>' +
-                    '</div>';
-
-                document.body.appendChild(banner);
-                try { document.getElementById('zasyp-mieszanie-start-dismiss').addEventListener('click', function(){ try{ banner.remove(); }catch(e){} }); } catch (e) {}
-
-                var tryPlayUrl = function(url) {
-                    if (!url) return Promise.reject('no-url');
-                    try {
-                        var a = new Audio(url);
-                        a.volume = 1.0;
-                        return a.play().then(()=>true).catch(function(err){ return Promise.reject(err); });
-                    } catch (e) {
-                        return Promise.reject(e);
-                    }
-                };
-
-                var trySpeakText = function(text) {
-                    if (!text || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
-                        return Promise.reject('no-speech');
-                    }
-                    return new Promise(function(resolve, reject) {
-                        try {
-                            var u = new SpeechSynthesisUtterance(String(text));
-                            u.lang = 'pl-PL';
-                            u.rate = 1.0;
-                            u.pitch = 1.0;
-                            u.volume = 1.0;
-                            var done = false;
-                            u.onend = function(){ if (!done) { done = true; resolve(true); } };
-                            u.onerror = function(e){ if (!done) { done = true; reject(e); } };
-                            window.speechSynthesis.cancel();
-                            window.speechSynthesis.speak(u);
-                        } catch (e) {
-                            reject(e);
-                        }
-                    });
-                };
-
-                var candidates = [];
-                if (data.audio_url && String(data.audio_url).indexOf('zasyp_mieszanie_start_') !== -1) candidates.push(data.audio_url);
-                candidates.push('/static/sounds/doorbell.m4a');
-
-                trySpeakText(data.tts_text).catch(function(){
-                    (function tryCandidates(i){
-                        if (i >= candidates.length) {
-                            try { if (typeof window.playZwolnienieSound === 'function') window.playZwolnienieSound(); } catch(e){}
-                            return;
-                        }
-                        var url = candidates[i];
-                        tryPlayUrl(url).then(function(){ /* played */ }).catch(function(){ tryCandidates(i+1); });
-                    })(0);
-                });
-
-                setTimeout(function(){ try{ banner.remove(); }catch(e){} }, 12000);
-            } catch (e) {
-                console.error('showZasypMieszanieStartBanner error', e);
-            }
-        }
-        {% endif %}
-
-        /* --- Modal markup and styles for entering wielkość szarży --- */
-        (function(){
-            const style = document.createElement('style');
-            style.textContent = `
-            #szarza-modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:9999; backdrop-filter: blur(4px); }
-            #szarza-modal.open { display:flex; }
-            #szarza-modal .modal-card { background:#fff; border-radius:12px; padding:24px; width:400px; box-shadow:0 15px 35px rgba(0,0,0,0.3); border: 1px solid #ddd; }
-            #szarza-modal h3 { margin:0 0 15px 0; font-size:1.2em; color: #2c3e50; text-align: center; }
-            
-            #szarza-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
-            #szarza-grid .quick-btn { 
-                padding: 12px 5px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; 
-                cursor: pointer; font-weight: bold; color: #495057; transition: all 0.2s; font-size: 0.9em;
-            }
-            #szarza-grid .quick-btn:hover { background: #e9ecef; border-color: #ced4da; transform: translateY(-1px); }
-            #szarza-grid .quick-btn.active { background: #27ae60; color: white; border-color: #27ae60; }
-
-            #szarza-modal .input-wrapper { margin-bottom: 20px; }
-            #szarza-modal .input-wrapper label { display: block; margin-bottom: 5px; font-size: 0.85em; color: #7f8c8d; }
-            #szarza-modal input[type=number] { 
-                width:100%; padding: 12px; font-size:1.1em; border-radius:8px; border:2px solid #eee; 
-                outline: none; transition: border-color 0.2s; text-align: center; font-weight: bold;
-            }
-            #szarza-modal input[type=number]:focus { border-color: #27ae60; }
-            
-            #szarza-modal .modal-actions { display:flex; gap:12px; justify-content:stretch; }
-            #szarza-modal .btn { flex: 1; padding: 14px; border-radius:8px; cursor:pointer; border:none; font-weight: bold; font-size: 1em; }
-            #szarza-modal .btn-prim { background:#27ae60; color:#fff; box-shadow: 0 4px 6px rgba(39, 174, 96, 0.2); }
-            #szarza-modal .btn-prim:hover { background: #219150; }
-            #szarza-modal .btn-sec { background:#f1f2f6; color:#2f3542; }
-            #szarza-modal .btn-sec:hover { background: #dfe4ea; }
-            `;
-            document.head.appendChild(style);
-
-            const values = [1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000];
-            const gridHtml = values.map(v => `<button type="button" class="quick-btn" onclick="document.querySelector('#szarza-modal input[name=\\'modal_wielkosc_szarzy_kg\\']').value='${v}'; document.querySelectorAll('.quick-btn').forEach(b=>b.classList.remove('active')); this.classList.add('active');">${v}</button>`).join('');
-
-            const modalHtml = `
-            <div id="szarza-modal" role="dialog" aria-modal="true">
-                <div class="modal-card">
-                    <h3>Wybierz wielkość szarży (kg)</h3>
-                    <div id="szarza-grid">
-                        ${gridHtml}
-                    </div>
-                    <div class="input-wrapper">
-                        <label>Inna wartość:</label>
-                        <input name="modal_wielkosc_szarzy_kg" type="number" step="0.1" min="0.1" placeholder="Wpisz wagę...">
-                    </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-sec" id="szarza-cancel">Anuluj</button>
-                        <button type="button" class="btn btn-prim" id="szarza-confirm">Zatwierdź START</button>
-                    </div>
-                </div>
-            </div>`;
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            const szarzaConfirmBtn = document.getElementById('szarza-confirm');
-            const szarzaCancelBtn = document.getElementById('szarza-cancel');
-            if (szarzaConfirmBtn && typeof _szarzaModalConfirm === 'function') {
-                szarzaConfirmBtn.addEventListener('click', _szarzaModalConfirm);
-            }
-            if (szarzaCancelBtn && typeof _szarzaModalCancel === 'function') {
-                szarzaCancelBtn.addEventListener('click', _szarzaModalCancel);
-            }
-            
-            const input = document.querySelector('#szarza-modal input[name="modal_wielkosc_szarzy_kg"]');
-            if (input) {
-                input.addEventListener('input', function() {
-                    document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
-                });
-            }
-
-            document.addEventListener('keydown', (e)=>{
-                if(e.key==='Escape'){
-                    if(window._szarzaModalCancel) _szarzaModalCancel();
-                }
-            });
-            // --- Stop decision modal (shown after clicking Stop on mixing stages) ---
-            const stopStyle = document.createElement('style');
-            stopStyle.textContent = `
-            #stop-decision-modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:10000; }
-            #stop-decision-modal.open { display:flex; }
-            #stop-decision-modal .card { background:#fff; border-radius:12px; padding:18px; width:420px; box-shadow:0 15px 35px rgba(0,0,0,0.25); border:1px solid #e6eef2; }
-            #stop-decision-modal h3 { margin:0 0 10px 0; font-size:1.1em; text-align:center; }
-            #stop-decision-modal .actions { display:grid; grid-template-columns: 1fr; gap:8px; margin-top:12px; }
-            #stop-decision-modal .actions .btn { padding:12px; border-radius:8px; font-weight:700; cursor:pointer; border:none; }
-            #stop-decision-modal .btn-primary { background:#10b981; color:#fff; }
-            #stop-decision-modal .btn-warning { background:#f59e0b; color:#fff; }
-            #stop-decision-modal .btn-danger { background:#ef4444; color:#fff; }
-            #stop-decision-modal .btn-cancel { background:#f1f2f6; color:#2f3542; }
-            `;
-            document.head.appendChild(stopStyle);
-
-            const decisionHtml = `
-            <div id="stop-decision-modal" role="dialog" aria-modal="true">
-                <div class="card">
-                    <h3>Co teraz zrobić po STOP mieszania?</h3>
-                    <div class="small text-muted">Wybierz jedną z opcji, aby kontynuować proces produkcji.</div>
-                    <div class="actions">
-                        <button type="button" id="stop-add-pair" class="btn btn-primary">Dodaj parę: dosypka + mieszanie</button>
-                        <button type="button" id="stop-oprozniamy" class="btn btn-warning">Opróżniamy (kontynuuj opróżnianie)</button>
-                        <button type="button" id="stop-oprozniamy-end" class="btn btn-danger">Opróżniamy i kończymy dziś</button>
-                        <button type="button" id="stop-oprozniamy-new" class="btn btn-primary">Opróżniamy i dodaj nowy punkt</button>
-                        <button type="button" id="stop-decision-cancel" class="btn btn-cancel">Anuluj</button>
-                    </div>
-                </div>
-            </div>`;
-            document.body.insertAdjacentHTML('beforeend', decisionHtml);
-
-            window.openStopDecisionModal = function() {
-                const m = document.getElementById('stop-decision-modal');
-                if (!m) return;
-                m.classList.add('open');
-                try { document.getElementById('stop-add-pair')?.focus(); } catch (e) {}
-            };
-            window._closeStopDecisionModal = function() {
-                const m = document.getElementById('stop-decision-modal');
-                if (!m) return; m.classList.remove('open');
-            };
-            window._stopDecisionChoose = function(action) {
-                const form = window._pendingStopForm;
-                window._closeStopDecisionModal();
-                if (!form) return;
-                let hidden = form.querySelector('input[name="next_action"]');
-                if (!hidden) { hidden = document.createElement('input'); hidden.type='hidden'; hidden.name='next_action'; form.appendChild(hidden); }
-                hidden.value = action;
-                window._pendingStopForm = null;
-                try { form.submit(); } catch (e) { console.error('submit failed', e); }
-            };
-
-            document.getElementById('stop-add-pair')?.addEventListener('click', function(){ window._stopDecisionChoose('add_pair'); });
-            document.getElementById('stop-oprozniamy')?.addEventListener('click', function(){ window._stopDecisionChoose('oprozniamy'); });
-            document.getElementById('stop-oprozniamy-end')?.addEventListener('click', function(){ window._stopDecisionChoose('oprozniamy_end_today'); });
-            document.getElementById('stop-oprozniamy-new')?.addEventListener('click', function(){ window._stopDecisionChoose('oprozniamy_new_point'); });
-            document.getElementById('stop-decision-cancel')?.addEventListener('click', function(){ window._pendingStopForm = null; window._closeStopDecisionModal(); });
-            document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') window._closeStopDecisionModal(); });
-        })();
-    </script>
 </div>
 
 <!-- OVERLAY DLA ZWOLNIENIA MIESZALNIKA AGRO -->
 <div id="zwolnienie-banner" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(39, 174, 96, 0.95); z-index: 999999; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: white; backdrop-filter: blur(10px);">
-    <span style="font-size: 120px; animation: rp-spin 2s linear infinite, popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;">✅</span>
+    <div class="agro-banner-pulse-sign" aria-hidden="true" style="width: 150px; height: 150px; min-width: 150px; font-size: 100px; background: #ffffff; color: #27ae60; border-color: #ffffff; animation: agroPulseSign 1.1s ease-in-out infinite;">!</div>
     <h1 style="font-size: 6vw; font-weight: 900; line-height: 1.2; text-shadow: 2px 2px 15px rgba(0,0,0,0.4); padding: 0 40px; margin-top: 20px;">
         LABORATORIUM ZWOLNIŁO MIESZALNIK<br>DO WYSYPU
     </h1>
-    <button onclick="document.getElementById('zwolnienie-banner').style.display='none';" style="margin-top: 60px; padding: 20px 50px; font-size: 30px; font-weight: 900; background: white; color: #27ae60; border: none; border-radius: 16px; cursor: pointer; box-shadow: 0 8px 30px rgba(0,0,0,0.3); transition: transform 0.2s;">
+    <button id="zwolnienie-banner-close" style="margin-top: 60px; padding: 20px 50px; font-size: 30px; font-weight: 900; background: white; color: #27ae60; border: none; border-radius: 16px; cursor: pointer; box-shadow: 0 8px 30px rgba(0,0,0,0.3); transition: transform 0.2s;">
         ZROZUMIAŁEM !
     </button>
 </div>
@@ -1123,7 +307,10 @@
 {% endif %}
 
 <!-- Dedykowany kontener na wpisy dla zmienianej daty -->
-<div id="wpisy-container" class="mb-20">
+<div id="wpisy-container" class="mb-20"
+    data-msg-error-loading="{{ _('blad_ladowania') }}"
+    data-msg-no-notes="{{ _('brak_notatek') }}"
+    data-msg-edit-wpis="{{ _('edytuj_wpis') }}">
     {% if wpisy %}
     {% for w in wpisy[:2] %}
     <div class="alert-warning d-flex justify-between align-center mb-5">
@@ -1220,11 +407,11 @@
                         </a>
                         {% if rola in ['produkcja', 'lider', 'admin'] %}
                         <button type="button" class="btn-icon text-primary" title="{{ _('edytuj') }}"
-                            onclick="editPalet('{{ id }}', '{{ waga }}')">
+                            data-action="edit-palet" data-palet-id="{{ id }}" data-palet-waga="{{ waga }}">
                             <span class="material-icons" style="font-size:18px;">edit</span>
                         </button>
                         <button type="button" class="btn-icon text-danger" title="{{ _('usun') }}"
-                            onclick="if(confirm('Usunąć paletę?')) deletePalet('{{ id }}', '{{ dzisiaj }}')">
+                            data-action="delete-palet" data-palet-id="{{ id }}" data-plan-date="{{ dzisiaj }}" data-confirm="Usunąć paletę?">
                             <span class="material-icons" style="font-size:18px;">delete</span>
                         </button>
                         {% endif %}
@@ -1256,7 +443,6 @@
                 {% if fb_kstats %}
                 <div class="agro-kgph-inline">
                     <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
-                        onclick="return window.forceOpenKgphExplain(this);"
                         data-kind="real" data-plan-id="{{ fb_pid }}"
                         data-value="{{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '' }}"
                         data-mass="{{ fb_kstats.real_mass_kg if fb_kstats.real_mass_kg is not none else '' }}"
@@ -1265,7 +451,6 @@
                         Wydajność rzeczywista: {{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '-' }} kg/h
                     </span>
                     <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
-                        onclick="return window.forceOpenKgphExplain(this);"
                         data-kind="timeline" data-plan-id="{{ fb_pid }}"
                         data-value="{{ (fb_kstats.timeline|round(1)) if fb_kstats.timeline else '' }}"
                         data-mass="{{ fb_kstats.timeline_mass_kg if fb_kstats.timeline_mass_kg is not none else '' }}"
@@ -1281,11 +466,12 @@
                 {% endif %}
                 <div class="agro-header-controls">
                     {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] %}
-                    <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=fb_pid) }}" style="margin:0; display:inline-block;">
+                    <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=fb_pid) }}" style="margin:0; display:inline-block;"
+                        data-confirm="Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel szarży, a obecne pozostaną poniżej.">
                         <input type="hidden" name="linia" value="{{ linia }}">
                         <input type="hidden" name="sekcja" value="{{ sekcja }}">
                         <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
-                        <button type="submit" class="btn-action btn-blue" onclick="return confirm('Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel szarży, a obecne pozostaną poniżej.');">
+                        <button type="submit" class="btn-action btn-blue">
                             + Kolejny etap
                         </button>
                     </form>
@@ -1365,11 +551,12 @@
                         {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] and (not ns.is_active or p[0] != ns.active_plan_id) %}
                         <div class="agro-header-controls">
                             {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] %}
-                            <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;">
+                            <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;"
+                                data-confirm="Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel szarży, a obecne pozostaną poniżej.">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                 <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
-                                <button type="submit" class="btn-action btn-blue" style="padding: 4px 8px; font-size: 0.78em;" onclick="return confirm('Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel szarży, a obecne pozostaną poniżej.');">
+                                <button type="submit" class="btn-action btn-blue" style="padding: 4px 8px; font-size: 0.78em;">
                                     + Kolejny etap
                                 </button>
                             </form>
@@ -1381,7 +568,6 @@
                         {% if kstats %}
                         <div class="agro-kgph-inline">
                             <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
-                                onclick="return window.forceOpenKgphExplain(this);"
                                 data-kind="real" data-plan-id="{{ p[0] }}"
                                 data-value="{{ (kstats.real_work|round(1)) if kstats.real_work else '' }}"
                                 data-mass="{{ kstats.real_mass_kg if kstats.real_mass_kg is not none else '' }}"
@@ -1390,7 +576,6 @@
                                 Wydajność rzeczywista: {{ (kstats.real_work|round(1)) if kstats.real_work else '-' }} kg/h
                             </span>
                             <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
-                                onclick="return window.forceOpenKgphExplain(this);"
                                 data-kind="timeline" data-plan-id="{{ p[0] }}"
                                 data-value="{{ (kstats.timeline|round(1)) if kstats.timeline else '' }}"
                                 data-mass="{{ kstats.timeline_mass_kg if kstats.timeline_mass_kg is not none else '' }}"
@@ -1413,7 +598,7 @@
                         {% elif p[3] == 'zakonczone' %}
                         {% if rola in ['lider', 'admin'] %}
                         <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]|int) }}" method="POST"
-                            onsubmit="return confirm('Wznowić {{ p[1] }}?');" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_planu" value="{{ dzisiaj }}"><button
+                            data-confirm="Wznowić {{ p[1] }}?" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_planu" value="{{ dzisiaj }}"><button
                                 type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button></form>
                         {% endif %}
                         {% endif %}
@@ -1447,8 +632,7 @@
                         data-slide>+ PALETA</a>
                     {% set palety_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and
                     palety_mapa[p[0]]) else 0 %}
-                    <button type="button" class="btn-action btn-outline-warning"
-                        onclick="toggleDetails('{{ p[0] }}')">Palety ({{ palety_count }})</button>
+                    <button type="button" class="btn-action btn-outline-warning" data-toggle-details="{{ p[0] }}">Palety ({{ palety_count }})</button>
                     {% elif sekcja == 'Zasyp' %}
                     {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
                     {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
@@ -1465,20 +649,17 @@
                     palety_mapa[p[0]]) else 0 %}
                     {% set active_agro_external = (sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active and p[0] == ns.active_plan_id) %}
                     {% if not active_agro_external %}
-                    <button type="button" class="btn-action btn-outline-warning"
-                        onclick="toggleDetails('{{ p[0] }}')">Szarże ({{ szarze_count }})</button>
+                    <button type="button" class="btn-action btn-outline-warning" data-toggle-details="{{ p[0] }}">Szarże ({{ szarze_count }})</button>
                     {% endif %}
                     {% else %}
                     {% endif %}
                     {% elif p[3] == 'zakonczone' %}
                     {% if sekcja == 'Zasyp' %}
                     {% set szarze_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]]) else 0 %}
-                    <button type="button" class="btn-action btn-outline-secondary"
-                        onclick="toggleDetails('{{ p[0] }}')">Szarże ({{ szarze_count }}) 👁</button>
+                    <button type="button" class="btn-action btn-outline-secondary" data-toggle-details="{{ p[0] }}">Szarże ({{ szarze_count }}) 👁</button>
                     {% elif sekcja == 'Workowanie' %}
                     {% set palety_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]]) else 0 %}
-                    <button type="button" class="btn-action btn-outline-secondary"
-                        onclick="toggleDetails('{{ p[0] }}')">Palety ({{ palety_count }}) 👁</button>
+                    <button type="button" class="btn-action btn-outline-secondary" data-toggle-details="{{ p[0] }}">Palety ({{ palety_count }}) 👁</button>
                     {% endif %}
                     {% endif %}
                     {% endif %}
@@ -1558,28 +739,6 @@
                         {% endif %}
                     </div>
                 </div>
-                                <!-- Tippy.css and script for minimal tooltip showing szarza notes (local) -->
-                                <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tippy.css') }}">
-                                <script src="{{ url_for('static', filename='vendor/popper.min.js') }}"></script>
-                                <script src="{{ url_for('static', filename='vendor/tippy.min.js') }}"></script>
-                                <script>
-                                    document.addEventListener('DOMContentLoaded', function(){
-                                        try{
-                                        startEtapyTimers();
-                                        applyNowMaxToTimeInputs(document);
-                                            if (typeof tippy !== 'undefined'){
-                                                tippy('.szarza-note', {
-                                                    content: (el)=>el.getAttribute('data-note') || 'Brak notatki',
-                                                    allowHTML: false,
-                                                    maxWidth: 260,
-                                                    placement: 'top',
-                                                    delay: [150, 50],
-                                                    theme: 'light-border'
-                                                });
-                                            }
-                                        }catch(e){console.debug('tippy init failed', e)}
-                                    });
-                                </script>
                 {% elif sekcja == 'Workowanie' %}
                 <div id="details-{{ p[0] }}" class="details-row" style="display:none;">
                     <div class="p-10">
@@ -1659,17 +818,6 @@
         </div>
         {% endif %}
 
-        {% if agro_focus_mode and ns.active_plan_id and not (sekcja == 'Zasyp' and linia == 'AGRO') %}
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                var details = document.getElementById('details-{{ ns.active_plan_id }}');
-                if (details) {
-                    details.style.display = 'block';
-                }
-            });
-        </script>
-        {% endif %}
-
         {# === PANEL ETAPÓW ZASYP — widoczny tylko dla Zasyp gdy jest aktywne zlecenie === #}
         {% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active %}
         {% for p in plan %}{% if p[3] == 'w toku' %}
@@ -1708,14 +856,14 @@
                     {% endif %}
                     <form method="POST"
                           action="{{ url_for('production.zasyp_usun_punkt_kontrolny', plan_id=p[0]) }}"
-                          style="margin: 0; display: inline-block;">
+                          style="margin: 0; display: inline-block;"
+                          data-confirm="Usunąć CAŁY punkt kontrolny szarży #{{ cur_szarza }}? Tej operacji nie da się cofnąć.">
                         <input type="hidden" name="linia" value="{{ linia }}">
                         <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
                         <input type="hidden" name="sekcja" value="{{ sekcja }}">
                         <button type="submit"
                                 class="btn-action"
-                                style="padding: 4px 10px; font-size: 0.85em; margin-left: 8px; background:#c0392b; color:#fff;"
-                                onclick="return confirm('Usunąć CAŁY punkt kontrolny szarży #{{ cur_szarza }}? Tej operacji nie da się cofnąć.');">
+                                style="padding: 4px 10px; font-size: 0.85em; margin-left: 8px; background:#c0392b; color:#fff;">
                             X
                         </button>
                     </form>
@@ -1818,7 +966,7 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
                     <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.8em; color:#2f3b4a; user-select:none;">
                         <span>AUTO SZARŻA</span>
-                        <input type="checkbox" class="auto-szarza-switch" onchange="toggleAutoSzarzaMode(this)">
+                        <input type="checkbox" class="auto-szarza-switch">
                     </label>
                 </div>
 
@@ -1870,6 +1018,14 @@
                         {% endfor %}
                     {% endif %}
 
+                    {% set session_final_etap = 5 if linia == 'AGRO' else 6 %}
+                    {% set session_state_ns = namespace(is_finished=false) %}
+                    {% for e in etapy %}
+                        {% if e.etap == session_final_etap and e.czas_stop %}
+                            {% set session_state_ns.is_finished = true %}
+                        {% endif %}
+                    {% endfor %}
+
                     {% for etap in etapy %}
                     {% set hide_agro_base_etap = linia == 'AGRO' and not agro_dosypka_ns.has_extra and etap.etap in [3, 4] and not etap.exists and not etap.czas_start and not etap.czas_stop %}
                     {% if hide_agro_base_etap %}
@@ -1883,9 +1039,10 @@
                         
                         <div style="position: absolute; top: 6px; right: 6px; margin: 0; z-index: 10; display: flex; gap: 4px;">
                             {% if rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier'] %}
+                                                        {% if not session_state_ns.is_finished %}
                             {# Przycisk RESET #}
-                            <form action="{{ url_for('production.zasyp_etap_reset') }}" method="POST" style="margin: 0;"
-                                  onsubmit="return confirm('Zresetować czas? (Będziesz mógł wprowadzić go ręcznie)');">
+                                <form action="{{ url_for('production.zasyp_etap_reset') }}" method="POST" style="margin: 0;"
+                                    data-confirm="Zresetować czas? (Będziesz mógł wprowadzić go ręcznie)">
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
                                                                 <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
@@ -1897,11 +1054,12 @@
                                     <span class="material-icons" style="font-size: 20px;">refresh</span>
                                 </button>
                             </form>
+                            {% endif %}
 
                             {% if can_manual_time_edit %}
                             <button type="button"
                                     class="btn-icon"
-                                    onclick="toggleManualEtapForm('{{ manual_box_id }}')"
+                                    data-toggle-manual-etap="{{ manual_box_id }}"
                                     title="Pokaż/ukryj ręczne wpisanie czasu"
                                     style="background:none; border:none; cursor:pointer; padding:4px; color:#4b5f75; display:flex; align-items:center; justify-content:center;">
                                 <span class="material-icons" style="font-size:18px;">schedule</span>
@@ -1909,9 +1067,9 @@
                             {% endif %}
                             
                             {# Przycisk USUŃ (X) - dla sub-etapów AGRO #}
-                            {% if linia == 'AGRO' and etap.etap > 10 %}
-                            <form action="{{ url_for('production.zasyp_etap_delete') }}" method="POST" style="margin: 0;"
-                                  onsubmit="return confirm('Czy na pewno chcesz USUNĄĆ ten kafelek ({{ etap.etap }})?');">
+                                                                                                                                                                                                                                {% if (not session_state_ns.is_finished) and linia == 'AGRO' and (etap.etap in [3, 4] or etap.etap > 10) %}
+                                <form action="{{ url_for('production.zasyp_etap_delete') }}" method="POST" style="margin: 0;"
+                                    data-confirm="Czy na pewno chcesz USUNĄĆ ten kafelek ({{ etap.etap }})?">
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
                                                                 <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
@@ -1982,9 +1140,10 @@
                                                         <form action="{{ url_for('production.zasyp_etap_start') }}"
                                                                     method="POST"
                                                                     style="margin:0;"
+                                                                    data-dashboard-submit="zasyp-start"
                                                                     data-etap="{{ etap.etap }}"
                                                                     data-szarza-default="{{ '%.1f'|format(param.wielkosc_szarzy_kg) if etap.etap == 1 and param.wielkosc_szarzy_kg else '' }}"
-                                                                    onsubmit="return handleZasypStartForm(this);">
+                                                                    >
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
                                 <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
@@ -2006,9 +1165,10 @@
                                 {% if rola not in ['laborant', 'laboratorium'] %}
                                                         <form action="{{ url_for('production.zasyp_etap_stop') }}"
                                                                     method="POST" style="margin:0;"
+                                                                    data-dashboard-submit="zasyp-stop"
                                                                     data-etap="{{ etap.etap }}"
                                                                     data-linia="{{ linia }}"
-                                                                    onsubmit="return handleEtapStopForm(this);">
+                                                                    >
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
                                                                 <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
@@ -2072,700 +1232,36 @@
     </div>
 
     {# HR, Nadgodziny i Raport Końcowy usunięte z tego widoku — przeniesione do dashboard_global.html #}
-
-    </script>
-
-    <script>
-        // === INIT LOGGING ===
-        console.log('%c===DASHBOARD LOADED===', 'color:blue;font-weight:bold');
-        console.log('Cards elements:', document.querySelectorAll('.card').length);
-        console.log('Card actions elements:', document.querySelectorAll('.card-actions').length);
-        const cards = document.querySelectorAll('.card-actions');
-        cards.forEach((ca, idx) => {
-            const links = ca.querySelectorAll('a');
-            const btns = ca.querySelectorAll('button');
-            console.log(`Card #${idx + 1}: ${links.length} links, ${btns.length} buttons`);
-        });
-        console.log('===END INIT LOG===');
-
-        // Modale wyłączone — funkcje zastępcze blokujące popupy
-        function openModal(id) {
-            try { if (window.__RP_DEBUG__) { console.debug('[modal-disabled] openModal called, id=', id); } } catch (e) { }
-            return;
-        }
-
-        function closeAllModals() {
-            try { if (window.__RP_DEBUG__) { console.debug('[modal-disabled] closeAllModals called'); } } catch (e) { }
-            // Backwards-compat shim: route legacy modal close calls to the quick-popup/center-modal
-            try { if (typeof closeQuickPopup === 'function') closeQuickPopup(); } catch (e) { }
-            try { if (typeof closeCenterModal === 'function') closeCenterModal(); } catch (e) { }
-            return;
-        }
-
-        // openPopup removed — use `showSlideOver(...)` directly where needed
-
-        // Zamknij wszystko na start
-        closeAllModals();
-
-        /* showModalDisabled removed — slide-over used as fallback instead */
-
-
-    </script>
-
-    <script>
-        // Modal movement logger: logs bounding rect before and after a small mousemove below the modal,
-        // prints to console and posts JSON to server endpoint `/debug/modal-move`.
-        // modal movement logger removed (modal mechanism disabled)
-    </script>
-
-    <script>
-        // Live elapsed timers for unconfirmed palety
-        function formatElapsed(secs) {
-            if (secs < 0) secs = 0;
-            const h = Math.floor(secs / 3600);
-            const m = Math.floor((secs % 3600) / 60);
-            const s = secs % 60;
-            if (h > 0) return h + "h " + String(m).padStart(2, '0') + "m";
-            if (m > 0) return m + "m " + String(s).padStart(2, '0') + "s";
-            return s + "s";
-        }
-        function updatePaletaTimers() {
-            document.querySelectorAll('.paleta-elapsed').forEach(function (el) {
-                const ds = el.getAttribute('data-start');
-                if (!ds) return;
-                // parse 'YYYY-MM-DD HH:MM:SS' by replacing space with 'T'
-                let t = ds.replace(' ', 'T');
-                // If no timezone, Date.parse treats as local in most browsers
-                const start = Date.parse(t);
-                if (isNaN(start)) return;
-                const now = Date.now();
-                const secs = Math.floor((now - start) / 1000);
-                if (el) el.textContent = '⏱️ ' + formatElapsed(secs);
-            });
-
-            // Live elapsed from order start for active order cards
-            document.querySelectorAll('.order-elapsed').forEach(function (el) {
-                const ds = el.getAttribute('data-start');
-                if (!ds) return;
-                const t = ds.replace(' ', 'T');
-                const start = Date.parse(t);
-                if (isNaN(start)) return;
-                const now = Date.now();
-                const secs = Math.floor((now - start) / 1000);
-                el.textContent = formatElapsed(secs);
-            });
-        }
-        function initUpdatePaletaTimers() {
-            updatePaletaTimers();
-            clearInterval(window._paletaTimersInterval);
-            window._paletaTimersInterval = setInterval(updatePaletaTimers, 1000);
-        }
-        document.addEventListener('DOMContentLoaded', initUpdatePaletaTimers);
-        window.addEventListener('app:partialReload', initUpdatePaletaTimers);
-    </script>
-
-    <script>
-        // [DEPRECATED] Old function for toggleing all details at once - no longer used
-        // function toggleAllDetails() {
-        //     const detailsRows = document.querySelectorAll('.details-row');
-        //     const header = document.getElementById('realizacjaHeader');
-        //     
-        //     if (!detailsRows.length) return;
-        //     
-        //     const isExpanded = detailsRows[0].classList.contains('show');
-        //     
-        //     detailsRows.forEach(row => {
-        //         if (isExpanded) {
-        //             row.classList.remove('show');
-        //         } else {
-        //             row.classList.add('show');
-        //         }
-        //     });
-        //     
-        //     if (header) {
-        //         header.classList.toggle('expanded');
-        //     }
-        // }
-
-        // Backward compatibility: original toggleDetails function
-        function toggleDetails(id) {
-            var row = document.getElementById('details-' + id);
-            var icon = document.getElementById('icon-' + id);
-
-            if (!row) return;
-
-            var isHidden = getComputedStyle(row).display === 'none' || row.style.display === 'none';
-            row.style.display = isHidden ? 'block' : 'none';
-
-            // Rotate icon for per-order Realizacja header
-            if (icon) {
-                icon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-            }
-        }
-    </script>
-
-    <script>
-        // Day shift buttons (global): navigate with ?sekcja=...&data=YYYY-MM-DD
-        document.addEventListener('DOMContentLoaded', function () {
-            // selector updated: controls are rendered in .day-tile
-            var container = document.querySelector('.day-tile');
-            if (!container) return;
-            function pad(n) { return n < 10 ? ('0' + n) : n; }
-            function isoFromDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-            var baseIso = document.getElementById('current-date-iso') ? document.getElementById('current-date-iso').value : null;
-            var baseDate = baseIso ? new Date(baseIso + 'T00:00:00') : new Date();
-            container.querySelectorAll('button[data-day-offset]').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    var offset = parseInt(btn.getAttribute('data-day-offset') || 0, 10);
-                    var target = new Date(baseDate.getTime());
-                    target.setDate(target.getDate() + offset);
-                    var iso = isoFromDate(target);
-                    // preserve sekcja in querystring (use data-sekcja from container)
-                    var params = new URLSearchParams(window.location.search);
-                    var sec = container.dataset.sekcja || params.get('sekcja');
-                    var lin = params.get('linia') || '{{ linia }}';
-                    if (sec) params.set('sekcja', sec);
-                    else params.delete('sekcja');
-                    params.set('linia', lin);
-                    params.set('data', iso);
-                    window.location.search = params.toString();
-                });
-            });
-        });
-    </script>
-
-    <script>
-        // Date overview logic: compute day/week/month ranges based on #current-date-iso
-        document.addEventListener('DOMContentLoaded', function () {
-            var isoInput = document.getElementById('current-date-iso');
-            if (!isoInput) return;
-            var baseIso = isoInput.value;
-            function parseIso(s) { return new Date((s || '') + 'T00:00:00'); }
-            function fmt(d) { try { return d.toLocaleDateString('pl-PL', { day: '2-digit', month: 'short', year: 'numeric' }); } catch (e) { return d.toISOString().slice(0, 10); } }
-
-            function startOfWeek(d) { // Monday as first day
-                var dt = new Date(d.getTime());
-                var dow = dt.getDay(); // 0 Sun .. 6 Sat
-                var delta = (dow + 6) % 7; // days since Monday
-                dt.setDate(dt.getDate() - delta);
-                dt.setHours(0, 0, 0, 0);
-                return dt;
-            }
-            function endOfWeek(d) { var s = startOfWeek(d); s.setDate(s.getDate() + 6); return s; }
-            function startOfMonth(d) { var s = new Date(d.getFullYear(), d.getMonth(), 1); return s; }
-            function endOfMonth(d) { var s = new Date(d.getFullYear(), d.getMonth() + 1, 0); return s; }
-
-            var currentEl = document.getElementById('overview-current');
-            var rangeEl = document.getElementById('overview-range');
-            var dayBtn = document.getElementById('view-day');
-            var weekBtn = document.getElementById('view-week');
-            var monthBtn = document.getElementById('view-month');
-
-            // Defensive: if the date-overview widget isn't rendered for this sekcja (e.g. Zasyp/Workowanie),
-            // don't attempt to update its DOM (prevents "Cannot set properties of null" errors).
-            if (!currentEl || !rangeEl) return;
-
-            var currentDate = baseIso ? parseIso(baseIso) : new Date();
-            if (currentEl) currentEl.textContent = fmt(currentDate);
-
-            function showDay() { if (rangeEl) rangeEl.textContent = fmt(currentDate); }
-            function showWeek() { var s = startOfWeek(currentDate); var e = endOfWeek(currentDate); if (rangeEl) rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
-            function showMonth() { var s = startOfMonth(currentDate); var e = endOfMonth(currentDate); if (rangeEl) rangeEl.textContent = fmt(s) + ' — ' + fmt(e); }
-
-            // default to day view
-            showDay();
-
-            dayBtn && dayBtn.addEventListener('click', function () { showDay(); });
-            weekBtn && weekBtn.addEventListener('click', function () { showWeek(); });
-            monthBtn && monthBtn.addEventListener('click', function () { showMonth(); });
-        });
-    </script>
-
-    {% if sekcja in ['Zasyp', 'Workowanie', 'Magazyn'] %}
-    <script>
-        // Zamienia zachowanie linków z `data-slide` na popup zamiast slide-over
-        // ładuje zawartość przez fetch i pokazuje w globalnym `showQuickPopup`.
-        document.addEventListener('DOMContentLoaded', function () {
-            if (typeof showQuickPopup !== 'function') return;
-
-            document.body.addEventListener('click', function (e) {
-                var a = e.target.closest && e.target.closest('a[data-slide]');
-                if (!a) return;
-                var href = a.getAttribute('href');
-                if (!href) return;
-
-                // only intercept relative links (same-origin)
-                if (href.indexOf('http') === 0 && new URL(href, location.href).origin !== location.origin) return;
-
-                e.preventDefault();
-                // Prevent other click handlers (including slide-over) from running
-                if (e.stopImmediatePropagation) try { e.stopImmediatePropagation(); } catch (e) { }
-                var title = a.getAttribute('title') || ((a.textContent && a.textContent.trim()) ? a.textContent.trim() : '') || 'Szybki popup';
-                fetch(href, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                    .then(function (res) { return res.text(); })
-                    .then(function (html) {
-                        try {
-                            showQuickPopup(title, html);
-                            // If this was the dosypki list fragment, initialize its logic explicitly
-                            if (href.indexOf('dosypki_list') !== -1 && typeof window.initDosypkiList === 'function') {
-                                var qpopup = document.querySelector('.quick-popup');
-                                if (qpopup) window.initDosypkiList(qpopup);
-                            }
-                        } catch (err) { console.error(err); alert('Błąd: nie udało się otworzyć popupu'); }
-                    }).catch(function (err) { console.error('fetch popup failed', err); alert('Błąd ładowania zawartości'); });
-            }, false);
-        });
-    </script>
-    {% endif %}
-
     <!-- Przypomnienia usunięte: funkcja remind_unconfirmed_palety zostaje, ale nie ma przycisku w UI. -->
 
     <!-- moved CSS to static/style.css -->
     <!-- Paleta modal removed: replaced by a separate page (dodaj_palete) -->
-    <script>
-        // AJAX approve/reject for dashboard wnioski_pending
-        document.addEventListener('DOMContentLoaded', function () {
-            // showToast() provided by static/js/toasts.js
-
-            var forms = document.querySelectorAll('.wn-form');
-            forms.forEach(function (f) {
-                f.addEventListener('submit', function (e) {
-                    e.preventDefault();
-                    var url = f.getAttribute('action');
-                    var row = f.closest('tr');
-                    var btn = f.querySelector('.wn-btn'); if (btn) btn.disabled = true;
-                    fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams() })
-                        .then(function (r) { try { return r.json(); } catch (e) { return {}; } })
-                        .then(function (j) {
-                            if (j && j.success) { if (row) row.remove(); showToast(j.message || 'Wniosek przetworzony', 'success'); }
-                            else { showToast((j && j.message) ? j.message : 'Błąd', 'danger'); if (btn) btn.disabled = false; }
-                        }).catch(function (err) { console.error(err); showToast('Błąd sieci', 'danger'); if (btn) btn.disabled = false; });
-                });
-            });
-        });
-    </script>
-
-    {% if sekcja == 'Magazyn' %}
-    <script>
-
-        function editPalet(id, waga) {
-            var newWaga = prompt('Nowa waga (kg):', waga);
-            if (newWaga && newWaga != waga) {
-                fetch('/api/edytuj_palete_ajax', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: id, waga: newWaga, data_planu: '{{ dzisiaj }}' })
-                })
-                    .then(function (r) { return r.json(); })
-                    .then(function (j) {
-                        if (j && j.success) {
-                            location.reload();
-                        } else {
-                            alert('Błąd: ' + (j && j.message || 'Nie udało się edytować'));
-                        }
-                    })
-                    .catch(function (e) { alert('Błąd: ' + e); });
-            }
-        }
-
-        function deletePalet(id, data) {
-            fetch('/api/usun_palete_ajax', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id, data_planu: data })
-            })
-                .then(function (r) { return r.json(); })
-                .then(function (j) {
-                    if (j && j.success) {
-                        location.reload();
-                    } else {
-                        alert('Błąd: ' + (j && j.message || 'Nie udało się usunąć'));
-                    }
-                })
-                .catch(function (e) { alert('Błąd: ' + e); });
-        }
-    </script>
-    {% endif %}
-
-    <script>
-        (function () {
-            if (window.forceOpenKgphExplain) return;
-
-            function ensureKgphModal() {
-                var existingModal = document.getElementById('kgphExplainModalDyn');
-                var existingBackdrop = document.getElementById('kgphExplainBackdropDyn');
-                if (existingModal && existingBackdrop) return { modal: existingModal, backdrop: existingBackdrop };
-
-                var backdrop = document.createElement('div');
-                backdrop.id = 'kgphExplainBackdropDyn';
-                backdrop.className = 'quick-backdrop show';
-                backdrop.style.display = 'none';
-
-                var modal = document.createElement('div');
-                modal.id = 'kgphExplainModalDyn';
-                modal.className = 'quick-popup';
-                modal.setAttribute('aria-hidden', 'true');
-                modal.style.display = 'none';
-                modal.style.maxWidth = '560px';
-                modal.innerHTML = '' +
-                    '<div class="qp-header d-flex justify-between align-center p-10">' +
-                    '<div class="header-title" id="kgphTitleDyn">Wydajność</div>' +
-                    '<div><button type="button" class="btn-action btn-small" id="kgphCloseDyn">✖</button></div>' +
-                    '</div>' +
-                    '<div class="qp-body p-10">' +
-                    '<div class="card-row"><strong>Plan:</strong> <span id="kgphPlanDyn">-</span></div>' +
-                    '<div class="card-row"><strong>Aktualny wynik:</strong> <span id="kgphValueDyn">-</span></div>' +
-                    '<div class="card-row"><strong>Licznik (co liczy):</strong> <span id="kgphMassDyn">-</span></div>' +
-                    '<div class="card-row" style="align-items:flex-start;"><strong>Mianownik (co dzieli):</strong> <span id="kgphTimeDyn">-</span></div>' +
-                    '<div class="card-row" style="align-items:flex-start;"><strong>Etapy użyte do obliczenia :</strong> <span id="kgphStagesDyn">-</span></div>' +
-                    '<div class="card-row"><strong>Wzór:</strong> <span id="kgphFormulaDyn">-</span></div>' +
-                    '<div class="small text-muted" id="kgphModeDyn" style="margin-top:8px;"></div>' +
-                    '</div>';
-
-                document.body.appendChild(backdrop);
-                document.body.appendChild(modal);
-
-                function closeModal() {
-                    modal.classList.remove('open');
-                    modal.setAttribute('aria-hidden', 'true');
-                    backdrop.classList.remove('show');
-                    setTimeout(function () {
-                        modal.style.display = 'none';
-                        backdrop.style.display = 'none';
-                    }, 140);
-                }
-
-                backdrop.addEventListener('click', closeModal);
-                document.getElementById('kgphCloseDyn').addEventListener('click', closeModal);
-                document.addEventListener('keydown', function (e) {
-                    if (e.key === 'Escape') closeModal();
-                });
-
-                modal._closeKgph = closeModal;
-                return { modal: modal, backdrop: backdrop };
-            }
-
-            function secToHuman(sec) {
-                var s = parseInt(sec || '0', 10);
-                if (!Number.isFinite(s) || s <= 0) return '0s';
-                var h = Math.floor(s / 3600);
-                var m = Math.floor((s % 3600) / 60);
-                var ss = s % 60;
-                var out = [];
-                if (h > 0) out.push(h + 'h');
-                if (m > 0 || h > 0) out.push(m + 'm');
-                out.push(ss + 's');
-                return out.join(' ');
-            }
-
-            function secToClock(sec) {
-                var s = parseInt(sec || '0', 10);
-                if (!Number.isFinite(s) || s < 0) s = 0;
-                var h = Math.floor(s / 3600);
-                var m = Math.floor((s % 3600) / 60);
-                var ss = s % 60;
-                if (h > 0) {
-                    return h + ':' + String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
-                }
-                return m + ':' + String(ss).padStart(2, '0');
-            }
-
-            function secToMsPadded(sec) {
-                var s = parseInt(sec || '0', 10);
-                if (!Number.isFinite(s) || s < 0) s = 0;
-                var m = Math.floor(s / 60);
-                var ss = s % 60;
-                if (m < 60) {
-                    return String(m).padStart(2, '0') + 'm ' + String(ss).padStart(2, '0') + 's';
-                }
-                var h = Math.floor(m / 60);
-                var rm = m % 60;
-                return h + 'h ' + String(rm).padStart(2, '0') + 'm ' + String(ss).padStart(2, '0') + 's';
-            }
-
-            window.forceOpenKgphExplain = function (el) {
-                try {
-                    var ui = ensureKgphModal();
-                    var modal = ui.modal;
-                    var backdrop = ui.backdrop;
-                    var d = (el && el.dataset) ? el.dataset : {};
-                    var kind = d.kind === 'timeline' ? 'timeline' : 'real';
-                    var sec = parseInt(d.seconds || '0', 10);
-                    if (!Number.isFinite(sec) || sec < 0) sec = 0;
-                    var batchMass = parseFloat(d.batchMass || '0');
-                    if (!Number.isFinite(batchMass) || batchMass < 0) batchMass = 0;
-                    var stageSources = [];
-                    if (d.stageSources) {
-                        try {
-                            stageSources = JSON.parse(d.stageSources);
-                        } catch (e) {
-                            stageSources = [];
-                        }
-                    }
-
-                    var stagesText = 'Nie dotyczy tej metryki.';
-                    if (kind === 'timeline') {
-                        if (Array.isArray(stageSources) && stageSources.length > 0) {
-                            var lines = stageSources.map(function (sObj) {
-                                var nr = sObj && sObj.szarza_nr ? String(sObj.szarza_nr) : '?';
-                                var totalSec = (sObj && sObj.total_duration_s) ? sObj.total_duration_s : 0;
-                                var total = secToMsPadded(totalSec);
-                                var waga = batchMass > 0 ? batchMass : 0;
-                                return 'Szarża ' + nr + ' - Waga ' + waga + ' kg - ' + total;
-                            });
-                            stagesText = lines.join(' | ');
-                        } else {
-                            stagesText = 'Brak szczegółów etapów dla tej chwili.';
-                        }
-                    }
-
-                    var title = (kind === 'timeline') ? 'Wydajność produkcyjna - rozbicie wzoru' : 'Wydajność rzeczywista - rozbicie wzoru';
-                    var plan = '#' + (d.planId || '-');
-                    var value = d.value ? (d.value + ' kg/h') : '-';
-                    var mass = d.mass ? (d.mass + ' kg') : '-';
-                    var time = 'Suma czasowa etapów : ' + sec + ' s (' + secToHuman(sec) + ', ' + (sec / 3600.0).toFixed(4) + ' h)';
-                    var formula = (d.mass && sec > 0)
-                        ? (d.mass + ' / (' + sec + ' / 3600) = ' + (d.value || '-'))
-                        : 'Brak kompletu danych do wyliczenia.';
-                    var mode = '';
-                    if (kind === 'timeline') {
-                        mode = (d.mode === 'closed_sessions')
-                            ? ('Tryb: suma zakończonych punktów kontrolnych. Liczba punktów: ' + (d.closedSessions || '0') + '.')
-                            : 'Tryb: bieżąca sesja punktu kontrolnego.';
-                    } else {
-                        mode = 'Tryb: wykonanie zlecenia / czas rzeczywisty od startu planu.';
-                    }
-
-                    var t = document.getElementById('kgphTitleDyn'); if (t) t.textContent = title;
-                    var p = document.getElementById('kgphPlanDyn'); if (p) p.textContent = plan;
-                    var v = document.getElementById('kgphValueDyn'); if (v) v.textContent = value;
-                    var m = document.getElementById('kgphMassDyn'); if (m) m.textContent = mass;
-                    var tt = document.getElementById('kgphTimeDyn'); if (tt) tt.textContent = time;
-                    var st = document.getElementById('kgphStagesDyn'); if (st) st.textContent = stagesText;
-                    var f = document.getElementById('kgphFormulaDyn'); if (f) f.textContent = formula;
-                    var mi = document.getElementById('kgphModeDyn'); if (mi) mi.textContent = mode;
-
-                    backdrop.style.display = 'block';
-                    backdrop.classList.add('show');
-                    modal.style.display = 'block';
-                    setTimeout(function () {
-                        modal.classList.add('open');
-                        modal.setAttribute('aria-hidden', 'false');
-                    }, 10);
-                } catch (err) {
-                    console.error('forceOpenKgphExplain error', err);
-                }
-                return false;
-            };
-
-            window.openKgphExplainFromPill = window.forceOpenKgphExplain;
-        })();
-    </script>
-
-    {% endblock %}
 
     {% if sekcja == 'Magazyn' %}
     <!-- Blok powiadomień o niezatwierdzonych paletach usunięty (modale wyłączone) -->
     {% endif %}
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Disable submit button after first click for dodawanie palet (prevent double-add)
-            document.querySelectorAll('form[action*="/api/dodaj_palete"]').forEach(function (f) {
-                f.addEventListener('submit', function (e) {
-                    var btn = f.querySelector('button[type="submit"]');
-                    if (btn) { btn.disabled = true; btn.classList.add('btn-disabled'); }
-                });
-            });
-            // Toast helper
-            var toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.style.position = 'fixed';
-            toastContainer.style.right = '20px';
-            toastContainer.style.top = '20px';
-            toastContainer.style.zIndex = 9999;
-            document.body.appendChild(toastContainer);
-            function showToast(msg, type) {
-                var t = document.createElement('div');
-                t.className = 'toast ' + (type || '');
-                t.style.background = (type == 'success') ? '#2ecc71' : (type == 'error' ? '#e74c3c' : '#333');
-                t.style.color = '#fff';
-                t.style.padding = '10px 14px';
-                t.style.marginTop = '8px';
-                t.style.borderRadius = '4px';
-                t.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
-                if (t) t.textContent = msg;
-                toastContainer.appendChild(t);
-                setTimeout(function () { t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 300); }, 3500);
-            }
+    {% if sekcja == 'Zasyp' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tippy.css') }}">
+    <script src="{{ url_for('static', filename='vendor/popper.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/tippy.min.js') }}"></script>
+    {% endif %}
 
-            // Intercept potwierdz_palete forms and send via fetch with retry/backoff; remove tile on success
-            // Use event delegation to handle forms added dynamically
-            document.addEventListener('submit', function (e) {
-                var form = e.target;
-                if (!form.classList.contains('confirm-paleta-form')) return;
+    <script src="{{ url_for('static', filename='js/dashboard/scheduler.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/toasts.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/config.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/card-actions.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/agro-banners.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/polling.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/ui.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/kgph.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/etapy.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/page-helpers.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/bootstrap.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
 
-                console.log('[DEBUG] confirm-paleta-form submit intercepted (event delegation)');
-                e.preventDefault();
-                var btn = form.querySelector('button[type="submit"]');
-                if (btn) { btn.disabled = true; }
-                var attempts = 0;
-                var maxAttempts = 3;
-                function doFetch() {
-                    attempts++;
-                    fetch(form.action, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                        .then(function (res) {
-                            if (res.ok) {
-                                console.log('[DEBUG] potwierdz_palete success');
-                                showToast('Potwierdzono paletę', 'success');
-                                var li = form.closest('li');
-                                if (li) {
-                                    console.log('[DEBUG] removing <li> element');
-                                    li.remove();
-                                }
-                                // Soft reload using current URL - will keep user on same sekcja/page
-                                // Using location.href with same URL causes page reload but preserves query params
-                                setTimeout(function () {
-                                    console.log('[DEBUG] soft reload with location.href');
-                                    location.href = location.href;
-                                }, 300);
-                            } else {
-                                if (attempts < maxAttempts) {
-                                    var delay = 300 * Math.pow(2, attempts - 1);
-                                    setTimeout(doFetch, delay);
-                                } else {
-                                    showToast('Błąd potwierdzenia (server)', 'error');
-                                    if (btn) { btn.disabled = false; }
-                                }
-                            }
-                        })
-                        .catch(function (err) {
-                            if (attempts < maxAttempts) {
-                                var delay = 300 * Math.pow(2, attempts - 1);
-                                setTimeout(doFetch, delay);
-                            } else {
-                                showToast('Błąd sieci podczas potwierdzania', 'error');
-                                if (btn) { btn.disabled = false; }
-                            }
-                        });
-                }
-                doFetch();
-            }, false);
-        });
-    </script>
-
-    <script>
-        // Jeśli URL zawiera open_stop, otwórz modal stop dla podanego plan_id
-        // Usuń parametr `open_stop` z URL natychmiast — zapobiega niechcianemu auto-otwieraniu modalów
-        (function () {
-            try {
-                const params = new URLSearchParams(window.location.search);
-                if (params.has('open_stop')) {
-                    console.log('[debug] Removing open_stop from URL to prevent auto modal open. skip_open_stop=', sessionStorage.getItem('skip_open_stop'));
-                    params.delete('open_stop');
-                    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-                    window.history.replaceState({}, document.title, newUrl);
-                    // Nie otwieramy modalu automatycznie w tej wersji.
-                }
-            } catch (e) { console.error(e) }
-        })();
-    </script>
-
-    <script>
-        // Toast notification function
-        function showToast(message, type = 'error') {
-            // Remove old toasts
-            const oldToasts = document.querySelectorAll('.toast-notification');
-            oldToasts.forEach(t => t.remove());
-
-            // Create toast element
-            const toast = document.createElement('div');
-            toast.className = `toast-notification toast-${type}`;
-            if (toast) toast.textContent = message;
-            toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        inset-inline-end: 20px;
-        background-color: ${type === 'error' ? '#d32f2f' : '#4caf50'};
-        color: white;
-        padding: 16px 24px;
-        border-radius: 4px;
-        font-size: 14px;
-        z-index: 10000;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        animation: slideIn 0.3s ease-out;
-    `;
-
-            document.body.appendChild(toast);
-
-            // Auto-remove after 5 seconds
-            setTimeout(() => {
-                toast.style.animation = 'slideOut 0.3s ease-out';
-                setTimeout(() => toast.remove(), 300);
-            }, 5000);
-        }
-
-        // Add CSS animation for toast
-        const style = document.createElement('style');
-        style.textContent = `
-    @keyframes slideIn {
-        from { transform: translateX(400px); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-    @keyframes slideOut {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(400px); opacity: 0; }
-    }
-`;
-        document.head.appendChild(style);
-
-        // AJAX submit for dodaj_palete forms to avoid click interception by overlays
-        document.addEventListener('DOMContentLoaded', function () {
-            document.querySelectorAll('form[action*="/dodaj_palete"]').forEach(form => {
-                form.addEventListener('submit', async function (e) {
-                    e.preventDefault();
-                    // disable pointer events on stop-* overlays to avoid interception
-                    const stopEls = Array.from(document.querySelectorAll('[id^="stop-"]'));
-                    stopEls.forEach(el => { el.dataset._savedPe = el.style.pointerEvents || ''; el.style.pointerEvents = 'none'; });
-                    // safety timeout to restore if request hangs
-                    let restoreCalled = false;
-                    const restore = () => {
-                        if (restoreCalled) return; restoreCalled = true;
-                        stopEls.forEach(el => { if (el.dataset._savedPe !== undefined) { el.style.pointerEvents = el.dataset._savedPe; delete el.dataset._savedPe; } else { el.style.pointerEvents = ''; } });
-                    };
-                    const timeoutId = setTimeout(restore, 3000);
-                    try {
-                        sessionStorage.setItem('skip_open_stop', '1');
-                        const action = form.getAttribute('action');
-                        const fd = new FormData(form);
-                        const resp = await fetch(action, { method: 'POST', body: fd, credentials: 'same-origin' });
-                        clearTimeout(timeoutId);
-                        restore();
-
-                        // Check for error responses (4xx, 5xx)
-                        if (!resp.ok) {
-                            const errorText = await resp.text();
-                            showToast(errorText || `Błąd ${resp.status}: Nie udało się dodać przedmiotu`, 'error');
-                            return;
-                        }
-
-                        if (resp.redirected) { window.location.href = resp.url; return; }
-                        // Reload with current URL parameters preserved (sekcja, data, etc)
-                        window.location.href = window.location.href;
-                    } catch (err) {
-                        clearTimeout(timeoutId);
-                        restore();
-                        console.error('AJAX dodaj_palete failed, falling back to normal submit', err);
-                        showToast('Błąd sieci: ' + err.message, 'error');
-                        form.submit();
-                    }
-                });
-            });
-        });
-    </script>
     <!-- Quick-popup: center modal for AJAX-loaded content -->
-    <div id="quickBackdrop" class="quick-backdrop" data-action="close-popup"></div>
-    <div id="quickPopup" class="quick-popup" aria-hidden="true">
+    <div id="quickBackdrop" class="quick-backdrop" data-action="close-popup" style="display:none;"></div>
+    <div id="quickPopup" class="quick-popup" aria-hidden="true" style="display:none;">
         <div class="qp-header d-flex justify-between align-center p-10">
             <div class="header-title">{{ _('panel') }}</div>
             <div><button type="button" class="btn-action btn-small" data-action="close-popup">✖</button></div>
@@ -2789,405 +1285,4 @@
         </div>
     </div>
 
-    <script>
-        window.forceOpenKgphExplain = function (el) {
-            try {
-                if (window.openKgphExplainFromPill) {
-                    window.openKgphExplainFromPill(el);
-                    return false;
-                }
-
-                var d = (el && el.dataset) ? el.dataset : {};
-                var kind = d.kind === 'timeline' ? 'timeline' : 'real';
-                var planId = d.planId || '-';
-                var val = d.value ? (d.value + ' kg/h') : '-';
-                var mass = d.mass ? (d.mass + ' kg') : '-';
-                var sec = parseInt(d.seconds || '0', 10);
-                if (!Number.isFinite(sec) || sec < 0) sec = 0;
-                var h = Math.floor(sec / 3600);
-                var m = Math.floor((sec % 3600) / 60);
-                var s = sec % 60;
-                var human = (h > 0 ? (h + 'h ') : '') + m + 'm ' + s + 's';
-                var formula = (d.mass && sec > 0)
-                    ? (d.mass + ' / (' + sec + ' / 3600) = ' + (d.value || '-'))
-                    : 'Brak kompletu danych do wyliczenia.';
-
-                var titleEl = document.getElementById('kgphExplainTitle');
-                var planEl = document.getElementById('kgphExplainPlan');
-                var valueEl = document.getElementById('kgphExplainValue');
-                var massEl = document.getElementById('kgphExplainMass');
-                var timeEl = document.getElementById('kgphExplainTime');
-                var formulaEl = document.getElementById('kgphExplainFormula');
-                var modeEl = document.getElementById('kgphExplainModeInfo');
-                if (titleEl) titleEl.textContent = (kind === 'timeline') ? 'Wydajność produkcyjna - rozbicie wzoru' : 'Wydajność rzeczywista - rozbicie wzoru';
-                if (planEl) planEl.textContent = '#' + planId;
-                if (valueEl) valueEl.textContent = val;
-                if (massEl) massEl.textContent = mass;
-                if (timeEl) timeEl.textContent = sec + ' s (' + human + ', ' + (sec / 3600.0).toFixed(4) + ' h)';
-                if (formulaEl) formulaEl.textContent = formula;
-                if (modeEl) {
-                    if (kind === 'timeline') {
-                        modeEl.textContent = (d.mode === 'closed_sessions')
-                            ? ('Tryb: suma zakończonych punktów kontrolnych. Liczba punktów: ' + (d.closedSessions || '0') + '.')
-                            : 'Tryb: bieżąca sesja punktu kontrolnego.';
-                    } else {
-                        modeEl.textContent = 'Tryb: wykonanie zlecenia / czas rzeczywisty od startu planu.';
-                    }
-                }
-
-                var backdrop = document.getElementById('kgphExplainBackdrop');
-                var modal = document.getElementById('kgphExplainModal');
-                if (backdrop) { backdrop.style.display = 'block'; backdrop.classList.add('show'); }
-                if (modal) { modal.style.display = 'block'; modal.classList.add('open'); modal.setAttribute('aria-hidden', 'false'); }
-            } catch (e) {
-                console.error('kgph modal open failed', e);
-            }
-            return false;
-        };
-
-        (function () {
-            function formatDurationFromSeconds(totalSeconds) {
-                var sec = parseInt(totalSeconds, 10);
-                if (!Number.isFinite(sec) || sec <= 0) return '0s';
-                var h = Math.floor(sec / 3600);
-                var m = Math.floor((sec % 3600) / 60);
-                var s = sec % 60;
-                var out = [];
-                if (h > 0) out.push(h + 'h');
-                if (m > 0 || h > 0) out.push(m + 'm');
-                out.push(s + 's');
-                return out.join(' ');
-            }
-
-            function openKgphExplain(el) {
-                if (!el) return;
-                var d = el.dataset || {};
-                var kind = d.kind === 'timeline' ? 'timeline' : 'real';
-                var planId = d.planId || '-';
-                var val = d.value ? (d.value + ' kg/h') : '-';
-                var mass = d.mass ? (d.mass + ' kg') : '-';
-                var seconds = parseInt(d.seconds || '0', 10);
-                if (!Number.isFinite(seconds)) seconds = 0;
-                var timeHuman = formatDurationFromSeconds(seconds);
-                var timeHours = seconds > 0 ? (seconds / 3600.0).toFixed(4) : '0.0000';
-
-                var title = kind === 'timeline' ? 'Wydajność produkcyjna - rozbicie wzoru' : 'Wydajność rzeczywista - rozbicie wzoru';
-                var modeInfo = '';
-                if (kind === 'timeline') {
-                    if (d.mode === 'closed_sessions') {
-                        modeInfo = 'Tryb: suma zakończonych punktów kontrolnych. Liczba punktów: ' + (d.closedSessions || '0') + '.';
-                    } else {
-                        modeInfo = 'Tryb: bieżąca sesja punktu kontrolnego.';
-                    }
-                } else {
-                    modeInfo = 'Tryb: wykonanie zlecenia / czas rzeczywisty od startu planu.';
-                }
-
-                var formula = d.mass && seconds > 0
-                    ? (d.mass + ' / (' + seconds + ' / 3600) = ' + (d.value || '-'))
-                    : 'Brak kompletu danych do wyliczenia.';
-
-                var titleEl = document.getElementById('kgphExplainTitle');
-                var planEl = document.getElementById('kgphExplainPlan');
-                var valueEl = document.getElementById('kgphExplainValue');
-                var massEl = document.getElementById('kgphExplainMass');
-                var timeEl = document.getElementById('kgphExplainTime');
-                var formulaEl = document.getElementById('kgphExplainFormula');
-                var modeEl = document.getElementById('kgphExplainModeInfo');
-                if (titleEl) titleEl.textContent = title;
-                if (planEl) planEl.textContent = '#' + planId;
-                if (valueEl) valueEl.textContent = val;
-                if (massEl) massEl.textContent = mass;
-                if (timeEl) timeEl.textContent = seconds + ' s (' + timeHuman + ', ' + timeHours + ' h)';
-                if (formulaEl) formulaEl.textContent = formula;
-                if (modeEl) modeEl.textContent = modeInfo;
-
-                var backdrop = document.getElementById('kgphExplainBackdrop');
-                var modal = document.getElementById('kgphExplainModal');
-                if (backdrop) { backdrop.style.display = 'block'; backdrop.classList.add('show'); }
-                if (modal) { modal.style.display = 'block'; modal.classList.add('open'); modal.setAttribute('aria-hidden', 'false'); }
-            }
-
-            function closeKgphExplain() {
-                var backdrop = document.getElementById('kgphExplainBackdrop');
-                var modal = document.getElementById('kgphExplainModal');
-                if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden', 'true'); }
-                if (backdrop) { backdrop.classList.remove('show'); }
-                setTimeout(function () {
-                    if (modal) modal.style.display = 'none';
-                    if (backdrop) backdrop.style.display = 'none';
-                }, 160);
-            }
-
-            document.addEventListener('click', function (e) {
-                var pill = e.target.closest('.js-kgph-explain');
-                if (pill) {
-                    e.preventDefault();
-                    openKgphExplain(pill);
-                    return;
-                }
-                if (e.target && e.target.id === 'kgphExplainBackdrop') {
-                    closeKgphExplain();
-                }
-            });
-
-            document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape') {
-                    closeKgphExplain();
-                    return;
-                }
-                var active = document.activeElement;
-                if ((e.key === 'Enter' || e.key === ' ') && active && active.classList && active.classList.contains('js-kgph-explain')) {
-                    e.preventDefault();
-                    openKgphExplain(active);
-                }
-            });
-
-            var closeBtn = document.getElementById('kgphExplainCloseBtn');
-            if (closeBtn) {
-                closeBtn.addEventListener('click', closeKgphExplain);
-            }
-
-            // Expose helpers globally so inline onclick always works even if delegated listeners are blocked.
-            window.openKgphExplainFromPill = openKgphExplain;
-            window.closeKgphExplainModal = closeKgphExplain;
-        })();
-
-        function openQuickPopup(html) {
-            var qp = document.getElementById('quickPopup');
-            var bd = document.getElementById('quickBackdrop');
-            if (!qp || !bd) return;
-            var body = document.getElementById('quickPopupBody');
-            if (body) body.innerHTML = html || '';
-            bd.classList.add('show');
-            qp.style.display = 'block';
-            setTimeout(function () { qp.classList.add('open'); qp.setAttribute('aria-hidden', 'false'); }, 10);
-        }
-        function closeQuickPopup() {
-            var qp = document.getElementById('quickPopup');
-            var bd = document.getElementById('quickBackdrop');
-            if (!qp) return;
-            qp.classList.remove('open');
-            qp.setAttribute('aria-hidden', 'true');
-            if (bd) bd.classList.remove('show');
-            setTimeout(function () { qp.style.display = 'none'; var body = document.getElementById('quickPopupBody'); if (body) body.innerHTML = ''; }, 360);
-        }
-
-        // Event delegation for close-popup action
-        document.addEventListener('click', function (e) {
-            if (e.target.hasAttribute('data-action') && e.target.getAttribute('data-action') === 'close-popup') {
-                closeQuickPopup();
-            }
-        }, false);
-
-        // ===== NOTATKI NA DASHBOARD - ZMIANA DATY =====
-        (function () {
-            // Translation messages
-            var msgs = {
-                errorLoading: '{{ _("blad_ladowania") }}',
-                noNotes: '{{ _("brak_notatek") }}',
-                editWpis: '{{ _("edytuj_wpis") }}'
-            };
-
-            const dateDisplay = document.getElementById('current-date-display');
-            const dateISO = document.getElementById('current-date-iso');
-            const dayNavButtons = document.querySelectorAll('.day-nav');
-            const wpisyContainer = document.getElementById('wpisy-container');
-
-            if (!dateDisplay || !dateISO || !wpisyContainer) return;
-
-            function updateWpisyForDate(dateStr) {
-                const sekcja = document.querySelector('[data-sekcja]')?.getAttribute('data-sekcja') || 'Zasyp';
-
-                fetch(`/api/wpisy_na_date?data=${dateStr}&sekcja=${encodeURIComponent(sekcja)}`)
-                    .then(r => r.json())
-                    .then(data => {
-                        if (!data.success) {
-                            console.error('Error loading wpisy:', data.message);
-                            wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">' + msgs.errorLoading + '</div>';
-                            return;
-                        }
-
-                        // Clear existing wpisy
-                        wpisyContainer.innerHTML = '';
-
-                        // Add new wpisy (limit to 2)
-                        if (data.wpisy && data.wpisy.length > 0) {
-                            data.wpisy.slice(0, 2).forEach(w => {
-                                const statusMap = {
-                                    'zgłoszony': '🔔 Zgłoszony',
-                                    'czeka_na_czesci': '⚙️ Czeka na części',
-                                    'zakończony': '✅ Zakończony',
-                                    'zamknięty': '🔒 Zamknięty'
-                                };
-                                const statusText = w[9] ? ('| Status: <strong>' + (statusMap[w[9]] || w[9]) + '</strong>') : '';
-                                const dataText = w[10] ? (' | Zakończono: <strong>' + w[10] + '</strong>') : '';
-
-                                const html = `
-                            <div class="alert-warning d-flex justify-between align-center mb-5">
-                                <div>
-                                    <span>⚠️ <strong>${w[3]}</strong> [${w[5]}]: ${w[2]}</span>
-                                    <div class="small text-muted">
-                                        od ${w[3]}${w[4] ? ' — do ' + w[4] : ''}
-                                        ${statusText}
-                                        ${dataText}
-                                    </div>
-                                </div>
-                                <div class="d-flex gap-8 align-center">
-                                     <a href="/edytuj/${w[0]}" title="${msgs.editWpis}" class="font-bold text-warning-dark no-underline">✎</a>
-                                     <form action="/usun_wpis/${w[0]}" method="POST" class="m-0">
-                                        <input type="hidden" name="sekcja" value="${sekcja}">
-                                        <button type="submit" class="btn-icon text-warning-dark" aria-label="Usuń wpis">✖</button>
-                                    </form>
-                                </div>
-                            </div>
-                        `;
-                                wpisyContainer.insertAdjacentHTML('beforeend', html);
-                            });
-                        } else {
-                            wpisyContainer.insertAdjacentHTML('beforeend', '<div class="text-muted text-center p-10">' + msgs.noNotes + '</div>');
-                        }
-                    })
-                    .catch(err => {
-                        console.error('Failed to update wpisy:', err);
-                        wpisyContainer.innerHTML = '<div class="text-muted text-center p-10">' + msgs.errorLoading + '</div>';
-                    });
-            }
-
-            dayNavButtons.forEach(btn => {
-                btn.addEventListener('click', function () {
-                    const offset = parseInt(this.getAttribute('data-day-offset'), 10);
-                    const currentDate = new Date(dateISO.value);
-                    currentDate.setDate(currentDate.getDate() + offset);
-
-                    const newDateStr = currentDate.toISOString().split('T')[0];
-                    const newDateDisplay = currentDate.toLocaleDateString('pl-PL');
-
-                    if (dateISO) dateISO.value = newDateStr;
-                    if (dateDisplay) dateDisplay.textContent = newDateDisplay;
-
-                    updateWpisyForDate(newDateStr);
-                });
-            });
-        })();
-
-        // Event listener dla DELETE buttons - rejestruj NATYCHMIAST
-        console.log('⚡ [1] Rejestrowanie DELETE button listeners...');
-        var deleteButtonCount = document.querySelectorAll('.delete-plan-btn').length;
-        console.log('⚡ [2] Znaleziono buttonów:', deleteButtonCount);
-
-        // Event delegation - Listen on document for clicks na delete buttons
-        document.addEventListener('click', function (e) {
-            console.log('⚡ [3] CLICK EVENT FIRED - target:', e.target, 'classList:', e.target.className);
-            var closestBtn = e.target.closest('.delete-plan-btn');
-            console.log('⚡ [4] closest(.delete-plan-btn) result:', closestBtn);
-
-            if (closestBtn) {
-                e.preventDefault();
-                const btn = closestBtn;
-                const id = btn.getAttribute('data-plan-id');
-                const date = btn.getAttribute('data-plan-date');
-                console.log('🗑️ [5] DELETE BUTTON CLICKED - ID:', id, 'DATE:', date);
-                deletePlan(id, date);
-            }
-        });
-
-        console.log('✅ [6] DELETE button listeners registered! Total buttons:', deleteButtonCount);
-
-        // Delete plan function - dostępna w global scope
-        function deletePlan(id, data) {
-            console.log('🗑️ [7] deletePlan() CALLED - id:', id, 'data:', data);
-
-            if (!confirm('Na pewno usunąć zlecenie?')) {
-                console.log('❌ [8] User cancelled delete');
-                return;
-            }
-
-            console.log('✅ [9] User confirmed, preparing fetch...');
-            const url = '/api/usun_plan_ajax/' + id;
-            console.log('📡 [10] Fetch URL:', url);
-            console.log('📦 [11] Fetch body:', JSON.stringify({ data_planu: data }));
-
-            fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data_planu: data })
-            })
-                .then(function (r) {
-                    console.log('📡 [12] Response status:', r.status, 'statusText:', r.statusText);
-                    console.log('📡 [13] Response headers OK - Content-Type:', r.headers.get('content-type'));
-                    return r.text().then(function (text) {
-                        console.log('📡 [14] Raw response text:', text);
-                        try {
-                            return JSON.parse(text);
-                        } catch (e) {
-                            console.log('❌ [15] JSON parse error:', e, 'text was:', text);
-                            return { success: false, message: 'Błąd parsowania JSON: ' + e.message };
-                        }
-                    });
-                })
-                .then(function (j) {
-                    console.log('✅ [16] Parsed response data:', j);
-                    if (j && j.success) {
-                        console.log('✅ [17] Delete SUCCESS!');
-                        alert(j.message || 'Zlecenie usunięte');
-                        location.reload();
-                    } else {
-                        console.log('❌ [18] API error:', j && j.message);
-                        alert((j && j.message) || 'Błąd usunięcia');
-                    }
-                })
-                .catch(function (err) {
-                    console.log('❌ [19] Fetch error:', err, 'stack:', err.stack);
-                    alert('Błąd sieci: ' + err.message);
-                });
-        }
-
-        // Event listener dla tonaz edit buttons na dashboard
-        document.addEventListener('click', function (e) {
-            var closestBtn = e.target.closest('[data-action="dashboard-tonaz-edit"]');
-            if (closestBtn) {
-                e.preventDefault();
-                const planId = closestBtn.getAttribute('data-plan-id');
-                if (planId) dashboardTonazEdit(planId);
-            }
-        });
-
-        function dashboardTonazEdit(id) {
-            // Pobierz wiersz planu
-            var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
-            if (!tr) return;
-
-            // Pobierz wartość tonażu z trzeciej kolumny (index 2)
-            var tonaz = tr.children[2].innerText.replace(/[^0-9\.\,]/g, '') || 0;
-
-            // Użyj prompt() do pobrania nowej wartości
-            var newTonaz = prompt('Wpisz nowy tonaż (kg):', tonaz);
-            if (newTonaz === null) return; // User clicked cancel
-
-            try {
-                newTonaz = parseFloat(newTonaz.replace(',', '.'));
-                if (isNaN(newTonaz) || newTonaz < 0) {
-                    alert('Nieprawidłowa wartość');
-                    return;
-                }
-            } catch (e) {
-                alert('Błąd: ' + e.message);
-                return;
-            }
-
-            // Wyślij aktualizację
-            fetch('/api/edytuj_plan_ajax', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id, tonaz: newTonaz })
-            }).then(r => r.json()).then(j => {
-                if (j && j.success) {
-                    alert('Tonaż zaktualizowany');
-                    location.reload();
-                } else {
-                    alert((j && j.message) || 'Błąd');
-                }
-            }).catch(() => alert('Błąd sieci'));
-        }
-    </script>
+    {% endblock %}
