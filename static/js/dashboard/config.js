@@ -4,9 +4,10 @@
     var state = {
         currentRole: '',
         linia: 'PSD',
-        isAgroZasypOperator: false,
-        isAgroDosypkiObserver: false,
-        isAgroLaborant: false,
+        sekcja: '',
+        isZasypOperator: false,
+        isDosypkiObserver: false,
+        isLaborant: false,
     };
 
     function getConfigNode() {
@@ -27,10 +28,11 @@
         var roleLower = role.toLowerCase();
 
         state.currentRole = role;
-        state.isAgroZasypOperator = !['laborant', 'laboratorium', 'magazyn', 'magazynier', 'planista'].includes(roleLower);
-        state.isAgroDosypkiObserver = ['admin', 'zarzad', 'laborant', 'laboratorium'].includes(roleLower);
-        state.isAgroLaborant = ['laborant', 'laboratorium'].includes(roleLower);
+        state.isZasypOperator = !['laborant', 'laboratorium', 'magazyn', 'magazynier', 'planista'].includes(roleLower);
+        state.isDosypkiObserver = ['admin', 'zarzad', 'laborant', 'laboratorium'].includes(roleLower);
+        state.isLaborant = ['laborant', 'laboratorium'].includes(roleLower);
         state.linia = node.getAttribute('data-linia') || 'PSD';
+        state.sekcja = node.getAttribute('data-sekcja') || '';
     }
 
     init();

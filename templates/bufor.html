@@ -525,7 +525,7 @@
                 </tr>
                 <tr>
                     <td>📦 <strong>Przenieś</strong></td>
-                    <td>Przenosi szarżę na inną datę z użyciem kalendarza.</td>
+                    <td>Przenosi zasyp na inną datę z użyciem kalendarza.</td>
                     <td>Zawsze dostępny</td>
                 </tr>
                 <tr>
@@ -688,7 +688,7 @@
 
         var title = modal.querySelector('.move-title-buffer');
         if (title) {
-            title.innerText = '📦 Przenieś szarżę: ' + produkt;
+            title.innerText = '📦 Przenieś zasyp: ' + produkt;
         }
     }
 
@@ -727,7 +727,7 @@
             .then(j => {
                 if (j && j.success) {
                     closeMoveModalBuffer();
-                    try { showQuickPopup('Sukces', `<div class="p-10">✅ ${ (j.message||'Szarża przeniesiona na nową datę') }</div>`); } catch(e){ alert('✅ ' + (j.message || 'Szarża przeniesiona na nową datę')); }
+                    try { showQuickPopup('Sukces', `<div class="p-10">✅ ${ (j.message||'Zasyp przeniesiony na nową datę') }</div>`); } catch(e){ alert('✅ ' + (j.message || 'Zasyp przeniesiony na nową datę')); }
                     location.reload();
                 } else {
                     try { showQuickPopup('Błąd', `<div class="p-10 text-error">❌ ${ (j && j.message) ? j.message : 'Błąd przeniesienia' }</div>`); } catch(e){ alert('❌ ' + (j && j.message ? j.message : 'Błąd przeniesienia')); }
@@ -944,9 +944,9 @@
 <!-- Overlay dla Modal Bufora -->
 <div id="moveModalBufferOverlay" class="move-modal-buffer-overlay"></div>
 
-<!-- Modal do przeniesienia szarż na inną datę -->
+<!-- Modal do przeniesienia zasypów na inną datę -->
 <div id="moveModalBuffer" class="move-modal-buffer">
-    <h3 class="move-title-buffer">📦 Przenieś szarżę</h3>
+    <h3 class="move-title-buffer">📦 Przenieś zasyp</h3>
 
     <div class="move-modal-field">
         <label>⏱️ Szybki wybór:</label>

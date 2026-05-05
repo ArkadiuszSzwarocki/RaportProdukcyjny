@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from flask import current_app, flash, redirect, render_template, request, session
+from flask import current_app, flash, redirect, render_template, request, session, url_for
 
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
@@ -14,6 +14,19 @@ def register_production_zasyp_etapy_routes(
     coerce_date,
     parse_float,
 ):
+    def _read_zasyp_nr_from_form():
+        raw = request.form.get('zasyp_nr') or request.form.get('szarza_nr')
+        if raw is None:
+            return None
+        text = str(raw).strip()
+        return text or None
+
+    def _read_zasyp_nr_from_args():
+        raw = request.args.get('zasyp_nr') or request.args.get('szarza_nr')
+        if raw is None:
+            return ''
+        return str(raw).strip()
+
     @production_bp.route('/zasyp_etap_manual_set', methods=['POST'])
     @login_required
     @roles_required('lider', 'admin', 'zarzad')
@@ -24,7 +37,7 @@ def register_production_zasyp_etapy_routes(
 
         plan_id_raw = request.form.get('plan_id')
         etap_raw = request.form.get('etap')
-        szarza_nr_raw = request.form.get('szarza_nr')
+        szarza_nr_raw = _read_zasyp_nr_from_form()
         czas_start_hhmm = (request.form.get('czas_start_hhmm') or '').strip()
         czas_stop_hhmm = (request.form.get('czas_stop_hhmm') or '').strip()
 
@@ -92,7 +105,7 @@ def register_production_zasyp_etapy_routes(
         linia = str(linia_input).upper()
         plan_id_raw = request.form.get('plan_id')
         etap_raw = request.form.get('etap')
-        szarza_nr_raw = request.form.get('szarza_nr')
+        szarza_nr_raw = _read_zasyp_nr_from_form()
 
         try:
             plan_id = int(plan_id_raw)
@@ -116,6 +129,22 @@ def register_production_zasyp_etapy_routes(
         flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
         if ok:
             audit_log('RESET etapu Zasyp', f'plan_id={plan_id}, etap={etap}, linia={linia}, produkt={produkt}')
+            sekcja = request.form.get('sekcja') or 'Zasyp'
+            data_value = request.form.get('data_planu') or request.args.get('data') or str(date.today())
+            restart_szarza_val = str(szarza_nr_raw or '').strip()
+            from flask import current_app
+            current_app.logger.info(f'[ZASYP-RESET] redirect: plan_id={plan_id}, etap={etap}, restart_szarza={restart_szarza_val}')
+            return redirect(
+                url_for(
+                    'main.index',
+                    sekcja=sekcja,
+                    linia=linia,
+                    data=data_value,
+                    restart_plan=plan_id,
+                    restart_etap=etap,
+                    restart_szarza=restart_szarza_val,
+                )
+            )
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_etap_delete', methods=['POST'])
@@ -127,7 +156,7 @@ def register_production_zasyp_etapy_routes(
         linia = str(linia_input).upper()
         plan_id_raw = request.form.get('plan_id')
         etap_raw = request.form.get('etap')
-        szarza_nr_raw = request.form.get('szarza_nr')
+        szarza_nr_raw = _read_zasyp_nr_from_form()
 
         try:
             plan_id = int(plan_id_raw)
@@ -195,7 +224,7 @@ def register_production_zasyp_etapy_routes(
             data_planu_date = coerce_date(data_planu)
         except Exception as e:
             current_app.logger.error('zasyp_etapy_set_szarza failed: %s', e, exc_info=True)
-            flash('❌ Błąd zapisu wielkości szarży', 'danger')
+            flash('❌ Błąd zapisu wielkości zasypu', 'danger')
             return redirect(bezpieczny_powrot())
         finally:
             try:
@@ -212,7 +241,7 @@ def register_production_zasyp_etapy_routes(
         )
         flash(('✅ ' if ok else '❌ ') + msg, 'success' if ok else 'danger')
         if ok:
-            audit_log('Ustawił wielkość szarży', f'plan_id={plan_id}, kg={kg}, linia={linia}, produkt={produkt}')
+            audit_log('Ustawił wielkość zasypu', f'plan_id={plan_id}, kg={kg}, linia={linia}, produkt={produkt}')
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_etapy_podsumowanie', methods=['GET'])
@@ -259,7 +288,7 @@ def register_production_zasyp_etapy_routes(
     def zasyp_dodaj_pare_dosypki(plan_id):
         """Dodaje do bieżącej szarży AGRO parę etapów: dosypka + mieszanie po dosypce."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
-        szarza_nr_raw = request.form.get('szarza_nr')
+        szarza_nr_raw = _read_zasyp_nr_from_form()
         user_login = session.get('login') or 'unknown'
 
         conn = get_db_connection()
@@ -309,7 +338,7 @@ def register_production_zasyp_etapy_routes(
     def zasyp_usun_ostatnia_pare_dosypki(plan_id):
         """Usuwa ostatnio dodaną parę AGRO (39/49..31/41, a na końcu 3/4) dla bieżącej szarży."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
-        szarza_nr_raw = request.form.get('szarza_nr')
+        szarza_nr_raw = _read_zasyp_nr_from_form()
 
         conn = get_db_connection()
         try:
@@ -350,12 +379,30 @@ def register_production_zasyp_etapy_routes(
             audit_log('USUNIĘCIE ostatniej pary dosypki Zasyp', f'plan_id={plan_id}, linia={linia}, szarza_nr={szarza_nr_raw}, produkt={produkt}')
         return redirect(bezpieczny_powrot())
 
+    @production_bp.route('/zasyp_usun_punkt_kontrolny_page/<int:plan_id>', methods=['GET'])
+    @login_required
+    @roles_required('pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'magazynier')
+    def zasyp_usun_punkt_kontrolny_page(plan_id):
+        """Render 2-step confirmation before removing a control point (szarza session)."""
+        linia = request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
+        sekcja = request.args.get('sekcja') or 'Zasyp'
+        szarza_nr = _read_zasyp_nr_from_args()
+        data_planu = request.args.get('data') or request.args.get('data_planu') or ''
+        return render_template(
+            'confirm_delete_punkt_kontrolny.html',
+            plan_id=plan_id,
+            szarza_nr=szarza_nr,
+            linia=linia,
+            sekcja=sekcja,
+            data_planu=data_planu,
+        )
+
     @production_bp.route('/zasyp_usun_punkt_kontrolny/<int:plan_id>', methods=['POST'])
     @roles_required('pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'magazynier')
     def zasyp_usun_punkt_kontrolny(plan_id):
         """Usuwa cały punkt kontrolny (całą sesję szarży) dla wskazanego planu."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
-        szarza_nr_raw = request.form.get('szarza_nr')
+        szarza_nr_raw = _read_zasyp_nr_from_form()
 
         conn = get_db_connection()
         try:

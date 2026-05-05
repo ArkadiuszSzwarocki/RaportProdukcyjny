@@ -83,6 +83,8 @@ def login():
                     except Exception:
                         pass
                 session['imie_nazwisko'] = imie_nazwisko or login_field
+                forwarded_for = request.headers.get('X-Forwarded-For', '')
+                client_ip = (forwarded_for.split(',')[0].strip() if forwarded_for else request.remote_addr)
                 touch_active_session(
                     session_id=session.get('session_tracking_id'),
                     user_id=session.get('user_id'),
@@ -91,6 +93,7 @@ def login():
                     pracownik_id=session.get('pracownik_id'),
                     display_name=session.get('imie_nazwisko'),
                     last_path=request.path,
+                    ip_address=client_ip,
                 )
                 # record last activity timestamp for server-side inactivity logout
                 try:

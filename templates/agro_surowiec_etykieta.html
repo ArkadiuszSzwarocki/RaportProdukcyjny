@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Etykieta Surowca — {{ nazwa }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        @page { size: 100mm 150mm; margin: 0; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            width: 100mm; height: 150mm;
+            font-family: 'Roboto', Arial, sans-serif;
+            background: #fff; color: #000;
+        }
+        .label {
+            width: 100%; height: 100%;
+            padding: 6mm 7mm;
+            display: flex; flex-direction: column;
+            justify-content: space-between;
+            border: 2.5px solid #000;
+        }
+
+        /* ── HEADER ── */
+        .hdr {
+            display: flex; justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 3mm; margin-bottom: 3mm;
+        }
+        .hdr-left h1 {
+            font-size: 13px; font-weight: 900; margin: 0;
+            text-transform: uppercase; letter-spacing: .5px;
+        }
+        .hdr-left span { font-size: 9px; color: #555; }
+        .hdr-right {
+            text-align: right; font-size: 9px; color: #555;
+        }
+        .badge-agro {
+            background: #166534; color: #fff;
+            font-size: 9px; font-weight: 700;
+            padding: 2px 7px; border-radius: 3px;
+            letter-spacing: .3px;
+        }
+
+        /* ── MAIN FIELDS ── */
+        .field { margin-bottom: 3mm; }
+        .field .lbl {
+            font-size: 9px; color: #666;
+            text-transform: uppercase; letter-spacing: .8px;
+            margin-bottom: 1px;
+        }
+        .field .val {
+            font-size: 18px; font-weight: 700; line-height: 1.15;
+        }
+        .field .val.xl { font-size: 30px; }
+        .field .val.xxl { font-size: 42px; font-weight: 900; }
+
+        /* ── LOC BOX ── */
+        .loc-box {
+            display: flex; align-items: center;
+            border: 2px solid #000; border-radius: 4px;
+            padding: 2mm 4mm; margin-bottom: 3mm;
+            gap: 4mm;
+        }
+        .loc-box .loc-lbl {
+            font-size: 10px; text-transform: uppercase;
+            color: #444; letter-spacing: .5px; white-space: nowrap;
+        }
+        .loc-box .loc-val {
+            font-size: 28px; font-weight: 900;
+            letter-spacing: 2px; font-family: 'Courier New', monospace;
+        }
+
+        /* ── QR area ── */
+        .qr-row { display: flex; align-items: center; gap: 4mm; }
+        .qr-box {
+            border: 1.5px solid #999; padding: 2mm; border-radius: 3px;
+            min-width: 26mm; text-align: center;
+        }
+        .qr-code-text {
+            font-size: 8px; color: #555;
+            font-family: monospace; word-break: break-all;
+        }
+
+        /* ── FOOTER ── */
+        .ftr {
+            border-top: 1.5px solid #aaa;
+            padding-top: 2mm;
+            display: flex; justify-content: space-between;
+            align-items: center;
+            font-size: 8px; color: #777;
+        }
+
+        /* ── EXPIRY BLOCK ── */
+        .expiry-block {
+            border: 1.5px dashed #888;
+            border-radius: 3px; padding: 2mm 4mm;
+            text-align: center; margin-bottom: 2mm;
+        }
+        .expiry-block .exp-lbl { font-size: 9px; color: #555; text-transform: uppercase; }
+        .expiry-block .exp-val { font-size: 22px; font-weight: 700; }
+
+        @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            #printBtn { display: none !important; }
+            #terminInput { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="label">
+    <!-- HEADER -->
+    <div class="hdr">
+        <div class="hdr-left">
+            <h1>Surowiec — Magazyn AGRO</h1>
+            <span>Paleta ID: <strong>SUR-{{ id }}</strong></span>
+        </div>
+        <div class="hdr-right">
+            <span class="badge-agro">MS01</span>
+        </div>
+    </div>
+
+    <!-- NAME -->
+    <div class="field">
+        <div class="lbl">Nazwa surowca</div>
+        <div class="val xl">{{ nazwa }}</div>
+    </div>
+
+    <!-- LOCATION -->
+    <div class="loc-box">
+        <div class="loc-lbl">Regał&nbsp;/&nbsp;Miejsce</div>
+        <div class="loc-val">{{ lokalizacja or '—' }}</div>
+    </div>
+
+    <!-- WEIGHT -->
+    <div class="field">
+        <div class="lbl">Stan na palecie</div>
+        <div class="val xxl">{{ ilosc|round(1) }} <span style="font-size:18px; font-weight:400;">kg</span></div>
+    </div>
+
+    <!-- EXPIRY -->
+    <div class="expiry-block">
+        <div class="exp-lbl">Termin przydatności</div>
+        {% if termin %}
+            <div class="exp-val">{{ termin }}</div>
+        {% else %}
+            <div class="exp-val" id="expiryDisplay">—</div>
+            <input id="terminInput" type="date" style="font-size:13px; padding:4px; margin-top:3px;"
+                   onchange="setExpiry(this.value)">
+        {% endif %}
+    </div>
+
+    <!-- FOOTER -->
+    <div class="ftr">
+        <span>Wydrukowano: {{ data }}</span>
+        <div style="display:flex; align-items:center; gap:6px;">
+            <span>Raport Produkcji — Agro</span>
+            <button id="printBtn" onclick="doPrint()" 
+                    style="padding:4px 10px; font-size:11px; cursor:pointer;">🖨 Drukuj</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function setExpiry(v) {
+    var p = v.split('-');
+    document.getElementById('expiryDisplay').textContent = p[2]+'.'+p[1]+'.'+p[0];
+}
+
+function doPrint() {
+    var input = document.getElementById('terminInput');
+    if (input && input.value) setExpiry(input.value);
+    window.print();
+}
+
+// Auto-print if ?autoprint=1
+if (new URLSearchParams(window.location.search).get('autoprint') === '1') {
+    window.addEventListener('load', function() { setTimeout(window.print, 400); });
+}
+</script>
+</body>
+</html>

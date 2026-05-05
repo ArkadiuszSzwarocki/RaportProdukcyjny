@@ -28,7 +28,7 @@ def build_dosypka_added_tts_text(
     if produkt_text and should_speak_product_for_szarza(szarza_nr):
         parts.append(f'Nazwa zlecenia: {produkt_text}.')
     if szarza_nr is not None:
-        parts.append(f'Szarża numer: {szarza_nr}.')
+        parts.append(f'Zasyp numer: {szarza_nr}.')
     return ' '.join(parts)
 
 

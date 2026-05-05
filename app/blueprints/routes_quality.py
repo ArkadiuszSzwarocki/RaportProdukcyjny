@@ -124,34 +124,48 @@ def jakosc_detail(plan_id):
         return redirect('/jakosc')
 
 
-@quality_bp.route('/jakosc/podsumowanie_szarz')
+@quality_bp.route('/jakosc/podsumowanie_szarz', endpoint='jakosc_podsumowanie_szarz')
+@quality_bp.route('/jakosc/podsumowanie_zasypow', endpoint='jakosc_podsumowanie_zasypow')
 @roles_required('laborant', 'lider', 'admin')
-def jakosc_podsumowanie_szarz():
-    """Podsumowanie szarż dla laboratorium: lista szarż z dosypkami i uwagami."""
+def jakosc_podsumowanie_zasypow():
+    """Podsumowanie zasypów dla laboratorium: lista zasypów (legacy: szarż) z dosypkami i uwagami."""
     linia = request.args.get('linia') or 'PSD'
     try:
         conn = get_db_connection()
         from app.db import get_table_name
         table_plan = get_table_name('plan_produkcji', linia)
-        table_szarze = get_table_name('szarze', linia)
+        table_zasypy = get_table_name('szarze', linia)
         table_dosypki = get_table_name('dosypki', linia)
         cursor = conn.cursor()
-        # Pobierz wszystkie zarejestrowane szarże wraz z informacją o zleceniu/planie
+        # Pobierz wszystkie zarejestrowane zasypy wraz z informacją o zleceniu/planie.
         cursor.execute(f"""
-            SELECT s.id AS szarza_id, s.plan_id, p.produkt AS plan_nazwa, s.data_dodania, 
+            SELECT s.id AS zasyp_id, s.plan_id, p.produkt AS plan_nazwa, s.data_dodania,
                    s.godzina, s.waga, s.pracownik_id, COALESCE(pr.imie_nazwisko, '') AS pracownik_name,
                    COALESCE(s.uwagi, '') AS uwagi
-            FROM {table_szarze} s
+            FROM {table_zasypy} s
             LEFT JOIN {table_plan} p ON s.plan_id = p.id
             LEFT JOIN pracownicy pr ON s.pracownik_id = pr.id
             ORDER BY s.data_dodania DESC
         """)
-        szarze = [dict(szarza_id=r[0], plan_id=r[1], plan_nazwa=r[2], data_dodania=r[3], godzina=r[4], waga=r[5], pracownik_id=r[6], pracownik_name=r[7], uwagi=r[8]) for r in cursor.fetchall()]
+        zasypy = [
+            dict(
+                szarza_id=r[0],
+                zasyp_id=r[0],
+                plan_id=r[1],
+                plan_nazwa=r[2],
+                data_dodania=r[3],
+                godzina=r[4],
+                waga=r[5],
+                pracownik_id=r[6],
+                pracownik_name=r[7],
+                uwagi=r[8],
+            )
+            for r in cursor.fetchall()
+        ]
 
-        # Dla każdej szarży dołącz dosypki
-        for s in szarze:
-            sid = s['szarza_id']
-            # dosypki
+        # Dla każdego zasypu dołącz dosypki.
+        for s in zasypy:
+            sid = s['zasyp_id']
             cursor.execute(f"SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana FROM {table_dosypki} WHERE szarza_id = %s ORDER BY data_zlecenia ASC", (sid,))
             s['dosypki'] = [dict(id=r[0], nazwa=r[1], kg=r[2], data_zlecenia=r[3], potwierdzone=r[4], anulowana=r[5]) for r in cursor.fetchall()]
 
@@ -185,38 +199,40 @@ def jakosc_podsumowanie_szarz():
             return True
 
         try:
-            filtered = [s for s in szarze if match_filters(s)]
+            filtered = [s for s in zasypy if match_filters(s)]
         except Exception:
-            filtered = szarze
+            filtered = zasypy
 
         cursor.close()
         conn.close()
-        return render_template('jakosc_podsumowanie_szarz.html', szarze=filtered, rola=session.get('rola'), linia=linia)
+        return render_template('jakosc_podsumowanie_szarz.html', szarze=filtered, zasypy=filtered, rola=session.get('rola'), linia=linia)
     except Exception as e:
-        current_app.logger.exception('Failed to render jakosc podsumowanie szarz: %s', e)
+        current_app.logger.exception('Failed to render jakosc podsumowanie zasypow: %s', e)
         return redirect(url_for('quality.jakosc_index'))
 
 
-@quality_bp.route('/jakosc/podsumowanie_szarz/fragment')
+@quality_bp.route('/jakosc/podsumowanie_szarz/fragment', endpoint='jakosc_podsumowanie_szarz_fragment')
+@quality_bp.route('/jakosc/podsumowanie_zasypow/fragment', endpoint='jakosc_podsumowanie_zasypow_fragment')
 @roles_required('laborant', 'lider', 'admin')
-def jakosc_podsumowanie_szarz_fragment():
-    """Return HTML fragment for szarze list (used by AJAX refresh).
-    Optional query param: today=1 to limit to today's szarze (by data_dodania date).
+def jakosc_podsumowanie_zasypow_fragment():
+    """Return HTML fragment for zasyp list (used by AJAX refresh).
+    Optional query param: today=1 to limit to today's zasypy (by data_dodania date).
     """
     try:
         linia = request.args.get('linia') or 'PSD'
+        today_only = request.args.get('today') == '1'
         conn = get_db_connection()
         from app.db import get_table_name
         table_plan = get_table_name('plan_produkcji', linia)
-        table_szarze = get_table_name('szarze', linia)
+        table_zasypy = get_table_name('szarze', linia)
         table_dosypki = get_table_name('dosypki', linia)
         cursor = conn.cursor()
 
         q = f"""
-            SELECT s.id AS szarza_id, s.plan_id, p.produkt AS plan_nazwa, s.data_dodania, 
+            SELECT s.id AS zasyp_id, s.plan_id, p.produkt AS plan_nazwa, s.data_dodania,
                    s.godzina, s.waga, s.pracownik_id, COALESCE(pr.imie_nazwisko, '') AS pracownik_name,
                    COALESCE(s.uwagi, '') AS uwagi
-            FROM {table_szarze} s
+            FROM {table_zasypy} s
             LEFT JOIN {table_plan} p ON s.plan_id = p.id
             LEFT JOIN pracownicy pr ON s.pracownik_id = pr.id
         """
@@ -227,11 +243,25 @@ def jakosc_podsumowanie_szarz_fragment():
         q += " ORDER BY s.data_dodania DESC"
 
         cursor.execute(q, tuple(params))
-        szarze = [dict(szarza_id=r[0], plan_id=r[1], plan_nazwa=r[2], data_dodania=r[3], godzina=r[4], waga=r[5], pracownik_id=r[6], pracownik_name=r[7], uwagi=r[8]) for r in cursor.fetchall()]
+        zasypy = [
+            dict(
+                szarza_id=r[0],
+                zasyp_id=r[0],
+                plan_id=r[1],
+                plan_nazwa=r[2],
+                data_dodania=r[3],
+                godzina=r[4],
+                waga=r[5],
+                pracownik_id=r[6],
+                pracownik_name=r[7],
+                uwagi=r[8],
+            )
+            for r in cursor.fetchall()
+        ]
 
         # attach dosypki for each
-        for s in szarze:
-            sid = s['szarza_id']
+        for s in zasypy:
+            sid = s['zasyp_id']
             cursor.execute(f"SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana FROM {table_dosypki} WHERE szarza_id = %s ORDER BY data_zlecenia ASC", (sid,))
             s['dosypki'] = [dict(id=r[0], nazwa=r[1], kg=r[2], data_zlecenia=r[3], potwierdzone=r[4], anulowana=r[5]) for r in cursor.fetchall()]
 
@@ -264,15 +294,15 @@ def jakosc_podsumowanie_szarz_fragment():
             return True
 
         try:
-            filtered = [s for s in szarze if match_filters(s)]
+            filtered = [s for s in zasypy if match_filters(s)]
         except Exception:
-            filtered = szarze
+            filtered = zasypy
 
         cursor.close()
         conn.close()
-        return render_template('jakosc_podsumowanie_szarz_fragment.html', szarze=filtered)
+        return render_template('jakosc_podsumowanie_szarz_fragment.html', szarze=filtered, zasypy=filtered)
     except Exception as e:
-        current_app.logger.exception('Failed to build fragment jakosc podsumowanie szarz: %s', e)
+        current_app.logger.exception('Failed to build fragment jakosc podsumowanie zasypow: %s', e)
         return ("", 500)
 
 

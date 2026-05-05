@@ -3,10 +3,10 @@ from datetime import date, datetime, timedelta
 from collections import defaultdict
 import json
 import os
-import calendar
 
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required, zarzad_required, dynamic_role_required
+from app.blueprints.routes_panels_hours_data import build_employee_summary, build_hours_calendar
 from app.services.attendance_service import AttendanceService
 from app.services.overtime_service import OvertimeService
 
@@ -345,75 +345,10 @@ def moje_godziny():
     except Exception:
         pracownicy_list = None
 
-    # Prepare summaries and lists for owner and (optionally) viewed employee
-    def fetch_summary(prac_id):
-        s = {'obecnosci': 0, 'typy': {}, 'wyjscia_hours': 0.0}
-        try:
-            cursor.execute("SELECT COUNT(1) FROM obsada_zmiany WHERE pracownik_id=%s AND data_wpisu BETWEEN %s AND %s", (prac_id, d_od, d_do))
-            s['obecnosci'] = int(cursor.fetchone()[0] or 0)
-        except Exception:
-            s['obecnosci'] = 0
-        try:
-            cursor.execute("SELECT COALESCE(typ, ''), COALESCE(SUM(ilosc_godzin),0) FROM obecnosc WHERE pracownik_id=%s AND data_wpisu BETWEEN %s AND %s GROUP BY typ", (prac_id, d_od, d_do))
-            s['typy'] = {r[0]: float(r[1] or 0) for r in cursor.fetchall()}
-        except Exception:
-            s['typy'] = {}
-        try:
-            cursor.execute("SELECT COALESCE(SUM(TIME_TO_SEC(wyjscie_do)-TIME_TO_SEC(wyjscie_od))/3600,0) FROM obecnosc WHERE pracownik_id=%s AND typ='Wyjscie prywatne' AND data_wpisu BETWEEN %s AND %s", (prac_id, d_od, d_do))
-            s['wyjscia_hours'] = float(cursor.fetchone()[0] or 0)
-        except Exception:
-            s['wyjscia_hours'] = 0.0
-        # Load leave counters from pracownicy if present
-        try:
-            cursor.execute("SELECT COALESCE(urlop_biezacy,0), COALESCE(urlop_zalegly,0), COALESCE(imie_nazwisko,'') FROM pracownicy WHERE id=%s", (prac_id,))
-            r = cursor.fetchone()
-            s['urlop_biezacy'] = int(r[0] or 0) if r else 0
-            s['urlop_zalegly'] = int(r[1] or 0) if r else 0
-            s['imie_nazwisko'] = r[2] if r else ''
-        except Exception:
-            s['urlop_biezacy'] = 0
-            s['urlop_zalegly'] = 0
-            s['imie_nazwisko'] = ''
-        # Total working hours (sum from obecnosc)
-        try:
-            cursor.execute("SELECT COALESCE(SUM(ilosc_godzin),0) FROM obecnosc WHERE pracownik_id=%s AND data_wpisu BETWEEN %s AND %s", (prac_id, d_od, d_do))
-            s['total_work_hours'] = float(cursor.fetchone()[0] or 0)
-        except Exception:
-            s['total_work_hours'] = 0.0
-        # Approved overtime hours
-        try:
-            cursor.execute("SELECT COALESCE(SUM(ilosc_nadgodzin),0) FROM nadgodziny WHERE pracownik_id=%s AND data BETWEEN %s AND %s AND status='approved'", (prac_id, d_od, d_do))
-            s['nadgodziny_hours'] = float(cursor.fetchone()[0] or 0)
-        except Exception:
-            s['nadgodziny_hours'] = 0.0
-        # Absence (nieobecność / L4) distinct days
-        try:
-            cursor.execute(
-                "SELECT COUNT(DISTINCT data_wpisu) FROM obecnosc "
-                "WHERE pracownik_id=%s AND data_wpisu BETWEEN %s AND %s "
-                "AND (typ LIKE %s OR typ LIKE %s OR typ LIKE %s)",
-                (prac_id, d_od, d_do, '%Nieobec%', '%L4%', '%Opieka%')
-            )
-            s['nieobecnosc_days'] = int(cursor.fetchone()[0] or 0)
-        except Exception:
-            s['nieobecnosc_days'] = 0
-        # Approved urlop days used in the current period
-        try:
-            cursor.execute(
-                "SELECT COALESCE(SUM(DATEDIFF(LEAST(data_do,%s), GREATEST(data_od,%s)) + 1), 0) "
-                "FROM wnioski_wolne WHERE pracownik_id=%s AND status='approved' "
-                "AND typ LIKE %s AND data_do >= %s AND data_od <= %s",
-                (d_do, d_od, prac_id, '%Urlop%', d_od, d_do)
-            )
-            s['urlop_days_used'] = int(cursor.fetchone()[0] or 0)
-        except Exception:
-            s['urlop_days_used'] = 0
-        return s
-
-    owner_summary = fetch_summary(owner_pid) if owner_pid else {'obecnosci': 0, 'typy': {}, 'wyjscia_hours': 0.0}
+    owner_summary = build_employee_summary(cursor, owner_pid, d_od, d_do) if owner_pid else {'obecnosci': 0, 'typy': {}, 'wyjscia_hours': 0.0}
     viewed_summary = None
     if viewed_pid and viewed_pid != owner_pid:
-        viewed_summary = fetch_summary(viewed_pid)
+        viewed_summary = build_employee_summary(cursor, viewed_pid, d_od, d_do)
 
     # Pobierz wnioski — dla lidera/admina przeglądającego innego pracownika: pokaż jego wnioski
     wnioski_pid = viewed_pid if (viewed_pid and viewed_pid != owner_pid) else owner_pid
@@ -472,85 +407,10 @@ def moje_godziny():
     try:
         year = d_od.year
         month = d_od.month
-        _, days_in_month = calendar.monthrange(year, month)
-        
-        def build_calendar(prac_id):
-            cal = []
-            for day in range(1, days_in_month + 1):
-                day_date = date(year, month, day)
-                # suma godzin dla dnia — wyjście prywatne odejmowane (to czas poza stanowiskiem)
-                cursor.execute(
-                    "SELECT COALESCE(SUM(CASE WHEN typ='Wyjscie prywatne' THEN -ilosc_godzin ELSE ilosc_godzin END),0) "
-                    "FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s",
-                    (prac_id, day_date)
-                )
-                s = float(cursor.fetchone()[0] or 0)
-                # czy są wpisy HR na ten dzień (typy HR/nieobecnosci)
-                cursor.execute("SELECT COUNT(1) FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s AND (typ LIKE '%%Nieobecno%%' OR typ LIKE '%%Urlop%%' OR typ LIKE '%%L4%%' OR typ LIKE '%%Nieobecnosc%%')", (prac_id, day_date))
-                hr_count = int(cursor.fetchone()[0] or 0)
-                # pobierz listę typów z tabeli obecnosc, by wyznaczyć krótki kod typu dla kalendarza
-                cursor.execute("SELECT COALESCE(typ, '') FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s", (prac_id, day_date))
-                typ_rows = [r[0] for r in cursor.fetchall()]
-                typ_lower = ' '.join([str(t).lower() for t in typ_rows])
-                # ustal etykietę krótką
-                typ_label = ''
-                if 'wyj' in typ_lower and 'prywat' in typ_lower:
-                    typ_label = 'WP'
-                elif 'odb' in typ_lower and 'godz' in typ_lower or 'odbior' in typ_lower:
-                    typ_label = 'OG'
-                elif 'opieka' in typ_lower:
-                    typ_label = 'OP'
-                elif 'urlop' in typ_lower:
-                    typ_label = 'U'
-                elif 'l4' in typ_lower or 'nieobec' in typ_lower:
-                    typ_label = 'N'
-                elif 'obec' in typ_lower:
-                    typ_label = 'Obecny'
-                else:
-                    typ_label = ''
-                # czy dzień został zatwierdzony przez lidera (raport końcowy) LUB istnieje zatwierdzony wniosek pokrywający ten dzień
-                cursor.execute("SELECT COUNT(1) FROM raporty_koncowe WHERE data_raportu=%s", (day_date,))
-                approved_report = int(cursor.fetchone()[0] or 0) > 0
-                cursor.execute("SELECT COUNT(1) FROM wnioski_wolne WHERE pracownik_id=%s AND status='approved' AND data_od <= %s AND data_do >= %s", (prac_id, day_date, day_date))
-                approved_wn = int(cursor.fetchone()[0] or 0) > 0
-                approved = approved_report or approved_wn
-                # Zatwierdzony urlop = pracownik nie świadczył pracy tego dnia
-                if approved_wn:
-                    s = 0.0
-                
-                # Pobierz status urlopu na ten dzień (pending, approved, rejected, lub None)
-                leave_status = None
-                try:
-                    cursor.execute("SELECT status FROM wnioski_wolne WHERE pracownik_id=%s AND data_od <= %s AND data_do >= %s ORDER BY zlozono DESC LIMIT 1", (prac_id, day_date, day_date))
-                    result = cursor.fetchone()
-                    if result:
-                        leave_status = result[0]
-                except Exception:
-                    leave_status = None
-                
-                # Sprawdź czy pracownik ma przydzielenie do pracy na stanowisko w tym dniu
-                assigned = False
-                try:
-                    cursor.execute("SELECT COUNT(1) FROM obsada_zmiany WHERE pracownik_id=%s AND data_wpisu=%s", (prac_id, day_date))
-                    assigned = int(cursor.fetchone()[0] or 0) > 0
-                except Exception:
-                    assigned = False
-                
-                # Pobierz zatwierdzonych nadgodzin na ten dzień
-                nadgodziny_hours = 0.0
-                try:
-                    cursor.execute("SELECT COALESCE(SUM(ilosc_nadgodzin), 0) FROM nadgodziny WHERE pracownik_id=%s AND data=%s AND status='approved'", (prac_id, day_date))
-                    nadgodziny_hours = float(cursor.fetchone()[0] or 0)
-                except Exception:
-                    nadgodziny_hours = 0.0
-                
-                cal.append({'date': day_date, 'hours': s, 'nadgodziny': nadgodziny_hours, 'total_hours': s + nadgodziny_hours, 'hr': hr_count > 0, 'approved': approved, 'typ_label': typ_label, 'leave_status': leave_status, 'assigned': assigned})
-            return cal
-
-        calendar_days_owner = build_calendar(owner_pid) if owner_pid else []
+        calendar_days_owner = build_hours_calendar(cursor, owner_pid, year, month) if owner_pid else []
         calendar_days_viewed = None
         if viewed_pid and viewed_pid != owner_pid:
-            calendar_days_viewed = build_calendar(viewed_pid)
+            calendar_days_viewed = build_hours_calendar(cursor, viewed_pid, year, month)
     except Exception:
         calendar_days_owner = []
         calendar_days_viewed = None

@@ -272,7 +272,7 @@ def _notify_agro_operator_dosypka_added(
     dosypki_count: int,
 ) -> None:
     linia_u = str(linia or '').upper()
-    if linia_u != 'AGRO':
+    if linia_u not in ['PSD', 'AGRO']:
         return
 
     try:
@@ -281,6 +281,8 @@ def _notify_agro_operator_dosypka_added(
         count_i = 0
     if count_i <= 0:
         return
+
+    current_app.logger.info(f'[NOTIFY_DOSYPKA] linia={linia_u}, plan_id={plan_id}, produktu={produkt}, dosypki_count={count_i}')
 
     try:
         ts_ms = int(time.time() * 1000)

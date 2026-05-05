@@ -40,6 +40,20 @@ def inject_role_permissions():
     """Inject role-based access control functions into templates."""
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
+    page_aliases = {
+        'podsumowanie_zasypow': 'podsumowanie_szarz',
+    }
+
+    def _resolve_page_key(page, perms):
+        if page in perms:
+            return page
+        legacy = page_aliases.get(page)
+        if legacy and legacy in perms:
+            return legacy
+        for new_key, legacy_key in page_aliases.items():
+            if page == legacy_key and new_key in perms:
+                return new_key
+        return page
 
     def role_has_access(page):
         try:
@@ -63,13 +77,16 @@ def inject_role_permissions():
                         r = roles_order[idx]
                 except Exception:
                     pass
+            if r in ['operator', 'stepnpio']:
+                r = 'pracownik'
             # Do not log debug info here to avoid noisy logs during template rendering
             
             # IMPORTANT: if config exists and contains pages, use ONLY config
             # (no fallback to hardcoded rules)
             if perms and len(perms) > 0:
                 # Config has data - check if page is in config
-                page_perms = perms.get(page)
+                page_key = _resolve_page_key(page, perms)
+                page_perms = perms.get(page_key)
                 if page_perms is None:
                     # Page not in config -> deny access (fail‑closed)
                     return False
@@ -120,10 +137,13 @@ def inject_role_permissions():
                         r = roles_order[idx]
                 except Exception:
                     pass
+            if r in ['operator', 'stepnpio']:
+                r = 'pracownik'
             if not perms:
                 # default: no readonly restrictions
                 return False
-            page_perms = perms.get(page)
+            page_key = _resolve_page_key(page, perms)
+            page_perms = perms.get(page_key)
             if page_perms is None:
                 return False
             return bool(page_perms.get(r, {}).get('readonly', False))

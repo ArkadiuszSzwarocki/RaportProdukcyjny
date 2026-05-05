@@ -111,23 +111,24 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
             all_pracownicy=all_pracownicy,
         )
 
-    @production_bp.route('/zasyp/szarza_notatka/<int:szarza_id>', methods=['GET'])
+    @production_bp.route('/zasyp/szarza_notatka/<int:szarza_id>', methods=['GET'], endpoint='szarza_notatka_page')
+    @production_bp.route('/zasyp/zasyp_notatka/<int:szarza_id>', methods=['GET'], endpoint='zasyp_notatka_page')
     @roles_required('laborant', 'laboratorium', 'lider', 'admin', 'zarzad')
     def szarza_notatka_page(szarza_id):
-        """Render popup for editing szarza note (uwagi) from Zasyp dashboard."""
+        """Render popup for editing zasyp note (uwagi) from Zasyp dashboard."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         linia = str(linia).upper()
-        table_szarze = get_table_name('szarze', linia)
+        table_zasypy = get_table_name('szarze', linia)
         conn = get_db_connection()
         cursor = conn.cursor()
         uwagi = ''
         try:
-            cursor.execute(f"SELECT uwagi FROM {table_szarze} WHERE id=%s", (szarza_id,))
+            cursor.execute(f"SELECT uwagi FROM {table_zasypy} WHERE id=%s", (szarza_id,))
             row = cursor.fetchone()
             if row:
                 uwagi = row[0] or ''
         except Exception as e:
-            current_app.logger.error('Failed to load szarza note (id=%s): %s', szarza_id, e, exc_info=True)
+            current_app.logger.error('Failed to load zasyp note (id=%s): %s', szarza_id, e, exc_info=True)
         finally:
             try:
                 conn.close()
@@ -136,26 +137,35 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
 
         data = request.args.get('data') or str(date.today())
         sekcja = request.args.get('sekcja', 'Zasyp')
-        return render_template('edytuj_szarze_popup.html', szarza_id=szarza_id, uwagi=uwagi, linia=linia, data=data, sekcja=sekcja)
+        return render_template(
+            'edytuj_szarze_popup.html',
+            szarza_id=szarza_id,
+            zasyp_id=szarza_id,
+            uwagi=uwagi,
+            linia=linia,
+            data=data,
+            sekcja=sekcja,
+        )
 
-    @production_bp.route('/zasyp/szarza_notatka/<int:szarza_id>', methods=['POST'])
+    @production_bp.route('/zasyp/szarza_notatka/<int:szarza_id>', methods=['POST'], endpoint='szarza_notatka_save')
+    @production_bp.route('/zasyp/zasyp_notatka/<int:szarza_id>', methods=['POST'], endpoint='zasyp_notatka_save')
     @roles_required('laborant', 'laboratorium', 'lider', 'admin', 'zarzad')
     def szarza_notatka_save(szarza_id):
-        """Save szarza note (uwagi) from Zasyp dashboard popup."""
+        """Save zasyp note (uwagi) from Zasyp dashboard popup."""
         new_uwagi = request.form.get('uwagi', '')
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         linia = str(linia).upper()
-        table_szarze = get_table_name('szarze', linia)
+        table_zasypy = get_table_name('szarze', linia)
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute(f"UPDATE {table_szarze} SET uwagi=%s WHERE id=%s", (new_uwagi, szarza_id))
+            cursor.execute(f"UPDATE {table_zasypy} SET uwagi=%s WHERE id=%s", (new_uwagi, szarza_id))
             conn.commit()
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({'success': True, 'message': 'Zapisano notatkę', 'szarza_id': szarza_id}), 200
-            flash('Zapisano notatkę do szarży', 'success')
+                return jsonify({'success': True, 'message': 'Zapisano notatkę', 'szarza_id': szarza_id, 'zasyp_id': szarza_id}), 200
+            flash('Zapisano notatkę do zasypu', 'success')
         except Exception as e:
-            current_app.logger.error('Failed to save szarza note (id=%s): %s', szarza_id, e, exc_info=True)
+            current_app.logger.error('Failed to save zasyp note (id=%s): %s', szarza_id, e, exc_info=True)
             try:
                 conn.rollback()
             except Exception:

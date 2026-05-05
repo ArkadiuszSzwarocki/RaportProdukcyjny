@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_TEMPLATE = ROOT / 'templates' / 'dashboard.html'
 LAYOUT_TEMPLATE = ROOT / 'templates' / 'layout.html'
 DOSYPKI_LIST_TEMPLATE = ROOT / 'templates' / 'dosypki_list.html'
+CSS_DASHBOARD = ROOT / 'static' / 'css' / 'dashboard.css'
 CONFIG_JS = ROOT / 'static' / 'js' / 'dashboard' / 'config.js'
 DASHBOARD_JS_DIR = ROOT / 'static' / 'js' / 'dashboard'
 DOSYPKI_JS = ROOT / 'static' / 'js' / 'dosypki.js'
@@ -132,7 +133,7 @@ def test_agro_open_stage_hint_is_bound_to_control_point_header_not_global_banner
 
 
 def test_batch_lists_wrap_dosypki_inside_tiles():
-    content = DASHBOARD_TEMPLATE.read_text(encoding='utf-8')
+    content = CSS_DASHBOARD.read_text(encoding='utf-8')
 
     assert '.active-order-szarze-dosypki {' in content
     assert 'overflow-wrap: anywhere;' in content
@@ -141,7 +142,7 @@ def test_batch_lists_wrap_dosypki_inside_tiles():
 
 
 def test_dosypki_are_rendered_below_batch_not_in_side_column():
-    content = DASHBOARD_TEMPLATE.read_text(encoding='utf-8')
+    content = CSS_DASHBOARD.read_text(encoding='utf-8')
 
     assert 'grid-template-columns: minmax(280px, 1.2fr) minmax(240px, 0.8fr);' not in content
     assert '.szarza-row-layout {' in content

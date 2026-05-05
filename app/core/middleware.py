@@ -206,6 +206,8 @@ def track_active_session(app):
             if now_ts - last_ping < 20:
                 return
 
+            forwarded_for = request.headers.get('X-Forwarded-For', '')
+            client_ip = (forwarded_for.split(',')[0].strip() if forwarded_for else request.remote_addr)
             touch_active_session(
                 session_id=session.get('session_tracking_id'),
                 user_id=session.get('user_id'),
@@ -214,6 +216,7 @@ def track_active_session(app):
                 pracownik_id=session.get('pracownik_id'),
                 display_name=session.get('imie_nazwisko') or session.get('login'),
                 last_path=request.path,
+                ip_address=client_ip,
             )
             session['last_presence_ping'] = now_ts
         except Exception:

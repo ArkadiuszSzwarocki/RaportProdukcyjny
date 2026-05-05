@@ -49,6 +49,7 @@ class TestZasypEtapStartRoute:
                 etap=1,
                 user_login='test.user',
                 szarza_nr=None,
+                allow_restart=False,
             )
             # Route may open additional internal DB connections (np. powiadomienia/TTS),
             # więc asercja potwierdza domknięcie bez zakładania pojedynczego wywołania.

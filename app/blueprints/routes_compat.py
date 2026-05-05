@@ -3,17 +3,14 @@
 from typing import Tuple, Dict, Any, Union
 from flask import Blueprint, redirect, url_for, send_from_directory, jsonify, current_app, Response
 from app.decorators import login_required
-from app.blueprints.routes_planning import (
-    dodaj_plan_zaawansowany,
-    dodaj_plan,
-    usun_plan,
-    przenies_zlecenie_ajax,
-    przesun_zlecenie_ajax,
-)
 import os
 from datetime import datetime
 
 compat_bp = Blueprint('compat', __name__)
+
+
+def _call_view(endpoint: str, *args, **kwargs):
+    return current_app.view_functions[endpoint](*args, **kwargs)
 
 
 # --- Health Check Endpoint ---
@@ -59,35 +56,35 @@ def health_check() -> Tuple[Response, int]:
 @login_required
 def alias_dodaj_plan_zaawansowany() -> Union[Response, str]:
     """Legacy route - forwards to routes_api.dodaj_plan_zaawansowany()"""
-    return dodaj_plan_zaawansowany()
+    return _call_view('planning.dodaj_plan_zaawansowany')
 
 
 @compat_bp.route('/dodaj_plan', methods=['POST'])
 @login_required
 def alias_dodaj_plan() -> Union[Response, str]:
     """Legacy route - forwards to routes_api.dodaj_plan()"""
-    return dodaj_plan()
+    return _call_view('planning.dodaj_plan')
 
 
 @compat_bp.route('/usun_plan/<int:id>', methods=['POST'])
 @login_required
 def alias_usun_plan(id: int) -> Union[Response, str]:
     """Legacy route - forwards to routes_api.usun_plan()"""
-    return usun_plan(id)
+    return _call_view('planning.usun_plan', id)
 
 
 @compat_bp.route('/przenies_zlecenie_ajax', methods=['POST'])
 @login_required
 def alias_przenies_zlecenie_ajax() -> Union[Response, str]:
     """Legacy route - forwards to /api/przenies_zlecenie_ajax."""
-    return przenies_zlecenie_ajax()
+    return _call_view('planning.przenies_zlecenie_ajax')
 
 
 @compat_bp.route('/przesun_zlecenie_ajax', methods=['POST'])
 @login_required
 def alias_przesun_zlecenie_ajax() -> Union[Response, str]:
     """Legacy route - forwards to /api/przesun_zlecenie_ajax."""
-    return przesun_zlecenie_ajax()
+    return _call_view('planning.przesun_zlecenie_ajax')
 
 
 # --- Favicon and well-known routes ---

@@ -52,7 +52,7 @@ def register_production_notification_routes(
         if role in ['laborant', 'laboratorium', 'magazyn', 'magazynier', 'planista']:
             return jsonify({"new_zwolnienie": False})
 
-        linia = request.args.get('linia', 'AGRO').upper()
+        linia = request.args.get('linia', 'PSD').upper()
         try:
             last_seen = float(request.args.get('last_seen', 0))
         except Exception:
@@ -75,7 +75,7 @@ def register_production_notification_routes(
         if role not in ['laborant', 'laboratorium']:
             return jsonify({"new_start": False})
 
-        linia = request.args.get('linia', 'AGRO').upper()
+        linia = request.args.get('linia', 'PSD').upper()
         try:
             last_seen = float(request.args.get('last_seen', 0))
         except Exception:
@@ -118,7 +118,7 @@ def register_production_notification_routes(
         if role not in ['laborant', 'laboratorium']:
             return jsonify({"new_start": False})
 
-        linia = request.args.get('linia', 'AGRO').upper()
+        linia = request.args.get('linia', 'PSD').upper()
         try:
             last_seen = float(request.args.get('last_seen', 0))
         except Exception:
@@ -160,19 +160,21 @@ def register_production_notification_routes(
 
     @production_bp.route('/api/zasyp/poll_dosypka_added', methods=['GET'])
     def api_poll_dosypka_added():
-        """Poll for recent AGRO dosypka-added events. Returns notifications to operators on Zasyp AGRO."""
+        """Poll for recent dosypka-added events. Returns notifications to operators on Zasyp (PSD/AGRO)."""
         role = str(session.get('rola') or '').strip().lower()
         if role in ['laborant', 'laboratorium', 'magazyn', 'magazynier', 'planista']:
             return jsonify({"new_event": False})
 
-        linia = request.args.get('linia', 'AGRO').upper()
-        if linia != 'AGRO':
+        linia = request.args.get('linia', 'PSD').upper()
+        if linia not in ['PSD', 'AGRO']:
             return jsonify({"new_event": False})
 
         try:
             last_seen = float(request.args.get('last_seen', 0))
         except Exception:
             last_seen = 0.0
+
+        current_app.logger.info(f'[POLL_DOSYPKA] linia={linia}, role={role}, last_seen={last_seen}')
 
         now_ts = time.time()
         had_future_last_seen = False
@@ -181,9 +183,11 @@ def register_production_notification_routes(
             last_seen = 0.0
 
         latest = get_latest_dosypka_added_event_fn(linia, last_seen)
+        current_app.logger.info(f'[POLL_DOSYPKA] latest event: {latest}')
         if not latest and had_future_last_seen:
             latest = get_latest_dosypka_added_event_fn(linia, 0.0)
         if not latest:
+            current_app.logger.info(f'[POLL_DOSYPKA] No event found, returning False')
             return jsonify({"new_event": False})
 
         ts = float(latest.get('event_timestamp') if 'event_timestamp' in latest else (latest.get('timestamp') or 0.0) or 0.0)
@@ -240,7 +244,7 @@ def register_production_notification_routes(
     @production_bp.route('/api/zasyp/poll_dosypki_update', methods=['GET'])
     def api_poll_dosypki_update():
         """Return update timestamp for dosypki so dashboards can refresh after confirm/cancel/add."""
-        linia = request.args.get('linia', 'AGRO').upper()
+        linia = request.args.get('linia', 'PSD').upper()
         try:
             last_seen = float(request.args.get('last_seen', 0))
         except Exception:
@@ -252,14 +256,14 @@ def register_production_notification_routes(
 
     @production_bp.route('/api/zasyp/pending_dosypki_badges', methods=['GET'])
     def api_pending_dosypki_badges():
-        """Return pending dosypki badge counts per plan_id for AGRO Zasyp dashboard."""
+        """Return pending dosypki badge counts per plan_id for Zasyp dashboard (PSD/AGRO)."""
         role = str(session.get('rola') or '').strip().lower()
         allowed_roles = {'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'}
         if role not in allowed_roles:
             return jsonify({"success": True, "counts": {}, "timestamp": time.time()})
 
-        linia = request.args.get('linia', 'AGRO').upper()
-        if linia != 'AGRO':
+        linia = request.args.get('linia', 'PSD').upper()
+        if linia not in ['PSD', 'AGRO']:
             return jsonify({"success": True, "counts": {}, "timestamp": time.time()})
 
         date_raw = request.args.get('data') or ''

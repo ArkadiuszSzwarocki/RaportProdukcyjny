@@ -6,6 +6,8 @@ import time
 from datetime import date, timedelta
 import uuid
 
+from app.db_tables import resolve_table_name
+
 def get_db_connection(retries=3):
     """Get database connection with retry logic"""
     last_error = None
@@ -24,28 +26,7 @@ def get_db_connection(retries=3):
 
 def get_table_name(base_table, linia='PSD'):
     """Return table name based on production line (PSD or AGRO)."""
-    # Convert linia to string and check if it's AGRO hall
-    if linia and str(linia).upper() == 'AGRO':
-        if base_table == 'plan_produkcji':
-            return 'plan_produkcji_agro'
-        elif base_table == 'szarze':
-            return 'szarze_agro'
-        elif base_table == 'dosypki':
-            return 'dosypki_agro'
-        elif base_table == 'palety_workowanie':
-            return 'palety_agro'
-        elif base_table == 'magazyn_palety':
-            return 'magazyn_palety_agro'
-        elif base_table == 'bufor':
-            return 'bufor_agro'
-        elif base_table == 'magazyn_surowce':
-            return 'magazyn_agro_surowce'
-        elif base_table == 'magazyn_opakowania':
-            return 'magazyn_agro_opakowania'
-        elif base_table == 'magazyn_ruch':
-            return 'magazyn_agro_ruch'
-    # Default to base_table (PSD hall)
-    return base_table
+    return resolve_table_name(base_table, linia)
 
 def _create_tables(cursor):
     """Create all base tables if they don't exist."""
@@ -133,6 +114,8 @@ def _create_tables(cursor):
             waga FLOAT,
             tara FLOAT DEFAULT 0,
             waga_brutto FLOAT DEFAULT 0,
+            status VARCHAR(20) DEFAULT 'do_przyjecia',
+            dodal_login VARCHAR(100) DEFAULT NULL,
             data_dodania DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE
         )
@@ -147,6 +130,7 @@ def _create_tables(cursor):
             waga_brutto FLOAT DEFAULT 0,
             data_dodania DATETIME DEFAULT CURRENT_TIMESTAMP,
             status VARCHAR(20) DEFAULT 'do_przyjecia',
+            dodal_login VARCHAR(100) DEFAULT NULL,
             data_potwierdzenia DATETIME NULL,
             czas_potwierdzenia_s INT NULL,
             czas_rzeczywistego_potwierdzenia TIME NULL,
@@ -346,6 +330,7 @@ def _create_tables(cursor):
             rola VARCHAR(20) DEFAULT '',
             pracownik_id INT NULL,
             display_name VARCHAR(100) NULL,
+            ip_address VARCHAR(64) NULL,
             last_path VARCHAR(255) NULL,
             logged_in_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -534,6 +519,44 @@ def _migrate_columns(cursor):
     
     # szarze columns
     _add_column_if_missing(cursor, "szarze", "nr_szarzy", "INT NULL", "Dodawanie kolumny 'nr_szarzy' do szarze")
+
+    # Compatibility layer for new terminology: keep physical table `szarze`, expose `zasypy` view.
+    try:
+        cursor.execute("""
+            CREATE OR REPLACE VIEW zasypy AS
+            SELECT
+                id,
+                plan_id,
+                waga,
+                data_dodania,
+                godzina,
+                pracownik_id,
+                status,
+                uwagi,
+                nr_szarzy,
+                nr_szarzy AS nr_zasypu
+            FROM szarze
+        """)
+    except Exception:
+        pass
+    try:
+        cursor.execute("""
+            CREATE OR REPLACE VIEW zasypy_agro AS
+            SELECT
+                id,
+                plan_id,
+                waga,
+                data_dodania,
+                godzina,
+                pracownik_id,
+                status,
+                uwagi,
+                nr_szarzy,
+                nr_szarzy AS nr_zasypu
+            FROM szarze_agro
+        """)
+    except Exception:
+        pass
     
     # Update typ_zlecenia for known quality orders
     try:
@@ -584,6 +607,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "palety_workowanie", "tara", "FLOAT DEFAULT 0", "Dodawanie kolumny 'tara' do palet")
     _add_column_if_missing(cursor, "palety_workowanie", "waga_brutto", "FLOAT DEFAULT 0", "Dodawanie kolumny 'waga_brutto' do palet")
     _add_column_if_missing(cursor, "palety_workowanie", "status", "VARCHAR(20) DEFAULT 'do_przyjecia'", "Dodawanie kolumny 'status' do palet")
+    _add_column_if_missing(cursor, "palety_workowanie", "dodal_login", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'dodal_login' do palet")
     _add_column_if_missing(cursor, "palety_workowanie", "data_potwierdzenia", "DATETIME NULL", "Dodawanie kolumny 'data_potwierdzenia' do palet")
     _add_column_if_missing(cursor, "palety_workowanie", "czas_potwierdzenia_s", "INT NULL", "Dodawanie kolumny 'czas_potwierdzenia_s' do palet")
     _add_column_if_missing(cursor, "palety_workowanie", "czas_rzeczywistego_potwierdzenia", "TIME NULL", "Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do palet")
@@ -594,10 +618,14 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "palety_agro", "tara", "FLOAT DEFAULT 0", "Dodawanie kolumny 'tara' do palet (AGRO)")
     _add_column_if_missing(cursor, "palety_agro", "waga_brutto", "FLOAT DEFAULT 0", "Dodawanie kolumny 'waga_brutto' do palet (AGRO)")
     _add_column_if_missing(cursor, "palety_agro", "status", "VARCHAR(20) DEFAULT 'do_przyjecia'", "Dodawanie kolumny 'status' do palet (AGRO)")
+    _add_column_if_missing(cursor, "palety_agro", "dodal_login", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'dodal_login' do palet (AGRO)")
     _add_column_if_missing(cursor, "palety_agro", "data_potwierdzenia", "DATETIME NULL", "Dodawanie kolumny 'data_potwierdzenia' do palet (AGRO)")
     _add_column_if_missing(cursor, "palety_agro", "czas_potwierdzenia_s", "INT NULL", "Dodawanie kolumny 'czas_potwierdzenia_s' do palet (AGRO)")
     _add_column_if_missing(cursor, "palety_agro", "czas_rzeczywistego_potwierdzenia", "TIME NULL", "Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do palet (AGRO)")
     _add_column_if_missing(cursor, "palety_agro", "waga_potwierdzona", "FLOAT NULL", "Dodawanie kolumny 'waga_potwierdzona' do palet (AGRO)")
+
+    # aktywne_sesje columns
+    _add_column_if_missing(cursor, "aktywne_sesje", "ip_address", "VARCHAR(64) NULL", "Dodawanie kolumny 'ip_address' do aktywne_sesje")
 
     # magazyn_palety_agro columns
     _add_column_if_missing(cursor, "magazyn_palety_agro", "user_login", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'user_login' do magazyn_palety_agro")
@@ -1754,7 +1782,7 @@ def ensure_session_tracking_id(current_session_id=None):
     return uuid.uuid4().hex
 
 
-def touch_active_session(session_id, user_id, login, role, pracownik_id=None, display_name=None, last_path=None):
+def touch_active_session(session_id, user_id, login, role, pracownik_id=None, display_name=None, last_path=None, ip_address=None):
     """Upsert active session heartbeat for online users view."""
     if not session_id or not user_id or not login:
         return False
@@ -1766,20 +1794,21 @@ def touch_active_session(session_id, user_id, login, role, pracownik_id=None, di
         cursor.execute(
             """
             INSERT INTO aktywne_sesje (
-                session_id, user_id, login, rola, pracownik_id, display_name, last_path, logged_in_at, last_seen, is_active
+                session_id, user_id, login, rola, pracownik_id, display_name, ip_address, last_path, logged_in_at, last_seen, is_active
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), 1)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), 1)
             ON DUPLICATE KEY UPDATE
                 user_id = VALUES(user_id),
                 login = VALUES(login),
                 rola = VALUES(rola),
                 pracownik_id = VALUES(pracownik_id),
                 display_name = VALUES(display_name),
+                ip_address = VALUES(ip_address),
                 last_path = VALUES(last_path),
                 last_seen = NOW(),
                 is_active = 1
             """,
-            (session_id, user_id, login, str(role or '').lower(), pracownik_id, display_name, last_path)
+            (session_id, user_id, login, str(role or '').lower(), pracownik_id, display_name, ip_address, last_path)
         )
         conn.commit()
         cursor.close()
@@ -1836,7 +1865,7 @@ def list_online_users(active_within_minutes=30):
         cursor.execute(
             """
             SELECT session_id, user_id, login, rola, pracownik_id, display_name, last_path, logged_in_at, last_seen,
-                   is_active,
+                     ip_address, is_active,
                    TIMESTAMPDIFF(SECOND, last_seen, NOW()) AS idle_seconds
             FROM aktywne_sesje
             WHERE last_seen >= DATE_SUB(NOW(), INTERVAL %s MINUTE)

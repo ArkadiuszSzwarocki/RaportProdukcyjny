@@ -1,25 +1,28 @@
-<div class="p-10" {% if sekcja == 'Zasyp' %}data-popup-title="Dodajesz szarże"{% else %}data-popup-title="Dodajesz paletę"{% endif %}>
-  <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj szarżę{% else %}📦 {{ _('dodaj_palete') }}{% endif %}</h3>
+<div class="p-10" {% if sekcja == 'Zasyp' %}data-popup-title="Dodajesz zasyp"{% else %}data-popup-title="Dodajesz paletę"{% endif %}>
+  <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj zasyp{% else %}📦 {{ _('dodaj_palete') }}{% endif %}</h3>
   {% if sekcja == 'Workowanie' %}
   {# Workowanie: użyj dedykowanego endpointu dodaj_palete #}
   <form action="{{ url_for('warehouse.dodaj_palete', plan_id=plan_id) }}" method="POST">
     <input id="waga_palety" name="waga_palety" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="{{ _('waga_palety') }}" title="{{ _('waga_palety_kg_info') }}">
     <input type="hidden" name="linia" value="{{ linia }}">
+      <input type="hidden" name="sekcja" value="Workowanie">
+    <input type="hidden" name="ui_trigger" value="button:dodaj_palete_popup">
     
     <div class="popup-button-group">
       <button type="submit" class="btn-action btn-save">{{ _('dodaj_palete') }}</button>
-      <button type="button" class="btn-action btn-outline" onclick="try{ document.querySelector('.quick-popup').parentNode.querySelector('.qp-close').click(); }catch(e){}">ANULUJ</button>
+      <button type="button" class="btn-action btn-outline" data-action="close-popup">ANULUJ</button>
     </div>
   </form>
   {% else %}
-  {# Zasyp: użyj dodaj_plan dla szarży #}
+  {# Zasyp: użyj dodaj_plan dla zasypu #}
   <form action="{{ url_for('planning.dodaj_plan') }}" method="POST">
-    <input id="tonaz" name="tonaz" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="{{ _('waga_szarzy_kg') }}" title="{{ _('waga_szarzy_kg_info') }}">
+    <input id="tonaz" name="tonaz" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="Waga zasypu [kg]" title="Podaj wagę zasypu w kilogramach">
     
-    <label style="margin-top: 10px; display: block; font-size: 13px;">Numer szarży:</label>
+    <label style="margin-top: 10px; display: block; font-size: 13px;">Numer zasypu:</label>
     <input id="nr_szarzy" name="nr_szarzy" type="number" step="1" min="1" required class="input-sm popup-input" 
            value="{{ next_nr_szarzy or 1 }}"
-           placeholder="Podaj nr szarży zaczynając od 1" title="Podaj z jakiego numeru szarży jest ten zasyp (wymagane weryfikowanie z recepturą)">
+           placeholder="Podaj nr zasypu zaczynając od 1" title="Podaj numer zasypu zgodnie z recepturą">
+    <input type="hidden" name="nr_zasypu" value="{{ next_nr_szarzy or 1 }}">
 
     
     <!-- Produkt i typ - ukryte (brane automatycznie z systemu) -->
@@ -28,10 +31,11 @@
     <input type="hidden" name="plan_id" value="{{ plan_id or '' }}">
     <input type="hidden" name="sekcja" value="Zasyp">
     <input type="hidden" name="linia" value="{{ linia }}">
+    <input type="hidden" name="ui_trigger" value="button:dodaj_szarze_popup">
     
     <div class="popup-button-group">
-      <button type="submit" class="btn-action btn-save">{{ _('dodaj_szarze') }}</button>
-      <button type="button" class="btn-action btn-outline" onclick="try{ document.querySelector('.quick-popup').parentNode.querySelector('.qp-close').click(); }catch(e){}">ANULUJ</button>
+      <button type="submit" class="btn-action btn-save">DODAJ ZASYP</button>
+      <button type="button" class="btn-action btn-outline" data-action="close-popup">ANULUJ</button>
     </div>
   </form>
   {% endif %}

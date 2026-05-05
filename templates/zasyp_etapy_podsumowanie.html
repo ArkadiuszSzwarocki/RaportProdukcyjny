@@ -60,7 +60,7 @@
                     <th style="color:#e67e22;">6: Opróżnianie</th>
                     {% endif %}
                     <th>Łącznie</th>
-                    <th>Szarże (szt/kg)</th>
+                    <th>Zasypy (szt/kg)</th>
                     <th>Dosypki (szt/kg)</th>
                     <th>Razem kg</th>
                     <th>kg/h<br><small>prod. / rzeczyw.</small></th>
@@ -202,8 +202,8 @@
                     <th class="text-center" style="width:7%;">6: Opróżnianie</th>
                     {% endif %}
                     <th class="text-center" style="width:8%;">Łącznie Czas</th>
-                    <th class="text-center" style="width:8%; color:#3498db;">Średnio / Szarża</th>
-                    <th class="text-center" style="width:8%;">Szarże</th>
+                    <th class="text-center" style="width:8%; color:#3498db;">Średnio / Zasyp</th>
+                    <th class="text-center" style="width:8%;">Zasypy</th>
                     <th class="text-center" style="width:8%;">Dosypki</th>
                     <th class="text-center" style="width:9%;">Razem kg</th>
                     <th class="text-center" style="width:12%;">kg/h<br><small>prod. / rzeczyw.</small></th>
@@ -215,7 +215,7 @@
                 <td><strong>{{ r.data_planu }}</strong><br><small class="text-muted">#{{ r.plan_id }}</small></td>
                 <td>
                     {{ r.produkt }}
-                    <div style="font-size:0.75em; color:#3498db; margin-top:4px;">Kliknij by rozwinąć szarże ▼</div>
+                    <div style="font-size:0.75em; color:#3498db; margin-top:4px;">Kliknij by rozwinąć zasypy ▼</div>
                 </td>
                 {% if linia == 'AGRO' %}
                 {% set _re1 = r.etap_str[0] if r.etap_str and r.etap_str|length > 0 else '0m' %}
@@ -267,7 +267,7 @@
             </tr>
             <tr id="sz_det_tbl_{{ loop.index }}" style="display:none; background-color: #fafbfc;">
                 <td colspan="15" style="padding: 10px 15px; border-bottom: 2px solid #e1e4e8;">
-                    <strong style="margin-bottom: 8px; display:inline-block;">Historia zmierzonych cykli (Szarż) dla tego zlecenia:</strong>
+                    <strong style="margin-bottom: 8px; display:inline-block;">Historia zmierzonych cykli (Zasypów) dla tego zlecenia:</strong>
                     <table class="modern-table" style="width: 100%; border: 1px solid #ddd; font-size: 0.9em;">
                         <thead>
                             <tr style="background-color: #f1f3f5;">
@@ -292,7 +292,7 @@
                             {% if r.szarze_det and r.szarze_det|length > 0 %}
                                 {% for s_det in r.szarze_det %}
                                 <tr>
-                                    <td class="text-center font-bold text-primary">Szarża #{{ s_det.szarza_nr }}</td>
+                                    <td class="text-center font-bold text-primary">Zasyp #{{ s_det.szarza_nr }}</td>
                                     <td class="text-center">{{ s_det.e1 }}</td>
                                     {% if linia == 'AGRO' %}
                                     <td class="text-center">{{ s_det.e2 }}</td>

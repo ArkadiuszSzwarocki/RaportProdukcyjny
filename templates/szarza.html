@@ -3,9 +3,9 @@
     <form action="{{ url_for('planning.dodaj_plan') }}" method="POST" class="mt-10">
         <input type="hidden" name="sekcja" value="Zasyp">
         <input type="hidden" name="data_planu" value="{{ today }}">
-        <label>{{ _('waga_szarzy') }}</label>
+        <label>Waga zasypu:</label>
         <div class="form-field">
-            <input type="number" step="1" name="tonaz" value="" class="input-sm font-bold" aria-label="Waga szarży (Netto) [kg]" required>
+            <input type="number" step="1" name="tonaz" value="" class="input-sm font-bold" aria-label="Waga zasypu (Netto) [kg]" required>
         </div>
         <label>{{ _('produkt_polownik') }}</label>
         <div class="form-field">
@@ -20,8 +20,8 @@
             </select>
         </div>
         <div class="btn-row mt-10">
-            <button type="submit" class="btn-action btn-primary">{{ _('dodaj_szarze') }}</button>
-            <button type="button" onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)" class="btn-action btn-action-cancel">ANULUJ</button>
+            <button type="submit" class="btn-action btn-primary">Dodaj zasyp</button>
+            <button type="button" data-action="close-popup" class="btn-action btn-action-cancel">ANULUJ</button>
         </div>
     </form>
 </div>

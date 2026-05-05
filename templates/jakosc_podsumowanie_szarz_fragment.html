@@ -19,7 +19,7 @@
     <div class="jp-card">
         <div class="jp-card-header">
             <div>
-                <div><strong>Szara #{{ s.szarza_id }}</strong> — <strong>Zlecenie:</strong> {{ s.plan_nazwa }} <span class="jp-small-muted">(id: {{ s.plan_id }})</span></div>
+                <div><strong>Zasyp #{{ s.szarza_id }}</strong> — <strong>Zlecenie:</strong> {{ s.plan_nazwa }} <span class="jp-small-muted">(id: {{ s.plan_id }})</span></div>
                 <div class="jp-card-meta">Dodana: {{ s.data_dodania }} {{ s.godzina or '' }} • Waga: {{ s.waga or 0 }} kg • Autor: {{ s.pracownik_name or '-' }}</div>
                 {% if s.uwagi %}<div class="jp-card-meta" style="margin-top:6px"><strong>Uwagi:</strong> {{ s.uwagi }}</div>{% endif %}
             </div>
@@ -42,5 +42,5 @@
     {% endfor %}
 </div>
 {% else %}
-<div class="text-muted">Brak zarejestrowanych szarż.</div>
+<div class="text-muted">Brak zarejestrowanych zasypów.</div>
 {% endif %}

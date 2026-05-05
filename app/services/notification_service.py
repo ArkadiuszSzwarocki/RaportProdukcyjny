@@ -41,14 +41,14 @@ def notify_workers_about_dosypka(plan_context, total_kg, entries_count, author_n
     )
 
 
-def notify_laboratory_about_szarza(plan_context, weight_kg, author_name, conn=None, cursor=None, created_by_user_id=None, linia='PSD'):
+def notify_laboratory_about_zasyp(plan_context, weight_kg, author_name, conn=None, cursor=None, created_by_user_id=None, linia='PSD'):
     if not plan_context:
         return []
 
     produkt = plan_context.get('produkt') or 'Zasyp'
     data_planu = plan_context.get('data_planu')
-    tytul = f'Nowa szarża: {produkt}'
-    tresc = f'{_display_name(author_name)} dodał szarżę {float(weight_kg):.1f} kg na zasypie dla {produkt}.'
+    tytul = f'Nowy zasyp: {produkt}'
+    tresc = f'{_display_name(author_name)} dodał zasyp {float(weight_kg):.1f} kg dla {produkt}.'
 
     return create_notifications(
         typ='szarza',
@@ -60,6 +60,19 @@ def notify_laboratory_about_szarza(plan_context, weight_kg, author_name, conn=No
         created_by_user_id=created_by_user_id,
         conn=conn,
         cursor=cursor,
+    )
+
+
+def notify_laboratory_about_szarza(plan_context, weight_kg, author_name, conn=None, cursor=None, created_by_user_id=None, linia='PSD'):
+    """Legacy wrapper kept for backward compatibility."""
+    return notify_laboratory_about_zasyp(
+        plan_context=plan_context,
+        weight_kg=weight_kg,
+        author_name=author_name,
+        conn=conn,
+        cursor=cursor,
+        created_by_user_id=created_by_user_id,
+        linia=linia,
     )
 
 

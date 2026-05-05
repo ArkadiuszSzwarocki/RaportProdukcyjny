@@ -75,6 +75,37 @@
         min-width: 50px;
     }
 
+    .dosypki-list-root {
+        position: relative;
+    }
+
+    .dosypki-confirm-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.82);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease-in-out;
+        z-index: 5;
+    }
+
+    .dosypki-confirm-overlay.is-active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .dosypki-confirm-spinner {
+        width: 64px;
+        height: 64px;
+        border: 6px solid #cbd5e1;
+        border-top-color: #2b7cff;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+    }
+
     @keyframes spin {
         to {
             transform: rotate(360deg);
@@ -82,7 +113,7 @@
     }
 </style>
 
-<div class="p-15" data-popup-title="Dosypki" {% if plan_id %} data-plan-id="{{ plan_id }}" {% endif %} data-linia="{{ linia or 'PSD' }}" data-current-role="{{ rola or '' }}">
+<div class="p-15 dosypki-list-root" data-popup-title="Dosypki" {% if plan_id %} data-plan-id="{{ plan_id }}" {% endif %} data-linia="{{ linia or 'PSD' }}" data-current-role="{{ rola or '' }}">
     <div class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
         <h4 class="m-0 text-zarzad">Dosypki — lista oczekujących</h4>
     </div>

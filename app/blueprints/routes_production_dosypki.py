@@ -14,6 +14,20 @@ def register_production_dosypki_routes(
     mark_dosypki_updated,
     notify_agro_operator_dosypka_added,
 ):
+    def _read_zasyp_id():
+        raw = (
+            request.form.get('zasyp_id')
+            or request.form.get('szarza_id')
+            or request.args.get('zasyp_id')
+            or request.args.get('szarza_id')
+        )
+        if raw is None:
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
     @production_bp.route('/dosypka_page/<int:plan_id>', methods=['GET'])
     @roles_required('laborant', 'laboratorium', 'planista', 'admin')
     def dosypka_page(plan_id):
@@ -42,13 +56,8 @@ def register_production_dosypki_routes(
                 flash(msg, 'warning')
                 return redirect(bezpieczny_powrot())
 
-            szarza_id = request.args.get('szarza_id')
-            szarza_id_int = None
-            if szarza_id:
-                try:
-                    szarza_id_int = int(szarza_id)
-                except ValueError:
-                    szarza_id_int = None
+            szarza_id_int = _read_zasyp_id()
+            szarza_id = str(szarza_id_int) if szarza_id_int else None
 
             if szarza_id_int:
                 cursor.execute(
@@ -128,12 +137,7 @@ def register_production_dosypki_routes(
             flash('Nieprawidłowe ID zlecenia', 'error')
             return redirect(bezpieczny_powrot())
 
-        szarza_id = request.form.get('szarza_id')
-        if szarza_id:
-            try:
-                szarza_id = int(szarza_id)
-            except ValueError:
-                szarza_id = None
+        szarza_id = _read_zasyp_id()
 
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         brak_dosypki = request.form.get('brak_dosypki') == '1'
@@ -245,7 +249,7 @@ def register_production_dosypki_routes(
             conn.commit()
             mark_dosypki_updated(linia)
 
-            if str(linia or '').upper() == 'AGRO' and not brak_dosypki:
+            if str(linia or '').upper() in ['PSD', 'AGRO'] and not brak_dosypki:
                 try:
                     notify_agro_operator_dosypka_added(
                         linia=linia,
@@ -255,7 +259,7 @@ def register_production_dosypki_routes(
                         dosypki_count=len(entries),
                     )
                 except Exception:
-                    current_app.logger.exception('Failed to notify AGRO operator about dosypka list update')
+                    current_app.logger.exception('Failed to notify operator about dosypka list update')
 
             if brak_dosypki:
                 flash('Oznaczono, że brak dosypki dla tego zlecenia.', 'success')

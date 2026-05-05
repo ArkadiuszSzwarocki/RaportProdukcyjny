@@ -20,6 +20,7 @@
                     <th>Użytkownik</th>
                     <th>Rola</th>
                     <th>Login</th>
+                    <th>IP</th>
                     <th>Zalogowany od</th>
                     <th>Ostatnia aktywność</th>
                     <th>Bezczynność</th>
@@ -33,6 +34,7 @@
                     <td>{{ user.display_name or user.login }}</td>
                     <td><span class="role-badge role-{{ (user.rola or '')|replace(' ','') }}">{{ user.rola or 'brak' }}</span></td>
                     <td>{{ user.login }}</td>
+                    <td>{{ user.ip_address or '—' }}</td>
                     <td>{{ user.logged_in_at.strftime('%Y-%m-%d %H:%M:%S') if user.logged_in_at else '—' }}</td>
                     <td>{{ user.last_seen.strftime('%Y-%m-%d %H:%M:%S') if user.last_seen else '—' }}</td>
                     <td>{{ user.idle_seconds or 0 }} s</td>
@@ -40,7 +42,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="8" class="muted">Brak aktywnych użytkowników.</td>
+                    <td colspan="9" class="muted">Brak aktywnych użytkowników.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -67,7 +69,7 @@
             }
 
             if (!Array.isArray(users) || users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="muted">Brak aktywnych użytkowników.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="muted">Brak aktywnych użytkowników.</td></tr>';
                 return;
             }
 
@@ -82,6 +84,7 @@
                     '<td>', escapeHtml(user.display_name || user.login), '</td>',
                     '<td><span class="role-badge role-', roleClass, '">', role, '</span></td>',
                     '<td>', escapeHtml(user.login), '</td>',
+                    '<td>', escapeHtml(user.ip_address || '—'), '</td>',
                     '<td>', escapeHtml(user.logged_in_at || '—'), '</td>',
                     '<td>', escapeHtml(user.last_seen || '—'), '</td>',
                     '<td>', escapeHtml(user.idle_seconds || 0), ' s</td>',

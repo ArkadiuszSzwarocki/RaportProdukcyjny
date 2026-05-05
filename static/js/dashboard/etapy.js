@@ -85,9 +85,11 @@
             stopStyle.textContent = '' +
                 '#stop-decision-modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:10000; }' +
                 '#stop-decision-modal.open { display:flex; }' +
-                '#stop-decision-modal .card { background:#fff; border-radius:12px; padding:18px; width:420px; box-shadow:0 15px 35px rgba(0,0,0,0.25); border:1px solid #e6eef2; }' +
+                '#stop-decision-modal .card { background:#fff; border-radius:12px; padding:18px; width:560px; max-width:92vw; box-shadow:0 15px 35px rgba(0,0,0,0.25); border:1px solid #e6eef2; }' +
                 '#stop-decision-modal h3 { margin:0 0 10px 0; font-size:1.1em; text-align:center; }' +
-                '#stop-decision-modal .actions { display:grid; grid-template-columns:1fr; gap:8px; margin-top:12px; }' +
+                '#stop-decision-modal .actions { display:grid; grid-template-columns:1fr; gap:10px; margin-top:12px; }' +
+                '#stop-decision-modal .action-group { border:1px solid #e7edf3; border-radius:10px; padding:10px; background:#fbfdff; }' +
+                '#stop-decision-modal .action-desc { margin:8px 2px 0; color:#5b6b7b; font-size:0.86em; line-height:1.3; }' +
                 '#stop-decision-modal .actions .btn { padding:12px; border-radius:8px; font-weight:700; cursor:pointer; border:none; }' +
                 '#stop-decision-modal .btn-primary { background:#10b981; color:#fff; }' +
                 '#stop-decision-modal .btn-warning { background:#f59e0b; color:#fff; }' +
@@ -102,10 +104,22 @@
             '    <h3 id="stop-decision-title">Co teraz zrobić po STOP mieszania?</h3>' +
             '    <div id="stop-decision-subtitle" class="small text-muted">Wybierz jedną z opcji, aby kontynuować proces produkcji.</div>' +
             '    <div class="actions">' +
-            '      <button type="button" id="stop-add-pair" class="btn btn-primary">Dodaj parę: dosypka + mieszanie</button>' +
-            '      <button type="button" id="stop-oprozniamy" class="btn btn-warning">Opróżniamy (kontynuuj opróżnianie)</button>' +
-            '      <button type="button" id="stop-oprozniamy-end" class="btn btn-danger">Opróżniamy i kończymy dziś</button>' +
-            '      <button type="button" id="stop-oprozniamy-new" class="btn btn-primary">Opróżniamy i dodaj nowy punkt</button>' +
+            '      <div id="stop-group-add-pair" class="action-group">' +
+            '        <button type="button" id="stop-add-pair" class="btn btn-primary">Dodaj parę: dosypka + mieszanie</button>' +
+            '        <div id="stop-add-pair-desc" class="action-desc">Tworzy kolejny cykl: nowa dosypka i od razu kolejny etap mieszania.</div>' +
+            '      </div>' +
+            '      <div id="stop-group-empty-continue" class="action-group">' +
+            '        <button type="button" id="stop-oprozniamy" class="btn btn-warning">Opróżniamy (kontynuuj opróżnianie)</button>' +
+            '        <div id="stop-oprozniamy-desc" class="action-desc">Kończy mieszanie i przechodzi do opróżniania aktualnego punktu kontrolnego.</div>' +
+            '      </div>' +
+            '      <div id="stop-group-empty-end" class="action-group">' +
+            '        <button type="button" id="stop-oprozniamy-end" class="btn btn-danger">Opróżniamy i kończymy dziś</button>' +
+            '        <div id="stop-oprozniamy-end-desc" class="action-desc">Domyka bieżący cykl po opróżnieniu i kończy pracę na dziś.</div>' +
+            '      </div>' +
+            '      <div id="stop-group-empty-new" class="action-group">' +
+            '        <button type="button" id="stop-oprozniamy-new" class="btn btn-primary">Opróżniamy i dodaj nowy punkt</button>' +
+            '        <div id="stop-oprozniamy-new-desc" class="action-desc">Po opróżnieniu otwiera kolejny punkt kontrolny do dalszej produkcji.</div>' +
+            '      </div>' +
             '      <button type="button" id="stop-decision-cancel" class="btn btn-cancel">Anuluj</button>' +
             '    </div>' +
             '  </div>' +
@@ -428,6 +442,10 @@
         var oprozniamyBtn = document.getElementById('stop-oprozniamy');
         var endBtn = document.getElementById('stop-oprozniamy-end');
         var newBtn = document.getElementById('stop-oprozniamy-new');
+        var groupAddPair = document.getElementById('stop-group-add-pair');
+        var groupEmptyContinue = document.getElementById('stop-group-empty-continue');
+        var endDesc = document.getElementById('stop-oprozniamy-end-desc');
+        var newDesc = document.getElementById('stop-oprozniamy-new-desc');
 
         if (selectedMode === 'emptying') {
             if (title) {
@@ -436,17 +454,23 @@
             if (subtitle) {
                 subtitle.textContent = 'Wybierz, czy dodać nowy punkt kontrolny, czy zakończyć pracę na dziś.';
             }
-            if (addPairBtn) {
-                addPairBtn.style.display = 'none';
+            if (groupAddPair) {
+                groupAddPair.style.display = 'none';
             }
-            if (oprozniamyBtn) {
-                oprozniamyBtn.style.display = 'none';
+            if (groupEmptyContinue) {
+                groupEmptyContinue.style.display = 'none';
             }
             if (endBtn) {
                 endBtn.textContent = 'Kończymy na dziś';
             }
+            if (endDesc) {
+                endDesc.textContent = 'Kończy dzisiejszy proces po domknięciu opróżniania.';
+            }
             if (newBtn) {
                 newBtn.textContent = 'Dodaj nowy punkt kontrolny';
+            }
+            if (newDesc) {
+                newDesc.textContent = 'Dodaje kolejny punkt kontrolny, aby od razu kontynuować produkcję.';
             }
         } else {
             if (title) {
@@ -455,17 +479,23 @@
             if (subtitle) {
                 subtitle.textContent = 'Wybierz jedną z opcji, aby kontynuować proces produkcji.';
             }
-            if (addPairBtn) {
-                addPairBtn.style.display = '';
+            if (groupAddPair) {
+                groupAddPair.style.display = '';
             }
-            if (oprozniamyBtn) {
-                oprozniamyBtn.style.display = '';
+            if (groupEmptyContinue) {
+                groupEmptyContinue.style.display = '';
             }
             if (endBtn) {
                 endBtn.textContent = 'Opróżniamy i kończymy dziś';
             }
+            if (endDesc) {
+                endDesc.textContent = 'Domyka bieżący cykl po opróżnieniu i kończy pracę na dziś.';
+            }
             if (newBtn) {
                 newBtn.textContent = 'Opróżniamy i dodaj nowy punkt';
+            }
+            if (newDesc) {
+                newDesc.textContent = 'Po opróżnieniu otwiera kolejny punkt kontrolny do dalszej produkcji.';
             }
         }
 
@@ -589,6 +619,14 @@
             });
         }
 
+        stopDecisionModal.addEventListener('click', function (event) {
+            if (event.target !== stopDecisionModal) {
+                return;
+            }
+            pendingStopForm = null;
+            closeStopDecisionModal();
+        });
+
         document.addEventListener('keydown', function (event) {
             if (event.key !== 'Escape') {
                 return;
@@ -598,6 +636,7 @@
                 _szarzaModalCancel();
             }
             if (stopDecisionModal.classList.contains('open')) {
+                pendingStopForm = null;
                 closeStopDecisionModal();
             }
         });

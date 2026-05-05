@@ -18,6 +18,18 @@ def register_production_zasyp_flow_routes(
     ZasypEtapyService,
     audit_log,
 ):
+    def _read_zasyp_nr():
+        raw = (
+            request.form.get('zasyp_nr')
+            or request.form.get('szarza_nr')
+            or request.args.get('zasyp_nr')
+            or request.args.get('szarza_nr')
+        )
+        if raw is None:
+            return None
+        text = str(raw).strip()
+        return text or None
+
     @production_bp.route('/zasyp_etap_start', methods=['POST'])
     @login_required
     def zasyp_etap_start():
@@ -27,7 +39,7 @@ def register_production_zasyp_flow_routes(
         plan_id_raw = request.form.get('plan_id')
         etap_raw = request.form.get('etap')
         kg_raw = request.form.get('wielkosc_szarzy_kg')
-        szarza_nr_raw = request.form.get('szarza_nr')
+        szarza_nr_raw = _read_zasyp_nr()
         role = str(session.get('rola') or '').lower()
         default_auto_mode = 'auto' if role in ['operator', 'pracownik', 'produkcja', 'lider'] else 'manual'
         auto_szarza_mode = str(request.form.get('auto_szarza_mode') or default_auto_mode).strip().lower()
@@ -76,7 +88,7 @@ def register_production_zasyp_flow_routes(
             if kg is None:
                 param = ZasypEtapyService.get_parametry(plan_id, linia)
                 if param.get('wielkosc_szarzy_kg') is None:
-                    flash('❌ Podaj wielkość szarży przed startem Naważania', 'danger')
+                    flash('❌ Podaj wielkość zasypu przed startem Naważania', 'danger')
                     return redirect(bezpieczny_powrot())
                 try:
                     kg_for_auto = float(param.get('wielkosc_szarzy_kg'))
@@ -95,6 +107,10 @@ def register_production_zasyp_flow_routes(
                     return redirect(bezpieczny_powrot())
                 kg_for_auto = kg
 
+        restart_intent = str(request.form.get('restart_intent') or '0').strip().lower() in ['1', 'true', 'yes', 'on']
+        
+        current_app.logger.info(f'[START-ETAP-RESTART] plan_id={plan_id}, etap={etap}, szarza={szarza_nr_raw}, linia={linia}, allow_restart={restart_intent}')
+
         ok, msg = ZasypEtapyService.start_etap(
             plan_id=plan_id,
             linia=linia,
@@ -102,7 +118,11 @@ def register_production_zasyp_flow_routes(
             etap=etap,
             user_login=session.get('login') or '',
             szarza_nr=szarza_nr_raw,
+            allow_restart=restart_intent,
         )
+        
+        if restart_intent:
+            current_app.logger.info(f'[START-ETAP-RESTART-RESULT] ok={ok}, msg={msg}')
 
         # AUTO SZARZA mode: when Naważanie starts, add one szarża automatically
         if ok and etap == 1 and auto_szarza_mode == 'auto' and 'zapisany' in str(msg).lower():
@@ -153,7 +173,7 @@ def register_production_zasyp_flow_routes(
                     exists_row = auto_cursor.fetchone()
 
                     if exists_row:
-                        msg = f"{msg}; AUTO SZARŻA: szarża #{target_szarza_nr} już istnieje"
+                        msg = f"{msg}; AUTO ZASYP: zasyp #{target_szarza_nr} już istnieje"
                     else:
                         _insert_szarza_compatible(
                             auto_cursor,
@@ -178,15 +198,18 @@ def register_production_zasyp_flow_routes(
                         )
 
                         auto_conn.commit()
-                        msg = f"{msg}; AUTO SZARŻA: dodano nr {target_szarza_nr} ({auto_kg:g} kg)"
-                        audit_log('AUTO dodał szarżę', f'zlecenie_id={plan_id}, produkt={produkt}, tonaz={auto_kg:g} kg, nr={target_szarza_nr}, linia={linia}')
+                        msg = f"{msg}; AUTO ZASYP: dodano nr {target_szarza_nr} ({auto_kg:g} kg)"
+                        audit_log(
+                            'AUTO dodał zasyp',
+                            f'zlecenie_id={plan_id}, produkt={produkt}, tonaz={auto_kg:g} kg, nr={target_szarza_nr}, linia={linia}, trigger=system:auto_start_etap_1',
+                        )
                 except Exception as auto_err:
                     try:
                         if auto_conn:
                             auto_conn.rollback()
                     except Exception:
                         pass
-                    msg = f"{msg}; AUTO SZARŻA: błąd dodania ({auto_err})"
+                    msg = f"{msg}; AUTO ZASYP: błąd dodania ({auto_err})"
                 finally:
                     try:
                         if auto_conn:
@@ -218,7 +241,7 @@ def register_production_zasyp_flow_routes(
         linia = str(linia_input).upper()
         plan_id_raw = request.form.get('plan_id')
         etap_raw = request.form.get('etap')
-        szarza_nr_raw = request.form.get('szarza_nr')
+        szarza_nr_raw = _read_zasyp_nr()
         next_action = str(request.form.get('next_action') or '').strip().lower()
         role = str(session.get('rola') or '').lower()
         default_auto_mode = 'auto' if role in ['operator', 'pracownik', 'produkcja', 'lider'] else 'manual'
@@ -455,19 +478,22 @@ def register_production_zasyp_flow_routes(
                                                     )
 
                                                     auto_conn.commit()
-                                                    msg = f"{msg}; dodano szarżę #{new_szarza_nr} ({kg_auto_new:g} kg)"
-                                                    audit_log('AUTO dodał szarżę', f'zlecenie_id={plan_id}, produkt={produkt}, tonaz={kg_auto_new:g} kg, nr={new_szarza_nr}, linia={linia}')
+                                                    msg = f"{msg}; dodano zasyp #{new_szarza_nr} ({kg_auto_new:g} kg)"
+                                                    audit_log(
+                                                        'AUTO dodał zasyp',
+                                                        f'zlecenie_id={plan_id}, produkt={produkt}, tonaz={kg_auto_new:g} kg, nr={new_szarza_nr}, linia={linia}, trigger=system:auto_po_stopie_etapu_5',
+                                                    )
                                                 else:
-                                                    msg = f"{msg}; szarża #{new_szarza_nr} już istniała"
+                                                    msg = f"{msg}; zasyp #{new_szarza_nr} już istniał"
                                             else:
-                                                msg = f"{msg}; tryb AUTO SZARŻA aktywny, ale brak wielkości szarży - nie dodano rekordu"
+                                                msg = f"{msg}; tryb AUTO ZASYP aktywny, ale brak wielkości zasypu - nie dodano rekordu"
                                         except Exception as auto_new_err:
                                             try:
                                                 if auto_conn:
                                                     auto_conn.rollback()
                                             except Exception:
                                                 pass
-                                            msg = f"{msg}; nie udało się dodać szarży dla nowego punktu: {auto_new_err}"
+                                            msg = f"{msg}; nie udało się dodać zasypu dla nowego punktu: {auto_new_err}"
                                         finally:
                                             try:
                                                 if auto_conn:
@@ -477,7 +503,7 @@ def register_production_zasyp_flow_routes(
                                 else:
                                     msg = f"{msg}; {km_msg}; nie udało się uruchomić Naważania: {st_msg}"
                             else:
-                                msg = f"{msg}; {km_msg}; nie rozpoznano numeru nowej szarży"
+                                msg = f"{msg}; {km_msg}; nie rozpoznano numeru nowego zasypu"
                         else:
                             msg = f"{msg}; nie udało się utworzyć nowego punktu: {km_msg}"
                 else:

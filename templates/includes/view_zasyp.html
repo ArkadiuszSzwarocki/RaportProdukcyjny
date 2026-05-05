@@ -82,7 +82,7 @@
                             {% if p[3] == 'zakonczone' and p|length > 15 and p[15] %}
                             <div class="card-row">
                                 <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle">
-                                    ⏺️ {{ p[15] }} szarż
+                                    ⏺️ {{ p[15] }} zasypów
                                 </button>
                             </div>
                             {% endif %}
@@ -105,8 +105,11 @@
                             </form>
                             {% endif %}
                             {% if p[3] != 'zakonczone' and rola in ['admin', 'lider'] %}
-                            <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST"
+                            <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST"
                                 onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                                <input type="hidden" name="linia" value="{{ linia }}">
+                                <input type="hidden" name="sekcja" value="Zasyp">
+                                <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                                 <button type="submit" class="btn-action btn-outline-warning">↻ Wznów</button>
                             </form>
                             {% endif %}
@@ -125,12 +128,12 @@
     {% for p in plan if p[3] != 'w toku' and palety_mapa[p[0]] %}
     <div id="details-{{ p[0] }}" class="details-row" style="display:none;">
         <div class="p-15" style="background:#f8f9fa; border-top:1px solid #e0e0e0;">
-            <h4 class="m-0 mb-10">Detale szarż</h4>
+            <h4 class="m-0 mb-10">Detale zasypów</h4>
             <div class="cards-details">
                 {% for pal in palety_mapa[p[0]] %}
                 <div class="card-detail">
                     <div class="detail-header">
-                        <span class="detail-badge">Szarża #{{ loop.index }}</span>
+                        <span class="detail-badge">Zasyp #{{ loop.index }}</span>
                     </div>
                     <div class="detail-body">
                         <div class="detail-row">

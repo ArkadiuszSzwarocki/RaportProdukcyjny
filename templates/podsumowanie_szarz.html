@@ -5,7 +5,7 @@
 {% if grouped_summary %}
   <h3>Podsumowanie grup</h3>
   <table border="1" cellspacing="0" cellpadding="4">
-    <tr><th>Grupa</th><th>Ilość</th><th>Średnio: start->szarża [min]</th><th>Średnio: szarża->dodanie dosypki [min]</th><th>Średnio: dodanie->potwierdzenie [min]</th><th>Średnio: lab [min]</th><th>Średnio: do następnej szarży [min]</th></tr>
+    <tr><th>Grupa</th><th>Ilość</th><th>Średnio: start->zasyp [min]</th><th>Średnio: zasyp->dodanie dosypki [min]</th><th>Średnio: dodanie->potwierdzenie [min]</th><th>Średnio: lab [min]</th><th>Średnio: do następnego zasypu [min]</th></tr>
     {% for g in grouped_summary %}
     <tr>
       <td>{{ g.group }}</td>
@@ -35,7 +35,7 @@
         borderColor: 'rgb(75, 192, 192)',
         backgroundColor: 'rgba(75, 192, 192, 0.2)'
       },{
-        label: 'Czas od start->pierwsza szarża [min]',
+        label: 'Czas od start->pierwszy zasyp [min]',
         data: [ {% for r in results %}{{ r.szarza_minutes or 'null' }},{% endfor %} ],
         borderColor: 'rgb(255, 99, 132)',
         backgroundColor: 'rgba(255, 99, 132, 0.2)'
@@ -52,7 +52,7 @@
   })();
 </script>
 
-<h2>Podsumowanie szarż i dosypek</h2>
+<h2>Podsumowanie zasypów i dosypek</h2>
 <!-- Tippy.js CSS -->
 <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
 <style>
@@ -68,7 +68,7 @@
   .negative-time{color:#c62828;font-weight:700}
   #rangeDisplay{margin:8px 0 12px;color:#444;font-weight:600}
 </style>
-<form method="get" action="/podsumowanie_szarz">
+<form method="get" action="/podsumowanie_zasypow">
   <input type="hidden" name="start" id="startInput" value="">
   <input type="hidden" name="end" id="endInput" value="">
   <label>Data: <input type="date" name="date" value="{{ qdate }}"></label>
@@ -100,14 +100,14 @@
       <th>Zlecenie</th>
       <th>Produkt</th>
       <th>Czas startu zlecenia</th>
-      <th>Czas rozpoczęcia szarży</th>
+      <th>Czas rozpoczęcia zasypu</th>
       <th>Czas start→dodanie</th>
-      <th>Szarża ID</th>
-      <th>Czas dodania szarży</th>
+      <th>Zasyp ID</th>
+      <th>Czas dodania zasypu</th>
       <th>Dosypki (zlecenie)</th>
       <th>Potwierdzenie dosypki</th>
       <th>Czas mieszania</th>
-      <th>Czas całej szarży (HH:MM:SS)</th>
+      <th>Czas całego zasypu (HH:MM:SS)</th>
     </tr>
   {% if results %}
     {% for r in results %}
@@ -177,12 +177,12 @@
 </table>
  
 <p>
-  <a href="/podsumowanie_szarz.csv?period={{ period }}&date={{ qdate }}">Pobierz CSV</a>
+  <a href="/podsumowanie_zasypow.csv?period={{ period }}&date={{ qdate }}">Pobierz CSV</a>
 </p>
 
 {% if szarze_details %}
-  <h3>Szczegóły szarż</h3>
-  <form id="szarzeFilters" method="get" action="/podsumowanie_szarz" style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+  <h3>Szczegóły zasypów</h3>
+  <form id="szarzeFilters" method="get" action="/podsumowanie_zasypow" style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <input type="hidden" name="start" id="sz_start" value="{{ request.args.get('start','') }}">
     <input type="hidden" name="end" id="sz_end" value="{{ request.args.get('end','') }}">
     <input type="hidden" name="period" value="{{ period }}">
@@ -199,7 +199,7 @@
     <button type="submit">Filtruj szczegóły</button>
   </form>
   <table border="1" cellspacing="0" cellpadding="4">
-    <tr><th>Zlecenie</th><th>Produkt</th><th>Szarża ID</th><th>Czas dodania szarży</th><th>Czas trwania szarży [mm:ss]</th><th>Sz->dodanie dosypki [mm:ss]</th><th>Dodanie->potwierdzenie [mm:ss]</th><th>Potwierdzenie dosypki</th><th>Całkowity do końca mieszania [mm:ss]</th></tr>
+    <tr><th>Zlecenie</th><th>Produkt</th><th>Zasyp ID</th><th>Czas dodania zasypu</th><th>Czas trwania zasypu [mm:ss]</th><th>Zasyp->dodanie dosypki [mm:ss]</th><th>Dodanie->potwierdzenie [mm:ss]</th><th>Potwierdzenie dosypki</th><th>Całkowity do końca mieszania [mm:ss]</th></tr>
     {% for s in szarze_details %}
     <tr>
       <td>{{ s.plan_id }}</td>
@@ -268,7 +268,7 @@
     <div>Wszystkich: <strong>{{ szarze_total if szarze_total is not none else szarze_details|length }}</strong></div>
     <div>Strona: <strong>{{ szarze_page if szarze_page is not none else 1 }}</strong> / <strong>{{ szarze_total_pages if szarze_total_pages is not none else 1 }}</strong></div>
     <div>
-      <form id="pagerForm" method="get" action="/podsumowanie_szarz" style="display:inline">
+      <form id="pagerForm" method="get" action="/podsumowanie_zasypow" style="display:inline">
         <input type="hidden" name="start" value="{{ request.args.get('start','') }}">
         <input type="hidden" name="end" value="{{ request.args.get('end','') }}">
         <input type="hidden" name="period" value="{{ period }}">
@@ -282,7 +282,7 @@
       </form>
     </div>
     <div style="display:flex;align-items:center;gap:6px">Przejdź do strony:
-      <form id="gotoForm" method="get" action="/podsumowanie_szarz" style="display:inline">
+      <form id="gotoForm" method="get" action="/podsumowanie_zasypow" style="display:inline">
         <input type="hidden" name="start" value="{{ request.args.get('start','') }}">
         <input type="hidden" name="end" value="{{ request.args.get('end','') }}">
         <input type="hidden" name="period" value="{{ period }}">
@@ -298,7 +298,7 @@
   </div>
 {% endif %}
 
-<p style="font-size:0.9em;color:#555;margin-top:8px">📌 <span title="Ujemne wartości (np. gdy real_start > pierwsza szarża) są ignorowane przy obliczaniu średnich">Uwaga: ujemne czasy są ignorowane w obliczeniach średnich. Najedź na czerwony czas, aby zobaczyć szczegóły.</span></p>
+<p style="font-size:0.9em;color:#555;margin-top:8px">📌 <span title="Ujemne wartości (np. gdy real_start > pierwszy zasyp) są ignorowane przy obliczaniu średnich">Uwaga: ujemne czasy są ignorowane w obliczeniach średnich. Najedź na czerwony czas, aby zobaczyć szczegóły.</span></p>
 
 <!-- Chart.js wykres prosty -->
 <canvas id="szarzeChart" width="800" height="300"></canvas>
@@ -315,7 +315,7 @@
         borderColor: 'rgb(75, 192, 192)',
         backgroundColor: 'rgba(75, 192, 192, 0.2)'
       },{
-        label: 'Czas od start->pierwsza szarża [min]',
+        label: 'Czas od start->pierwszy zasyp [min]',
         data: [ {% for r in results %}{{ r.szarza_minutes or 'null' }},{% endfor %} ],
         borderColor: 'rgb(255, 99, 132)',
         backgroundColor: 'rgba(255, 99, 132, 0.2)'
@@ -401,7 +401,7 @@
       if(si) params.set('start', si);
       if(ei) params.set('end', ei);
       if(gb && gb.value) params.set('group_by', gb.value);
-      if(csvLink) csvLink.href = '/podsumowanie_szarz.csv?' + params.toString();
+      if(csvLink) csvLink.href = '/podsumowanie_zasypow.csv?' + params.toString();
     }catch(e){console.debug(e)}
   }
   document.addEventListener('DOMContentLoaded', function(){
@@ -419,7 +419,7 @@
         if(endIso) params.set('end', endIso);
         const gb = document.querySelector('select[name=group_by]');
         if(gb && gb.value) params.set('group_by', gb.value);
-        if(csvLink) csvLink.href = '/podsumowanie_szarz.csv?' + params.toString();
+        if(csvLink) csvLink.href = '/podsumowanie_zasypow.csv?' + params.toString();
       }catch(e){console.debug(e)}
     }
 
@@ -430,7 +430,7 @@
     if(!document.getElementById('csvLink')){
       const p = document.querySelector('p');
       if(p){
-        const a = document.createElement('a'); a.id='csvLink'; a.href = '/podsumowanie_szarz.csv?period={{ period }}&date={{ qdate }}'; a.innerText='Pobierz CSV';
+        const a = document.createElement('a'); a.id='csvLink'; a.href = '/podsumowanie_zasypow.csv?period={{ period }}&date={{ qdate }}'; a.innerText='Pobierz CSV';
         p.innerHTML=''; p.appendChild(a);
       }
     }

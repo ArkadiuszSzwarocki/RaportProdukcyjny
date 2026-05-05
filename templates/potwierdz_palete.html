@@ -6,20 +6,20 @@
   </div>
   <div style="display:flex; gap:8px;">
     <button type="submit" class="btn-action btn-success" style="flex:1;">{{ _('zatwierdz_btn') }}</button>
-    <button type="button" class="btn-action btn-action-cancel" style="flex:1;" onclick="(function(ev){ try{ ev&&ev.preventDefault&&ev.preventDefault(); ev&&ev.stopPropagation&&ev.stopPropagation(); var qp = document.querySelector('.quick-popup'); if(qp) { var cb = qp.parentNode.querySelector('.qp-close'); if(cb) cb.click(); } else if (typeof closeQuickPopup === 'function') closeQuickPopup(); }catch(e){} })(event)">ANULUJ</button>
+    <button type="button" class="btn-action btn-action-cancel" style="flex:1;" data-action="close-popup">ANULUJ</button>
   </div>
 </form>
 
 <!-- Modal popup dla różnic -->
-<div id="difference-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center; padding:20px;">
-  <div style="background:white; border-radius:16px; padding:32px; max-width:500px; width:100%; box-shadow:0 20px 60px rgba(15,23,42,0.3); text-align:center; position:relative; z-index:100000;">
-    <div style="font-size:48px; margin-bottom:16px;">⚠️</div>
-    <h3 style="margin:0 0 12px 0; color:#dc2626; font-size:20px; font-weight:700;">Różnica w wadze palety</h3>
-    <p style="margin:0 0 24px 0; color:#666; font-size:16px; line-height:1.5;">
+<div id="difference-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:99999; align-items:center; justify-content:center; padding:32px;">
+  <div style="background:white; border-radius:24px; padding:48px; max-width:980px; width:min(980px, 95vw); box-shadow:0 28px 90px rgba(15,23,42,0.4); text-align:center; position:relative; z-index:100000;">
+    <div style="font-size:64px; margin-bottom:20px;">⚠️</div>
+    <h3 style="margin:0 0 16px 0; color:#dc2626; font-size:28px; font-weight:800;">Różnica w wadze palety</h3>
+    <p style="margin:0 0 24px 0; color:#475569; font-size:20px; line-height:1.7;">
       Zarejestrowana waga palety różni się od deklaracji o <strong id="modal-diff"></strong> kg.
     </p>
-    <p style="margin:0 0 24px 0; color:#999; font-size:14px;">Paleta została przyjęta. Różnica jest zarejestrowana w systemie.</p>
-    <button type="button" onclick="closeDifferenceModal()" style="background:#2563eb; color:white; border:none; padding:12px 32px; border-radius:10px; font-weight:600; cursor:pointer; font-size:16px;">OK, zamknij</button>
+    <p style="margin:0 0 32px 0; color:#64748b; font-size:18px;">Paleta została przyjęta. Różnica jest zarejestrowana w systemie.</p>
+    <button type="button" onclick="closeDifferenceModal()" style="background:#2563eb; color:white; border:none; padding:16px 48px; border-radius:14px; font-weight:700; cursor:pointer; font-size:20px;">OK, zamknij</button>
   </div>
 </div>
 
@@ -40,13 +40,16 @@
       btn.innerHTML = 'TRWA ZAPISYWANIE...';
     }
     
+    var liniaInput = document.querySelector('input[name="linia"]');
+    var linia = liniaInput ? String(liniaInput.value || '') : '';
+
     fetch('{{ url_for("warehouse.potwierdz_palete", paleta_id=paleta_id) }}', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'X-Requested-With': 'XMLHttpRequest'
       },
-      body: 'waga_palety=' + encodeURIComponent(waga)
+      body: 'waga_palety=' + encodeURIComponent(waga) + '&linia=' + encodeURIComponent(linia)
     })
     .then(r => r.json())
     .then(j => {
@@ -75,7 +78,17 @@
   }
   
   function showDifferenceModal() {
-    document.getElementById('difference-modal').style.display = 'flex';
+    var modal = document.getElementById('difference-modal');
+    if (!modal) {
+      return;
+    }
+    if (!modal.dataset.attached) {
+      try {
+        document.body.appendChild(modal);
+        modal.dataset.attached = '1';
+      } catch (e) {}
+    }
+    modal.style.display = 'flex';
   }
   
   function closeDifferenceModal() {

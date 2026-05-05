@@ -511,14 +511,20 @@
                 <a href="{{ url_for('agro_warehouse.opakowania', linia='AGRO') }}"
                     class="nav-item {% if request.path.startswith('/agro/magazyn/opakowania') %}active{% endif %}">🧾 <span
                         class="text-capitalize">Opakowania Agro</span></a>
+                <a href="{{ url_for('magazyny_nowe.index', linia='AGRO') }}"
+                    class="nav-item {% if request.blueprint == 'magazyny_nowe' and request.args.get('linia','').upper() == 'AGRO' %}active{% endif %}">🚀 <span
+                        class="text-capitalize">Nowy Magazyn (Beta)</span></a>
+                <a href="{{ url_for('scanner.scanner_ui', linia='AGRO') }}"
+                    class="nav-item {% if request.blueprint == 'scanner' %}active{% endif %}">📡 <span
+                        class="text-capitalize">Skaner & Drukarka</span></a>
                 {% endif %}
 
                 <div class="nav-divider"></div>
                 {% endif %}
                 <div class="nav-section-label">ADMINISTRACJA & INNE</div>
 
-                {% if role_has_access('podsumowanie_szarz') %}
-                <a href="{{ url_for('warehouse.podsumowanie_szarz') }}" class="nav-item {% if request.path.startswith('/podsumowanie_szarz') %}active{% endif %}">📈 <span class="text-capitalize">Podsumowanie szarż</span></a>
+                {% if role_has_access('podsumowanie_zasypow') %}
+                <a href="{{ url_for('warehouse.podsumowanie_zasypow') }}" class="nav-item {% if request.path.startswith('/podsumowanie_szarz') or request.path.startswith('/podsumowanie_zasypow') %}active{% endif %}">📈 <span class="text-capitalize">Podsumowanie zasypów</span></a>
                 {% endif %}
 
                 {% if role_has_access('jakosc') %}
@@ -528,7 +534,7 @@
                     </button>
                     <div class="nav-sub {% if request.path.startswith('/jakosc') %}open{% endif %}">
                         <a href="{{ url_for('quality.jakosc_index') }}" class="nav-sub-item {% if request.path == url_for('quality.jakosc_index') %}active{% endif %}">— Strona Jakość</a>
-                        <a href="{{ url_for('quality.jakosc_podsumowanie_szarz') }}" class="nav-sub-item {% if request.path.startswith('/jakosc/podsumowanie_szarz') %}active{% endif %}">— Podsumowanie szarż (dla lab)</a>
+                        <a href="{{ url_for('quality.jakosc_podsumowanie_zasypow') }}" class="nav-sub-item {% if request.path.startswith('/jakosc/podsumowanie_szarz') or request.path.startswith('/jakosc/podsumowanie_zasypow') %}active{% endif %}">— Podsumowanie zasypów (dla lab)</a>
                     </div>
                 </div>
                 {% endif %}
@@ -1015,6 +1021,11 @@
             forms.forEach(form => {
                 let isSubmitting = false;
                 form.addEventListener('submit', function (e) {
+                    const submitKind = form.getAttribute('data-dashboard-submit') || '';
+                    if (submitKind === 'zasyp-stop') {
+                        return;
+                    }
+
                     if (form.dataset.waitingSzarzaConfirm === '1' || e.defaultPrevented) {
                         return;
                     }
@@ -1026,22 +1037,52 @@
 
                     // Wyłącz wszystkie submit buttony w form
                     const buttons = form.querySelectorAll('button[type="submit"]');
+                    const previousStates = [];
+
+                    const restoreButtons = () => {
+                        buttons.forEach((btn, idx) => {
+                            const prev = previousStates[idx];
+                            if (!prev) {
+                                return;
+                            }
+                            btn.disabled = prev.disabled;
+                            btn.style.opacity = prev.opacity;
+                            btn.style.cursor = prev.cursor;
+                            btn.textContent = prev.text;
+                        });
+                        isSubmitting = false;
+                    };
+
                     buttons.forEach(btn => {
+                        previousStates.push({
+                            disabled: btn.disabled,
+                            opacity: btn.style.opacity,
+                            cursor: btn.style.cursor,
+                            text: btn.textContent,
+                        });
                         btn.disabled = true;
                         btn.style.opacity = '0.5';
                         btn.style.cursor = 'not-allowed';
-                        const originalText = btn.textContent;
                         btn.textContent = '⏳ Przetwarzanie...';
 
                         // Reset po 30 sekundach (na wypadek błędu)
                         setTimeout(() => {
-                            btn.disabled = false;
-                            btn.style.opacity = '1';
-                            btn.style.cursor = 'pointer';
-                            btn.textContent = originalText;
-                            isSubmitting = false;
+                            // Jeśli żaden redirect/reload nie nastąpił, odblokuj formularz awaryjnie.
+                            if (!document.body.contains(btn)) {
+                                return;
+                            }
+                            restoreButtons();
                         }, 30000);
                     });
+
+                    // Inne handlery (np. modal "co dalej" dla STOP) mogą zatrzymać submit
+                    // dopiero na poziomie document. Wtedy natychmiast cofamy lock przycisków.
+                    setTimeout(() => {
+                        if (!e.defaultPrevented) {
+                            return;
+                        }
+                        restoreButtons();
+                    }, 0);
                 });
             });
         });

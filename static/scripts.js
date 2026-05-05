@@ -1090,6 +1090,11 @@
         console.info('[reinit] Re-initializing after partial reload');
         // Global click delegation is already on document, so it should work
         // But reinit any timers or specific elements here
+        try {
+            if (window.dashboardPageHelpers && typeof window.dashboardPageHelpers.applyAutoSzarzaMode === 'function') {
+                window.dashboardPageHelpers.applyAutoSzarzaMode();
+            }
+        } catch (e) { /* best-effort */ }
     }
 
     window.addEventListener('app:partialReload', reinitializeAfterPartialReload);

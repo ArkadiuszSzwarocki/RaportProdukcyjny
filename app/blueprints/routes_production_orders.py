@@ -321,12 +321,19 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             current_app.logger.error(f'Failed to send report: {e}', exc_info=True)
             return jsonify({'error': 'failed to send file'}), 500
 
-    @production_bp.route('/szarza_page/<int:plan_id>', methods=['GET'])
+    @production_bp.route('/szarza_page/<int:plan_id>', methods=['GET'], endpoint='szarza_page')
+    @production_bp.route('/zasyp_page/<int:plan_id>', methods=['GET'], endpoint='zasyp_page')
     @login_required
     def szarza_page(plan_id):
-        """Strona dodawania nowej szarży dla konkretnego planu."""
+        """Strona dodawania nowego zasypu dla konkretnego planu."""
         linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         linia = str(linia_input).upper()
+        role = (session.get('rola') or '').lower()
+        is_admin_role = role in ['admin', 'zarzad', 'planista']
+        is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
+        if not is_admin_role and not is_ops_role:
+            flash('Brak uprawnień do dodawania zasypów.', 'warning')
+            return redirect('/')
         current_app.logger.debug(f'[SZARZA_PAGE] Called with plan_id={plan_id}')
 
         conn = get_db_connection()

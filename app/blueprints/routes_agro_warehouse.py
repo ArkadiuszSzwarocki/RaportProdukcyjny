@@ -22,6 +22,7 @@ def index():
 
     # inventory grouped by material (for compact view)
     inventory = AgroWarehouseService.get_inventory_grouped(linia=linia)
+    inventory_by_location = AgroWarehouseService.get_inventory_by_location(linia=linia)
     history = AgroWarehouseService.get_history(limit=50, linia=linia)
     pending = AgroWarehouseService.get_history(status='OCZEKUJACE', linia=linia)
     dictionary = AgroWarehouseService.get_dictionary()
@@ -40,6 +41,7 @@ def index():
     return render_template(
         'agro_magazyn.html',
         inventory=inventory,
+        inventory_by_location=inventory_by_location,
         history=history,
         pending=pending,
         dictionary=dictionary,
@@ -711,7 +713,7 @@ def raport_palet():
             all_inputs = []
             for b_raw in batches_raw:
                 all_inputs.append({
-                    'label': f"Szarża #{b_raw['id']}",
+                    'label': f"Zasyp #{b_raw['id']}",
                     'waga': b_raw['waga'] or 0,
                     'time': b_raw['data_dodania']
                 })

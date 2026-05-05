@@ -122,7 +122,10 @@
                 {% endif %}
                 
                 {% if rola in ['admin', 'lider'] %}
-                    <form action="{{ url_for('planning.przywroc_zlecenie', id=p[0]) }}" method="POST" class="inline-form inline-display" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                    <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST" class="inline-form inline-display" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <input type="hidden" name="sekcja" value="Workowanie">
+                        <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                         <button type="submit" class="btn-action btn-outline-warning btn-small" aria-label="Wznowić zlecenie" title="Wznowić zlecenie">↻ Wznów</button>
                     </form>
                 {% endif %}

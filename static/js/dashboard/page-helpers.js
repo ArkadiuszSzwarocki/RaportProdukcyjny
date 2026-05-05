@@ -19,6 +19,20 @@
     }
 
     function getSekcja() {
+        var configNode = document.getElementById('dashboard-config');
+        var configSekcja = configNode ? String(configNode.getAttribute('data-sekcja') || '') : '';
+        if (configSekcja) {
+            return configSekcja;
+        }
+
+        try {
+            var params = new URLSearchParams(global.location.search);
+            if (params.has('sekcja')) {
+                return String(params.get('sekcja') || '');
+            }
+        } catch (error) {
+        }
+
         var sekcjaNode = document.querySelector('[data-sekcja]');
         return sekcjaNode ? String(sekcjaNode.getAttribute('data-sekcja') || '') : '';
     }
@@ -34,7 +48,7 @@
         try {
             var config = getConfigState();
             var role = String(config && config.currentRole || '').toLowerCase();
-            var roleDefault = ['pracownik', 'produkcja', 'lider'].includes(role) ? 'auto' : 'manual';
+            var roleDefault = ['operator', 'pracownik', 'produkcja', 'lider'].includes(role) ? 'auto' : 'manual';
             var mode = (localStorage.getItem('zasyp_auto_szarza_mode') || roleDefault).toLowerCase();
             return mode === 'auto' ? 'auto' : 'manual';
         } catch (error) {

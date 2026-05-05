@@ -138,6 +138,38 @@ class AgroWarehouseService:
             conn.close()
 
     @staticmethod
+    def get_inventory_by_location(linia='Agro'):
+        table_surowce = get_table_name('magazyn_surowce', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(f"SELECT id, nazwa, stan_magazynowy, lokalizacja FROM {table_surowce} WHERE stan_magazynowy > 0 ORDER BY lokalizacja ASC, id ASC")
+            pallets = cursor.fetchall()
+            
+            grouped = {}
+            for p in pallets:
+                loc = p.get('lokalizacja') or 'Brak lokalizacji'
+                if loc not in grouped:
+                    grouped[loc] = []
+                grouped[loc].append({
+                    'id': p['id'],
+                    'nazwa': p.get('nazwa'),
+                    'stan_magazynowy': float(p.get('stan_magazynowy') or 0),
+                    'lokalizacja': loc
+                })
+                
+            result = []
+            for loc in sorted(grouped.keys()):
+                result.append({
+                    'lokalizacja': loc,
+                    'pallets': grouped[loc],
+                    'total_kg': sum(p['stan_magazynowy'] for p in grouped[loc])
+                })
+            return result
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_dictionary():
         conn = get_db_connection()
         try:

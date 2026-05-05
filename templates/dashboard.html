@@ -5,7 +5,8 @@
 <!-- modalOverlay removed (mechanizm popup wyłączony) -->
 <div class="section-header" id="dashboard-config"
     data-current-role="{{ rola }}"
-    data-linia="{{ linia or 'PSD' }}">
+    data-linia="{{ linia or 'PSD' }}"
+    data-sekcja="{{ sekcja }}">
     <div class="top-submenu" style="padding: 0; box-shadow: none; margin-bottom: 20px;">
         <div class="top-submenu-inner" style="margin-left: 0;">
             <nav class="top-menu">
@@ -83,216 +84,8 @@
             {% endif %}
         </div>
     </div>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v={{ static_version }}&dashboard_refactor=4">
     <style>
-        .active-order-floating-bar-wrap {
-            display: flex;
-            justify-content: flex-end;
-            margin: 8px 14px 2px;
-            position: sticky;
-            top: 76px;
-            z-index: 35;
-        }
-
-        .active-order-floating-bar {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            max-width: 100%;
-        }
-
-        .agro-session-running-hint {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            max-width: 100%;
-            padding: 3px 8px;
-            border-radius: 999px;
-            border: 1px solid #f6c453;
-            background: linear-gradient(135deg, #fff4cc 0%, #ffe4a3 100%);
-            color: #6d4c00;
-            font-size: 0.72em;
-            font-weight: 700;
-            line-height: 1.2;
-            white-space: normal;
-        }
-
-        .active-order-szarze-wrap {
-            margin: 0;
-            align-self: start;
-        }
-
-        .active-order-szarze-panel {
-            width: min(420px, calc(100vw - 48px));
-            border: 1px solid #d7e1eb;
-            border-radius: 10px;
-            background: #f7fafc;
-            box-shadow: 0 2px 8px rgba(31, 58, 86, 0.08);
-            padding: 10px 12px;
-        }
-
-        .active-order-szarze-title {
-            font-size: 0.9em;
-            color: #647684;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-
-        .active-order-szarze-item {
-            border-bottom: 1px solid #dfe7ef;
-            padding: 6px 0;
-            min-width: 0;
-        }
-
-        .active-order-szarze-item:last-child {
-            border-bottom: 0;
-        }
-
-        .active-order-szarze-line {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            align-items: start;
-            gap: 8px;
-            min-width: 0;
-        }
-
-        .active-order-szarze-left {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            font-size: 0.92em;
-            min-width: 0;
-        }
-
-        .active-order-szarze-actions {
-            display: inline-flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-
-        .active-order-szarze-dosypki {
-            margin-top: 4px;
-            max-width: 100%;
-            font-size: 0.82em;
-            color: #495a69;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-        }
-
-        .active-order-szarze-dosypki-item {
-            line-height: 1.35;
-        }
-
-        .szarza-row-main {
-            min-width: 0;
-        }
-
-        .szarza-row-head {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            min-width: 0;
-        }
-
-        .szarza-dosypki-side {
-            max-width: 100%;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-        }
-
-        .szarza-dosypki-item {
-            line-height: 1.4;
-        }
-
-        .agro-header-controls {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-left: 0;
-        }
-
-        .agro-kgph-inline {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            margin-left: 0;
-            flex-wrap: wrap;
-        }
-
-        .agro-kgph-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3px 8px;
-            border-radius: 999px;
-            font-size: 0.74em;
-            font-weight: 700;
-            border: 1px solid #d7e3ee;
-            background: #f6fbff;
-            color: #1f4f7a;
-            white-space: nowrap;
-        }
-
-        .agro-kgph-pill.js-kgph-explain {
-            cursor: pointer;
-            pointer-events: auto;
-        }
-
-        .active-order-floating-bar .agro-header-controls .btn-action {
-            font-size: 0.74em !important;
-            line-height: 1.1;
-            padding: 4px 8px !important;
-            white-space: nowrap;
-        }
-
-        .active-order-floating-bar .agro-kgph-pill {
-            font-size: 0.71em;
-            padding: 3px 7px;
-        }
-
-        @media (max-width: 1280px) {
-            .active-order-floating-bar-wrap {
-                margin: 8px 10px 2px;
-            }
-
-            .active-order-szarze-panel {
-                width: 100%;
-            }
-
-            .active-order-floating-bar {
-                width: 100%;
-                justify-content: flex-end;
-            }
-
-            .active-order-floating-bar .agro-kgph-inline {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .active-order-floating-bar .agro-kgph-pill {
-                width: 100%;
-                justify-content: space-between;
-            }
-
-            .active-order-szarze-line {
-                grid-template-columns: 1fr;
-            }
-
-            .active-order-szarze-actions {
-                justify-content: flex-start;
-            }
-        }
-
-        @media (min-width: 1380px) {
-            .szarza-row-layout {
-                display: block;
-            }
-        }
     </style>
 </div>
 
@@ -494,16 +287,51 @@
         {% set fb_pid = ns.active_plan_id %}
         {% set fb_szarza_nr = (etapy_curr_szarza.get(fb_pid, 1) if etapy_curr_szarza is defined and etapy_curr_szarza else 1) %}
         {% set fb_etapy = (etapy_mapa.get(fb_pid, []) if etapy_mapa is defined and etapy_mapa else []) %}
+        {% set fb_sesje = (etapy_sesje_mapa.get(fb_pid, []) if etapy_sesje_mapa is defined and etapy_sesje_mapa else []) %}
         {% set fb_controls = namespace(show_remove_last_pair=false) %}
+        {% set fb_running = namespace(items=[], count=0) %}
         {% for e in fb_etapy %}
             {% set e_str = e.etap|string %}
             {% if e.etap == 3 or e.etap == 4 or (e_str|length > 1 and (e_str[0] == '3' or e_str[0] == '4')) %}
                 {% set fb_controls.show_remove_last_pair = true %}
             {% endif %}
         {% endfor %}
+        {% for sesja_info in fb_sesje %}
+            {% set sesja_nr = sesja_info.szarza_nr|default(1) %}
+            {% for e in sesja_info.etapy|default([]) %}
+                {% if e.is_running %}
+                    {% set e_str = e.etap|string %}
+                    {% if e.etap == 1 %}
+                        {% set etap_label = 'Naważanie' %}
+                    {% elif e.etap == 2 %}
+                        {% set etap_label = 'Mieszanie i oczekiwanie na LAB' %}
+                    {% elif e.etap == 5 %}
+                        {% set etap_label = 'Opróżnianie' %}
+                    {% elif e_str|length > 1 and e_str[0] == '3' %}
+                        {% set etap_label = 'Dosypka do mieszania' %}
+                    {% elif e_str|length > 1 and e_str[0] == '4' %}
+                        {% set etap_label = 'Mieszanie po dosypce' %}
+                    {% elif e.etap == 3 %}
+                        {% set etap_label = 'Dosypka do mieszania' %}
+                    {% elif e.etap == 4 %}
+                        {% set etap_label = 'Mieszanie po dosypce' %}
+                    {% else %}
+                        {% set etap_label = 'Etap ' ~ e.etap %}
+                    {% endif %}
+                    {% set fb_running.items = fb_running.items + ['Zasyp ' ~ sesja_nr ~ ': ' ~ etap_label ~ ' • etap ' ~ e.etap] %}
+                    {% set fb_running.count = fb_running.count + 1 %}
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
         {% set fb_kstats = kgph_stats_mapa.get(fb_pid) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
         <div class="active-order-floating-bar-wrap">
             <div class="active-order-floating-bar">
+                <div class="active-order-status-inline">
+                    {% if fb_running.count > 0 and rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
+                    <span class="badge-success" style="font-size:0.72em; padding:2px 6px;">{% if fb_running.count > 1 %}AKTYWNE W TOKU ({{ fb_running.count }}){% else %}AKTYWNA W TOKU{% endif %}</span>
+                    <span class="agro-session-running-hint">Otwarte: {{ fb_running.items|join(' | ') }}</span>
+                    {% endif %}
+                </div>
                 {% if fb_kstats %}
                 <div class="agro-kgph-inline">
                     <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
@@ -528,20 +356,6 @@
                     </span>
                 </div>
                 {% endif %}
-                <div class="agro-header-controls">
-                    {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] %}
-                    <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=fb_pid) }}" style="margin:0; display:inline-block;"
-                        data-confirm="Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel szarży, a obecne pozostaną poniżej.">
-                        <input type="hidden" name="linia" value="{{ linia }}">
-                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                        <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
-                        <button type="submit" class="btn-action btn-blue">
-                            + Kolejny etap
-                        </button>
-                    </form>
-                    {% endif %}
-
-                </div>
             </div>
         </div>
 
@@ -616,7 +430,7 @@
                         <div class="agro-header-controls">
                             {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] %}
                             <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;"
-                                data-confirm="Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel szarży, a obecne pozostaną poniżej.">
+                                data-confirm="Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel zasypu, a obecne pozostaną poniżej.">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                 <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
@@ -705,22 +519,23 @@
                         data-plan-id="{{ p[0] }}"
                         data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
                     {% endif %}
-                    {% if rola not in ['laborant', 'laboratorium'] %}
-                    <a href="{{ url_for('production.szarza_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green manual-szarza-btn"
-                        data-slide>+ SZARŻA</a>
+                    {% set can_manual_szarza = (rola in ['admin', 'zarzad', 'planista']) or (rola in ['operator', 'pracownik', 'lider', 'stepnpio']) %}
+                    {% if can_manual_szarza %}
+                    <a href="{{ url_for('production.zasyp_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green manual-szarza-btn"
+                        data-slide>+ ZASYP</a>
                     {% endif %}
                     {% set szarze_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and
                     palety_mapa[p[0]]) else 0 %}
                     {% set active_agro_external = (sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active and p[0] == ns.active_plan_id) %}
                     {% if not active_agro_external %}
-                    <button type="button" class="btn-action btn-outline-warning" data-toggle-details="{{ p[0] }}">Szarże ({{ szarze_count }})</button>
+                    <button type="button" class="btn-action btn-outline-warning" data-toggle-details="{{ p[0] }}">Zasypy ({{ szarze_count }})</button>
                     {% endif %}
                     {% else %}
                     {% endif %}
                     {% elif p[3] == 'zakonczone' %}
                     {% if sekcja == 'Zasyp' %}
                     {% set szarze_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]]) else 0 %}
-                    <button type="button" class="btn-action btn-outline-secondary" data-toggle-details="{{ p[0] }}">Szarże ({{ szarze_count }}) 👁</button>
+                    <button type="button" class="btn-action btn-outline-secondary" data-toggle-details="{{ p[0] }}">Zasypy ({{ szarze_count }}) 👁</button>
                     {% elif sekcja == 'Workowanie' %}
                     {% set palety_count = (palety_mapa[p[0]]|length) if (palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]]) else 0 %}
                     <button type="button" class="btn-action btn-outline-secondary" data-toggle-details="{{ p[0] }}">Palety ({{ palety_count }}) 👁</button>
@@ -733,7 +548,7 @@
                 <div id="details-{{ p[0] }}" class="details-row" style="display:none;">
                     <div class="p-10">
                         
-                        <div class="small text-muted mb-5"><strong>Lista szarż zrobionych:</strong></div>
+                        <div class="small text-muted mb-5"><strong>Lista zasypów zrobionych:</strong></div>
                         {% if palety_mapa and p[0] in palety_mapa and palety_mapa[p[0]] %}
                         {% for pal in palety_mapa[p[0]] %}
                         <div class="card-row"
@@ -745,19 +560,19 @@
                                     <strong class="text-primary">{{ pal[0]|int }} kg</strong>
                                     <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-' }}</span>
                                     {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'admin', 'zarzad'] %}
-                                    <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2], linia=linia) }}"
+                                    <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2], zasyp_id=pal[2], linia=linia) }}"
                                        class="btn-action btn-blue"
                                        data-slide
                                        style="padding:2px 8px; font-size:0.75em; line-height:1.2;"
-                                       title="Dodaj dosypkę do tej szarży">+ DOSYPKA</a>
+                                       title="Dodaj dosypkę do tego zasypu">+ DOSYPKA</a>
                                     {% endif %}
                                     {% if pal[2] and pal[2]|int > 0 %}
-                                                <a href="{{ url_for('production.szarza_notatka_page', szarza_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
+                                                <a href="{{ url_for('production.zasyp_notatka_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
                                        class="btn-action btn-outline-secondary szarza-note"
                                        data-slide
                                        data-note="{{ (pal[6] if pal|length>6 else '')|e }}"
                                        style="padding:2px 8px; font-size:0.75em;"
-                                       title="Dodaj/edytuj notatkę do szarży">📝 Notatka</a>
+                                       title="Dodaj/edytuj notatkę do zasypu">📝 Notatka</a>
                                     {% endif %}
                                 </div>
                                 {% if pal|length>6 and pal[6] %}
@@ -798,7 +613,7 @@
                         {% endif %}
 
                         {% else %}
-                        <div class="small text-muted">Brak zarejestrowanych szarż dla tego zlecenia.</div>
+                        <div class="small text-muted">Brak zarejestrowanych zasypów dla tego zlecenia.</div>
                         {% endif %}
                     </div>
                 </div>
@@ -816,6 +631,15 @@
                                     <strong class="text-primary">{{ pal[0]|int }} kg</strong>
                                 </div>
                             </div>
+                            {% if sekcja == 'Zasyp' and p[3] == 'w toku' and pal[2] and pal[2]|int > 0 and rola in ['lider', 'admin'] %}
+                            <div style="margin-left: 8px;">
+                                <a href="{{ url_for('warehouse.confirm_delete_zasyp_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
+                                    class="btn-action btn-danger"
+                                    data-slide
+                                    style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
+                                    title="Usuń zasyp (2-etapowe potwierdzenie)">Usuń</a>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endfor %}
                         {% else %}
@@ -829,7 +653,7 @@
             {% set active_szarze_panel.rendered = true %}
             <div class="active-order-szarze-wrap">
                 <div class="active-order-szarze-panel">
-                    <div class="active-order-szarze-title">Lista szarż zrobionych:</div>
+                    <div class="active-order-szarze-title">Lista zasypów zrobionych:</div>
                     {% set fb_palety = (palety_mapa.get(p[0]) if palety_mapa and (p[0] in palety_mapa) else []) %}
                     {% if fb_palety %}
                         {% for pal in fb_palety %}
@@ -842,21 +666,28 @@
                                 </div>
                                 <div class="active-order-szarze-actions">
                                     {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'admin', 'zarzad'] %}
-                                    <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2], linia=linia) }}"
+                                    <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=pal[2], zasyp_id=pal[2], linia=linia) }}"
                                        class="btn-action btn-blue"
                                        data-slide
                                        style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
-                                       title="Dodaj dosypkę do tej szarży">+ DOSYPKA</a>
+                                       title="Dodaj dosypkę do tego zasypu">+ DOSYPKA</a>
                                     {% endif %}
                                     {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'lider', 'admin', 'zarzad'] %}
-                                    <a href="{{ url_for('production.szarza_notatka_page', szarza_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
+                                                <a href="{{ url_for('production.zasyp_notatka_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
                                        class="btn-action btn-outline-secondary szarza-note"
                                        data-slide
                                        data-note="{{ (pal[6] if pal|length>6 else '')|e }}"
                                        style="padding:2px 6px; font-size:0.75em; line-height:1; min-width:30px; text-align:center;"
-                                       title="Dodaj/edytuj notatkę do szarży">
+                                       title="Dodaj/edytuj notatkę do zasypu">
                                         <span class="material-icons" style="font-size:16px; vertical-align:middle;">edit_note</span>
                                     </a>
+                                    {% endif %}
+                                    {% if pal[2] and pal[2]|int > 0 and rola in ['lider', 'admin'] %}
+                                                <a href="{{ url_for('warehouse.confirm_delete_zasyp_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
+                                       class="btn-action btn-danger"
+                                       data-slide
+                                       style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
+                                       title="Usuń zasyp (2-etapowe potwierdzenie)">Usuń</a>
                                     {% endif %}
                                 </div>
                             </div>
@@ -870,7 +701,7 @@
                         </div>
                         {% endfor %}
                     {% else %}
-                    <div class="small text-muted">Brak zarejestrowanych szarż.</div>
+                    <div class="small text-muted">Brak zarejestrowanych zasypów.</div>
                     {% endif %}
                 </div>
             </div>
@@ -919,44 +750,43 @@
                 <div class="d-flex align-center gap-8 flex-wrap">
                     <span style="font-size:1.3em;">⏱️</span>
                     {% if rola in ['laborant', 'laboratorium'] %}
-                    <strong>Statusy etapów — Szarża {{ cur_szarza }}:</strong>
+                    <strong>Statusy etapów — Zasyp {{ cur_szarza }}:</strong>
                     {% else %}
-                    <strong>Punkt Kontrolny Szarży {{ cur_szarza }}:</strong>
+                    <strong>Punkt Kontrolny Zasypu {{ cur_szarza }}:</strong>
                     {% endif %}
                     {% if sesja.is_current %}
                     <span class="badge-warning" style="font-size:0.72em; padding:2px 6px;">AKTUALNA</span>
                     {% else %}
                     <span class="badge-info" style="font-size:0.72em; padding:2px 6px;">WCZEŚNIEJSZA</span>
                     {% endif %}
-                    {% if sesja.has_running %}
-                    <span class="badge-success" style="font-size:0.72em; padding:2px 6px;">AKTYWNA W TOKU</span>
+                </div>
+                <div class="agro-panel-header-actions">
+                    {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] and sesja.is_current %}
+                    <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;"
+                        data-confirm="Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel zasypu, a obecne pozostaną poniżej.">
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                        <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
+                        <button type="submit" class="btn-action btn-blue" style="padding: 4px 10px; font-size: 0.82em;">
+                            + KOLEJNY ETAP
+                        </button>
+                    </form>
                     {% endif %}
-                    {% if sesja_running.etap is not none and rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
-                    <span class="agro-session-running-hint">Otwarte: {{ sesja_running.label }} • etap {{ sesja_running.etap }}</span>
-                    {% endif %}
-
                     {% if rola != 'laborant' and sesja.is_current %}
                     {% if linia == 'AGRO' and p[3] == 'w toku' %}
                     <a href="{{ url_for('production.agro_mix_inventory', selected_plan_id=p[0]) }}"
                        class="btn-action"
                        data-slide
-                       style="padding: 4px 10px; font-size: 0.85em; margin-left: 10px; background:#9b59b6; color:#fff; font-weight:700;">
-                        DODAJ MIX (szarża #{{ cur_szarza }})
+                       style="padding: 4px 10px; font-size: 0.82em; background:#9b59b6; color:#fff; font-weight:700;">
+                        DODAJ MIX (zasyp #{{ cur_szarza }})
                     </a>
                     {% endif %}
-                    <form method="POST"
-                          action="{{ url_for('production.zasyp_usun_punkt_kontrolny', plan_id=p[0]) }}"
-                          style="margin: 0; display: inline-block;"
-                          data-confirm="Usunąć CAŁY punkt kontrolny szarży #{{ cur_szarza }}? Tej operacji nie da się cofnąć.">
-                        <input type="hidden" name="linia" value="{{ linia }}">
-                        <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
-                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
-                        <button type="submit"
-                                class="btn-action"
-                                style="padding: 4px 10px; font-size: 0.85em; margin-left: 8px; background:#c0392b; color:#fff;">
-                            X
-                        </button>
-                    </form>
+                    <a href="{{ url_for('production.zasyp_usun_punkt_kontrolny_page', plan_id=p[0], linia=linia, sekcja=sekcja, szarza_nr=cur_szarza, zasyp_nr=cur_szarza, data=dzisiaj) }}"
+                       class="btn-action"
+                       data-slide
+                       style="padding: 4px 10px; font-size: 0.82em; background:#c0392b; color:#fff;">
+                        X
+                    </a>
                     {% endif %}
                 </div>
             </div>
@@ -1055,7 +885,7 @@
                 {% else %}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
                     <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.8em; color:#2f3b4a; user-select:none;">
-                        <span>AUTO SZARŻA</span>
+                        <span>AUTO ZASYP</span>
                         <input type="checkbox" class="auto-szarza-switch">
                     </label>
                 </div>
@@ -1135,8 +965,10 @@
                                     data-confirm="Zresetować czas? (Będziesz mógł wprowadzić go ręcznie)">
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
                                                                 <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                                                                <input type="hidden" name="zasyp_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                                <input type="hidden" name="data_planu" value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
                                 <input type="hidden" name="etap" value="{{ etap.etap }}">
                                 <button type="submit" class="btn-icon" 
                                         style="background: none; border: none; cursor: pointer; padding: 4px; color: #333; display: flex; align-items: center; justify-content: center;" 
@@ -1162,6 +994,7 @@
                                     data-confirm="Czy na pewno chcesz USUNĄĆ ten kafelek ({{ etap.etap }})?">
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
                                                                 <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                                                                <input type="hidden" name="zasyp_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                 <input type="hidden" name="etap" value="{{ etap.etap }}">
@@ -1222,8 +1055,18 @@
                         {% endif %}
                         <div class="d-flex gap-6 mt-6 flex-wrap" style="justify-content:center; align-items:center; min-height:32px;">
                             {% set is_agro_pair_etap = linia == 'AGRO' and (etap.etap == 3 or etap.etap == 4 or (etap.etap > 10 and (etap.etap // 10 == 3 or etap.etap // 10 == 4))) %}
-                            {% set can_restart = false %}
-                            {% set lock_other_starts = sesja.has_running and sesja.active_etap != etap.etap %}
+                            {% set restart_plan_arg = request.args.get('restart_plan') %}
+                            {% set restart_etap_arg = request.args.get('restart_etap') %}
+                            {% set restart_szarza_arg = request.args.get('restart_szarza') %}
+                            {% if restart_plan_arg and restart_etap_arg %}
+                                {% set plan_cmp = restart_plan_arg|int == p[0] %}
+                                {% set etap_cmp = restart_etap_arg|int == etap.etap %}
+                                {% set szarza_cmp = (not restart_szarza_arg or restart_szarza_arg == '' or restart_szarza_arg|int == cur_szarza) %}
+                                {% set can_restart = plan_cmp and etap_cmp and szarza_cmp %}
+                            {% else %}
+                                {% set can_restart = False %}
+                            {% endif %}
+                            {% set lock_other_starts = sesja.has_running and sesja.active_etap != etap.etap and (not can_restart) %}
                             {% set lock_by_sequence = (not sesja.has_running) and (flow_ns.next_start_etap is not none) and (etap.etap != flow_ns.next_start_etap) and (not can_restart) %}
                             {% set lock_start_button = lock_other_starts or lock_by_sequence %}
                             {% if not etap.czas_start or can_restart %}
@@ -1236,9 +1079,11 @@
                                                                     >
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
                                 <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                                <input type="hidden" name="zasyp_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                 <input type="hidden" name="etap" value="{{ etap.etap }}">
+                                <input type="hidden" name="restart_intent" value="{{ 1 if can_restart else 0 }}">
                                     <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
                                 <input type="hidden" name="data_planu"
                                        value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
@@ -1261,6 +1106,7 @@
                                                                     >
                                 <input type="hidden" name="plan_id" value="{{ p[0] }}">
                                                                 <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                                                                <input type="hidden" name="zasyp_nr" value="{{ cur_szarza }}">
                                 <input type="hidden" name="linia" value="{{ linia }}">
                                 <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                 <input type="hidden" name="etap" value="{{ etap.etap }}">
@@ -1281,6 +1127,7 @@
                                       class="d-flex align-center gap-6 flex-wrap" style="margin:0;">
                                     <input type="hidden" name="plan_id" value="{{ p[0] }}">
                                                                         <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                                                                        <input type="hidden" name="zasyp_nr" value="{{ cur_szarza }}">
                                     <input type="hidden" name="linia" value="{{ linia }}">
                                     <input type="hidden" name="sekcja" value="{{ sekcja }}">
                                     <input type="hidden" name="etap" value="{{ etap.etap }}">
@@ -1349,30 +1196,6 @@
     <script src="{{ url_for('static', filename='js/dashboard/page-helpers.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
     <script src="{{ url_for('static', filename='js/dashboard/bootstrap.js') }}?v={{ static_version }}&dashboard_refactor=4"></script>
 
-    <!-- Quick-popup: center modal for AJAX-loaded content -->
-    <div id="quickBackdrop" class="quick-backdrop" data-action="close-popup" style="display:none;"></div>
-    <div id="quickPopup" class="quick-popup" aria-hidden="true" style="display:none;">
-        <div class="qp-header d-flex justify-between align-center p-10">
-            <div class="header-title">{{ _('panel') }}</div>
-            <div><button type="button" class="btn-action btn-small" data-action="close-popup">✖</button></div>
-        </div>
-        <div id="quickPopupBody" class="qp-body p-10">{{ _('ladowanie') }}</div>
-    </div>
-
-    <div id="kgphExplainBackdrop" class="quick-backdrop" style="display:none;"></div>
-    <div id="kgphExplainModal" class="quick-popup" aria-hidden="true" style="display:none; max-width: 560px;">
-        <div class="qp-header d-flex justify-between align-center p-10">
-            <div class="header-title" id="kgphExplainTitle">Wydajność</div>
-            <div><button type="button" class="btn-action btn-small" id="kgphExplainCloseBtn">✖</button></div>
-        </div>
-        <div class="qp-body p-10">
-            <div class="card-row"><strong>Plan:</strong> <span id="kgphExplainPlan">-</span></div>
-            <div class="card-row"><strong>Aktualny wynik:</strong> <span id="kgphExplainValue">-</span></div>
-            <div class="card-row"><strong>Licznik (co liczy):</strong> <span id="kgphExplainMass">-</span></div>
-            <div class="card-row"><strong>Mianownik (co dzieli):</strong> <span id="kgphExplainTime">-</span></div>
-            <div class="card-row"><strong>Wzór:</strong> <span id="kgphExplainFormula">-</span></div>
-            <div class="small text-muted" id="kgphExplainModeInfo" style="margin-top:8px;"></div>
-        </div>
-    </div>
+    {% include 'includes/dashboard_modals.html' %}
 
     {% endblock %}

@@ -36,6 +36,20 @@
     }
 
     function getSekcja() {
+        var configNode = document.getElementById('dashboard-config');
+        var configSekcja = configNode ? String(configNode.getAttribute('data-sekcja') || '') : '';
+        if (configSekcja) {
+            return configSekcja;
+        }
+
+        try {
+            var params = new URLSearchParams(global.location.search);
+            if (params.has('sekcja')) {
+                return String(params.get('sekcja') || '');
+            }
+        } catch (error) {
+        }
+
         var sekcjaNode = document.querySelector('[data-sekcja]');
         return sekcjaNode ? String(sekcjaNode.getAttribute('data-sekcja') || '') : '';
     }
@@ -49,7 +63,9 @@
 
     function isAgroZasypPage() {
         var config = getConfigState();
-        return String(config && config.linia || '').toUpperCase() === 'AGRO' && getSekcja() === 'Zasyp';
+        var sekcja = String(getSekcja() || '').toLowerCase();
+        var linia = String(config && config.linia || '').toUpperCase();
+        return ['AGRO', 'PSD'].includes(linia) && sekcja === 'zasyp';
     }
 
     function getCurrentDateIso() {
@@ -282,6 +298,8 @@
             }
 
             try {
+                var config = getConfigState();
+                var linia = (config && config.linia) || 'PSD';
                 fetch('/api/zasyp/ack_dosypka_added', {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -290,7 +308,7 @@
                         'X-Requested-With': 'XMLHttpRequest',
                         'Accept': 'application/json',
                     },
-                    body: JSON.stringify({ linia: 'AGRO', timestamp: timestamp }),
+                    body: JSON.stringify({ linia: linia, timestamp: timestamp }),
                 }).catch(function (error) {
                     console.warn('ack_dosypka_added failed', error);
                 });
@@ -367,7 +385,9 @@
         }
 
         try {
-            fetch('/api/zasyp/pending_dosypki_badges?linia=AGRO&data=' + encodeURIComponent(getCurrentDateIso()) + '&_=' + Date.now(), {
+            var config = getConfigState();
+            var linia = (config && config.linia) || 'PSD';
+            fetch('/api/zasyp/pending_dosypki_badges?linia=' + encodeURIComponent(linia) + '&data=' + encodeURIComponent(getCurrentDateIso()) + '&_=' + Date.now(), {
                 credentials: 'same-origin',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',

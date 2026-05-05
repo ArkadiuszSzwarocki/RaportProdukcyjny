@@ -2,6 +2,23 @@
 (function () {
     'use strict';
 
+    var debugEnabled = !!window.__RP_DEBUG__;
+
+    function debugLog() {
+        if (!debugEnabled) return;
+        console.log.apply(console, arguments);
+    }
+
+    function debugWarn() {
+        if (!debugEnabled) return;
+        console.warn.apply(console, arguments);
+    }
+
+    function debugError() {
+        if (!debugEnabled) return;
+        console.error.apply(console, arguments);
+    }
+
     function getDashboardConfigState() {
         if (!window.dashboardConfig || typeof window.dashboardConfig.getState !== 'function') {
             return null;
@@ -36,17 +53,17 @@
 
     function updateDosypkiBadge(planId, delta) {
         if (!planId) return;
-        console.log('[dosypki.badge] Updating badge for plan:', planId, 'delta:', delta);
+        debugLog('[dosypki.badge] Updating badge for plan:', planId, 'delta:', delta);
         const trigger = document.querySelector('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
         if (!trigger) {
-            console.warn('[dosypki.badge] Trigger button not found for plan:', planId);
+            debugWarn('[dosypki.badge] Trigger button not found for plan:', planId);
             return;
         }
         let badge = trigger.querySelector('.action-badge');
         const current = badge ? parseInt(badge.textContent, 10) || 0 : 0;
         const next = Math.max(0, current + delta);
 
-        console.log('[dosypki.badge] Current:', current, 'Next:', next);
+        debugLog('[dosypki.badge] Current:', current, 'Next:', next);
 
         if (next <= 0) {
             if (badge) {
@@ -65,6 +82,32 @@
             badge.style.opacity = '1';
         }
         badge.textContent = String(next);
+    }
+
+    function ensureConfirmOverlay(container) {
+        if (!container || !container.querySelector) return null;
+        var overlay = container.querySelector('.dosypki-confirm-overlay');
+        if (overlay) return overlay;
+
+        overlay = document.createElement('div');
+        overlay.className = 'dosypki-confirm-overlay';
+        overlay.innerHTML = '<div class="dosypki-confirm-spinner" aria-label="Ladowanie"></div>';
+        container.appendChild(overlay);
+        return overlay;
+    }
+
+    function setConfirmOverlay(container, isActive) {
+        var root = container && container.classList && container.classList.contains('dosypki-list-root')
+            ? container
+            : (container && container.querySelector ? container.querySelector('.dosypki-list-root') : null);
+        if (!root) return;
+        var overlay = ensureConfirmOverlay(root);
+        if (!overlay) return;
+        if (isActive) {
+            overlay.classList.add('is-active');
+        } else {
+            overlay.classList.remove('is-active');
+        }
     }
 
     function renderActionCell(d, role) {
@@ -89,12 +132,12 @@
     }
 
     async function fetchDosypki(container) {
-        console.log('[dosypki.fetch] Starting fetch for container:', container);
+        debugLog('[dosypki.fetch] Starting fetch for container:', container);
         const statusEl = container.querySelector('#dosypki-status');
         const spinner = container.querySelector('#dosypki-spinner');
         const table = container.querySelector('#dosypki-table');
         const tbody = table && table.querySelector('tbody');
-        console.log('[dosypki.fetch] Found elements - statusEl:', statusEl, 'spinner:', spinner, 'table:', table, 'tbody:', tbody);
+        debugLog('[dosypki.fetch] Found elements - statusEl:', statusEl, 'spinner:', spinner, 'table:', table, 'tbody:', tbody);
         try {
             if (statusEl) { statusEl.textContent = 'Ładowanie...'; statusEl.style.display = ''; }
             if (spinner) spinner.classList.remove('hidden');
@@ -110,17 +153,17 @@
             // Get linia from the fragment first, then dashboard config, then URL param.
             const linia = getCurrentLinia(container);
 
-            console.log('[dosypki.fetch] planIdFromAttr:', planIdFromAttr, 'planIdFromUrl:', planIdFromUrl, 'planId:', planId);
-            console.log('[dosypki.fetch] linia:', linia, 'Current role:', role);
+            debugLog('[dosypki.fetch] planIdFromAttr:', planIdFromAttr, 'planIdFromUrl:', planIdFromUrl, 'planId:', planId);
+            debugLog('[dosypki.fetch] linia:', linia, 'Current role:', role);
 
             let fetchUrl = '/api/dosypki?linia=' + encodeURIComponent(linia);
             if (planId) fetchUrl += '&plan_id=' + encodeURIComponent(planId);
-            console.log('[dosypki.fetch] Fetching from:', fetchUrl);
+            debugLog('[dosypki.fetch] Fetching from:', fetchUrl);
 
             const res = await fetch(fetchUrl, { credentials: 'same-origin' });
-            console.log('[dosypki.fetch] Response status:', res.status);
+            debugLog('[dosypki.fetch] Response status:', res.status);
             const data = await res.json().catch(() => ({}));
-            console.log('[dosypki.fetch] Response data:', data);
+            debugLog('[dosypki.fetch] Response data:', data);
             if (spinner) spinner.classList.add('hidden');
             if (!data || !data.success) {
                 if (statusEl) statusEl.textContent = (data && data.message) ? data.message : 'Brak dostępu';
@@ -128,7 +171,7 @@
                 return;
             }
             const list = data.dosypki || [];
-            console.log('[dosypki.fetch] Dosypki list:', list);
+            debugLog('[dosypki.fetch] Dosypki list:', list);
             if (list.length === 0) {
                 if (statusEl) statusEl.textContent = 'Brak dosypek.';
                 if (table) table.style.display = 'none';
@@ -141,19 +184,20 @@
                 if (!tbody) return;
                 tbody.insertAdjacentHTML('beforeend', buildRowHtml(d, idx, role));
             });
-            console.log('[dosypki.fetch] Populated tbody with', list.length, 'rows');
+            debugLog('[dosypki.fetch] Populated tbody with', list.length, 'rows');
         } catch (e) {
             if (spinner) spinner.classList.add('hidden');
             if (container && container.querySelector('#dosypki-status')) {
                 container.querySelector('#dosypki-status').textContent = 'Błąd podczas ładowania';
                 container.querySelector('#dosypki-status').style.display = '';
             }
-            console.error('dosypki: fetch error', e);
+            debugError('dosypki: fetch error', e);
         }
     }
 
     async function confirmDosypka(id, btn) {
         let originalText = null;
+        const container = btn.closest && btn.closest('.p-15') ? btn.closest('.p-15') : document;
         try {
             const row = btn.closest('tr');
             const planId = row ? row.getAttribute('data-plan-id') : null;
@@ -164,6 +208,7 @@
             btn.disabled = true;
             originalText = btn.textContent;
             btn.textContent = '⏳...';
+            setConfirmOverlay(container, true);
 
             const res = await fetch('/potwierdz_dosypke/' + id + '?linia=' + encodeURIComponent(linia), {
                 method: 'POST',
@@ -186,15 +231,7 @@
                 if (planId) {
                     updateDosypkiBadge(planId, -1);
                 }
-
-                // 2. Refresh dashboard data if available, otherwise fallback to reload
-                if (typeof window.performPartialReload === 'function') {
-                    console.log('[dosypki] Using performPartialReload for sync');
-                    window.performPartialReload();
-                } else {
-                    console.log('[dosypki] performPartialReload not found, falling back to location.reload');
-                    setTimeout(() => { window.location.reload(); }, 500);
-                }
+                await fetchDosypki(container);
             } else {
                 btn.disabled = false;
                 if (originalText) btn.textContent = originalText;
@@ -203,8 +240,10 @@
         } catch (e) {
             btn.disabled = false;
             try { if (originalText) btn.textContent = originalText; } catch (_) { }
-            console.error('dosypki: confirm error', e);
+            debugError('dosypki: confirm error', e);
             alert('Błąd sieci');
+        } finally {
+            setConfirmOverlay(container, false);
         }
     }
 
@@ -233,21 +272,11 @@
 
     // Expose for manual init
     window.initDosypkiList = function (root) {
-        console.log('[dosypki] initDosypkiList called with root:', root);
         const container = root || document.body;
         const statusEl = container.querySelector('#dosypki-status');
-        console.log('[dosypki] Found statusEl:', statusEl);
         const p15 = statusEl && statusEl.closest('.p-15');
-        console.log('[dosypki] Found .p-15 container:', p15);
         if (statusEl) {
             initContainer(p15 || document);
-        } else {
-            console.log('[dosypki] statusEl not found, trying to find .p-15 directly');
-            const p15Direct = container.querySelector('.p-15');
-            console.log('[dosypki] Direct .p-15 search result:', p15Direct);
-            if (p15Direct) {
-                initContainer(p15Direct);
-            }
         }
     };
 

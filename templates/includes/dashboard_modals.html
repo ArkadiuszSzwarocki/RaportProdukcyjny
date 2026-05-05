@@ -1,0 +1,24 @@
+<div id="quickBackdrop" class="quick-backdrop" data-action="close-popup" style="display:none;"></div>
+<div id="quickPopup" class="quick-popup" aria-hidden="true" style="display:none;">
+    <div class="qp-header d-flex justify-between align-center p-10">
+        <div class="header-title">{{ _('panel') }}</div>
+        <div><button type="button" class="btn-action btn-small qp-close" data-action="close-popup">✖</button></div>
+    </div>
+    <div id="quickPopupBody" class="qp-body p-10">{{ _('ladowanie') }}</div>
+</div>
+
+<div id="kgphExplainBackdrop" class="quick-backdrop" style="display:none;"></div>
+<div id="kgphExplainModal" class="quick-popup" aria-hidden="true" style="display:none; max-width: 560px;">
+    <div class="qp-header d-flex justify-between align-center p-10">
+        <div class="header-title" id="kgphExplainTitle">Wydajność</div>
+        <div><button type="button" class="btn-action btn-small" id="kgphExplainCloseBtn">✖</button></div>
+    </div>
+    <div class="qp-body p-10">
+        <div class="card-row"><strong>Plan:</strong> <span id="kgphExplainPlan">-</span></div>
+        <div class="card-row"><strong>Aktualny wynik:</strong> <span id="kgphExplainValue">-</span></div>
+        <div class="card-row"><strong>Licznik (co liczy):</strong> <span id="kgphExplainMass">-</span></div>
+        <div class="card-row"><strong>Mianownik (co dzieli):</strong> <span id="kgphExplainTime">-</span></div>
+        <div class="card-row"><strong>Wzór:</strong> <span id="kgphExplainFormula">-</span></div>
+        <div class="small text-muted" id="kgphExplainModeInfo" style="margin-top:8px;"></div>
+    </div>
+</div>

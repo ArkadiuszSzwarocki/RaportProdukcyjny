@@ -1,15 +1,15 @@
 {% extends "layout.html" %}
 {% block content %}
 <div class="section-box p-15">
-    <h2>Podsumowanie szarż — Jakość</h2>
-    <p class="small text-muted">Lista wszystkich zarejestrowanych szarż z dosypkami i uwagami.</p>
+    <h2>Podsumowanie zasypów — Jakość</h2>
+    <p class="small text-muted">Lista wszystkich zarejestrowanych zasypów (legacy: szarż) z dosypkami i uwagami.</p>
     <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center;">
         <button id="show-current-btn" class="btn btn-sm">Pokaż bieżące</button>
         <button id="refresh-btn" class="btn btn-sm">Odśwież</button>
         <div id="refresh-msg" class="small text-muted" style="margin-left:8px;"></div>
     </div>
 
-    <form id="jakoscFilters" method="get" action="/jakosc/podsumowanie_szarz" style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <form id="jakoscFilters" method="get" action="/jakosc/podsumowanie_zasypow" style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <label class="small">Data: <input type="date" name="date" value="{{ request.args.get('date','') }}"></label>
         <label class="small">Okres:
             <select name="period">
@@ -41,7 +41,7 @@ try {
 
         function fetchFragment(){
             msg.textContent = 'Ładowanie...';
-            var url = '/jakosc/podsumowanie_szarz/fragment';
+            var url = '/jakosc/podsumowanie_zasypow/fragment';
             // preserve current query params (filters) when fetching fragment
             var qs = window.location.search || '';
             if(showCurrent){
@@ -76,7 +76,7 @@ try {
         // Optionally auto-refresh every 60s
         // setInterval(fetchFragment, 60000);
     })();
-} catch(e){ console.error('init podsumowanie szarz js', e); }
+} catch(e){ console.error('init podsumowanie zasypow js', e); }
 </script>
 
 {% endblock %}

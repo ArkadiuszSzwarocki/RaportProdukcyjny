@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Edytuj notatkę szarży</title>
+  <title>Edytuj notatkę zasypu</title>
   <link rel="stylesheet" href="/static/css/style.css">
   <style>body{margin:0;padding:12px;font-family:sans-serif;} .box{max-width:640px;margin:8px auto;} .actions{display:flex;gap:8px;margin-top:10px}</style>
 </head>
 <body>
   <div class="box">
-    <h3>✏️ Edytuj notatkę szarży</h3>
-    <form action="{{ url_for('warehouse.edytuj_szarze', szarza_id=szarza_id) }}" method="POST">
+    <h3>✏️ Edytuj notatkę zasypu</h3>
+    <form action="{{ url_for('warehouse.edytuj_zasyp', szarza_id=(zasyp_id or szarza_id)) }}" method="POST">
       <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
       <input type="hidden" name="data_powrotu" value="{{ data or '' }}">
       <input type="hidden" name="sekcja" value="{{ sekcja or 'Zasyp' }}">

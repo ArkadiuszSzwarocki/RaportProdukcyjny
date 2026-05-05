@@ -41,7 +41,7 @@ def build_mieszanie_tts_text(produkt: Optional[str], szarza_nr: Optional[int], e
         if produkt_text and should_speak_product_for_szarza(szarza_nr):
             text += f" {produkt_text}"
     if szarza_nr is not None:
-        text += f" szarża nr {szarza_nr}"
+        text += f" zasyp nr {szarza_nr}"
     return text
 
 

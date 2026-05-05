@@ -1,202 +1,24 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.db import get_db_connection, get_table_name
-
-
-ETAP_MIN = 1
-ETAP_MAX = 6
-
-
-def _visible_etaps_for_linia(linia: str) -> List[int]:
-    if _norm_linia(linia) == 'AGRO':
-        # AGRO: 1,2,3,4,5 (continuous sequence)
-        return [1, 2, 3, 4, 5]
-    return list(range(ETAP_MIN, ETAP_MAX + 1))
-
-
-def _is_valid_etap_for_linia(etap_nr: int, linia: str) -> bool:
-    linia_u = _norm_linia(linia)
-    if linia_u == 'AGRO':
-        if etap_nr in [1, 2, 3, 4, 5]:
-            return True
-        # Allow sub-stages like 31/41, 310/410, 311/411... for unlimited cycles.
-        try:
-            etap_s = str(int(etap_nr))
-            if len(etap_s) > 1 and etap_s[0] in ['3', '4']:
-                return True
-        except Exception:
-            pass
-        return False
-    return etap_nr in _visible_etaps_for_linia(linia)
-
-
-def _norm_linia(linia: Optional[str]) -> str:
-    l = str(linia or 'PSD').upper()
-    return 'AGRO' if l == 'AGRO' else 'PSD'
-
-
-def _format_hhmm(dt: Any) -> str:
-    if not dt:
-        return ''
-    try:
-        return dt.strftime('%H:%M')
-    except Exception:
-        # Fallback: try simple string slice
-        try:
-            s = str(dt)
-            if ' ' in s and ':' in s:
-                # YYYY-MM-DD HH:MM:SS -> HH:MM
-                return s.split(' ')[1][:5]
-            if ':' in s:
-                return s[:5]
-        except Exception:
-            pass
-    return ''
-
-
-def _format_duration(seconds: int) -> str:
-    if seconds <= 0:
-        return '0m'
-    sec = int(seconds)
-    h = sec // 3600
-    m = (sec % 3600) // 60
-    s = sec % 60
-    if h > 0:
-        return f"{h}h {m:02d}m {s:02d}s"
-    return f"{m}m {s:02d}s"
-
-
-def _parse_hhmm_to_dt(d: date, hhmm: Optional[str]) -> Optional[datetime]:
-    s = str(hhmm or '').strip()
-    if not s:
-        return None
-    s = s.replace('.', ':')
-    parts = s.split(':')
-    if len(parts) < 2:
-        return None
-    try:
-        h = int(parts[0])
-        m = int(parts[1])
-    except Exception:
-        return None
-    if h < 0 or h > 23 or m < 0 or m > 59:
-        return None
-    try:
-        return datetime.combine(d, time(hour=h, minute=m))
-    except Exception:
-        return None
-
-
-def _agro_suffix_for_etap(etap_nr: int) -> Optional[int]:
-    try:
-        s = str(int(etap_nr))
-    except Exception:
-        return None
-    if len(s) > 1 and s[0] in ['3', '4']:
-        try:
-            return int(s[1:])
-        except Exception:
-            return None
-    return None
-
-
-def _build_sequence_for_szarza(linia_u: str, existing_etaps: List[int], include_etap: Optional[int] = None) -> List[int]:
-    if linia_u != 'AGRO':
-        return list(range(ETAP_MIN, ETAP_MAX + 1))
-
-    suffixes: set[int] = set()
-    has_pair_stage = False
-    for e in existing_etaps:
-        if e in [3, 4]:
-            has_pair_stage = True
-        suf = _agro_suffix_for_etap(e)
-        if suf is not None:
-            has_pair_stage = True
-            suffixes.add(suf)
-
-    include_pair_stage = has_pair_stage
-    if include_etap is not None:
-        if include_etap in [3, 4]:
-            include_pair_stage = True
-        suf = _agro_suffix_for_etap(include_etap)
-        if suf is not None:
-            include_pair_stage = True
-            suffixes.add(suf)
-
-    ordered: List[int] = [1, 2]
-    if include_pair_stage:
-        ordered.extend([3, 4])
-        for suf in sorted(suffixes):
-            ordered.append(int(f'3{suf}'))
-            ordered.append(int(f'4{suf}'))
-    ordered.append(5)
-
-    # Deduplicate while preserving order.
-    out: List[int] = []
-    seen: set[int] = set()
-    for e in ordered:
-        if e in seen:
-            continue
-        seen.add(e)
-        out.append(e)
-    return out
-
-
-def _prev_next_etap_in_sequence(seq: List[int], etap_nr: int) -> Tuple[Optional[int], Optional[int]]:
-    try:
-        idx = seq.index(int(etap_nr))
-    except Exception:
-        return None, None
-    prev_etap = seq[idx - 1] if idx > 0 else None
-    next_etap = seq[idx + 1] if idx + 1 < len(seq) else None
-    return prev_etap, next_etap
-
-
-def _etap_display_name(linia_u: str, etap_nr: int) -> str:
-    e = int(etap_nr)
-    if linia_u == 'AGRO':
-        if e == 1:
-            return 'Naważanie'
-        if e == 2:
-            return 'Mieszanie i oczekiwanie na LAB'
-        if e == 3:
-            return 'Dosypka'
-        if e == 4:
-            return 'Mieszanie i oczekiwanie na LAB po dosypce'
-        if e == 5:
-            return 'Opróżnianie'
-        if 30 < e < 40:
-            return f'Dosypka ({e})'
-        if 40 < e < 50:
-            return f'Mieszanie po dosypce ({e})'
-        return f'Etap {e}'
-
-    if e == 1:
-        return 'Naważanie'
-    if e == 2:
-        return 'Mieszanie'
-    if e == 3:
-        return 'Oczekiwanie na LAB'
-    if e == 4:
-        return 'Dosypka'
-    if e == 5:
-        return 'Mieszanie'
-    if e == 6:
-        return 'Opróżnianie'
-    return f'Etap {e}'
-
-
-@dataclass(frozen=True)
-class EtapRow:
-    etap: int
-    czas_start: Optional[datetime]
-    czas_stop: Optional[datetime]
-    start_login: Optional[str]
-    stop_login: Optional[str]
+from app.services.zasyp_etapy_support import (
+    ETAP_MAX,
+    ETAP_MIN,
+    EtapRow,
+    _agro_suffix_for_etap,
+    _build_sequence_for_szarza,
+    _etap_display_name,
+    _format_duration,
+    _format_hhmm,
+    _is_valid_etap_for_linia,
+    _norm_linia,
+    _parse_hhmm_to_dt,
+    _prev_next_etap_in_sequence,
+    _visible_etaps_for_linia,
+)
 
 
 class ZasypEtapyService:
@@ -370,12 +192,14 @@ class ZasypEtapyService:
             'plan_id': int(plan_id),
             'linia': linia_u,
             'szarza_nr': int(szarza_nr),
+            'zasyp_nr': int(szarza_nr),
             'active_etap': active_etap,
             'has_running': active_etap is not None,
             'total_duration_s': total_s,
             'total_duration_str': _format_duration(total_s),
             'etapy': out,
             'curr_szarza_nr': int(szarza_nr),
+            'curr_zasyp_nr': int(szarza_nr),
         }
 
     @staticmethod
@@ -446,7 +270,7 @@ class ZasypEtapyService:
                 (linia_u, int(plan_id), new_nr, (user_login or '')[:100])
             )
             conn.commit()
-            return True, f"Przełączono pomiar na szarżę #{new_nr}"
+            return True, f"Przełączono pomiar na zasyp #{new_nr}"
         except Exception as e:
             if conn:
                 try: conn.rollback()
@@ -624,7 +448,7 @@ class ZasypEtapyService:
                 deleted_szarze = int(cursor.rowcount or 0)
 
             if rows_count <= 0 and deleted_szarze <= 0:
-                return False, f'Punkt kontrolny szarży #{target_szarza_nr} jest już pusty'
+                return False, f'Punkt kontrolny zasypu #{target_szarza_nr} jest już pusty'
 
             # Keep realized tonnage consistent after removing a batch.
             table_plan = get_table_name('plan_produkcji', linia_u)
@@ -639,10 +463,10 @@ class ZasypEtapyService:
             conn.commit()
 
             if deleted_etapy > 0 and deleted_szarze > 0:
-                return True, f'Usunięto cały punkt kontrolny szarży #{target_szarza_nr}'
+                return True, f'Usunięto cały punkt kontrolny zasypu #{target_szarza_nr}'
             if deleted_szarze > 0:
-                return True, f'Usunięto szarżę #{target_szarza_nr} i odświeżono punkt kontrolny'
-            return True, f'Usunięto wpisy punktu kontrolnego szarży #{target_szarza_nr}'
+                return True, f'Usunięto zasyp #{target_szarza_nr} i odświeżono punkt kontrolny'
+            return True, f'Usunięto wpisy punktu kontrolnego zasypu #{target_szarza_nr}'
         except Exception as e:
             if conn:
                 try:
@@ -695,7 +519,7 @@ class ZasypEtapyService:
             else:
                 kg_val = float(kg)
                 if kg_val <= 0:
-                    return False, 'Wielkość szarży musi być > 0'
+                    return False, 'Wielkość zasypu musi być > 0'
 
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -714,7 +538,7 @@ class ZasypEtapyService:
             conn.commit()
             cursor.close()
             conn.close()
-            return True, 'Zapisano wielkość szarży'
+            return True, 'Zapisano wielkość zasypu'
         except Exception:
             try:
                 if conn:
@@ -726,7 +550,7 @@ class ZasypEtapyService:
                     conn.close()
             except Exception:
                 pass
-            return False, 'Błąd zapisu wielkości szarży'
+            return False, 'Błąd zapisu wielkości zasypu'
 
     @staticmethod
     def _get_running_etap(cursor, plan_id: int, linia_u: str, szarza_nr: int) -> Optional[int]:
@@ -748,7 +572,7 @@ class ZasypEtapyService:
             return None
 
     @staticmethod
-    def start_etap(plan_id: int, linia: str, data_planu: date, etap: int, user_login: str, szarza_nr: Optional[int] = None) -> Tuple[bool, str]:
+    def start_etap(plan_id: int, linia: str, data_planu: date, etap: int, user_login: str, szarza_nr: Optional[int] = None, allow_restart: bool = False) -> Tuple[bool, str]:
         linia_u = _norm_linia(linia)
         try:
             etap_nr = int(etap)
@@ -786,7 +610,9 @@ class ZasypEtapyService:
 
             seq = _build_sequence_for_szarza(linia_u, existing_etaps, include_etap=etap_nr)
             prev_etap, _ = _prev_next_etap_in_sequence(seq, etap_nr)
-            if prev_etap is not None:
+            
+            # Skip prev_stop validation if this is a restart of the same stage
+            if not allow_restart and prev_etap is not None:
                 prev_stop = (etap_times.get(prev_etap) or (None, None))[1]
                 curr_name = _etap_display_name(linia_u, etap_nr)
                 prev_name = _etap_display_name(linia_u, prev_etap)
@@ -795,7 +621,19 @@ class ZasypEtapyService:
 
             running = ZasypEtapyService._get_running_etap(cursor, plan_id, linia_u, curr_szarza_nr)
             if running is not None and running != etap_nr:
-                return False, f'Trwa już punkt kontrolny {running} — zakończ go przed startem punktu kontrolnego {etap_nr}'
+                if allow_restart:
+                    # Restart ma pierwszeństwo: domykamy aktualnie trwający etap,
+                    # aby nie zostawić równolegle dwóch etapów "w toku".
+                    cursor.execute(
+                        """
+                        UPDATE zasyp_etapy
+                        SET czas_stop = NOW(), stop_login = %s
+                        WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s AND czas_start IS NOT NULL AND czas_stop IS NULL
+                        """,
+                        ((user_login or '')[:100], linia_u, int(plan_id), curr_szarza_nr, int(running)),
+                    )
+                else:
+                    return False, f'Trwa już punkt kontrolny {running} — zakończ go przed startem punktu kontrolnego {etap_nr}'
 
             cursor.execute(
                 """
@@ -812,6 +650,18 @@ class ZasypEtapyService:
                 if czas_start and not czas_stop:
                     return True, f'Etap {etap_nr} już trwa'
                 if czas_start and czas_stop:
+                    if allow_restart:
+                        cursor.execute(
+                            """
+                            UPDATE zasyp_etapy
+                            SET czas_start = NOW(), czas_stop = NULL, start_login = %s, stop_login = NULL
+                            WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s
+                            """,
+                            ((user_login or '')[:100], linia_u, int(plan_id), curr_szarza_nr, etap_nr),
+                        )
+                        conn.commit()
+                        return True, f'Uruchomiono ponownie etap {etap_nr}'
+
                     # AGRO: if stage 3 or 4 is done, we can ADD a new one (incremental sub-stages 3a, 4a...)
                     base_etap = etap_nr
                     if 30 < etap_nr < 50:

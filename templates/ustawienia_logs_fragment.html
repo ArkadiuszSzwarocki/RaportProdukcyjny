@@ -42,7 +42,75 @@
             Format: <code>DATA AUDIT: login [rola] — Akcja — Szczegóły</code><br>
             Rejestruje: logowania, wylogowania, potwierdzenia palet, dodawanie/usuwanie/edycja palet i zleceń, zatwierdzenia/odrzucenia wniosków, zmiany kont użytkowników i uprawnień, zamknięcia zmian.
         </div>
-        {% if raw_files_content %}
+        <form method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <input type="hidden" name="lines" value="{{ lines }}">
+            <label for="audit_user">Użytkownik</label>
+            <input id="audit_user" name="audit_user" type="text" value="{{ audit_filters.user if audit_filters else '' }}" placeholder="np. SzwarArk" />
+
+            <label for="audit_action">Akcja</label>
+            <input id="audit_action" name="audit_action" type="text" value="{{ audit_filters.action if audit_filters else '' }}" placeholder="np. Dodał zasyp" />
+
+            <label for="audit_trigger">Trigger</label>
+            <input id="audit_trigger" name="audit_trigger" type="text" value="{{ audit_filters.trigger if audit_filters else '' }}" placeholder="np. button:dodaj_szarze_popup" />
+
+            <label for="audit_ip">IP</label>
+            <input id="audit_ip" name="audit_ip" type="text" value="{{ audit_filters.ip if audit_filters else '' }}" placeholder="np. 192.168.1.10" />
+
+            <label for="audit_from">Od</label>
+            <input id="audit_from" name="audit_from" type="text" value="{{ audit_filters.from if audit_filters else '' }}" placeholder="2026-05-05 00:00" />
+
+            <label for="audit_to">Do</label>
+            <input id="audit_to" name="audit_to" type="text" value="{{ audit_filters.to if audit_filters else '' }}" placeholder="2026-05-05 23:59" />
+
+            <button class="btn" type="submit">Filtruj audit</button>
+            <a class="btn btn-outline" href="/admin/ustawienia/logs?lines={{ lines }}">Wyczyść</a>
+        </form>
+
+        {% if audit_filters and audit_filters.active %}
+            <div class="muted" style="margin-bottom:8px;">Wyniki filtrowania: {{ audit_rows|length }} / {{ audit_total_entries }} wpisów audit.</div>
+        {% else %}
+            <div class="muted" style="margin-bottom:8px;">Pokazano ostatnie {{ audit_rows|length }} wpisów audit (trigger widoczny w osobnej kolumnie).</div>
+        {% endif %}
+
+        {% if audit_rows %}
+            <div style="max-height:560px;overflow:auto;border:1px solid #e6e6e6;background:#fff;margin-bottom:10px;">
+                <table class="modern-table" style="width:100%;font-size:13px;">
+                    <thead>
+                        <tr>
+                            <th>Czas</th>
+                            <th>Użytkownik</th>
+                            <th>Rola</th>
+                            <th>Akcja</th>
+                            <th>Trigger</th>
+                            <th>IP</th>
+                            <th>Szczegóły</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in audit_rows %}
+                        <tr>
+                            <td>{{ row.timestamp }}</td>
+                            <td>{{ row.user }}</td>
+                            <td>{{ row.role }}</td>
+                            <td>{{ row.action }}</td>
+                            <td>
+                                {% if row.trigger %}
+                                <span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#eef5ff;color:#1e5aa5;font-weight:700;">{{ row.trigger }}</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ row.ip or '-' }}</td>
+                            <td style="max-width:520px;white-space:pre-wrap;word-break:break-word;">{{ row.detail }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if audit_rows_limited %}
+            <div class="muted" style="margin-bottom:8px;">To podgląd (limit 200). Użyj filtrów, aby zawęzić wyniki.</div>
+            {% endif %}
+        {% elif raw_files_content %}
             <div class="muted">Wyświetlanie zawartości pliku(ów):</div>
             {% for f in raw_files_content %}
                 <div class="card" style="margin-bottom:8px;padding:8px;background:#fafafa">
