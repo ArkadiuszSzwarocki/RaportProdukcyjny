@@ -176,7 +176,33 @@ def _create_tables(cursor):
     """)
     
     cursor.execute("CREATE TABLE IF NOT EXISTS dziennik_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), problem TEXT, czas_start DATETIME, czas_stop DATETIME, status VARCHAR(30) DEFAULT 'zgłoszone', kategoria VARCHAR(50), pracownik_id INT)")
-    # Magazyn opakowań - struktura zgodna z magazyn_surowce
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_surowce (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(255) NOT NULL,
+            stan_magazynowy FLOAT DEFAULT 0,
+            lokalizacja VARCHAR(64) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_magazyn_surowce_nazwa (nazwa(250)),
+            INDEX idx_magazyn_surowce_lokal (lokalizacja)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_agro_surowce (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(255) NOT NULL,
+            stan_magazynowy FLOAT DEFAULT 0,
+            lokalizacja VARCHAR(64) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_magazyn_agro_surowce_nazwa (nazwa(250)),
+            INDEX idx_magazyn_agro_surowce_lokal (lokalizacja)
+        )
+    """)
+
     cursor.execute("CREATE TABLE IF NOT EXISTS magazyn_opakowania ("
                    "id INT AUTO_INCREMENT PRIMARY KEY,"
                    "nazwa VARCHAR(255) NOT NULL,"
@@ -602,6 +628,19 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji_agro", "is_deleted", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'is_deleted' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "deleted_at", "DATETIME NULL", "Dodawanie kolumny 'deleted_at' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' (AGRO)")
+    
+    # Ensure warehouse unique indexes for accurate pallet tracking
+    # Strict rule: one material per location. Conflicting names will overwrite.
+    _ensure_unique_index(cursor, "magazyn_surowce", "uq_surowce_lokal", ["lokalizacja"], "Strict unique index (lokalizacja) for PSD raw materials")
+    _ensure_unique_index(cursor, "magazyn_agro_surowce", "uq_agro_surowce_lokal", ["lokalizacja"], "Strict unique index (lokalizacja) for AGRO raw materials")
+    _ensure_unique_index(cursor, "magazyn_opakowania", "uq_opakowania_lokal", ["lokalizacja"], "Strict unique index (lokalizacja) for PSD packaging")
+    _ensure_unique_index(cursor, "magazyn_agro_opakowania", "uq_agro_opakowania_lokal", ["lokalizacja"], "Strict unique index (lokalizacja) for AGRO packaging")
+
+    # Cleanup old (nazwa, lokalizacja) indexes if they exist
+    for tbl in ["magazyn_surowce", "magazyn_agro_surowce", "magazyn_opakowania", "magazyn_agro_opakowania"]:
+        try:
+            cursor.execute(f"ALTER TABLE {tbl} DROP INDEX uq_{tbl.replace('magazyn_','')}_nazwa_lokal")
+        except Exception: pass
     
     # palety_workowanie columns
     _add_column_if_missing(cursor, "palety_workowanie", "tara", "FLOAT DEFAULT 0", "Dodawanie kolumny 'tara' do palet")

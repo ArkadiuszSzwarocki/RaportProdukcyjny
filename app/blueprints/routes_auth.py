@@ -158,16 +158,26 @@ def my_bug_reports():
         flash('Brak danych użytkownika.', 'warning')
         return redirect('/')
 
+    sort_by = request.args.get('sort', 'id_desc')
+    sort_map = {
+        'id_desc': 'id DESC',
+        'id_asc': 'id ASC',
+        'date_desc': 'timestamp DESC',
+        'date_asc': 'timestamp ASC',
+        'status': 'status ASC, timestamp DESC'
+    }
+    order_clause = sort_map.get(sort_by, 'id DESC')
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     reports = []
     try:
         cursor.execute(
-            """
+            f"""
             SELECT id, timestamp, opis, sciezka, status, zalaczniki, odpowiedz_admina, odpowiedz_timestamp, odpowiedz_by_login
             FROM zgloszenia_bledow
             WHERE LOWER(login) = LOWER(%s)
-            ORDER BY id DESC
+            ORDER BY {order_clause}
             LIMIT 200
             """,
             (login_value,)
@@ -189,7 +199,7 @@ def my_bug_reports():
     finally:
         conn.close()
 
-    return render_template('my_bug_reports.html', reports=reports)
+    return render_template('my_bug_reports.html', reports=reports, current_sort=sort_by)
 
 
 @auth_bp.route('/api/ack_bug_icon_intro', methods=['POST'])

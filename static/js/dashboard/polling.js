@@ -8,6 +8,7 @@
         zasypStartLastSeen: 0,
         zasypMieszanieStartLastSeen: 0,
         zasypDosypkaAddedLastSeen: 0,
+        zwolnienieAckLastSeen: 0,
         lastRenderedZasypDosypkaAddedTs: 0,
     };
 
@@ -68,6 +69,7 @@
         state.zasypStartLastSeen = readNumber('agro_zasyp_start_last_seen', state.zasypStartLastSeen);
         state.zasypMieszanieStartLastSeen = readNumber('agro_zasyp_mieszanie_start_last_seen', state.zasypMieszanieStartLastSeen);
         state.zasypDosypkaAddedLastSeen = readNumber('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
+        state.zwolnienieAckLastSeen = readNumber('agro_zwolnienie_ack_last_seen', state.zwolnienieAckLastSeen);
 
         if (state.zasypDosypkaAddedLastSeen > (nowSec + 5)) {
             state.zasypDosypkaAddedLastSeen = 0;
@@ -303,6 +305,27 @@
                 })
                 .catch(function (error) {
                     console.error('Zasyp mieszanie start poll err', error);
+                });
+        }, false);
+
+        addTask('zwolnienie-ack-poll', 3000, function () {
+            return fetchJson('/api/zasyp/poll_zwolnienie_ack?linia=' + config.linia + '&last_seen=' + state.zwolnienieAckLastSeen)
+                .then(function (data) {
+                    if (!data.new_ack) {
+                        return;
+                    }
+                    state.zwolnienieAckLastSeen = Number(data.timestamp || 0) || state.zwolnienieAckLastSeen;
+                    persistLocalStorage('agro_zwolnienie_ack_last_seen', state.zwolnienieAckLastSeen);
+                    try {
+                        if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZwolnienieAckBanner === 'function') {
+                            global.dashboardAgroBanners.showZwolnienieAckBanner(data);
+                        }
+                    } catch (error) {
+                        console.error('showZwolnienieAckBanner err', error);
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Zwolnienie ack poll err', error);
                 });
         }, false);
     }

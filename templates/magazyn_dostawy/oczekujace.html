@@ -1,0 +1,269 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .item-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; transition: all 0.2s; }
+    .item-row.accepted { background: #f0fdf4; border-color: #86efac; }
+    .item-row-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .item-info { display: flex; align-items: center; gap: 12px; flex: 1; }
+    .item-number { background: #eff6ff; color: #2563eb; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0; }
+    .item-name { font-weight: 700; color: #1e293b; font-size: 15px; }
+    .item-meta { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .accept-panel { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .lok-input { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-weight: 600; width: 180px; }
+    .lok-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .btn-przyjmij { background: #2563eb; color: #fff; border: none; padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s; }
+    .btn-przyjmij:hover { background: #1d4ed8; }
+    .btn-przyjmij:disabled { background: #94a3b8; cursor: not-allowed; }
+    .accepted-tag { display: flex; align-items: center; gap: 6px; background: #dcfce7; color: #15803d; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; }
+    .progress-bar-wrap { background: #e2e8f0; border-radius: 99px; height: 8px; margin-top: 6px; overflow: hidden; }
+    .progress-bar-fill { background: linear-gradient(90deg, #22c55e, #16a34a); height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+
+    /* Predefined location chips */
+    .lok-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0 0; }
+    .lok-chip { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; color: #475569; }
+    .lok-chip:hover { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
+
+    .delivery-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; margin-bottom: 24px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .delivery-card-header { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+</style>
+
+<div class="section-header" style="margin-bottom: 20px;">
+    <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100">
+        <div class="header-title-row d-flex align-center gap-10">
+            <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=linia) }}" class="btn-action" style="padding: 6px; background: transparent; border: none; color: #64748b;">
+                <span class="material-icons">arrow_back</span>
+            </a>
+            <h2 class="header-title m-0 d-flex align-center gap-8">
+                <span class="material-icons" style="font-size: 26px; color: #f59e0b;">pending_actions</span>
+                <strong>Przyjmowanie Przesunięć</strong>
+            </h2>
+        </div>
+    </div>
+</div>
+
+{% if not dostawy %}
+<div style="text-align: center; padding: 60px; color: #94a3b8;">
+    <span class="material-icons" style="font-size: 56px; color: #cbd5e1; display: block; margin-bottom: 12px;">check_circle</span>
+    <h3 style="color: #475569; margin: 0;">Brak oczekujących przesunięć</h3>
+    <p style="margin: 6px 0 0 0; font-size: 14px;">Wszystkie przesunięcia zostały już przyjęte.</p>
+</div>
+{% else %}
+
+{% for d in dostawy %}
+{% set its = d.items_parsed or [] %}
+{% set accepted_count = its | selectattr('accepted', 'defined') | selectattr('accepted') | list | length %}
+{% set total_count = its | length %}
+
+<div class="delivery-card" id="delivery-{{ d.id }}">
+    <div class="delivery-card-header">
+        <div>
+            <div style="font-family: monospace; font-size: 13px; opacity: 0.8; margin-bottom: 4px;">{{ d.order_ref }}</div>
+            <div style="font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 10px;">
+                <span style="background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 6px;">{{ d.lokalizacja_z or '?' }}</span>
+                <span class="material-icons">arrow_forward</span>
+                <span style="background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 6px;">{{ d.lokalizacja_do or '?' }}</span>
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 12px; opacity: 0.75;">Wysłał: <strong>{{ d.created_by }}</strong> · {{ d.created_at }}</div>
+            <div style="font-size: 22px; font-weight: 900; margin-top: 4px;">
+                <span id="cnt-{{ d.id }}">{{ accepted_count }}</span>/{{ total_count }}
+                <span style="font-size: 14px; font-weight: 600; opacity: 0.8;">przyjęto</span>
+            </div>
+            <div class="progress-bar-wrap" style="width: 160px; margin-left: auto; margin-top: 8px;">
+                <div class="progress-bar-fill" id="prog-{{ d.id }}" style="width: {{ (accepted_count / total_count * 100) | round }}%"></div>
+            </div>
+        </div>
+    </div>
+
+    <div style="padding: 16px 20px;">
+        {% for item in its %}
+        {% set idx = loop.index %}
+        <div class="item-row {% if item.accepted %}accepted{% endif %}" id="item-row-{{ d.id }}-{{ item.id }}">
+            <div class="item-row-header">
+                <div class="item-info">
+                    <div class="item-number">{{ idx }}</div>
+                    <div>
+                        <div class="item-name">{{ item.productName or 'Brak nazwy' }}</div>
+                        <div class="item-meta">
+                            {{ item.packageForm or '?' }} ·
+                            {% if item.packageForm == 'packaging' %}
+                                {{ item.unitsPerPallet or 0 }} szt.
+                            {% else %}
+                                {{ item.netWeight or 0 }} kg
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                {% if item.accepted %}
+                <div class="accepted-tag">
+                    <span class="material-icons" style="font-size: 16px;">check_circle</span>
+                    Przyjęto → <strong>{{ item.lokalizacja_przyjecia }}</strong>
+                    <span style="font-size: 11px; opacity: 0.75; margin-left: 4px;">{{ item.accepted_by }} · {{ item.accepted_at }}</span>
+                </div>
+                {% else %}
+                <div class="accept-panel" id="panel-{{ d.id }}-{{ item.id }}">
+                    <div style="flex:1; min-width: 240px; position: relative;">
+                        <!-- Input z listą podpowiedzi -->
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="position: relative; flex: 1;">
+                                <input type="text" class="lok-input" id="lok-{{ d.id }}-{{ item.id }}"
+                                       list="all-locations" placeholder="Zeskanuj lub wpisz lokalizację..." 
+                                       style="width:100%;" autocomplete="off"
+                                       onkeyup="if(event.key === 'Enter') validateAndAccept('{{ d.id }}','{{ item.id }}')">
+                                <div id="status-icon-{{ d.id }}-{{ item.id }}" style="position: absolute; right: 10px; top: 10px; display: none;">
+                                    <span class="material-icons" style="font-size: 18px;"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="msg-{{ d.id }}-{{ item.id }}" style="font-size: 11px; margin-top: 4px; font-weight: 600; min-height: 16px;"></div>
+                    </div>
+                    <button type="button" class="btn-przyjmij" id="btn-{{ d.id }}-{{ item.id }}" onclick="validateAndAccept('{{ d.id }}','{{ item.id }}')">
+                        <span class="material-icons" style="font-size: 18px;">qr_code_scanner</span> Przyjmij
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+
+
+<!-- Wspólna lista wszystkich lokalizacji dla podpowiedzi -->
+<datalist id="all-locations">
+    {% for grupa, loki in lok_grupy.items() %}
+    {% for l in loki %}
+    <option value="{{ l }}">
+    {% endfor %}
+    {% endfor %}
+</datalist>
+
+{% endif %}
+
+<script>
+const LINIA = '{{ linia }}';
+
+function setLok(dostId, itemId, val) {
+    const inp = document.getElementById(`lok-${dostId}-${itemId}`);
+    if (inp) { 
+        inp.value = val; 
+        inp.focus(); 
+    }
+}
+
+async function validateAndAccept(dostId, itemId) {
+    const inp = document.getElementById(`lok-${dostId}-${itemId}`);
+    const msg = document.getElementById(`msg-${dostId}-${itemId}`);
+    const iconDiv = document.getElementById(`status-icon-${dostId}-${itemId}`);
+    const lok = inp ? inp.value.trim() : '';
+
+    if (!lok) { 
+        inp.focus(); 
+        inp.style.borderColor = '#ef4444';
+        return; 
+    }
+
+    // Blokada UI na czas sprawdzania
+    const btn = document.getElementById(`btn-${dostId}-${itemId}`);
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="font-size:18px;">sync</span>';
+    
+    msg.innerText = 'Sprawdzanie lokalizacji...';
+    msg.style.color = '#64748b';
+    iconDiv.style.display = 'block';
+    iconDiv.querySelector('.material-icons').innerText = 'hourglass_top';
+    iconDiv.querySelector('.material-icons').style.color = '#94a3b8';
+
+    try {
+        const checkRes = await fetch('/magazyn-dostawy/api/sprawdz-lokalizacje', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lokalizacja: lok, linia: LINIA })
+        });
+        const checkData = await checkRes.json();
+
+        if (checkData.occupied) {
+            msg.innerText = `BLOKADA: ${checkData.message}`;
+            msg.style.color = '#ef4444';
+            iconDiv.querySelector('.material-icons').innerText = 'block';
+            iconDiv.querySelector('.material-icons').style.color = '#ef4444';
+            inp.style.borderColor = '#ef4444';
+            
+            // Definitywna blokada - nie pozwalamy na confirm()
+            alert(`Lokalizacja ${lok} jest ZAJĘTA przez:\n${checkData.content}\n\nMusisz najpierw opróżnić to miejsce, aby przyjąć nową paletę.`);
+            
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+            return;
+        } else {
+            msg.innerText = 'Lokalizacja wolna';
+            msg.style.color = '#15803d';
+            iconDiv.querySelector('.material-icons').innerText = 'check_circle';
+            iconDiv.querySelector('.material-icons').style.color = '#15803d';
+            inp.style.borderColor = '#15803d';
+        }
+
+        // Jeśli wolna lub użytkownik potwierdził – przyjmujemy
+        await przyjmij(dostId, itemId, lok);
+        
+    } catch(e) {
+        msg.innerText = 'Błąd połączenia';
+        msg.style.color = '#ef4444';
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+}
+
+async function przyjmij(dostId, itemId, lok) {
+    try {
+        const res = await fetch(`/magazyn-dostawy/api/przyjmij-pozycje/${dostId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ item_id: itemId, lokalizacja: lok })
+        });
+        const d = await res.json();
+
+        if (d.success) {
+            const row = document.getElementById(`item-row-${dostId}-${itemId}`);
+            if (row) {
+                row.classList.add('accepted');
+                const panel = document.getElementById(`panel-${dostId}-${itemId}`);
+                if (panel) {
+                    panel.outerHTML = `<div class="accepted-tag">
+                        <span class="material-icons" style="font-size:16px;">check_circle</span>
+                        Przyjęto na regał → <strong>${lok}</strong>
+                    </div>`;
+                }
+            }
+
+            const cnt = document.getElementById(`cnt-${dostId}`);
+            const prog = document.getElementById(`prog-${dostId}`);
+            if (cnt) cnt.innerText = d.accepted_count;
+            if (prog) prog.style.width = Math.round(d.accepted_count / d.total * 100) + '%';
+
+            if (d.all_accepted) {
+                const card = document.getElementById(`delivery-${dostId}`);
+                if (card) {
+                    const banner = document.createElement('div');
+                    banner.style.cssText = 'background:#dcfce7;border-top:1px solid #86efac;padding:14px 20px;display:flex;align-items:center;gap:10px;font-weight:700;color:#15803d;font-size:14px;';
+                    banner.innerHTML = '<span class="material-icons">verified</span> Wszystkie palety przyjęte!';
+                    card.appendChild(banner);
+                }
+                setTimeout(() => location.reload(), 2000);
+            }
+        } else {
+            alert('Błąd: ' + d.error);
+        }
+    } catch(e) {
+        alert('Błąd sieci');
+    }
+}
+</script>
+
+{% endblock %}

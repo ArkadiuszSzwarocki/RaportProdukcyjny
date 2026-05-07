@@ -22,17 +22,20 @@
         <div class="header-title-row d-flex align-center gap-10">
             <h2 class="header-title m-0 d-flex align-center gap-8">
                 <span class="material-icons text-primary" style="font-size: 28px;">warehouse</span>
-                <strong>Wszystkie Magazyny ({{ linia }})</strong>
+                <strong>
+                    {% if linia == 'AGRO' %}Magazyn Agro Beta{% else %}Magazyn PSD{% endif %}
+                </strong>
             </h2>
         </div>
-        <div class="d-flex align-center gap-12 header-stats">
+            <a href="{{ url_for('magazyn_dostawy.raport', linia=linia) }}" class="btn-action btn-outline-secondary d-flex align-center gap-8" style="padding: 8px 16px; font-size: 13px;">
+                <span class="material-icons" style="font-size: 16px;">summarize</span> Raport Przesunięć
+            </a>
             <div style="position: relative; display: flex; align-items: center;">
                 <span class="material-icons" style="position: absolute; left: 10px; color: #94a3b8; font-size: 20px;">search</span>
                 <input type="text" id="searchInput" placeholder="Szukaj palet..." 
                        style="padding: 8px 10px 8px 36px; border: 1px solid #dbe3ea; border-radius: 8px; font-size: 14px; width: 250px;" 
                        onkeyup="filterTable()">
             </div>
-        </div>
     </div>
 </div>
     
@@ -110,7 +113,12 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
                 <div>
                     <div style="font-size: 13px; color: #64748b; margin-bottom: 4px;">Produkt</div>
-                    <div style="font-weight: 700; color: #0f172a; font-size: 16px;" id="modalProductName">-</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="font-weight: 700; color: #0f172a; font-size: 16px;" id="modalProductName">-</div>
+                        <button onclick="promptRename()" class="btn-action" style="padding: 2px 6px; font-size: 11px; background: #f1f5f9; border: 1px solid #e2e8f0; color: #64748b; border-radius: 4px;">
+                            <span class="material-icons" style="font-size: 14px;">edit</span>
+                        </button>
+                    </div>
                 </div>
                 <div>
                     <div style="font-size: 13px; color: #64748b; margin-bottom: 4px;">Typ asortymentu</div>
@@ -118,7 +126,12 @@
                 </div>
                 <div>
                     <div style="font-size: 13px; color: #64748b; margin-bottom: 4px;">Ilość / Waga</div>
-                    <div style="font-weight: 700; color: #10b981; font-size: 18px; font-family: monospace;" id="modalAmount">-</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="font-weight: 700; color: #10b981; font-size: 18px; font-family: monospace;" id="modalAmount">-</div>
+                        <button onclick="promptUpdateWeight()" class="btn-action" style="padding: 2px 6px; font-size: 11px; background: #f1f5f9; border: 1px solid #e2e8f0; color: #64748b; border-radius: 4px;">
+                            <span class="material-icons" style="font-size: 14px;">edit</span>
+                        </button>
+                    </div>
                 </div>
                 <div>
                     <div style="font-size: 13px; color: #64748b; margin-bottom: 4px;">Data / Ważność</div>
@@ -149,6 +162,9 @@
                     </button>
                     <button class="btn-action btn-outline-secondary" style="display: flex; align-items: center; gap: 6px;">
                         <span class="material-icons" style="font-size: 16px;">print</span> Drukuj Etykietę
+                    </button>
+                    <button id="returnToRawBtn" onclick="promptReturnToRaw()" class="btn-action" style="display: none; align-items: center; gap: 6px; background: #fff; border: 1px solid #10b981; color: #059669;">
+                        <span class="material-icons" style="font-size: 16px;">assignment_return</span> Zwróć jako surowiec
                     </button>
                 </div>
             </div>
@@ -192,6 +208,13 @@ function openPalletModal(displayId, productName, amount, location, type, date, r
     document.getElementById('modalLocation').textContent = location || 'Brak lokalizacji';
     document.getElementById('modalType').textContent = type;
     document.getElementById('modalDate').textContent = date || '-';
+    
+    const returnBtn = document.getElementById('returnToRawBtn');
+    if(type === 'Wyrób Gotowy') {
+        returnBtn.style.display = 'flex';
+    } else {
+        returnBtn.style.display = 'none';
+    }
     
     document.getElementById('modalHistoryContainer').style.display = 'none';
     document.getElementById('modalHistoryList').innerHTML = '';
@@ -241,6 +264,54 @@ function promptMoveLocation() {
     }
 }
 
+function promptRename() {
+    if(!currentPallet.id) return;
+    let newName = prompt(`Zmień nazwę produktu dla palety ${currentPallet.displayId}:`, currentPallet.productName);
+    if(newName && newName !== currentPallet.productName) {
+        fetch('/magazyny-nowe/api/pallet/rename', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                id: currentPallet.id,
+                type: currentPallet.type,
+                name: newName,
+                linia: '{{ linia }}'
+            })
+        }).then(r => r.json()).then(data => {
+            if(data.success) {
+                alert("Nazwa zaktualizowana.");
+                window.location.reload();
+            } else {
+                alert("Błąd: " + data.error);
+            }
+        });
+    }
+}
+
+function promptUpdateWeight() {
+    if(!currentPallet.id) return;
+    let newWeight = prompt(`Podaj nową wagę/ilość dla palety ${currentPallet.displayId}:`, currentPallet.amount);
+    if(newWeight !== null && newWeight !== currentPallet.amount) {
+        fetch('/magazyny-nowe/api/pallet/update-weight', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                id: currentPallet.id,
+                type: currentPallet.type,
+                weight: parseFloat(newWeight),
+                linia: '{{ linia }}'
+            })
+        }).then(r => r.json()).then(data => {
+            if(data.success) {
+                alert(data.message || "Waga zaktualizowana.");
+                window.location.reload();
+            } else {
+                alert("Błąd: " + data.error);
+            }
+        });
+    }
+}
+
 function promptArchive() {
     if(!currentPallet.id) return;
     if(confirm(`Czy na pewno chcesz zarchiwizować paletę ${currentPallet.displayId}? Ilość zostanie wyzerowana.`)) {
@@ -255,6 +326,28 @@ function promptArchive() {
         }).then(r => r.json()).then(data => {
             if(data.success) {
                 alert("Zarchiwizowano pomyślnie.");
+                window.location.reload();
+            } else {
+                alert("Błąd: " + data.error);
+            }
+        });
+    }
+}
+
+function promptReturnToRaw() {
+    if(!currentPallet.id) return;
+    if(confirm(`Czy na pewno chcesz zwrócić paletę ${currentPallet.displayId} (${currentPallet.productName}) jako SUROWIEC? Paleta zostanie wyzerowana w wyrobach gotowych i dodana do surowców na lokalizację OSIP.`)) {
+        fetch('/magazyny-nowe/api/pallet/return-to-raw', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                id: currentPallet.id,
+                type: currentPallet.type,
+                linia: '{{ linia }}'
+            })
+        }).then(r => r.json()).then(data => {
+            if(data.success) {
+                alert(data.message || "Zwrócono pomyślnie.");
                 window.location.reload();
             } else {
                 alert("Błąd: " + data.error);

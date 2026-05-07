@@ -92,10 +92,10 @@ def register_planning_quality_routes(planning_bp, *, return_url_builder):
                     f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s AND DATE(data_planu)=%s AND status='zaplanowane'",
                     (index, int(plan_id), data_planu),
                 )
-                if cursor.rowcount == 0:
-                    conn.rollback()
-                    conn.close()
-                    return jsonify({'success': False, 'message': f'Plan {int(plan_id)} nie jest zaplanowany'}), 403
+
+            # Renormalize to ensure consistent numbering and handle potential conflicts
+            from app.services.plan_movement_service import PlanMovementService
+            PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, None if linia.upper() == 'AGRO' else 'Zasyp')
 
             conn.commit()
             conn.close()

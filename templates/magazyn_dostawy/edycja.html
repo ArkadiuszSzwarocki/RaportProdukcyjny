@@ -1,0 +1,336 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .form-group { margin-bottom: 15px; }
+    .form-label { display: block; font-size: 13px; color: #475569; font-weight: 600; margin-bottom: 6px; }
+    .form-control { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; color: #334155; background-color: #fff; box-sizing: border-box; transition: border-color 0.2s; }
+    .form-control:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .form-control[disabled] { background-color: #f8fafc; color: #94a3b8; cursor: not-allowed; }
+    .pallet-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 15px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .pallet-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 16px; }
+    .pallet-title { font-weight: 700; color: #1e293b; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+    .pallet-title-badge { background: #eff6ff; color: #2563eb; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; }
+    .btn-delete { background: none; border: none; color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 6px; transition: background 0.2s; }
+    .btn-delete:hover { background: #fef2f2; }
+    .grid-row { display: grid; gap: 15px; }
+
+    /* Kierunek box */
+    .direction-box { display: flex; align-items: center; gap: 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 18px; margin-bottom: 6px; }
+    .direction-arrow { color: #3b82f6; font-size: 28px; flex-shrink: 0; }
+    .direction-select { flex: 1; }
+</style>
+
+<div id="app" data-no-autorefresh style="display: none;">
+    <div class="section-header" style="margin-bottom: 20px;">
+        <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100">
+            <div class="header-title-row d-flex align-center gap-10">
+                <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=linia) }}" class="btn-action" style="padding: 6px; background: transparent; border: none; color: #64748b;">
+                    <span class="material-icons">arrow_back</span>
+                </a>
+                <h2 class="header-title m-0 d-flex align-center gap-8">
+                    <span id="pageTitle">Przesunięcie</span>
+                    <span id="statusBadge" class="status-badge" style="font-size: 12px; margin-left: 10px;"></span>
+                </h2>
+            </div>
+            <div class="d-flex align-center gap-12 header-stats" id="actionButtons"></div>
+        </div>
+    </div>
+
+    <!-- Dane podstawowe -->
+    <div class="section-box" style="margin-bottom: 20px;">
+        <h4 style="margin: 0 0 15px 0; color: #334155; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+            <span class="material-icons" style="color: #64748b; font-size: 20px;">swap_horiz</span>
+            Dane przesunięcia
+        </h4>
+
+        <!-- Kierunek przesunięcia -->
+        <div class="direction-box">
+            <div class="direction-select">
+                <label class="form-label" style="color: #2563eb;">Z lokalizacji</label>
+                <select id="lokalizacjaZ" class="form-control" style="border-color: #93c5fd;">
+                    <option value="">Wybierz źródło...</option>
+                    {% for lok in lokalizacje %}
+                    <option value="{{ lok }}">{{ lok }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <span class="direction-arrow material-icons">arrow_forward</span>
+            <div class="direction-select">
+                <label class="form-label" style="color: #2563eb;">Do lokalizacji</label>
+                <select id="lokalizacjaDo" class="form-control" style="border-color: #93c5fd;">
+                    <option value="">Wybierz cel...</option>
+                    {% for lok in lokalizacje %}
+                    <option value="{{ lok }}">{{ lok }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="grid-row" style="grid-template-columns: 1fr 1fr; margin-top: 15px;">
+            <div class="form-group">
+                <label class="form-label">Numer WZ (auto)</label>
+                <input type="text" id="orderRef" class="form-control" readonly style="background: #f8fafc; color: #64748b; font-family: monospace; font-weight: 700;">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Ilość Palet (Pozycji)</label>
+                <input type="number" id="palletCount" min="0" max="100" class="form-control" style="font-weight: 700; color: #2563eb;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Specyfikacja -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h4 style="margin: 0; color: #334155; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+            <span class="material-icons" style="color: #64748b; font-size: 20px;">inventory_2</span>
+            Specyfikacja Towarowa
+        </h4>
+        <span id="itemCounterText" style="font-size: 13px; font-weight: 600; color: #64748b; background: #e2e8f0; padding: 4px 10px; border-radius: 20px;">0 pozycji</span>
+    </div>
+    <div id="itemsContainer"></div>
+</div>
+
+<!-- Template pozycji -->
+<template id="itemTemplate">
+    <div class="pallet-card">
+        <div class="pallet-header">
+            <div class="pallet-title">
+                <div class="pallet-title-badge position-label-number">1</div>
+                Pozycja
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" class="btn-copy-prev" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #475569;">
+                    <span class="material-icons" style="font-size: 16px;">content_copy</span> Kopiuj z poprz.
+                </button>
+                <button type="button" class="btn-delete">
+                    <span class="material-icons" style="font-size: 20px;">delete_outline</span>
+                </button>
+            </div>
+        </div>
+        <div class="grid-row" style="grid-template-columns: 2fr 1fr 1fr;">
+            <div class="form-group">
+                <label class="form-label">Produkt</label>
+                <input type="text" list="productsList" class="form-control product-name" placeholder="Szukaj produktu...">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Rodzaj Opakowania</label>
+                <select class="form-control package-form">
+                    <option value="">Wybierz...</option>
+                    <option value="big_bag">Big Bag (Sypkie)</option>
+                    <option value="bags">Worki (Sypkie)</option>
+                    <option value="packaging">Opakowania / Palety / Folie</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label weight-label">Waga (kg)</label>
+                <input type="number" class="form-control net-weight" placeholder="0" style="font-weight: 700; text-align: center;">
+            </div>
+        </div>
+    </div>
+</template>
+
+<datalist id="productsList">
+    {% for p in wszystkie_produkty %}<option value="{{ p }}">{% endfor %}
+</datalist>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    let delivery = {{ dostawa|tojson|safe if dostawa else 'null' }};
+    const linia = "{{ linia }}";
+
+    if (!delivery) {
+        delivery = {
+            id: '', order_ref: '', delivery_date: new Date().toISOString().split('T')[0],
+            status: 'REGISTRATION', items: [], lokalizacja_z: '', lokalizacja_do: ''
+        };
+    }
+
+    const app = document.getElementById('app');
+    const pageTitle = document.getElementById('pageTitle');
+    const orderRefInput = document.getElementById('orderRef');
+    const palletCountInput = document.getElementById('palletCount');
+    const itemsContainer = document.getElementById('itemsContainer');
+    const itemTemplate = document.getElementById('itemTemplate');
+    const actionButtons = document.getElementById('actionButtons');
+    const statusBadge = document.getElementById('statusBadge');
+    const itemCounterText = document.getElementById('itemCounterText');
+    const lokZSel = document.getElementById('lokalizacjaZ');
+    const lokDoSel = document.getElementById('lokalizacjaDo');
+
+    let items = delivery.items || [];
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function generateWZ() {
+        const now = new Date();
+        return `WZ${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    }
+
+    function init() {
+        app.style.display = 'block';
+        if (!delivery.order_ref) delivery.order_ref = generateWZ();
+        orderRefInput.value = delivery.order_ref;
+        lokZSel.value = delivery.lokalizacja_z || '';
+        lokDoSel.value = delivery.lokalizacja_do || '';
+        palletCountInput.value = items.length;
+
+        pageTitle.innerText = delivery.id ? `Przesunięcie ${delivery.order_ref}` : 'Nowe Przesunięcie';
+        renderStatusBadge();
+        renderButtons();
+        renderItems();
+
+        palletCountInput.addEventListener('input', handlePalletCountChange);
+        lokZSel.addEventListener('change', e => delivery.lokalizacja_z = e.target.value);
+        lokDoSel.addEventListener('change', e => delivery.lokalizacja_do = e.target.value);
+    }
+
+    function renderStatusBadge() {
+        const map = {
+            'OCZEKUJE': ['bg-yellow-100 text-yellow-800', 'pending', 'Wysłane – Oczekuje na potwierdzenie'],
+            'COMPLETED': ['status-accepted', 'check_circle', 'Potwierdzone i Zaksięgowane'],
+            'REGISTRATION': ['', 'edit_document', 'W Trakcie Rejestracji']
+        };
+        const [cls, icon, label] = map[delivery.status] || ['', 'help', delivery.status];
+        statusBadge.className = 'status-badge ' + cls;
+        statusBadge.style.background = delivery.status === 'OCZEKUJE' ? '#fef3c7' : '';
+        statusBadge.style.color = delivery.status === 'OCZEKUJE' ? '#92400e' : '';
+        statusBadge.innerHTML = `<span class="material-icons" style="font-size: 14px; vertical-align: bottom; margin-right: 4px;">${icon}</span>${label}`;
+    }
+
+    function renderButtons() {
+        actionButtons.innerHTML = '';
+        if (delivery.status === 'REGISTRATION' || delivery.status === 'OCZEKUJE') {
+            if (!delivery.id || delivery.status === 'REGISTRATION') {
+                const btn = document.createElement('button');
+                btn.className = 'btn-action btn-blue';
+                btn.style.display = 'flex'; btn.style.alignItems = 'center'; btn.style.gap = '8px';
+                btn.innerHTML = `<span class="material-icons" style="font-size: 18px;">local_shipping</span> Wyślij Przesunięcie`;
+                btn.onclick = () => saveDelivery('OCZEKUJE');
+                actionButtons.appendChild(btn);
+            }
+        }
+    }
+
+    function handlePalletCountChange(e) {
+        let count = parseInt(e.target.value) || 0;
+        if (count > 100) count = 100;
+        if (count < items.length) {
+            items = items.slice(0, count);
+        } else {
+            for (let i = items.length; i < count; i++) {
+                items.push({ id: 'I' + Date.now() + Math.random(), productName: '', packageForm: '', netWeight: '', unitsPerPallet: '' });
+            }
+        }
+        renderItems();
+        renderButtons();
+    }
+
+    function renderItems() {
+        itemsContainer.innerHTML = '';
+        itemCounterText.innerText = `${items.length} pozycji`;
+        items.forEach((item, index) => {
+            const clone = itemTemplate.content.cloneNode(true);
+            const row = clone.querySelector('.pallet-card');
+            row.querySelector('.position-label-number').innerText = index + 1;
+
+            const nameInp = row.querySelector('.product-name');
+            nameInp.value = item.productName || '';
+            nameInp.oninput = e => { item.productName = e.target.value; };
+
+            const formSel = row.querySelector('.package-form');
+            formSel.value = item.packageForm || '';
+            const weightLab = row.querySelector('.weight-label');
+            const weightInp = row.querySelector('.net-weight');
+
+            const updateFormUI = () => {
+                if (formSel.value === 'packaging') {
+                    weightLab.innerText = 'Ilość (szt.)';
+                    weightInp.value = item.unitsPerPallet || '';
+                } else {
+                    weightLab.innerText = 'Waga (kg)';
+                    weightInp.value = item.netWeight || '';
+                }
+            };
+            formSel.onchange = e => { item.packageForm = e.target.value; updateFormUI(); };
+            weightInp.oninput = e => {
+                if (item.packageForm === 'packaging') item.unitsPerPallet = parseFloat(e.target.value) || 0;
+                else item.netWeight = parseFloat(e.target.value) || 0;
+            };
+            updateFormUI();
+
+            const delBtn = row.querySelector('.btn-delete');
+            delBtn.onclick = () => { items.splice(index, 1); palletCountInput.value = items.length; renderItems(); };
+
+            const copyBtn = row.querySelector('.btn-copy-prev');
+            if (index === 0) {
+                copyBtn.style.display = 'none';
+            } else {
+                copyBtn.onclick = () => {
+                    const prev = items[index - 1];
+                    item.productName = prev.productName;
+                    item.packageForm = prev.packageForm;
+                    item.netWeight = prev.netWeight;
+                    item.unitsPerPallet = prev.unitsPerPallet;
+                    renderItems();
+                };
+            }
+
+            // Readonly if already sent
+            if (delivery.status === 'COMPLETED' || delivery.status === 'OCZEKUJE') {
+                nameInp.disabled = formSel.disabled = weightInp.disabled = true;
+                delBtn.style.display = 'none';
+                copyBtn.style.display = 'none';
+                palletCountInput.disabled = true;
+                lokZSel.disabled = lokDoSel.disabled = true;
+            }
+
+            itemsContainer.appendChild(clone);
+        });
+
+        if (items.length === 0) {
+            itemsContainer.innerHTML = `<div style="text-align: center; padding: 40px; color: #94a3b8; border: 2px dashed #cbd5e1; border-radius: 12px;">
+                <span class="material-icons" style="font-size: 40px; margin-bottom: 10px; color: #cbd5e1;">playlist_add</span>
+                <p style="margin: 0; font-size: 14px; font-weight: 500;">Zwiększ "Ilość Palet" w panelu powyżej.</p>
+            </div>`;
+        }
+    }
+
+    async function saveDelivery(newStatus) {
+        if (!delivery.lokalizacja_z || !delivery.lokalizacja_do) {
+            alert('Wybierz lokalizację źródłową i docelową (kierunek przesunięcia).');
+            return;
+        }
+        if (items.length === 0) {
+            alert('Dodaj co najmniej jedną pozycję.');
+            return;
+        }
+
+        const btn = document.querySelector('#actionButtons button');
+        const oldHtml = btn ? btn.innerHTML : '';
+        if (btn) { btn.innerHTML = `<span class="material-icons" style="font-size: 18px;">sync</span> Wysyłanie...`; btn.disabled = true; }
+
+        delivery.items = items;
+        delivery.status = newStatus;
+
+        try {
+            const res = await fetch('{{ url_for("magazyn_dostawy.zapisz_dostawe") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...delivery, linia })
+            });
+            const d = await res.json();
+            if (d.success) {
+                window.location.href = `{{ url_for("magazyn_dostawy.lista_dostaw", linia=linia) }}`;
+            } else {
+                alert('Błąd: ' + d.error);
+                if (btn) { btn.innerHTML = oldHtml; btn.disabled = false; }
+            }
+        } catch (e) {
+            alert('Błąd sieci');
+            if (btn) { btn.innerHTML = oldHtml; btn.disabled = false; }
+        }
+    }
+
+    init();
+});
+</script>
+{% endblock %}

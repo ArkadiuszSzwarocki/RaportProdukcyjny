@@ -39,15 +39,38 @@ def register_planista_bulk_routes(planista_bp):
                     f'UPDATE {table_plan} SET kolejnosc = kolejnosc + 1 WHERE data_planu = %s AND kolejnosc >= %s',
                     (data_planu, kolejnosc_val),
                 )
+            else:
+                # Find the last order for the relevant section(s)
+                if linia.upper() == 'PSD':
+                    cursor.execute(
+                        f"SELECT MAX(kolejnosc) FROM {table_plan} "
+                        f"WHERE data_planu=%s AND (is_deleted=0 OR is_deleted IS NULL) "
+                        f"AND LOWER(sekcja) IN ('zasyp', 'czyszczenie')",
+                        (data_planu,)
+                    )
+                else:
+                    cursor.execute(
+                        f"SELECT MAX(kolejnosc) FROM {table_plan} "
+                        f"WHERE data_planu=%s AND (is_deleted=0 OR is_deleted IS NULL)",
+                        (data_planu,)
+                    )
+                
+                max_res = cursor.fetchone()
+                kolejnosc_val = (max_res[0] if max_res and max_res[0] is not None else 0) + 1
 
             insert_sql = (
-                f'INSERT INTO {table_plan} (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_zlecenia, linia) '
-                'VALUES (%s, %s, %s, %s, %s, %s, %s, %s)'
+                f'INSERT INTO {table_plan} (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_zlecenia) '
+                'VALUES (%s, %s, %s, %s, %s, %s, %s)'
             )
             cursor.execute(
                 insert_sql,
-                (data_planu, 'Czyszczenie', 'Czyszczenie', tonaz_val, 'zaplanowane', kolejnosc_val or 9999, 'jakosc', linia),
+                (data_planu, 'Czyszczenie', 'Czyszczenie', tonaz_val, 'zaplanowane', kolejnosc_val, 'jakosc'),
             )
+            
+            # Renormalize to fix any numbering issues
+            from app.services.plan_movement_service import PlanMovementService
+            PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, None if linia.upper() == 'AGRO' else 'Zasyp')
+
             notify_workers_about_plan_change(
                 plan_context={
                     'id': cursor.lastrowid if hasattr(cursor, 'lastrowid') else None,

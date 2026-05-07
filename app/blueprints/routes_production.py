@@ -362,6 +362,15 @@ def _ensure_zwolnienie_table(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """
     )
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS zasyp_zwolnienia_ack (
+            linia VARCHAR(16) PRIMARY KEY,
+            timestamp_unix DOUBLE NOT NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """
+    )
 
 
 def _set_zwolnienie_timestamp(linia: str) -> float:
@@ -419,6 +428,62 @@ def _get_zwolnienie_timestamp(linia: str) -> float:
         except Exception:
             pass
     return float(_mieszalnik_zwolnienia.get(linia_u, 0.0) or 0.0)
+
+
+def _set_zwolnienie_ack_timestamp(linia: str, ts: float = None) -> float:
+    linia_u = str(linia or 'AGRO').upper()
+    ts = ts if ts is not None else time.time()
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        _ensure_zwolnienie_table(cursor)
+        cursor.execute(
+            """
+            INSERT INTO zasyp_zwolnienia_ack (linia, timestamp_unix)
+            VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE timestamp_unix = VALUES(timestamp_unix)
+            """,
+            (linia_u, ts),
+        )
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+    return ts
+
+
+def _get_zwolnienie_ack_timestamp(linia: str) -> float:
+    linia_u = str(linia or 'AGRO').upper()
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        _ensure_zwolnienie_table(cursor)
+        cursor.execute(
+            "SELECT timestamp_unix FROM zasyp_zwolnienia_ack WHERE linia = %s LIMIT 1",
+            (linia_u,),
+        )
+        row = cursor.fetchone()
+        if row and row[0] is not None:
+            try:
+                return float(row[0])
+            except Exception:
+                return 0.0
+    except Exception:
+        pass
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+    return 0.0
 
 
 def _tts_filename_for_linia(linia: str) -> str:
@@ -490,6 +555,8 @@ register_production_notification_routes(
     tts_filename_for_linia=_tts_filename_for_linia,
     generate_tts_async=generate_tts_async,
     get_zwolnienie_timestamp=_get_zwolnienie_timestamp,
+    set_zwolnienie_ack_ts_fn=_set_zwolnienie_ack_timestamp,
+    get_zwolnienie_ack_ts_fn=_get_zwolnienie_ack_timestamp,
     zwolnienie_banner_ttl_seconds=ZWOLNIENIE_BANNER_TTL_SECONDS,
     get_latest_start_event_fn=get_latest_start_event,
     build_start_tts_text_fn=build_start_tts_text,

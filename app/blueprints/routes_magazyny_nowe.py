@@ -112,3 +112,46 @@ def archive_pallet():
     success, msg = MagazynyNoweService.archive_pallet(pallet_id, pallet_type, worker, linia)
     return jsonify({'success': success, 'message': msg})
 
+@magazyny_nowe_bp.route('/api/pallet/rename', methods=['POST'])
+def rename_pallet():
+    data = request.get_json()
+    pallet_id = data.get('id')
+    pallet_type = data.get('type')
+    new_name = data.get('name')
+    linia = data.get('linia', 'PSD')
+    worker = session.get('login', 'nieznany')
+    
+    if not all([pallet_id, pallet_type, new_name]):
+        return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
+        
+    success, msg = MagazynyNoweService.rename_pallet(pallet_id, pallet_type, new_name, worker, linia)
+    return jsonify({'success': success, 'message': msg})
+
+@magazyny_nowe_bp.route('/api/pallet/update-weight', methods=['POST'])
+def update_weight():
+    data = request.get_json()
+    pallet_id = data.get('id')
+    pallet_type = data.get('type')
+    new_weight = data.get('weight')
+    linia = data.get('linia', 'PSD')
+    worker = session.get('login', 'nieznany')
+    
+    if not all([pallet_id, pallet_type, new_weight is not None]):
+        return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
+        
+    success, msg = MagazynyNoweService.update_weight(pallet_id, pallet_type, new_weight, worker, linia)
+    return jsonify({'success': success, 'message': msg})
+
+@magazyny_nowe_bp.route('/api/pallet/return-to-raw', methods=['POST'])
+def pallet_return_to_raw():
+    data = request.get_json()
+    pallet_id = data.get('id')
+    pallet_type = data.get('type')
+    linia = data.get('linia', 'PSD')
+    worker = session.get('login', 'nieznany')
+    
+    if not all([pallet_id, pallet_type]):
+        return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
+        
+    success, msg = MagazynyNoweService.return_pallet_to_raw(pallet_id, pallet_type, worker, linia)
+    return jsonify({'success': success, 'message': msg})

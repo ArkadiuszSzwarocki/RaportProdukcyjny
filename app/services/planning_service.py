@@ -613,7 +613,7 @@ class PlanningService:
             
             # Check if plan exists and its status
             current_app.logger.debug(f'[SERVICE-DELETE] Finding plan ID={plan_id}...')
-            cursor.execute(f"SELECT status, produkt, sekcja FROM {table_plan} WHERE id=%s", (plan_id,))
+            cursor.execute(f"SELECT status, produkt, sekcja, data_planu FROM {table_plan} WHERE id=%s", (plan_id,))
             res = cursor.fetchone()
             current_app.logger.debug(f'[SERVICE-DELETE] Result: {res}')
 
@@ -622,17 +622,13 @@ class PlanningService:
                 conn.close()
                 return (False, 'Zlecenie nie istnieje.')
 
-            # Be tolerant to mocked fetchone shapes in tests (sometimes only status is returned)
-            status = res[0] if len(res) > 0 else None
-            produkt = res[1] if len(res) > 1 else None
-            sekcja = res[2] if len(res) > 2 else None
-            current_app.logger.debug(f'[SERVICE-DELETE] Found plan: status={status}, produkt={produkt}, sekcja={sekcja}')
+            status, produkt, sekcja, data_planu = res[0], res[1], res[2], res[3]
+            current_app.logger.debug(f'[SERVICE-DELETE] Found plan: status={status}, produkt={produkt}, sekcja={sekcja}, data={data_planu}')
             
             # Cannot delete if in progress or completed
             if status in ['w toku', 'zakonczone']:
                 current_app.logger.debug(f'[SERVICE-DELETE] Plan has protected status: {status}')
                 conn.close()
-                # Use ascii form 'zakonczone' to match test expectations
                 return (False, 'Nie można usunąć zlecenia w toku lub zakonczone.')
             
             # Hard delete: DELETE FROM table
@@ -640,16 +636,16 @@ class PlanningService:
             cursor.execute(f"DELETE FROM {table_plan} WHERE id=%s", (plan_id,))
             current_app.logger.debug(f'[SERVICE-DELETE] DELETE finished, rowcount={cursor.rowcount}')
 
-            # Jeśli kasujemy Zasyp, usuń też powiązane zlecenie Workowanie (które jeszcze nie startowało)
-            # Zapobiega to powstawaniu osieroconych zleceń w kolejce produkcyjnej.
-            linked_deleted = 0
+            # Jeśli kasujemy Zasyp, usuń też powiązane zlecenie Workowanie
             if sekcja and sekcja.lower() == 'zasyp':
                 cursor.execute(
                     f"DELETE FROM {table_plan} WHERE zasyp_id=%s AND status='zaplanowane'",
                     (plan_id,)
                 )
-                linked_deleted = cursor.rowcount
-                current_app.logger.debug(f'[SERVICE-DELETE] Cascade: removed {linked_deleted} linked Workowanie (zasyp_id={plan_id})')
+
+            # Renormalize sequences to close gaps
+            from app.services.plan_movement_service import PlanMovementService
+            PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, None if linia.upper() == 'AGRO' else sekcja)
 
             conn.commit()
             current_app.logger.debug(f'[SERVICE-DELETE] COMMIT success')

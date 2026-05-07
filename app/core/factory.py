@@ -32,6 +32,7 @@ from app.blueprints.routes_agro_warehouse import agro_warehouse_bp
 from app.blueprints.routes_mom import mom_bp
 from app.blueprints.routes_magazyny_nowe import magazyny_nowe_bp
 from app.blueprints.routes_scanner import scanner_bp
+from app.blueprints.routes_magazyn_dostawy import magazyn_dostawy_bp
 from app import db
 from app.core.middleware import register_middleware
 
@@ -114,6 +115,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(mom_bp)
     app.register_blueprint(magazyny_nowe_bp)
     app.register_blueprint(scanner_bp)
+    app.register_blueprint(magazyn_dostawy_bp)
     
     # Register Jinja2 filters
     app.jinja_env.filters['format_czasu'] = format_godziny

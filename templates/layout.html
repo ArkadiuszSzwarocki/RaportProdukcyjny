@@ -320,7 +320,7 @@
 </head>
 
 {% set role = session.get('rola', '').lower() %}
-{% set user_hall = 'ALL' if role in ['admin', 'zarzad', 'laborant', 'laboratorium'] else (session.get('grupa') or 'ALL').upper() %}
+{% set user_hall = 'ALL' if role in ['admin', 'zarzad', 'laborant', 'laboratorium', 'magazynier', 'planista'] else (session.get('grupa') or 'ALL').upper() %}
 {% set hall_view = session.get('selected_hall_view') %}
 {% set can_switch_halls = user_hall == 'ALL' %}
 {% set effective_hall = (hall_view or user_hall) if can_switch_halls else user_hall %}
@@ -465,7 +465,12 @@
                 {% if role_has_access('magazyn') %}
                 <a href="{{ url_for('main.index', sekcja='Magazyn', linia='PSD') }}"
                     class="nav-item {% if request.args.get('sekcja')=='Magazyn' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">📦 <span
-                        class="text-capitalize">{{ _('magazyn') }}</span></a>
+                        class="text-capitalize">Magazyn WG PSD</span></a>
+                {% if pending_deliveries.PSD > 0 %}
+                <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia='PSD') }}"
+                    class="nav-item {% if request.blueprint == 'magazyn_dostawy' and request.args.get('linia', 'PSD').upper() == 'PSD' %}active{% endif %}">🚚 <span
+                        class="text-capitalize">Przyjęcia Dostaw PSD</span></a>
+                {% endif %}
                 {% endif %}
                 <div class="nav-divider"></div>
                 {% endif %}
@@ -504,7 +509,7 @@
                 {% if (role_has_access('magazyn') or role_has_access('agro_magazyn')) and role not in ['laborant', 'laboratorium'] %}
                 <a href="{{ url_for('main.index', sekcja='Magazyn', linia='AGRO') }}"
                     class="nav-item {% if request.args.get('sekcja')=='Magazyn' and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">📦 <span
-                        class="text-capitalize">Magazyn Agro</span></a>
+                        class="text-capitalize">Magazyn WG AGRO</span></a>
                 <a href="{{ url_for('agro_warehouse.index', linia='AGRO') }}"
                     class="nav-item {% if request.blueprint == 'agro_warehouse' %}active{% endif %}">📔 <span
                         class="text-capitalize">Surowce Agro</span></a>
@@ -514,6 +519,11 @@
                 <a href="{{ url_for('magazyny_nowe.index', linia='AGRO') }}"
                     class="nav-item {% if request.blueprint == 'magazyny_nowe' and request.args.get('linia','').upper() == 'AGRO' %}active{% endif %}">🚀 <span
                         class="text-capitalize">Nowy Magazyn (Beta)</span></a>
+                {% if pending_deliveries.AGRO > 0 %}
+                <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia='AGRO') }}"
+                    class="nav-item {% if request.blueprint == 'magazyn_dostawy' and request.args.get('linia','').upper() == 'AGRO' %}active{% endif %}">🚚 <span
+                        class="text-capitalize">Przyjęcia Dostaw AGRO</span></a>
+                {% endif %}
                 <a href="{{ url_for('scanner.scanner_ui', linia='AGRO') }}"
                     class="nav-item {% if request.blueprint == 'scanner' %}active{% endif %}">📡 <span
                         class="text-capitalize">Skaner & Drukarka</span></a>

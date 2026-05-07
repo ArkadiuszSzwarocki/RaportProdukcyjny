@@ -263,6 +263,25 @@ def inject_bug_report_counters():
         return dict(unread_bug_reports_count=0)
 
 
+def inject_delivery_counters():
+    """Wstrzykuje licznik oczekujących przesunięć."""
+    try:
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT linia, COUNT(*) FROM magazyn_dostawy WHERE status = 'PENDING' GROUP BY linia")
+        # Ensure we have defaults for both lines
+        counts = {'PSD': 0, 'AGRO': 0}
+        for row in cursor.fetchall():
+            l = row[0].upper()
+            if l in counts:
+                counts[l] = row[1]
+        conn.close()
+        return dict(pending_deliveries=counts)
+    except Exception:
+        return dict(pending_deliveries={'PSD': 0, 'AGRO': 0})
+
+
 def register_contexts(app):
     """Register all context processors with Flask app."""
     app.context_processor(inject_static_version)
@@ -271,4 +290,5 @@ def register_contexts(app):
     app.context_processor(inject_app_into_templates)
     app.context_processor(inject_app_version)
     app.context_processor(inject_bug_report_counters)
+    app.context_processor(inject_delivery_counters)
 

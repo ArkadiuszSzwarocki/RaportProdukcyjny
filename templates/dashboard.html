@@ -794,94 +794,48 @@
             <div class="p-10">
                 {% set lab_status_view = rola in ['laborant', 'laboratorium'] %}
                 {% if lab_status_view %}
-                {% set lab_ns = namespace(e1=None, e2=None, eop=None, has_extra=false) %}
-                {% set op_etap_num = 5 if linia == 'AGRO' else 6 %}
-                {% for e in etapy %}
-                    {% if e.etap == 1 %}{% set lab_ns.e1 = e %}{% endif %}
-                    {% if e.etap == 2 %}{% set lab_ns.e2 = e %}{% endif %}
-                    {% if e.etap == op_etap_num %}{% set lab_ns.eop = e %}{% endif %}
-                    {% if e.etap|string|length > 1 %}{% set lab_ns.has_extra = true %}{% endif %}
-                {% endfor %}
-
                 <div style="display:grid; grid-template-columns: 1fr; gap:8px;">
-                    {% set e = lab_ns.e1 %}
-                    {% if e and e.czas_stop %}
-                        {% set status_label = 'Zakończone' %}
-                        {% set status_icon = '✓' %}
-                        {% set status_bg = '#dcfce7' %}
-                        {% set status_color = '#166534' %}
-                    {% elif e and (e.is_running or e.czas_start) %}
-                        {% set status_label = 'Rozpoczęte' %}
-                        {% set status_icon = '▶' %}
-                        {% set status_bg = '#16a34a' %}
-                        {% set status_color = '#ffffff' %}
-                    {% else %}
-                        {% set status_label = 'Oczekuje' %}
-                        {% set status_icon = '⏳' %}
-                        {% set status_bg = '#e5e7eb' %}
-                        {% set status_color = '#374151' %}
-                    {% endif %}
-                    <div style="border:1px solid #dbe3ea; border-radius:8px; padding:10px; background:#f9fbfd; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-                        <div>
-                            <strong style="font-size:0.92em;">Naważanie</strong>
-                            <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) if e else 0 }}" data-running="{{ 1 if e and e.is_running else 0 }}">{{ e.duration_str if e and e.duration_str else '00:00' }}</span></strong></div>
-                        </div>
-                        <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
-                    </div>
+                    {% for e in etapy %}
+                        {% set e_str = e.etap|string %}
+                        {% set is_main = e.etap in [1, 2, 5, 6] %}
+                        {% set is_mixer = e.etap in [3, 4] or (e_str|length > 1 and (e_str[0] == '3' or e_str[0] == '4')) %}
+                        
+                        {% if is_main or is_mixer %}
+                            {% if e.czas_stop %}
+                                {% set status_label = 'Zakończone' %}
+                                {% set status_icon = '✓' %}
+                                {% set status_bg = '#dcfce7' %}
+                                {% set status_color = '#166534' %}
+                            {% elif e.is_running or e.czas_start %}
+                                {% set status_label = 'Rozpoczęte' %}
+                                {% set status_icon = '▶' %}
+                                {% set status_bg = '#16a34a' %}
+                                {% set status_color = '#ffffff' %}
+                            {% else %}
+                                {% set status_label = 'Oczekuje' %}
+                                {% set status_icon = '⏳' %}
+                                {% set status_bg = '#e5e7eb' %}
+                                {% set status_color = '#374151' %}
+                            {% endif %}
 
-                    {% set e = lab_ns.e2 %}
-                    {% if e and e.czas_stop %}
-                        {% set status_label = 'Zakończone' %}
-                        {% set status_icon = '✓' %}
-                        {% set status_bg = '#dcfce7' %}
-                        {% set status_color = '#166534' %}
-                    {% elif e and (e.is_running or e.czas_start) %}
-                        {% set status_label = 'Rozpoczęte' %}
-                        {% set status_icon = '▶' %}
-                        {% set status_bg = '#16a34a' %}
-                        {% set status_color = '#ffffff' %}
-                    {% else %}
-                        {% set status_label = 'Oczekuje' %}
-                        {% set status_icon = '⏳' %}
-                        {% set status_bg = '#e5e7eb' %}
-                        {% set status_color = '#374151' %}
-                    {% endif %}
-                    <div style="border:1px solid #dbe3ea; border-radius:8px; padding:10px; background:#f9fbfd; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-                        <div>
-                            <strong style="font-size:0.92em;">Mieszanie i oczekiwanie na LAB</strong>
-                            <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) if e else 0 }}" data-running="{{ 1 if e and e.is_running else 0 }}">{{ e.duration_str if e and e.duration_str else '00:00' }}</span></strong></div>
-                        </div>
-                        <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
-                    </div>
+                            {% set label = 'Etap ' ~ e.etap %}
+                            {% if e.etap == 1 %}{% set label = 'Naważanie' %}
+                            {% elif e.etap == 2 %}{% set label = 'Mieszanie (LAB)' %}
+                            {% elif e.etap == 3 or e_str[0] == '3' %}{% set label = 'Dosypka ' ~ (e_str[1:] if e_str|length > 1 else '') %}
+                            {% elif e.etap == 4 or e_str[0] == '4' %}{% set label = 'Mieszanie II ' ~ (e_str[1:] if e_str|length > 1 else '') %}
+                            {% elif e.etap in [5, 6] %}{% set label = 'Opróżnianie' %}
+                            {% endif %}
 
-                    {% set e = lab_ns.eop %}
-                    {% if e and e.czas_stop %}
-                        {% set status_label = 'Zakończone' %}
-                        {% set status_icon = '✓' %}
-                        {% set status_bg = '#dcfce7' %}
-                        {% set status_color = '#166534' %}
-                    {% elif e and (e.is_running or e.czas_start) %}
-                        {% set status_label = 'Rozpoczęte' %}
-                        {% set status_icon = '▶' %}
-                        {% set status_bg = '#16a34a' %}
-                        {% set status_color = '#ffffff' %}
-                    {% else %}
-                        {% set status_label = 'Oczekuje' %}
-                        {% set status_icon = '⏳' %}
-                        {% set status_bg = '#e5e7eb' %}
-                        {% set status_color = '#374151' %}
-                    {% endif %}
-                    <div style="border:1px solid #dbe3ea; border-radius:8px; padding:10px; background:#f9fbfd; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-                        <div>
-                            <strong style="font-size:0.92em;">Opróżnianie</strong>
-                            <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) if e else 0 }}" data-running="{{ 1 if e and e.is_running else 0 }}">{{ e.duration_str if e and e.duration_str else '00:00' }}</span></strong></div>
-                        </div>
-                        <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
-                    </div>
+                            <div style="border:1px solid {% if e.is_running %}#16a34a{% else %}#dbe3ea{% endif %}; border-radius:8px; padding:10px; background:{% if e.is_running %}#f0faf4{% else %}#f9fbfd{% endif %}; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                                <div>
+                                    <strong style="font-size:0.92em;">{{ label }}</strong>
+                                    <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) }}" data-running="{{ 1 if e.is_running else 0 }}">{{ e.duration_str if e.duration_str else '00:00' }}</span></strong></div>
+                                </div>
+                                <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
                 </div>
-                {% if lab_ns.has_extra %}
-                <div class="small text-muted mt-6">Wykryto dodatkowe etapy operatora — statusy powyżej pozostają aktualne dla głównych etapów.</div>
-                {% endif %}
                 {% else %}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
                     <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.8em; color:#2f3b4a; user-select:none;">
@@ -1019,19 +973,16 @@
                                 {% endif %}
                             </div>
                             <strong style="font-size:0.9em; line-height: 1.2; display:block;">
-                            {% if etap.etap == 1 %}Naważanie
-                            {% elif etap.etap == 2 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB{% else %}Mieszanie{% endif %}
-                            {% elif etap.etap == 3 %}Dosypka
-                            {% elif etap.etap == 31 %}Dosypka 3a
-                            {% elif etap.etap == 32 %}Dosypka 3b
-                            {% elif etap.etap == 33 %}Dosypka 3c
-                            {% elif etap.etap == 4 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB po dosypce{% else %}Dosypka{% endif %}
-                            {% elif etap.etap == 41 %}Mieszanie 4a
-                            {% elif etap.etap == 42 %}Mieszanie 4b
-                            {% elif etap.etap == 43 %}Mieszanie 4c
-                            {% elif etap.etap == 5 %}{% if linia == 'AGRO' %}Opróżnianie{% else %}Mieszanie{% endif %}
-                            {% elif etap.etap == 6 %}Opróżnianie
-                            {% else %}Etap {{ etap.etap }}{% endif %}
+                            {% set e_nr = etap.etap %}
+                            {% if e_nr == 1 %}Naważanie
+                            {% elif e_nr == 2 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB{% else %}Mieszanie{% endif %}
+                            {% elif e_nr == 3 %}Dosypka
+                            {% elif 30 < e_nr < 40 %}Dosypka 3{{ 'abcdefghi'[ (e_nr % 10 - 1) if (e_nr % 10 - 1) < 9 else 0 ] }}
+                            {% elif e_nr == 4 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB po dosypce{% else %}Dosypka{% endif %}
+                            {% elif 40 < e_nr < 50 %}Mieszanie 4{{ 'abcdefghi'[ (e_nr % 10 - 1) if (e_nr % 10 - 1) < 9 else 0 ] }}
+                            {% elif e_nr == 5 %}{% if linia == 'AGRO' %}Opróżnianie{% else %}Mieszanie{% endif %}
+                            {% elif e_nr == 6 %}Opróżnianie
+                            {% else %}Etap {{ e_nr }}{% endif %}
                             </strong>
                         </div>
                         {% if etap.czas_start_str %}

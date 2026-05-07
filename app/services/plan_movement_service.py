@@ -8,6 +8,29 @@ from flask import current_app
 class PlanMovementService:
     """Service for managing plan movement operations (move to different section, shift order)."""
 
+    _LOCKED_STATUSES = {'w toku', 'zakonczone'}
+
+    @staticmethod
+    def renormalize_sequences(cursor, table_name, data_planu, sekcja=None):
+        """Renormalize kolejnosc for a given date (sequential 1, 2, 3...) filtering deleted rows."""
+        query = f"SELECT id FROM {table_name} WHERE data_planu=%s AND (is_deleted=0 OR is_deleted IS NULL)"
+        params = [data_planu]
+        if sekcja:
+            if sekcja.lower() in ['zasyp', 'czyszczenie']:
+                query += " AND LOWER(sekcja) IN ('zasyp', 'czyszczenie')"
+            else:
+                query += " AND sekcja=%s"
+                params.append(sekcja)
+        query += " ORDER BY kolejnosc ASC, id ASC"
+        
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
+        for idx, row in enumerate(rows, start=1):
+            cursor.execute(
+                f"UPDATE {table_name} SET kolejnosc=%s WHERE id=%s",
+                (idx, row[0])
+            )
+
     @staticmethod
     def move_plan_to_section(plan_id, target_sekcja, linia='PSD'):
         """Move a plan to a different section.
@@ -98,7 +121,7 @@ class PlanMovementService:
             # Get current plan info
             table_plan = get_table_name('plan_produkcji', linia)
             cursor.execute(
-                f"SELECT sekcja, kolejnosc, data_planu, produkt FROM {table_plan} WHERE id=%s",
+                f"SELECT sekcja, kolejnosc, data_planu, produkt, status FROM {table_plan} WHERE id=%s",
                 (plan_id,)
             )
             res = cursor.fetchone()
@@ -111,35 +134,68 @@ class PlanMovementService:
             current_seq = res[1] if len(res) > 1 else None
             data_planu = res[2] if len(res) > 2 else None
             produkt = res[3] if len(res) > 3 else ''
+            current_status = (res[4] if len(res) > 4 else 'zaplanowane')
+            current_status_norm = str(current_status or '').strip().lower()
+
+            if current_status_norm in PlanMovementService._LOCKED_STATUSES:
+                conn.close()
+                return (False, f"Nie można przesuwać zlecenia o statusie '{current_status}'.")
+
+            if current_seq is None:
+                conn.close()
+                return (False, 'Nie można przesunąć - brak kolejności zlecenia.')
             
             # Find adjacent plan in target direction
-            if is_up:
-                # Find plan with lower sequence (move up)
-                cursor.execute(f"""
-                    SELECT id, kolejnosc FROM {table_plan} 
-                    WHERE sekcja=%s AND data_planu=%s AND kolejnosc < %s
-                    ORDER BY kolejnosc DESC
-                    LIMIT 1
-                """, (sekcja, data_planu, current_seq))
+            # For AGRO, we ignore section filter because the list is unified.
+            # For PSD, we allow swapping between 'Zasyp' and 'Czyszczenie' as they are in the same view.
+            sekcja_filter = ""
+            params_adj = [data_planu, current_seq]
+            
+            if linia.upper() == 'AGRO':
+                sekcja_filter = "" # No section filter for AGRO
             else:
-                # Find plan with higher sequence (move down)
-                cursor.execute(f"""
-                    SELECT id, kolejnosc FROM {table_plan}
-                    WHERE sekcja=%s AND data_planu=%s AND kolejnosc > %s
-                    ORDER BY kolejnosc ASC
-                    LIMIT 1
-                """, (sekcja, data_planu, current_seq))
+                # For PSD and others, group Zasyp and Czyszczenie
+                if sekcja.lower() in ['zasyp', 'czyszczenie']:
+                    sekcja_filter = "AND LOWER(sekcja) IN ('zasyp', 'czyszczenie')"
+                else:
+                    sekcja_filter = "AND sekcja = %s"
+                    params_adj.insert(0, sekcja)
+            
+            # 1. Renormalize first to ensure we have clean sequential numbers
+            PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, sekcja if linia.upper() != 'AGRO' else None)
+
+            # 2. Get current sequence after renormalization
+            cursor.execute(f"SELECT kolejnosc FROM {table_plan} WHERE id=%s", (plan_id,))
+            current_seq = cursor.fetchone()[0]
+
+            # 3. Find adjacent plan (the one to swap with)
+            if kierunek in ['up', 'w_gore', 'gora']:
+                cursor.execute(
+                    f"SELECT id, kolejnosc FROM {table_plan} "
+                    f"WHERE data_planu=%s AND kolejnosc < %s {sekcja_filter} "
+                    f"AND (is_deleted=0 OR is_deleted IS NULL) "
+                    f"AND COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone') "
+                    f"ORDER BY kolejnosc DESC LIMIT 1",
+                    tuple(params_adj)
+                )
+            else:
+                cursor.execute(
+                    f"SELECT id, kolejnosc FROM {table_plan} "
+                    f"WHERE data_planu=%s AND kolejnosc > %s {sekcja_filter} "
+                    f"AND (is_deleted=0 OR is_deleted IS NULL) "
+                    f"AND COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone') "
+                    f"ORDER BY kolejnosc ASC LIMIT 1",
+                    tuple(params_adj)
+                )
             
             adjacent = cursor.fetchone()
-            
             if not adjacent:
                 conn.close()
-                return (False, 'Nie można przesunąć - brak sąsiedniego zlecenia.')
-            
-            adjacent_id = adjacent[0]
-            adjacent_seq = adjacent[1]
-            
-            # Swap sequences
+                return (True, 'Zlecenie jest już na skraju listy.')
+
+            adjacent_id, adjacent_seq = adjacent[0], adjacent[1]
+
+            # 4. Swap sequences
             cursor.execute(
                 f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s",
                 (adjacent_seq, plan_id)
@@ -148,6 +204,9 @@ class PlanMovementService:
                 f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s",
                 (current_seq, adjacent_id)
             )
+
+            # 5. Final renormalization to be sure
+            PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, sekcja if linia.upper() != 'AGRO' else None)
             
             conn.commit()
             conn.close()
@@ -187,11 +246,15 @@ class PlanMovementService:
             table_plan = get_table_name('plan_produkcji', linia)
             
             # Update each plan's sequence based on position in new_order
+            # We remove the sekcja filter here to allow bulk reordering of mixed lists (e.g. Zasyp + Czyszczenie)
             for seq, plan_id in enumerate(new_order, start=1):
                 cursor.execute(
-                    f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s AND sekcja=%s AND data_planu=%s",
-                    (seq, plan_id, section, date_planu)
+                    f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s AND data_planu=%s",
+                    (seq, int(plan_id), data_planu)
                 )
+            
+            # Renormalize to ensure no gaps or duplicates from other sections/deleted rows
+            PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, section if linia.upper() != 'AGRO' else None)
             
             conn.commit()
             conn.close()

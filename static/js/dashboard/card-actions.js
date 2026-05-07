@@ -257,12 +257,16 @@
             return;
         }
 
+        var config = document.getElementById('dashboard-config');
+        var linia = config ? config.getAttribute('data-linia') : 'PSD';
+
         fetch('/api/edytuj_palete_ajax', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 id: id,
                 waga: newWaga,
+                linia: linia,
                 data_planu: resolveCurrentPlanDate(),
             }),
         })
@@ -282,10 +286,17 @@
     }
 
     function deletePalet(id, data) {
+        var config = document.getElementById('dashboard-config');
+        var linia = config ? config.getAttribute('data-linia') : 'PSD';
+
         fetch('/api/usun_palete_ajax', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, data_planu: data }),
+            body: JSON.stringify({ 
+                id: id, 
+                linia: linia,
+                data_planu: data 
+            }),
         })
             .then(function (response) {
                 return response.json();
@@ -308,10 +319,16 @@
             return;
         }
 
+        var config = document.getElementById('dashboard-config');
+        var linia = config ? config.getAttribute('data-linia') : 'PSD';
+
         fetch('/api/usun_plan_ajax/' + id, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data_planu: data }),
+            body: JSON.stringify({ 
+                data_planu: data,
+                linia: linia
+            }),
         })
             .then(parseJsonResponse)
             .then(function (result) {
@@ -351,10 +368,17 @@
             return;
         }
 
+        var config = document.getElementById('dashboard-config');
+        var linia = config ? config.getAttribute('data-linia') : 'PSD';
+
         fetch('/api/edytuj_plan_ajax', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, tonaz: newTonaz }),
+            body: JSON.stringify({ 
+                id: id, 
+                tonaz: newTonaz,
+                linia: linia
+            }),
         })
             .then(function (response) {
                 return response.json();

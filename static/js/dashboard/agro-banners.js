@@ -12,6 +12,7 @@
         zasypStartLastSeen: 0,
         zasypMieszanieStartLastSeen: 0,
         zasypDosypkaAddedLastSeen: 0,
+        zwolnienieAckLastSeen: 0,
         zasypDosypkaDismissedTs: 0,
         agroBannerLockUntil: 0,
         lastRenderedZasypStartTs: 0,
@@ -114,6 +115,7 @@
             state.zasypMieszanieStartLastSeen = Number(localStorage.getItem('agro_zasyp_mieszanie_start_last_seen') || '0') || 0;
             state.dosypkiLastSeen = Number(localStorage.getItem('agro_dosypki_last_seen') || '0') || 0;
             state.zasypDosypkaAddedLastSeen = Number(localStorage.getItem('agro_zasyp_dosypka_added_last_seen') || '0') || 0;
+            state.zwolnienieAckLastSeen = Number(localStorage.getItem('agro_zwolnienie_ack_last_seen') || '0') || 0;
             state.zasypDosypkaDismissedTs = Number(localStorage.getItem('agro_zasyp_dosypka_dismissed_ts') || '0') || 0;
 
             var dosypkaSchemaKey = 'agro_zasyp_dosypka_added_last_seen_schema';
@@ -461,6 +463,26 @@
         _stopAgroBannerMedia();
         if (banner) {
             banner.style.display = 'none';
+        }
+    }
+
+    function ackZwolnienieBanner() {
+        try {
+            var config = getConfigState();
+            var linia = (config && config.linia) || 'AGRO';
+            fetch('/api/zasyp/ack_zwolnienie', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ linia: linia })
+            }).catch(function(err){
+                console.warn('ack_zwolnienie failed', err);
+            });
+        } catch (error) {
+            console.error('ackZwolnienieBanner error', error);
         }
     }
 
@@ -958,6 +980,56 @@
         }
     }
 
+    function showZwolnienieAckBanner(data) {
+        try {
+            var eventTs = Number((data && data.timestamp) || 0) || 0;
+            if (eventTs && eventTs <= state.zwolnienieAckLastSeen) {
+                return;
+            }
+            state.zwolnienieAckLastSeen = eventTs;
+            persist('agro_zwolnienie_ack_last_seen', state.zwolnienieAckLastSeen);
+
+            var existing = document.getElementById('zwolnienie-ack-banner');
+            if (existing) {
+                try { existing.remove(); } catch(e){}
+            }
+
+            var banner = document.createElement('div');
+            banner.id = 'zwolnienie-ack-banner';
+            banner.style.position = 'fixed';
+            banner.style.left = '50%';
+            banner.style.transform = 'translateX(-50%)';
+            banner.style.top = '260px';
+            banner.style.zIndex = 99999;
+            banner.style.minWidth = '320px';
+            banner.style.background = '#f0fdf4';
+            banner.style.border = '1px solid #86efac';
+            banner.style.boxShadow = '0 8px 30px rgba(0,0,0,0.12)';
+            banner.style.padding = '14px 16px';
+            banner.style.borderRadius = '10px';
+
+            banner.innerHTML = '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">' +
+                _buildAgroPulseSign('✓', '#f0fdf4', '#22c55e', '#15803d') +
+                '<div style="flex:1"><div style="font-weight:700;">POTWIERDZENIE ZWOLNIENIA</div><div style="font-size:0.9em;">Operator potwierdził zwolnienie mieszalnika.</div></div>' +
+                '<div style="margin-left:8px"><button id="zwolnienie-ack-dismiss" style="background:#f1f2f6;border:none;padding:6px 10px;border-radius:8px;cursor:pointer">OK</button></div>' +
+                '</div>';
+
+            document.body.appendChild(banner);
+            document.getElementById('zwolnienie-ack-dismiss').addEventListener('click', function(){
+                _stopAgroBannerMedia();
+                banner.remove();
+            });
+
+            _speakPolishFallback("Operator potwierdził zwolnienie mieszalnika.", "zwolnienie_ack_tts");
+
+            global.setTimeout(function(){
+                try { banner.remove(); } catch(e){}
+            }, 30000);
+        } catch (error) {
+            console.error('showZwolnienieAckBanner error', error);
+        }
+    }
+
     function showZasypDosypkaAddedBanner(data) {
         try {
             var eventTs = Number((data && data.timestamp) || 0) || 0;
@@ -1056,6 +1128,7 @@
     function handleDocumentClick(event) {
         if (event.target && event.target.id === 'zwolnienie-banner-close') {
             event.preventDefault();
+            ackZwolnienieBanner();
             closeZwolnienieBanner();
         }
     }
@@ -1085,6 +1158,7 @@
         sendZwolnienieMieszalnika: sendZwolnienieMieszalnika,
         closeZwolnienieBanner: closeZwolnienieBanner,
         showZwolnienieBanner: showZwolnienieBanner,
+        showZwolnienieAckBanner: showZwolnienieAckBanner,
         showZasypStartBanner: showZasypStartBanner,
         showZasypMieszanieStartBanner: showZasypMieszanieStartBanner,
         showZasypDosypkaAddedBanner: showZasypDosypkaAddedBanner,

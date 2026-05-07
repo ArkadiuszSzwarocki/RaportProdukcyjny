@@ -26,22 +26,42 @@ def is_mieszanie_after_dosypka(etap_nr: Optional[int]) -> bool:
     return e == 4 or (40 < e < 50)
 
 
+def _format_etap_for_tts(etap_nr: Optional[int]) -> str:
+    try:
+        e = int(etap_nr)
+    except Exception:
+        return ""
+    if e == 3: return "3"
+    if e == 4: return "4"
+    if 30 < e < 40:
+        # 31 -> 3 a, 32 -> 3 b
+        suffix = chr(97 + (e % 10) - 1)
+        return f"3 {suffix}"
+    if 40 < e < 50:
+        suffix = chr(97 + (e % 10) - 1)
+        return f"4 {suffix}"
+    return str(e)
+
+
 def build_mieszanie_tts_text(produkt: Optional[str], szarza_nr: Optional[int], etap_nr: Optional[int] = None) -> str:
     produkt_text = normalize_product_for_tts(produkt)
+    etap_desc = _format_etap_for_tts(etap_nr)
+    
     if is_dosypka_stage(etap_nr):
-        text = "Operator rozpoczął dosypkę do mieszania"
+        text = f"Operator rozpoczął dosypkę etap {etap_desc}"
         if produkt_text and should_speak_product_for_szarza(szarza_nr):
             text += f" {produkt_text}"
     elif is_mieszanie_after_dosypka(etap_nr):
-        text = "Operator dodał dosypkę do mieszania i trwa proces mieszania"
+        text = f"Operator zakończył dosypkę i rozpoczął mieszanie etap {etap_desc}"
         if produkt_text and should_speak_product_for_szarza(szarza_nr):
             text += f" {produkt_text}"
     else:
-        text = "Operator rozpoczął mieszanie"
+        text = f"Operator rozpoczął mieszanie etap {etap_desc}"
         if produkt_text and should_speak_product_for_szarza(szarza_nr):
             text += f" {produkt_text}"
+            
     if szarza_nr is not None:
-        text += f" zasyp nr {szarza_nr}"
+        text += f" zasyp numer {szarza_nr}"
     return text
 
 

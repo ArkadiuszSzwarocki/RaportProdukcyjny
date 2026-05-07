@@ -10,11 +10,12 @@ from app.services.zasyp_start_notification_service import build_sound_url_if_exi
 
 def register_production_notification_routes(
     production_bp,
-    *,
     set_zwolnienie_timestamp,
     tts_filename_for_linia,
     generate_tts_async,
     get_zwolnienie_timestamp,
+    set_zwolnienie_ack_ts_fn,
+    get_zwolnienie_ack_ts_fn,
     zwolnienie_banner_ttl_seconds,
     get_latest_start_event_fn,
     build_start_tts_text_fn,
@@ -67,6 +68,36 @@ def register_production_notification_routes(
                 audio_url = None
             return jsonify({"new_zwolnienie": True, "timestamp": current, "audio_url": audio_url})
         return jsonify({"new_zwolnienie": False})
+
+    @production_bp.route('/api/zasyp/ack_zwolnienie', methods=['POST'])
+    def api_ack_zwolnienie():
+        """Operator potwierdził zwolnienie mieszalnika."""
+        linia = (request.json.get('linia') if request.is_json else None) or request.form.get('linia') or 'AGRO'
+        linia = linia.upper()
+        ts = set_zwolnienie_ack_ts_fn(linia)
+        return jsonify({"success": True, "timestamp": ts})
+
+    @production_bp.route('/api/zasyp/poll_zwolnienie_ack', methods=['GET'])
+    def api_poll_zwolnienie_ack():
+        """Lab pyta czy operator potwierdził zwolnienie."""
+        role = str(session.get('rola') or '').lower()
+        if role not in ['laborant', 'laboratorium', 'admin', 'zarzad']:
+            return jsonify({"new_ack": False})
+
+        linia = request.args.get('linia', 'PSD').upper()
+        try:
+            last_seen = float(request.args.get('last_seen', 0))
+        except Exception:
+            last_seen = 0.0
+
+        current_ack = get_zwolnienie_ack_ts_fn(linia)
+        current_release = get_zwolnienie_timestamp(linia)
+
+        # Ack must be after the last release and fresh
+        is_fresh = (time.time() - current_ack) <= zwolnienie_banner_ttl_seconds if current_ack > 0 else False
+        if current_ack > last_seen and current_ack >= current_release and is_fresh:
+            return jsonify({"new_ack": True, "timestamp": current_ack})
+        return jsonify({"new_ack": False})
 
     @production_bp.route('/api/zasyp/poll_etap_start', methods=['GET'])
     def api_poll_etap_start():
@@ -136,10 +167,18 @@ def register_production_notification_routes(
                 audio_filename = None
             etap_nr = latest.get('etap_nr')
             voice_text = build_mieszanie_tts_text_fn(latest.get('produkt'), latest.get('szarza_nr'), etap_nr)
+
+            etap_suffix = ""
+            if 30 < (etap_nr or 0) < 50:
+                try:
+                    etap_suffix = " " + chr(97 + (int(etap_nr) % 10) - 1)
+                except Exception:
+                    etap_suffix = ""
+
             if is_dosypka_stage_fn(etap_nr):
-                banner_title = 'OPERATOR ROZPOCZĄŁ DOSYPKĘ DO MIESZANIA'
+                banner_title = f'OPERATOR ROZPOCZĄŁ DOSYPKĘ{etap_suffix}'
             elif is_mieszanie_after_dosypka_fn(etap_nr):
-                banner_title = 'OPERATOR DODAŁ DOSYPKĘ - TRWA MIESZANIE'
+                banner_title = f'OPERATOR DODAŁ DOSYPKĘ - TRWA MIESZANIE{etap_suffix}'
             else:
                 banner_title = 'OPERATOR ROZPOCZĄŁ MIESZANIE'
             return jsonify(

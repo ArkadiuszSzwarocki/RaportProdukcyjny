@@ -148,6 +148,43 @@ class TestShiftPlanOrder:
             
             assert success is True
 
+    @patch('app.services.plan_movement_service.get_db_connection')
+    def test_shift_plan_order_uses_only_reorderable_neighbors(self, mock_get_conn, app):
+        """Adjacent lookup should skip plans in locked statuses."""
+        with app.app_context():
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_get_conn.return_value = mock_conn
+            mock_conn.cursor.return_value = mock_cursor
+
+            mock_cursor.fetchone.side_effect = [
+                ('Workowanie', 3, '2025-02-10', 'Mąka', 'zaplanowane'),
+                (2, 2),
+            ]
+
+            success, message = PlanMovementService.shift_plan_order(123, 'up')
+
+            assert success is True
+            sql_used = mock_cursor.execute.call_args_list[1][0][0]
+            assert "COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone')" in sql_used
+
+    @patch('app.services.plan_movement_service.get_db_connection')
+    def test_shift_plan_order_blocks_locked_status(self, mock_get_conn, app):
+        """Plans in progress/completed should not be shifted via arrows."""
+        with app.app_context():
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_get_conn.return_value = mock_conn
+            mock_conn.cursor.return_value = mock_cursor
+
+            mock_cursor.fetchone.return_value = ('Workowanie', 2, '2025-02-10', 'Mąka', 'w toku')
+
+            success, message = PlanMovementService.shift_plan_order(123, 'up')
+
+            assert success is False
+            assert 'statusie' in message.lower()
+            assert mock_cursor.execute.call_count == 1
+
     def test_shift_plan_invalid_direction(self):
         """Test shifting plan with invalid direction."""
         success, message = PlanMovementService.shift_plan_order(123, 'invalid')

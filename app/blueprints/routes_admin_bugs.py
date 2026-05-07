@@ -13,10 +13,24 @@ def register_admin_bug_routes(admin_bp, *, create_notification):
     @dynamic_role_required('ustawienia')
     def admin_ustawienia_bugs():
         """View manually reported bugs from database."""
+        sort_by = request.args.get('sort', 'id_desc')
+        
+        # Map sort param to SQL
+        sort_map = {
+            'id_desc': 'id DESC',
+            'id_asc': 'id ASC',
+            'date_desc': 'timestamp DESC',
+            'date_asc': 'timestamp ASC',
+            'status': 'status ASC, timestamp DESC',
+            'user': 'login ASC, timestamp DESC',
+            'reply_date': 'odpowiedz_timestamp DESC'
+        }
+        order_clause = sort_map.get(sort_by, 'id DESC')
+
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            cursor.execute('SELECT * FROM zgloszenia_bledow ORDER BY id DESC')
+            cursor.execute(f'SELECT * FROM zgloszenia_bledow ORDER BY {order_clause}')
             bugs = cursor.fetchall()
 
             for bug in bugs:
@@ -30,7 +44,7 @@ def register_admin_bug_routes(admin_bp, *, create_notification):
         finally:
             conn.close()
 
-        return render_template('ustawienia_bugs.html', bugs=bugs)
+        return render_template('ustawienia_bugs.html', bugs=bugs, current_sort=sort_by)
 
     @admin_bp.route('/admin/ustawienia/bugs/respond/<int:bug_id>', methods=['POST'])
     @login_required

@@ -132,9 +132,23 @@
 </style>
 
 <div class="section-box">
-    <div class="section-header">
-        <h2>🐞 Zgłoszone błędy i usprawnienia</h2>
-        <div>
+    <div class="section-header" style="flex-wrap: wrap; gap: 15px;">
+        <div style="display:flex; align-items:center; gap:15px;">
+            <h2 style="margin:0;">🐞 Zgłoszone błędy i usprawnienia</h2>
+            <div class="sort-control" style="display:flex; align-items:center; gap:8px; background: #f1f5f9; padding: 4px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <label for="bugSort" style="font-size: 13px; font-weight: 600; color: #64748b;">Sortuj:</label>
+                <select id="bugSort" class="input-sm" style="border:none; background:transparent; font-weight:700; color: #0f172a; cursor:pointer;" onchange="window.location.href='?sort=' + this.value">
+                    <option value="id_desc" {% if current_sort == 'id_desc' %}selected{% endif %}>Najnowsze ID</option>
+                    <option value="id_asc" {% if current_sort == 'id_asc' %}selected{% endif %}>Najstarsze ID</option>
+                    <option value="date_desc" {% if current_sort == 'date_desc' %}selected{% endif %}>Data (nowe)</option>
+                    <option value="date_asc" {% if current_sort == 'date_asc' %}selected{% endif %}>Data (stare)</option>
+                    <option value="status" {% if current_sort == 'status' %}selected{% endif %}>Status</option>
+                    <option value="user" {% if current_sort == 'user' %}selected{% endif %}>Użytkownik</option>
+                    <option value="reply_date" {% if current_sort == 'reply_date' %}selected{% endif %}>Data odpowiedzi</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px;">
             <a href="/admin/ustawienia/errors" class="btn btn-secondary">Error Log</a>
             <a href="/admin/centrum" class="btn">Powrót do Centrum</a>
         </div>
