@@ -159,14 +159,18 @@ class PlanMovementService:
                     sekcja_filter = "AND LOWER(sekcja) IN ('zasyp', 'czyszczenie')"
                 else:
                     sekcja_filter = "AND sekcja = %s"
-                    params_adj.insert(0, sekcja)
+                    params_adj.append(sekcja) # Append at the end to match query placeholders
             
             # 1. Renormalize first to ensure we have clean sequential numbers
             PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, sekcja if linia.upper() != 'AGRO' else None)
 
             # 2. Get current sequence after renormalization
             cursor.execute(f"SELECT kolejnosc FROM {table_plan} WHERE id=%s", (plan_id,))
-            current_seq = cursor.fetchone()[0]
+            res_cur = cursor.fetchone()
+            if not res_cur:
+                conn.close()
+                return (False, 'Zlecenie zniknęło po normalizacji.')
+            current_seq = res_cur[0]
 
             # 3. Find adjacent plan (the one to swap with)
             if kierunek in ['up', 'w_gore', 'gora']:
@@ -191,7 +195,7 @@ class PlanMovementService:
             adjacent = cursor.fetchone()
             if not adjacent:
                 conn.close()
-                return (True, 'Zlecenie jest już na skraju listy.')
+                return (False, 'Zlecenie jest już na skraju listy (brak sąsiednich pozycji do zamiany).')
 
             adjacent_id, adjacent_seq = adjacent[0], adjacent[1]
 
@@ -236,6 +240,7 @@ class PlanMovementService:
         Returns:
             Tuple (success: bool, message: str)
         """
+        conn = None
         try:
             if isinstance(date_planu, date):
                 date_planu = date_planu.isoformat()
@@ -250,24 +255,29 @@ class PlanMovementService:
             for seq, plan_id in enumerate(new_order, start=1):
                 cursor.execute(
                     f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s AND data_planu=%s",
-                    (seq, int(plan_id), data_planu)
+                    (seq, int(plan_id), date_planu)
                 )
             
             # Renormalize to ensure no gaps or duplicates from other sections/deleted rows
-            PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, section if linia.upper() != 'AGRO' else None)
+            PlanMovementService.renormalize_sequences(cursor, table_plan, date_planu, section if linia.upper() != 'AGRO' else None)
             
             conn.commit()
-            conn.close()
-            
             return (True, f'Kolejność zleceń w sekcji {section} została uporządkowana.')
             
         except Exception as e:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
             current_app.logger.exception(f'Error reordering plans')
             return (False, f'Błąd przy zmianie kolejności: {str(e)}')
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     @staticmethod
     def get_plan_queue_for_section(section, date_planu, linia='PSD'):

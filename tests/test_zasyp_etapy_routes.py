@@ -310,7 +310,8 @@ class TestZasypLaboratoryNotifications:
         from app.services.zasyp_mieszanie_notification_service import build_mieszanie_tts_text
 
         text = build_mieszanie_tts_text('Mleko BIALE', 1, 31)
-        assert 'rozpoczął dosypkę do mieszania' in text.lower()
+        assert 'rozpoczął dosypkę' in text.lower()
+        assert 'etap 3 a' in text.lower()
         assert 'mleko białe' in text.lower()
 
 

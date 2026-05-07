@@ -94,7 +94,7 @@ class TestDeletePlan:
             mock_conn.cursor.return_value = mock_cursor
             
             # Mock plan exists with 'zaplanowane' status
-            mock_cursor.fetchone.return_value = ('zaplanowane',)
+            mock_cursor.fetchone.return_value = ('zaplanowane', 'Mąka', 'Workowanie', '2025-02-10')
             
             success, message = PlanningService.delete_plan(123)
             
@@ -128,7 +128,7 @@ class TestDeletePlan:
             mock_get_conn.return_value = mock_conn
             mock_conn.cursor.return_value = mock_cursor
             
-            mock_cursor.fetchone.return_value = ('w toku',)  # Status: in progress
+            mock_cursor.fetchone.return_value = ('w toku', 'Mąka', 'Workowanie', '2025-02-10')  # Status: in progress
             
             success, message = PlanningService.delete_plan(123)
             
@@ -144,7 +144,7 @@ class TestDeletePlan:
             mock_get_conn.return_value = mock_conn
             mock_conn.cursor.return_value = mock_cursor
             
-            mock_cursor.fetchone.return_value = ('zakonczone',)  # Status: completed
+            mock_cursor.fetchone.return_value = ('zakonczone', 'Mąka', 'Workowanie', '2025-02-10')  # Status: completed
             
             success, message = PlanningService.delete_plan(123)
             
@@ -160,8 +160,8 @@ class TestDeletePlan:
             mock_get_conn.return_value = mock_conn
             mock_conn.cursor.return_value = mock_cursor
 
-            # Zwraca (status, produkt, sekcja) = zaplanowane Zasyp
-            mock_cursor.fetchone.return_value = ('zaplanowane', 'POLMLEK 100 %', 'Zasyp')
+            # Zwraca (status, produkt, sekcja, data) = zaplanowane Zasyp
+            mock_cursor.fetchone.return_value = ('zaplanowane', 'POLMLEK 100 %', 'Zasyp', '2025-02-10')
             mock_cursor.rowcount = 1  # jeden rekord Workowanie do usunięcia
 
             success, message = PlanningService.delete_plan(1215)
@@ -183,7 +183,7 @@ class TestDeletePlan:
             mock_conn.cursor.return_value = mock_cursor
 
             # Workowanie plan — nie powinno kaskadować
-            mock_cursor.fetchone.return_value = ('zaplanowane', 'POLMLEK 100 %', 'Workowanie')
+            mock_cursor.fetchone.return_value = ('zaplanowane', 'POLMLEK 100 %', 'Workowanie', '2025-02-10')
 
             success, message = PlanningService.delete_plan(1216)
 

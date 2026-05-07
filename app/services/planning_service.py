@@ -637,11 +637,13 @@ class PlanningService:
             current_app.logger.debug(f'[SERVICE-DELETE] DELETE finished, rowcount={cursor.rowcount}')
 
             # Jeśli kasujemy Zasyp, usuń też powiązane zlecenie Workowanie
+            linked_deleted = 0
             if sekcja and sekcja.lower() == 'zasyp':
                 cursor.execute(
                     f"DELETE FROM {table_plan} WHERE zasyp_id=%s AND status='zaplanowane'",
                     (plan_id,)
                 )
+                linked_deleted = cursor.rowcount
 
             # Renormalize sequences to close gaps
             from app.services.plan_movement_service import PlanMovementService

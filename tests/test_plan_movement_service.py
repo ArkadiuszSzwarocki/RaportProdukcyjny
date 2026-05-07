@@ -82,8 +82,9 @@ class TestShiftPlanOrder:
             
             # Mock plan info
             mock_cursor.fetchone.side_effect = [
-                ('Workowanie', 2, '2025-02-10', 'Mąka'),  # Current plan info
-                (1, 1),  # Adjacent plan (up)
+                ('Workowanie', 2, '2025-02-10', 'Mąka'),  # 1. Current plan info
+                (2,),  # 2. Sequence after renormalize
+                (1, 1),  # 3. Adjacent plan (up)
             ]
             
             success, message = PlanMovementService.shift_plan_order(123, 'up')
@@ -103,8 +104,9 @@ class TestShiftPlanOrder:
             
             # Mock plan info
             mock_cursor.fetchone.side_effect = [
-                ('Workowanie', 2, '2025-02-10', 'Mąka'),  # Current plan info
-                (2, 3),  # Adjacent plan (down)
+                ('Workowanie', 2, '2025-02-10', 'Mąka'),  # 1. Current plan info
+                (2,),  # 2. Sequence after renormalize
+                (2, 3),  # 3. Adjacent plan (down)
             ]
             
             success, message = PlanMovementService.shift_plan_order(123, 'down')
@@ -123,6 +125,7 @@ class TestShiftPlanOrder:
             
             mock_cursor.fetchone.side_effect = [
                 ('Workowanie', 2, '2025-02-10', 'Mąka'),
+                (2,),
                 (1, 1),
             ]
             
@@ -141,6 +144,7 @@ class TestShiftPlanOrder:
             
             mock_cursor.fetchone.side_effect = [
                 ('Workowanie', 2, '2025-02-10', 'Mąka'),
+                (2,),
                 (2, 3),
             ]
             
@@ -159,14 +163,18 @@ class TestShiftPlanOrder:
 
             mock_cursor.fetchone.side_effect = [
                 ('Workowanie', 3, '2025-02-10', 'Mąka', 'zaplanowane'),
+                (3,),
                 (2, 2),
             ]
 
             success, message = PlanMovementService.shift_plan_order(123, 'up')
 
             assert success is True
-            sql_used = mock_cursor.execute.call_args_list[1][0][0]
-            assert "COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone')" in sql_used
+            # In new implementation, renormalize_sequences is called before adjacent lookup.
+            # So execute calls are: 1. SELECT current, 2. SELECT for renormalize, 3. SELECT adjacent
+            execute_calls = [str(c[0][0]) for c in mock_cursor.execute.call_args_list]
+            found = any("COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone')" in c for c in execute_calls)
+            assert found is True
 
     @patch('app.services.plan_movement_service.get_db_connection')
     def test_shift_plan_order_blocks_locked_status(self, mock_get_conn, app):
@@ -219,14 +227,15 @@ class TestShiftPlanOrder:
             
             # Mock plan info
             mock_cursor.fetchone.side_effect = [
-                ('Workowanie', 1, '2025-02-10', 'Mąka'),  # First plan
-                None,  # No adjacent plan when trying to move up
+                ('Workowanie', 1, '2025-02-10', 'Mąka'),  # 1. First plan
+                (1,), # 2. Sequence after renormalize
+                None,  # 3. No adjacent plan when trying to move up
             ]
             
             success, message = PlanMovementService.shift_plan_order(123, 'up')
             
             assert success is False
-            assert 'sąsiednie' in message.lower() or 'adjacent' in message.lower()
+            assert 'sąsiednie' in message.lower() or 'sąsiednich' in message.lower() or 'adjacent' in message.lower()
 
 
 @pytest.mark.usefixtures("app")
