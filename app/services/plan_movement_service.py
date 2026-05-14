@@ -109,7 +109,7 @@ class PlanMovementService:
             Tuple (success: bool, message: str)
         """
         try:
-            # Normalize kierunek - accept 'gora'/'dol' from frontend too
+            # Normalize kierunek
             if kierunek not in ['up', 'w_gore', 'gora', 'down', 'w_dol', 'dol']:
                 return (False, f'Niepoprawny kierunek: {kierunek}')
             
@@ -118,110 +118,127 @@ class PlanMovementService:
             conn = get_db_connection()
             cursor = conn.cursor()
             
+            # 0. Start transaction
+            cursor.execute("BEGIN")
+            
             # Get current plan info
             table_plan = get_table_name('plan_produkcji', linia)
             cursor.execute(
-                f"SELECT sekcja, kolejnosc, data_planu, produkt, status FROM {table_plan} WHERE id=%s",
+                f"SELECT id, sekcja, kolejnosc, data_planu, produkt, status, zasyp_id FROM {table_plan} WHERE id=%s",
                 (plan_id,)
             )
             res = cursor.fetchone()
             
             if not res:
+                cursor.execute("ROLLBACK")
                 conn.close()
                 return (False, 'Zlecenie nie istnieje.')
 
-            sekcja = res[0] if len(res) > 0 else None
-            current_seq = res[1] if len(res) > 1 else None
-            data_planu = res[2] if len(res) > 2 else None
-            produkt = res[3] if len(res) > 3 else ''
-            current_status = (res[4] if len(res) > 4 else 'zaplanowane')
-            current_status_norm = str(current_status or '').strip().lower()
+            # Unpack fields safely
+            pid = res[0]
+            sekcja = res[1] or 'Zasyp'
+            current_seq = res[2]
+            data_planu = res[3]
+            produkt = res[4] or ''
+            current_status = str(res[5] or 'zaplanowane').strip().lower()
+            parent_zasyp_id = res[6]
 
-            if current_status_norm in PlanMovementService._LOCKED_STATUSES:
+            if current_status in PlanMovementService._LOCKED_STATUSES:
+                cursor.execute("ROLLBACK")
                 conn.close()
-                return (False, f"Nie można przesuwać zlecenia o statusie '{current_status}'.")
+                return (False, f"Nie można przesuwać zlecenia o statusie '{res[5]}'.")
 
             if current_seq is None:
+                cursor.execute("ROLLBACK")
                 conn.close()
                 return (False, 'Nie można przesunąć - brak kolejności zlecenia.')
+
+            # 1. Identify all plans that should move together (LINKED PLANS)
+            # If it's a Zasyp, find its Workowanie. If it's Workowanie, find its Zasyp.
+            linked_ids = [pid]
+            if sekcja.lower() == 'zasyp':
+                cursor.execute(
+                    f"SELECT id FROM {table_plan} WHERE zasyp_id=%s AND LOWER(sekcja)='workowanie' AND (is_deleted=0 OR is_deleted IS NULL)",
+                    (pid,)
+                )
+                linked_ids.extend([r[0] for r in cursor.fetchall()])
+            elif sekcja.lower() == 'workowanie' and parent_zasyp_id:
+                linked_ids.append(parent_zasyp_id)
             
-            # Find adjacent plan in target direction
-            # For AGRO, we ignore section filter because the list is unified.
-            # For PSD, we allow swapping between 'Zasyp' and 'Czyszczenie' as they are in the same view.
-            sekcja_filter = ""
-            params_adj = [data_planu, current_seq]
+            # De-duplicate
+            linked_ids = list(set(linked_ids))
             
-            if linia.upper() == 'AGRO':
-                sekcja_filter = "" # No section filter for AGRO
-            else:
-                # For PSD and others, group Zasyp and Czyszczenie
-                if sekcja.lower() in ['zasyp', 'czyszczenie']:
-                    sekcja_filter = "AND LOWER(sekcja) IN ('zasyp', 'czyszczenie')"
+            # 2. Renormalize BEFORE shift to ensure clean sequence base
+            # For simplicity, renormalize all sections that might be affected
+            affected_sections = {sekcja}
+            if sekcja.lower() == 'zasyp': affected_sections.add('Workowanie')
+            elif sekcja.lower() == 'workowanie': affected_sections.add('Zasyp')
+            
+            for sec in affected_sections:
+                PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, sec if linia.upper() != 'AGRO' else None)
+
+            # 3. Perform the shift for each linked plan in its own sequence
+            for move_id in linked_ids:
+                # Refresh current sequence for this specific plan after renormalization
+                cursor.execute(f"SELECT sekcja, kolejnosc FROM {table_plan} WHERE id=%s", (move_id,))
+                m_res = cursor.fetchone()
+                if not m_res: continue
+                m_sekcja = m_res[0]
+                m_seq = m_res[1]
+
+                # Determine section filter for finding neighbor
+                if linia.upper() == 'AGRO':
+                    m_filter = ""
+                    m_params = [data_planu, m_seq]
                 else:
-                    sekcja_filter = "AND sekcja = %s"
-                    params_adj.append(sekcja) # Append at the end to match query placeholders
+                    if m_sekcja.lower() in ['zasyp', 'czyszczenie']:
+                        m_filter = "AND LOWER(sekcja) IN ('zasyp', 'czyszczenie')"
+                        m_params = [data_planu, m_seq]
+                    else:
+                        m_filter = "AND sekcja = %s"
+                        m_params = [data_planu, m_seq, m_sekcja]
+
+                # Find neighbor
+                if is_up:
+                    cursor.execute(
+                        f"SELECT id, kolejnosc FROM {table_plan} "
+                        f"WHERE data_planu=%s AND kolejnosc < %s {m_filter} "
+                        f"AND (is_deleted=0 OR is_deleted IS NULL) "
+                        f"AND COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone') "
+                        f"ORDER BY kolejnosc DESC LIMIT 1",
+                        tuple(m_params)
+                    )
+                else:
+                    cursor.execute(
+                        f"SELECT id, kolejnosc FROM {table_plan} "
+                        f"WHERE data_planu=%s AND kolejnosc > %s {m_filter} "
+                        f"AND (is_deleted=0 OR is_deleted IS NULL) "
+                        f"AND COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone') "
+                        f"ORDER BY kolejnosc ASC LIMIT 1",
+                        tuple(m_params)
+                    )
+                
+                neighbor = cursor.fetchone()
+                if neighbor:
+                    neighbor_id, neighbor_seq = neighbor[0], neighbor[1]
+                    # Swap
+                    cursor.execute(f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s", (neighbor_seq, move_id))
+                    cursor.execute(f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s", (m_seq, neighbor_id))
+
+            # 4. Final renormalization
+            for sec in affected_sections:
+                PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, sec if linia.upper() != 'AGRO' else None)
             
-            # 1. Renormalize first to ensure we have clean sequential numbers
-            PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, sekcja if linia.upper() != 'AGRO' else None)
-
-            # 2. Get current sequence after renormalization
-            cursor.execute(f"SELECT kolejnosc FROM {table_plan} WHERE id=%s", (plan_id,))
-            res_cur = cursor.fetchone()
-            if not res_cur:
-                conn.close()
-                return (False, 'Zlecenie zniknęło po normalizacji.')
-            current_seq = res_cur[0]
-
-            # 3. Find adjacent plan (the one to swap with)
-            if kierunek in ['up', 'w_gore', 'gora']:
-                cursor.execute(
-                    f"SELECT id, kolejnosc FROM {table_plan} "
-                    f"WHERE data_planu=%s AND kolejnosc < %s {sekcja_filter} "
-                    f"AND (is_deleted=0 OR is_deleted IS NULL) "
-                    f"AND COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone') "
-                    f"ORDER BY kolejnosc DESC LIMIT 1",
-                    tuple(params_adj)
-                )
-            else:
-                cursor.execute(
-                    f"SELECT id, kolejnosc FROM {table_plan} "
-                    f"WHERE data_planu=%s AND kolejnosc > %s {sekcja_filter} "
-                    f"AND (is_deleted=0 OR is_deleted IS NULL) "
-                    f"AND COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone') "
-                    f"ORDER BY kolejnosc ASC LIMIT 1",
-                    tuple(params_adj)
-                )
-            
-            adjacent = cursor.fetchone()
-            if not adjacent:
-                conn.close()
-                return (False, 'Zlecenie jest już na skraju listy (brak sąsiednich pozycji do zamiany).')
-
-            adjacent_id, adjacent_seq = adjacent[0], adjacent[1]
-
-            # 4. Swap sequences
-            cursor.execute(
-                f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s",
-                (adjacent_seq, plan_id)
-            )
-            cursor.execute(
-                f"UPDATE {table_plan} SET kolejnosc=%s WHERE id=%s",
-                (current_seq, adjacent_id)
-            )
-
-            # 5. Final renormalization to be sure
-            PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, sekcja if linia.upper() != 'AGRO' else None)
-            
-            conn.commit()
+            cursor.execute("COMMIT")
             conn.close()
             
             direction_label = 'w górę' if is_up else 'w dół'
-            current_app.logger.info(f'Plan shifted: id={plan_id}, {direction_label}')
             return (True, f'Zlecenie {produkt} przesunięte {direction_label}.')
             
         except Exception as e:
             try:
-                conn.rollback()
+                cursor.execute("ROLLBACK")
+                conn.close()
             except Exception:
                 pass
             current_app.logger.exception(f'Error shifting plan {plan_id}')

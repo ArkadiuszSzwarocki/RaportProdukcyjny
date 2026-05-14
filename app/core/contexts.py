@@ -19,7 +19,10 @@ def inject_static_version():
         # Use the latest modification time among key static assets (style + scripts)
         candidates = [
             os.path.join(current_app.root_path, 'static', 'css', 'style.css'),
+            os.path.join(current_app.root_path, 'static', 'css', 'sidebar.css'),
+            os.path.join(current_app.root_path, 'static', 'css', 'inline-styles.css'),
             os.path.join(current_app.root_path, 'static', 'scripts.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'sidebar.js'),
         ]
         mtimes = []
         for p in candidates:
@@ -63,7 +66,6 @@ def inject_role_permissions():
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     perms = json.load(f)
             except Exception as e:
-                from flask import current_app
                 current_app.logger.error(f"[DEBUG configs] Failed to load role_permissions.json from {cfg_path}: {e}")
                 perms = {}
             
@@ -86,12 +88,15 @@ def inject_role_permissions():
             if perms and len(perms) > 0:
                 # Config has data - check if page is in config
                 page_key = _resolve_page_key(page, perms)
+                # Page in config -> check role access
                 page_perms = perms.get(page_key)
                 if page_perms is None:
-                    # Page not in config -> deny access (fail‑closed)
+                    current_app.logger.warning(f"role_has_access: page_key '{page_key}' not found in perms (original page: '{page}')")
                     return False
-                # Page in config -> check role access
-                result = bool(page_perms.get(r, {}).get('access', False))
+                
+                role_cfg = page_perms.get(r, {})
+                result = bool(role_cfg.get('access', False))
+                current_app.logger.info(f"role_has_access(page={page}, key={page_key}, role={r}) -> {result} (cfg: {role_cfg})")
                 return result
             
             # Config empty - use fallback
@@ -264,22 +269,45 @@ def inject_bug_report_counters():
 
 
 def inject_delivery_counters():
-    """Wstrzykuje licznik oczekujących przesunięć."""
+    """Wstrzykuje licznik oczekujących przyjęć dla PSD/AGRO/ALL."""
+    conn = None
     try:
+        if not session.get('zalogowany'):
+            return dict(pending_deliveries={'PSD': 0, 'AGRO': 0, 'ALL': 0})
+
         from app.db import get_db_connection
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT linia, COUNT(*) FROM magazyn_dostawy WHERE status = 'PENDING' GROUP BY linia")
-        # Ensure we have defaults for both lines
-        counts = {'PSD': 0, 'AGRO': 0}
+        counts = {'PSD': 0, 'AGRO': 0, 'ALL': 0}
+        total_pending = 0
+
+        # 1) Oczekujące dostawy/przesunięcia z modułu magazyn_dostawy
+        cursor.execute(
+            """
+            SELECT UPPER(TRIM(COALESCE(linia, ''))) AS linia, COUNT(*)
+            FROM magazyn_dostawy
+            WHERE UPPER(TRIM(COALESCE(status, ''))) IN ('OCZEKUJE', 'PENDING')
+            GROUP BY UPPER(TRIM(COALESCE(linia, '')))
+            """
+        )
         for row in cursor.fetchall():
-            l = row[0].upper()
+            l = (row[0] or '').upper()
+            qty = int(row[1] or 0)
+            total_pending += qty
             if l in counts:
-                counts[l] = row[1]
-        conn.close()
+                counts[l] += qty
+
+        counts['ALL'] = total_pending
+
         return dict(pending_deliveries=counts)
     except Exception:
-        return dict(pending_deliveries={'PSD': 0, 'AGRO': 0})
+        return dict(pending_deliveries={'PSD': 0, 'AGRO': 0, 'ALL': 0})
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
 
 
 def register_contexts(app):

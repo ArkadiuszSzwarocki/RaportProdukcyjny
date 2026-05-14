@@ -29,7 +29,7 @@ def register_production_dosypki_routes(
             return None
 
     @production_bp.route('/dosypka_page/<int:plan_id>', methods=['GET'])
-    @roles_required('laborant', 'laboratorium', 'planista', 'admin')
+    @roles_required('operator', 'pracownik', 'produkcja', 'lider', 'magazynier', 'laborant', 'laboratorium', 'planista', 'admin', 'zarzad')
     def dosypka_page(plan_id):
         """Render form to add up to 4 dosypki for an active Zasyp plan."""
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
@@ -124,7 +124,7 @@ def register_production_dosypki_routes(
                 pass
 
     @production_bp.route('/dodaj_dosypke', methods=['POST'])
-    @roles_required('laborant', 'laboratorium', 'admin')
+    @roles_required('operator', 'pracownik', 'produkcja', 'lider', 'magazynier', 'laborant', 'laboratorium', 'planista', 'admin', 'zarzad')
     def dodaj_dosypke():
         """Handle POST from dosypka form and insert rows into `dosypki` table."""
         plan_id = request.form.get('plan_id')

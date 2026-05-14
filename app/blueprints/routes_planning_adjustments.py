@@ -13,7 +13,7 @@ from app.services.notification_service import notify_workers_about_plan_change
 
 def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
     @planning_bp.route('/przenies_zlecenie/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     @hall_restricted
     def przenies_zlecenie(id):
         """Move a plan to a different date."""
@@ -40,7 +40,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         return redirect(return_url_builder())
 
     @planning_bp.route('/przesun_zlecenie/<int:id>/<kierunek>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     @hall_restricted
     def przesun_zlecenie(id, kierunek):
         """Move a plan up or down in the sequence."""
@@ -52,7 +52,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         return redirect(url_for('planista.panel_planisty', data=data, linia=linia))
 
     @planning_bp.route('/edytuj_plan/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     @hall_restricted
     def edytuj_plan(id):
         """Save plan edits: product, tonnage, section, date."""
@@ -108,11 +108,11 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             )
 
             if row[1] == 'zakonczone':
-                if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad']:
+                if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider']:
                     flash('Można jedynie edytować ilość (kg) dla zakończonych zleceń i wymagane są do tego uprawnienia', 'warning')
                     return redirect(return_url_builder())
             elif row[1] == 'w toku':
-                if current_role == 'planista':
+                if current_role in ['planista', 'lider']:
                     if not is_tonaz_only:
                         flash('Gdy zlecenie w toku, planista może zmieniać tylko kg', 'warning')
                         return redirect(return_url_builder())
@@ -195,7 +195,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         return redirect(return_url_builder())
 
     @planning_bp.route('/edytuj_plan_ajax', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     @hall_restricted
     def edytuj_plan_ajax():
         """Edit plan via AJAX."""
@@ -252,10 +252,10 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             )
 
             if before[5] == 'zakonczone':
-                if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad']:
+                if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider']:
                     return jsonify({'success': False, 'message': 'Można jedynie edytować ilość (kg) dla zakończonych zleceń i wymagane są uprawnienia'}), 403
 
-            if before[5] == 'w toku' and current_role in ['planista', 'admin', 'zarzad']:
+            if before[5] == 'w toku' and current_role in ['planista', 'admin', 'zarzad', 'lider']:
                 if not is_tonaz_only:
                     return jsonify({'success': False, 'message': 'Gdy zlecenie w toku, możesz zmieniać tylko kg'}), 403
             elif before[5] == 'w toku':
@@ -388,7 +388,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
                     pass
 
     @planning_bp.route('/update_uszkodzone_worki', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def update_uszkodzone_worki():
         """Update uszkodzone_worki field via AJAX."""
         try:
@@ -437,7 +437,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             return jsonify({'success': False, 'message': 'Błąd aktualizacji'}), 500
 
     @planning_bp.route('/przenies_zlecenie_ajax', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def przenies_zlecenie_ajax():
         """Move a plan to different date via AJAX."""
         try:
@@ -492,7 +492,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         return jsonify({'success': success, 'message': message}), status_code
 
     @planning_bp.route('/przesun_zlecenie_ajax', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def przesun_zlecenie_ajax():
         """Move a plan up/down in sequence via AJAX."""
         try:
@@ -523,7 +523,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         return jsonify({'success': success, 'message': message}), status_code
 
     @planning_bp.route('/usun_plan_ajax/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def api_usun_plan(id):
         """Soft delete plan via AJAX."""
         linia = request.args.get('linia') or request.form.get('linia') or request.get_json(silent=True, force=False) and request.get_json(silent=True).get('linia') or 'PSD'

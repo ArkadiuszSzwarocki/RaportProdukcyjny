@@ -133,7 +133,7 @@
                 {% for pal in palety_mapa[p[0]] %}
                 <div class="card-detail">
                     <div class="detail-header">
-                        <span class="detail-badge">Zasyp #{{ loop.index }}</span>
+                        <span class="detail-badge">Zasyp #{{ loop.index if loop is defined else '' }}</span>
                     </div>
                     <div class="detail-body">
                         <div class="detail-row">

@@ -298,6 +298,128 @@
                 </div>
             </article>
 
+            {% if session.get('rola', '').lower() == 'admin' %}
+            <article class="settings-card settings-card-muted">
+                <div class="settings-card-icon">🕵️</div>
+                <div class="settings-card-body">
+                    <h3>Tajemnicza Strefa DB</h3>
+                    <p>Szybkie przełączanie źródła danych między bazą główną i testową.</p>
+                    <div class="settings-card-meta">Narzędzie serwisowe dla administratora</div>
+                </div>
+                <div class="settings-card-actions">
+                    <a href="{{ url_for('admin.admin_secret_db') }}" class="btn btn-primary">Otwórz przełącznik baz</a>
+                </div>
+            </article>
+            {% endif %}
+
+            <article class="settings-card settings-card-accent">
+                <div class="settings-card-icon">🖨️</div>
+                <div class="settings-card-body">
+                    <h3>Most Drukarki & Maszyna</h3>
+                    <p>Zarządzaj serwerem wydruku oraz połączeniem z maszyną pakującą.</p>
+                    
+                    <div class="settings-field-group" style="margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                        <label style="font-size: 0.8em; font-weight: 700; color: #64748b;">IP / Hostname & Port Maszyny (API):</label>
+                        <div class="d-flex gap-5 mt-5">
+                            <input type="text" id="machine-api-host" class="input-sm" style="flex: 2;" placeholder="np. 192.168.1.100">
+                            <input type="number" id="machine-api-port" class="input-sm" style="width: 80px;" placeholder="8883">
+                            <button type="button" class="btn btn-sm btn-primary" onclick="saveMachineConfig()">Zapisz</button>
+                        </div>
+                        <small class="text-muted" style="font-size: 0.7em;">Domyślnie: {{ request.host.split(':')[0] }}:8883</small>
+                    </div>
+
+                    <div id="printer-status-box" style="margin-top: 15px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 10px;">
+                        <span class="badge badge-secondary" id="printer-status-badge">Drukarka: Sprawdzanie...</span>
+                    </div>
+                </div>
+                <div class="settings-card-actions">
+                    <button type="button" id="btn-start-printer" class="btn btn-green" style="display: none;" onclick="startPrinterServer()">Uruchom Serwer Druku</button>
+                    <button type="button" id="btn-printer-ok" class="btn btn-outline-success" style="display: none;" disabled>Serwer aktywny</button>
+                </div>
+            </article>
+
+        </div>
+    </div>
+    </div>
+
+    <script>
+        // Machine Config Persistence
+        function loadMachineConfig() {
+            const host = localStorage.getItem('machine_api_host');
+            const port = localStorage.getItem('machine_api_port');
+            if (host) document.getElementById('machine-api-host').value = host;
+            if (port) document.getElementById('machine-api-port').value = port;
+        }
+
+        function saveMachineConfig() {
+            const host = document.getElementById('machine-api-host').value.trim();
+            const port = document.getElementById('machine-api-port').value.trim();
+            
+            if (host) localStorage.setItem('machine_api_host', host);
+            else localStorage.removeItem('machine_api_host');
+            
+            if (port) localStorage.setItem('machine_api_port', port);
+            else localStorage.removeItem('machine_api_port');
+            
+            showToast('Zapisano konfigurację maszyny. Odśwież stronę, aby zastosować zmiany.', 'success');
+        }
+
+        async function checkPrinterStatus() {
+            const badge = document.getElementById('printer-status-badge');
+            const btnStart = document.getElementById('btn-start-printer');
+            const btnOk = document.getElementById('btn-printer-ok');
+            
+            try {
+                const resp = await fetch('/admin/api/printer-server/status');
+                const data = await resp.json();
+                
+                if (data.running) {
+                    badge.className = 'badge badge-success';
+                    badge.textContent = '● AKTYWNY';
+                    btnStart.style.display = 'none';
+                    btnOk.style.display = 'inline-flex';
+                } else {
+                    badge.className = 'badge badge-danger';
+                    badge.textContent = '○ WYŁĄCZONY';
+                    btnStart.style.display = 'inline-flex';
+                    btnOk.style.display = 'none';
+                }
+            } catch (e) {
+                badge.className = 'badge badge-warning';
+                badge.textContent = 'Błąd połączenia';
+            }
+        }
+
+        async function startPrinterServer() {
+            const btn = document.getElementById('btn-start-printer');
+            const originalText = btn.textContent;
+            btn.textContent = 'Uruchamianie...';
+            btn.disabled = true;
+            
+            try {
+                const resp = await fetch('/admin/api/printer-server/start', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('Sukces: ' + data.message, 'success');
+                    setTimeout(checkPrinterStatus, 2000);
+                } else {
+                    showToast('Błąd: ' + data.message, 'error');
+                }
+            } catch (e) {
+                showToast('Błąd sieci', 'error');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Check on load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadMachineConfig();
+            checkPrinterStatus();
+        });
+    </script>
+
 
         </div>
     </div>

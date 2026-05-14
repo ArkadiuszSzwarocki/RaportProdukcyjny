@@ -12,7 +12,7 @@ from app.services.planning_service import PlanningService
 
 def register_planning_creation_routes(planning_bp, *, return_url_builder):
     @planning_bp.route('/dodaj_plan_zaawansowany', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def dodaj_plan_zaawansowany():
         """Add plan with advanced options."""
         data_planu = request.form.get('data_planu')
@@ -156,6 +156,9 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                     except Exception:
                         pass
 
+                    auto_szarza_mode = str(request.form.get('auto_szarza_mode') or 'manual').strip().lower()
+                    auto_szarza_mode = 'auto' if auto_szarza_mode == 'auto' else 'manual'
+
                     nr_szarzy_str = request.form.get('nr_szarzy') or request.form.get('nr_zasypu')
                     try:
                         nr_szarzy = int(nr_szarzy_str) if nr_szarzy_str else None
@@ -172,6 +175,15 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                     expected_nr = (max_nr or 0) + 1
 
                     is_admin = session.get('rola', '').lower() == 'admin'
+
+                    if str(linia).upper() == 'AGRO' and auto_szarza_mode == 'auto' and not is_admin:
+                        flash(
+                            'BŁĄD: Tryb AUTO SZARŻA jest włączony. Ręczne + ZASYP jest zablokowane - użyj START Naważania.',
+                            'modal_error',
+                        )
+                        conn.close()
+                        return redirect(return_url_builder())
+
                     if nr_szarzy != expected_nr and not is_admin:
                         flash(
                             f'BŁĄD: Podałeś błędny numer zasypu ({nr_szarzy}). Wykryto naruszenie kolejności! (Oczekiwano: {expected_nr}). Zweryfikuj prawidłowy numer zasypu z recepturą.',
@@ -191,13 +203,27 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                         except Exception:
                             kontrolne_count = 0
 
-                        if kontrolne_count > 0 and int(nr_szarzy) > kontrolne_count:
-                            flash(
-                                f'BŁĄD: Zasyp #{nr_szarzy} wykracza poza liczbę punktów kontrolnych ({kontrolne_count}).',
-                                'modal_error',
-                            )
-                            conn.close()
-                            return redirect(return_url_builder())
+                        target_szarza_nr = int(nr_szarzy)
+                        if target_szarza_nr > kontrolne_count:
+                            try:
+                                linia_u = str(linia).upper()
+                                start_login = (session.get('login') or '')[:100]
+                                for missing_szarza_nr in range(kontrolne_count + 1, target_szarza_nr + 1):
+                                    cursor.execute(
+                                        """
+                                        INSERT INTO zasyp_etapy (linia, plan_id, data_planu, szarza_nr, etap, czas_start, czas_stop, start_login, stop_login)
+                                        VALUES (%s, %s, %s, %s, %s, NULL, NULL, %s, NULL)
+                                        ON DUPLICATE KEY UPDATE plan_id = plan_id
+                                        """,
+                                        (linia_u, int(zasyp_plan_id), data_planu, int(missing_szarza_nr), 0, start_login),
+                                    )
+                            except Exception:
+                                flash(
+                                    f'BŁĄD: Nie udało się zsynchronizować punktów kontrolnych dla zasypu #{nr_szarzy}.',
+                                    'modal_error',
+                                )
+                                conn.close()
+                                return redirect(return_url_builder())
 
                     from datetime import datetime as _dt
 
@@ -257,9 +283,9 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                         workowanie_plan = cursor.fetchone()
 
                     if not workowanie_plan:
-                        cursor.execute(f'SELECT linia, typ_produkcji FROM {table_plan} WHERE id=%s', (zasyp_plan_id,))
+                        cursor.execute(f'SELECT typ_produkcji FROM {table_plan} WHERE id=%s', (zasyp_plan_id,))
                         source_row = cursor.fetchone()
-                        source_typ = source_row[1] if source_row else 'worki_zgrzewane_25'
+                        source_typ = source_row[0] if source_row else 'worki_zgrzewane_25'
 
                         cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja='Workowanie'", (data_planu,))
                         res = cursor.fetchone()
@@ -450,7 +476,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
         return redirect(return_url_builder())
 
     @planning_bp.route('/dodaj_plany_batch', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def dodaj_plany_batch():
         """Add multiple plans in batch."""
         try:

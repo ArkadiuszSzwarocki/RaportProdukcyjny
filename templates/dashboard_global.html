@@ -3,6 +3,8 @@
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_global.css') }}">
 
+<div id="dashboard-config" data-current-role="{{ session.get('rola') }}" data-linia="{{ linia or 'PSD' }}" data-sekcja="Dashboard"></div>
+
 <div class="dashboard-header">
 
 
@@ -63,6 +65,7 @@
             <th>🚨 Uszkodzone</th>
             <th>{{ _('godz') }}</th>
             <th>{{ _('status') }}</th>
+            <th>{{ _('akcja') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -76,7 +79,18 @@
                 value="{{ p[11]|default(0, true)|int }}" min="0" placeholder="0" title="Liczba uszkodzonych worków"
                 aria-label="Liczba uszkodzonych worków"></td>
             <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
-            <td>{{ p[3]|upper }}</td>
+            <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
+            <td>
+              {% if p[3] == 'zaplanowane' %}
+              <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0;">
+                <input type="hidden" name="linia" value="{{ h.linia }}">
+                <input type="hidden" name="sekcja" value="Zasyp">
+                <button type="submit" class="btn-action btn-success btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1;">▶ START</button>
+              </form>
+              {% elif p[3] == 'w toku' %}
+              <a href="{{ url_for('main.index', sekcja='Zasyp', linia=h.linia) }}" class="btn-action btn-primary btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1.5; text-decoration: none;">👁 OTWÓRZ</a>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -99,6 +113,7 @@
             <th>🚨 Uszkodzono</th>
             <th>{{ _('godz') }}</th>
             <th>{{ _('status') }}</th>
+            <th>{{ _('akcja') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -112,7 +127,18 @@
                 value="{{ p[11]|default(0, true)|int }}" min="0" placeholder="0" title="Liczba uszkodzonych worków"
                 aria-label="Liczba uszkodzonych worków"></td>
             <td>{% if p[4] %}{{ p[4] }}{% else %}-{% endif %} — {% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</td>
-            <td>{{ p[3]|upper }}</td>
+            <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
+            <td>
+              {% if p[3] == 'zaplanowane' %}
+              <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0;">
+                <input type="hidden" name="linia" value="{{ h.linia }}">
+                <input type="hidden" name="sekcja" value="Workowanie">
+                <button type="submit" class="btn-action btn-success btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1;">▶ START</button>
+              </form>
+              {% elif p[3] == 'w toku' %}
+              <a href="{{ url_for('main.index', sekcja='Workowanie', linia=h.linia) }}" class="btn-action btn-primary btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1.5; text-decoration: none;">👁 OTWÓRZ</a>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -567,4 +593,8 @@
   });
 </script>
 
+{% endblock %}
+
+{% block footer_scripts %}
+    {% include 'includes/dashboard_footer.html' %}
 {% endblock %}

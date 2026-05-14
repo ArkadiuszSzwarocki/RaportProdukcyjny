@@ -10,3 +10,4 @@ mypy
 pylint
 python-dotenv
 mysql-connector-python
+paho-mqtt==2.1.0

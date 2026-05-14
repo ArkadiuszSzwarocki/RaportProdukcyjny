@@ -365,7 +365,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         {% if remaining > 0 %}
                             <span class="badge badge-warning">Niezrealizowane: {{ remaining|round(1) }} kg</span>
                             {% if can_manage_plans %}
-                            <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ p.id }}, '{{ wybrana_data }}')"
+                            <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ p.id }}, '{{ wybrana_data }}', this)"
                                 title="Przenieś niezrealizowane zlecenie na następny dzień">📦➡️</button>
                             {% endif %}
                         {% endif %}
@@ -694,39 +694,53 @@ document.addEventListener('DOMContentLoaded', function () {
 <!-- Fallback modal-open listener removed -->
 
 <script>
-    function moveUp(id) {
-        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'gora', data: '{{ wybrana_data }}', linia: currentLinia }) })
+    function moveUp(id, btn) {
+        if (btn && btn.classList.contains('processing')) return;
+        if (btn) btn.classList.add('processing');
+        
+        fetch('/api/przesun_zlecenie_ajax', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ id: id, kierunek: 'gora', data: '{{ wybrana_data }}', linia: currentLinia }) 
+        })
             .then(handleFetchResponse)
             .then(function (j) {
                 if (j && j.success) {
-                    // Swap rows in table without reload
-                    var row = document.querySelector('tr[data-plan-id="' + id + '"]');
-                    if (row && row.previousElementSibling && row.previousElementSibling.tagName === 'TR') {
-                        row.parentNode.insertBefore(row, row.previousElementSibling);
-                        updateLpColumn();
-                    }
+                    // Page reload is necessary because linked plans (Zasyp/Workowanie) might have moved too
+                    location.reload();
                 } else {
+                    if (btn) btn.classList.remove('processing');
                     safeAlert('Błąd', (j && j.message) || 'Błąd');
                 }
             })
-            .catch(function (err) { safeAlert('Błąd sieci', err && err.message ? err.message : 'Błąd sieci'); });
+            .catch(function (err) { 
+                if (btn) btn.classList.remove('processing');
+                safeAlert('Błąd sieci', err && err.message ? err.message : 'Błąd sieci'); 
+            });
     }
-    function moveDown(id) {
-        fetch('/api/przesun_zlecenie_ajax', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, kierunek: 'dol', data: '{{ wybrana_data }}', linia: currentLinia }) })
+    function moveDown(id, btn) {
+        if (btn && btn.classList.contains('processing')) return;
+        if (btn) btn.classList.add('processing');
+
+        fetch('/api/przesun_zlecenie_ajax', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ id: id, kierunek: 'dol', data: '{{ wybrana_data }}', linia: currentLinia }) 
+        })
             .then(handleFetchResponse)
             .then(function (j) {
                 if (j && j.success) {
-                    // Swap rows in table without reload
-                    var row = document.querySelector('tr[data-plan-id="' + id + '"]');
-                    if (row && row.nextElementSibling && row.nextElementSibling.tagName === 'TR') {
-                        row.parentNode.insertBefore(row.nextElementSibling, row);
-                        updateLpColumn();
-                    }
+                    // Page reload is necessary because linked plans (Zasyp/Workowanie) might have moved too
+                    location.reload();
                 } else {
+                    if (btn) btn.classList.remove('processing');
                     safeAlert('Błąd', (j && j.message) || 'Błąd');
                 }
             })
-            .catch(function (err) { safeAlert('Błąd sieci', err && err.message ? err.message : 'Błąd sieci'); });
+            .catch(function (err) { 
+                if (btn) btn.classList.remove('processing');
+                safeAlert('Błąd sieci', err && err.message ? err.message : 'Błąd sieci'); 
+            });
     }
     function deletePlanConfirm(id, data) { if (!confirm('Usunąć?')) return; deletePlan(id, data); }
     function deletePlan(id, data) {
@@ -874,10 +888,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (planId) toggleDetails(parseInt(planId));
                 break;
             case 'move-up':
-                if (planId) moveUp(parseInt(planId));
+                if (planId) moveUp(parseInt(planId), target);
                 break;
             case 'move-down':
-                if (planId) moveDown(parseInt(planId));
+                if (planId) moveDown(parseInt(planId), target);
                 break;
             case 'delete-plan':
                 if (planId) {
@@ -1077,6 +1091,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     window.submitSelectedPlans = function () {
+        var btn = document.querySelector('#selectModal .btn-success');
+        if (btn && btn.classList.contains('processing')) return;
+
         console.log('[SELECT MODAL] Wysyłam wybrane plany');
         
         // Get checked plan IDs
@@ -1098,6 +1115,8 @@ document.addEventListener('DOMContentLoaded', function () {
             selectedTotalKg += parseFloat(cb.dataset.remainingKg) || 0;
         });
 
+        if (btn) btn.classList.add('processing');
+
         // Summary message
         var msg = '📦 PRZENIESIENIE WYBRANYCH ZLECEŃ\n\n';
         msg += 'Liczba wybranych: ' + selectedIds.length + '\n';
@@ -1108,6 +1127,8 @@ document.addEventListener('DOMContentLoaded', function () {
             console.log('[SELECT MODAL] User potwierdził - wysyłam do backendu');
             performSelectiveMove(window.currentMoveDate, selectedIds);
             closeSelectModal();
+        } else {
+            if (btn) btn.classList.remove('processing');
         }
     }
 
@@ -1172,13 +1193,16 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-    function moveIncompleteToNextDay(planId, currentDate) {
+    function moveIncompleteToNextDay(planId, currentDate, btn) {
+        if (btn && btn.classList.contains('processing')) return;
         console.log('[MOVE SINGLE] Przenoszę plan ID:', planId, 'z daty:', currentDate);
         
         // Confirm action
         if (!confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?')) {
             return;
         }
+
+        if (btn) btn.classList.add('processing');
         
         // Call endpoint to move only this plan
         fetch('/api/przenies_wybrane_zlecenia', {
@@ -1198,6 +1222,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     alert('✅ ' + (j.message || 'Zlecenie przeniesione na następny dzień'));
                     location.reload();
                 } else {
+                    if (btn) btn.classList.remove('processing');
                     alert('✗ ' + (j && j.message ? j.message : 'Błąd podczas przenoszenia'));
                 }
             })
@@ -1325,6 +1350,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     .sortable-tbody tr {
         cursor: move;
+    }
+
+    .btn-icon.processing, .btn-action.processing {
+        opacity: 0.5;
+        cursor: wait;
+        pointer-events: none;
     }
 
     .sortable-tbody tr:hover {

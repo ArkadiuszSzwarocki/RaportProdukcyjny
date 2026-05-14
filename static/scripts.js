@@ -3,8 +3,6 @@
 (function () {
     'use strict';
 
-
-
     // --- Stałe konfiguracyjne ---
     const DEFAULT_REFRESH_INTERVAL_MS = 60_000; // Domyślne auto-odświeżanie co 60s
     const SLOW_REFRESH_INTERVAL_MS = 180_000; // Spokojniejsze odświeżanie dla Zasyp/Workowanie co 3 min
@@ -28,7 +26,9 @@
 
     function getRefreshIntervalMs() {
         const section = getCurrentSection().toLowerCase();
-        if (section === 'zasyp' || section === 'workowanie') {
+        const path = window.location.pathname.toLowerCase();
+        
+        if (section === 'zasyp' || section === 'workowanie' || section === 'magazyn' || path.includes('/magazyn')) {
             return SLOW_REFRESH_INTERVAL_MS;
         }
         return DEFAULT_REFRESH_INTERVAL_MS;
@@ -148,7 +148,7 @@
             document.body.classList.contains('slide-over-open') ||
             document.body.classList.contains('sidebar-open') ||
             document.querySelector('.quick-popup.open, .drawer.open, .bottom-sheet.open, .fullscreen-modal.open, .wizard-modal') ||
-            document.querySelector('.modal.show, dialog[open]') ||
+            document.querySelector('.modal.show, .modal-premium[open], dialog[open], #manualModal[style*="display: flex"]') ||
             // --- NEW: Block refresh if a Select2 or standard select dropdown is open ---
             document.querySelector('.select2-container--open') ||
             // --- NEW: Block refresh if standard dropdown menus (.show) are open ---
@@ -163,9 +163,15 @@
 
     function captureExpandedDetails() {
         try {
-            return Array.from(document.querySelectorAll('[id^="details-"]'))
+            // Capture both old details- format and new expanded-content format
+            const oldDetails = Array.from(document.querySelectorAll('[id^="details-"]'))
                 .filter(el => el.style.display !== 'none' && getComputedStyle(el).display !== 'none')
                 .map(el => el.id);
+            
+            const newDetails = Array.from(document.querySelectorAll('.expanded-content.show'))
+                .map(el => el.id);
+
+            return [...oldDetails, ...newDetails];
         } catch (e) {
             return [];
         }
@@ -175,8 +181,35 @@
         if (!Array.isArray(expandedIds) || expandedIds.length === 0) return;
         expandedIds.forEach(function (id) {
             const el = document.getElementById(id);
-            if (el) el.style.display = 'block';
+            if (!el) return;
+            
+            if (id.startsWith('details-')) {
+                el.style.display = 'block';
+            } else {
+                // New table structure (Agro)
+                el.classList.add('show');
+                const parent = el.previousElementSibling;
+                if (parent && parent.classList.contains('expandable-row')) {
+                    parent.classList.add('expanded');
+                }
+            }
         });
+    }
+
+    function hasActiveSearch() {
+        try {
+            // Check for search inputs that might have user-entered text
+            const searchInputs = document.querySelectorAll('input[id*="Search" i], input[id*="filter" i], .inventory-search-input');
+            for (let input of searchInputs) {
+                if (input.value && input.value.trim().length > 0) {
+                    // Only block if the input is actually visible (not a hidden config input)
+                    if (input.offsetWidth > 0 || input.offsetHeight > 0) {
+                        return true;
+                    }
+                }
+            }
+        } catch (e) {}
+        return false;
     }
 
     function showRefreshIndicator(message) {
@@ -281,6 +314,11 @@
         if (skipOpenStopActive()) return true;
         if (hasFocusedEditableElement()) return true;
         if (hasBlockingOverlayOpen()) return true;
+        if (hasActiveSearch()) return true;
+
+        // Check for any expanded rows in tables (this indicates user is looking at details)
+        if (document.querySelector('.expanded-content.show, .details-row:not(.hidden)')) return true;
+
         // Wyłącz auto-refresh na stronach z formularzami (data-no-autorefresh)
         try {
             const main = document.getElementById('mainContent');
@@ -289,10 +327,70 @@
         return false;
     }
 
+    // --- INTELLIGENT POLLING (Smart Refresh) ---
+    let lastKnownSystemState = null;
+    let smartPollingTimer = null;
+
+    async function checkSystemState() {
+        if (partialReloadInFlight) return;
+        if (shouldSkipAutoRefresh()) return;
+
+        try {
+            const linia = getCurrentSection() || 'PSD';
+            const resp = await fetch(`/api/system_state?linia=${encodeURIComponent(linia)}`, { 
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (resp.status === 401) {
+                console.warn('[SmartPolling] Session expired (401), stopping.');
+                stopSmartPolling();
+                return;
+            }
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (!data.success || !data.state) return;
+
+            const newState = data.state;
+
+            if (lastKnownSystemState) {
+                // Check if anything significant changed
+                const changed = (
+                    newState.last_move !== lastKnownSystemState.last_move ||
+                    newState.last_plan !== lastKnownSystemState.last_plan ||
+                    newState.last_notif !== lastKnownSystemState.last_notif ||
+                    newState.last_station_change !== lastKnownSystemState.last_station_change
+                );
+
+                if (changed) {
+                    console.info('[SmartPolling] Change detected, reloading...', newState);
+                    performPartialReload({ source: 'smart-polling' });
+                }
+            }
+            lastKnownSystemState = newState;
+        } catch (e) {
+            console.warn('[SmartPolling] Fetch failed', e);
+        }
+    }
+
+    function stopSmartPolling() {
+        if (smartPollingTimer) { clearInterval(smartPollingTimer); smartPollingTimer = null; }
+    }
+
+    function startSmartPolling() {
+        stopSmartPolling();
+        // Poll every 10 seconds (cheap check)
+        smartPollingTimer = setInterval(checkSystemState, 10000);
+        // Initial check
+        checkSystemState();
+    }
+
     // --- INICJALIZACJA ---
     document.addEventListener('DOMContentLoaded', function () {
         // Uruchomienie mechanizmu scrolla
         initScrollPreservation();
+
+        // Uruchomienie inteligentnego odpytywania
+        startSmartPolling();
 
         // Uruchomienie logiki Dashboardu (jeśli elementy istnieją)
         inicjujGodzine();
@@ -309,103 +407,6 @@
             try { if (ev.state && ev.state.url) { fetch(ev.state.url, { credentials: 'same-origin' }).then(r => r.text()).then(t => { const tmp = document.createElement('div'); tmp.innerHTML = t; const nm = tmp.querySelector('#mainContent'); const cm = document.getElementById('mainContent'); if (nm && cm) cm.innerHTML = nm.innerHTML; }); } } catch (e) { }
         });
 
-        // --- Responsive sidebar (hamburger + overlay) ---
-        const hamburger = document.getElementById('hamburgerBtn');
-        const overlay = document.getElementById('sidebarOverlay');
-        const sidebar = document.getElementById('appSidebar');
-        const navItems = sidebar ? sidebar.querySelectorAll('.nav-item') : [];
-
-        function openSidebar() {
-            // on large screens sidebar is always open via CSS, skip JS toggles
-            if (window.innerWidth > 900) return;
-
-            document.body.classList.add('sidebar-open');
-            if (overlay) overlay.classList.add('open');
-            if (hamburger) hamburger.setAttribute('aria-expanded', 'true');
-            // Make sidebar focusable/interactive
-            try {
-                if (sidebar) { sidebar.inert = false; sidebar.removeAttribute('inert'); sidebar.setAttribute('aria-hidden', 'false'); }
-                if (overlay) { overlay.inert = false; overlay.removeAttribute('inert'); overlay.setAttribute('aria-hidden', 'false'); }
-            } catch (e) {
-                if (sidebar) sidebar.setAttribute('aria-hidden', 'false');
-                if (overlay) overlay.setAttribute('aria-hidden', 'false');
-            }
-        }
-
-        function closeSidebar() {
-            // on large screens sidebar should stay visible/interactive
-            if (window.innerWidth > 900) {
-                document.body.classList.remove('sidebar-open');
-                if (sidebar) { sidebar.inert = false; sidebar.removeAttribute('inert'); sidebar.setAttribute('aria-hidden', 'false'); }
-                if (overlay) { overlay.classList.remove('open'); overlay.setAttribute('aria-hidden', 'true'); }
-                return;
-            }
-
-            document.body.classList.remove('sidebar-open');
-            if (overlay) overlay.classList.remove('open');
-            if (hamburger) hamburger.setAttribute('aria-expanded', 'false');
-            // If focus is inside the sidebar, move it to the hamburger to avoid aria-hidden on a focused descendant
-            try {
-                var active = document.activeElement;
-                if (sidebar && active && sidebar.contains(active)) {
-                    if (hamburger && typeof hamburger.focus === 'function') hamburger.focus();
-                    else document.body.focus();
-                }
-            } catch (e) { /* ignore */ }
-            // After ensuring focus moved, set inert and aria-hidden. Use timeout to allow browser to update focus first.
-            setTimeout(function () {
-                // Re-check width; if user resized during the timeout, don't hide
-                if (window.innerWidth > 900) return;
-
-                try {
-                    if (sidebar) { sidebar.inert = true; sidebar.setAttribute('aria-hidden', 'true'); }
-                    if (overlay) { overlay.inert = true; overlay.setAttribute('aria-hidden', 'true'); }
-                } catch (e) {
-                    if (sidebar) sidebar.setAttribute('aria-hidden', 'true');
-                    if (overlay) overlay.setAttribute('aria-hidden', 'true');
-                }
-            }, 0);
-        }
-
-        if (hamburger) {
-            hamburger.addEventListener('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const open = document.body.classList.contains('sidebar-open');
-                if (open) closeSidebar(); else openSidebar();
-            });
-        }
-        if (overlay) {
-            overlay.addEventListener('click', function () { if (window.innerWidth <= 900) closeSidebar(); });
-        }
-        navItems.forEach(item => item.addEventListener('click', function() {
-            if (window.innerWidth <= 900) closeSidebar();
-        }));
-        // close on Esc
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && window.innerWidth <= 900) closeSidebar();
-        });
-
-        // close sidebar automatically when window resized to small screens
-        // and ensure sidebar is interactive on larger screens
-        window.addEventListener('resize', function () {
-            try {
-                if (window.innerWidth <= 900) {
-                    // on small screens ensure sidebar closed
-                    closeSidebar();
-                } else {
-                    // on large screens ensure sidebar is visible / interactive
-                    document.body.classList.remove('sidebar-open');
-                    try {
-                        if (sidebar) { sidebar.inert = false; sidebar.removeAttribute('inert'); sidebar.setAttribute('aria-hidden', 'false'); }
-                        if (overlay) { overlay.inert = true; overlay.setAttribute('aria-hidden', 'true'); overlay.classList.remove('open'); }
-                    } catch (e) {
-                        if (sidebar) sidebar.setAttribute('aria-hidden', 'false');
-                        if (overlay) overlay.setAttribute('aria-hidden', 'true');
-                    }
-                }
-            } catch (e) { /* ignore resize errors */ }
-        });
         // Ensure date input is interactive even if a backdrop/quick-popup is present:
         try {
             var dateInput = document.querySelector('input[name="data"]');
@@ -426,7 +427,6 @@
                         // Do not touch anything when overlays are already closed.
                         if (!hasOpenOverlay) return;
 
-                        // If quick popup/backdrop or select modal are open, close/hide them so datepicker can open
                         if (window.createQuickPopup && window.createQuickPopup._lastInst) {
                             try { window.createQuickPopup._lastInst.close(); } catch (e) { }
                         }
@@ -490,19 +490,13 @@
     let autoRefreshTimer = null;
 
     function startAutoRefresh() {
-        try {
-            stopAutoRefresh();
-            const ms = getRefreshIntervalMs();
-            autoRefreshTimer = setInterval(function () {
-                if (partialReloadInFlight) return;
-                if (shouldSkipAutoRefresh()) return;
-                performPartialReload({ preserveScroll: false, source: 'auto-refresh' });
-            }, ms);
-        } catch (e) { console.warn('startAutoRefresh failed', e); }
+        // Legacy auto-refresh replaced by startSmartPolling
+        // This function is now a no-op or wrapper for smart polling
+        startSmartPolling();
     }
 
     function stopAutoRefresh() {
-        try { if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; } } catch (e) { }
+        stopSmartPolling();
     }
 
     // Start immediately
@@ -542,6 +536,13 @@
     async function performPartialReload(options) {
         options = options || {};
         try {
+            // Check if we should skip reload due to user interaction (modals, search, focus)
+            // unless 'force' is specified.
+            if (!options.force && typeof shouldSkipAutoRefresh === 'function' && shouldSkipAutoRefresh()) {
+                console.info('[partialReload] Skipped due to active user interaction');
+                return;
+            }
+
             partialReloadInFlight = true;
             // Save current scroll position before reloading
             const scrollKey = 'system_scroll_pos';
@@ -617,76 +618,107 @@
         } finally {
             partialReloadInFlight = false;
         }
-    
-        // --- Global spinner for slow navigations / long fetches ---
-        let _spinnerTimer = null;
-        let _spinnerVisible = false;
+    }
 
-        function _showSpinnerNow() {
+    // Expose to window for external scripts
+    window.performPartialReload = performPartialReload;
+
+    // --- Global spinner for slow navigations / long fetches ---
+    let _spinnerTimer = null;
+    let _spinnerVisible = false;
+
+    function _showSpinnerNow() {
+        try {
+            const el = document.getElementById('globalSpinner');
+            if (!el) return;
+            el.style.display = 'flex';
+            el.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('spinner-active');
+            _spinnerVisible = true;
+        } catch (e) { /* ignore */ }
+    }
+
+    let _safetyTimer = null;
+
+    function _showSpinnerNow() {
+        if (!_spinnerTimer) return;
+        _spinnerVisible = true;
+        const el = document.getElementById('globalSpinner');
+        if (el) { 
+            el.style.display = 'flex'; 
+            el.setAttribute('aria-hidden', 'false'); 
+        }
+        document.body.classList.add('spinner-active');
+        
+        // Safety timeout: force close after 10s if something hangs
+        if (_safetyTimer) clearTimeout(_safetyTimer);
+        _safetyTimer = setTimeout(endGlobalSpinnerWatcher, 10000);
+    }
+
+    function startGlobalSpinnerWatcher() {
+        if (_spinnerTimer) return;
+        _spinnerTimer = setTimeout(_showSpinnerNow, 800); // Wait 800ms before showing
+    }
+
+    function endGlobalSpinnerWatcher() {
+        if (_spinnerTimer) { clearTimeout(_spinnerTimer); _spinnerTimer = null; }
+        if (_safetyTimer) { clearTimeout(_safetyTimer); _safetyTimer = null; }
+        if (_spinnerVisible) {
             try {
                 const el = document.getElementById('globalSpinner');
-                if (!el) return;
-                el.style.display = 'flex';
-                el.setAttribute('aria-hidden', 'false');
-                document.body.classList.add('spinner-active');
-                _spinnerVisible = true;
-            } catch (e) { /* ignore */ }
+                if (el) { el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); }
+                document.body.classList.remove('spinner-active');
+            } catch (e) { }
+            _spinnerVisible = false;
         }
+    }
 
-        function startGlobalSpinnerWatcher() {
-            if (_spinnerTimer) return;
-            _spinnerTimer = setTimeout(_showSpinnerNow, 1000);
-        }
-
-        function endGlobalSpinnerWatcher() {
-            if (_spinnerTimer) { clearTimeout(_spinnerTimer); _spinnerTimer = null; }
-            if (_spinnerVisible) {
-                try {
-                    const el = document.getElementById('globalSpinner');
-                    if (el) { el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); }
-                    document.body.classList.remove('spinner-active');
-                } catch (e) { }
-                _spinnerVisible = false;
-            }
-        }
-
-        // Override global fetch to show spinner for long requests
-        if (window.fetch) {
-            const _origFetch = window.fetch.bind(window);
-            window.fetch = function () {
-                try { startGlobalSpinnerWatcher(); } catch (e) { }
-                const p = _origFetch.apply(this, arguments);
-                try { Promise.resolve(p).finally(() => endGlobalSpinnerWatcher()); } catch (e) { endGlobalSpinnerWatcher(); }
-                return p;
-            };
-        }
-
-        // Start spinner on form submit and on full-anchor navigations (skip AJAX/modal anchors)
-        document.addEventListener('submit', function (e) { 
+    // Override global fetch to show spinner for long requests
+    if (window.fetch) {
+        const _origFetch = window.fetch.bind(window);
+        window.fetch = function () {
+            try { startGlobalSpinnerWatcher(); } catch (e) { }
+            const p = _origFetch.apply(this, arguments);
             try { 
-                // mark this as intentional in-app navigation so beforeunload doesn't close the session
-                try { window._skipSessionClose = true; setTimeout(function () { window._skipSessionClose = false; }, 15000); } catch (ee) { }
+                Promise.resolve(p)
+                    .finally(() => endGlobalSpinnerWatcher())
+                    .catch(() => { /* handled by the caller */ }); 
+            } catch (e) { 
+                endGlobalSpinnerWatcher(); 
+            }
+            return p;
+        };
+    }
+
+        // Start spinner on form submit (only for full-page POSTs)
+        document.addEventListener('submit', function (e) { 
+            const form = e.target;
+            if (form.hasAttribute('data-slide') || form.hasAttribute('data-ajax')) return;
+            try { 
+                window._skipSessionClose = true; 
+                setTimeout(function () { window._skipSessionClose = false; }, 15000);
                 startGlobalSpinnerWatcher(); 
             } catch (e) { } 
         }, true);
+
         document.addEventListener('click', function (e) {
             try {
                 const a = e.target.closest && e.target.closest('a[href]');
                 if (!a) return;
                 const href = a.getAttribute('href') || '';
+                // Skip AJAX, modals, and internal anchors
                 if (href.indexOf('#') === 0 || href.indexOf('javascript:') === 0) return;
                 if (a.target && a.target !== '' && a.target !== '_self') return;
-                if (a.hasAttribute('data-slide') || a.hasAttribute('data-slide-html') || href.indexOf('/api/') !== -1) return;
-                // internal navigation
+                if (a.hasAttribute('data-slide') || a.hasAttribute('data-slide-html') || a.classList.contains('btn-action')) return;
+                
                 startGlobalSpinnerWatcher();
             } catch (e) { }
         }, true);
 
-        // Ensure spinner is removed on page show/load
-        window.addEventListener('pageshow', endGlobalSpinnerWatcher);
-        window.addEventListener('load', endGlobalSpinnerWatcher);
-        document.addEventListener('DOMContentLoaded', function () { try { endGlobalSpinnerWatcher(); } catch (e) { } });
-    }
+    // Ensure spinner is removed on page show/load
+    window.addEventListener('pageshow', endGlobalSpinnerWatcher);
+    window.addEventListener('load', endGlobalSpinnerWatcher);
+    document.addEventListener('DOMContentLoaded', function () { try { endGlobalSpinnerWatcher(); } catch (e) { } });
 
     /* ================= Additional popups: toast, drawer, bottom-sheet, popover, fullscreen, wizard ================= */
 
@@ -1138,5 +1170,42 @@
             };
         })();
     } catch (e) { console.warn('alert sanitization failed', e); }
+
+    window.openPrintLabelModal = function(url) {
+        if (!url) return;
+        const html = '<div style="height: 85vh; display: flex; flex-direction: column; margin: -10px -20px;">'
+                   + '<iframe src="' + url + '" style="flex-grow: 1; width: 100%; border: none; border-radius: 0 0 12px 12px;"></iframe>'
+                   + '</div>';
+        if (typeof showQuickPopup === 'function') {
+            showQuickPopup('Etykieta Palety', html);
+        } else {
+            window.open(url, '_blank');
+        }
+    };
+
+    window.drukujZPLDirect = function(paletaId, linia) {
+        if (!paletaId) return;
+        if (typeof showToast === 'function') showToast('Wysyłanie do drukarki 237...', 'info');
+        
+        const url = '/api/drukuj_etykiete_zpl/' + paletaId + '?linia=' + (linia || 'PSD');
+        fetch(url, { 
+            method: 'POST', 
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                if (typeof showToast === 'function') showToast('Wysłano do drukarki 237', 'success');
+            } else {
+                if (typeof showToast === 'function') showToast('Błąd druku: ' + data.message, 'danger');
+                else alert('Błąd druku: ' + data.message);
+            }
+        })
+        .catch(err => {
+            console.error('ZPL Print error:', err);
+            if (typeof showToast === 'function') showToast('Błąd połączenia z serwerem druku', 'danger');
+        });
+    };
 
 })();

@@ -12,128 +12,78 @@ Konfiguracja (w .env lub app config):
   PRINTER_NAME = ZebraLP2824            (dla trybu windows)
 """
 
-import socket
+import requests
+import urllib3
 import os
 from datetime import datetime
 
-try:
-    import win32print
-    HAS_WIN32 = True
-except ImportError:
-    HAS_WIN32 = False
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ZPL label templates
-# ─────────────────────────────────────────────────────────────────────────────
-
-ZPL_LOCATION_LABEL = """\
-^XA
-^CI28
-^FO20,20^GB760,470,3^FS
-^FO40,35^A0N,28,28^FDMagazyn Surowcow Agro^FS
-^FO40,75^GB680,2,2^FS
-^FO40,90^A0N,90,90^FD{lokalizacja}^FS
-^FO40,200^A0N,36,36^FD{nazwa}^FS
-^FO40,250^A0N,30,30^FDStan: {ilosc:.1f} kg^FS
-^FO40,295^A0N,24,24^FDID: {id} | {data}^FS
-^FO40,350^BQN,2,6^FDMA,{qr_data}^FS
-^XZ
-"""
-
-ZPL_PALLET_LABEL = """\
-^XA
-^CI28
-^FO20,20^GB760,470,3^FS
-^FO40,35^A0N,28,28^FD{nazwa}^FS
-^FO40,80^A0N,28,28^FDLokalizacja: {lokalizacja}^FS
-^FO40,130^A0N,90,90^FD{ilosc:.1f} kg^FS
-^FO40,235^A0N,22,22^FDID: SUR-{id}^FS
-^FO40,265^A0N,22,22^FD{data}^FS
-^FO400,150^BQN,2,7^FDMA,{qr_data}^FS
-^XZ
-"""
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PrintServer
-# ─────────────────────────────────────────────────────────────────────────────
+# Wyłączenie ostrzeżeń o certyfikatach self-signed (most działa na https adhoc)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class PrintServer:
-
-    def __init__(self, mode: str = None, ip: str = None, port: int = 9100, printer_name: str = None):
-        self.mode         = (mode or os.getenv('PRINTER_MODE', 'tcp')).lower()
-        self.ip           = ip or os.getenv('PRINTER_IP', '127.0.0.1')
-        self.port         = int(port or os.getenv('PRINTER_PORT', 9100))
-        self.printer_name = printer_name or os.getenv('PRINTER_NAME', '')
-
-    # ── public ──────────────────────────────────────────────────────────────
-
-    def print_location_label(self, label_data: dict) -> tuple[bool, str]:
-        """Drukuje etykietę lokalizacji (regału) z kodem QR."""
-        zpl = ZPL_LOCATION_LABEL.format(**label_data)
-        return self._send(zpl)
-
-    def print_pallet_label(self, label_data: dict) -> tuple[bool, str]:
-        """Drukuje etykietę palety/worka z kodem QR."""
-        zpl = ZPL_PALLET_LABEL.format(**label_data)
-        return self._send(zpl)
+    def __init__(self):
+        # Mostek (bridge) działa zazwyczaj na tej samej maszynie co serwer WWW
+        self.bridge_url = os.getenv('PRINTER_BRIDGE_URL', 'https://127.0.0.1:3001')
+        self.printer_ip = os.getenv('PRINTER_IP', '192.168.1.237')
+        self.printer_name = "Magazyn"
 
     def test_connection(self) -> tuple[bool, str]:
-        """Sprawdza połączenie z drukarką."""
+        """Sprawdza połączenie z mostkiem druku."""
         try:
-            if self.mode == 'tcp':
-                with socket.create_connection((self.ip, self.port), timeout=3):
-                    pass
-                return True, f"Drukarka dostępna ({self.ip}:{self.port})"
-            elif self.mode == 'windows' and HAS_WIN32:
-                printers = [p[2] for p in win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL)]
-                if self.printer_name in printers:
-                    return True, f"Drukarka '{self.printer_name}' dostępna"
-                return False, f"Drukarka '{self.printer_name}' nie znaleziona. Dostępne: {printers}"
-            else:
-                return False, f"Nieznany tryb: {self.mode}"
+            # Sprawdzamy czy sam mostek żyje
+            resp = requests.get(f"{self.bridge_url}/status", verify=False, timeout=2)
+            if resp.status_code == 200:
+                return True, f"Mostek druku aktywny ({self.bridge_url})"
+            return False, f"Mostek zwrócił status {resp.status_code}"
         except Exception as e:
-            return False, f"Błąd połączenia: {e}"
+            return False, f"Błąd połączenia z mostkiem: {str(e)}"
 
-    # ── private ─────────────────────────────────────────────────────────────
+    def print_pallet_label(self, label_data: dict) -> tuple[bool, str]:
+        """Wysyła dane palety do mostka, który wygeneruje ZPL 4x6."""
+        payload = {
+            "drukarka": self.printer_name,
+            "ip": self.printer_ip,
+            "typ": "raw_material",
+            "dane": {
+                "palletData": {
+                    "nrPalety": f"SUR-{label_data.get('id')}",
+                    "productName": label_data.get('nazwa'),
+                    "batchNumber": label_data.get('partia') or '---',
+                    "productionDate": label_data.get('data') or datetime.now().strftime('%Y-%m-%d'),
+                    "expiryDate": label_data.get('termin') or '---',
+                    "currentWeight": label_data.get('ilosc'),
+                    "labNotes": label_data.get('uwagi') or ""
+                }
+            }
+        }
+        return self._send_to_bridge(payload)
 
-    def _send(self, zpl: str) -> tuple[bool, str]:
+    def print_location_label(self, label_data: dict) -> tuple[bool, str]:
+        """Dla lokalizacji możemy wysłać surowy ZPL (mostek to wspiera)."""
+        # Tu możemy zostawić stary ZPL lub przygotować dedykowany dla regałów
+        zpl = f"^XA^CI28^PW812^LL1214^FO20,20^GB772,1174,4^FS"
+        zpl += f"^FO60,100^A0N,100,100^FDREGAŁ: {label_data.get('lokalizacja')}^FS"
+        zpl += f"^FO60,250^BY4^BQN,2,10^FDMA,{label_data.get('lokalizacja')}^FS"
+        zpl += "^XZ"
+        
+        payload = {
+            "drukarka": self.printer_name,
+            "ip": self.printer_ip,
+            "dane": zpl
+        }
+        return self._send_to_bridge(payload)
+
+    def _send_to_bridge(self, payload: dict) -> tuple[bool, str]:
         try:
-            if self.mode == 'tcp':
-                return self._send_tcp(zpl)
-            elif self.mode == 'windows':
-                return self._send_windows(zpl)
-            else:
-                return False, f"Nieznany tryb: {self.mode}"
+            resp = requests.post(f"{self.bridge_url}/drukuj-zpl", json=payload, verify=False, timeout=5)
+            if resp.status_code == 200 and resp.json().get('success'):
+                return True, "Wysłano do drukarki przez mostek"
+            return False, resp.json().get('message', 'Błąd mostka')
         except Exception as e:
-            return False, f"Błąd drukowania: {e}"
+            return False, f"Błąd komunikacji z mostkiem: {str(e)}"
 
-    def _send_tcp(self, zpl: str) -> tuple[bool, str]:
-        """Wysyła ZPL bezpośrednio przez TCP do drukarki Zebra (port 9100)."""
-        with socket.create_connection((self.ip, self.port), timeout=5) as sock:
-            sock.sendall(zpl.encode('utf-8'))
-        return True, f"Wydrukowano (TCP {self.ip}:{self.port})"
-
-    def _send_windows(self, zpl: str) -> tuple[bool, str]:
-        """Drukuje przez Windows Spooler (win32print)."""
-        if not HAS_WIN32:
-            return False, "win32print niedostępny — zainstaluj: pip install pywin32"
-        hprinter = win32print.OpenPrinter(self.printer_name)
-        try:
-            job = win32print.StartDocPrinter(hprinter, 1, ("ZPL Label", None, "RAW"))
-            win32print.StartPagePrinter(hprinter)
-            win32print.WritePrinter(hprinter, zpl.encode('utf-8'))
-            win32print.EndPagePrinter(hprinter)
-            win32print.EndDocPrinter(hprinter)
-        finally:
-            win32print.ClosePrinter(hprinter)
-        return True, f"Wydrukowano przez '{self.printer_name}'"
-
-
-# Singleton — tworzony z ENV
-_printer: PrintServer | None = None
-
+# Singleton
+_printer = None
 
 def get_printer() -> PrintServer:
     global _printer

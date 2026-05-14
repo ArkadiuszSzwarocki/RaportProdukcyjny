@@ -1,4 +1,6 @@
 from datetime import date
+import math
+import re
 
 from flask import current_app, flash, redirect, render_template, request, session
 
@@ -6,7 +8,21 @@ from app.db import get_db_connection, get_table_name
 from app.decorators import login_required, roles_required
 
 
+
+def _safe_int(value, default=0):
+    try:
+        if value is None:
+            return default
+        text = str(value).strip().replace(',', '.')
+        if text == '':
+            return default
+        return int(float(text))
+    except Exception:
+        return default
+
+
 def register_production_mix_routes(production_bp, bezpieczny_powrot):
+
     @production_bp.route('/agro/mix_rozliczenie', methods=['GET'])
     @login_required
     @roles_required('lider', 'admin')
@@ -151,6 +167,183 @@ def register_production_mix_routes(production_bp, bezpieczny_powrot):
             return render_template('agro_mix_print.html', mix=mix, poprz_prod=poprz_prod, nast_prod=nast_prod)
         finally:
             conn.close()
+
+    @production_bp.route('/agro/workowanie_rozliczenie', methods=['GET'])
+    @login_required
+    @roles_required('lider', 'admin', 'zarzad')
+    def agro_workowanie_rozliczenie_page():
+        """Render settlement panel for AGRO Workowanie (packaging consumption)."""
+        data_planu = request.args.get('data', str(date.today()))
+        selected_plan_id = request.args.get('plan_id', type=int)
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        try:
+            from app.services.dashboard_service import DashboardService
+            ctx = DashboardService._load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=selected_plan_id)
+            active_plan = ctx['active_plan']
+            if not active_plan or str(active_plan.get('status') or '').lower() != 'w toku':
+                return render_template(
+                    'agro_mix_rozliczenie_error.html',
+                    message='Brak uruchomionego zlecenia Workowanie AGRO do rozliczenia.',
+                )
+
+            table_opak = get_table_name('magazyn_opakowania', 'AGRO')
+            cursor.execute(
+                f"""
+                SELECT r.*, COALESCE(o.nazwa, r.opakowanie_nazwa) AS opakowanie_biezace
+                FROM agro_workowanie_rozliczenie r
+                LEFT JOIN {table_opak} o ON o.id = r.opakowanie_id
+                WHERE r.data_planu = %s
+                ORDER BY r.created_at DESC
+                """,
+                (data_planu,),
+            )
+            history = cursor.fetchall()
+
+            return render_template(
+                'agro_workowanie_rozliczenie.html',
+                data_planu=data_planu,
+                active_plan=active_plan,
+                packaging_items=ctx['packaging_items'],
+                bag_kg=ctx['bag_kg'],
+                palety_kg_wykonane=ctx['palety_kg_wykonane'],
+                palety_count=ctx['palety_count'],
+                estimated_bags=ctx['estimated_bags'],
+                history=history,
+            )
+        except Exception as e:
+            current_app.logger.error('Error in agro_workowanie_rozliczenie_page: %s', e)
+            return 'Błąd ładowania rozliczenia Workowania AGRO', 500
+        finally:
+            conn.close()
+
+    @production_bp.route('/agro/workowanie_rozliczenie/add', methods=['POST'])
+    @login_required
+    @roles_required('lider', 'admin', 'zarzad')
+    def agro_workowanie_rozliczenie_add():
+        """Save AGRO Workowanie settlement and deduct packaging stock."""
+        data_planu = request.form.get('data_planu', str(date.today()))
+        plan_id = _safe_int(request.form.get('plan_id'))
+        opakowanie_id = _safe_int(request.form.get('opakowanie_id'))
+        wyprodukowano_szt = max(_safe_int(request.form.get('wyprodukowano_szt')), 0)
+        szt_na_palecie = max(_safe_int(request.form.get('szt_na_palecie')), 0)
+
+        if not plan_id or not opakowanie_id:
+            flash('Błąd: Wybierz aktywne zlecenie i opakowanie.', 'danger')
+            return redirect(bezpieczny_powrot())
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        try:
+            ctx = _load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=plan_id)
+            active_plan = ctx['active_plan']
+            if not active_plan or int(active_plan['id']) != int(plan_id):
+                flash('Błąd: Nie znaleziono uruchomionego zlecenia Workowanie AGRO.', 'danger')
+                return redirect(bezpieczny_powrot())
+
+            bag_kg = float(ctx['bag_kg'] or 20)
+            palety_kg_wykonane = float(ctx['palety_kg_wykonane'] or 0)
+            zuzyte_worki = float(ctx['estimated_bags'] or 0)
+
+            table_opak = get_table_name('magazyn_opakowania', 'AGRO')
+            cursor.execute(
+                f"""
+                SELECT id, nazwa, COALESCE(stan_magazynowy, 0) AS stan_magazynowy
+                FROM {table_opak}
+                WHERE id = %s
+                LIMIT 1
+                """,
+                (opakowanie_id,),
+            )
+            opakowanie = cursor.fetchone()
+            if not opakowanie:
+                flash('Błąd: Wybrane opakowanie nie istnieje.', 'danger')
+                return redirect(bezpieczny_powrot())
+
+            stan_przed = float(opakowanie.get('stan_magazynowy') or 0)
+            stan_po = stan_przed - zuzyte_worki
+
+            cursor.execute(
+                f"UPDATE {table_opak} SET stan_magazynowy = %s WHERE id = %s",
+                (stan_po, opakowanie_id),
+            )
+
+            cursor.execute(
+                """
+                INSERT INTO agro_workowanie_rozliczenie (
+                    plan_id,
+                    data_planu,
+                    produkt,
+                    opakowanie_id,
+                    opakowanie_nazwa,
+                    stan_przed,
+                    wyprodukowano_szt,
+                    szt_na_palecie,
+                    kg_na_worek,
+                    palety_kg_wykonane,
+                    zuzyte_worki,
+                    stan_po,
+                    autor_login
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    active_plan['id'],
+                    active_plan.get('data_planu') or data_planu,
+                    active_plan.get('produkt') or '',
+                    opakowanie_id,
+                    opakowanie.get('nazwa') or '',
+                    stan_przed,
+                    wyprodukowano_szt,
+                    szt_na_palecie,
+                    bag_kg,
+                    palety_kg_wykonane,
+                    zuzyte_worki,
+                    stan_po,
+                    session.get('login'),
+                ),
+            )
+
+            table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+            try:
+                cursor.execute(
+                    f"""
+                    INSERT INTO {table_ruch}
+                    (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz)
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)
+                    """,
+                    (
+                        opakowanie_id,
+                        'ROZLICZENIE_WORKOWANIE',
+                        -zuzyte_worki,
+                        stan_po,
+                        'POTWIERDZONE',
+                        session.get('login'),
+                        f"Rozliczenie Workowania AGRO plan #{active_plan['id']} ({active_plan.get('produkt') or 'bez nazwy'})",
+                    ),
+                )
+            except Exception:
+                pass
+
+            conn.commit()
+            flash(
+                f"Rozliczenie zapisane. Zużyto {zuzyte_worki:.0f} worków, stan opakowań: {stan_przed:.0f} -> {stan_po:.0f} szt.",
+                'success',
+            )
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            current_app.logger.error('Error in agro_workowanie_rozliczenie_add: %s', e)
+            flash(f'Błąd zapisu rozliczenia: {str(e)}', 'danger')
+        finally:
+            conn.close()
+
+        return redirect(bezpieczny_powrot())
 
     @production_bp.route('/agro/mix/inventory', methods=['GET'])
     @login_required

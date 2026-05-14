@@ -250,15 +250,16 @@ pytest --cov=app tests/
 
 ### Struktura testów
 
-| Moduł | Testy | Opis |
-|-------|-------|------|
-| `test_auth.py` | 20 | Autentykacja i autoryzacja |
-| `test_compat.py` | 23 | Kompatybilność i endpointy |
-| `test_middleware.py` | 26 | Middleware i żądania HTTP |
-| `test_dashboard_service.py` | 15 | DashboardService (agregacja danych) |
-| `test_report_generation_service.py` | 16 | ReportGenerationService (zamknięcie zmian) |
-| `test_routes_main.py` | 32 | Główne trasy i integracja |
-| **RAZEM** | **132** | **wszystkie przepuszczają** ✅ |
+System posiada scentralizowany katalog `tests/` z podziałem na typy testów:
+
+| Katalog / Plik | Typ | Opis |
+|----------------|-----|------|
+| `tests/test_*.py` | Python (Unit) | Testy jednostkowe backendu (autentykacja, serwisy, trasy) |
+| `tests/typescript/` | Frontend (TS/JS) | Testy logiki frontendowej i komponentów React/TS |
+| `tests/e2e/` | Playwright (E2E) | Testy integracyjne całych procesów (end-to-end) |
+| `tests/conftest.py` | Konfiguracja | Fixtury i maki bazy danych dla pytest |
+
+**Status**: ✅ Wszystkie testy (Python & Frontend) przechodzące.
 
 ### Pisanie nowych testów
 
@@ -453,8 +454,8 @@ Dla wsparcia technicznego skontaktuj się z administratorem systemu.
 
 ---
 
-**Wersja**: 2.0 — Service-Oriented Architecture
+**Wersja**: 2.1 — Centralized Test Suite & Background Maintenance
 
-**Data ostatniej aktualizacji**: 2026-02-07
+**Data ostatniej aktualizacji**: 2026-05-12
 
-**Status**: ✅ 132 testów jednostkowych przechodzące
+**Status**: ✅ Testy jednostkowe i integracyjne przechodzące

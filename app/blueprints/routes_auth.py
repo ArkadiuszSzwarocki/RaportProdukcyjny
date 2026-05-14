@@ -1,4 +1,6 @@
-"""Authentication routes (login, logout, issue reporting)."""
+"""Authentication routes and session management.
+Handles login, logout, and user-specific interface settings (e.g., bug icon acknowledgment).
+"""
 
 from flask import Blueprint, render_template, request, redirect, session, flash, make_response, jsonify
 from datetime import datetime
@@ -101,16 +103,9 @@ def login():
                 except Exception:
                     pass
                 
-                # Use location.replace on client to avoid keeping login page in history
+                # Use standard redirect to ensure session cookies are properly handled by all browsers
                 target = '/planista' if rola == 'planista' else '/'
-                html = f"""<!doctype html><html><head><meta charset=\"utf-8\"><title>Logowanie...</title></head><body><script>window.location.replace('{target}');</script></body></html>"""
-                try:
-                    resp = make_response(html)
-                    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-                    resp.headers['Pragma'] = 'no-cache'
-                    return resp
-                except Exception:
-                    return html, 200
+                return redirect(target)
         
         flash("Błędne dane!", 'danger')
         return redirect('/login')

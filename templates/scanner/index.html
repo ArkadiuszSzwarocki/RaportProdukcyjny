@@ -128,10 +128,15 @@
       <span class="material-icons" style="color:var(--primary-color);">barcode_reader</span>
       Skanuj kod regału lub palety
     </div>
-    <div class="scan-input-wrap">
-      <span class="material-icons">qr_code</span>
-      <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
-             placeholder="R030101 albo SUR-42" autofocus>
+    <div class="scan-input-wrap" style="display: flex; gap: 8px;">
+      <div style="position: relative; flex: 1;">
+        <span class="material-icons">qr_code</span>
+        <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
+               placeholder="R030101 albo SUR-42" autofocus>
+      </div>
+      <button class="btn btn-primary" onclick="triggerScan()" style="padding: 0 20px;">
+        <span class="material-icons">search</span>
+      </button>
     </div>
     <p class="small text-muted mt-8">Przyłóż skaner — kod zostanie wczytany automatycznie. Wpisz ręcznie i naciśnij Enter.</p>
   </div>
@@ -255,14 +260,36 @@ function checkPrinter() {
 checkPrinter();
 setInterval(checkPrinter, 30000);
 
-/* ─── Scanner input ───────────────────────────────────────── */
 const scanInput = document.getElementById('scanInput');
-scanInput.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    const code = this.value.trim();
-    if (code) lookupPallet(code);
+
+function triggerScan() {
+  const code = scanInput.value.trim();
+  if (code) {
+    lookupPallet(code);
+  } else {
+    showToast('Wprowadź kod do wyszukania', 'warn');
   }
+}
+
+// Skanery Zebra (DataWedge) na Androidzie często lepiej reagują na 'keyup'
+scanInput.addEventListener('keyup', function(e) {
+  if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
+    e.preventDefault();
+    triggerScan();
+  }
+});
+
+// Zabezpieczenie (debounce) jeśli skaner tylko "wkleja" tekst bez Entera
+let scanTimeout;
+scanInput.addEventListener('input', function(e) {
+  clearTimeout(scanTimeout);
+  scanTimeout = setTimeout(() => {
+    const code = this.value.trim();
+    if (code && code.length >= 5 && !document.getElementById('palletCard').classList.contains('visible')) {
+      // Wywołaj automatycznie jeśli skaner Zebra po prostu wrzuca tekst
+      triggerScan();
+    }
+  }, 1200);
 });
 
 function lookupPallet(code) {

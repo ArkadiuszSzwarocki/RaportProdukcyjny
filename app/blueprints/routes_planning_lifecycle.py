@@ -17,7 +17,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
         )
 
     @planning_bp.route('/przywroc_zlecenie_page/<int:id>', methods=['GET'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def przywroc_zlecenie_page(id):
         """Render a confirmation page for resuming an order."""
         linia = request.args.get('linia') or 'PSD'
@@ -64,7 +64,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
         return redirect(_build_context_return_url(linia, sekcja, data_planu))
 
     @planning_bp.route('/przywroc_usunietego_zlecenia/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def przywroc_usunietego_zlecenia(id):
         """Restore a deleted plan."""
         linia = request.args.get('linia') or request.form.get('linia', 'PSD')
@@ -72,7 +72,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
         return jsonify({'success': success, 'message': message}), 200 if success else 500
 
     @planning_bp.route('/zmien_status_zlecenia/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     @hall_restricted
     def zmien_status_zlecenia(id):
         """Change plan status."""
@@ -88,7 +88,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
         return redirect(return_url_builder())
 
     @planning_bp.route('/usun_plan/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def usun_plan(id):
         """Unified route for plan deletion (PSD/AGRO)."""
         linia = request.form.get('linia') or request.args.get('linia') or 'PSD'

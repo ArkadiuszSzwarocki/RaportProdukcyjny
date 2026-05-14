@@ -313,7 +313,7 @@ def enrich_agro_plan_carryover(cursor, plany_agro, wybrana_data):
 
 def build_agro_plan_metrics(cursor, plany_agro, wybrana_data, calculate_kg_per_hour, palety_mapa):
     """Compute execution totals and palety details for AGRO panel rows."""
-    suma_plan_agro, suma_wyk_agro, suma_minut_plan_agro = 0, 0, 0
+    suma_plan_agro, suma_wyk_agro, suma_minut_plan_agro, suma_uszkodzone_agro = 0, 0, 0, 0
     t_pp_agro = get_table_name('plan_produkcji', 'AGRO')
     t_sz_agro = get_table_name('szarze', 'AGRO')
     t_ds_agro = get_table_name('dosypki', 'AGRO')
@@ -352,6 +352,7 @@ def build_agro_plan_metrics(cursor, plany_agro, wybrana_data, calculate_kg_per_h
             )
             for row in palety_rows
         ]
+        suma_uszkodzone_agro += int(plan.get('uszkodzone_worki') or 0)
 
     return {
         'plany_agro': plany_agro,
@@ -359,6 +360,7 @@ def build_agro_plan_metrics(cursor, plany_agro, wybrana_data, calculate_kg_per_h
         'suma_plan_agro': suma_plan_agro,
         'suma_wyk_agro': suma_wyk_agro,
         'suma_minut_plan_agro': suma_minut_plan_agro,
+        'suma_uszkodzone_agro': suma_uszkodzone_agro,
     }
 
 
@@ -416,6 +418,13 @@ def build_panel_summary_context(
         if plan_workowanie == 0 and plan.get('linked_workowanie_tonaz'):
             plan_workowanie = plan['linked_workowanie_tonaz']
 
+        # Pobierz sumę uszkodzonych worków dla danego produktu (z Workowania)
+        cursor.execute(
+            f"SELECT COALESCE(SUM(uszkodzone_worki), 0) as total FROM {t_pp_r} WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s",
+            (wybrana_data, produkt),
+        )
+        uszkodzone_worki = cursor.fetchone()['total'] or 0
+
         rozliczenia.append(
             {
                 'zasyp_id': zasyp_id,
@@ -426,6 +435,7 @@ def build_panel_summary_context(
                 'plan_workowanie': round(float(plan_workowanie), 1),
                 'spakowano_palety': round(float(spakowano_palety), 1),
                 'bufor_spakowano': round(float(bufor_spakowano), 1),
+                'uszkodzone_worki': int(uszkodzone_worki),
                 'diff_no_buf': round(float(zasyp_kg) - float(spakowano_palety), 1),
                 'diff_with_buf': round(float(zasyp_kg) - (float(spakowano_palety) + float(bufor_spakowano)), 1),
             }

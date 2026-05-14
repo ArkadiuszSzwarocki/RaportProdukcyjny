@@ -248,9 +248,16 @@ def enforce_session_timeout(app):
                 return
 
             idle_seconds = now_ts - last_activity
+            # Debug log to catch "flashing" session timeout issues
+            try:
+                app.logger.info(f"Session check: user={session.get('login')}, role={session.get('rola')}, idle={idle_seconds:.1f}s, limit={timeout_min}m, zalogowany={session.get('zalogowany')}")
+            except Exception:
+                pass
+            
             if idle_seconds > (timeout_min * 60):
                 try:
-                    current_app.logger.info('Session timeout: logging out %s after %s seconds idle', session.get('login'), int(idle_seconds))
+                    current_app.logger.info('Session timeout: logging out %s after %s seconds idle (limit: %d min)', 
+                                            session.get('login'), int(idle_seconds), timeout_min)
                 except Exception:
                     pass
                 # Deactivate tracked session in DB

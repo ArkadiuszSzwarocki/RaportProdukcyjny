@@ -1,3 +1,6 @@
+"""Production execution routes.
+Handles production plan views, start/stop actions, and weight reporting for various sections.
+"""
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
 import logging
 import os

@@ -1,0 +1,145 @@
+"""Flask application factory."""
+
+import os
+import glob
+from datetime import timedelta
+from flask import Flask
+from scripts.raporty import format_godziny
+from app.config import SECRET_KEY
+from app.core.contexts import register_contexts
+from app.core.daemon import start_daemon_threads
+from app.core.error_handlers import setup_logging, register_error_handlers
+from app.blueprints.routes_admin import admin_bp
+from app.blueprints.routes_api import api_bp
+from app.blueprints.routes_planista import planista_bp
+from app.blueprints.routes_auth import auth_bp
+from app.blueprints.routes_quality import quality_bp
+from app.blueprints.routes_shifts import shifts_bp
+from app.blueprints.routes_panels import panels_bp
+from app.blueprints.routes_production import production_bp
+from app.blueprints.routes_warehouse import warehouse_bp
+from app.blueprints.routes_planning import planning_bp
+from app.blueprints.routes_journal import journal_bp
+from app.blueprints.routes_leaves import leaves_bp
+from app.blueprints.routes_overtime import overtime_bp
+from app.blueprints.routes_schedule import schedule_bp
+from app.blueprints.routes_recovery import recovery_bp
+from app.blueprints.routes_zarzad import zarzad_bp
+from app.blueprints.routes_compat import compat_bp
+from app.blueprints.routes_main import main_bp
+from app.blueprints.routes_struktura import struktura_bp
+from app.blueprints.routes_agro_warehouse import agro_warehouse_bp
+from app.blueprints.routes_mom import mom_bp
+from app.blueprints.routes_magazyny_nowe import magazyny_nowe_bp
+from app.blueprints.routes_scanner import scanner_bp
+from app.blueprints.routes_magazyn_dostawy import magazyn_dostawy_bp
+from app import db
+from app.core.middleware import register_middleware
+
+
+def create_app(config_secret_key=None, init_db=True):
+    """Create and configure Flask application.
+    
+    Args:
+        config_secret_key: Override SECRET_KEY from config (useful for testing)
+        init_db: Whether to initialize the database (skip during pytest)
+    
+    Returns:
+        Configured Flask application instance
+    """
+    # Create Flask app with explicit template folder path (absolute path from project root)
+    template_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'templates')
+    static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'static')
+    app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
+    
+    # Log template folder and available templates to help diagnose TemplateNotFound
+    app.logger.debug('Flask template_folder=%s', template_folder)
+    try:
+        templates_list = glob.glob(os.path.join(template_folder, '**', '*.html'), recursive=True)
+        for t in templates_list:
+            app.logger.debug('Template file: %s', t)
+    except Exception as e:
+        app.logger.exception('Failed to enumerate templates: %s', e)
+    
+    # Configure with secret key – always load from environment first so
+    # container restarts (Watchtower) do not invalidate existing session cookies.
+    _secret_key = config_secret_key or os.environ.get('SECRET_KEY') or SECRET_KEY
+    app.secret_key = _secret_key
+
+    # Configure session to ensure cookies are properly set
+    app.config['SESSION_COOKIE_SECURE'] = False  # Allow HTTP in development
+    app.config['SESSION_COOKIE_HTTPONLY'] = True  # Don't allow JS access
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Allow cross-site requests
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+    app.config['SESSION_PERMANENT'] = True  # Make sessions survive app restarts
+
+    # Load session timeout from env/config so middleware can read it from app.config
+    from app.config import SESSION_TIMEOUT_MINUTES as _timeout_min
+    app.config['SESSION_TIMEOUT_MINUTES'] = int(os.environ.get('SESSION_TIMEOUT_MINUTES', _timeout_min))
+    
+    # Set up logging and error handlers BEFORE any routes or blueprints
+    setup_logging(app)
+    register_error_handlers(app)
+    
+    # Add Jinja2 extensions
+    app.jinja_env.add_extension('jinja2.ext.do')
+    
+    # Disable Jinja2 caching in development to pick up template changes immediately
+    app.jinja_env.cache = None
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
+    
+    # Register middleware (request/response processing)
+    register_middleware(app)
+    
+    # Register blueprints
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(main_bp)
+    app.register_blueprint(quality_bp)
+    app.register_blueprint(shifts_bp)
+    app.register_blueprint(panels_bp)
+    app.register_blueprint(production_bp)
+    app.register_blueprint(warehouse_bp)
+    app.register_blueprint(planning_bp, url_prefix='/api')
+    app.register_blueprint(journal_bp)
+    app.register_blueprint(leaves_bp, url_prefix='/api')
+    app.register_blueprint(overtime_bp, url_prefix='/api')
+    app.register_blueprint(schedule_bp)
+    app.register_blueprint(recovery_bp, url_prefix='/api')
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(compat_bp)
+    app.register_blueprint(api_bp, url_prefix='/api')
+    app.register_blueprint(planista_bp)
+    app.register_blueprint(zarzad_bp)
+    app.register_blueprint(struktura_bp)
+    app.register_blueprint(agro_warehouse_bp)
+    app.register_blueprint(mom_bp)
+    app.register_blueprint(magazyny_nowe_bp)
+    app.register_blueprint(scanner_bp)
+    app.register_blueprint(magazyn_dostawy_bp)
+    
+    # Register Jinja2 filters
+    app.jinja_env.filters['format_czasu'] = format_godziny
+    
+    # Register context processors (inject helpers into templates)
+    register_contexts(app)
+    
+    # Start background daemon threads (skip when running under pytest to avoid
+    # background DB connections during test collection)
+    if 'PYTEST_CURRENT_TEST' not in os.environ:
+        start_daemon_threads(app, cleanup_enabled=False)
+    else:
+        app.logger.debug('Skipping start_daemon_threads() under pytest')
+    
+    # Initialize database (skip during pytest to allow monkeypatching)
+    if init_db:
+        try:
+            # Check if we're running under pytest
+            if 'PYTEST_CURRENT_TEST' not in os.environ:
+                db.setup_database()
+            else:
+                app.logger.debug('Skipping setup_database() under pytest')
+        except Exception as e:
+            app.logger.exception('setup_database() failed or skipped: %s', e)
+    
+    return app
+

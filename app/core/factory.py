@@ -33,6 +33,7 @@ from app.blueprints.routes_mom import mom_bp
 from app.blueprints.routes_magazyny_nowe import magazyny_nowe_bp
 from app.blueprints.routes_scanner import scanner_bp
 from app.blueprints.routes_magazyn_dostawy import magazyn_dostawy_bp
+from app.blueprints.routes_inwentaryzacja import inwentaryzacja_bp
 from app import db
 from app.core.middleware import register_middleware
 
@@ -116,6 +117,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(magazyny_nowe_bp)
     app.register_blueprint(scanner_bp)
     app.register_blueprint(magazyn_dostawy_bp)
+    app.register_blueprint(inwentaryzacja_bp)
     
     # Register Jinja2 filters
     app.jinja_env.filters['format_czasu'] = format_godziny
@@ -126,7 +128,7 @@ def create_app(config_secret_key=None, init_db=True):
     # Start background daemon threads (skip when running under pytest to avoid
     # background DB connections during test collection)
     if 'PYTEST_CURRENT_TEST' not in os.environ:
-        start_daemon_threads(app, cleanup_enabled=False)
+        start_daemon_threads(app, cleanup_enabled=True)
     else:
         app.logger.debug('Skipping start_daemon_threads() under pytest')
     

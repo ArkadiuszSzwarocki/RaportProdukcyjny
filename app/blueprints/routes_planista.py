@@ -74,6 +74,7 @@ def panel_planisty():
         suma_plan_agro = agro_plan_metrics['suma_plan_agro']
         suma_wyk_agro = agro_plan_metrics['suma_wyk_agro']
         suma_minut_plan_agro = agro_plan_metrics['suma_minut_plan_agro']
+        suma_uszkodzone_agro = agro_plan_metrics.get('suma_uszkodzone_agro', 0)
 
         summary_context = build_panel_summary_context(
             cursor,
@@ -113,6 +114,7 @@ def panel_planisty():
                                rozliczenia=rozliczenia, current_role=rola, aktywna_zakladka=aktywna_zakladka,
                                plany_agro=plany_agro, suma_plan_agro=suma_plan_agro, suma_wyk_agro=suma_wyk_agro,
                                suma_minut_plan_agro=suma_minut_plan_agro, procent_agro=procent_agro,
+                               suma_uszkodzone_agro=suma_uszkodzone_agro,
                                has_incomplete_plans=has_incomplete_plans,
                                has_incomplete_psd=has_incomplete_psd, has_incomplete_agro=has_incomplete_agro,
                                bufor_remaining=bufor_remaining,

@@ -125,3 +125,11 @@ def _well_known_devtools() -> Tuple[str, int]:
 def _well_known_generic(subpath: str) -> Tuple[str, int]:
     """Generic handler for any /.well-known probes to reduce noisy 404s."""
     return ('', 204)
+
+
+@compat_bp.route('/zebra-sim')
+def zebra_simulator_alias():
+    """Alias dla głównego symulatora terminala (Handheld)."""
+    from flask import request, render_template
+    linia = request.args.get('linia', 'AGRO').upper()
+    return render_template('zebra_simulator.html', linia=linia)

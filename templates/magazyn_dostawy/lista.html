@@ -1,88 +1,292 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="section-header" style="margin-bottom: 20px;">
-    <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-20">
-        <div class="header-title-row d-flex align-center gap-10">
-            <h2 class="header-title m-0 d-flex align-center gap-8">
-                <span class="material-icons text-primary" style="font-size: 28px;">swap_horiz</span>
-                <strong>Przesunięcia Magazynowe ({{ linia }})</strong>
-            </h2>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
+
+<style>
+.transfer-list-screen {
+    max-width: 1480px;
+}
+
+.transfer-hero {
+    border-radius: 18px;
+    border: 1px solid #dbe7ff;
+    background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 55%, #ffffff 100%);
+    padding: 18px;
+    margin-bottom: 18px;
+}
+
+.transfer-hero-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.transfer-title {
+    margin: 0;
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.transfer-subtitle {
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 0.92rem;
+}
+
+.transfer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: #e7f1ff;
+    color: #1e40af;
+    border: 1px solid #cfe0ff;
+    margin-top: 8px;
+}
+
+.transfer-hero-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.transfer-cta-btn {
+    min-width: 210px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 10px;
+    font-weight: 700;
+}
+
+.transfer-row.row-clickable {
+    cursor: pointer;
+}
+
+.transfer-row.row-clickable:hover {
+    background: #f8fbff;
+}
+
+.transfer-row.row-issued-locked {
+    cursor: not-allowed;
+}
+
+.issuance-locked-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #7c2d12;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+}
+
+@media (max-width: 760px) {
+    .transfer-cta-btn {
+        width: 100%;
+        min-width: 0;
+    }
+}
+</style>
+
+<div class="logistyka-container p-20 transfer-list-screen">
+    <div class="transfer-hero">
+        <div class="transfer-hero-head">
+        <div>
+            <h1 class="transfer-title">
+                <span class="material-icons" style="color:#2563eb;">swap_horiz</span>
+                Przesunięcia Palet
+            </h1>
+            <p class="transfer-subtitle">Wydanie i dwuetapowe przyjęcie ruchów wewnętrznych (Hala {{ linia }}).</p>
+            <span class="transfer-pill">
+                <span class="material-icons" style="font-size: 16px;">inventory_2</span>
+                Ruchy wewnętrzne
+            </span>
         </div>
-        <div class="d-flex align-center gap-12 header-stats">
-            <a href="{{ url_for('magazyn_dostawy.raport', linia=linia) }}" class="btn-action btn-outline-secondary d-flex align-center gap-8" style="padding: 8px 16px; font-size: 13px;">
-                <span class="material-icons" style="font-size: 16px;">summarize</span> Raport
+        <div class="transfer-hero-actions">
+            <a href="{{ url_for('magazyn_dostawy.oczekujace', linia=linia) }}" class="btn-premium-outline transfer-cta-btn">
+                <span class="material-icons">inventory_2</span> Oczekujące
             </a>
-            <a href="{{ url_for('magazyn_dostawy.oczekujace', linia=linia) }}" class="btn-action d-flex align-center gap-8" style="padding: 8px 16px; font-size: 13px; background: #f59e0b; border-color: #d97706; color: #fff;">
-                <span class="material-icons" style="font-size: 16px;">pending_actions</span>
-                Oczekujące
-                {% set oczekujace_count = dostawy | selectattr('status', 'equalto', 'OCZEKUJE') | list | length %}
-                {% if oczekujace_count > 0 %}
-                <span style="background: #ef4444; color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-left: 4px;">{{ oczekujace_count }}</span>
-                {% endif %}
+            <a id="continue_transfer_btn" href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='continue') }}" class="btn-premium-outline transfer-cta-btn" style="display: none;">
+                <span class="material-icons">history</span> Kontynuuj wpis
             </a>
-            <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia) }}" class="btn-action btn-blue d-flex align-center gap-8" style="padding: 10px 20px; font-size: 14px; font-weight: 600;">
-                <span class="material-icons" style="font-size: 18px;">add_circle</span> Nowe Przesunięcie
+            <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='new') }}" class="btn-premium transfer-cta-btn">
+                <span class="material-icons">swap_horiz</span> Nowe Przesunięcie
             </a>
+        </div>
+        </div>
+    </div>
+
+    <div class="premium-card">
+        <div class="table-responsive">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Numer / Referencja</th>
+                        <th>Trasa</th>
+                        <th>Status</th>
+                        <th class="text-right">Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in dostawy %}
+                    <tr class="transfer-row row-clickable"
+                        data-open-url="{{ url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=d.id, linia=linia) if d.status == 'COMPLETED' else url_for('magazyn_dostawy.edycja_dostawy', dostawa_id=d.id, linia=linia) }}">
+                        <td>
+                            {% if d.created_at %}
+                                {% if d.created_at is string %}
+                                    <div class="font-bold">{{ d.created_at[:10] }}</div>
+                                    <div class="small text-muted">{{ d.created_at[11:16] }}</div>
+                                {% else %}
+                                    <div class="font-bold">{{ d.created_at.strftime('%Y-%m-%d') }}</div>
+                                    <div class="small text-muted">{{ d.created_at.strftime('%H:%M') }}</div>
+                                {% endif %}
+                            {% else %}
+                                <div class="font-bold">-</div>
+                                <div class="small text-muted">-</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="font-mono font-bold">{{ d.order_ref or 'RUCH-' ~ d.id[:8] }}</div>
+                            <div class="small text-muted">{{ (d.items_parsed|length) if d.items_parsed else 0 }} palet</div>
+                        </td>
+                        <td>
+                            <div class="flex items-center gap-8">
+                                <span class="font-bold text-muted small">{{ d.lokalizacja_z or '???' }}</span>
+                                <span class="material-icons text-muted" style="font-size:14px;">arrow_forward</span>
+                                <span class="font-bold text-primary small">{{ d.lokalizacja_do }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if d.status == 'OCZEKUJE' %}
+                                <span class="premium-badge badge-warning">W TRAKCIE</span>
+                            {% elif d.status == 'COMPLETED' %}
+                                <span class="premium-badge badge-success">WYKONANO</span>
+                            {% else %}
+                                <span class="premium-badge badge-info">{{ d.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">
+                            <div class="flex justify-end gap-10">
+                                {% if d.status == 'OCZEKUJE' %}
+                                <span class="issuance-locked-pill">Wydanie: tylko podgląd</span>
+                                <button class="btn-premium-outline btn-xs" onclick="event.stopPropagation(); cancelTransferOrder('{{ d.id }}', '{{ (d.order_ref or ('RUCH-' ~ d.id[:8]))|replace("'", "\\'") }}');">
+                                    Anuluj
+                                </button>
+                                <a href="{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}" 
+                                   class="btn-premium btn-xs" onclick="event.stopPropagation();">
+                                    Formularz przyjęcia
+                                </a>
+                                {% elif d.status == 'COMPLETED' %}
+                                <a href="{{ url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=d.id, linia=linia) }}"
+                                   class="btn-premium btn-xs" onclick="event.stopPropagation();">
+                                    Drukuj raport
+                                </a>
+                                {% else %}
+                                <a href="{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}" 
+                                   class="btn-premium btn-xs" onclick="event.stopPropagation();">
+                                    Szczegóły
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-40 text-muted">
+                            Brak aktywnych przesunięć palet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
-<div class="section-box p-0">
-    <div class="p-15 p-15-bg">
-        {% if not dostawy %}
-        <div style="text-align: center; padding: 40px; color: #94a3b8;">
-            <span class="material-icons" style="font-size: 48px; margin-bottom: 15px; color: #cbd5e1;">inbox</span>
-            <h3 style="margin: 0; font-size: 18px; color: #475569;">Brak przesunięć w systemie</h3>
-            <p style="margin: 5px 0 0 0; font-size: 14px;">Zarejestruj pierwsze przesunięcie klikając w przycisk powyżej.</p>
-        </div>
-        {% else %}
-        <table class="modern-table small" id="dostawyTable">
-            <thead>
-                <tr>
-                    <th>Numer WZ</th>
-                    <th>Kierunek</th>
-                    <th>Palet</th>
-                    <th>Wysłał</th>
-                    <th>Data</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for d in dostawy %}
-                {% set its = d.items_parsed or [] %}
-                <tr onclick="window.location.href='{{ url_for('magazyn_dostawy.edycja_dostawy', dostawa_id=d.id, linia=linia) }}'" style="cursor: pointer;">
-                    <td><strong style="font-family: monospace; color: #1d4ed8; font-size: 12px;">{{ d.order_ref or 'Brak' }}</strong></td>
-                    <td>
-                        <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-                            <span style="background: #eff6ff; color: #1d4ed8; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 700;">{{ d.lokalizacja_z or '?' }}</span>
-                            <span class="material-icons" style="color: #94a3b8; font-size: 16px;">arrow_forward</span>
-                            <span style="background: #f0fdf4; color: #15803d; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 700;">{{ d.lokalizacja_do or '?' }}</span>
-                        </div>
-                    </td>
-                    <td><strong>{{ its|length }}</strong></td>
-                    <td style="font-weight: 600; color: #475569;">{{ d.created_by or '-' }}</td>
-                    <td><span class="time-display">{{ d.created_at }}</span></td>
-                    <td>
-                        {% if d.status == 'COMPLETED' %}
-                            <span class="status-badge status-accepted" style="background: #dcfce7; color: #166534;">
-                                <span class="material-icons" style="font-size: 12px;">check_circle</span> Potwierdzone
-                            </span>
-                        {% elif d.status == 'OCZEKUJE' %}
-                            <span class="status-badge" style="background: #fef3c7; color: #92400e;">
-                                <span class="material-icons" style="font-size: 12px;">pending</span> Oczekuje
-                            </span>
-                        {% else %}
-                            <span class="status-badge" style="background: #f1f5f9; color: #475569;">
-                                <span class="material-icons" style="font-size: 12px;">edit_document</span> Szkic
-                            </span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% endif %}
-    </div>
-</div>
+<script>
+function safeToast(msg, kind) {
+    if (typeof showToast === 'function') {
+        showToast(msg, kind || 'info');
+    } else {
+        alert(msg);
+    }
+}
+
+async function cancelTransferOrder(dostawaId, orderRef) {
+    const label = orderRef || dostawaId;
+    const ok = confirm(`Czy na pewno anulować całe zlecenie ${label}?`);
+    if (!ok) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/magazyn-dostawy/api/anuluj/${encodeURIComponent(dostawaId)}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            safeToast('Błąd: ' + (data.message || 'Nie udało się anulować zlecenia.'), 'danger');
+            return;
+        }
+
+        safeToast(data.message || 'Zlecenie anulowane.', 'success');
+        setTimeout(() => {
+            window.location.reload();
+        }, 250);
+    } catch (e) {
+        safeToast('Błąd połączenia z serwerem.', 'danger');
+    }
+}
+
+function hasPendingTransferDraft() {
+    const draftKey = "magazyn_dostawy_draft_{{ linia }}_new";
+    try {
+        const raw = window.localStorage.getItem(draftKey);
+        if (!raw) {
+            return false;
+        }
+        const draft = JSON.parse(raw);
+        return !!(draft && Array.isArray(draft.items) && draft.items.length > 0);
+    } catch (error) {
+        return false;
+    }
+}
+
+const continueBtn = document.getElementById('continue_transfer_btn');
+if (continueBtn && hasPendingTransferDraft()) {
+    continueBtn.style.display = 'inline-flex';
+}
+
+document.querySelectorAll('.transfer-row').forEach((row) => {
+    row.addEventListener('click', (event) => {
+        if (event.target.closest('a,button,input,select,textarea,label')) {
+            return;
+        }
+
+        const targetUrl = row.dataset.openUrl;
+        if (targetUrl) {
+            window.location.href = targetUrl;
+        }
+    });
+});
+</script>
 {% endblock %}

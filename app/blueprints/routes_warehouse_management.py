@@ -9,6 +9,7 @@ from app.db import get_db_connection, get_table_name
 from app.decorators import login_required, roles_required
 from app.services.planning_service import PlanningService
 from app.utils.validation import require_field
+from app.utils.pallet_id import generate_pallet_id
 
 
 def register_warehouse_management_routes(
@@ -65,9 +66,10 @@ def register_warehouse_management_routes(
 
         try:
             user_login = session.get('login', 'System')
+            nr_palety = generate_pallet_id(linia)
             cursor.execute(
-                f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s)",
-                (plan_id, waga_input, now_ts, user_login),
+                f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s)",
+                (plan_id, waga_input, now_ts, user_login, nr_palety),
             )
             paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
 
@@ -137,7 +139,7 @@ def register_warehouse_management_routes(
                     conn.close()
                 except Exception:
                     pass
-        return render_template('dodaj_palete_popup.html', plan_id=plan_id, produkt=produkt, sekcja=sekcja, typ=typ, linia=linia)
+        return render_template('warehouse/popups/add_pallet.html', plan_id=plan_id, produkt=produkt, sekcja=sekcja, typ=typ, linia=linia)
 
     @warehouse_bp.route('/edytuj_palete_page/<int:paleta_id>', methods=['GET'])
     @login_required
@@ -168,14 +170,14 @@ def register_warehouse_management_routes(
                     conn.close()
                 except Exception:
                     pass
-        return render_template('edytuj_palete_popup.html', paleta_id=paleta_id, waga=waga, sekcja=sekcja, linia=linia)
+        return render_template('warehouse/popups/edit_pallet.html', paleta_id=paleta_id, waga=waga, sekcja=sekcja, linia=linia)
 
     @warehouse_bp.route('/confirm_delete_palete_page/<int:paleta_id>', methods=['GET'])
     @login_required
     def confirm_delete_palete_page(paleta_id):
         """Render delete confirmation for paleta."""
         linia = resolve_request_linia()
-        return render_template('confirm_delete_palete.html', paleta_id=paleta_id, linia=linia)
+        return render_template('warehouse/popups/delete_pallet_confirm.html', paleta_id=paleta_id, linia=linia)
 
     @warehouse_bp.route('/confirm_delete_szarze_page/<int:szarza_id>', methods=['GET'], endpoint='confirm_delete_szarze_page')
     @warehouse_bp.route('/confirm_delete_zasyp_page/<int:szarza_id>', methods=['GET'], endpoint='confirm_delete_zasyp_page')
@@ -186,7 +188,7 @@ def register_warehouse_management_routes(
         sekcja = request.args.get('sekcja') or 'Zasyp'
         data_value = request.args.get('data') or request.args.get('data_planu') or str(date.today())
         return render_template(
-            'confirm_delete_szarze.html',
+            'warehouse/popups/delete_zasyp_confirm.html',
             szarza_id=szarza_id,
             zasyp_id=szarza_id,
             linia=linia,
@@ -219,7 +221,7 @@ def register_warehouse_management_routes(
 
         data_value = request.args.get('data') or str(date.today())
         sekcja = request.args.get('sekcja', 'Zasyp')
-        return render_template('edytuj_szarze_popup.html', szarza_id=szarza_id, zasyp_id=szarza_id, uwagi=uwagi, linia=linia, data=data_value, sekcja=sekcja)
+        return render_template('warehouse/popups/edit_zasyp.html', szarza_id=szarza_id, zasyp_id=szarza_id, uwagi=uwagi, linia=linia, data=data_value, sekcja=sekcja)
 
     @warehouse_bp.route('/edytuj_szarze/<int:szarza_id>', methods=['POST'], endpoint='edytuj_szarze')
     @warehouse_bp.route('/edytuj_zasyp/<int:szarza_id>', methods=['POST'], endpoint='edytuj_zasyp')
@@ -276,7 +278,8 @@ def register_warehouse_management_routes(
                     conn.close()
                 except Exception:
                     pass
-        return render_template('potwierdz_palete.html', paleta_id=paleta_id, waga=waga, linia=linia)
+        dzisiaj_iso = date.today().isoformat()
+        return render_template('warehouse/popups/confirm_pallet.html', paleta_id=paleta_id, waga=waga, linia=linia, dzisiaj_iso=dzisiaj_iso)
 
     @warehouse_bp.route('/potwierdz_palete/<int:paleta_id>', methods=['POST'])
     @login_required
@@ -300,6 +303,10 @@ def register_warehouse_management_routes(
         provided_netto = None
         provided_brutto = None
         deklarowana_waga = None
+        weight_difference = None
+        has_weight_difference = False
+        check_only_request = False
+        force_accept_request = False
         status_updated = False
         error_message = None
 
@@ -352,6 +359,9 @@ def register_warehouse_management_routes(
             except Exception as error:
                 current_app.logger.error('Failed to parse provided weight for paleta %s: %s', paleta_id, error, exc_info=True)
 
+            check_only_request = str(request.form.get('check_only', '')).strip().lower() in ('1', 'true', 'yes')
+            force_accept_request = str(request.form.get('force_accept', '')).strip().lower() in ('1', 'true', 'yes')
+
             try:
                 cursor.execute(f"SELECT waga FROM {table_pal} WHERE id=%s", (paleta_id,))
                 drow = cursor.fetchone()
@@ -359,6 +369,25 @@ def register_warehouse_management_routes(
                     deklarowana_waga = int(drow[0])
             except Exception as error:
                 current_app.logger.debug('Failed to fetch declared weight for paleta %s: %s', paleta_id, error)
+
+            if deklarowana_waga is not None and provided_netto is not None:
+                try:
+                    weight_difference = round(abs(provided_netto - deklarowana_waga), 1)
+                    has_weight_difference = bool(weight_difference > 1)
+                except Exception:
+                    weight_difference = None
+                    has_weight_difference = False
+
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' and check_only_request:
+                return jsonify(
+                    {
+                        'success': True,
+                        'check_only': True,
+                        'has_difference': has_weight_difference,
+                        'difference': weight_difference,
+                        'requires_confirmation': has_weight_difference,
+                    }
+                ), 200
 
             try:
                 if provided_netto is not None:
@@ -378,12 +407,13 @@ def register_warehouse_management_routes(
             plan_id = None
             stored_netto = None
             try:
-                cursor.execute(f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, 0) FROM {table_pal} WHERE id=%s", (paleta_id,))
+                cursor.execute(f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, 0), nr_palety FROM {table_pal} WHERE id=%s", (paleta_id,))
                 prev_row = cursor.fetchone()
                 if prev_row:
                     plan_id = prev_row[0]
                     prev_status = prev_row[1]
                     stored_netto = int(prev_row[2] or 0)
+                    nr_palety = prev_row[3]
             except Exception as error:
                 current_app.logger.warning('Failed to fetch plan_id/status/weights for paleta %s: %s', paleta_id, error)
 
@@ -430,23 +460,36 @@ def register_warehouse_management_routes(
                         mp = cursor.fetchone()
                         mp_id = mp[0] if mp else None
 
+                        nr_partii = request.form.get('nr_partii')
+                        data_produkcji = request.form.get('data_produkcji')
+                        data_przydatnosci = request.form.get('data_przydatnosci')
+                        lokalizacja = request.form.get('lokalizacja')
+
                         try:
                             cursor.execute(
-                                f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                                (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login')),
+                                f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'), nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety),
                             )
-                        except mysql.connector.Error:
-                            current_app.logger.debug('Database error for paleta %s in %s: ignored if duplicate.', paleta_id, table_mag)
+                            mag_id = cursor.lastrowid
+                            
+                            # Log to palety_historia
+                            cursor.execute(
+                                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE', %s, %s, %s)",
+                                (paleta_id, linia, lokalizacja, f"Przyjęcie palety: {row[1]}, partia: {nr_partii}", session.get('login'))
+                            )
+                        except mysql.connector.Error as e:
+                            current_app.logger.debug('Database error for paleta %s in %s: %s', paleta_id, table_mag, e)
 
                         if cursor.rowcount > 0:
                             current_app.logger.info(
-                                'Potwierdzono paletę ID=%s: waga_netto=%s kg, produkt=%s, użytkownik=%s',
+                                'Potwierdzono paletę ID=%s: waga_netto=%s kg, produkt=%s, użytkownik=%s, lokalizacja=%s',
                                 paleta_id,
                                 netto_val,
                                 row[1] if len(row) > 1 else '—',
                                 session.get('login'),
+                                lokalizacja
                             )
-                            audit_log('Potwierdził paletę', f'ID={paleta_id}, produkt={row[1] if len(row) > 1 else "—"}, waga_netto={netto_val} kg')
+                            audit_log('Potwierdził paletę', f'ID={paleta_id}, produkt={row[1] if len(row) > 1 else "—"}, waga_netto={netto_val} kg, lokalizacja={lokalizacja}')
                         else:
                             current_app.logger.debug('Paleta ID=%s już jest w magazynie (INSERT IGNORE pominął duplikat), waga=%s kg', paleta_id, netto_val)
 
@@ -473,14 +516,9 @@ def register_warehouse_management_routes(
         try:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 response_data = {'success': True, 'paleta_id': paleta_id}
-                current_app.logger.debug('AJAX Response: deklarowana_waga=%s, provided_netto=%s', deklarowana_waga, provided_netto)
-                if deklarowana_waga is not None and provided_netto is not None:
-                    difference = abs(provided_netto - deklarowana_waga)
-                    current_app.logger.debug('Difference calculated: %s', difference)
-                    if difference > 1:
-                        response_data['has_difference'] = True
-                        response_data['difference'] = round(difference, 1)
-                        current_app.logger.debug('Returning modal response: %s', response_data)
+                if has_weight_difference and not force_accept_request:
+                    response_data['has_difference'] = True
+                    response_data['difference'] = weight_difference
                 return jsonify(response_data), 200
         except Exception:
             pass
@@ -502,10 +540,10 @@ def register_warehouse_management_routes(
         except Exception:
             brutto = 0
 
-        cursor.execute(f"SELECT tara, plan_id FROM {table_pal} WHERE id=%s", (paleta_id,))
+        cursor.execute(f"SELECT tara, plan_id, nr_palety FROM {table_pal} WHERE id=%s", (paleta_id,))
         res = cursor.fetchone()
         if res:
-            tara, plan_id = res
+            tara, plan_id, nr_palety = res
             netto = brutto - int(tara)
             if netto < 0:
                 netto = 0
@@ -524,8 +562,8 @@ def register_warehouse_management_routes(
                 if not exists:
                     try:
                         cursor.execute(
-                            f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                            (paleta_id, mp_id, row[0], row[1], netto, brutto, tara, session.get('login')),
+                            f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_palety) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                            (paleta_id, mp_id, row[0], row[1], netto, brutto, tara, session.get('login'), nr_palety),
                         )
                     except mysql.connector.IntegrityError:
                         pass
@@ -890,16 +928,26 @@ def register_warehouse_management_routes(
                     if cumulative_zasyp >= cumulative_paleta_waga:
                         break
 
+            # Obliczanie numeru Lp. palety w zleceniu
+            nr_palety_lp = 'Brak'
+            if plan_id:
+                if workowanie_id:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, workowanie_id))
+                else:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table_mag} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
+                res_lp = cursor.fetchone()
+                nr_palety_lp = res_lp[0] if res_lp else 1
+
             data_wydruku = datetime.now().strftime('%Y-%m-%d %H:%M')
             termin_przydatnosci = request.args.get('termin') or None
 
             return render_template(
-                'magazyn_etykieta.html',
+                'warehouse/label.html',
                 plan_id=zasyp_plan_id or 'Brak',
                 produkt=produkt or 'Nieznany',
                 nr_szarzy=zasyp_nr,
                 waga=paleta_waga,
-                nr_palety=workowanie_id if workowanie_id else 'Brak',
+                nr_palety=nr_palety_lp,
                 data_workowanie=data_workowanie or 'Ręczna paleta',
                 data_wydruku=data_wydruku,
                 termin_przydatnosci=termin_przydatnosci,
@@ -909,6 +957,54 @@ def register_warehouse_management_routes(
         except Exception as error:
             current_app.logger.exception('Error generating label for paleta %s: %s', paleta_id, error)
             abort(500, description='Wystąpił błąd przy generowaniu etykiety.')
+        finally:
+            cursor.close()
+            conn.close()
+
+    @warehouse_bp.route('/drukuj_etykiete_zpl/<int:paleta_id>', methods=['POST'])
+    @login_required
+    def drukuj_etykiete_zpl(paleta_id):
+        """Sends ZPL label directly to printer 237 via PrintServer bridge."""
+        from app.services.print_server import get_printer
+        linia = str(resolve_request_linia()).upper()
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_mag = get_table_name('magazyn_palety', linia)
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            # Fetch data for ZPL
+            cursor.execute(f"""
+                SELECT mp.produkt, mp.waga_netto, pp.data_planu, pp.id as plan_id
+                FROM {table_mag} mp
+                JOIN {table_plan} pp ON mp.plan_id = pp.id
+                WHERE mp.id = %s
+            """, (paleta_id,))
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({'success': False, 'message': 'Nie znaleziono palety'}), 404
+            
+            produkt, waga, data_planu, plan_id = row
+            
+            # Prepare data for Printer
+            label_data = {
+                'id': paleta_id,
+                'nazwa': produkt,
+                'ilosc': waga,
+                'data': data_planu.strftime('%Y-%m-%d') if data_planu else datetime.now().strftime('%Y-%m-%d'),
+                'partia': f"ZLE-{plan_id}"
+            }
+            
+            printer = get_printer()
+            ok, msg = printer.print_pallet_label(label_data)
+            
+            if ok:
+                audit_log('Wydruk etykiety ZPL', f'paleta_id={paleta_id}, produkt={produkt}, drukarka=237')
+            
+            return jsonify({'success': ok, 'message': msg})
+        except Exception as e:
+            current_app.logger.exception('ZPL Print failed: %s', e)
+            return jsonify({'success': False, 'message': str(e)}), 500
         finally:
             cursor.close()
             conn.close()

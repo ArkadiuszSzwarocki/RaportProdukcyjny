@@ -11,6 +11,18 @@ class PlanningService:
     """Service for managing production plans (creation, deletion, status changes, resumption)."""
 
     @staticmethod
+    def get_current_agro_plan():
+        """Returns the currently active AGRO production plan (status 'w toku')."""
+        table_plan = get_table_name('plan_produkcji', 'AGRO')
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(f"SELECT * FROM {table_plan} WHERE status = 'w toku' LIMIT 1")
+            return cursor.fetchone()
+        finally:
+            conn.close()
+
+    @staticmethod
     def _close_active_buffer_entries(update_cursor, table_bufor, zasyp_id, current_data, conn):
         """Mark source-day active buffer entries as moved for a given zasyp."""
         update_cursor.execute(

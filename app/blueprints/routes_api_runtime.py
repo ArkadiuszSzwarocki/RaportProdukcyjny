@@ -12,6 +12,7 @@ from app.db import (
     mark_notification_read,
     touch_active_session,
 )
+from app.services.mqtt_service import get_latest_data
 from app.decorators import login_required
 
 
@@ -209,6 +210,64 @@ def register_api_runtime_routes(api_bp):
             return jsonify({'success': False, 'message': 'Nie udało się oznaczyć powiadomień'}), 500
 
         return jsonify({'success': True})
+
+    @api_bp.route('/system_state', methods=['GET'])
+    @login_required
+    def get_system_state():
+        """Returns the latest sequence IDs for various system entities to enable smart polling."""
+        try:
+            linia = request.args.get('linia', 'PSD').upper()
+            from app.db import get_table_name, get_db_connection
+
+            # Resolve table names based on line
+            table_ruch = get_table_name('magazyn_ruch', linia)
+            table_plans = get_table_name('plan_produkcji', linia)
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # 1. Last warehouse movement ID
+            cursor.execute(f"SELECT MAX(id) FROM {table_ruch}")
+            last_move = cursor.fetchone()[0] or 0
+
+            # 2. Last production plan entry ID
+            cursor.execute(f"SELECT MAX(id) FROM {table_plans}")
+            last_plan = cursor.fetchone()[0] or 0
+
+            # 3. Last notification ID
+            cursor.execute("SELECT MAX(id) FROM powiadomienia")
+            last_notif = cursor.fetchone()[0] or 0
+
+            # 4. Last change in user assignments (stanowiska) for AGRO
+            last_station_change = 0
+            if linia == 'AGRO':
+                cursor.execute("SELECT MAX(UNIX_TIMESTAMP(updated_at)) FROM agro_stanowiska")
+                last_station_change = cursor.fetchone()[0] or 0
+                
+            # Fetch last pallets for BOTH halls to be sure
+            cursor.execute(f"SELECT MAX(id) FROM {get_table_name('palety_workowanie', 'PSD')}")
+            last_pallet_psd = cursor.fetchone()[0] or 0
+            cursor.execute(f"SELECT MAX(id) FROM {get_table_name('palety_workowanie', 'AGRO')}")
+            last_pallet_agro = cursor.fetchone()[0] or 0
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({
+                'success': True,
+                'state': {
+                    'last_move': last_move,
+                    'last_plan': last_plan,
+                    'last_notif': last_notif,
+                    'last_station_change': last_station_change,
+                    'last_pallet_psd': last_pallet_psd,
+                    'last_pallet_agro': last_pallet_agro,
+                    'last_pallet': max(last_pallet_psd, last_pallet_agro) # Fallback
+                }
+            })
+        except Exception as e:
+            current_app.logger.error(f"Error in get_system_state: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
 
     @api_bp.route('/session/ping', methods=['POST'])
     @login_required

@@ -1,16 +1,15 @@
 import glob
 import logging
 import os
-
 from flask import current_app, flash, jsonify, redirect, render_template, request, send_file, session
-
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
 from app.decorators import login_required
 from app.services.zasyp_etapy_service import ZasypEtapyService
 
-
 def register_production_order_routes(production_bp, bezpieczny_powrot):
+    from app.services.mqtt_service import get_latest_data
+
     @production_bp.route('/start_zlecenie/<int:id>', methods=['POST'])
     @login_required
     def start_zlecenie(id):
@@ -21,8 +20,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         """
         conn = get_db_connection()
         try:
-            role = str(session.get('rola') or '').lower()
-            if role in ['laborant', 'laboratorium']:
+            role_lc = str(session.get('rola') or '').strip().lower()
+            if role_lc in ['laborant', 'laboratorium']:
                 flash('❌ Brak uprawnień: laborant nie może uruchamiać zleceń.', 'warning')
                 return redirect(bezpieczny_powrot())
 
@@ -54,9 +53,9 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                         }
 
                 if sekcja == 'Workowanie':
-                    role = session.get('rola', '')
-                    if role in ('planista', 'admin'):
-                        current_app.logger.debug(f'[KOLEJKA] bypass for role={role} plan_id={id} produkt={produkt}')
+                    # Role is normalized here to avoid case/whitespace mismatches.
+                    if role_lc in ('planista', 'admin', 'zarzad'):
+                        current_app.logger.debug(f'[KOLEJKA] bypass for role={role_lc} plan_id={id} produkt={produkt}')
                     else:
                         try:
                             table_bufor = get_table_name('bufor', linia)
@@ -94,19 +93,34 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                                         f"SELECT produkt FROM {table_bufor} WHERE kolejka = %s AND status = 'aktywny' AND DATE(data_planu) = %s LIMIT 1",
                                         (global_min_queue, data_planu),
                                     )
-                                    earliest_produkt = cursor.fetchone()[0]
+                                    earliest_row = cursor.fetchone()
+                                    earliest_produkt = earliest_row[0] if earliest_row else '?'
 
-                                    flash(
-                                        f"❌ Kolejkowanie Workowanie: W buforze znajduje się produkt przewidziany wcześniej do startu: {earliest_produkt}. Zalecana kolejność FIFO.",
-                                        'error',
-                                    )
-                                    return redirect(bezpieczny_powrot())
+                                    # Bypass FIFO for selected roles
+                                    role_lc = str(session.get('rola') or '').strip().lower()
+                                    can_bypass = role_lc in ['admin', 'lider', 'planista', 'zarzad']
+
+                                    if not can_bypass:
+                                        flash(
+                                            f"❌ Kolejkowanie Workowanie: W buforze znajduje się produkt przewidziany wcześniej do startu: {earliest_produkt}. Zalecana kolejność FIFO.",
+                                            'error',
+                                        )
+                                        return redirect(bezpieczny_powrot())
                         except Exception as e:
                             current_app.logger.exception('[KOLEJKA] FIFO check failed: %s', e)
 
                 if status_obecny != 'w toku':
+                    # Capture machine counter for AGRO Workowanie
+                    start_counter = 0
+                    if sekcja == 'Workowanie' and linia == 'AGRO':
+                        try:
+                            start_counter = get_latest_data().get('counter', 0)
+                        except Exception:
+                            pass
+
+                    # Ensure only one active plan per section in this hall
                     cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
-                    cursor.execute(f"UPDATE {table_plan} SET status='w toku', real_start=NOW(), real_stop=NULL WHERE id=%s", (id,))
+                    cursor.execute(f"UPDATE {table_plan} SET status='w toku', real_start=NOW(), real_stop=NULL, start_machine_counter=%s WHERE id=%s", (start_counter, id))
                     current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
                     audit_log('Uruchomił zlecenie', f'ID={id}, produkt={produkt}, sekcja={sekcja}')
                     flash(f"✅ Uruchomiono: {produkt}", 'success')
@@ -209,6 +223,24 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 except Exception as _sync_err:
                     current_app.logger.warning('[SYNC] Błąd synchronizacji tonaz Workowania: %s', _sync_err)
 
+            if linia == 'AGRO' and sekcja == 'Workowanie':
+                from app.services.agro_warehouse_service import AgroWarehouseService
+                packaging_results = []
+                for key, value in request.form.items():
+                    if key.startswith('stan_po_'):
+                        parts = key.split('_')
+                        if len(parts) == 4:
+                            try:
+                                packaging_results.append({
+                                    'link_id': int(parts[3]),
+                                    'stan_po': float(value or 0)
+                                })
+                            except: pass
+                
+                if packaging_results:
+                    szt_na_palecie = int(request.form.get('szt_na_palecie', 40))
+                    AgroWarehouseService.finalize_packaging_usage(id, szt_na_palecie, packaging_results, session.get('login'))
+
             conn.commit()
             current_app.logger.info('Zakończono zlecenie ID=%s przez %s', id, session.get('login'))
             audit_log('Zakończył zlecenie', f'ID={id}, tonaz_rz={rzeczywista_waga} kg')
@@ -300,7 +332,12 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             except Exception:
                 pass
 
-        return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt, tonaz=tonaz_rzeczywisty)
+        linked_packaging = []
+        if linia == 'AGRO' and sekcja == 'Workowanie':
+            from app.services.agro_warehouse_service import AgroWarehouseService
+            linked_packaging = AgroWarehouseService.get_linked_packaging(id)
+
+        return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, produkt=produkt, tonaz=tonaz_rzeczywisty, linked_packaging=linked_packaging, linia=linia)
 
     @production_bp.route('/test-pobierz-raport', methods=['GET'])
     @login_required
@@ -359,7 +396,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
 
             current_app.logger.debug(f'[SZARZA_PAGE] Rendering form for plan_id={plan_id}, produkt={produkt}, typ={typ_produkcji}, linia={linia}, next_nr={next_nr}')
             return render_template(
-                'dodaj_palete_popup.html',
+                'warehouse/popups/add_pallet.html',
                 plan_id=plan_id,
                 sekcja='Zasyp',
                 produkt=produkt,

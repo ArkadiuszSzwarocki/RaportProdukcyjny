@@ -160,7 +160,10 @@
             if (planId) fetchUrl += '&plan_id=' + encodeURIComponent(planId);
             debugLog('[dosypki.fetch] Fetching from:', fetchUrl);
 
-            const res = await fetch(fetchUrl, { credentials: 'same-origin' });
+            const res = await fetch(fetchUrl, { 
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
             debugLog('[dosypki.fetch] Response status:', res.status);
             const data = await res.json().catch(() => ({}));
             debugLog('[dosypki.fetch] Response data:', data);

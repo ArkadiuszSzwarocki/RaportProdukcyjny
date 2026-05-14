@@ -1,269 +1,559 @@
-{% extends "layout.html" %}
+{% extends 'layout.html' %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
+
 <style>
-    .item-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; transition: all 0.2s; }
-    .item-row.accepted { background: #f0fdf4; border-color: #86efac; }
-    .item-row-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .item-info { display: flex; align-items: center; gap: 12px; flex: 1; }
-    .item-number { background: #eff6ff; color: #2563eb; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0; }
-    .item-name { font-weight: 700; color: #1e293b; font-size: 15px; }
-    .item-meta { font-size: 12px; color: #64748b; margin-top: 2px; }
-    .accept-panel { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .lok-input { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-weight: 600; width: 180px; }
-    .lok-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
-    .btn-przyjmij { background: #2563eb; color: #fff; border: none; padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s; }
-    .btn-przyjmij:hover { background: #1d4ed8; }
-    .btn-przyjmij:disabled { background: #94a3b8; cursor: not-allowed; }
-    .accepted-tag { display: flex; align-items: center; gap: 6px; background: #dcfce7; color: #15803d; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; }
-    .progress-bar-wrap { background: #e2e8f0; border-radius: 99px; height: 8px; margin-top: 6px; overflow: hidden; }
-    .progress-bar-fill { background: linear-gradient(90deg, #22c55e, #16a34a); height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+.waiting-screen {
+    max-width: 1480px;
+}
 
-    /* Predefined location chips */
-    .lok-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0 0; }
-    .lok-chip { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; color: #475569; }
-    .lok-chip:hover { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
+.waiting-hero {
+    border-radius: 18px;
+    border: 1px solid #dbe7ff;
+    background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 55%, #ffffff 100%);
+    padding: 18px;
+    margin-bottom: 18px;
+}
 
-    .delivery-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; margin-bottom: 24px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .delivery-card-header { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.waiting-hero-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.waiting-title {
+    margin: 0;
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.waiting-subtitle {
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 0.92rem;
+}
+
+.waiting-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: #e7f1ff;
+    color: #1e40af;
+    border: 1px solid #cfe0ff;
+    margin-top: 8px;
+}
+
+.waiting-hero-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.waiting-cta-btn {
+    min-width: 210px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 10px;
+    font-weight: 700;
+}
+
+.waiting-tabs {
+    display: inline-flex;
+    border: 1px solid #dce6f5;
+    background: #f8fbff;
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+    margin-bottom: 18px;
+}
+
+.waiting-tab {
+    border: none;
+    background: transparent;
+    padding: 9px 16px;
+    border-radius: 9px;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.waiting-tab.active {
+    background: #ffffff;
+    color: #1e40af;
+    box-shadow: 0 1px 2px rgba(2, 6, 23, 0.06);
+}
+
+.waiting-table-wrap {
+    border: 1px solid #dce5f4;
+    border-radius: 14px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.waiting-open-btn {
+    min-width: 180px;
+    justify-content: center;
+    border-radius: 10px;
+    font-weight: 800;
+}
+
+.mono-ref {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (max-width: 980px) {
+    .waiting-open-btn {
+        min-width: 140px;
+    }
+}
+
+@media (max-width: 760px) {
+    .waiting-cta-btn {
+        width: 100%;
+        min-width: 0;
+    }
+}
 </style>
 
-<div class="section-header" style="margin-bottom: 20px;">
-    <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100">
-        <div class="header-title-row d-flex align-center gap-10">
-            <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=linia) }}" class="btn-action" style="padding: 6px; background: transparent; border: none; color: #64748b;">
-                <span class="material-icons">arrow_back</span>
+<div class="logistyka-container p-20 waiting-screen">
+    <div class="waiting-hero">
+        <div class="waiting-hero-head">
+            <div>
+                <h1 class="waiting-title">
+                    <span class="material-icons" style="color:#2563eb;">pending_actions</span>
+                    Oczekujące na Przyjęcie
+                </h1>
+                <p class="waiting-subtitle">Towary gotowe do wprowadzenia na stan (Hala <strong>{{ linia }}</strong>).</p>
+                
+                <!-- Przełącznik Hal dla Skanera -->
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px;">
+                    <a href="?linia=PSD" class="hall-pill {% if linia == 'PSD' %}active{% endif %}">Hala PSD</a>
+                    <a href="?linia=AGRO" class="hall-pill {% if linia == 'AGRO' %}active{% endif %}">Hala AGRO</a>
+                    <span style="font-size: 10px; color: #94a3b8; margin-left: 10px; font-weight: 700;">
+                        FILTR: {{ linia }} | ZNALEZIONO: {{ dostawy.dostawy|length }}
+                    </span>
+                </div>
+
+                <style>
+                    .hall-pill {
+                        padding: 4px 15px;
+                        border-radius: 100px;
+                        background: #fff;
+                        border: 1px solid #dbe7ff;
+                        color: #64748b;
+                        font-size: 11px;
+                        font-weight: 800;
+                        text-decoration: none;
+                        transition: all 0.2s;
+                    }
+                    .hall-pill.active {
+                        background: #2563eb;
+                        color: #fff;
+                        border-color: #2563eb;
+                        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+                    }
+
+                    @media screen and (max-width: 900px) {
+                        .premium-table thead { display: none; }
+                        .premium-table, .premium-table tbody, .premium-table tr, .premium-table td {
+                            display: block;
+                            width: 100%;
+                        }
+                        .premium-table tr {
+                            margin-bottom: 20px;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 14px;
+                            background: #fff;
+                            padding: 15px;
+                            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+                        }
+                        .premium-table td {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            text-align: right !important;
+                            padding: 10px 0 !important;
+                            border-bottom: 1px solid #f1f5f9 !important;
+                            font-size: 14px !important;
+                        }
+                        .premium-table td:before {
+                            content: attr(data-label);
+                            float: left;
+                            font-weight: 800;
+                            color: #64748b;
+                            font-size: 11px;
+                            text-transform: uppercase;
+                        }
+                        .premium-table td:last-child {
+                            border-bottom: none !important;
+                            flex-direction: column;
+                            gap: 10px;
+                            align-items: stretch;
+                        }
+                        .waiting-open-btn {
+                            width: 100%;
+                            justify-content: center;
+                        }
+                    }
+                </style>
+            </div>
+        <div class="waiting-hero-actions">
+            <a id="continue_transfer_btn" href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='continue') }}" class="btn-premium-outline waiting-cta-btn" style="display: none;">
+                <span class="material-icons">history</span> Kontynuuj wpis
             </a>
-            <h2 class="header-title m-0 d-flex align-center gap-8">
-                <span class="material-icons" style="font-size: 26px; color: #f59e0b;">pending_actions</span>
-                <strong>Przyjmowanie Przesunięć</strong>
-            </h2>
+            <a href="{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='new') }}" class="btn-premium-outline waiting-cta-btn">
+                <span class="material-icons">swap_horiz</span> Nowe wydanie
+            </a>
+            <a href="{{ url_for('magazyn_dostawy.reception_view', linia=linia) }}" class="btn-premium waiting-cta-btn">
+                <span class="material-icons">add</span> Nowa dostawa
+            </a>
         </div>
-    </div>
-</div>
-
-{% if not dostawy %}
-<div style="text-align: center; padding: 60px; color: #94a3b8;">
-    <span class="material-icons" style="font-size: 56px; color: #cbd5e1; display: block; margin-bottom: 12px;">check_circle</span>
-    <h3 style="color: #475569; margin: 0;">Brak oczekujących przesunięć</h3>
-    <p style="margin: 6px 0 0 0; font-size: 14px;">Wszystkie przesunięcia zostały już przyjęte.</p>
-</div>
-{% else %}
-
-{% for d in dostawy %}
-{% set its = d.items_parsed or [] %}
-{% set accepted_count = its | selectattr('accepted', 'defined') | selectattr('accepted') | list | length %}
-{% set total_count = its | length %}
-
-<div class="delivery-card" id="delivery-{{ d.id }}">
-    <div class="delivery-card-header">
-        <div>
-            <div style="font-family: monospace; font-size: 13px; opacity: 0.8; margin-bottom: 4px;">{{ d.order_ref }}</div>
-            <div style="font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 10px;">
-                <span style="background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 6px;">{{ d.lokalizacja_z or '?' }}</span>
-                <span class="material-icons">arrow_forward</span>
-                <span style="background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 6px;">{{ d.lokalizacja_do or '?' }}</span>
-            </div>
-        </div>
-        <div style="text-align: right;">
-            <div style="font-size: 12px; opacity: 0.75;">Wysłał: <strong>{{ d.created_by }}</strong> · {{ d.created_at }}</div>
-            <div style="font-size: 22px; font-weight: 900; margin-top: 4px;">
-                <span id="cnt-{{ d.id }}">{{ accepted_count }}</span>/{{ total_count }}
-                <span style="font-size: 14px; font-weight: 600; opacity: 0.8;">przyjęto</span>
-            </div>
-            <div class="progress-bar-wrap" style="width: 160px; margin-left: auto; margin-top: 8px;">
-                <div class="progress-bar-fill" id="prog-{{ d.id }}" style="width: {{ (accepted_count / total_count * 100) | round }}%"></div>
-            </div>
         </div>
     </div>
 
-    <div style="padding: 16px 20px;">
-        {% for item in its %}
-        {% set idx = loop.index %}
-        <div class="item-row {% if item.accepted %}accepted{% endif %}" id="item-row-{{ d.id }}-{{ item.id }}">
-            <div class="item-row-header">
-                <div class="item-info">
-                    <div class="item-number">{{ idx }}</div>
-                    <div>
-                        <div class="item-name">{{ item.productName or 'Brak nazwy' }}</div>
-                        <div class="item-meta">
-                            {{ item.packageForm or '?' }} ·
-                            {% if item.packageForm == 'packaging' %}
-                                {{ item.unitsPerPallet or 0 }} szt.
-                            {% else %}
-                                {{ item.netWeight or 0 }} kg
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
+    <!-- TABS -->
+    <div class="waiting-tabs">
+        <button class="waiting-tab active" onclick="showTab('tab-dostawy', this)">
+            Dostawy ({{ dostawy.dostawy|length }})
+        </button>
+        <button class="waiting-tab" onclick="showTab('tab-wg', this)">
+            Z Produkcji ({{ dostawy.wg|length }})
+        </button>
+    </div>
 
-                {% if item.accepted %}
-                <div class="accepted-tag">
-                    <span class="material-icons" style="font-size: 16px;">check_circle</span>
-                    Przyjęto → <strong>{{ item.lokalizacja_przyjecia }}</strong>
-                    <span style="font-size: 11px; opacity: 0.75; margin-left: 4px;">{{ item.accepted_by }} · {{ item.accepted_at }}</span>
-                </div>
-                {% else %}
-                <div class="accept-panel" id="panel-{{ d.id }}-{{ item.id }}">
-                    <div style="flex:1; min-width: 240px; position: relative;">
-                        <!-- Input z listą podpowiedzi -->
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <div style="position: relative; flex: 1;">
-                                <input type="text" class="lok-input" id="lok-{{ d.id }}-{{ item.id }}"
-                                       list="all-locations" placeholder="Zeskanuj lub wpisz lokalizację..." 
-                                       style="width:100%;" autocomplete="off"
-                                       onkeyup="if(event.key === 'Enter') validateAndAccept('{{ d.id }}','{{ item.id }}')">
-                                <div id="status-icon-{{ d.id }}-{{ item.id }}" style="position: absolute; right: 10px; top: 10px; display: none;">
-                                    <span class="material-icons" style="font-size: 18px;"></span>
-                                </div>
+    <!-- TAB: DOSTAWY -->
+    <div id="tab-dostawy" class="tab-content">
+        {% if dostawy.dostawy %}
+        <div class="waiting-table-wrap">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">Lp.</th>
+                        <th>Typ</th>
+                        <th>Referencja</th>
+                        <th>Skąd</th>
+                        <th>Dokąd</th>
+                        <th>Ile palet</th>
+                        <th>Suma kg do przesunięcia</th>
+                        <th>Data</th>
+                        <th class="text-right">Akcja</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in dostawy.dostawy %}
+                    {% set ns = namespace(pending=0, kg=0.0) %}
+                    {% for item in d.items_parsed %}
+                        {% if not item.accepted and not item.rejected %}
+                            {% set ns.pending = ns.pending + 1 %}
+                            {% set ns.kg = ns.kg + ((item.netWeight or 0)|float) %}
+                        {% endif %}
+                    {% endfor %}
+                    <tr>
+                        <td data-label="Lp." style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
+                        <td data-label="Typ">
+                            <span class="premium-badge {% if d.lokalizacja_z %}badge-info{% else %}badge-warning{% endif %}">
+                                {{ 'PRZESUNIĘCIE' if d.lokalizacja_z else 'DOSTAWA' }}
+                            </span>
+                        </td>
+                        <td data-label="Referencja">
+                            <div class="font-bold">#{{ d.id[:8] }}</div>
+                            <div class="small text-muted mono-ref">{{ d.order_ref or 'Brak ref.' }}</div>
+                        </td>
+                        <td data-label="Skąd" class="font-bold">{{ d.lokalizacja_z or '-' }}</td>
+                        <td data-label="Dokąd" class="font-bold">{{ d.lokalizacja_do or '-' }}</td>
+                        <td data-label="Ile palet"><span class="premium-badge badge-info">{{ ns.pending }}</span></td>
+                        <td data-label="Suma kg" class="font-bold">{{ '%.2f'|format(ns.kg) }} kg</td>
+                        <td data-label="Data">{{ d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at and d.created_at.strftime else d.created_at }}</td>
+                        <td data-label="Akcja" class="text-right">
+                            <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+                                <button class="btn-premium-outline waiting-open-btn" onclick="cancelTransferOrder('{{ d.id }}', '{{ (d.order_ref or ('RUCH-' ~ d.id[:8]))|replace("'", "\\'") }}')">ANULUJ</button>
+                                <a href="{{ url_for('magazyn_dostawy.przyjecie_ruchu', dostawa_id=d.id, linia=linia) }}" class="btn-premium waiting-open-btn" style="text-decoration: none;">
+                                    OTWÓRZ FORMULARZ PRZYJĘCIA
+                                </a>
                             </div>
-                        </div>
-                        <div id="msg-{{ d.id }}-{{ item.id }}" style="font-size: 11px; margin-top: 4px; font-weight: 600; min-height: 16px;"></div>
-                    </div>
-                    <button type="button" class="btn-przyjmij" id="btn-{{ d.id }}-{{ item.id }}" onclick="validateAndAccept('{{ d.id }}','{{ item.id }}')">
-                        <span class="material-icons" style="font-size: 18px;">qr_code_scanner</span> Przyjmij
-                    </button>
-                </div>
-                {% endif %}
-            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-        {% endfor %}
+        {% else %}
+        <div class="premium-card p-40 text-center text-muted">Brak oczekujących dostaw.</div>
+        {% endif %}
+    </div>
+
+    <!-- TAB: WG -->
+    <div id="tab-wg" class="tab-content" style="display:none;">
+        {% if dostawy.wg %}
+        <div class="premium-card">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">Lp.</th>
+                        <th>Data</th>
+                        <th>Zlecenie</th>
+                        <th>Produkt</th>
+                        <th>Nr Palety</th>
+                        <th>Ilość</th>
+                        <th class="text-right">Akcja</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in dostawy.wg %}
+                    <tr>
+                        <td style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
+                        <td>{{ p.data_dodania.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td><span class="premium-badge badge-info">#{{ p.numer_zlecenia }}</span></td>
+                        <td class="font-bold">{{ p.nazwa_produktu }}</td>
+                        <td class="font-mono">{{ p.nr_palety }}</td>
+                        <td class="font-bold">{{ p.waga }} kg</td>
+                        <td class="text-right">
+                            <button class="btn-premium btn-xs" onclick="acceptWG({{ p.id }}, '{{ p.nr_palety }}')">PRZYJMIJ</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="premium-card p-40 text-center text-muted">Brak palet z produkcji.</div>
+        {% endif %}
     </div>
 </div>
-{% endfor %}
 
-
-<!-- Wspólna lista wszystkich lokalizacji dla podpowiedzi -->
-<datalist id="all-locations">
-    {% for grupa, loki in lok_grupy.items() %}
-    {% for l in loki %}
-    <option value="{{ l }}">
-    {% endfor %}
-    {% endfor %}
-</datalist>
-
-{% endif %}
+<!-- MODAL: PRZYJĘCIE WG -->
+<dialog id="modalWG" class="premium-card p-0" style="border:none; width: 400px; max-width: 95vw;">
+    <div class="bg-slate-50 p-20 border-b flex justify-between items-center">
+        <h4 class="m-0 font-bold text-slate-800">Przyjęcie Wyrobu Gotowego</h4>
+        <button class="text-slate-400 hover:text-slate-800" onclick="closeModal('modalWG')" style="background:none; border:none; font-size: 24px; cursor:pointer;">&times;</button>
+    </div>
+    <div class="p-30">
+        <div class="mb-25 bg-blue-50 p-15 rounded-xl border border-blue-100 text-center">
+            <div class="text-xxs font-bold text-blue-400 uppercase tracking-widest mb-5">Numer Palety</div>
+            <div class="text-2xl font-bold text-blue-700 font-mono" id="wgNrPalety">—</div>
+        </div>
+        <div class="mb-25">
+            <label class="form-label-premium">Docelowa Lokalizacja (Regał)</label>
+            <input type="text" id="wgLokalizacja" class="premium-input w-full" placeholder="np. R040101" style="text-transform:uppercase;" list="locationSuggestionsList" oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" autocomplete="off">
+            <p class="text-xxs text-slate-400 mt-8 italic">Podaj kod regału, na który odkładasz paletę.</p>
+        </div>
+        <input type="hidden" id="wgId">
+        
+        <div class="flex gap-10 mt-10">
+            <button class="btn-premium-outline flex-1 justify-center" onclick="closeModal('modalWG')">Anuluj</button>
+            <button class="btn-premium flex-1 justify-center" onclick="submitAcceptWG()">Potwierdź</button>
+        </div>
+    </div>
+</dialog>
 
 <script>
-const LINIA = '{{ linia }}';
+let locationSuggestTimer = null;
+let locationSuggestAbortController = null;
+let locationSuggestLastPrefix = '';
 
-function setLok(dostId, itemId, val) {
-    const inp = document.getElementById(`lok-${dostId}-${itemId}`);
-    if (inp) { 
-        inp.value = val; 
-        inp.focus(); 
-    }
+function normalizeLocationCode(value) {
+    return String(value || '').trim().toUpperCase();
 }
 
-async function validateAndAccept(dostId, itemId) {
-    const inp = document.getElementById(`lok-${dostId}-${itemId}`);
-    const msg = document.getElementById(`msg-${dostId}-${itemId}`);
-    const iconDiv = document.getElementById(`status-icon-${dostId}-${itemId}`);
-    const lok = inp ? inp.value.trim() : '';
-
-    if (!lok) { 
-        inp.focus(); 
-        inp.style.borderColor = '#ef4444';
-        return; 
+function ensureLocationSuggestionsList() {
+    let dataList = document.getElementById('locationSuggestionsList');
+    if (dataList) {
+        return dataList;
     }
 
-    // Blokada UI na czas sprawdzania
-    const btn = document.getElementById(`btn-${dostId}-${itemId}`);
-    const oldHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="material-icons" style="font-size:18px;">sync</span>';
-    
-    msg.innerText = 'Sprawdzanie lokalizacji...';
-    msg.style.color = '#64748b';
-    iconDiv.style.display = 'block';
-    iconDiv.querySelector('.material-icons').innerText = 'hourglass_top';
-    iconDiv.querySelector('.material-icons').style.color = '#94a3b8';
+    dataList = document.createElement('datalist');
+    dataList.id = 'locationSuggestionsList';
+    document.body.appendChild(dataList);
+    return dataList;
+}
 
-    try {
-        const checkRes = await fetch('/magazyn-dostawy/api/sprawdz-lokalizacje', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lokalizacja: lok, linia: LINIA })
-        });
-        const checkData = await checkRes.json();
+function renderLocationSuggestionOptions(suggestions) {
+    const dataList = ensureLocationSuggestionsList();
+    dataList.innerHTML = '';
 
-        if (checkData.occupied) {
-            msg.innerText = `BLOKADA: ${checkData.message}`;
-            msg.style.color = '#ef4444';
-            iconDiv.querySelector('.material-icons').innerText = 'block';
-            iconDiv.querySelector('.material-icons').style.color = '#ef4444';
-            inp.style.borderColor = '#ef4444';
-            
-            // Definitywna blokada - nie pozwalamy na confirm()
-            alert(`Lokalizacja ${lok} jest ZAJĘTA przez:\n${checkData.content}\n\nMusisz najpierw opróżnić to miejsce, aby przyjąć nową paletę.`);
-            
-            btn.disabled = false;
-            btn.innerHTML = oldHtml;
+    (suggestions || []).forEach(code => {
+        const normalized = normalizeLocationCode(code);
+        if (!normalized) {
             return;
-        } else {
-            msg.innerText = 'Lokalizacja wolna';
-            msg.style.color = '#15803d';
-            iconDiv.querySelector('.material-icons').innerText = 'check_circle';
-            iconDiv.querySelector('.material-icons').style.color = '#15803d';
-            inp.style.borderColor = '#15803d';
         }
-
-        // Jeśli wolna lub użytkownik potwierdził – przyjmujemy
-        await przyjmij(dostId, itemId, lok);
-        
-    } catch(e) {
-        msg.innerText = 'Błąd połączenia';
-        msg.style.color = '#ef4444';
-        btn.disabled = false;
-        btn.innerHTML = oldHtml;
-    }
+        const option = document.createElement('option');
+        option.value = normalized;
+        dataList.appendChild(option);
+    });
 }
 
-async function przyjmij(dostId, itemId, lok) {
+function queueLocationSuggestions(rawValue) {
+    const prefix = normalizeLocationCode(rawValue);
+    if (!prefix) {
+        locationSuggestLastPrefix = '';
+        renderLocationSuggestionOptions([]);
+        return;
+    }
+
+    if (prefix === locationSuggestLastPrefix) {
+        return;
+    }
+
+    if (locationSuggestTimer) {
+        clearTimeout(locationSuggestTimer);
+    }
+
+    locationSuggestTimer = setTimeout(() => {
+        fetchLocationSuggestions(prefix);
+    }, 120);
+}
+
+async function fetchLocationSuggestions(prefix) {
+    if (locationSuggestAbortController) {
+        locationSuggestAbortController.abort();
+    }
+
+    locationSuggestAbortController = new AbortController();
+    const query = new URLSearchParams({
+        linia: '{{ linia }}',
+        prefix: prefix,
+        only_free_for_racks: '1',
+        limit: '50',
+    });
+
     try {
-        const res = await fetch(`/magazyn-dostawy/api/przyjmij-pozycje/${dostId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify({ item_id: itemId, lokalizacja: lok })
+        const response = await fetch(`/magazyn-dostawy/api/sugerowane-lokalizacje?${query.toString()}`, {
+            signal: locationSuggestAbortController.signal,
         });
-        const d = await res.json();
 
-        if (d.success) {
-            const row = document.getElementById(`item-row-${dostId}-${itemId}`);
-            if (row) {
-                row.classList.add('accepted');
-                const panel = document.getElementById(`panel-${dostId}-${itemId}`);
-                if (panel) {
-                    panel.outerHTML = `<div class="accepted-tag">
-                        <span class="material-icons" style="font-size:16px;">check_circle</span>
-                        Przyjęto na regał → <strong>${lok}</strong>
-                    </div>`;
-                }
-            }
-
-            const cnt = document.getElementById(`cnt-${dostId}`);
-            const prog = document.getElementById(`prog-${dostId}`);
-            if (cnt) cnt.innerText = d.accepted_count;
-            if (prog) prog.style.width = Math.round(d.accepted_count / d.total * 100) + '%';
-
-            if (d.all_accepted) {
-                const card = document.getElementById(`delivery-${dostId}`);
-                if (card) {
-                    const banner = document.createElement('div');
-                    banner.style.cssText = 'background:#dcfce7;border-top:1px solid #86efac;padding:14px 20px;display:flex;align-items:center;gap:10px;font-weight:700;color:#15803d;font-size:14px;';
-                    banner.innerHTML = '<span class="material-icons">verified</span> Wszystkie palety przyjęte!';
-                    card.appendChild(banner);
-                }
-                setTimeout(() => location.reload(), 2000);
-            }
-        } else {
-            alert('Błąd: ' + d.error);
+        const data = await response.json();
+        if (!data || !data.success || !Array.isArray(data.suggestions)) {
+            return;
         }
-    } catch(e) {
-        alert('Błąd sieci');
+
+        locationSuggestLastPrefix = prefix;
+        renderLocationSuggestionOptions(data.suggestions);
+    } catch (error) {
+        if (error && error.name === 'AbortError') {
+            return;
+        }
+        console.warn('Location suggestions failed', error);
     }
 }
-</script>
 
+function handleLocationSuggestInput(inputElement) {
+    if (!inputElement) {
+        return;
+    }
+    inputElement.value = normalizeLocationCode(inputElement.value);
+    queueLocationSuggestions(inputElement.value);
+}
+
+function showTab(tabId, btn) {
+    // Hide all tab content
+    document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+    
+    // Deactivate all tab buttons
+    document.querySelectorAll('.waiting-tab').forEach(b => {
+        b.classList.remove('active');
+    });
+    
+    // Show selected tab and activate button
+    document.getElementById(tabId).style.display = 'block';
+    if (btn) {
+        btn.classList.add('active');
+    }
+}
+
+function acceptWG(id, nrPalety) {
+    document.getElementById('wgId').value = id;
+    document.getElementById('wgNrPalety').innerText = nrPalety;
+    const locInput = document.getElementById('wgLokalizacja');
+    if (locInput) {
+        locInput.value = '';
+    }
+    document.getElementById('modalWG').showModal();
+    if (locInput) {
+        locInput.focus();
+    }
+}
+
+function submitAcceptWG() {
+    const id = document.getElementById('wgId').value;
+    const lok = normalizeLocationCode(document.getElementById('wgLokalizacja').value);
+    if (!lok) return alert('Podaj lokalizację');
+
+    fetch('/magazyn-dostawy/api/przyjmij-wg', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: id, lokalizacja: lok, linia: '{{ linia }}' })
+    }).then(r => r.json()).then(res => {
+        if (res.success) {
+            location.reload();
+        } else {
+            alert(res.error || 'Błąd zapisu');
+        }
+    });
+}
+
+function closeModal(id) {
+    document.getElementById(id).close();
+}
+
+async function cancelTransferOrder(dostawaId, orderRef) {
+    const label = orderRef || dostawaId;
+    const ok = confirm(`Czy na pewno anulować całe zlecenie ${label}?`);
+    if (!ok) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/magazyn-dostawy/api/anuluj/${encodeURIComponent(dostawaId)}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        if (!data.success) {
+            alert(data.message || 'Nie udało się anulować zlecenia.');
+            return;
+        }
+        location.reload();
+    } catch (e) {
+        alert('Błąd połączenia z serwerem.');
+    }
+}
+
+function hasPendingTransferDraft() {
+    const draftKey = "magazyn_dostawy_draft_{{ linia }}_new";
+    try {
+        const raw = window.localStorage.getItem(draftKey);
+        if (!raw) {
+            return false;
+        }
+        const draft = JSON.parse(raw);
+        return !!(draft && Array.isArray(draft.items) && draft.items.length > 0);
+    } catch (error) {
+        return false;
+    }
+}
+
+const continueBtn = document.getElementById('continue_transfer_btn');
+if (continueBtn && hasPendingTransferDraft()) {
+    continueBtn.style.display = 'inline-flex';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    ensureLocationSuggestionsList();
+});
+</script>
 {% endblock %}

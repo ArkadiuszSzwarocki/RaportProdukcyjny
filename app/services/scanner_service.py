@@ -36,39 +36,69 @@ class ScannerService:
         try:
             cur = conn.cursor(dictionary=True)
 
-            # Przypadek 1: kod lokalizacji (zaczyna się od R)
-            if location_code.startswith('R'):
-                cur.execute(
-                    f"SELECT id, nazwa, stan_magazynowy, lokalizacja "
-                    f"FROM {table_surowce} WHERE UPPER(lokalizacja) = %s AND stan_magazynowy > 0",
-                    (location_code,)
-                )
-                row = cur.fetchone()
-                if row:
-                    return _normalize_pallet(row)
+            # 1. Spróbuj jako lokalizację (dowolną, nie tylko R...)
+            table_opakowania = get_table_name('magazyn_opakowania', linia)
+            
+            cur.execute(
+                f"SELECT id, nazwa, stan_magazynowy, lokalizacja "
+                f"FROM {table_surowce} WHERE UPPER(lokalizacja) = %s AND stan_magazynowy > 0",
+                (location_code,)
+            )
+            row = cur.fetchone()
+            if row:
+                return _normalize_pallet(row)
 
-            # Przypadek 2: ID numeryczne lub SUR-42
+            cur.execute(
+                f"SELECT id, nazwa, stan_magazynowy, lokalizacja "
+                f"FROM {table_opakowania} WHERE UPPER(lokalizacja) = %s AND stan_magazynowy > 0",
+                (location_code,)
+            )
+            row = cur.fetchone()
+            if row:
+                res = _normalize_pallet(row)
+                res['type'] = 'opakowanie'
+                return res
+
+            # 2. Przypadek 2: ID numeryczne lub SUR-42 / OPK-42
             numeric_id = None
+            forced_type = None
+
             if location_code.startswith('SUR-'):
                 try:
                     numeric_id = int(location_code[4:])
-                except ValueError:
-                    pass
+                    forced_type = 'surowiec'
+                except ValueError: pass
+            elif location_code.startswith('OPK-'):
+                try:
+                    numeric_id = int(location_code[4:])
+                    forced_type = 'opakowanie'
+                except ValueError: pass
             else:
                 try:
                     numeric_id = int(location_code)
-                except ValueError:
-                    pass
+                except ValueError: pass
 
             if numeric_id is not None:
-                cur.execute(
-                    f"SELECT id, nazwa, stan_magazynowy, lokalizacja "
-                    f"FROM {table_surowce} WHERE id = %s AND stan_magazynowy > 0",
-                    (numeric_id,)
-                )
-                row = cur.fetchone()
-                if row:
-                    return _normalize_pallet(row)
+                if forced_type != 'opakowanie':
+                    cur.execute(
+                        f"SELECT id, nazwa, stan_magazynowy, lokalizacja "
+                        f"FROM {table_surowce} WHERE id = %s AND stan_magazynowy > 0",
+                        (numeric_id,)
+                    )
+                    row = cur.fetchone()
+                    if row: return _normalize_pallet(row)
+                
+                if forced_type != 'surowiec':
+                    cur.execute(
+                        f"SELECT id, nazwa, stan_magazynowy, lokalizacja "
+                        f"FROM {table_opakowania} WHERE id = %s AND stan_magazynowy > 0",
+                        (numeric_id,)
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        res = _normalize_pallet(row)
+                        res['type'] = 'opakowanie'
+                        return res
 
             return None
         finally:
@@ -101,12 +131,15 @@ class ScannerService:
         try:
             cur = conn.cursor(dictionary=True)
             cur.execute(
-                f"SELECT id, nazwa, stan_magazynowy, lokalizacja FROM {table_surowce} WHERE id = %s",
+                f"SELECT id, nazwa, stan_magazynowy, lokalizacja, is_blocked FROM {table_surowce} WHERE id = %s",
                 (surowiec_id,)
             )
             pallet = cur.fetchone()
             if not pallet:
                 return False, f"Paleta #{surowiec_id} nie istnieje"
+
+            if pallet.get('is_blocked'):
+                return False, f"BŁĄD: Paleta #{surowiec_id} jest ZABLOKOWANA i nie może zostać wydana na produkcję!"
 
             stan = float(pallet['stan_magazynowy'] or 0)
             if ilosc > stan:
@@ -183,12 +216,15 @@ class ScannerService:
         try:
             cur = conn.cursor(dictionary=True)
             cur.execute(
-                f"SELECT id, nazwa, stan_magazynowy, lokalizacja FROM {table_surowce} WHERE id = %s",
+                f"SELECT id, nazwa, stan_magazynowy, lokalizacja, is_blocked FROM {table_surowce} WHERE id = %s",
                 (surowiec_id,)
             )
             source = cur.fetchone()
             if not source:
                 return False, f"Paleta #{surowiec_id} nie istnieje", []
+
+            if source.get('is_blocked'):
+                return False, f"BŁĄD: Paleta #{surowiec_id} jest ZABLOKOWANA i nie może zostać podzielona!", []
 
             stan = float(source['stan_magazynowy'] or 0)
             if total_split > stan + 0.001:

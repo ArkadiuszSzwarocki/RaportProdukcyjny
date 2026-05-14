@@ -239,3 +239,75 @@
         display: block;
     }
 }
+
+/* AGRO Focus Mode Layout */
+.cards.agro-focus-mode {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 20px;
+}
+.cards.agro-focus-mode .card {
+    flex: 1 1 350px;
+    max-width: 600px;
+}
+.cards.agro-focus-mode .active-order-szarze-wrap {
+    flex: 1 1 300px;
+    max-width: 500px;
+}
+
+/* AGRO Focus Mode Layout - 3 Columns on wide screens */
+@media (min-width: 1400px) {
+    .cards.agro-focus-mode {
+        display: grid !important;
+        grid-template-columns: minmax(350px, 1.2fr) minmax(300px, 1fr) minmax(280px, 0.8fr);
+        gap: 20px;
+        align-items: start;
+    }
+    .cards.agro-focus-mode .card,
+    .cards.agro-focus-mode .active-order-szarze-wrap,
+    .cards.agro-focus-mode .machine-stats-panel-wrap {
+        max-width: none !important;
+        width: 100%;
+        margin: 0;
+    }
+}
+
+/* Machine Stats */
+.agro-machine-stats-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.machine-stat-speed {
+    background: #eefdf3 !important;
+    border-color: #b7ebc6 !important;
+    color: #1e7e34 !important;
+}
+
+.machine-stat-status {
+    background: #f8f9fa !important;
+    border-color: #dfe7ef !important;
+    color: #495057 !important;
+}
+
+.status-dot {
+    transition: background-color 0.3s ease;
+}
+.machine-status-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
+.status-connecting { background: #3b82f6; color: white; }
+.status-connected { background: #10b981; color: white; }
+.status-running { background: #16a34a; color: white; }
+.status-idle { background: #f59e0b; color: white; }
+.status-error { background: #ef4444; color: white; }
+.machine-bpm-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 800; background: #16a34a; color: white; }
+
+.machine-counter-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 700; background: #334155; color: white; border: 1px solid #475569; }
+
+/* Pulse animation for wrapped status */
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}

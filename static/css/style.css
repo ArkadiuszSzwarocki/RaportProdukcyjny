@@ -73,6 +73,17 @@
     --transition-slow: 0.28s cubic-bezier(.2, .8, .2, 1);
 }
 
+/* Hide scrollbar visual but keep functionality */
+::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+}
+
+* {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+}
+
 /* 
  * Z-INDEX HIERARCHY
  * ─────────────────
@@ -3214,7 +3225,7 @@ button[type="submit"]:hover {
 /* Responsywnośc dla 480px (mały mobile) */
 @media (max-width: 480px) {
     .section-header {
-        display: fleem;
+        display: flex;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
@@ -3315,40 +3326,6 @@ button[type="submit"]:hover {
     .inline-form .btn-icon {
         min-width: 44px;
         min-height: 44px;
-
-        padding: 8epszy layout */ .product-line {
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .prod-name {
-            font-size: 0.95em;
-        }
-
-        .prod-weight {
-            font-size: 0.95em;
-        }
-
-        .product-status-line {
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-top: 6px;
-        }
-
-        .status-badge {
-            padding: 6px 10px;
-            font-size: 0.8em;
-        }
-
-        /* Działania */
-        .actions-wrapper {
-            gap: 6px;
-            display: flex;
-            flex-wrap: wrap;
-        }
-
-        .btn-action {
-            min-height: 36px;
         }
     }
 
@@ -5703,3 +5680,268 @@ body.theme-agro .sidebar .nav-item.active {
     color: #003300 !important;
     font-weight: bold;
 }
+
+/* 🦓 ZEBRA MC330x DENSITY OVERRIDES */
+@media (max-width: 900px) {
+    /* Hide industrial scrollbars */
+    *::-webkit-scrollbar { display: none !important; }
+    * { -ms-overflow-style: none !important; scrollbar-width: none !important; }
+
+    .d-mobile-none { display: none !important; }
+
+    .top-bar {
+        left: 0 !important;
+        height: 38px !important; 
+        padding: 0 6px !important;
+    }
+    .main-content {
+        margin-left: 0 !important;
+        padding: 4px !important; 
+        margin-top: 38px !important;
+    }
+    .container {
+        padding: 4px !important;
+    }
+    .btn-action, .form-control, .modern-table td, .modern-table th {
+        padding: 4px 6px !important;
+        font-size: 0.82rem !important;
+    }
+    
+    /* Force action buttons to stack if they don't fit */
+    .planista-viewport .planista-main-table td:last-child .d-flex,
+    .modern-table td:last-child .d-flex {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 4px !important;
+    }
+    
+    .planista-viewport .planista-main-table .btn-icon,
+    .modern-table .btn-icon {
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+        padding: 0 !important;
+        font-size: 1.1em !important;
+    }
+
+    /* Table to Card transformations for Zebra */
+    .modern-table:not(.no-mobile-cards) {
+        display: block !important;
+    }
+    .modern-table:not(.no-mobile-cards) thead {
+        display: none !important;
+    }
+    .modern-table:not(.no-mobile-cards) tbody, 
+    .modern-table:not(.no-mobile-cards) tr, 
+    .modern-table:not(.no-mobile-cards) td {
+        display: block !important;
+        width: 100% !important;
+    }
+    .modern-table:not(.no-mobile-cards) tr {
+        margin-bottom: 8px !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: 8px !important;
+        background: #fff !important;
+        padding: 4px !important;
+    }
+    .modern-table:not(.no-mobile-cards) td {
+        text-align: left !important;
+        padding: 8px 10px !important;
+        position: relative !important;
+        border: none !important;
+        display: flex !important;
+        flex-direction: column !important; /* Stack Label and Value vertically */
+        align-items: flex-start !important;
+        border-bottom: 1px dashed #eee !important;
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
+        min-height: 50px !important;
+    }
+    .modern-table:not(.no-mobile-cards) td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        color: #64748b;
+        font-size: 10px;
+        text-transform: uppercase;
+        margin-bottom: 4px; /* Space between label and value */
+        display: block !important;
+        width: 100% !important;
+    }
+    .modern-table:not(.no-mobile-cards) td > * {
+        max-width: 100% !important;
+        text-align: left !important;
+        width: 100% !important;
+        display: block !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        color: #1e293b !important;
+    }
+    
+    /* Specific overrides for Planner actions in card mode */
+    .planista-viewport .planista-main-table td:last-child {
+        justify-content: center !important;
+        padding: 8px 2px !important;
+        border-bottom: 0 !important;
+    }
+    .planista-viewport .planista-main-table td:last-child::before {
+        display: none !important;
+    }
+
+    /* Force stacking for specific dashboard containers only */
+    .dashboard-top-row, .header-stats, .header-btns-row, .dosypka-actions, .btn-group-mobile, .header-actions-row {
+        flex-direction: column !important;
+        display: flex !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    
+    /* Grid row stacking removed from here - moved to Zebra block for higher priority */
+
+    .btn-action, .btn-primary, .btn-success, .btn-danger, .btn-cancel, .btn-blue, .btn-outline {
+        width: 100% !important;
+        margin: 0 !important;
+        display: flex !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+        padding: 10px !important;
+        min-height: 44px !important; /* Larger touch targets */
+    }
+
+    /* Fix for the truncated data values in card view - Ensuring consistent left alignment */
+    .modern-table:not(.no-mobile-cards) td > * {
+        max-width: 100% !important;
+        text-align: left !important;
+        word-break: break-word !important;
+        width: 100% !important;
+    }
+
+    /* Dashboard Stats - make them larger and stack them */
+    .header-stats {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+        width: 100% !important;
+    }
+    .stat-inline {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        flex: 1 1 auto !important;
+        padding: 12px !important;
+        font-size: 16px !important;
+    }
+
+    /* Capacity Bar text optimization */
+    .capacity-bar .d-flex.justify-between {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 4px !important;
+    }
+    .capacity-bar strong {
+        font-size: 16px !important;
+}
+
+/* ============================================================
+   ZEBRA MC330x / MOBILE OPTIMIZATIONS (Aggressive Overrides)
+   ============================================================ */
+@media screen and (max-width: 900px) {
+    /* Hard-reset top bar for maximum space */
+    .top-bar {
+        height: 44px !important;
+        padding: 0 4px !important;
+        left: 0 !important;
+    }
+    .main-content { margin-top: 44px !important; padding: 4px !important; }
+    
+    /* Hide non-essential text to prevent header overflow */
+    .user-role-label, .mobile-logout-label, .switcher-label, .user-role-name { 
+        display: none !important; 
+    }
+    .top-user-meta { gap: 4px !important; margin-left: auto !important; }
+    
+    /* FORCE Table-to-Card transformation with maximum specificity */
+    table.modern-table:not(.no-mobile-cards),
+    table.modern-table:not(.no-mobile-cards) thead,
+    table.modern-table:not(.no-mobile-cards) tbody,
+    table.modern-table:not(.no-mobile-cards) tr,
+    table.modern-table:not(.no-mobile-cards) td {
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    
+    table.modern-table:not(.no-mobile-cards) thead {
+        display: none !important;
+    }
+    
+    table.modern-table:not(.no-mobile-cards) tr {
+        margin-bottom: 12px !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 12px !important;
+        padding: 8px !important;
+        background: #fff !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+    }
+    
+    table.modern-table:not(.no-mobile-cards) td {
+        text-align: left !important;
+        padding: 8px 10px !important;
+        border: none !important;
+        border-bottom: 1px dashed #f1f5f9 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        min-height: 48px !important;
+    }
+    
+    table.modern-table:not(.no-mobile-cards) td:last-child {
+        border-bottom: none !important;
+    }
+    
+    /* Labels as headers above values */
+    table.modern-table:not(.no-mobile-cards) td::before {
+        content: attr(data-label) !important;
+        display: block !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+        color: #94a3b8 !important;
+        text-transform: uppercase !important;
+        margin-bottom: 4px !important;
+        letter-spacing: 0.5px !important;
+    }
+    
+    /* Value styling */
+    table.modern-table:not(.no-mobile-cards) td > * {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        color: #1e293b !important;
+        word-break: break-word !important;
+        text-align: left !important;
+        width: 100% !important;
+    }
+
+    /* Force Vertical Stacking for All Dashboard Elements */
+    .dashboard-top-row, .header-stats, .header-actions-row, .grid-row, .btn-group-mobile {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        width: 100% !important;
+    }
+
+    /* Buttons - Full Width & Accessible */
+    .btn-action, .btn-primary, .btn-blue, .btn-success {
+        width: 100% !important;
+        min-height: 46px !important;
+        justify-content: center !important;
+        padding: 12px !important;
+        font-weight: 700 !important;
+    }
+
+    /* Form Grids - Force Stack */
+    .grid-row.two-col, .grid-row.three-col {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+    }
+}
+

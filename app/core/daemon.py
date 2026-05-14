@@ -4,6 +4,7 @@ import os
 import time
 import threading
 from flask import current_app
+from app.services.mqtt_service import start_mqtt_bridge
 
 # Global set to track reminded palety to avoid duplicate log entries
 _reminded_palety = set()
@@ -51,13 +52,14 @@ def _safe_log_exception(msg, *args, **kwargs):
             pass
 
 
-def _cleanup_old_reports(folder='raporty', max_age_hours=24, interval_seconds=3600):
-    """Background thread: removes files in `folder` older than `max_age_hours` every `interval_seconds`.
+def _cleanup_old_files(folder, max_age_hours=24, interval_seconds=3600, pattern="*"):
+    """Background thread: removes files in `folder` matching `pattern` older than `max_age_hours`.
     
     Args:
         folder: Directory to clean up
         max_age_hours: Maximum age in hours before removal
         interval_seconds: How often to run cleanup check
+        pattern: Optional pattern to filter files (not used for now, cleans all files in folder)
     """
     try:
         while True:
@@ -65,6 +67,7 @@ def _cleanup_old_reports(folder='raporty', max_age_hours=24, interval_seconds=36
                 if os.path.exists(folder):
                     now = time.time()
                     max_age = max_age_hours * 3600
+                    count = 0
                     for name in os.listdir(folder):
                         path = os.path.join(folder, name)
                         try:
@@ -73,16 +76,18 @@ def _cleanup_old_reports(folder='raporty', max_age_hours=24, interval_seconds=36
                                 if now - mtime > max_age:
                                     try:
                                         os.remove(path)
-                                        _safe_log_info('Removed old report file: %s', path)
+                                        count += 1
                                     except Exception:
                                         _safe_log_exception('Failed to remove file: %s', path)
                         except Exception:
                             _safe_log_exception('Error checking file: %s', path)
+                    if count > 0:
+                        _safe_log_info('Cleanup [%s]: Removed %d old files (older than %dh)', folder, count, max_age_hours)
             except Exception:
-                _safe_log_exception('Error in cleanup loop')
+                _safe_log_exception('Error in cleanup loop for %s', folder)
             time.sleep(interval_seconds)
     except Exception:
-        current_app.logger.exception('Cleanup thread terminating unexpectedly')
+        _safe_log_exception('Cleanup thread for %s terminating unexpectedly', folder)
 
 
 def _midnight_order_closer(interval_seconds=60):
@@ -112,7 +117,7 @@ def _midnight_order_closer(interval_seconds=60):
                         UPDATE {table} 
                         SET status = 'zakonczone', 
                             real_stop = CONCAT(data_planu, ' 15:00:00')
-                        WHERE status NOT IN ('zakonczone', 'anulowane')
+                        WHERE status = 'w toku'
                           AND data_planu < %s
                     """, (now.date(),))
                     
@@ -206,18 +211,33 @@ def start_daemon_threads(app, cleanup_enabled=False):
     except Exception:
         palety_logger = None
     
-    # Start cleanup thread (optional)
+    # Start cleanup threads
     if cleanup_enabled:
         try:
-            cleanup_thread = threading.Thread(
-                target=_cleanup_old_reports,
+            # 1. Clean old reports
+            reports_thread = threading.Thread(
+                target=_cleanup_old_files,
                 kwargs={'folder': 'raporty', 'max_age_hours': 24, 'interval_seconds': 3600},
                 daemon=True
             )
-            cleanup_thread.start()
-            _safe_log_info('Started cleanup daemon thread')
+            reports_thread.start()
+            
+            # 2. Clean old sounds (TTS)
+            # Find static sounds folder
+            static_sounds = os.path.join(app.root_path, 'static', 'sounds')
+            if not os.path.exists(static_sounds):
+                static_sounds = os.path.join(os.path.dirname(app.root_path), 'static', 'sounds')
+                
+            sounds_thread = threading.Thread(
+                target=_cleanup_old_files,
+                kwargs={'folder': static_sounds, 'max_age_hours': 24, 'interval_seconds': 3600},
+                daemon=True
+            )
+            sounds_thread.start()
+            
+            _safe_log_info('Started cleanup daemon threads (reports & sounds)')
         except Exception:
-            _safe_log_exception('Failed to start cleanup thread')
+            _safe_log_exception('Failed to start cleanup threads')
     
     # Start palety monitor thread
     try:
@@ -243,8 +263,54 @@ def start_daemon_threads(app, cleanup_enabled=False):
     except Exception:
         _safe_log_exception('Failed to start midnight closer thread')
 
-    # Bufor jest odświeżany zdarzeniowo (start Zasypu), nie periodicznie.
-    # Periodyczny wątek wyłączony celowo — unikamy błędnych wpięć do kolejki
-    # zanim zlecenie faktycznie pojawi się na zasypie.
+    # Start MQTT Cloud Bridge (Server-side proxy)
+    try:
+        start_mqtt_bridge()
+    except Exception:
+        _safe_log_exception('Failed to start MQTT bridge')
+
+    # Start AGRO Pallet Auto-Register thread
+    try:
+        from app.services.mqtt_service import get_latest_data
+        from app.services.agro_warehouse_service import AgroWarehouseService
+        
+        def _agro_pallet_auto_register_loop():
+            _safe_log_info('AGRO Pallet Auto-Register thread started')
+            time.sleep(15) # Safety delay to let app initialize
+            last_wrapped_state = False
+            
+            while True:
+                try:
+                    data = get_latest_data()
+                    current_wrapped = data.get('is_wrapped', False)
+                    
+                    # Detection of rising edge (False -> True)
+                    if current_wrapped and not last_wrapped_state:
+                        _safe_log_info('Detected rising edge on is_wrapped bit! Triggering auto-pallet registration.')
+                        
+                        # Find active Workowanie plan for AGRO
+                        active_plan = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO')
+                        if active_plan:
+                            plan_id = active_plan['id']
+                            success = AgroWarehouseService.auto_register_pallet(plan_id, linia='AGRO')
+                            if success:
+                                _safe_log_info('Successfully auto-registered pallet for plan ID=%s', plan_id)
+                            else:
+                                _safe_log_warning('Failed to auto-register pallet for plan ID=%s', plan_id)
+                        else:
+                            _safe_log_warning('No active AGRO Workowanie plan found for auto-pallet registration.')
+                    
+                    last_wrapped_state = current_wrapped
+                except Exception:
+                    _safe_log_exception('Error in AGRO pallet auto-register loop')
+                
+                time.sleep(1) # Check every second
+                
+        auto_reg_thread = threading.Thread(target=_agro_pallet_auto_register_loop, daemon=True)
+        auto_reg_thread.start()
+        _safe_log_info('Started AGRO pallet auto-register daemon thread')
+    except Exception:
+        _safe_log_exception('Failed to start AGRO pallet auto-register thread')
+
     _safe_log_info('Periodic refresh_bufor_queue thread disabled (event-driven mode)')
 

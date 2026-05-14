@@ -8,7 +8,7 @@ from app.decorators import roles_required
 
 def register_planning_quality_routes(planning_bp, *, return_url_builder):
     @planning_bp.route('/jakosc/dodaj_do_planow/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def jakosc_dodaj_do_planow(id):
         """Create a scheduled production order based on a quality order."""
         linia = request.args.get('linia') or request.form.get('linia') or 'PSD'
@@ -50,7 +50,7 @@ def register_planning_quality_routes(planning_bp, *, return_url_builder):
         return redirect(return_url_builder())
 
     @planning_bp.route('/reorder_plans_bulk', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
     def reorder_plans_bulk():
         """Reorder plans via drag-and-drop."""
         try:

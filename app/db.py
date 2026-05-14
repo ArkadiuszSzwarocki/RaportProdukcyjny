@@ -1,19 +1,93 @@
+"""
+Wersja: 1.1.0
+Opis: Połączenie z bazą danych i funkcje pomocnicze. Obsługuje MySQL, nazewnictwo tabel i współdzielenie kursora.
+"""
 import mysql.connector
 from app.config import DB_CONFIG, BUFOR_LOOKBACK_DAYS, BUFOR_LOOKAHEAD_DAYS
 import os
 from werkzeug.security import generate_password_hash
 import time
+import threading
 from datetime import date, timedelta
 import uuid
 
 from app.db_tables import resolve_table_name
+
+_DB_CONFIG_LOCK = threading.Lock()
+_RUNTIME_SWITCHABLE_DATABASES = ('biblioteka', 'biblioteka_testowa')
+
+
+def get_runtime_switchable_databases():
+    """Return list of database names allowed for runtime switching."""
+    return list(_RUNTIME_SWITCHABLE_DATABASES)
+
+
+_DB_PERSISTENCE_FILE = os.path.join(os.getcwd(), 'active_db.txt')
+
+def _persist_database_name(name):
+    try:
+        with open(_DB_PERSISTENCE_FILE, 'w', encoding='utf-8') as f:
+            f.write(name)
+    except Exception:
+        pass
+
+def _load_persisted_database_name():
+    if os.path.exists(_DB_PERSISTENCE_FILE):
+        try:
+            with open(_DB_PERSISTENCE_FILE, 'r', encoding='utf-8') as f:
+                name = f.read().strip()
+                if name in _RUNTIME_SWITCHABLE_DATABASES:
+                    return name
+        except Exception:
+            pass
+    return None
+
+# Load persisted DB on module import
+_persisted_db = _load_persisted_database_name()
+if _persisted_db:
+    with _DB_CONFIG_LOCK:
+        DB_CONFIG['database'] = _persisted_db
+
+def get_active_database_name():
+    """Return currently active database name from runtime config."""
+    with _DB_CONFIG_LOCK:
+        return str(DB_CONFIG.get('database') or '')
+
+def set_active_database_name(database_name, verify_connection=True):
+    """Switch active database used by get_db_connection.
+    
+    Raises:
+        ValueError: when database is not allowed or empty.
+        mysql.connector.Error: when test connection fails.
+    """
+    target_name = str(database_name or '').strip()
+    if not target_name:
+        raise ValueError('Nie podano nazwy bazy danych.')
+    if target_name not in _RUNTIME_SWITCHABLE_DATABASES:
+        raise ValueError(f'Baza {target_name} nie jest dozwolona do przełączania.')
+
+    # Validate connectivity before mutating global runtime config.
+    if verify_connection:
+        with _DB_CONFIG_LOCK:
+            test_config = dict(DB_CONFIG)
+        test_config['database'] = target_name
+        probe = mysql.connector.connect(**test_config, buffered=True)
+        probe.close()
+
+    with _DB_CONFIG_LOCK:
+        DB_CONFIG['database'] = target_name
+    
+    _persist_database_name(target_name)
+    return target_name
 
 def get_db_connection(retries=3):
     """Get database connection with retry logic"""
     last_error = None
     for attempt in range(retries):
         try:
-            return mysql.connector.connect(**DB_CONFIG, buffered=True)
+            with _DB_CONFIG_LOCK:
+                conn_config = dict(DB_CONFIG)
+            return mysql.connector.connect(**conn_config, buffered=True)
         except mysql.connector.Error as e:
             last_error = e
             if attempt < retries - 1:
@@ -43,6 +117,35 @@ def _create_tables(cursor):
     
     cursor.execute("CREATE TABLE IF NOT EXISTS pracownicy (id INT AUTO_INCREMENT PRIMARY KEY, imie_nazwisko VARCHAR(100))")
     
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS zgloszenia_bledow (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_login VARCHAR(100),
+            page_url VARCHAR(255),
+            opis TEXT,
+            status VARCHAR(20) DEFAULT 'nowe',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Tabela dla blokad stanowisk produkcyjnych AGRO
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agro_stanowiska (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(100) UNIQUE NOT NULL,
+            typ VARCHAR(50),
+            is_locked BOOLEAN DEFAULT 0,
+            current_pallet_id INT NULL,
+            current_plan_id INT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Inicjalizacja stacji jeśli puste
+    cursor.execute("SELECT COUNT(*) FROM agro_stanowiska")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO agro_stanowiska (nazwa, typ) VALUES ('Parcianka (Big-Bag)', 'bigbag'), ('Zasyp Manualny', 'zasyp')")
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS plan_produkcji (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -103,6 +206,7 @@ def _create_tables(cursor):
             nazwa_zlecenia VARCHAR(255) DEFAULT '',
             wyjasnienie_rozbieznosci TEXT,
             uszkodzone_worki INT DEFAULT 0,
+            start_machine_counter INT DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -177,6 +281,22 @@ def _create_tables(cursor):
     
     cursor.execute("CREATE TABLE IF NOT EXISTS dziennik_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), problem TEXT, czas_start DATETIME, czas_stop DATETIME, status VARCHAR(30) DEFAULT 'zgłoszone', kategoria VARCHAR(50), pracownik_id INT)")
 
+    # Tabela historii ruchów palet (traceability)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS palety_historia (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            paleta_id INT NULL,
+            linia VARCHAR(20) NOT NULL,
+            typ_palety VARCHAR(50) DEFAULT 'wyrob_gotowy',
+            akcja VARCHAR(50) NOT NULL,
+            lokalizacja_zrodlowa VARCHAR(100) NULL,
+            lokalizacja_docelowa VARCHAR(100) NULL,
+            komentarz TEXT NULL,
+            user_login VARCHAR(100) NULL,
+            data_ruchu DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS magazyn_surowce (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -190,19 +310,6 @@ def _create_tables(cursor):
         )
     """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS magazyn_agro_surowce (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            nazwa VARCHAR(255) NOT NULL,
-            stan_magazynowy FLOAT DEFAULT 0,
-            lokalizacja VARCHAR(64) DEFAULT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_magazyn_agro_surowce_nazwa (nazwa(250)),
-            INDEX idx_magazyn_agro_surowce_lokal (lokalizacja)
-        )
-    """)
-
     cursor.execute("CREATE TABLE IF NOT EXISTS magazyn_opakowania ("
                    "id INT AUTO_INCREMENT PRIMARY KEY,"
                    "nazwa VARCHAR(255) NOT NULL,"
@@ -213,17 +320,8 @@ def _create_tables(cursor):
                    "INDEX idx_magazyn_opakowania_nazwa (nazwa(250)),"
                    "INDEX idx_magazyn_opakowania_lokal (lokalizacja)"
                    ")")
-    # Also create AGRO-specific table name to match get_table_name mapping
-    cursor.execute("CREATE TABLE IF NOT EXISTS magazyn_agro_opakowania ("
-                   "id INT AUTO_INCREMENT PRIMARY KEY,"
-                   "nazwa VARCHAR(255) NOT NULL,"
-                   "stan_magazynowy FLOAT DEFAULT 0,"
-                   "lokalizacja VARCHAR(64) DEFAULT NULL,"
-                   "created_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
-                   "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
-                   "INDEX idx_magazyn_agro_opakowania_nazwa (nazwa(250)),"
-                   "INDEX idx_magazyn_agro_opakowania_lokal (lokalizacja)"
-                   ")")
+
+    # magazyn_agro_surowce and magazyn_agro_opakowania are now unified into the primary tables
     cursor.execute("CREATE TABLE IF NOT EXISTS obsada_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), pracownik_id INT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
     cursor.execute("CREATE TABLE IF NOT EXISTS obsada_liderzy (data_wpisu DATE PRIMARY KEY, lider_psd_id INT NULL, lider_agro_id INT NULL, FOREIGN KEY (lider_psd_id) REFERENCES pracownicy(id) ON DELETE SET NULL, FOREIGN KEY (lider_agro_id) REFERENCES pracownicy(id) ON DELETE SET NULL)")
     cursor.execute("CREATE TABLE IF NOT EXISTS obecnosc (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, pracownik_id INT, typ VARCHAR(50), ilosc_godzin FLOAT DEFAULT 0, komentarz TEXT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
@@ -461,6 +559,30 @@ def _create_tables(cursor):
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agro_workowanie_rozliczenie (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            plan_id INT NOT NULL,
+            data_planu DATE NOT NULL,
+            produkt VARCHAR(100) NOT NULL,
+            opakowanie_id INT NULL,
+            opakowanie_nazwa VARCHAR(255) NOT NULL,
+            stan_przed FLOAT DEFAULT 0,
+            wyprodukowano_szt INT DEFAULT 0,
+            szt_na_palecie INT DEFAULT 0,
+            kg_na_worek FLOAT DEFAULT 20,
+            palety_kg_wykonane FLOAT DEFAULT 0,
+            zuzyte_worki FLOAT DEFAULT 0,
+            stan_po FLOAT DEFAULT 0,
+            autor_login VARCHAR(100) NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_agro_work_rozl_data (data_planu),
+            INDEX idx_agro_work_rozl_plan (plan_id),
+            FOREIGN KEY (plan_id) REFERENCES plan_produkcji_agro(id) ON DELETE CASCADE,
+            FOREIGN KEY (opakowanie_id) REFERENCES magazyn_opakowania(id) ON DELETE SET NULL
+        )
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS zgloszenia_bledow (
             id BIGINT PRIMARY KEY,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -624,10 +746,16 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji_agro", "typ_zlecenia", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'typ_zlecenia' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "nr_receptury", "VARCHAR(64) DEFAULT ''", "Dodawanie kolumny 'nr_receptury' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "uszkodzone_worki", "INT DEFAULT 0", "Dodawanie kolumny 'uszkodzone_worki' (AGRO)")
+    
+    # Dodawanie lokalizacji dla wyrobów gotowych
+    _add_column_if_missing(cursor, "magazyn_palety", "lokalizacja", "VARCHAR(50) DEFAULT 'MGW01'", "Dodawanie kolumny 'lokalizacja' do magazyn_palety")
+    _add_column_if_missing(cursor, "magazyn_palety_agro", "lokalizacja", "VARCHAR(50) DEFAULT 'MGW01'", "Dodawanie kolumny 'lokalizacja' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "wyjasnienie_rozbieznosci", "TEXT", "Dodawanie kolumny 'wyjasnienie_rozbieznosci' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "is_deleted", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'is_deleted' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "deleted_at", "DATETIME NULL", "Dodawanie kolumny 'deleted_at' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji", "start_machine_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_machine_counter' (PSD)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "start_machine_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_machine_counter' (AGRO)")
     
     # Ensure warehouse unique indexes for accurate pallet tracking
     # Strict rule: one material per location. Conflicting names will overwrite.
@@ -662,11 +790,18 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "palety_agro", "czas_potwierdzenia_s", "INT NULL", "Dodawanie kolumny 'czas_potwierdzenia_s' do palet (AGRO)")
     _add_column_if_missing(cursor, "palety_agro", "czas_rzeczywistego_potwierdzenia", "TIME NULL", "Dodawanie kolumny 'czas_rzeczywistego_potwierdzenia' do palet (AGRO)")
     _add_column_if_missing(cursor, "palety_agro", "waga_potwierdzona", "FLOAT NULL", "Dodawanie kolumny 'waga_potwierdzona' do palet (AGRO)")
+    
+    # Dodanie nr_palety do tabel buforowych
+    _add_column_if_missing(cursor, "palety_workowanie", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do palety_workowanie")
+    _add_column_if_missing(cursor, "palety_agro", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do palety_agro")
 
     # aktywne_sesje columns
     _add_column_if_missing(cursor, "aktywne_sesje", "ip_address", "VARCHAR(64) NULL", "Dodawanie kolumny 'ip_address' do aktywne_sesje")
 
     # magazyn_palety_agro columns
+    _add_column_if_missing(cursor, "magazyn_palety", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do magazyn_palety")
+    _add_column_if_missing(cursor, "magazyn_palety_agro", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do magazyn_palety_agro")
+    _add_column_if_missing(cursor, "magazyn_palety_agro", "linia", "VARCHAR(20) DEFAULT 'AGRO'", "Dodawanie kolumny 'linia' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "user_login", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'user_login' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "data_potwierdzenia", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'data_potwierdzenia' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'created_at' do magazyn_palety_agro")
@@ -705,6 +840,27 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "zgloszenia_bledow", "odpowiedz_admina", "TEXT NULL", "Dodawanie kolumny 'odpowiedz_admina' do zgloszenia_bledow")
     _add_column_if_missing(cursor, "zgloszenia_bledow", "odpowiedz_timestamp", "DATETIME NULL", "Dodawanie kolumny 'odpowiedz_timestamp' do zgloszenia_bledow")
     _add_column_if_missing(cursor, "zgloszenia_bledow", "odpowiedz_by_login", "VARCHAR(50) NULL", "Dodawanie kolumny 'odpowiedz_by_login' do zgloszenia_bledow")
+
+    # Traceability and packaging columns for all warehouse tables
+    for tbl in ["magazyn_palety", "magazyn_palety_agro", "magazyn_surowce", "magazyn_agro_surowce", "magazyn_opakowania", "magazyn_agro_opakowania", "magazyn_ruch", "magazyn_agro_ruch"]:
+        _add_column_if_missing(cursor, tbl, "lokalizacja", "VARCHAR(100) NULL", f"Dodawanie kolumny 'lokalizacja' do {tbl}")
+        _add_column_if_missing(cursor, tbl, "nr_partii", "VARCHAR(100) NULL", f"Dodawanie kolumny 'nr_partii' do {tbl}")
+        _add_column_if_missing(cursor, tbl, "data_produkcji", "DATE NULL", f"Dodawanie kolumny 'data_produkcji' do {tbl}")
+        _add_column_if_missing(cursor, tbl, "data_przydatnosci", "DATE NULL", f"Dodawanie kolumny 'data_przydatnosci' do {tbl}")
+        _add_column_if_missing(cursor, tbl, "typ_opakowania", "VARCHAR(50) DEFAULT 'bags'", f"Dodawanie kolumny 'typ_opakowania' do {tbl}")
+        _add_column_if_missing(cursor, tbl, "is_blocked", "BOOLEAN DEFAULT 0", f"Dodawanie kolumny 'is_blocked' do {tbl}")
+    
+    # Inwentaryzacja wpisy packaging type
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_wpisy", "typ_opakowania", "VARCHAR(50) DEFAULT 'brak'", "Dodawanie kolumny 'typ_opakowania' do wpisów inwentaryzacyjnych")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_sesje", "lokalizacja", "VARCHAR(100) DEFAULT 'Wszystko'", "Dodawanie kolumny 'lokalizacja' do sesji inwentaryzacyjnych")
+
+
+
+    # Allow NULL for paleta_id in history
+    try:
+        cursor.execute("ALTER TABLE palety_historia MODIFY paleta_id INT NULL")
+    except Exception:
+        pass
 
 
 def _seed_default_users(cursor):

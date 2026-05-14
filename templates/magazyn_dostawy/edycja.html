@@ -1,336 +1,1649 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<style>
-    .form-group { margin-bottom: 15px; }
-    .form-label { display: block; font-size: 13px; color: #475569; font-weight: 600; margin-bottom: 6px; }
-    .form-control { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; color: #334155; background-color: #fff; box-sizing: border-box; transition: border-color 0.2s; }
-    .form-control:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
-    .form-control[disabled] { background-color: #f8fafc; color: #94a3b8; cursor: not-allowed; }
-    .pallet-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 15px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .pallet-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 16px; }
-    .pallet-title { font-weight: 700; color: #1e293b; font-size: 15px; display: flex; align-items: center; gap: 8px; }
-    .pallet-title-badge { background: #eff6ff; color: #2563eb; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; }
-    .btn-delete { background: none; border: none; color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 6px; transition: background 0.2s; }
-    .btn-delete:hover { background: #fef2f2; }
-    .grid-row { display: grid; gap: 15px; }
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
+{% set is_readonly_issue = dostawa and dostawa.get('status') == 'OCZEKUJE' %}
 
-    /* Kierunek box */
-    .direction-box { display: flex; align-items: center; gap: 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 18px; margin-bottom: 6px; }
-    .direction-arrow { color: #3b82f6; font-size: 28px; flex-shrink: 0; }
-    .direction-select { flex: 1; }
-</style>
+<div class="logistyka-container p-20" data-no-autorefresh="true" style="max-width: 100%; margin: 0 auto; font-family: sans-serif;">
+    
+    <!-- TOP HEADER -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #1e293b;">{% if dostawa %}Formularz Wydania (Etap 1){% else %}Nowe Wydanie (Etap 1){% endif %}</h1>
+                <button type="button" id="flowHelpToggle" onclick="toggleFlowHelp()" style="height: 34px; border: 1px solid #cbd5e1; border-radius: 999px; padding: 0 12px; background: #ffffff; color: #0f172a; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <span class="material-icons" style="font-size: 16px;">info</span>
+                    Instrukcja
+                </button>
+            </div>
+            <p style="margin: 0; color: #64748b; font-size: 14px;">Magazynier wydaje palety i przekazuje ruch do etapu przyjęcia.</p>
+        </div>
 
-<div id="app" data-no-autorefresh style="display: none;">
-    <div class="section-header" style="margin-bottom: 20px;">
-        <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100">
-            <div class="header-title-row d-flex align-center gap-10">
-                <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=linia) }}" class="btn-action" style="padding: 6px; background: transparent; border: none; color: #64748b;">
-                    <span class="material-icons">arrow_back</span>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <div style="width: 200px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: white;">
+                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px;">Data Ruchu</label>
+                <div id="movement_date_display" style="font-weight: 700; font-size: 15px; color: #1e293b;">{{ now_str[:10] }}</div>
+            </div>
+            <div style="width: 200px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: white;">
+                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px;">NUMER WZ (AUTO)</label>
+                <input type="text" id="order_ref" class="premium-input" readonly
+                       style="height: 28px; width: 100%; padding: 0 8px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; font-weight: 700; color: #64748b;">
+            </div>
+        </div>
+    </div>
+
+    <div id="flowHelpPanel" style="display: none; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <span class="material-icons" style="font-size: 18px; color: #0ea5e9;">tips_and_updates</span>
+            <div style="flex: 1;">
+                <div style="font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 8px;">Logika formularza krok po kroku</div>
+                <ol style="margin: 0; padding-left: 16px; color: #334155; font-size: 12px; line-height: 1.6;">
+                    <li>Ustaw Liczbę palet i Dokąd.</li>
+                    <li>Zeskanuj regał/paletę lub dodaj wpis ręcznie.</li>
+                    <li>Wypełnij Produkt, Skąd (per paleta), Ilość, Jednostkę, Nr partii, Datę produkcji i Datę przydatności.</li>
+                    <li>Ikona kopiowania w wierszu kopiuje dane tylko z palety powyżej do bieżącej.</li>
+                    <li>Przycisk Przesuń jest aktywny dopiero, gdy wszystkie pola są uzupełnione.</li>
+                    <li>Po zapisie rekord trafia do etapu przyjęcia i oczekuje na potwierdzenie.</li>
+                </ol>
+                <div style="margin-top: 10px; font-size: 12px; font-weight: 700; color: #334155;">Podgląd okna i detali (screeny)</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 8px;">
+                    <div style="border: 1px dashed #94a3b8; border-radius: 8px; padding: 10px; min-height: 88px; background: #f8fafc; color: #475569; font-size: 12px;">
+                        <span class="material-icons" style="font-size: 16px; vertical-align: middle;">image</span>
+                        Zrzut 1: układ formularza (górne pola i tabela).
+                    </div>
+                    <div style="border: 1px dashed #94a3b8; border-radius: 8px; padding: 10px; min-height: 88px; background: #f8fafc; color: #475569; font-size: 12px;">
+                        <span class="material-icons" style="font-size: 16px; vertical-align: middle;">image</span>
+                        Zrzut 2: skanowanie i wybór palety z listy wyników.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if is_readonly_issue %}
+    <div style="background: #fff7ed; border: 1px solid #fed7aa; color: #7c2d12; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <span class="material-icons" style="font-size: 18px;">visibility</span>
+        Status OCZEKUJE: formularz wydania jest dostępny tylko do podglądu. Edycja danych i zapis są zablokowane.
+    </div>
+    {% endif %}
+
+    <div id="draftDecisionBanner" style="display: none; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; border-radius: 10px; padding: 12px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: flex-start; gap: 8px; min-width: 280px; flex: 1;">
+                <span class="material-icons" style="font-size: 18px; color: #2563eb;">restore</span>
+                <div>
+                    <div style="font-size: 13px; font-weight: 800;">Wykryto przerwany formularz przesunięcia.</div>
+                    <div id="draftDecisionMeta" style="margin-top: 2px; font-size: 12px; color: #334155;">Możesz kontynuować wpisywanie albo rozpocząć nowy, czysty formularz.</div>
+                </div>
+            </div>
+            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                <button type="button" onclick="continueDraftEntry()" style="height: 34px; border: none; border-radius: 8px; background: #2563eb; color: #fff; padding: 0 12px; font-size: 12px; font-weight: 800; cursor: pointer;">
+                    Kontynuuj wpis
+                </button>
+                <button type="button" onclick="startFreshEntry()" style="height: 34px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; padding: 0 12px; font-size: 12px; font-weight: 800; cursor: pointer;">
+                    Nowa (wyczyść)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN FORM - HEADER INFO -->
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
+        <div style="background: #f8fafc; padding: 10px 20px; border-bottom: 1px solid #e2e8f0;">
+            <h6 style="margin: 0; font-size: 12px; font-weight: 700; color: #475569;">Szczegóły Przesunięcia</h6>
+        </div>
+        <div style="padding: 20px;">
+            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 15px; align-items: end;">
+                <div style="display: flex; flex-direction: column;">
+                    <label style="font-size: 11px; font-weight: 800; color: #3b82f6; margin-bottom: 6px;">LICZBA PALET</label>
+                    <input type="number" id="pallet_count" value="0" min="0" max="50" onchange="generateManualRows(this.value)" {% if is_readonly_issue %}disabled{% endif %}
+                           style="height: 42px; width: 100%; background: #eff6ff; border: 2px solid #3b82f6; border-radius: 8px; padding: 0; font-weight: 900; text-align: center; font-size: 20px; color: #1e40af;">
+                </div>
+                <div style="display: flex; flex-direction: column;">
+                    <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">DOKĄD (CEL)</label>
+                    <select id="lokalizacja_do" class="premium-input" {% if is_readonly_issue %}disabled{% endif %} style="height: 42px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: white; font-weight: 700;">
+                        <option value="">-- Wybierz --</option>
+                        <option value="BF_MS01" {% if dostawa and dostawa.lokalizacja_do == 'BF_MS01' %}selected{% endif %}>BF_MS01</option>
+                        <option value="BF_MP01" {% if dostawa and dostawa.lokalizacja_do == 'BF_MP01' %}selected{% endif %}>BF_MP01</option>
+                        <option value="MS01" {% if dostawa and dostawa.lokalizacja_do == 'MS01' %}selected{% endif %}>MS01</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL RĘCZNEGO DODAWANIA (Legacy - keeping for copy down if needed, but primary is table) -->
+    <div id="manualModal" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); z-index: 2000; align-items: center; justify-content: center; padding: 20px;">
+        <!-- Modal content kept same -->
+    </div>
+
+    <div id="palletSelectModal" onclick="if(event.target===this) closePalletSelectionModal()" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.72); z-index: 2100; align-items: center; justify-content: center; padding: 16px;">
+        <div style="width: min(900px, 95vw); max-height: 88vh; overflow: hidden; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 20px 50px rgba(2,6,23,0.25); display: flex; flex-direction: column;">
+            <div style="padding: 14px 16px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="material-icons" style="font-size: 18px; color: #0ea5e9;">checklist</span>
+                    <strong style="font-size: 14px; color: #0f172a;">Wybierz paletę/palety z wyników</strong>
+                </div>
+                <button type="button" onclick="closePalletSelectionModal()" style="border: none; background: transparent; color: #64748b; cursor: pointer; font-size: 20px; line-height: 1;">&times;</button>
+            </div>
+            <div style="padding: 10px 16px; font-size: 12px; color: #334155; border-bottom: 1px solid #e2e8f0;" id="palletSelectSummary">Zaznacz palety do dodania.</div>
+            <div style="padding: 10px 16px; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                <input
+                    type="text"
+                    id="palletSelectSearch"
+                    oninput="updatePalletSelectionSearch(this.value)"
+                    placeholder="Szukaj po nazwie, kodzie, lokalizacji, partii..."
+                    style="width: 100%; height: 34px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 10px; font-size: 12px; color: #0f172a; outline: none;"
+                >
+            </div>
+            <div id="palletSelectList" style="padding: 12px 16px; overflow: auto; max-height: 56vh;"></div>
+            <div style="padding: 12px 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" onclick="closePalletSelectionModal()" style="height: 36px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #1e293b; font-weight: 700; cursor: pointer;">Anuluj</button>
+                <button type="button" id="palletSelectConfirmBtn" onclick="confirmPalletSelection()" style="height: 36px; padding: 0 12px; border: none; border-radius: 8px; background: #2563eb; color: #fff; font-weight: 700; cursor: pointer;">Dodaj wybrane</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ITEMS SECTION -->
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 25px; overflow: hidden;">
+        <div style="background: #f8fafc; padding: 12px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+            <h6 style="margin: 0; font-size: 12px; font-weight: 700; color: #475569;">Lista Palet ({% if is_readonly_issue %}Tylko podgląd{% else %}Edytowalna{% endif %})</h6>
+            <label style="display: inline-flex; align-items: center; gap: 8px; color: #334155; font-size: 12px; font-weight: 700; cursor: pointer;">
+                <input type="checkbox" id="skip_warehouse_lookup" {% if is_readonly_issue %}disabled{% endif %} style="accent-color: #f59e0b; width: 16px; height: 16px;">
+                Pomiń sprawdzenie palet w magazynie (całe zlecenie)
+            </label>
+        </div>
+        <div style="overflow-x: auto;">
+            <table id="itemsTable" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 60px;">#</th>
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b;">PRODUKT / NAZWA</th>
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 160px;">SKĄD (ŹRÓDŁO)</th>
+                        <th style="padding: 12px 20px; text-align: right; font-size: 11px; color: #64748b; width: 130px;">ILOŚĆ</th>
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 92px;">JEDNOSTKA</th>
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 160px;">NR PARTII</th>
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 136px;">DATA PRODUKCJI</th>
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 136px;">DATA PRZYDATNOŚCI</th>
+                        <th style="padding: 12px 20px; text-align: center; font-size: 11px; color: #64748b; width: 80px;">AKCJA</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div id="noItemsMsg" style="padding: 40px; text-align: center; color: #94a3b8; font-size: 13px;">
+                Brak wybranych palet. Wpisz liczbę palet powyżej lub zeskanuj lokalizację.
+            </div>
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 16px; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; margin-top: 20px;">
+        <div style="flex: 1; min-width: 320px; max-width: 560px; background: #1e293b; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                <span class="material-icons" style="color: #94a3b8; font-size: 20px;">qr_code_scanner</span>
+                <input type="text" id="scanner_input" placeholder="Zeskanuj paletę / regał / ID" 
+                       {% if is_readonly_issue %}disabled{% endif %}
+                       style="flex: 1; min-width: 0; height: 34px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: white; font-size: 13px; font-weight: 600; outline: none; padding: 0 10px;"
+                       onkeypress="if(event.key === 'Enter') lookupAndAddPallets()">
+                <button id="lookup_btn" onclick="lookupAndAddPallets()" {% if is_readonly_issue %}disabled{% endif %} style="height: 34px; background: #3b82f6; color: white; border: none; border-radius: 8px; padding: 0 14px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;">
+                    SZUKAJ
+                </button>
+            </div>
+            <div style="display: flex; justify-content: flex-start;">
+                <button id="add_row_btn" onclick="addEmptyRow()" {% if is_readonly_issue %}disabled{% endif %} style="background: #10b981; color: white; border: none; border-radius: 8px; padding: 9px 12px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                    <span class="material-icons" style="font-size: 16px;">add_box</span> DODAJ WPIS
+                </button>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin-left: auto;">
+            <div id="save_transfer_info" style="display: none; max-width: 520px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: 8px; padding: 8px 10px; font-size: 12px; font-weight: 700; text-align: right;"></div>
+            <div style="display: flex; gap: 15px;">
+                <a id="cancel_transfer_link" href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=linia) }}" onclick="cancelTransferForm(event)"
+                   style="width: 160px; height: 45px; display: flex; align-items: center; justify-content: center; border: 1px solid #cbd5e1; border-radius: 8px; text-decoration: none; color: #1e293b; font-weight: 600; font-size: 14px; background: white;">
+                    Anuluj
                 </a>
-                <h2 class="header-title m-0 d-flex align-center gap-8">
-                    <span id="pageTitle">Przesunięcie</span>
-                    <span id="statusBadge" class="status-badge" style="font-size: 12px; margin-left: 10px;"></span>
-                </h2>
-            </div>
-            <div class="d-flex align-center gap-12 header-stats" id="actionButtons"></div>
-        </div>
-    </div>
-
-    <!-- Dane podstawowe -->
-    <div class="section-box" style="margin-bottom: 20px;">
-        <h4 style="margin: 0 0 15px 0; color: #334155; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-            <span class="material-icons" style="color: #64748b; font-size: 20px;">swap_horiz</span>
-            Dane przesunięcia
-        </h4>
-
-        <!-- Kierunek przesunięcia -->
-        <div class="direction-box">
-            <div class="direction-select">
-                <label class="form-label" style="color: #2563eb;">Z lokalizacji</label>
-                <select id="lokalizacjaZ" class="form-control" style="border-color: #93c5fd;">
-                    <option value="">Wybierz źródło...</option>
-                    {% for lok in lokalizacje %}
-                    <option value="{{ lok }}">{{ lok }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <span class="direction-arrow material-icons">arrow_forward</span>
-            <div class="direction-select">
-                <label class="form-label" style="color: #2563eb;">Do lokalizacji</label>
-                <select id="lokalizacjaDo" class="form-control" style="border-color: #93c5fd;">
-                    <option value="">Wybierz cel...</option>
-                    {% for lok in lokalizacje %}
-                    <option value="{{ lok }}">{{ lok }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-
-        <div class="grid-row" style="grid-template-columns: 1fr 1fr; margin-top: 15px;">
-            <div class="form-group">
-                <label class="form-label">Numer WZ (auto)</label>
-                <input type="text" id="orderRef" class="form-control" readonly style="background: #f8fafc; color: #64748b; font-family: monospace; font-weight: 700;">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Ilość Palet (Pozycji)</label>
-                <input type="number" id="palletCount" min="0" max="100" class="form-control" style="font-weight: 700; color: #2563eb;">
+                <button id="save_transfer_btn" onclick="savePrzesuniecie()" {% if is_readonly_issue %}disabled title="Status OCZEKUJE: zapis zablokowany"{% endif %}
+                        style="width: 160px; height: 45px; display: flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: 8px; background: #1e293b; color: white; font-weight: 700; font-size: 14px; cursor: pointer;">
+                    <span class="material-icons" style="font-size: 18px;">{% if is_readonly_issue %}visibility{% else %}send{% endif %}</span> {% if is_readonly_issue %}PODGLĄD{% else %}PRZESUŃ{% endif %}
+                </button>
             </div>
         </div>
     </div>
-
-    <!-- Specyfikacja -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h4 style="margin: 0; color: #334155; font-size: 16px; display: flex; align-items: center; gap: 8px;">
-            <span class="material-icons" style="color: #64748b; font-size: 20px;">inventory_2</span>
-            Specyfikacja Towarowa
-        </h4>
-        <span id="itemCounterText" style="font-size: 13px; font-weight: 600; color: #64748b; background: #e2e8f0; padding: 4px 10px; border-radius: 20px;">0 pozycji</span>
-    </div>
-    <div id="itemsContainer"></div>
 </div>
 
-<!-- Template pozycji -->
-<template id="itemTemplate">
-    <div class="pallet-card">
-        <div class="pallet-header">
-            <div class="pallet-title">
-                <div class="pallet-title-badge position-label-number">1</div>
-                Pozycja
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button type="button" class="btn-copy-prev" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #475569;">
-                    <span class="material-icons" style="font-size: 16px;">content_copy</span> Kopiuj z poprz.
-                </button>
-                <button type="button" class="btn-delete">
-                    <span class="material-icons" style="font-size: 20px;">delete_outline</span>
-                </button>
-            </div>
-        </div>
-        <div class="grid-row" style="grid-template-columns: 2fr 1fr 1fr;">
-            <div class="form-group">
-                <label class="form-label">Produkt</label>
-                <input type="text" list="productsList" class="form-control product-name" placeholder="Szukaj produktu...">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Rodzaj Opakowania</label>
-                <select class="form-control package-form">
-                    <option value="">Wybierz...</option>
-                    <option value="big_bag">Big Bag (Sypkie)</option>
-                    <option value="bags">Worki (Sypkie)</option>
-                    <option value="packaging">Opakowania / Palety / Folie</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label weight-label">Waga (kg)</label>
-                <input type="number" class="form-control net-weight" placeholder="0" style="font-weight: 700; text-align: center;">
-            </div>
-        </div>
-    </div>
-</template>
-
-<datalist id="productsList">
-    {% for p in wszystkie_produkty %}<option value="{{ p }}">{% endfor %}
-</datalist>
-
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    let delivery = {{ dostawa|tojson|safe if dostawa else 'null' }};
-    const linia = "{{ linia }}";
+    const READ_ONLY_MODE = {{ 'true' if is_readonly_issue else 'false' }};
+    const IS_NEW_TRANSFER_FORM = {{ 'true' if not dostawa else 'false' }};
+    let items = {{ (dostawa['items']|tojson if dostawa and dostawa.get('items') else '[]')|safe }};
+    let copiedRowsInfoByItem = {};
+    let palletPickerState = null;
+    let pendingDraftToDecide = null;
+    let locationSuggestTimer = null;
+    let locationSuggestAbortController = null;
+    let locationSuggestLastPrefix = '';
+    const FORM_DRAFT_KEY = "magazyn_dostawy_draft_{{ linia }}_{{ dostawa.id if dostawa else 'new' }}";
+    const KNOWN_SOURCE_LOCATIONS_SET = new Set(({{ lokalizacje|tojson|safe }} || []).map(v => String(v || '').toUpperCase()));
 
-    if (!delivery) {
-        delivery = {
-            id: '', order_ref: '', delivery_date: new Date().toISOString().split('T')[0],
-            status: 'REGISTRATION', items: [], lokalizacja_z: '', lokalizacja_do: ''
-        };
+    function notifyReadOnly() {
+        if (typeof showToast === 'function') {
+            showToast('Status OCZEKUJE: formularz wydania działa w trybie podglądu.', 'warning');
+        } else {
+            alert('Status OCZEKUJE: formularz wydania działa w trybie podglądu.');
+        }
     }
 
-    const app = document.getElementById('app');
-    const pageTitle = document.getElementById('pageTitle');
-    const orderRefInput = document.getElementById('orderRef');
-    const palletCountInput = document.getElementById('palletCount');
-    const itemsContainer = document.getElementById('itemsContainer');
-    const itemTemplate = document.getElementById('itemTemplate');
-    const actionButtons = document.getElementById('actionButtons');
-    const statusBadge = document.getElementById('statusBadge');
-    const itemCounterText = document.getElementById('itemCounterText');
-    const lokZSel = document.getElementById('lokalizacjaZ');
-    const lokDoSel = document.getElementById('lokalizacjaDo');
-
-    let items = delivery.items || [];
-
-    function pad(n) { return String(n).padStart(2, '0'); }
     function generateWZ() {
         const now = new Date();
-        return `WZ${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const dd = String(now.getDate()).padStart(2, '0');
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const rrrr = now.getFullYear();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        return `${dd}${mm}${rrrr}${hh}${min}${ss}`;
     }
 
-    function init() {
-        app.style.display = 'block';
-        if (!delivery.order_ref) delivery.order_ref = generateWZ();
-        orderRefInput.value = delivery.order_ref;
-        lokZSel.value = delivery.lokalizacja_z || '';
-        lokDoSel.value = delivery.lokalizacja_do || '';
-        palletCountInput.value = items.length;
-
-        pageTitle.innerText = delivery.id ? `Przesunięcie ${delivery.order_ref}` : 'Nowe Przesunięcie';
-        renderStatusBadge();
-        renderButtons();
-        renderItems();
-
-        palletCountInput.addEventListener('input', handlePalletCountChange);
-        lokZSel.addEventListener('change', e => delivery.lokalizacja_z = e.target.value);
-        lokDoSel.addEventListener('change', e => delivery.lokalizacja_do = e.target.value);
+    function toggleFlowHelp() {
+        const panel = document.getElementById('flowHelpPanel');
+        if (!panel) {
+            return;
+        }
+        panel.style.display = panel.style.display === 'none' || !panel.style.display ? 'block' : 'none';
     }
 
-    function renderStatusBadge() {
-        const map = {
-            'OCZEKUJE': ['bg-yellow-100 text-yellow-800', 'pending', 'Wysłane – Oczekuje na potwierdzenie'],
-            'COMPLETED': ['status-accepted', 'check_circle', 'Potwierdzone i Zaksięgowane'],
-            'REGISTRATION': ['', 'edit_document', 'W Trakcie Rejestracji']
-        };
-        const [cls, icon, label] = map[delivery.status] || ['', 'help', delivery.status];
-        statusBadge.className = 'status-badge ' + cls;
-        statusBadge.style.background = delivery.status === 'OCZEKUJE' ? '#fef3c7' : '';
-        statusBadge.style.color = delivery.status === 'OCZEKUJE' ? '#92400e' : '';
-        statusBadge.innerHTML = `<span class="material-icons" style="font-size: 14px; vertical-align: bottom; margin-right: 4px;">${icon}</span>${label}`;
-    }
-
-    function renderButtons() {
-        actionButtons.innerHTML = '';
-        if (delivery.status === 'REGISTRATION' || delivery.status === 'OCZEKUJE') {
-            if (!delivery.id || delivery.status === 'REGISTRATION') {
-                const btn = document.createElement('button');
-                btn.className = 'btn-action btn-blue';
-                btn.style.display = 'flex'; btn.style.alignItems = 'center'; btn.style.gap = '8px';
-                btn.innerHTML = `<span class="material-icons" style="font-size: 18px;">local_shipping</span> Wyślij Przesunięcie`;
-                btn.onclick = () => saveDelivery('OCZEKUJE');
-                actionButtons.appendChild(btn);
-            }
+    function getDraftModeFromUrl() {
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            return String(params.get('draft') || '').trim().toLowerCase();
+        } catch (error) {
+            return '';
         }
     }
 
-    function handlePalletCountChange(e) {
-        let count = parseInt(e.target.value) || 0;
-        if (count > 100) count = 100;
-        if (count < items.length) {
-            items = items.slice(0, count);
+    function getStoredDraftState() {
+        try {
+            const raw = window.localStorage.getItem(FORM_DRAFT_KEY);
+            if (!raw) {
+                return null;
+            }
+            const draft = JSON.parse(raw);
+            if (!draft || !Array.isArray(draft.items)) {
+                return null;
+            }
+            return draft;
+        } catch (error) {
+            console.warn('getStoredDraftState error', error);
+            return null;
+        }
+    }
+
+    function hasDraftItems(draft) {
+        return !!(draft && Array.isArray(draft.items) && draft.items.length > 0);
+    }
+
+    function hideDraftDecisionBanner() {
+        const banner = document.getElementById('draftDecisionBanner');
+        if (banner) {
+            banner.style.display = 'none';
+        }
+    }
+
+    function showDraftDecisionBanner(draft) {
+        const banner = document.getElementById('draftDecisionBanner');
+        if (!banner) {
+            return;
+        }
+
+        const meta = document.getElementById('draftDecisionMeta');
+        const savedAt = draft && draft.saved_at ? new Date(draft.saved_at) : null;
+        const savedAtText = savedAt && !Number.isNaN(savedAt.getTime())
+            ? savedAt.toLocaleString('pl-PL')
+            : 'nieznany czas zapisu';
+        const itemsCount = draft && Array.isArray(draft.items) ? draft.items.length : 0;
+
+        if (meta) {
+            meta.textContent = `Szkic: ${itemsCount} palet, zapis: ${savedAtText}.`;
+        }
+
+        banner.style.display = 'block';
+    }
+
+    function continueDraftEntry() {
+        if (!pendingDraftToDecide) {
+            return;
+        }
+        restoreDraftState(pendingDraftToDecide, { silentToast: false });
+        pendingDraftToDecide = null;
+        hideDraftDecisionBanner();
+        renderItems();
+        updateSaveButtonState();
+    }
+
+    function startFreshEntry() {
+        clearDraftState();
+        pendingDraftToDecide = null;
+        hideDraftDecisionBanner();
+
+        items = [];
+        copiedRowsInfoByItem = {};
+        palletPickerState = null;
+
+        const countInput = document.getElementById('pallet_count');
+        const targetInput = document.getElementById('lokalizacja_do');
+        const scannerInput = document.getElementById('scanner_input');
+        const bypassInput = document.getElementById('skip_warehouse_lookup');
+        if (countInput) countInput.value = '0';
+        if (targetInput) targetInput.value = '';
+        if (scannerInput) scannerInput.value = '';
+        if (bypassInput) bypassInput.checked = false;
+
+        renderItems();
+        updateSaveButtonState();
+    }
+
+    function cancelTransferForm(event) {
+        if (event && typeof event.preventDefault === 'function') {
+            event.preventDefault();
+        }
+
+        if (!READ_ONLY_MODE) {
+            clearDraftState();
+        }
+
+        window.location.href = "{{ url_for('magazyn_dostawy.lista_dostaw', linia=linia) }}";
+    }
+
+    function escapeAttr(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    function getItemUnit(item) {
+        if (!item || !item.packageForm) {
+            return '';
+        }
+        return item.packageForm === 'packaging' ? 'szt' : 'kg';
+    }
+
+    function getItemQuantity(item) {
+        if (!item) {
+            return '';
+        }
+        const unit = getItemUnit(item);
+        let raw = '';
+        if (unit === 'szt') {
+            raw = item.unitsPerPallet;
+        } else if (unit === 'kg') {
+            raw = item.netWeight;
         } else {
-            for (let i = items.length; i < count; i++) {
-                items.push({ id: 'I' + Date.now() + Math.random(), productName: '', packageForm: '', netWeight: '', unitsPerPallet: '' });
-            }
+            raw = item.netWeight || item.unitsPerPallet;
         }
-        renderItems();
-        renderButtons();
+        return (raw === null || raw === undefined || raw === '') ? '' : raw;
+    }
+
+    function setItemQuantity(index, value) {
+        const normalized = String(value ?? '').trim().replace(',', '.');
+        if (normalized === '') {
+            items[index].netWeight = '';
+            items[index].unitsPerPallet = '';
+            return;
+        }
+
+        const parsed = parseFloat(normalized);
+        if (Number.isNaN(parsed)) {
+            return;
+        }
+
+        if (getItemUnit(items[index]) === 'szt') {
+            items[index].unitsPerPallet = parsed;
+            items[index].netWeight = '';
+        } else {
+            items[index].netWeight = parsed;
+            items[index].unitsPerPallet = '';
+        }
+    }
+
+    function getDefaultSourceSpot() {
+        return '';
+    }
+
+    function buildEmptyItem(suffix = '') {
+        return {
+            id: 'MANUAL_' + Date.now() + (suffix ? '_' + suffix : ''),
+            productName: '',
+            netWeight: '',
+            unitsPerPallet: '',
+            packageForm: '',
+            sourceSpot: getDefaultSourceSpot(),
+            nr_partii: '',
+            data_produkcji: '',
+            data_przydatnosci: '',
+            accepted: false,
+            is_manual: true
+        };
+    }
+
+    function isFilled(value) {
+        return String(value ?? '').trim() !== '';
+    }
+
+    function isPositiveNumber(value) {
+        const parsed = parseFloat(String(value ?? '').replace(',', '.'));
+        return !Number.isNaN(parsed) && parsed > 0;
+    }
+
+    function isItemComplete(item) {
+        return (
+            isFilled(item && item.productName)
+            && isFilled(item && item.sourceSpot)
+            && isFilled(getItemUnit(item))
+            && isPositiveNumber(getItemQuantity(item))
+            && isFilled(item && item.nr_partii)
+            && isFilled(item && item.data_produkcji)
+            && isFilled(item && item.data_przydatnosci)
+        );
+    }
+
+    function normalizeLocation(value) {
+        return String(value || '').trim().toUpperCase();
+    }
+
+    function ensureLocationSuggestionsList() {
+        let dataList = document.getElementById('locationSuggestionsList');
+        if (dataList) {
+            return dataList;
+        }
+
+        dataList = document.createElement('datalist');
+        dataList.id = 'locationSuggestionsList';
+        document.body.appendChild(dataList);
+        return dataList;
+    }
+
+    function renderLocationSuggestionOptions(suggestions) {
+        const dataList = ensureLocationSuggestionsList();
+        dataList.innerHTML = '';
+
+        (suggestions || []).forEach(code => {
+            const normalizedCode = normalizeLocation(code);
+            if (!normalizedCode) {
+                return;
+            }
+            const option = document.createElement('option');
+            option.value = normalizedCode;
+            dataList.appendChild(option);
+        });
+    }
+
+    function queueLocationSuggestions(rawValue) {
+        const prefix = normalizeLocation(rawValue);
+        if (!prefix) {
+            locationSuggestLastPrefix = '';
+            renderLocationSuggestionOptions([]);
+            return;
+        }
+
+        if (prefix === locationSuggestLastPrefix) {
+            return;
+        }
+
+        if (locationSuggestTimer) {
+            clearTimeout(locationSuggestTimer);
+        }
+
+        locationSuggestTimer = setTimeout(() => {
+            fetchLocationSuggestions(prefix);
+        }, 120);
+    }
+
+    async function fetchLocationSuggestions(prefix) {
+        if (locationSuggestAbortController) {
+            locationSuggestAbortController.abort();
+        }
+
+        locationSuggestAbortController = new AbortController();
+        const query = new URLSearchParams({
+            linia: '{{ linia }}',
+            prefix: prefix,
+            only_free_for_racks: '1',
+            limit: '50',
+        });
+
+        try {
+            const response = await fetch(`/magazyn-dostawy/api/sugerowane-lokalizacje?${query.toString()}`, {
+                signal: locationSuggestAbortController.signal,
+            });
+
+            const data = await response.json();
+            if (!data || !data.success || !Array.isArray(data.suggestions)) {
+                return;
+            }
+
+            locationSuggestLastPrefix = prefix;
+            renderLocationSuggestionOptions(data.suggestions);
+        } catch (error) {
+            if (error && error.name === 'AbortError') {
+                return;
+            }
+            console.warn('Location suggestions failed', error);
+        }
+    }
+
+    function handleLocationSuggestInput(inputElement) {
+        if (!inputElement) {
+            return;
+        }
+        inputElement.value = normalizeLocation(inputElement.value);
+        queueLocationSuggestions(inputElement.value);
+    }
+
+    function isSameLocation(left, right) {
+        const l = normalizeLocation(left);
+        const r = normalizeLocation(right);
+        return l !== '' && r !== '' && l === r;
+    }
+
+    function isRouteConflictLocation(sourceLoc, targetLoc) {
+        const source = normalizeLocation(sourceLoc);
+        const target = normalizeLocation(targetLoc);
+        if (source === '' || target === '') {
+            return false;
+        }
+
+        if (source === target) {
+            return true;
+        }
+
+        // Treat prefix variants as the same route family, e.g. BF_MS01 / BF_MS01_x.
+        return source.startsWith(target) || target.startsWith(source);
+    }
+
+    function isKnownSourceLocation(value) {
+        const loc = normalizeLocation(value);
+        if (!loc) {
+            return false;
+        }
+
+        if (KNOWN_SOURCE_LOCATIONS_SET.has(loc)) {
+            return true;
+        }
+
+        const rackMatch = loc.match(/^R0([1-7])(\d{2})(\d{2})$/);
+        if (rackMatch) {
+            return true;
+        }
+
+        const osipMatch = loc.match(/^OS(\d{2})$/);
+        if (osipMatch) {
+            const nr = parseInt(osipMatch[1], 10);
+            return nr >= 1 && nr <= 77;
+        }
+
+        const bbMatch = loc.match(/^BB(\d{2})$/);
+        if (bbMatch) {
+            const nr = parseInt(bbMatch[1], 10);
+            return nr >= 1 && nr <= 24;
+        }
+
+        const mzSimple = loc.match(/^MZ(\d{2})$/);
+        if (mzSimple) {
+            const nr = parseInt(mzSimple[1], 10);
+            return nr >= 1 && nr <= 6;
+        }
+
+        // Magazyn Dodatków (MD / MDO)
+        if (loc.startsWith('MD') || loc.startsWith('MDO')) {
+            return true;
+        }
+
+        return loc === 'MZ05-01' || loc === 'MZ06-01';
+    }
+
+    function getUnknownSourceLocations() {
+        const unique = new Set();
+        items.forEach(item => {
+            const source = normalizeLocation(item && item.sourceSpot);
+            if (source && !isKnownSourceLocation(source)) {
+                unique.add(source);
+            }
+        });
+        return Array.from(unique);
+    }
+
+    function getValidationBorderStyle(hasError) {
+        if (hasError) {
+            return 'border: 2px solid #dc2626; box-shadow: inset 0 0 0 1px rgba(220,38,38,0.08);';
+        }
+        return 'border: 1px solid #e2e8f0;';
+    }
+
+    function getItemValidationMap(item, targetLoc) {
+        const sourceLoc = normalizeLocation(item && item.sourceSpot);
+        const unit = getItemUnit(item);
+        const quantity = getItemQuantity(item);
+
+        const sourceInvalid =
+            !isFilled(sourceLoc)
+            || !isKnownSourceLocation(sourceLoc)
+            || isRouteConflictLocation(sourceLoc, targetLoc);
+
+        return {
+            productName: !isFilled(item && item.productName),
+            sourceSpot: sourceInvalid,
+            quantity: !isPositiveNumber(quantity),
+            unit: !isFilled(unit),
+            nr_partii: !isFilled(item && item.nr_partii),
+            data_produkcji: !isFilled(item && item.data_produkcji),
+            data_przydatnosci: !isFilled(item && item.data_przydatnosci),
+        };
+    }
+
+    function getCurrentTargetLocation() {
+        const targetInput = document.getElementById('lokalizacja_do');
+        return normalizeLocation(targetInput ? targetInput.value : '');
+    }
+
+    function isWarehouseLookupBypassed() {
+        const bypassInput = document.getElementById('skip_warehouse_lookup');
+        return !!(bypassInput && bypassInput.checked);
+    }
+
+    function getItemCopyMarkerKey(item, index) {
+        const rawId = item && item.id;
+        if (rawId !== undefined && rawId !== null && String(rawId).trim() !== '') {
+            return String(rawId);
+        }
+        return `idx_${index}`;
+    }
+
+    function getCopiedFromNumber(item, index) {
+        const key = getItemCopyMarkerKey(item, index);
+        const raw = copiedRowsInfoByItem[key];
+        const parsed = parseInt(raw, 10);
+        return Number.isNaN(parsed) ? null : parsed;
+    }
+
+    function setCopiedFromNumber(item, index, fromRowNumber) {
+        const key = getItemCopyMarkerKey(item, index);
+        copiedRowsInfoByItem[key] = parseInt(fromRowNumber, 10);
+    }
+
+    function clearCopiedMarker(item, index) {
+        const key = getItemCopyMarkerKey(item, index);
+        if (Object.prototype.hasOwnProperty.call(copiedRowsInfoByItem, key)) {
+            delete copiedRowsInfoByItem[key];
+        }
+    }
+
+    function isItemPalletSlotEmpty(item) {
+        if (!item) {
+            return false;
+        }
+
+        const hasBoundPallet = isFilled(item.sourcePalletId) || isFilled(item.sourcePalletNo);
+        if (hasBoundPallet) {
+            return false;
+        }
+
+        return !isFilled(item.productName)
+            && !isFilled(getItemQuantity(item))
+            && !isFilled(getItemUnit(item))
+            && !isFilled(item.nr_partii)
+            && !isFilled(item.data_produkcji)
+            && !isFilled(item.data_przydatnosci);
+    }
+
+    function canSaveTransfer() {
+        if (READ_ONLY_MODE) {
+            return false;
+        }
+
+        const targetInput = document.getElementById('lokalizacja_do');
+        const targetLoc = targetInput ? targetInput.value : '';
+
+        if (!isFilled(targetLoc)) {
+            return false;
+        }
+
+        if (!Array.isArray(items) || items.length === 0) {
+            return false;
+        }
+
+        const hasSourceTargetConflict = items.some(item => isRouteConflictLocation(item && item.sourceSpot, targetLoc));
+        if (hasSourceTargetConflict) {
+            return false;
+        }
+
+        if (getUnknownSourceLocations().length > 0) {
+            return false;
+        }
+
+        return items.every(isItemComplete);
+    }
+
+    function getSaveBlockers() {
+        if (READ_ONLY_MODE) {
+            return ['Status OCZEKUJE: formularz wydania jest tylko do podglądu.'];
+        }
+
+        const blockers = [];
+        const targetInput = document.getElementById('lokalizacja_do');
+        const targetLoc = targetInput ? targetInput.value : '';
+
+        if (!isFilled(targetLoc)) {
+            blockers.push('Wybierz magazyn docelowy (Dokąd).');
+        }
+
+        if (!Array.isArray(items) || items.length === 0) {
+            blockers.push('Dodaj przynajmniej jedną paletę.');
+            return blockers;
+        }
+
+        const conflictingItems = items.filter(item => isRouteConflictLocation(item && item.sourceSpot, targetLoc));
+        if (conflictingItems.length > 0) {
+            blockers.push(`Operacja niemożliwa: ${conflictingItems.length} palet ma lokalizację źródłową kolidującą z Dokąd (${normalizeLocation(targetLoc)}).`);
+        }
+
+        const unknownSourceLocations = getUnknownSourceLocations();
+        if (unknownSourceLocations.length > 0) {
+            const preview = unknownSourceLocations.slice(0, 3).join(', ');
+            const suffix = unknownSourceLocations.length > 3 ? ', ...' : '';
+            blockers.push(`Nieznane lokalizacje źródłowe: ${preview}${suffix}. Popraw lokalizacje przed zapisem.`);
+        }
+
+        const incompleteCount = items.filter(item => !isItemComplete(item)).length;
+        if (incompleteCount > 0) {
+            blockers.push(`Uzupełnij wszystkie pola w każdej palecie. Niekompletne: ${incompleteCount}.`);
+        }
+
+        return blockers;
+    }
+
+    function renderSaveInfo(saveInfo, variant, messages) {
+        if (!saveInfo) {
+            return;
+        }
+
+        if (!Array.isArray(messages) || messages.length === 0) {
+            saveInfo.style.display = 'none';
+            saveInfo.innerHTML = '';
+            return;
+        }
+
+        const isSuccess = variant === 'success';
+        saveInfo.style.display = 'block';
+        saveInfo.style.background = isSuccess ? '#ecfdf5' : '#fff7ed';
+        saveInfo.style.border = `1px solid ${isSuccess ? '#86efac' : '#fed7aa'}`;
+        saveInfo.style.color = isSuccess ? '#166534' : '#9a3412';
+
+        const marker = isSuccess ? '✓' : '•';
+        saveInfo.innerHTML = messages
+            .map(msg => `<div style="line-height: 1.35; margin: 1px 0;">${marker} ${escapeAttr(msg)}</div>`)
+            .join('');
+    }
+
+    function updateSaveButtonState() {
+        const saveBtn = document.getElementById('save_transfer_btn');
+        const saveInfo = document.getElementById('save_transfer_info');
+        const targetInput = document.getElementById('lokalizacja_do');
+        if (!saveBtn) {
+            return;
+        }
+
+        const blockers = getSaveBlockers();
+        const enabled = blockers.length === 0;
+        saveBtn.disabled = !enabled;
+        saveBtn.style.opacity = enabled ? '1' : '0.55';
+        saveBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+
+        const targetLoc = targetInput ? targetInput.value : '';
+        const highlightTarget = !isFilled(targetLoc) && Array.isArray(items) && items.length > 0;
+        if (targetInput) {
+            targetInput.style.border = highlightTarget ? '2px solid #dc2626' : '1px solid #e2e8f0';
+            targetInput.style.boxShadow = highlightTarget ? 'inset 0 0 0 1px rgba(220,38,38,0.08)' : 'none';
+        }
+
+        if (enabled) {
+            saveBtn.title = '';
+            renderSaveInfo(saveInfo, 'success', ['Formularz kompletny. Możesz kliknąć PRZESUŃ.']);
+        } else {
+            saveBtn.title = blockers[0] || 'Przycisk jest tymczasowo zablokowany.';
+            renderSaveInfo(saveInfo, 'warning', blockers);
+        }
+    }
+
+    function saveDraftState() {
+        if (READ_ONLY_MODE) {
+            return;
+        }
+
+        try {
+            const sourceInput = document.getElementById('lokalizacja_z');
+            const targetInput = document.getElementById('lokalizacja_do');
+            const countInput = document.getElementById('pallet_count');
+            const orderRefInput = document.getElementById('order_ref');
+            const bypassInput = document.getElementById('skip_warehouse_lookup');
+
+            const draft = {
+                lokalizacja_z: sourceInput ? sourceInput.value : '',
+                lokalizacja_do: targetInput ? targetInput.value : '',
+                pallet_count: countInput ? countInput.value : '0',
+                order_ref: orderRefInput ? orderRefInput.value : '',
+                skip_warehouse_lookup: !!(bypassInput && bypassInput.checked),
+                items: items,
+                copyMarkers: copiedRowsInfoByItem,
+                saved_at: new Date().toISOString(),
+            };
+
+            if (!hasDraftItems(draft)) {
+                clearDraftState();
+                return;
+            }
+
+            window.localStorage.setItem(FORM_DRAFT_KEY, JSON.stringify(draft));
+        } catch (error) {
+            console.warn('saveDraftState error', error);
+        }
+    }
+
+    function restoreDraftState(draftOverride = null, options = {}) {
+        if (READ_ONLY_MODE) {
+            return false;
+        }
+
+        try {
+            const draft = draftOverride || getStoredDraftState();
+            if (!draft || !Array.isArray(draft.items)) {
+                return false;
+            }
+
+            const sourceInput = document.getElementById('lokalizacja_z');
+            const targetInput = document.getElementById('lokalizacja_do');
+            const countInput = document.getElementById('pallet_count');
+            const orderRefInput = document.getElementById('order_ref');
+            const bypassInput = document.getElementById('skip_warehouse_lookup');
+
+            if (sourceInput) sourceInput.value = draft.lokalizacja_z || '';
+            if (targetInput) targetInput.value = draft.lokalizacja_do || '';
+            if (orderRefInput && draft.order_ref) orderRefInput.value = draft.order_ref;
+            if (bypassInput) bypassInput.checked = !!draft.skip_warehouse_lookup;
+
+            items = draft.items;
+            if (countInput) countInput.value = String(items.length);
+
+            copiedRowsInfoByItem = {};
+            if (draft.copyMarkers && typeof draft.copyMarkers === 'object') {
+                copiedRowsInfoByItem = draft.copyMarkers;
+            } else if (draft.rowCopyInfo && typeof draft.rowCopyInfo === 'object') {
+                const legacyTargetId = String(draft.rowCopyInfo.targetItemId || '').trim();
+                const legacyFromRow = parseInt(draft.rowCopyInfo.fromRowNumber, 10);
+                if (legacyTargetId !== '' && !Number.isNaN(legacyFromRow)) {
+                    copiedRowsInfoByItem[legacyTargetId] = legacyFromRow;
+                }
+            }
+
+            if (!options.silentToast && typeof showToast === 'function') {
+                showToast('Przywrócono zapisany formularz roboczy.', 'info');
+            }
+
+            return true;
+        } catch (error) {
+            console.warn('restoreDraftState error', error);
+            return false;
+        }
+    }
+
+    function clearDraftState() {
+        try {
+            window.localStorage.removeItem(FORM_DRAFT_KEY);
+        } catch (error) {
+            console.warn('clearDraftState error', error);
+        }
     }
 
     function renderItems() {
-        itemsContainer.innerHTML = '';
-        itemCounterText.innerText = `${items.length} pozycji`;
+        const tbody = document.querySelector('#itemsTable tbody');
+        const noItems = document.getElementById('noItemsMsg');
+        const disabledAttr = READ_ONLY_MODE ? 'disabled' : '';
+        const targetLoc = getCurrentTargetLocation();
+        tbody.innerHTML = '';
+        
+        if (items.length === 0) {
+            noItems.style.display = 'block';
+            copiedRowsInfoByItem = {};
+            updateSaveButtonState();
+            return;
+        }
+        noItems.style.display = 'none';
+
         items.forEach((item, index) => {
-            const clone = itemTemplate.content.cloneNode(true);
-            const row = clone.querySelector('.pallet-card');
-            row.querySelector('.position-label-number').innerText = index + 1;
+            const row = document.createElement('tr');
+            row.style.background = item.is_manual ? '#f0fdf4' : (index % 2 === 0 ? '#fff' : '#fcfcfc');
+            row.style.borderBottom = '2px solid #e2e8f0';
 
-            const nameInp = row.querySelector('.product-name');
-            nameInp.value = item.productName || '';
-            nameInp.oninput = e => { item.productName = e.target.value; };
+            const quantityValue = getItemQuantity(item);
+            const unitValue = getItemUnit(item);
+            const validation = getItemValidationMap(item, targetLoc);
+            const productBorderStyle = getValidationBorderStyle(validation.productName);
+            const sourceBorderStyle = getValidationBorderStyle(validation.sourceSpot);
+            const quantityBorderStyle = getValidationBorderStyle(validation.quantity);
+            const unitBorderStyle = getValidationBorderStyle(validation.unit);
+            const batchBorderStyle = getValidationBorderStyle(validation.nr_partii);
+            const prodDateBorderStyle = getValidationBorderStyle(validation.data_produkcji);
+            const expiryDateBorderStyle = getValidationBorderStyle(validation.data_przydatnosci);
+            const copiedFromNumber = getCopiedFromNumber(item, index);
+            const copyButtonHtml = index > 0
+                ? `<button ${disabledAttr} onclick="copyItem(${index})" title="Kopiuj dane z palety nr ${index}" style="background:none; border:none; color:#0ea5e9; cursor:pointer;">
+                        <span class="material-icons" style="font-size:20px;">content_copy</span>
+                   </button>`
+                : '';
+            const copyNoticeInline = copiedFromNumber
+                ? `<div style="font-size: 10px; font-weight: 700; color: #b91c1c; text-align: left; margin-bottom: 4px;">Skopiowano z palety nr ${copiedFromNumber}</div>`
+                : '';
 
-            const formSel = row.querySelector('.package-form');
-            formSel.value = item.packageForm || '';
-            const weightLab = row.querySelector('.weight-label');
-            const weightInp = row.querySelector('.net-weight');
-
-            const updateFormUI = () => {
-                if (formSel.value === 'packaging') {
-                    weightLab.innerText = 'Ilość (szt.)';
-                    weightInp.value = item.unitsPerPallet || '';
-                } else {
-                    weightLab.innerText = 'Waga (kg)';
-                    weightInp.value = item.netWeight || '';
-                }
-            };
-            formSel.onchange = e => { item.packageForm = e.target.value; updateFormUI(); };
-            weightInp.oninput = e => {
-                if (item.packageForm === 'packaging') item.unitsPerPallet = parseFloat(e.target.value) || 0;
-                else item.netWeight = parseFloat(e.target.value) || 0;
-            };
-            updateFormUI();
-
-            const delBtn = row.querySelector('.btn-delete');
-            delBtn.onclick = () => { items.splice(index, 1); palletCountInput.value = items.length; renderItems(); };
-
-            const copyBtn = row.querySelector('.btn-copy-prev');
-            if (index === 0) {
-                copyBtn.style.display = 'none';
-            } else {
-                copyBtn.onclick = () => {
-                    const prev = items[index - 1];
-                    item.productName = prev.productName;
-                    item.packageForm = prev.packageForm;
-                    item.netWeight = prev.netWeight;
-                    item.unitsPerPallet = prev.unitsPerPallet;
-                    renderItems();
-                };
-            }
-
-            // Readonly if already sent
-            if (delivery.status === 'COMPLETED' || delivery.status === 'OCZEKUJE') {
-                nameInp.disabled = formSel.disabled = weightInp.disabled = true;
-                delBtn.style.display = 'none';
-                copyBtn.style.display = 'none';
-                palletCountInput.disabled = true;
-                lokZSel.disabled = lokDoSel.disabled = true;
-            }
-
-            itemsContainer.appendChild(clone);
+            row.innerHTML = `
+                <td style="padding: 10px 20px; font-size: 13px; color: #64748b; vertical-align: middle; font-weight: 800;">${index + 1}</td>
+                <td style="padding: 8px 10px; border: none;">
+                    ${copyNoticeInline}
+                    <input type="text" ${disabledAttr} value="${escapeAttr(item.productName || '')}" onchange="updateItem(${index}, 'productName', this.value)"
+                           list="productsList" placeholder="Wybierz produkt"
+                           style="width: 100%; height: 34px; ${productBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; font-weight: 700; box-sizing: border-box; min-width: 0;">
+                </td>
+                <td style="padding: 8px 10px; border: none;">
+                    ${copyNoticeInline}
+                      <input type="text" ${disabledAttr} value="${escapeAttr(item.sourceSpot || '')}" onchange="updateItem(${index}, 'sourceSpot', this.value.toUpperCase())"
+                          oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" list="locationSuggestionsList" autocomplete="off"
+                           placeholder="np. BF_MS01"
+                           style="width: 100%; height: 34px; ${sourceBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; box-sizing: border-box; min-width: 0;">
+                </td>
+                <td style="padding: 8px 10px; border: none;">
+                    ${copyNoticeInline}
+                    <input type="number" ${disabledAttr} value="${escapeAttr(quantityValue)}"
+                           onchange="updateItem(${index}, 'quantity', this.value)" placeholder=""
+                           style="width: 100%; height: 34px; ${quantityBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; text-align: right; font-weight: 700; box-sizing: border-box; min-width: 0;">
+                </td>
+                <td style="padding: 8px 10px; border: none;">
+                    ${copyNoticeInline}
+                    <select ${disabledAttr} onchange="updateItem(${index}, 'unit', this.value)"
+                            style="width: 100%; height: 34px; ${unitBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; font-weight: 700; box-sizing: border-box; min-width: 0; background: white;">
+                        <option value="" ${unitValue === '' ? 'selected' : ''}>--</option>
+                        <option value="kg" ${unitValue === 'kg' ? 'selected' : ''}>kg</option>
+                        <option value="szt" ${unitValue === 'szt' ? 'selected' : ''}>szt</option>
+                    </select>
+                </td>
+                <td style="padding: 8px 10px; border: none;">
+                    ${copyNoticeInline}
+                    <input type="text" ${disabledAttr} value="${escapeAttr(item.nr_partii || '')}" onchange="updateItem(${index}, 'nr_partii', this.value)"
+                           placeholder="Nr partii"
+                           style="width: 100%; height: 34px; ${batchBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
+                </td>
+                <td style="padding: 8px 10px; border: none;">
+                    ${copyNoticeInline}
+                    <input type="date" ${disabledAttr} value="${escapeAttr(item.data_produkcji || '')}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
+                           title="Data produkcji"
+                           style="width: 100%; height: 34px; ${prodDateBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
+                </td>
+                <td style="padding: 8px 10px; border: none;">
+                    ${copyNoticeInline}
+                    <input type="date" ${disabledAttr} value="${escapeAttr(item.data_przydatnosci || '')}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
+                           title="Data przydatności"
+                           style="width: 100%; height: 34px; ${expiryDateBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
+                </td>
+                <td style="padding: 10px 20px; text-align: center; vertical-align: middle;">
+                    <div style="display: inline-flex; align-items: center; gap: 6px;">
+                        ${copyButtonHtml}
+                        <button ${disabledAttr} onclick="removeItem(${index})" title="Usuń paletę nr ${index + 1}" style="background:none; border:none; color:#ef4444; cursor:pointer;">
+                            <span class="material-icons" style="font-size:20px;">delete</span>
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(row);
         });
 
-        if (items.length === 0) {
-            itemsContainer.innerHTML = `<div style="text-align: center; padding: 40px; color: #94a3b8; border: 2px dashed #cbd5e1; border-radius: 12px;">
-                <span class="material-icons" style="font-size: 40px; margin-bottom: 10px; color: #cbd5e1;">playlist_add</span>
-                <p style="margin: 0; font-size: 14px; font-weight: 500;">Zwiększ "Ilość Palet" w panelu powyżej.</p>
-            </div>`;
+        updateSaveButtonState();
+    }
+
+    const wszystkieProdukty = {{ wszystkie_produkty|tojson|safe }};
+
+    function updateItem(index, key, value) {
+        if (READ_ONLY_MODE) {
+            notifyReadOnly();
+            return;
+        }
+
+        clearCopiedMarker(items[index], index);
+
+        if (key === 'quantity') {
+            setItemQuantity(index, value);
+            saveDraftState();
+            renderItems();
+            return;
+        }
+
+        if (key === 'unit') {
+            const currentQuantity = getItemQuantity(items[index]);
+            if (value === 'szt') {
+                items[index].packageForm = 'packaging';
+                setItemQuantity(index, currentQuantity);
+            } else if (value === 'kg') {
+                items[index].packageForm = 'bags';
+                setItemQuantity(index, currentQuantity);
+            } else {
+                items[index].packageForm = '';
+            }
+            saveDraftState();
+            renderItems();
+            return;
+        }
+
+        items[index][key] = value;
+        saveDraftState();
+        renderItems();
+    }
+
+    function generateManualRows(count) {
+        if (READ_ONLY_MODE) {
+            notifyReadOnly();
+            return;
+        }
+        count = parseInt(count);
+        if (isNaN(count) || count < 0) return;
+        
+        const currentCount = items.length;
+        if (count > currentCount) {
+            for (let i = currentCount; i < count; i++) {
+                items.push(buildEmptyItem(String(i)));
+            }
+        } else if (count < currentCount) {
+            const removed = items.slice(count);
+            removed.forEach((item, removedIdx) => {
+                clearCopiedMarker(item, count + removedIdx);
+            });
+            items = items.slice(0, count);
+        }
+        saveDraftState();
+        renderItems();
+    }
+
+    function addEmptyRow() {
+        if (READ_ONLY_MODE) {
+            notifyReadOnly();
+            return;
+        }
+        items.push(buildEmptyItem());
+        const countInput = document.getElementById('pallet_count');
+        countInput.value = items.length;
+        saveDraftState();
+        renderItems();
+    }
+
+    function copyItem(index) {
+        if (READ_ONLY_MODE) {
+            notifyReadOnly();
+            return;
+        }
+        if (index <= 0) {
+            return;
+        }
+
+        const source = items[index - 1];
+        const target = items[index];
+        if (!source || !target) {
+            return;
+        }
+
+        target.productName = source.productName || '';
+        target.nr_partii = source.nr_partii || '';
+        target.data_produkcji = source.data_produkcji || '';
+        target.data_przydatnosci = source.data_przydatnosci || '';
+        const sourceUnit = getItemUnit(source);
+        if (sourceUnit === 'szt') {
+            target.packageForm = 'packaging';
+        } else if (sourceUnit === 'kg') {
+            target.packageForm = 'bags';
+        } else {
+            target.packageForm = '';
+        }
+        target.sourceSpot = source.sourceSpot || getDefaultSourceSpot();
+
+        const copiedQty = getItemQuantity(source);
+        if (!(copiedQty === '' || copiedQty === null || copiedQty === undefined)) {
+            if (getItemUnit(source) === 'szt') {
+                target.unitsPerPallet = copiedQty;
+                target.netWeight = '';
+            } else {
+                target.netWeight = copiedQty;
+                target.unitsPerPallet = '';
+            }
+        } else {
+            target.netWeight = '';
+            target.unitsPerPallet = '';
+        }
+
+        setCopiedFromNumber(target, index, index);
+
+        saveDraftState();
+        renderItems();
+    }
+
+    function normalizePalletKey(value) {
+        return String(value || '').trim().toUpperCase();
+    }
+
+    function getPalletReservationKeyFromItem(item) {
+        if (!item) {
+            return '';
+        }
+
+        const palletNo = normalizePalletKey(item.sourcePalletNo || item.nr_palety);
+        if (palletNo) {
+            return `NR:${palletNo}`;
+        }
+
+        const palletId = item.sourcePalletId;
+        const scannedType = normalizePalletKey(item.scannedType || item.type);
+        if (palletId !== undefined && palletId !== null && String(palletId).trim() !== '' && scannedType) {
+            return `ID:${scannedType}:${String(palletId).trim()}`;
+        }
+
+        return '';
+    }
+
+    function getPalletReservationKeyFromPallet(pal) {
+        if (!pal) {
+            return '';
+        }
+
+        const palletNo = normalizePalletKey(pal.nr_palety);
+        if (palletNo) {
+            return `NR:${palletNo}`;
+        }
+
+        const palletId = pal.id;
+        const scannedType = normalizePalletKey(pal.type);
+        if (palletId !== undefined && palletId !== null && String(palletId).trim() !== '' && scannedType) {
+            return `ID:${scannedType}:${String(palletId).trim()}`;
+        }
+
+        return '';
+    }
+
+    function createItemFromPallet(pal, idx = 0) {
+        const scannedType = String(pal.type || '').toLowerCase();
+        const rawQty = pal.stan_magazynowy;
+        const parsedQty = parseFloat(String(rawQty ?? '').replace(',', '.'));
+        const qty = Number.isNaN(parsedQty) ? '' : parsedQty;
+        const isPackaging = scannedType === 'opakowanie';
+
+        return {
+            id: String(pal.id) + '_' + Date.now() + '_' + idx,
+            sourcePalletId: pal.id,
+            sourcePalletNo: pal.nr_palety || '',
+            productName: pal.nazwa || '',
+            netWeight: isPackaging ? '' : qty,
+            unitsPerPallet: isPackaging ? qty : '',
+            packageForm: isPackaging ? 'packaging' : 'bags',
+            sourceSpot: pal.lokalizacja || getDefaultSourceSpot(),
+            nr_partii: pal.nr_partii || '',
+            data_produkcji: pal.data_produkcji || '',
+            data_przydatnosci: pal.data_przydatnosci || '',
+            accepted: false,
+            scannedType: pal.type || ''
+        };
+    }
+
+    function appendPalletsToItems(selectedPallets) {
+        const targetLoc = getCurrentTargetLocation();
+        const conflictingPallets = selectedPallets.filter(pal => isRouteConflictLocation(pal && pal.lokalizacja, targetLoc));
+        const validPallets = selectedPallets.filter(pal => !isRouteConflictLocation(pal && pal.lokalizacja, targetLoc));
+
+        if (conflictingPallets.length > 0) {
+            showToast(`Operacja niemożliwa: ${conflictingPallets.length} palet ma tę samą lokalizację co pole Dokąd (${targetLoc}).`, 'warning');
+        }
+
+        if (validPallets.length === 0) {
+            return;
+        }
+
+        const existingKeys = new Set(
+            items
+                .map(it => getPalletReservationKeyFromItem(it))
+                .filter(Boolean)
+        );
+
+        const newKeys = new Set();
+        let duplicateAlreadyInForm = 0;
+        let duplicateInSelection = 0;
+
+        const dedupedPallets = validPallets.filter(pal => {
+            const key = getPalletReservationKeyFromPallet(pal);
+            if (!key) {
+                return true;
+            }
+
+            if (existingKeys.has(key)) {
+                duplicateAlreadyInForm += 1;
+                return false;
+            }
+
+            if (newKeys.has(key)) {
+                duplicateInSelection += 1;
+                return false;
+            }
+
+            newKeys.add(key);
+            return true;
+        });
+
+        if (duplicateAlreadyInForm > 0 && typeof showToast === 'function') {
+            showToast(`Pominięto ${duplicateAlreadyInForm} palet: są już dodane w tym zleceniu.`, 'warning');
+        }
+
+        if (duplicateInSelection > 0 && typeof showToast === 'function') {
+            showToast(`Pominięto ${duplicateInSelection} duplikatów z bieżącego wyboru.`, 'warning');
+        }
+
+        if (dedupedPallets.length === 0) {
+            return;
+        }
+
+        const emptyIndexes = [];
+        items.forEach((item, index) => {
+            if (isItemPalletSlotEmpty(item)) {
+                emptyIndexes.push(index);
+            }
+        });
+
+        let filledOpenRows = 0;
+        let appendedRows = 0;
+
+        dedupedPallets.forEach((pal, idx) => {
+            const newItem = createItemFromPallet(pal, idx);
+            const slotIndex = emptyIndexes.length > 0 ? emptyIndexes.shift() : undefined;
+
+            if (slotIndex !== undefined) {
+                const existingId = items[slotIndex] && items[slotIndex].id;
+                if (existingId) {
+                    newItem.id = existingId;
+                }
+                clearCopiedMarker(items[slotIndex], slotIndex);
+                items[slotIndex] = newItem;
+                filledOpenRows += 1;
+            } else {
+                items.push(newItem);
+                appendedRows += 1;
+            }
+        });
+
+        const countInput = document.getElementById('pallet_count');
+        if (countInput) {
+            countInput.value = items.length;
+        }
+
+        saveDraftState();
+        renderItems();
+        if (typeof showToast === 'function') {
+            if (filledOpenRows > 0 && appendedRows > 0) {
+                showToast(`Uzupełniono ${filledOpenRows} otwartych wierszy i dodano ${appendedRows} nowych palet.`, 'success');
+            } else if (filledOpenRows > 0) {
+                showToast(`Uzupełniono ${filledOpenRows} otwartych wierszy.`, 'success');
+            } else {
+                showToast(`Dodano ${appendedRows} palet.`, 'success');
+            }
         }
     }
 
-    async function saveDelivery(newStatus) {
-        if (!delivery.lokalizacja_z || !delivery.lokalizacja_do) {
-            alert('Wybierz lokalizację źródłową i docelową (kierunek przesunięcia).');
-            return;
+    function closePalletSelectionModal() {
+        const modal = document.getElementById('palletSelectModal');
+        const confirmBtn = document.getElementById('palletSelectConfirmBtn');
+        if (modal) {
+            modal.style.display = 'none';
         }
-        if (items.length === 0) {
-            alert('Dodaj co najmniej jedną pozycję.');
+        if (confirmBtn) {
+            confirmBtn.textContent = 'Dodaj wybrane';
+            confirmBtn.disabled = false;
+            confirmBtn.style.opacity = '1';
+            confirmBtn.style.cursor = 'pointer';
+        }
+        document.removeEventListener('keydown', handlePalletSelectionEscape);
+        palletPickerState = null;
+    }
+
+    function handlePalletSelectionEscape(event) {
+        if (event.key !== 'Escape') {
             return;
         }
 
-        const btn = document.querySelector('#actionButtons button');
-        const oldHtml = btn ? btn.innerHTML : '';
-        if (btn) { btn.innerHTML = `<span class="material-icons" style="font-size: 18px;">sync</span> Wysyłanie...`; btn.disabled = true; }
+        const modal = document.getElementById('palletSelectModal');
+        if (modal && modal.style.display === 'flex') {
+            closePalletSelectionModal();
+        }
+    }
 
-        delivery.items = items;
-        delivery.status = newStatus;
+    function renderPalletSelectionModal() {
+        if (!palletPickerState) {
+            return;
+        }
+
+        const summary = document.getElementById('palletSelectSummary');
+        const list = document.getElementById('palletSelectList');
+        const confirmBtn = document.getElementById('palletSelectConfirmBtn');
+        const searchInput = document.getElementById('palletSelectSearch');
+        if (!summary || !list) {
+            return;
+        }
+
+        const selectedCount = palletPickerState.selected.size;
+        const query = String(palletPickerState.searchTerm || '').trim().toLowerCase();
+        const filteredEntries = palletPickerState.pallets
+            .map((pal, idx) => ({ pal, idx }))
+            .filter(entry => {
+                if (!query) {
+                    return true;
+                }
+                const haystack = [
+                    entry.pal.nazwa,
+                    entry.pal.nr_palety,
+                    entry.pal.id,
+                    entry.pal.lokalizacja,
+                    entry.pal.nr_partii,
+                    entry.pal.type,
+                ].map(v => String(v || '').toLowerCase()).join(' ');
+                return haystack.includes(query);
+            });
+
+        summary.textContent = `Wyników: ${palletPickerState.pallets.length}. Po filtrze: ${filteredEntries.length}. Zaznaczone: ${selectedCount}. Docelowo: ${palletPickerState.desiredCount}.`;
+
+        if (searchInput && searchInput.value !== palletPickerState.searchTerm) {
+            searchInput.value = palletPickerState.searchTerm || '';
+        }
+
+        if (confirmBtn) {
+            const canConfirm = selectedCount > 0 && selectedCount <= palletPickerState.desiredCount;
+            confirmBtn.textContent = `Dodaj wybrane ${selectedCount}/${palletPickerState.desiredCount}`;
+            confirmBtn.disabled = !canConfirm;
+            confirmBtn.style.opacity = canConfirm ? '1' : '0.65';
+            confirmBtn.style.cursor = canConfirm ? 'pointer' : 'not-allowed';
+        }
+
+        if (filteredEntries.length === 0) {
+            list.innerHTML = '<div style="padding: 16px 4px; font-size: 12px; color: #64748b;">Brak palet pasujących do wyszukiwania.</div>';
+            return;
+        }
+
+        list.innerHTML = filteredEntries.map(entry => {
+            const pal = entry.pal;
+            const idx = entry.idx;
+            const checked = palletPickerState.selected.has(idx) ? 'checked' : '';
+            const code = pal.nr_palety || String(pal.id);
+            const qty = pal.stan_magazynowy || 0;
+            const typeLabel = pal.type === 'opakowanie' ? 'opakowanie' : 'surowiec';
+            return `
+                <label style="display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer;">
+                    <input type="checkbox" data-idx="${idx}" ${checked} onchange="togglePalletSelection(${idx}, this.checked)">
+                    <div style="min-width: 0;">
+                        <div style="font-size: 13px; font-weight: 800; color: #0f172a;">${escapeAttr(pal.nazwa || '-')}</div>
+                        <div style="font-size: 12px; color: #475569;">Kod: ${escapeAttr(code)} | Lokalizacja: ${escapeAttr(pal.lokalizacja || '-')} | Typ: ${escapeAttr(typeLabel)}</div>
+                    </div>
+                    <div style="font-size: 12px; font-weight: 700; color: #334155; text-align: right;">Stan: ${escapeAttr(qty)}</div>
+                </label>
+            `;
+        }).join('');
+    }
+
+    function updatePalletSelectionSearch(value) {
+        if (!palletPickerState) {
+            return;
+        }
+        palletPickerState.searchTerm = String(value || '');
+        renderPalletSelectionModal();
+    }
+
+    function togglePalletSelection(idx, checked) {
+        if (!palletPickerState) {
+            return;
+        }
+        if (checked) {
+            palletPickerState.selected.add(idx);
+        } else {
+            palletPickerState.selected.delete(idx);
+        }
+        renderPalletSelectionModal();
+    }
+
+    function openPalletSelectionModal(pallets, desiredCount) {
+        const modal = document.getElementById('palletSelectModal');
+        if (!modal) {
+            appendPalletsToItems(pallets.slice(0, desiredCount));
+            return;
+        }
+
+        palletPickerState = {
+            pallets: pallets,
+            desiredCount: desiredCount,
+            selected: new Set(),
+            searchTerm: '',
+        };
+
+        document.removeEventListener('keydown', handlePalletSelectionEscape);
+        document.addEventListener('keydown', handlePalletSelectionEscape);
+        renderPalletSelectionModal();
+        modal.style.display = 'flex';
+
+        const searchInput = document.getElementById('palletSelectSearch');
+        if (searchInput) {
+            searchInput.value = '';
+            setTimeout(() => searchInput.focus(), 0);
+        }
+    }
+
+    function confirmPalletSelection() {
+        if (!palletPickerState) {
+            return;
+        }
+
+        const selectedIndexes = Array.from(palletPickerState.selected).sort((a, b) => a - b);
+        if (selectedIndexes.length === 0) {
+            showToast('Zaznacz przynajmniej jedną paletę.', 'warning');
+            return;
+        }
+
+        if (selectedIndexes.length > palletPickerState.desiredCount) {
+            showToast(`Zaznaczono za dużo palet. Maksymalnie: ${palletPickerState.desiredCount}.`, 'warning');
+            return;
+        }
+
+        const selectedPallets = selectedIndexes.map(idx => palletPickerState.pallets[idx]);
+        closePalletSelectionModal();
+        appendPalletsToItems(selectedPallets);
+    }
+
+    async function lookupAndAddPallets() {
+        if (READ_ONLY_MODE) {
+            notifyReadOnly();
+            return;
+        }
+        const input = document.getElementById('scanner_input');
+        const countInput = document.getElementById('pallet_count');
+        const code = input.value.trim();
+        if (!code) return;
+
+        const count = parseInt(countInput.value) || 1;
+        input.value = 'Szukam...';
+        input.disabled = true;
 
         try {
-            const res = await fetch('{{ url_for("magazyn_dostawy.zapisz_dostawe") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...delivery, linia })
-            });
-            const d = await res.json();
-            if (d.success) {
-                window.location.href = `{{ url_for("magazyn_dostawy.lista_dostaw", linia=linia) }}`;
-            } else {
-                alert('Błąd: ' + d.error);
-                if (btn) { btn.innerHTML = oldHtml; btn.disabled = false; }
+            const bypassLookup = isWarehouseLookupBypassed();
+            const res = await fetch(`/magazyn-dostawy/api/dostepne-palety?linia={{ linia }}&prefix=${encodeURIComponent(code)}&skip_warehouse_lookup=${bypassLookup ? '1' : '0'}`);
+            const data = await res.json();
+
+            if (!data.success || !Array.isArray(data.pallets) || data.pallets.length === 0) {
+                showToast('Nie znaleziono palet dla podanego kodu/regału.', 'warning');
+                return;
             }
+
+            const desiredCount = Math.max(1, count);
+            if (data.pallets.length === 1) {
+                appendPalletsToItems([data.pallets[0]]);
+                return;
+            }
+
+            openPalletSelectionModal(data.pallets, desiredCount);
         } catch (e) {
-            alert('Błąd sieci');
-            if (btn) { btn.innerHTML = oldHtml; btn.disabled = false; }
+            showToast('Błąd połączenia', 'danger');
+        } finally {
+            input.value = '';
+            input.disabled = false;
+            input.focus();
         }
     }
 
-    init();
-});
+    function removeItem(index) {
+        if (READ_ONLY_MODE) {
+            notifyReadOnly();
+            return;
+        }
+        const removedItems = items.splice(index, 1);
+        const removed = removedItems && removedItems.length ? removedItems[0] : null;
+        if (removed) {
+            clearCopiedMarker(removed, index);
+        }
+        const countInput = document.getElementById('pallet_count');
+        countInput.value = items.length;
+        saveDraftState();
+        renderItems();
+    }
+
+    function resetTransferFormAfterSave() {
+        const targetInput = document.getElementById('lokalizacja_do');
+        const countInput = document.getElementById('pallet_count');
+        const orderRefInput = document.getElementById('order_ref');
+        const scannerInput = document.getElementById('scanner_input');
+        const bypassInput = document.getElementById('skip_warehouse_lookup');
+
+        if (targetInput) targetInput.value = '';
+        if (countInput) countInput.value = '0';
+        if (orderRefInput) orderRefInput.value = generateWZ();
+        if (scannerInput) scannerInput.value = '';
+        if (bypassInput) bypassInput.checked = false;
+
+        items = [];
+        copiedRowsInfoByItem = {};
+        palletPickerState = null;
+
+        renderItems();
+        updateSaveButtonState();
+    }
+
+    async function savePrzesuniecie() {
+        if (READ_ONLY_MODE) {
+            notifyReadOnly();
+            return;
+        }
+        const targetLoc = document.getElementById('lokalizacja_do').value;
+        const orderRef = document.getElementById('order_ref').value.trim();
+        
+        if (!targetLoc) return showToast('Wybierz magazyn docelowy!', 'warning');
+
+        const conflictingItems = items.filter(item => isRouteConflictLocation(item && item.sourceSpot, targetLoc));
+        if (conflictingItems.length > 0) {
+            return showToast(`Operacja niemożliwa: ${conflictingItems.length} palet ma lokalizację źródłową taką samą jak Dokąd (${normalizeLocation(targetLoc)}).`, 'warning');
+        }
+
+        const unknownSourceLocations = getUnknownSourceLocations();
+        if (unknownSourceLocations.length > 0) {
+            const preview = unknownSourceLocations.slice(0, 3).join(', ');
+            const suffix = unknownSourceLocations.length > 3 ? ', ...' : '';
+            return showToast(`Nieznane lokalizacje źródłowe: ${preview}${suffix}.`, 'warning');
+        }
+
+        if (items.length === 0) return showToast('Dodaj przynajmniej jedną paletę!', 'warning');
+        if (!items.every(isItemComplete)) return showToast('Uzupełnij wszystkie pola w każdej palecie.', 'warning');
+
+        const payload = {
+            id: "{{ dostawa.id if dostawa else '' }}",
+            order_ref: orderRef,
+            lokalizacja_do: targetLoc,
+            linia: "{{ linia }}",
+            items: items,
+            skip_warehouse_lookup: isWarehouseLookupBypassed(),
+            status: "OCZEKUJE"
+        };
+
+        const res = await fetch("/magazyn-dostawy/api/zapisz", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            clearDraftState();
+            resetTransferFormAfterSave();
+            showToast('Przesuniecie zapisane', 'success');
+            setTimeout(() => {
+                location.href = "{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='new') }}";
+            }, 500);
+        } else {
+            showToast('Błąd: ' + data.error, 'danger');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const ref = document.getElementById('order_ref');
+        if (!ref.value) ref.value = generateWZ();
+
+        ensureLocationSuggestionsList();
+
+        const targetInput = document.getElementById('lokalizacja_do');
+        const bypassInput = document.getElementById('skip_warehouse_lookup');
+        if (targetInput) {
+            targetInput.addEventListener('change', () => {
+                saveDraftState();
+                renderItems();
+            });
+        }
+        if (bypassInput) {
+            bypassInput.addEventListener('change', saveDraftState);
+        }
+        if (ref) {
+            ref.addEventListener('change', saveDraftState);
+            ref.addEventListener('input', saveDraftState);
+        }
+        
+        const datalist = document.createElement('datalist');
+        datalist.id = 'productsList';
+        wszystkieProdukty.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p;
+            datalist.appendChild(opt);
+        });
+        document.body.appendChild(datalist);
+
+        if (IS_NEW_TRANSFER_FORM && !READ_ONLY_MODE) {
+            const draftMode = getDraftModeFromUrl();
+
+            if (draftMode === 'new') {
+                clearDraftState();
+            } else {
+                const storedDraft = getStoredDraftState();
+                if (hasDraftItems(storedDraft)) {
+                    restoreDraftState(storedDraft, { silentToast: false });
+                }
+            }
+        } else {
+            restoreDraftState();
+        }
+        
+        renderItems();
+        updateSaveButtonState();
+
+        if (!READ_ONLY_MODE) {
+            window.addEventListener('beforeunload', saveDraftState);
+        }
+    });
 </script>
 {% endblock %}

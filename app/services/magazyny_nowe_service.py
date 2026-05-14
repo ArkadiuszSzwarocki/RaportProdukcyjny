@@ -45,11 +45,11 @@ class MagazynyNoweService:
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
             else:
-                # Wyroby gotowe nie mają standardowo pola lokalizacja, dodajmy to bezpiecznie
-                return False, "Wyroby gotowe aktualnie nie obsługują dynamicznych lokalizacji."
+                table = get_table_name('magazyn_palety', linia)
 
             # Pobierz stare dane do logu
-            cursor.execute(f"SELECT lokalizacja, stan_magazynowy FROM {table} WHERE id = %s", (pallet_id,))
+            col_qty = 'waga_netto' if pallet_type == 'Wyrób Gotowy' else 'stan_magazynowy'
+            cursor.execute(f"SELECT lokalizacja, {col_qty} FROM {table} WHERE id = %s", (pallet_id,))
             row = cursor.fetchone()
             if not row:
                 return False, "Paleta nie znaleziona."
@@ -68,6 +68,12 @@ class MagazynyNoweService:
                     (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) 
                     VALUES (%s, 'PRZESUNIECIE', 0, %s, 'POTWIERDZONE', %s, %s, %s)
                 """, (pallet_id, qty, worker_login, datetime.now(), f"Z {old_loc or 'Brak'} do {new_location}"))
+
+                # Log to palety_historia
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'PRZESUNIECIE', %s, %s, %s, %s)",
+                    (pallet_id, linia, pallet_type.lower(), old_loc, new_location, f"Przesunięcie palety z {old_loc or 'Brak'} do {new_location}", worker_login)
+                )
             except Exception as e:
                 print("Błąd zapisu ruchu:", e)
 
@@ -77,37 +83,130 @@ class MagazynyNoweService:
             conn.close()
             
     @staticmethod
-    def archive_pallet(pallet_id, pallet_type, worker_login, linia='PSD'):
-        """Archiwizuje (zeruje stan) paletę."""
+    def toggle_block(pallet_id, pallet_type, worker_login, linia='PSD'):
+        """Przełącza status blokady palety."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            
             if pallet_type == 'Surowiec':
                 table = get_table_name('magazyn_surowce', linia)
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
             else:
                 table = get_table_name('magazyn_palety', linia)
-                cursor.execute(f"UPDATE {table} SET waga_netto = 0 WHERE id = %s", (pallet_id,))
-                conn.commit()
-                return True, "Paleta zarchiwizowana."
 
-            cursor.execute(f"UPDATE {table} SET stan_magazynowy = 0 WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT is_blocked FROM {table} WHERE id = %s", (pallet_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False, "Paleta nie znaleziona."
+                
+            new_status = 0 if row[0] else 1
+            cursor.execute(f"UPDATE {table} SET is_blocked = %s WHERE id = %s", (new_status, pallet_id))
+            
+            # Log to history
+            action = 'BLOKADA' if new_status else 'ODBLOKOWANIE'
+            cursor.execute(
+                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s)",
+                (pallet_id, linia, pallet_type.lower(), action, f"{action} palety przez użytkownika", worker_login)
+            )
+            
+            conn.commit()
+            return True, f"Paleta {'zablokowana' if new_status else 'odblokowana'}."
+        finally:
+            conn.close()
+
+    @staticmethod
+    def dispatch_pallet(pallet_id, pallet_type, worker_login, linia='PSD'):
+        """Wydaje paletę (przesuwa do archiwum z lokalizacją EXPEDITION)."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            if pallet_type == 'Surowiec':
+                table = get_table_name('magazyn_surowce', linia)
+                col_qty = 'stan_magazynowy'
+            elif pallet_type == 'Opakowanie':
+                table = get_table_name('magazyn_opakowania', linia)
+                col_qty = 'stan_magazynowy'
+            else:
+                table = get_table_name('magazyn_palety', linia)
+                col_qty = 'waga_netto'
+
+            # 1. Pobierz dane
+            cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
+            p = cursor.fetchone()
+            if not p:
+                return False, "Paleta nie znaleziona."
+            
+            if p.get('is_blocked'):
+                return False, "NIE MOŻNA WYDAĆ ZABLOKOWANEJ PALETY!"
+            
+            # 2. Wstaw do archiwum z nową lokalizacją
+            cursor.execute("""
+                INSERT INTO magazyn_archiwum (original_id, nr_palety, nazwa, typ_palety, linia, nr_partii, waga_ostatnia, lokalizacja_ostatnia, user_login, komentarz)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (p['id'], p.get('nr_palety'), p.get('nazwa') or p.get('produkt'), pallet_type, p.get('linia', linia), p.get('nr_partii'), p[col_qty], 'EXPEDITION', worker_login, f"Wydanie z {p.get('lokalizacja')}"))
+
+            # 3. Usuń z aktywnego
+            cursor.execute(f"DELETE FROM {table} WHERE id = %s", (pallet_id,))
             
             # Zapisz ruch do historii
-            table_ruch = get_table_name('magazyn_ruch', linia)
             try:
-                cursor.execute(f"""
-                    INSERT INTO {table_ruch} 
-                    (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) 
-                    VALUES (%s, 'ARCHIWIZACJA', 0, 0, 'POTWIERDZONE', %s, %s, %s)
-                """, (pallet_id, worker_login, datetime.now(), "Ręczna archiwizacja palety z systemu."))
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'WYDANIE', %s, 'EXPEDITION', %s, %s)",
+                    (pallet_id, linia, pallet_type.lower(), p.get('lokalizacja'), f"Wydanie palety z {p.get('lokalizacja')}", worker_login)
+                )
             except Exception as e:
-                print("Błąd zapisu ruchu:", e)
+                print("Błąd zapisu historii:", e)
 
             conn.commit()
-            return True, "Paleta zarchiwizowana."
+            return True, "Paleta została wydana i zarchiwizowana."
+        finally:
+            conn.close()
+
+    @staticmethod
+    def archive_pallet(pallet_id, pallet_type, worker_login, linia='PSD'):
+        """Archiwizuje paletę (przenosi do magazyn_archiwum i usuwa z aktywnego)."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            if pallet_type == 'Surowiec':
+                table = get_table_name('magazyn_surowce', linia)
+                col_qty = 'stan_magazynowy'
+            elif pallet_type == 'Opakowanie':
+                table = get_table_name('magazyn_opakowania', linia)
+                col_qty = 'stan_magazynowy'
+            else:
+                table = get_table_name('magazyn_palety', linia)
+                col_qty = 'waga_netto'
+
+            # 1. Pobierz dane do archiwum
+            cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
+            p = cursor.fetchone()
+            if not p:
+                return False, "Paleta nie znaleziona."
+
+            # 2. Wstaw do archiwum
+            cursor.execute("""
+                INSERT INTO magazyn_archiwum (original_id, nr_palety, nazwa, typ_palety, linia, nr_partii, waga_ostatnia, lokalizacja_ostatnia, user_login, komentarz)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (p['id'], p.get('nr_palety'), p.get('nazwa') or p.get('produkt'), pallet_type, p.get('linia', linia), p.get('nr_partii'), p[col_qty], p.get('lokalizacja'), worker_login, "Ręczna archiwizacja z dashboardu"))
+
+            # 3. Usuń z aktywnego
+            cursor.execute(f"DELETE FROM {table} WHERE id = %s", (pallet_id,))
+            
+            # Log to palety_historia
+            try:
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, 'ARCHIWIZACJA', %s, %s)",
+                    (pallet_id, linia, pallet_type.lower(), "Archiwizacja palety (przeniesienie do archiwum)", worker_login)
+                )
+            except Exception as e:
+                print("Błąd zapisu historii:", e)
+
+            conn.commit()
+            return True, "Paleta została przeniesiona do archiwum."
         finally:
             conn.close()
 
@@ -132,7 +231,11 @@ class MagazynyNoweService:
 
     @staticmethod
     def update_weight(pallet_id, pallet_type, new_weight, worker_login, linia='PSD'):
-        """Aktualizuje wagę/ilość na palecie."""
+        """Aktualizuje wagę/ilość na palecie. Jeśli 0, archiwizuje."""
+        new_weight = float(new_weight)
+        if new_weight <= 0:
+            return MagazynyNoweService.archive_pallet(pallet_id, pallet_type, worker_login, linia)
+            
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
@@ -150,12 +253,11 @@ class MagazynyNoweService:
             cursor.execute(f"SELECT {col} FROM {table} WHERE id = %s", (int(pallet_id),))
             row = cursor.fetchone()
             if not row:
-                return False, f"Błąd: Paleta o ID {pallet_id} nie istnieje w tabeli {table} dla linii {linia}."
+                return False, f"Błąd: Paleta o ID {pallet_id} nie istnieje."
                 
             old_weight = float(row[0]) if row[0] is not None else 0.0
 
-            cursor.execute(f"UPDATE {table} SET {col} = %s WHERE id = %s", (float(new_weight), int(pallet_id)))
-            affected = cursor.rowcount
+            cursor.execute(f"UPDATE {table} SET {col} = %s WHERE id = %s", (new_weight, int(pallet_id)))
             
             # Zapisz ruch do historii
             table_ruch = get_table_name('magazyn_ruch', linia)
@@ -164,17 +266,12 @@ class MagazynyNoweService:
                     INSERT INTO {table_ruch} 
                     (typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) 
                     VALUES ('KOREKTA_WAGI', %s, %s, 'POTWIERDZONE', %s, %s, %s)
-                """, (float(new_weight) - old_weight, float(new_weight), worker_login, datetime.now(), f"Ręczna zmiana wagi: {old_weight} -> {new_weight}"))
+                """, (new_weight - old_weight, new_weight, worker_login, datetime.now(), f"Ręczna zmiana wagi: {old_weight} -> {new_weight}"))
             except Exception as e:
-                print(f"Błąd zapisu ruchu w {table_ruch}:", e)
+                print(f"Błąd zapisu ruchu:", e)
 
             conn.commit()
-            if affected == 0:
-                if float(new_weight) == old_weight:
-                    return True, f"Waga była już ustawiona na {new_weight}. Brak zmian."
-                return False, f"Błąd bazy: rowcount=0 przy próbie zapisu w {table}."
-                
-            return True, f"Pomyślnie zaktualizowano wagę w {table} na {new_weight} kg."
+            return True, f"Pomyślnie zaktualizowano wagę na {new_weight}."
         finally:
             conn.close()
 

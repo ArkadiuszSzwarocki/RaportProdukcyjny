@@ -11,6 +11,7 @@ Endpointy:
 """
 
 from flask import Blueprint, request, jsonify, session, render_template
+from datetime import datetime
 from app.services.scanner_service import ScannerService
 from app.services.print_server import get_printer
 
@@ -159,7 +160,22 @@ def print_label():
 
     # Always return label URL so frontend can open it
     label_url = f"/agro/scanner/label/{surowiec_id}?linia={linia}&autoprint=1"
-    return jsonify({'success': ok, 'message': msg, 'label_url': label_url})
+@scanner_bp.route('/test-print', methods=['POST'])
+def test_print():
+    """Wysyła demo etykietę do drukarki przez mostek (backend-to-backend)."""
+    printer = get_printer()
+    label_data = {
+        'id': '99999',
+        'nazwa': 'PRODUKT TESTOWY 4x6',
+        'ilosc': 1234.5,
+        'lokalizacja': 'TEST-01',
+        'partia': 'BATCH-TEST-2024',
+        'data': datetime.now().strftime('%Y-%m-%d'),
+        'termin': '2025-12-31',
+        'uwagi': 'To jest wydruk testowy nowego formatu 4x6 cala (812x1214 dots).'
+    }
+    ok, msg = printer.print_pallet_label(label_data)
+    return jsonify({'success': ok, 'message': msg})
 
 
 
@@ -181,3 +197,12 @@ def printer_status():
 def scanner_ui():
     linia = request.args.get('linia', 'AGRO').upper()
     return render_template('scanner/index.html', linia=linia)
+
+
+@scanner_bp.route('/simulator')
+def scanner_simulator():
+    linia = request.args.get('linia', 'AGRO').upper()
+    printer_ip = get_printer().printer_ip
+    return render_template('scanner/simulator.html', linia=linia, printer_ip=printer_ip)
+
+

@@ -1,500 +1,192 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<div class="section-header" style="margin-bottom: 20px;">
-    <!-- Pasek nawigacyjny magazynów (Tabs) -->
-    <div class="top-submenu" style="padding: 0; box-shadow: none; margin-bottom: 20px;">
-        <div class="top-submenu-inner" style="margin-left: 0;">
-            <nav class="top-menu">
-                {% for tab in zakladki %}
-                <a href="javascript:void(0)" 
-                   onclick="switchWarehouse('{{ tab.id }}')" 
-                   id="tab-{{ tab.id }}"
-                   class="top-menu-item warehouse-tab {% if tab.id == aktywna_zakladka %}active{% endif %}">
-                    {{ tab.name }}
-                </a>
-                {% endfor %}
-            </nav>
-        </div>
-    </div>
 
-    <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-20">
-        <div class="header-title-row d-flex align-center gap-10">
-            <h2 class="header-title m-0 d-flex align-center gap-8">
-                <span class="material-icons text-primary" style="font-size: 28px;">warehouse</span>
-                <strong>
-                    {% if linia == 'AGRO' %}Magazyn Agro Beta{% else %}Magazyn PSD{% endif %}
-                </strong>
-            </h2>
-        </div>
-            <a href="{{ url_for('magazyn_dostawy.raport', linia=linia) }}" class="btn-action btn-outline-secondary d-flex align-center gap-8" style="padding: 8px 16px; font-size: 13px;">
-                <span class="material-icons" style="font-size: 16px;">summarize</span> Raport Przesunięć
-            </a>
-            <div style="position: relative; display: flex; align-items: center;">
-                <span class="material-icons" style="position: absolute; left: 10px; color: #94a3b8; font-size: 20px;">search</span>
-                <input type="text" id="searchInput" placeholder="Szukaj palet..." 
-                       style="padding: 8px 10px 8px 36px; border: 1px solid #dbe3ea; border-radius: 8px; font-size: 14px; width: 250px;" 
-                       onkeyup="filterTable()">
-            </div>
-    </div>
-</div>
-    
+<!-- MODULAR COMPONENTS -->
+{% include 'magazyny_nowe/_styles.html' %}
+{% include 'magazyny_nowe/_nav_grid.html' %}
+{% include 'magazyny_nowe/_header.html' %}
+{% include 'magazyny_nowe/_modals.html' %}
+
 <div class="section-box p-0">
     <div class="p-15 p-15-bg">
         {% if not items %}
             <div style="text-align: center; padding: 40px; color: #94a3b8;">
                 <span class="material-icons" style="font-size: 48px; margin-bottom: 15px; color: #cbd5e1;">inventory_2</span>
                 <h3 style="margin: 0; font-size: 18px; color: #475569;">Magazyny są puste</h3>
-                <p style="margin: 5px 0 0 0; font-size: 14px;">Brak palet do wyświetlenia dla tej linii produkcyjnej.</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px;">Brak palet do wyświetlenia.</p>
             </div>
         {% else %}
-            <table class="modern-table small" id="magazynyTable">
-                <thead>
-                    <tr>
-                        <th style="cursor: pointer;" onclick="sortTable(0)">ID Palety ↕</th>
-                        <th style="cursor: pointer;" onclick="sortTable(1)">📋 Produkt ↕</th>
-                        <th style="cursor: pointer;" onclick="sortTable(2)">⚖️ Ilość (kg/szt) ↕</th>
-                        <th style="cursor: pointer;" onclick="sortTable(3)">📍 Lokalizacja ↕</th>
-                        <th style="cursor: pointer;" onclick="sortTable(4)">🏷️ Typ ↕</th>
-                        <th style="cursor: pointer;" onclick="sortTable(5)">🕒 Data ↕</th>
-                        <th>✅ Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in items %}
-                    <tr onclick="openPalletModal('{{ item.displayId }}', '{{ item.productName }}', '{{ item.amount }}', '{{ item.location }}', '{{ item.type }}', '{{ item.date }}', '{{ item.id }}')" style="cursor: pointer;">
-                        <td class="font-bold">
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <span class="material-icons" style="color: #10b981; font-size: 16px;">check_circle</span>
-                                {{ item.displayId }}
-                            </div>
-                        </td>
-                        <td><strong class="text-primary">{{ item.productName }}</strong></td>
-                        <td><strong class="text-success">{{ item.amount }}</strong></td>
-                        <td style="font-family: monospace;">{{ item.location or 'Brak' }}</td>
-                        <td>
-                            {% if item.type == 'Surowiec' %}
-                                <span class="status-badge" style="background: #fef3c7; color: #92400e;">{{ item.type }}</span>
-                            {% elif item.type == 'Opakowanie' %}
-                                <span class="status-badge" style="background: #f3e8ff; color: #6b21a8;">{{ item.type }}</span>
+<div id="warehouseItemsContainer" class="view-list">
+    <!-- WIDOK LISTY (Tabela) -->
+    <div class="list-view-wrapper">
+        <table class="modern-table small" id="magazynyTable">
+            <thead>
+                <tr>
+                    <th style="width: 40px; text-align: center;">Lp.</th>
+                    <th style="cursor: pointer;" onclick="sortTable(1)">ID Palety ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(2)">📋 Produkt ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(3)">⚖️ Ilość ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(4)">📍 Lokalizacja ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(5)">🏷️ Typ ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(6)">📅 Produkcja ↕</th>
+                    <th style="cursor: pointer;" onclick="sortTable(7)">⌛ Ważność ↕</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr onclick="openPalletModal('{{ item.displayId }}', '{{ item.productName }}', '{{ item.amount }}', '{{ item.location }}', '{{ item.type }}', '{{ item.date_prod }}', '{{ item.id }}', '{{ item.linia }}', {{ 1 if item.is_blocked else 0 }}, '{{ item.date_added }}')" 
+                    style="cursor: pointer;"
+                    class="pallet-row {% if item.is_blocked %}is-blocked-row{% endif %}">
+                    <td style="text-align: center; color: #94a3b8; font-weight: 700; background: #f8fafc; font-size: 11px;">{{ loop.index }}</td>
+                    <td class="font-bold">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            {% if item.is_blocked %}
+                                <span class="material-icons" style="color: #be123c; font-size: 16px;">block</span>
                             {% else %}
-                                <span class="status-badge status-accepted">{{ item.type }}</span>
+                                <span class="material-icons" style="color: #10b981; font-size: 16px;">check_circle</span>
                             {% endif %}
-                        </td>
-                        <td class="time-display">{{ item.date or '-' }}</td>
-                        <td>
-                            <span class="status-badge status-accepted">Dostępna</span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                            {{ item.displayId }}
+                        </div>
+                    </td>
+                    <td data-label="Produkt">
+                        <strong class="text-primary">{{ item.productName }}</strong>
+                    </td>
+                    <td data-label="Ilość"><strong>{{ item.amount }}</strong> <small>{{ item.unit }}</small></td>
+                    <td data-label="Lokalizacja" class="location-cell" data-loc-raw="{{ item.location or '' }}">
+                        {% set loc_code = (item.location or '')|upper %}
+                        {% if loc_code and loc_code[:1] == 'R' and loc_code|length >= 7 %}
+                            <span class="location-code">
+                                <span class="location-part-rack">{{ loc_code[0:3] }}</span>
+                                <span class="location-separator"> </span>
+                                <span class="location-part-place">{{ loc_code[3:5] }}</span>
+                                <span class="location-separator"> </span>
+                                <span class="location-part-row">{{ loc_code[5:7] }}</span>
+                            </span>
+                        {% else %}
+                            {{ item.location or 'Brak' }}
+                        {% endif %}
+                    </td>
+                    <td data-label="Typ">
+                        <span class="status-badge" style="font-size: 10px; padding: 2px 8px;">{{ item.type }}</span>
+                    </td>
+                    <td data-label="Produkcja" class="time-display">{{ item.date_prod }}</td>
+                    <td data-label="Ważność" class="time-display">{{ item.date_exp }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- WIDOK KAFELKOWY (Grid) -->
+    <div class="grid-view-wrapper" style="display: none;">
+        <div class="warehouse-grid">
+            {% for item in items %}
+            <div class="pallet-card {% if item.is_blocked %}is-blocked-card{% endif %}" 
+                 onclick="openPalletModal('{{ item.displayId }}', '{{ item.productName }}', '{{ item.amount }}', '{{ item.location }}', '{{ item.type }}', '{{ item.date_prod }}', '{{ item.id }}', '{{ item.linia }}', {{ 1 if item.is_blocked else 0 }}, '{{ item.date_added }}')">
+                <div class="card-header">
+                    <span class="loc-tag" data-loc-raw="{{ item.location or '' }}">
+                        {% set loc_code = (item.location or '')|upper %}
+                        {% if loc_code and loc_code[:1] == 'R' and loc_code|length >= 7 %}
+                            <span class="location-part-rack">{{ loc_code[0:3] }}</span>
+                            <span class="location-separator"> </span>
+                            <span class="location-part-place">{{ loc_code[3:5] }}</span>
+                            <span class="location-separator"> </span>
+                            <span class="location-part-row">{{ loc_code[5:7] }}</span>
+                        {% else %}
+                            {{ item.location or '???' }}
+                        {% endif %}
+                    </span>
+                    <span class="id-tag">#{{ item.displayId }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="product-name">{{ item.productName }}</div>
+                    <div class="amount-row">
+                        <span class="val">{{ item.amount }}</span>
+                        <span class="unit">{{ item.unit }}</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <span class="type-label">{{ item.type }}</span>
+                    {% if item.is_blocked %}
+                        <span class="material-icons text-danger" style="font-size: 18px;">block</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
         {% endif %}
     </div>
 </div>
 
-<!-- Modal dla szczegółów palety (Stylizowany natywnymi klasami CSS) -->
-<div id="palletModal" style="position: fixed; inset: 0; background: rgba(15,23,42,0.65); z-index: 99999; display: none; align-items: center; justify-content: center; padding: 16px; backdrop-filter: blur(2px);">
-    <div style="background: #ffffff; max-width: 600px; width: 100%; border-radius: 14px; box-shadow: 0 20px 50px rgba(2,6,23,.35); border: 1px solid rgba(15,23,42,.12); overflow: hidden; transform: scale(0.95); transition: transform 0.2s ease;" id="palletModalContent">
-        
-        <!-- Header modala -->
-        <div style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0; font-size: 18px; color: #0f172a; display: flex; align-items: center; gap: 8px;">
-                <span class="material-icons" style="color: #2563eb;">inventory_2</span>
-                Szczegóły Palety: <strong id="modalDisplayId" style="color: #2563eb; font-family: monospace;"></strong>
-            </h3>
-            <button onclick="closePalletModal()" style="background: none; border: none; cursor: pointer; color: #64748b; padding: 4px; display: flex; align-items: center; justify-content: center;">
-                <span class="material-icons">close</span>
-            </button>
-        </div>
-        
-        <!-- Body modala -->
-        <div style="padding: 20px;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
-                <div>
-                    <div style="font-size: 13px; color: #64748b; margin-bottom: 4px;">Produkt</div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <div style="font-weight: 700; color: #0f172a; font-size: 16px;" id="modalProductName">-</div>
-                        <button onclick="promptRename()" class="btn-action" style="padding: 2px 6px; font-size: 11px; background: #f1f5f9; border: 1px solid #e2e8f0; color: #64748b; border-radius: 4px;">
-                            <span class="material-icons" style="font-size: 14px;">edit</span>
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <div style="font-size: 13px; color: #64748b; margin-bottom: 4px;">Typ asortymentu</div>
-                    <div style="font-weight: 600; color: #334155;" id="modalType">-</div>
-                </div>
-                <div>
-                    <div style="font-size: 13px; color: #64748b; margin-bottom: 4px;">Ilość / Waga</div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <div style="font-weight: 700; color: #10b981; font-size: 18px; font-family: monospace;" id="modalAmount">-</div>
-                        <button onclick="promptUpdateWeight()" class="btn-action" style="padding: 2px 6px; font-size: 11px; background: #f1f5f9; border: 1px solid #e2e8f0; color: #64748b; border-radius: 4px;">
-                            <span class="material-icons" style="font-size: 14px;">edit</span>
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <div style="font-size: 13px; color: #64748b; margin-bottom: 4px;">Data / Ważność</div>
-                    <div style="font-weight: 600; color: #334155;" id="modalDate">-</div>
-                </div>
-                
-                <!-- Lokalizacja Box -->
-                <div style="grid-column: 1 / -1; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-size: 13px; color: #2563eb; font-weight: 600; margin-bottom: 4px;">Obecna lokalizacja</div>
-                        <div style="font-weight: 700; color: #1e40af; font-size: 20px; font-family: monospace;" id="modalLocation">-</div>
-                    </div>
-                    <button onclick="promptMoveLocation()" class="btn-action btn-blue" style="display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: 14px;">
-                        <span class="material-icons" style="font-size: 16px;">local_shipping</span> Zmień
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Akcje -->
-            <div style="border-top: 1px solid #e2e8f0; padding-top: 20px;">
-                <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Szybkie Akcje</div>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button onclick="fetchHistory()" class="btn-action btn-outline-secondary" style="display: flex; align-items: center; gap: 6px;">
-                        <span class="material-icons" style="font-size: 16px;">history</span> Historia ruchów
-                    </button>
-                    <button onclick="promptArchive()" class="btn-action" style="display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #fca5a5; color: #dc2626;">
-                        <span class="material-icons" style="font-size: 16px;">delete</span> Archiwizuj
-                    </button>
-                    <button class="btn-action btn-outline-secondary" style="display: flex; align-items: center; gap: 6px;">
-                        <span class="material-icons" style="font-size: 16px;">print</span> Drukuj Etykietę
-                    </button>
-                    <button id="returnToRawBtn" onclick="promptReturnToRaw()" class="btn-action" style="display: none; align-items: center; gap: 6px; background: #fff; border: 1px solid #10b981; color: #059669;">
-                        <span class="material-icons" style="font-size: 16px;">assignment_return</span> Zwróć jako surowiec
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Miejsce na historię -->
-            <div id="modalHistoryContainer" style="margin-top: 20px; display: none; background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
-                <h5 style="font-weight: 700; font-size: 13px; margin: 0 0 12px 0; color: #334155;">Historia Ruchów:</h5>
-                <ul id="modalHistoryList" style="list-style: none; padding: 0; margin: 0; max-height: 180px; overflow-y: auto; font-size: 12px; display: flex; flex-direction: column; gap: 8px;"></ul>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
-let currentWarehouseId = 'all';
-let currentPallet = {}; 
+// ---- DATA INITIALIZATION (CRITICAL) ----
+const LINIA = '{{ linia }}';
+var allWarehouseItems = [
+    {% if items %}
+        {% for item in items %}
+        { 
+            productName: {{ item.productName|tojson }}, 
+            amount: {{ item.amount|default(0)|float }}, 
+            type: {{ item.type|tojson }},
+            location: {{ (item.location or 'BRAK')|tojson }},
+            batch: {{ (item.batch or '-')|tojson }},
+            date_prod: {{ (item.date_prod or '-')|tojson }},
+            date_exp: {{ (item.date_exp or '-')|tojson }},
+            date_added: {{ (item.date_added or '-')|tojson }},
+            unit: {{ item.unit|tojson }},
+            is_blocked: {{ 1 if item.is_blocked else 0 }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    {% endif %}
+];
 
-let scanBuffer = '';
-let scanTimeout = null;
-document.addEventListener('keydown', function(e) {
-    if(e.key === 'Enter' && scanBuffer.length > 3) {
-        handleScan(scanBuffer);
-        scanBuffer = '';
+// UI Helper scripts
+// (View mode toggle logic)
+function toggleViewMode() {
+    console.log("Toggle view mode clicked");
+    const container = document.getElementById('warehouseItemsContainer');
+    if (!container) {
+        console.error("Container #warehouseItemsContainer not found!");
+        return;
+    }
+    const isList = container.classList.contains('view-list');
+    const newMode = isList ? 'grid' : 'list';
+    setViewMode(newMode);
+}
+
+function setViewMode(mode) {
+    console.log("Setting view mode to:", mode);
+    const container = document.getElementById('warehouseItemsContainer');
+    const icon = document.getElementById('viewToggleIcon');
+    if (!container || !icon) return;
+
+    const listView = container.querySelector('.list-view-wrapper');
+    const gridView = container.querySelector('.grid-view-wrapper');
+
+    if (mode === 'grid') {
+        container.classList.remove('view-list');
+        container.classList.add('view-grid');
+        if (listView) listView.style.display = 'none';
+        if (gridView) gridView.style.display = 'block';
+        icon.innerText = 'view_list';
+        localStorage.setItem('warehouse_view_mode', 'grid');
     } else {
-        if(e.key.length === 1) scanBuffer += e.key;
-        clearTimeout(scanTimeout);
-        scanTimeout = setTimeout(() => { scanBuffer = ''; }, 200); 
+        container.classList.remove('view-grid');
+        container.classList.add('view-list');
+        if (listView) listView.style.display = 'block';
+        if (gridView) gridView.style.display = 'none';
+        icon.innerText = 'view_module';
+        localStorage.setItem('warehouse_view_mode', 'list');
     }
-});
-
-function handleScan(barcode) {
-    alert("Zeskanowano kod: " + barcode + ". Tutaj wdrożymy logikę rozpoznawania po ID z biblioteki.");
-}
-
-function openPalletModal(displayId, productName, amount, location, type, date, realId) {
-    currentPallet = { displayId, productName, amount, location, type, date, id: realId };
-    
-    document.getElementById('modalDisplayId').textContent = displayId;
-    document.getElementById('modalProductName').textContent = productName;
-    document.getElementById('modalAmount').textContent = amount;
-    document.getElementById('modalLocation').textContent = location || 'Brak lokalizacji';
-    document.getElementById('modalType').textContent = type;
-    document.getElementById('modalDate').textContent = date || '-';
-    
-    const returnBtn = document.getElementById('returnToRawBtn');
-    if(type === 'Wyrób Gotowy') {
-        returnBtn.style.display = 'flex';
-    } else {
-        returnBtn.style.display = 'none';
+    if (typeof filterTable === 'function') {
+        filterTable();
     }
-    
-    document.getElementById('modalHistoryContainer').style.display = 'none';
-    document.getElementById('modalHistoryList').innerHTML = '';
-    
-    const modal = document.getElementById('palletModal');
-    const content = document.getElementById('palletModalContent');
-    
-    modal.style.display = 'flex';
-    // Animacja wjazdu
-    setTimeout(() => {
-        content.style.transform = 'scale(1)';
-    }, 10);
-}
-
-function closePalletModal() {
-    const modal = document.getElementById('palletModal');
-    const content = document.getElementById('palletModalContent');
-    
-    content.style.transform = 'scale(0.95)';
-    setTimeout(() => {
-        modal.style.display = 'none';
-        currentPallet = {};
-    }, 200); 
-}
-
-function promptMoveLocation() {
-    if(!currentPallet.id) return;
-    let newLoc = prompt(`Wpisz nową lokalizację dla palety ${currentPallet.displayId} (np. MS01-A1, Stanowisko Big Bag):`, currentPallet.location);
-    if(newLoc && newLoc !== currentPallet.location) {
-        fetch('/magazyny-nowe/api/pallet/move', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                id: currentPallet.id,
-                type: currentPallet.type,
-                location: newLoc,
-                linia: '{{ linia }}'
-            })
-        }).then(r => r.json()).then(data => {
-            if(data.success) {
-                alert("Przeniesiono pomyślnie.");
-                window.location.reload();
-            } else {
-                alert("Błąd: " + data.error);
-            }
-        });
-    }
-}
-
-function promptRename() {
-    if(!currentPallet.id) return;
-    let newName = prompt(`Zmień nazwę produktu dla palety ${currentPallet.displayId}:`, currentPallet.productName);
-    if(newName && newName !== currentPallet.productName) {
-        fetch('/magazyny-nowe/api/pallet/rename', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                id: currentPallet.id,
-                type: currentPallet.type,
-                name: newName,
-                linia: '{{ linia }}'
-            })
-        }).then(r => r.json()).then(data => {
-            if(data.success) {
-                alert("Nazwa zaktualizowana.");
-                window.location.reload();
-            } else {
-                alert("Błąd: " + data.error);
-            }
-        });
-    }
-}
-
-function promptUpdateWeight() {
-    if(!currentPallet.id) return;
-    let newWeight = prompt(`Podaj nową wagę/ilość dla palety ${currentPallet.displayId}:`, currentPallet.amount);
-    if(newWeight !== null && newWeight !== currentPallet.amount) {
-        fetch('/magazyny-nowe/api/pallet/update-weight', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                id: currentPallet.id,
-                type: currentPallet.type,
-                weight: parseFloat(newWeight),
-                linia: '{{ linia }}'
-            })
-        }).then(r => r.json()).then(data => {
-            if(data.success) {
-                alert(data.message || "Waga zaktualizowana.");
-                window.location.reload();
-            } else {
-                alert("Błąd: " + data.error);
-            }
-        });
-    }
-}
-
-function promptArchive() {
-    if(!currentPallet.id) return;
-    if(confirm(`Czy na pewno chcesz zarchiwizować paletę ${currentPallet.displayId}? Ilość zostanie wyzerowana.`)) {
-        fetch('/magazyny-nowe/api/pallet/archive', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                id: currentPallet.id,
-                type: currentPallet.type,
-                linia: '{{ linia }}'
-            })
-        }).then(r => r.json()).then(data => {
-            if(data.success) {
-                alert("Zarchiwizowano pomyślnie.");
-                window.location.reload();
-            } else {
-                alert("Błąd: " + data.error);
-            }
-        });
-    }
-}
-
-function promptReturnToRaw() {
-    if(!currentPallet.id) return;
-    if(confirm(`Czy na pewno chcesz zwrócić paletę ${currentPallet.displayId} (${currentPallet.productName}) jako SUROWIEC? Paleta zostanie wyzerowana w wyrobach gotowych i dodana do surowców na lokalizację OSIP.`)) {
-        fetch('/magazyny-nowe/api/pallet/return-to-raw', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                id: currentPallet.id,
-                type: currentPallet.type,
-                linia: '{{ linia }}'
-            })
-        }).then(r => r.json()).then(data => {
-            if(data.success) {
-                alert(data.message || "Zwrócono pomyślnie.");
-                window.location.reload();
-            } else {
-                alert("Błąd: " + data.error);
-            }
-        });
-    }
-}
-
-function fetchHistory() {
-    if(!currentPallet.id) return;
-    
-    document.getElementById('modalHistoryContainer').style.display = 'block';
-    document.getElementById('modalHistoryList').innerHTML = '<li style="color: #64748b;">Ładowanie...</li>';
-    
-    fetch(`/magazyny-nowe/api/pallet/history?id=${currentPallet.id}&type=${currentPallet.type}&linia={{ linia }}`)
-    .then(r => r.json())
-    .then(data => {
-        const list = document.getElementById('modalHistoryList');
-        list.innerHTML = '';
-        if(data.success && data.history.length > 0) {
-            data.history.forEach(h => {
-                list.innerHTML += `<li style="border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
-                    <strong style="color: #0f172a;">${h.autor_data}</strong> [${h.autor_login}]: <span style="color: #2563eb; font-weight: 600;">${h.typ_ruchu}</span>
-                    <br><span style="color: #475569;">${h.komentarz || ''}</span>
-                </li>`;
-            });
-        } else {
-            list.innerHTML = '<li style="color: #64748b;">Brak historii dla tej palety.</li>';
-        }
-    });
-}
-
-document.getElementById('palletModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closePalletModal();
-    }
-});
-
-function switchWarehouse(warehouseId) {
-    document.querySelectorAll('.warehouse-tab').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    const activeBtn = document.getElementById('tab-' + warehouseId);
-    if(activeBtn) {
-        activeBtn.classList.add('active');
-    }
-
-    currentWarehouseId = warehouseId;
-    filterTable(); 
-}
-
-function filterTable() {
-    var input, filter, table, tr, tdLoc, tdType, i;
-    input = document.getElementById("searchInput");
-    filter = input.value.toUpperCase();
-    table = document.getElementById("magazynyTable");
-    if(!table) return;
-    tr = table.getElementsByTagName("tr");
-    
-    for (i = 1; i < tr.length; i++) {
-        let textMatch = false;
-        let warehouseMatch = false;
-        
-        let tds = tr[i].getElementsByTagName("td");
-        for (var j = 0; j < tds.length; j++) {
-            if (tds[j] && tds[j].textContent.toUpperCase().indexOf(filter) > -1) {
-                textMatch = true;
-                break;
-            }
-        }
-
-        tdLoc = tr[i].getElementsByTagName("td")[3]; 
-        tdType = tr[i].getElementsByTagName("td")[4]; 
-        
-        let locText = tdLoc ? tdLoc.textContent.trim().toUpperCase() : "";
-        let typeText = tdType ? tdType.textContent.trim().toUpperCase() : "";
-
-        if (currentWarehouseId === 'all') {
-            warehouseMatch = true;
-        } else if (currentWarehouseId === 'MS01') {
-            warehouseMatch = (locText.startsWith('MS01') || locText.startsWith('R') || locText === 'BRAK' || locText === '') && typeText === 'SUROWIEC';
-        } else if (currentWarehouseId === 'MP01') {
-            warehouseMatch = locText.startsWith('MP01');
-        } else if (currentWarehouseId === 'MGW01') {
-            warehouseMatch = locText.startsWith('MGW01') || typeText === 'WYRÓB GOTOWY';
-        } else if (currentWarehouseId === 'MOP01') {
-            warehouseMatch = locText.startsWith('MOP01') || typeText === 'OPAKOWANIE';
-        } else if (currentWarehouseId === 'OSIP') {
-            warehouseMatch = locText.includes('OSIP');
-        }
-
-        if (textMatch && warehouseMatch) {
-            tr[i].style.display = "";
-        } else {
-            tr[i].style.display = "none";
-        }
-    }
-}
-
-
-function sortTable(n) {
-    const table = document.getElementById("magazynyTable");
-    if (!table) return;
-    const tbody = table.querySelector("tbody");
-    if (!tbody) return;
-    
-    // Wyciągnij wszystkie wiersze z danymi (pomijając thead)
-    const rows = Array.from(tbody.querySelectorAll("tr"));
-    if (rows.length <= 1) return; // brak danych do sortowania
-
-    // Znajdź nagłówek i sprawdź kierunek sortowania
-    const ths = table.querySelectorAll("thead th");
-    const th = ths[n];
-    let dir = th.getAttribute("data-dir") === "asc" ? "desc" : "asc";
-    
-    // Resetuj kierunek dla wszystkich i ustaw dla bieżącej
-    ths.forEach(t => t.setAttribute("data-dir", ""));
-    th.setAttribute("data-dir", dir);
-
-    // Wydajne sortowanie tablicy w JS
-    rows.sort((rowA, rowB) => {
-        let tdA = rowA.getElementsByTagName("td")[n];
-        let tdB = rowB.getElementsByTagName("td")[n];
-        
-        if (!tdA || !tdB) return 0;
-        
-        let valA = tdA.textContent.trim();
-        let valB = tdB.textContent.trim();
-        
-        // Zoptymalizowane parsowanie liczbowe (szczególnie dla kolumny Waga/Ilość)
-        if (n === 2) { 
-            let numA = parseFloat(valA.replace(/[^0-9.-]+/g,""));
-            let numB = parseFloat(valB.replace(/[^0-9.-]+/g,""));
-            if (!isNaN(numA) && !isNaN(numB)) {
-                return dir === "asc" ? numA - numB : numB - numA;
-            }
-        }
-
-        // Domyślne porównywanie ciągów znaków
-        return dir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
-    });
-
-    // Płynne wrzucenie posortowanych wierszy za jednym uderzeniem do DOM
-    const frag = document.createDocumentFragment();
-    rows.forEach(r => frag.appendChild(r));
-    tbody.appendChild(frag);
 }
 </script>
+
+<script src="{{ url_for('static', filename='js/magazyny_nowe.js') }}"></script>
+
 {% endblock %}

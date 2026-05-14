@@ -33,40 +33,6 @@
       "readonly": false
     }
   },
-  "podsumowanie_szarz": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": false,
-      "readonly": true
-    },
-    "pracownik": {
-      "access": false,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": false,
-      "readonly": false
-    },
-    "dur": {
-      "access": false,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": true
-    },
-    "laborant": {
-      "access": false,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    }
-  },
   "ustawienia": {
     "admin": {
       "access": true,
@@ -311,7 +277,7 @@
       "readonly": false
     },
     "planista": {
-      "access": true,
+      "access": false,
       "readonly": true
     },
     "pracownik": {
@@ -468,6 +434,108 @@
     },
     "laborant": {
       "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "podsumowanie_zasypow": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": true
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "dosypki": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "podsumowanie_szarz": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": true
+    },
+    "laborant": {
+      "access": false,
       "readonly": false
     },
     "lider": {
@@ -729,36 +797,6 @@
     "widz": {
       "access": true,
       "readonly": true
-    }
-  },
-  "dosypki": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": true
-    },
-    "planista": {
-      "access": true,
-      "readonly": true
-    },
-    "pracownik": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": true,
-      "readonly": false
-    },
-    "produkcja": {
-      "access": true,
-      "readonly": false
     }
   },
   "production.obsada_page": {

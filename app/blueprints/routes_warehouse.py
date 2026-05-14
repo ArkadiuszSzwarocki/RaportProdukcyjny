@@ -1,3 +1,6 @@
+"""Warehouse management routes.
+Handles warehouse stock views, pallet confirmations, and inventory reports.
+"""
 from datetime import date
 
 from flask import Blueprint, request, session, url_for
