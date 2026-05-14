@@ -1,0 +1,109 @@
+<!-- MODAL: Szczegóły Palety -->
+<div id="palletModal" class="modal-premium-overlay" style="display: none;">
+    <div class="modal-premium-content" id="palletModalContent" style="max-width: 600px; transform: scale(0.95); transition: transform 0.2s ease;">
+        <div class="modal-premium-header">
+            <h3 class="row items-center gap-10">
+                <span class="material-icons text-primary">inventory_2</span>
+                Paleta: <span id="modalDisplayId"></span>
+            </h3>
+            <button onclick="closePalletModal()" class="modal-premium-close">&times;</button>
+        </div>
+        <div class="modal-premium-body">
+            <div style="background: #f8fafc; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+                <div class="grid-2 gap-15" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <div class="text-muted small font-bold uppercase mb-4">Produkt</div>
+                        <div id="modalProductName" style="font-size: 16px; font-weight: 800; color: #0f172a;"></div>
+                    </div>
+                    <div>
+                        <div class="text-muted small font-bold uppercase mb-4">Ilość</div>
+                        <div style="font-size: 16px; font-weight: 800; color: #10b981;">
+                            <span id="modalAmount"></span> <small id="modalUnit" class="text-muted"></small>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-muted small font-bold uppercase mb-4">Lokalizacja</div>
+                        <div id="modalLocation" style="font-family: monospace; font-weight: 700; color: #2563eb;"></div>
+                    </div>
+                    <div>
+                        <div class="text-muted small font-bold uppercase mb-4">Typ / Data Prod.</div>
+                        <div style="font-size: 14px; color: #475569;">
+                            <span id="modalType" class="status-badge" style="padding: 2px 6px;"></span>
+                            <span id="modalDate" style="margin-left: 8px; font-weight: 600;"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2 gap-10" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                <button onclick="promptMoveLocation()" class="modal-btn-primary"><span class="material-icons">place</span> PRZENIEŚ</button>
+                <button onclick="promptUpdateWeight()" class="modal-btn-primary"><span class="material-icons">scale</span> ZMIEŃ ILOŚĆ</button>
+                <button onclick="promptRename()" class="modal-btn-secondary"><span class="material-icons">edit</span> NAZWA</button>
+                <button onclick="togglePalletBlock()" id="toggleBlockBtn" class="modal-btn-secondary"><span class="material-icons">block</span> BLOKADA</button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button onclick="promptDispatch()" class="modal-btn-outline" style="color: #10b981; border-color: #10b981;">
+                    <span class="material-icons">local_shipping</span> WYDAJ PALETĘ (EXPEDITION)
+                </button>
+                <button onclick="fetchHistory()" class="modal-btn-outline" style="color: #3b82f6; border-color: #3b82f6;">
+                    <span class="material-icons">history</span> POKAŻ HISTORIĘ RUCHÓW
+                </button>
+            </div>
+            <div id="modalHistoryContainer" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                <ul id="modalHistoryList" style="list-style: none; padding: 0; margin: 0; font-size: 12px; display: flex; flex-direction: column; gap: 8px;"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Zwrot z Produkcji -->
+<div id="returnModal" class="modal-premium-overlay" style="display: none;">
+    <div class="modal-premium-content" style="max-width: 900px;">
+        <div class="modal-premium-header">
+            <h3 class="row items-center gap-10"><span class="material-icons text-primary">assignment_return</span> Zwrot surowców na magazyn</h3>
+            <button onclick="closeReturnModal()" class="modal-premium-close">&times;</button>
+        </div>
+        <div class="modal-premium-body">
+            <div id="returnTableContainer" style="max-height: 400px; overflow-y: auto; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+                <table class="modern-table" style="margin: 0;">
+                    <thead style="position: sticky; top: 0; z-index: 10; background: #f8fafc;">
+                        <tr><th></th><th>Surowiec</th><th>Lokalizacja</th><th class="text-right">Pobrano</th><th class="text-right">Zwrócono</th><th class="text-right">Do zwrotu</th><th>Data</th></tr>
+                    </thead>
+                    <tbody id="returnItemsBody"></tbody>
+                </table>
+            </div>
+            <div id="returnFormSection" style="display: none; background: #f0f9ff; padding: 20px; border-radius: 12px; border: 1px solid #bae6fd;">
+                <div class="grid-3 gap-15">
+                    <input type="hidden" id="return_ruch_id"><input type="hidden" id="return_surowiec_id"><input type="hidden" id="return_plan_id">
+                    <div><label class="form-label">Nazwa surowca</label><input type="text" id="return_nazwa" class="form-control" readonly></div>
+                    <div><label class="form-label">Ilość (kg)</label><input type="number" id="return_ilosc" class="form-control"></div>
+                    <div><label class="form-label">Lokalizacja docelowa</label><input type="text" id="return_lokalizacja" class="form-control" placeholder="Np. R010101"></div>
+                </div>
+                <div style="margin-top: 15px; display: flex; justify-content: flex-end;">
+                    <button onclick="submitReturn('{{ linia }}')" class="btn-action btn-blue">Zapisz zwrot</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Raporty -->
+<div id="reportsModal" class="modal-premium-overlay" style="display: none;">
+    <div class="modal-premium-content" style="max-width: 600px;">
+        <div class="modal-premium-header">
+            <h3>Centrum Raportów</h3>
+            <button onclick="closeReportsModal()" class="modal-premium-close">&times;</button>
+        </div>
+        <div class="modal-premium-body">
+            <div class="grid-1 gap-15" style="display: grid; gap: 15px;">
+                <button onclick="printInventorySheet(allWarehouseItems, '{{ linia }}')" class="btn-report-action">
+                    <span class="material-icons" style="color: #3b82f6;">print</span> Arkusz Inwentaryzacyjny (Druk)
+                </button>
+                <a href="{{ url_for('magazyn_dostawy.raport', linia=linia) }}" class="btn-report-action" style="text-decoration: none;">
+                    <span class="material-icons" style="color: #10b981;">history</span> Raport Przesunięć i Ruchów
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

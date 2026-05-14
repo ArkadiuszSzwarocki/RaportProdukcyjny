@@ -1,0 +1,45 @@
+{% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active and rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] %}
+    {% set fb_pid = ns.active_plan_id %}
+    {% set fb_kstats = kgph_stats_mapa.get(fb_pid) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
+    {% set fb_sesje = (etapy_sesje_mapa.get(fb_pid, []) if etapy_sesje_mapa is defined and etapy_sesje_mapa else []) %}
+    {% set fb_running = namespace(items=[], count=0) %}
+
+    {% for sesja_info in fb_sesje %}
+        {% set sesja_nr = sesja_info.szarza_nr|default(1) %}
+        {% for e in sesja_info.etapy|default([]) %}
+            {% if e.is_running %}
+                {% set e_str = e.etap|string %}
+                {% set etap_label = 'Etap ' ~ e.etap %}
+                {% if e.etap == 1 %}{% set etap_label = 'Naważanie' %}
+                {% elif e.etap == 2 %}{% set etap_label = 'Mieszanie i oczekiwanie na LAB' %}
+                {% elif e.etap == 5 %}{% set etap_label = 'Opróżnianie' %}
+                {% elif e_str[0] == '3' %}{% set etap_label = 'Dosypka do mieszania' %}
+                {% elif e_str[0] == '4' %}{% set etap_label = 'Mieszanie po dosypce' %}
+                {% endif %}
+                {% set fb_running.items = fb_running.items + ['Zasyp ' ~ sesja_nr ~ ': ' ~ etap_label] %}
+                {% set fb_running.count = fb_running.count + 1 %}
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+
+    <div class="active-order-floating-bar-wrap">
+        <div class="active-order-floating-bar">
+            <div class="active-order-status-inline">
+                {% if fb_running.count > 0 and rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
+                <span class="badge-success" style="font-size:0.72em; padding:2px 6px;">AKTYWNE W TOKU ({{ fb_running.count }})</span>
+                <span class="agro-session-running-hint">Otwarte: {{ fb_running.items|join(' | ') }}</span>
+                {% endif %}
+            </div>
+            {% if fb_kstats %}
+            <div class="agro-kgph-inline">
+                <span class="agro-kgph-pill js-kgph-explain" data-kind="real" data-plan-id="{{ fb_pid }}" title="Wydajność rzeczywista">
+                    Wydajność rzeczywista: {{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '-' }} kg/h
+                </span>
+                <span class="agro-kgph-pill js-kgph-explain" data-kind="timeline" data-plan-id="{{ fb_pid }}" title="Wydajność produkcyjna">
+                    Wydajność produkcyjna: {{ (fb_kstats.timeline|round(1)) if fb_kstats.timeline else '-' }} kg/h
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}

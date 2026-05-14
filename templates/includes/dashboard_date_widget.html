@@ -1,0 +1,17 @@
+{# Date overview widget shows current date and range (dzień/tydzień/miesiąc) #}
+{% if sekcja not in ['Zasyp', 'Workowanie', 'Magazyn'] %}
+<div class="section-box mb-10 date-overview">
+    <div class="p-10 d-flex align-center justify-between">
+        <div>
+            <div class="small text-muted">{{ _('przeglad_daty') }}</div>
+            <div><strong id="overview-current">{{ dzisiaj.strftime('%d %b %Y') }}</strong></div>
+            <div id="overview-range" class="small text-muted">-</div>
+        </div>
+        <div class="d-flex gap-8">
+            <button type="button" id="view-day" class="btn btn-sm">{{ _('dzien') }}</button>
+            <button type="button" id="view-week" class="btn btn-sm">{{ _('tydzien') }}</button>
+            <button type="button" id="view-month" class="btn btn-sm">{{ _('mies_ac') }}</button>
+        </div>
+    </div>
+</div>
+{% endif %}

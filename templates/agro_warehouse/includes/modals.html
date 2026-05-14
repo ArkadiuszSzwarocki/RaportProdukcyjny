@@ -1,0 +1,371 @@
+<!-- MODAL: ADD DELIVERY (MULTIPLE ROWS) -->
+<dialog id="modalDelivery" class="modal-premium" style="width:900px; max-width:95vw;">
+    <div class="modal-header">
+        <h4 class="modal-title" id="modalDeliveryTitle">Przyjęcie Dostawy (Nowa Paleta)</h4>
+        <button class="modal-close" onclick="closeModal('modalDelivery')">×</button>
+    </div>
+    <div class="modal-body">
+        <input type="hidden" id="del_edit_id">
+        <p class="text-muted small mb-10">Wpisz nazwę surowca i ilość. Możesz dodać wiele palet naraz.</p>
+        
+        <div id="deliveryList" class="flex flex-col gap-8">
+            <!-- Rows added via JS -->
+        </div>
+
+        <div class="mt-15 flex justify-between items-center">
+            <button type="button" class="btn btn-ghost" onclick="addDeliveryRow()">
+                <span class="material-icons">add</span> Dodaj kolejny wiersz
+            </button>
+            <div class="text-muted small">Wskazówka: System automatycznie wygeneruje ID dla każdej palety.</div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalDelivery')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" id="modalDeliverySubmit" onclick="submitDelivery()">Zgłoś Dostawę</button>
+    </div>
+</dialog>
+
+<!-- MODAL: CONFIRM DELIVERY (LOCATION ASSIGNMENT) -->
+<dialog id="modalConfirm" class="modal-premium">
+    <div class="modal-header">
+        <h4 class="modal-title">Potwierdź Przyjęcie na Magazyn</h4>
+        <button class="modal-close" onclick="closeModal('modalConfirm')">×</button>
+    </div>
+    <div class="modal-body">
+        <input type="hidden" id="conf_ruch_id">
+        <div class="mb-15">
+            <div class="text-muted small uppercase tracking-wider mb-4">Surowiec</div>
+            <div class="font-bold text-lg" id="conf_nazwa">—</div>
+        </div>
+        <div class="mb-15">
+            <div class="text-muted small uppercase tracking-wider mb-4">Ilość do przyjęcia</div>
+            <div class="font-bold text-lg"><span id="conf_ilosc">0</span> kg</div>
+        </div>
+
+        <div id="suggestionBox" class="mb-15 p-10 bg-info-light border-info rounded-lg" style="display:none;">
+            <div id="suggestionText" class="text-info small"></div>
+        </div>
+
+        <div class="form-group mb-15">
+            <label class="form-label">Lokalizacja (Regał/Sektor)</label>
+            <div class="flex gap-8">
+                <input type="text" id="conf_lokalizacja" class="form-control" placeholder="Wpisz lub zeskanuj lokalizację..." style="flex:1;">
+                <button class="btn btn-outline" onclick="openQrScanner('conf_lokalizacja')" title="Skanuj kod regału">
+                    <span class="material-icons">qr_code_scanner</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalConfirm')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" onclick="submitConfirm()">Potwierdź Przyjęcie</button>
+    </div>
+</dialog>
+
+<!-- MODAL: USAGE (POBRANIE NA PRODUKCJĘ) -->
+<dialog id="modalUsage" class="modal-premium">
+    <div class="modal-header">
+        <h4 class="modal-title">Pobranie surowca na produkcję</h4>
+        <button class="modal-close" onclick="closeModal('modalUsage')">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="form-group mb-15">
+            <label class="form-label">Skanuj Regał / Paletę</label>
+            <div class="flex gap-8">
+                <input type="text" id="usage_location_scan" class="form-control" placeholder="Zeskanuj kod..." style="flex:1;">
+                <button class="btn btn-outline" onclick="openQrScanner('usage_location_scan')">
+                    <span class="material-icons">qr_code_scanner</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="form-group mb-15">
+            <label class="form-label">Wybierz Paletę z listy</label>
+            <select id="usage_surowiec_id" class="form-control"></select>
+        </div>
+
+        <div class="row gap-15 mb-15">
+            <div class="col flex-1">
+                <label class="form-label">Ilość do pobrania (kg)</label>
+                <input type="number" id="usage_ilosc" class="form-control" step="0.1">
+            </div>
+            <div class="col flex-1">
+                <label class="form-label">Zbiornik docelowy</label>
+                <input type="text" id="usage_zbiornik" class="form-control" placeholder="opcjonalnie">
+            </div>
+        </div>
+
+        <div class="form-group mb-15">
+            <label class="form-label">Przypisz do Zlecenia</label>
+            <input type="hidden" id="usage_plan_id">
+            <input type="text" id="usage_plan_name" class="form-control" readonly placeholder="Brak aktywnego zlecenia">
+            <div class="text-muted xxs mt-4">Pobranie zostanie automatycznie przypisane do aktualnie trwającej produkcji.</div>
+        </div>
+
+        <div class="form-group mb-0">
+            <label class="form-label">Komentarz</label>
+            <textarea id="usage_komentarz" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalUsage')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" onclick="submitUsage()">Potwierdź Pobranie</button>
+    </div>
+</dialog>
+
+<!-- MODAL: QR SCANNER EMULATOR -->
+<dialog id="modalQr" class="modal-premium" style="width:360px;">
+    <div class="modal-header">
+        <h4 class="modal-title">Skanowanie kodu</h4>
+        <button class="modal-close" onclick="closeQrScanner()">×</button>
+    </div>
+    <div class="modal-body text-center">
+        <div class="mb-20">
+            <span class="material-icons" style="font-size:64px; color:var(--primary-color);">qr_code_scanner</span>
+        </div>
+        <p class="mb-20">Użyj skanera na terminalu lub wpisz kod ręcznie.</p>
+        <input type="text" id="qrScanInput" class="form-control text-center text-lg font-bold" placeholder="Czekam na skan..." autocomplete="off">
+        <div id="qrScanHint" class="text-muted small mt-8"></div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeQrScanner()">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" id="qrConfirmBtn" onclick="confirmQrManual()" disabled>Zatwierdź wpis</button>
+    </div>
+</dialog>
+
+<!-- MODAL: PRODUCTION MOVES (HISTORY) -->
+<dialog id="modalProduction" class="modal-premium" style="width:900px; max-width:95vw;">
+    <div class="modal-header">
+        <h4 class="modal-title">Ostatnie pobrania na produkcję</h4>
+        <button class="modal-close" onclick="closeModal('modalProduction')">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="flex justify-between items-center mb-10">
+            <div class="text-muted small">Ostatnie ruchy typu 'WYDANIE NA PRODUKCJĘ'</div>
+            <div class="flex items-center gap-8">
+                <span class="small">Pokaż:</span>
+                <select id="prod_limit" class="form-control" style="width:80px; padding:2px 6px; height:28px;" onchange="loadProductionMoves()">
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                </select>
+            </div>
+        </div>
+        <div class="table-responsive" style="max-height:500px;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Surowiec</th>
+                        <th>Ilość (kg)</th>
+                        <th>Z regału</th>
+                        <th>Do zbiornika</th>
+                        <th>Zlecenie</th>
+                        <th>Kto</th>
+                        <th>Kiedy</th>
+                    </tr>
+                </thead>
+                <tbody id="prodMovesBody">
+                    <!-- Loaded via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-primary" onclick="closeModal('modalProduction')">Zamknij</button>
+    </div>
+</dialog>
+
+<!-- MODAL: GENERIC REPORT (CSV/JSON) -->
+<dialog id="modalReport" class="modal-premium" style="width:1000px; max-width:95vw;">
+    <div class="modal-header">
+        <h4 class="modal-title" id="reportModalTitle">Raport Magazynu</h4>
+        <button class="modal-close" onclick="closeModal('modalReport')">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="flex justify-between items-center mb-15">
+            <div class="flex gap-8">
+                <button class="btn btn-outline btn-xs" onclick="reloadReport()">Odśwież</button>
+                <a id="downloadCsvLink" href="#" class="btn btn-outline btn-xs">Pobierz CSV</a>
+            </div>
+            <div class="flex items-center gap-8">
+                <span class="small">Limit wierszy:</span>
+                <input type="number" id="report_limit" value="100" class="form-control" style="width:80px; height:28px;" onchange="reloadReport()">
+            </div>
+        </div>
+        <div class="table-responsive" style="max-height:600px; overflow:auto;">
+            <table class="table small">
+                <thead id="reportHead"></thead>
+                <tbody id="reportBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-primary" onclick="closeModal('modalReport')">Zamknij</button>
+    </div>
+</dialog>
+
+<!-- MODAL: INVENTORY (KOREKTA STANU) -->
+<dialog id="modalInventory" class="modal-premium">
+    <div class="modal-header">
+        <h4 class="modal-title">Korekta stanu (Inwentaryzacja)</h4>
+        <button class="modal-close" onclick="closeModal('modalInventory')">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="form-group mb-15">
+            <label class="form-label">Wybierz Paletę</label>
+            <select id="inv_surowiec_id" class="form-control"></select>
+        </div>
+        <div class="form-group mb-15">
+            <label class="form-label">Aktualny stan z natury (kg)</label>
+            <input type="number" id="inv_qty" class="form-control" step="0.1" placeholder="Wpisz ile jest faktycznie na palecie">
+            <div class="text-muted xxs mt-4">System obliczy różnicę i doda odpowiedni ruch korygujący.</div>
+        </div>
+        <div class="form-group mb-0">
+            <label class="form-label">Komentarz / Powód korekty</label>
+            <textarea id="inv_komentarz" class="form-control" rows="2" placeholder="np. rozsypanie, błąd przy przyjęciu..."></textarea>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalInventory')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" onclick="submitInventory()">Zapisz Korektę</button>
+    </div>
+</dialog>
+
+<!-- MODAL: ISSUE WAREHOUSE (WYDANIE ZEWNĘTRZNE) -->
+<dialog id="modalIssueWarehouse" class="modal-premium">
+    <div class="modal-header">
+        <h4 class="modal-title">Wydanie zewnętrzne / Korekta ujemna</h4>
+        <button class="modal-close" onclick="closeModal('modalIssueWarehouse')">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="form-group mb-15">
+            <label class="form-label">Wybierz Paletę</label>
+            <select id="issuew_surowiec_id" class="form-control"></select>
+        </div>
+        <div class="form-group mb-15">
+            <label class="form-label">Ilość do wydania (kg)</label>
+            <input type="number" id="issuew_ilosc" class="form-control" step="0.1" placeholder="Wpisz ile kg wydajesz z magazynu">
+        </div>
+        <div class="form-group mb-0">
+            <label class="form-label">Komentarz / Cel wydania</label>
+            <textarea id="issuew_komentarz" class="form-control" rows="2" placeholder="np. zwrot do dostawcy, utylizacja..."></textarea>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalIssueWarehouse')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" onclick="submitIssueWarehouse()">Potwierdź Wydanie</button>
+    </div>
+</dialog>
+
+<!-- MODAL: RETURN FROM PRODUCTION -->
+<dialog id="modalReturn" class="modal-premium" style="width:1000px; max-width:95vw;">
+    <div class="modal-header">
+        <h4 class="modal-title">Zwrot surowca z produkcji na magazyn</h4>
+        <button class="modal-close" onclick="closeModal('modalReturn')">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="mb-15">
+            <div class="text-muted small mb-8 uppercase tracking-wider">Krok 1: Wybierz pozycję z której zwracasz</div>
+            <div class="table-responsive" style="max-height:300px; border:1px solid #e2e8f0; border-radius:8px;">
+                <table class="table small mb-0">
+                    <thead style="position:sticky; top:0; background:#f8fafc; z-index:1;">
+                        <tr>
+                            <th></th>
+                            <th>Surowiec</th>
+                            <th>Z regału</th>
+                            <th>Pobrano (kg)</th>
+                            <th>Wróciło (kg)</th>
+                            <th>Zlecenie</th>
+                            <th>Data pobrania</th>
+                            <th>Kto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="returnItemsBody">
+                        <!-- Loaded via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="returnFormSection" style="display:none; border-top:1px solid #e2e8f0; padding-top:15px;">
+            <div class="text-muted small mb-10 uppercase tracking-wider">Krok 2: Podaj dane zwrotu</div>
+            <div class="row gap-15">
+                <div class="col flex-1">
+                    <label class="form-label">Ilość zwracana (kg)</label>
+                    <input type="number" id="return_ilosc" class="form-control" step="0.1" placeholder="0.0">
+                    <div id="returnMaxHint" class="text-muted xxs mt-4"></div>
+                </div>
+                <div class="col flex-1">
+                    <label class="form-label">Lokalizacja (Gdzie odkładasz)</label>
+                    <input type="text" id="return_lokalizacja" class="form-control" placeholder="np. A-01-1">
+                </div>
+            </div>
+            <div class="form-group mt-15 mb-0">
+                <label class="form-label">Komentarz</label>
+                <textarea id="return_komentarz" class="form-control" rows="2" placeholder="Opcjonalny komentarz do zwrotu..."></textarea>
+            </div>
+            <input type="hidden" id="return_ruch_id">
+            <input type="hidden" id="return_surowiec_id">
+            <input type="hidden" id="return_plan_id">
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalReturn')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" id="btnSubmitReturn" onclick="submitReturn()" disabled>Potwierdź Zwrot</button>
+    </div>
+</dialog>
+
+<!-- MODAL: BULK INVENTORY (STANY NA REGAŁACH) -->
+<dialog id="modalBulkInventory" class="modal-premium" style="width:900px; max-width:95vw;">
+    <div class="modal-header">
+        <h4 class="modal-title">Inwentaryzacja Produkcji i Regałów</h4>
+        <button class="modal-close" onclick="closeModal('modalBulkInventory')">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="text-muted small mb-15">Przejrzyj stany palet na regałach i skoryguj ilości. Zapisane zostaną tylko zmienione pozycje.</p>
+        <div class="form-group mb-10 row items-center gap-8">
+            <input type="text" id="bulkInvFilter" class="form-control" placeholder="Filtruj po nazwie lub lokalizacji..." style="flex:1;" oninput="filterBulkInventory()">
+        </div>
+        <div class="table-responsive" style="max-height:450px; overflow:auto;">
+            <table class="table" id="bulkInvTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nazwa</th>
+                        <th>Lokalizacja</th>
+                        <th>Stan systemowy (kg)</th>
+                        <th>Stan z natury (kg)</th>
+                    </tr>
+                </thead>
+                <tbody id="bulkInvBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalBulkInventory')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" onclick="submitBulkInventory()">Zapisz Inwentaryzację</button>
+    </div>
+</dialog>
+
+<!-- MODAL: RENAME PALLET -->
+<dialog id="modalRename" class="modal-premium">
+    <div class="modal-header">
+        <h4 class="modal-title">Zmień nazwę palety</h4>
+        <button class="modal-close" onclick="closeModal('modalRename')">×</button>
+    </div>
+    <div class="modal-body">
+        <input type="hidden" id="rename_surowiec_id">
+        <div class="form-group mb-15">
+            <label class="form-label">Nowa nazwa</label>
+            <input type="text" id="rename_new_name" class="form-control" placeholder="Wpisz nową nazwę palety...">
+        </div>
+        <div class="form-group mb-15">
+            <label class="form-label">Komentarz (opcjonalnie)</label>
+            <textarea id="rename_komentarz" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalRename')">{{ _('anuluj') }}</button>
+        <button class="btn btn-primary" onclick="submitRename()">Zmień nazwę</button>
+    </div>
+</dialog>

@@ -1,0 +1,173 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="inventory-report p-20" style="max-width: 1200px; margin: 0 auto; font-family: 'Inter', sans-serif;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <div>
+            <a href="{{ url_for('inwentaryzacja.index') }}" style="color: #64748b; text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; font-size: 13px; font-weight: 700;">
+                <span class="material-icons" style="font-size: 16px;">arrow_back</span> Powrót do listy
+            </a>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #0f172a;">
+                Raport z Inwentaryzacji #{{ sesja.id }}
+                <span style="display: block; font-size: 14px; color: #64748b; font-weight: 400; margin-top: 4px;">Obszar: <strong>{{ sesja.lokalizacja }}</strong></span>
+            </h1>
+
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="window.print()" class="btn-outline" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: 1px solid #e2e8f0; background: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">print</span> DRUKUJ
+            </button>
+            
+            {% if sesja.status in ['CLOSED', 'COMPLETED'] and role in ['admin', 'kierownik', 'zarzad'] %}
+            <button onclick="openApplyModal()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #10b981; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">task_alt</span> ZATWIERDŹ STANY (DB)
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    {% set total_system = entries | selectattr('paleta_id') | list | length %}
+    {% set total_actual = entries | selectattr('waga_faktyczna', 'gt', 0) | list | length %}
+    {% set missing = entries | selectattr('roznica', 'lt', -0.01) | list | length %}
+    {% set found = entries | selectattr('roznica', 'gt', 0.01) | list | length %}
+    {% set roznice = entries | selectattr('alert') | list | length %}
+
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;">
+        <div class="stat-card" style="background: white; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; border-top: 4px solid #0f172a; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Palety Systemowe</div>
+            <div style="font-size: 26px; font-weight: 800; color: #0f172a;">{{ total_system }}</div>
+            <div style="font-size: 10px; color: #94a3b8; margin-top: 5px;">Powinno być</div>
+        </div>
+        
+        <div class="stat-card" style="background: white; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; border-top: 4px solid #3b82f6; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Palety Zeskanowane</div>
+            <div style="font-size: 26px; font-weight: 800; color: #3b82f6;">{{ total_actual }}</div>
+            <div style="font-size: 10px; color: #94a3b8; margin-top: 5px;">Fizycznie na regale</div>
+        </div>
+
+        <div class="stat-card" style="background: #fef2f2; padding: 20px; border-radius: 15px; border: 1px solid #fee2e2; border-top: 4px solid #ef4444; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #991b1b; text-transform: uppercase; margin-bottom: 5px;">Braki (Czerwone)</div>
+            <div style="font-size: 26px; font-weight: 800; color: #ef4444;">{{ missing }}</div>
+            <div style="font-size: 10px; color: #b91c1c; margin-top: 5px;">Niezgodności na minus</div>
+        </div>
+
+        <div class="stat-card" style="background: #f0fdf4; padding: 20px; border-radius: 15px; border: 1px solid #dcfce7; border-top: 4px solid #10b981; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 10px; font-weight: 800; color: #166534; text-transform: uppercase; margin-bottom: 5px;">Nadwyżki (Zielone)</div>
+            <div style="font-size: 26px; font-weight: 800; color: #10b981;">{{ found }}</div>
+            <div style="font-size: 10px; color: #15803d; margin-top: 5px;">Nowe / Na plusie</div>
+        </div>
+
+        
+        <div style="background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; border-bottom: 4px solid #10b981;">
+            <div style="color: #64748b; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 5px;">Status sesji</div>
+            <div style="font-size: 18px; font-weight: 800; color: #059669; margin-top: 10px;">{{ sesja.status }}</div>
+        </div>
+    </div>
+
+    <!-- MAIN TABLE -->
+    <div style="background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <table class="modern-table" style="width: 100%; border-collapse: collapse;">
+            <thead style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <tr>
+                    <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Lokalizacja</th>
+                    <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Paleta</th>
+                    <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Produkt</th>
+                    <th style="padding: 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase;">System</th>
+                    <th style="padding: 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase;">Faktyczny</th>
+                    <th style="padding: 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase;">Różnica</th>
+                    <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Operator / Czas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in entries %}
+                {% set diff = e.waga_faktyczna - e.waga_systemowa %}
+                <tr style="border-bottom: 1px solid #f1f5f9; {% if diff != 0 %}background: #fffbeb;{% endif %}">
+                    <td style="padding: 15px; font-family: monospace; font-weight: 700; color: #2563eb;">{{ e.lokalizacja }}</td>
+                    <td style="padding: 15px; font-size: 12px; color: #64748b;">#{{ e.nr_palety or e.paleta_id }}</td>
+                    <td style="padding: 15px;">
+                        <div style="font-weight: 800; color: #1e293b; font-size: 14px;">{{ e.nazwa }}</div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                            Partia: {{ e.nr_partii or '-' }} | ID: {{ e.nr_palety or e.paleta_id or 'NOWA' }}
+                        </div>
+                        {% if e.waga_faktyczna <= 0 and e.paleta_id %}
+                        <div style="margin-top: 5px; display: inline-block; background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 800; border: 1px solid #fecaca;">
+                            ⚠️ DO USUNIĘCIA Z BAZY
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 15px; text-align: right; color: #64748b;">{{ e.waga_systemowa }} kg</td>
+                    <td style="padding: 15px; text-align: right; font-weight: 800; color: #0f172a;">{{ e.waga_faktyczna }} kg</td>
+                    <td style="padding: 15px; text-align: right;">
+                        {% if diff > 0 %}
+                            <span style="color: #059669; font-weight: 800;">+{{ diff }} kg</span>
+                        {% elif diff < 0 %}
+                            <span style="color: #dc2626; font-weight: 800;">{{ diff }} kg</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">0</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 15px;">
+                        <div style="font-size: 12px; color: #475569;">{{ e.user_login }}</div>
+                        <div style="font-size: 10px; color: #94a3b8;">{{ e.data_wpisu.strftime('%H:%M:%S') if e.data_wpisu and e.data_wpisu.strftime else e.data_wpisu }}</div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL: APPLY INVENTORY -->
+<div id="applyModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; width: 450px; border-radius: 24px; padding: 35px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
+        <div style="width: 70px; height: 70px; background: #dcfce7; color: #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+            <span class="material-icons" style="font-size: 36px;">update</span>
+        </div>
+        <h3 style="margin: 0 0 10px 0; font-size: 22px; font-weight: 800; color: #0f172a;">Zatwierdzić zmiany?</h3>
+        <p style="margin: 0 0 30px 0; color: #475569; font-size: 15px; line-height: 1.5;">
+            Operacja ta <strong>zaktualizuje stany magazynowe</strong> w głównej bazie danych na podstawie wpisów z inwentaryzacji. Zmiany są nieodwracalne.
+        </p>
+        
+        <div style="display: flex; gap: 12px;">
+            <button onclick="confirmApply()" class="btn-primary" style="flex: 1.5; background: #10b981; color: white; padding: 14px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer; font-size: 15px;">TAK, AKTUALIZUJ BAZĘ</button>
+            <button type="button" onclick="document.getElementById('applyModal').style.display='none'" style="flex: 1; background: #f1f5f9; border: none; border-radius: 12px; color: #475569; font-weight: 700; cursor: pointer; font-size: 15px;">ANULUJ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openApplyModal() {
+    document.getElementById('applyModal').style.display = 'flex';
+}
+
+function confirmApply() {
+    fetch('{{ url_for("inwentaryzacja.zatwierdz_inwentaryzacje") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sesja_id: {{ sesja.id }}})
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            alert("Baza danych została zaktualizowana pomyślnie.");
+            window.location.reload();
+        } else {
+            alert("Błąd: " + data.message);
+        }
+    });
+}
+</script>
+
+<style>
+    @media print {
+        .sidebar, .top-bar, .btn-outline, .btn-primary { display: none !important; }
+        .inventory-report { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+        .inventory-report div[style*="background: white"] { box-shadow: none !important; border: 1px solid #000 !important; }
+        table { border: 1px solid #000 !important; }
+        th, td { border: 1px solid #ccc !important; }
+        body { background: white !important; }
+    }
+</style>
+{% endblock %}

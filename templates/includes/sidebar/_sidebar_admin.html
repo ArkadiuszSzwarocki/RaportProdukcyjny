@@ -1,0 +1,90 @@
+<!-- RAPORTY -->
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn" onclick="toggleNavSub('reports-sub')">
+        <span>RAPORTY</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="reports-sub" class="nav-sub {% if 'raport' in request.path or request.path.startswith('/agro/report') %}open{% endif %}">
+        <a href="{{ url_for('magazyn_dostawy.raport', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.raport' %}active{% endif %}">Raport Dostaw</a>
+        {% if role_has_access('wyniki') %}
+        <a href="{{ url_for('zarzad.raporty_okresowe', linia=effective_hall) }}" class="nav-sub-item {% if request.path.startswith('/raporty_okresowe') %}active{% endif %}">Raporty Okresowe</a>
+        {% endif %}
+        <a href="/agro/report/warehouse?linia=AGRO" class="nav-sub-item">Raport Magazynu Agro</a>
+        <a href="/agro/report/production?linia=AGRO" class="nav-sub-item">Raport Produkcji Agro</a>
+        <a href="/agro/report/combined?linia=AGRO" class="nav-sub-item">Raport Połączony Agro</a>
+    </div>
+</div>
+
+<!-- ADMINISTRACJA & ANALIZA -->
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn" onclick="toggleNavSub('admin-ana-sub')">
+        <span>ADMINISTRACJA & ANALIZA</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="admin-ana-sub" class="nav-sub {% if request.path.startswith('/planista') or request.path.startswith('/zarzad') or request.path.startswith('/moje_godziny') or request.path.startswith('/struktura') %}open{% endif %}">
+        {% if role_has_access('planista') %}
+        <a href="/planista?linia={{ request.args.get('linia', 'PSD') }}" class="nav-sub-item {% if request.path.startswith('/planista') %}active{% endif %}">Plan Produkcji</a>
+        {% endif %}
+
+        {% if role_has_access('moje_godziny') %}
+        <a href="{{ url_for('panels.moje_godziny') }}" class="nav-sub-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">Moje Godziny</a>
+        {% endif %}
+
+        {% if role_has_access('wyniki') %}
+        <a href="/zarzad" class="nav-sub-item {% if request.path.startswith('/zarzad') %}active{% endif %}">Wyniki i Statystyki</a>
+        {% endif %}
+
+        {% if role in ['admin', 'zarzad'] %}
+        <a href="{{ url_for('struktura.widok_struktury') }}" class="nav-sub-item {% if request.path.startswith('/struktura') %}active{% endif %}">Struktura Organizacyjna</a>
+        {% endif %}
+    </div>
+</div>
+
+{% if role_has_access('jakosc') %}
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn" onclick="toggleNavSub('jakosc-sub')">
+        <span>JAKOŚĆ</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="jakosc-sub" class="nav-sub {% if request.path.startswith('/jakosc') or request.path.startswith('/dur/awarie') %}open{% endif %}">
+        <a href="{{ url_for('quality.jakosc_index') }}" class="nav-sub-item {% if request.endpoint == 'quality.jakosc_index' %}active{% endif %}">Strona Jakość</a>
+        <a href="{{ url_for('quality.jakosc_podsumowanie_zasypow') }}" class="nav-sub-item {% if request.endpoint == 'quality.jakosc_podsumowanie_zasypow' %}active{% endif %}">Analiza zasypów</a>
+        {% if role_has_access('awarie') %}
+        <a href="{{ url_for('quality.dur_awarie') }}" class="nav-sub-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">Awarie i Usterki</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- NARZĘDZIA & SYMULACJE -->
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn" onclick="toggleNavSub('tools-sub')">
+        <span>SYMULATORY</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="tools-sub" class="nav-sub {% if 'sim' in request.path %}open{% endif %}">
+        <a href="/zebra-sim" class="nav-sub-item {% if '/zebra-sim' in request.path %}active{% endif %}">Symulator Zebra (Handheld)</a>
+        <a href="/agro/scanner/simulator" class="nav-sub-item {% if '/simulator' in request.path %}active{% endif %}">Symulator Skanera</a>
+    </div>
+</div>
+
+<!-- DEWELOPER & LOGI -->
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn" onclick="toggleNavSub('dev-sub')">
+        <span>DEWELOPER & LOGI</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="dev-sub" class="nav-sub {% if '/admin/' in request.path or '/logs' in request.path %}open{% endif %}">
+        {% if role_has_access('ustawienia') %}
+        <a href="{{ url_for('admin.admin_ustawienia') }}" class="nav-sub-item {% if request.path == '/admin/ustawienia' %}active{% endif %}">Ustawienia Systemu</a>
+        {% endif %}
+        <a href="/admin/ustawienia/logs" class="nav-sub-item {% if '/admin/ustawienia/logs' in request.path %}active{% endif %}">Logi Systemowe</a>
+        <a href="/admin/centrum" class="nav-sub-item {% if '/admin/centrum' in request.path %}active{% endif %}">Centrum Zarządzania</a>
+        <a href="/admin/ustawienia/zespol" class="nav-sub-item {% if '/admin/ustawienia/zespol' in request.path %}active{% endif %}">Zespół</a>
+        <a href="{{ url_for('admin.admin_ustawienia_roles') }}" class="nav-sub-item {% if '/admin/ustawienia/roles' in request.path %}active{% endif %}">Uprawnienia</a>
+        <a href="{{ url_for('admin.admin_secret_db') }}" class="nav-sub-item {% if request.endpoint == 'admin.admin_secret_db' %}active{% endif %}" style="color: #e67e22; font-weight: bold;">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">storage</span>
+            Zmiana Bazy Danych
+        </a>
+    </div>
+</div>

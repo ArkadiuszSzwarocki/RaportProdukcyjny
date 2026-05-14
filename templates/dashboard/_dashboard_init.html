@@ -1,0 +1,20 @@
+{# Logic to identify active production plan and setup dashboard state variables #}
+{# ns initialized in parent layout.html #}
+{% if plan is defined and plan %}
+    {% for p in plan %}
+        {% if p[3]|lower == 'w toku' %}
+            {% set ns.is_active = true %}
+            {% if ns.active_plan_id is none %}{% set ns.active_plan_id = p[0] %}{% endif %}
+        {% endif %}
+    {% endfor %}
+{% endif %}
+
+{# Focus Mode setup for AGRO #}
+{% set agro_focus_mode = (sekcja in ['Zasyp', 'Workowanie'] and linia == 'AGRO' and ns.is_active) %}
+{% set active_work_agro = namespace(id=ns.active_plan_id) %}
+
+{# Defensive: prefer server-provided hr_pracownicy #}
+{% if hr_pracownicy is not defined %}
+    {% if wszyscy_pracownicy is defined %}{% set hr_pracownicy = wszyscy_pracownicy %}
+    {% else %}{% set hr_pracownicy = pracownicy %}{% endif %}
+{% endif %}

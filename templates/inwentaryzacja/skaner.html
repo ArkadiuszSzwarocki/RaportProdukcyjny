@@ -1,0 +1,732 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .scanner-card {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        margin-bottom: 15px;
+        padding: 20px;
+    }
+    .input-group {
+        position: relative;
+        width: 100%;
+    }
+    .input-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+    }
+    .scanner-input {
+        width: 100%;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 12px 12px 12px 42px;
+        font-size: 18px;
+        font-weight: 800;
+        color: #0f172a;
+        outline: none;
+        box-sizing: border-box; /* Ważne! */
+    }
+    .scanner-input:focus {
+        border-color: #3b82f6;
+    }
+    .pallet-card {
+        background: #f8fafc;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        padding: 15px;
+        margin-bottom: 12px;
+    }
+    .weight-input {
+        border: 2px solid #3b82f6;
+        border-radius: 12px;
+        padding: 10px;
+        font-size: 18px;
+        font-weight: 800;
+        text-align: center;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .save-btn {
+        background: #10b981;
+        color: white;
+        border: none;
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+</style>
+
+<div class="inventory-scanner p-10" data-no-autorefresh="true" style="max-width: 1200px; margin: 0 auto; font-family: 'Inter', sans-serif;">
+    
+    <!-- HEADER -->
+    <div style="max-width: 500px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0;">
+        <a href="{{ url_for('inwentaryzacja.index') }}" style="color: #64748b; text-decoration: none; display: flex; align-items: center; gap: 5px;">
+            <span class="material-icons">arrow_back</span> Powrót
+        </a>
+        <div style="text-align: right;">
+            <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Sesja #{{ sesja_id }}</div>
+            <div id="connectionStatus" style="font-size: 11px; color: #10b981; font-weight: 700;">● ONLINE</div>
+        </div>
+    </div>
+
+    <!-- SCANNER SECTION -->
+    <div id="locationSearchCard" class="scanner-card" style="max-width: 500px; margin-left: auto; margin-right: auto;">
+
+        <label style="display: block; font-size: 11px; font-weight: 800; color: #475569; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Zeskanuj Lokalizację</label>
+        <div class="input-group">
+            <span class="material-icons input-icon">place</span>
+            <input type="text" id="lokalizacjaInput" class="scanner-input" placeholder="Np. PSD01" 
+                   style="text-transform: uppercase;"
+                   oninput="this.value = this.value.toUpperCase()"
+                   onkeydown="if(event.key==='Enter') searchLocation()">
+        </div>
+        <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button onclick="searchLocation()" class="btn-primary" style="padding: 14px; border-radius: 12px; font-weight: 700; border: none; background: #3b82f6; color: white;">SZUKAJ</button>
+            <button onclick="clearSkaner()" style="padding: 14px; border-radius: 12px; font-weight: 700; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b;">CZYŚĆ</button>
+        </div>
+    </div>
+
+    <!-- RESULTS SECTION -->
+    <div id="resultsContainer" style="display: none; max-width: 500px; margin: 0 auto;">
+        <div style="padding: 10px 5px; color: #64748b; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+            <span class="material-icons" style="font-size: 18px;">inventory_2</span>
+            Palety w: <span id="activeLocation" style="color: #1e293b; font-weight: 800;"></span>
+        </div>
+        
+        <div id="palletsList" style="margin-bottom: 25px;">
+            <!-- Palety będą tutaj renderowane -->
+        </div>
+
+        <button onclick="addNewPallet()" style="width: 100%; padding: 15px; border: 2px dashed #cbd5e1; border-radius: 12px; background: white; color: #64748b; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 20px;">
+            <span class="material-icons">add</span> NOWA PALETA (SPOZA LISTY)
+        </button>
+
+        <a href="{{ url_for('inwentaryzacja.raport', sesja_id=sesja_id) }}" style="width: 100%; padding: 18px; border: none; border-radius: 12px; background: #0f172a; color: white; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; margin-bottom: 40px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
+            <span class="material-icons">summarize</span> PRZEJDŹ DO RAPORTU
+        </a>
+    </div>
+
+    <!-- RACK GRID SECTION -->
+    <div id="rackContainer" style="display: none; max-width: 1000px; margin: 0 auto;">
+        <div style="padding: 10px 5px; color: #64748b; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 10px;">
+            <span class="material-icons" style="font-size: 18px;">grid_view</span>
+            Mapa Regału: <span id="activeRack" style="color: #1e293b; font-weight: 800;"></span>
+        </div>
+
+        <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 20px; background: #f8fafc; border-radius: 12px; padding: 10px; border: 1px solid #e2e8f0;">
+            <div id="rackGrid" style="display: grid; grid-template-columns: repeat(10, minmax(60px, 1fr)); gap: 8px; min-width: 650px;">
+                <!-- Cells will be generated here -->
+            </div>
+        </div>
+
+        <div id="slotDetail" style="display: none; background: white; border-radius: 16px; border: 2px solid #3b82f6; padding: 15px; margin-top: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 500px; margin-left: auto; margin-right: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div id="detailLocTitle" style="font-weight: 800; color: #3b82f6; font-size: 16px;">R01-01-01</div>
+                <button onclick="closeDetail()" style="border: none; background: #f1f5f9; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                    <span class="material-icons" style="font-size: 18px;">close</span>
+                </button>
+            </div>
+            <div id="detailContent">
+                <!-- Content of slot -->
+            </div>
+        </div>
+
+        <a href="{{ url_for('inwentaryzacja.raport', sesja_id=sesja_id) }}" style="width: 100%; padding: 18px; border: none; border-radius: 12px; background: #0f172a; color: white; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; margin-top: 20px; margin-bottom: 40px;">
+            <span class="material-icons">summarize</span> PRZEJDŹ DO RAPORTU
+        </a>
+    </div>
+
+</div>
+
+<!-- TEMPLATE DLA PALETY -->
+<template id="palletTemplate">
+    <div class="pallet-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div style="overflow: hidden; flex: 1;">
+                <div style="font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase;" class="pallet-type">Surowiec</div>
+                <div style="font-size: 14px; font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="product-name">Nazwa Produktu</div>
+                <div style="font-size: 11px; color: #64748b; font-family: monospace;" class="pallet-id">#ID</div>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="number" step="0.1" class="weight-input actual-weight-input" placeholder="STAN FAKTYCZNY">
+            <button class="save-btn" title="Zapisz">
+                <span class="material-icons">save</span>
+            </button>
+        </div>
+    </div>
+</template>
+
+<script>
+let currentPallets = [];
+let lastLocation = '';
+let rackData = {}; // Map location -> [items]
+let currentRackPrefix = '';
+
+// Load state on page load
+window.addEventListener('load', () => {
+    const currentSessionId = "{{ sesja_id }}";
+    const lastSessionId = localStorage.getItem('lastInventorySessionId');
+    
+    // Jeśli zmieniliśmy sesję, czyścimy stare zapamiętane lokalizacje
+    if (lastSessionId !== currentSessionId) {
+        localStorage.removeItem('lastInventoryLoc');
+        localStorage.removeItem('lastInventoryRack');
+        localStorage.setItem('lastInventorySessionId', currentSessionId);
+    }
+
+    const savedLoc = localStorage.getItem('lastInventoryLoc');
+    const savedRack = localStorage.getItem('lastInventoryRack');
+    
+    fetchProductNames();
+
+    if(savedRack) {
+        document.getElementById('lokalizacjaInput').value = savedRack;
+        document.getElementById('locationSearchCard').style.display = 'none';
+        loadRack(savedRack);
+    } else if(savedLoc) {
+        document.getElementById('lokalizacjaInput').value = savedLoc;
+        document.getElementById('locationSearchCard').style.display = 'none';
+        searchLocation();
+    }
+});
+
+
+
+function fetchProductNames() {
+    fetch('{{ url_for("inwentaryzacja.podpowiedzi_nazw") }}')
+    .then(r => r.json())
+    .then(data => {
+        if(data.success) {
+            const list = document.getElementById('productList');
+            list.innerHTML = '';
+            data.names.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                list.appendChild(opt);
+            });
+        }
+    });
+}
+
+function searchLocation() {
+    const rawLoc = document.getElementById('lokalizacjaInput').value.trim().toUpperCase();
+    if(!rawLoc) return;
+    
+    // Check if it's a Rack (e.g. "R01", "R-01" or similar length 3-4)
+    if(rawLoc.startsWith('R') && rawLoc.length >= 3 && rawLoc.length <= 4) {
+        loadRack(rawLoc);
+        return;
+    }
+
+    // If we are in Rack mode and scan a slot, handle it locally
+    if(currentRackPrefix && rawLoc.startsWith(currentRackPrefix) && rawLoc.length >= 6) {
+        highlightAndOpenSlot(rawLoc);
+        document.getElementById('lokalizacjaInput').value = ''; // clear for next scan
+        return;
+    }
+    
+    lastLocation = rawLoc;
+    currentRackPrefix = '';
+    localStorage.setItem('lastInventoryLoc', rawLoc);
+    localStorage.removeItem('lastInventoryRack');
+    
+    // Fetch pallets at this location
+    fetch('{{ url_for("inwentaryzacja.szukaj_lokalizacji") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({lokalizacja: rawLoc, sesja_id: {{ sesja_id }}})
+    })
+
+    .then(r => r.json())
+    .then(data => {
+        if(data.success) {
+            document.getElementById('locationSearchCard').style.display = 'none';
+            document.getElementById('rackContainer').style.display = 'none';
+            renderPallets(data.pallets);
+            document.getElementById('activeLocation').textContent = rawLoc;
+            document.getElementById('resultsContainer').style.display = 'block';
+            
+            setTimeout(() => {
+                const inputs = document.querySelectorAll('.actual-weight-input');
+                if(inputs.length > 0) inputs[0].focus();
+            }, 100);
+        }
+
+    });
+}
+
+function loadRack(prefix) {
+    currentRackPrefix = prefix;
+    localStorage.setItem('lastInventoryRack', prefix);
+    localStorage.removeItem('lastInventoryLoc');
+    
+    fetch('{{ url_for("inwentaryzacja.szukaj_regalu") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({prefix: prefix, sesja_id: {{ sesja_id }}})
+    })
+
+    .then(r => r.json())
+    .then(data => {
+        if(data.success) {
+            rackData = data.rack_data;
+            document.getElementById('locationSearchCard').style.display = 'none';
+            document.getElementById('resultsContainer').style.display = 'none';
+            document.getElementById('activeRack').textContent = prefix;
+            renderRackGrid(prefix);
+            document.getElementById('rackContainer').style.display = 'block';
+            document.getElementById('lokalizacjaInput').value = '';
+            document.getElementById('lokalizacjaInput').focus();
+        }
+
+    });
+}
+
+function renderRackGrid(prefix) {
+    const grid = document.getElementById('rackGrid');
+    grid.innerHTML = '';
+    
+    // Rows: 3, Cols: 10
+    // We assume row 3 is top, row 1 is bottom for display?
+    // User said "3 rzedy po 10 miejsc"
+    for(let r = 3; r >= 1; r--) {
+        for(let c = 1; c <= 10; c++) {
+            const colStr = c.toString().padStart(2, '0');
+            const rowStr = r.toString().padStart(2, '0');
+            // Format: R010101 (prefix + col + row)
+            // But prefix might be "R01" or "R-01". Let's handle clean prefix.
+            const cleanPrefix = prefix.replace('-', '');
+            const locId = `${cleanPrefix}${colStr}${rowStr}`;
+            
+            const cell = document.createElement('div');
+            cell.id = `cell-${locId}`;
+            cell.style.aspectRatio = '1/1';
+            cell.style.background = 'white';
+            cell.style.borderRadius = '4px';
+            cell.style.display = 'flex';
+            cell.style.flexDirection = 'column';
+            cell.style.alignItems = 'center';
+            cell.style.justifyContent = 'center';
+            cell.style.fontSize = '8px';
+            cell.style.fontWeight = '800';
+            cell.style.cursor = 'pointer';
+            cell.style.position = 'relative';
+            
+            const items = rackData[locId] || [];
+            const hasCounted = items.some(i => i.counted);
+            
+            if(items.length > 0) {
+                cell.style.background = hasCounted ? '#dcfce7' : '#dbeafe'; // green if at least one counted, blue if items exist
+                cell.style.color = hasCounted ? '#166534' : '#1e40af';
+                cell.innerHTML = `<span>${colStr}-${rowStr}</span><span style="font-size:10px; margin-top:2px;">${hasCounted ? '✅' : '📦'}</span>`;
+            } else {
+                cell.style.color = '#94a3b8';
+                cell.textContent = `${colStr}-${rowStr}`;
+            }
+
+            
+            cell.onclick = () => highlightAndOpenSlot(locId);
+            grid.appendChild(cell);
+        }
+    }
+}
+
+function highlightAndOpenSlot(locId) {
+    // Remove highlight from all
+    document.querySelectorAll('#rackGrid > div').forEach(d => {
+        d.style.outline = 'none';
+        d.style.zIndex = '1';
+    });
+    
+    const cell = document.getElementById(`cell-${locId}`);
+    if(cell) {
+        cell.style.outline = '3px solid #3b82f6';
+        cell.style.zIndex = '10';
+        cell.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+    
+    lastLocation = locId;
+    openSlotDetail(locId);
+}
+
+function openSlotDetail(locId) {
+    const detail = document.getElementById('slotDetail');
+    const title = document.getElementById('detailLocTitle');
+    const content = document.getElementById('detailContent');
+    
+    title.textContent = locId;
+    content.innerHTML = '';
+    
+    const items = rackData[locId] || [];
+    if(items.length === 0) {
+        content.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <p style="color: #64748b; font-size: 14px; margin-bottom: 15px;">To gniazdo jest puste systemowo.</p>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button onclick="markEmpty('${locId}')" class="btn-primary" style="background:#10b981; border:none; padding:12px; border-radius:12px; color:white; font-weight:700;">POTWIERDŹ PUSTE</button>
+                    <button onclick="addNewPallet('${locId}')" style="background:white; border:1px solid #3b82f6; padding:12px; border-radius:12px; color:#3b82f6; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px;">
+                        <span class="material-icons">add</span> DODAJ PALETĘ
+                    </button>
+                </div>
+            </div>
+        `;
+    } else {
+        items.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'pallet-card';
+            card.innerHTML = `
+                <div style="font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">${p.typ_palety}</div>
+                <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 10px;">${p.nazwa}</div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" step="0.1" id="weight-${p.id}-${p.typ_palety}" class="weight-input" placeholder="STAN FAKTYCZNY" value="${p.stan_magazynowy}">
+                    <button class="save-btn" style="background: ${p.counted ? '#059669' : '#10b981'}" onclick="saveSlotEntry('${locId}', ${p.id}, '${p.typ_palety}', '${p.nazwa}', '${p.nr_partii}', ${p.stan_magazynowy}, this)">
+                        <span class="material-icons">${p.counted ? 'done_all' : 'save'}</span>
+                    </button>
+                </div>
+
+            `;
+            content.appendChild(card);
+        });
+        
+        // Also add options to add/clear
+        content.innerHTML += `
+            <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <button onclick="addNewPallet('${locId}')" style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:10px; color:#64748b; font-size:12px; font-weight:700;">+ DODAJ KOLEJNĄ</button>
+                <button onclick="markEmpty('${locId}')" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700;">WYCZYŚĆ (PUSTE)</button>
+            </div>
+        `;
+    }
+    
+    detail.style.display = 'block';
+}
+
+function closeDetail() {
+    document.getElementById('slotDetail').style.display = 'none';
+}
+
+function markEmpty(locId) {
+    if(!confirm(`Czy na pewno gniazdo ${locId} jest puste?`)) return;
+    
+    // If there were items, we need to set them to 0
+    const items = rackData[locId] || [];
+    if(items.length === 0) {
+        // Just record that we checked it
+        saveEntry({id: null, nr_palety: null, typ_palety: 'surowiec', nazwa: 'PUSTE GNIAZDO', linia: 'PSD', nr_partii: '-', stan_magazynowy: 0}, 0, null);
+        markCellDone(locId, true);
+        closeDetail();
+    } else {
+        // Set each item to 0
+        let count = 0;
+        items.forEach(p => {
+            fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    sesja_id: {{ sesja_id }},
+                    paleta_id: p.id,
+                    typ_palety: p.typ_palety,
+                    nazwa: p.nazwa,
+                    lokalizacja: locId,
+                    nr_partii: p.nr_partii,
+                    waga_systemowa: p.stan_magazynowy,
+                    waga_faktyczna: 0,
+                    linia: p.linia
+                })
+            }).then(() => {
+                count++;
+                if(count === items.length) {
+                    markCellDone(locId, true);
+                    closeDetail();
+                }
+            });
+        });
+    }
+}
+
+function saveSlotEntry(locId, pId, typ, nazwa, partia, systemWeight, btn) {
+    const weightInput = document.getElementById(`weight-${pId}-${typ}`);
+    const weight = parseFloat(weightInput.value);
+    
+    fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            sesja_id: {{ sesja_id }},
+            paleta_id: pId,
+            typ_palety: typ,
+            nazwa: nazwa,
+            lokalizacja: locId,
+            nr_partii: partia,
+            waga_systemowa: systemWeight,
+            waga_faktyczna: weight,
+            linia: 'PSD' // Default
+        })
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            btn.innerHTML = '<span class="material-icons">done</span>';
+            btn.style.background = '#059669';
+            markCellDone(locId, false);
+        }
+    });
+}
+
+function markCellDone(locId, isEmpty) {
+    const cell = document.getElementById(`cell-${locId}`);
+    if(cell) {
+        cell.style.background = isEmpty ? '#f1f5f9' : '#dcfce7'; 
+        cell.style.color = isEmpty ? '#64748b' : '#166534';
+        cell.style.borderColor = '#10b981';
+        
+        const col = locId.slice(-4, -2);
+        const row = locId.slice(-2);
+        
+        if(isEmpty) {
+            cell.innerHTML = `<span>${col}-${row}</span><span style="font-size:10px; margin-top:2px;">✅</span>`;
+        } else {
+            cell.innerHTML = `<span>${col}-${row}</span><span style="font-size:10px; margin-top:2px;">✅</span>`;
+        }
+    }
+}
+
+
+function renderPallets(pallets) {
+    const list = document.getElementById('palletsList');
+    list.innerHTML = '';
+    currentPallets = pallets;
+    
+    if(pallets.length === 0) {
+        list.innerHTML = '<div style="text-align: center; padding: 20px; color: #94a3b8; font-style: italic;">Brak palet zarejestrowanych w tej lokalizacji.</div>';
+        return;
+    }
+    
+    const template = document.getElementById('palletTemplate');
+    pallets.forEach((p, index) => {
+        const clone = template.content.cloneNode(true);
+        const card = clone.querySelector('.pallet-card');
+        
+        card.querySelector('.product-name').textContent = p.nazwa;
+        card.querySelector('.pallet-type').textContent = p.typ_palety;
+        card.querySelector('.pallet-id').textContent = p.displayId;
+        
+        const input = card.querySelector('.actual-weight-input');
+        if(p.counted) {
+            card.style.borderColor = '#10b981';
+            card.style.background = '#f0fdf4';
+            card.querySelector('.save-btn').innerHTML = '<span class="material-icons">done_all</span>';
+            card.querySelector('.save-btn').style.background = '#059669';
+        }
+        input.value = '';
+
+        input.autocomplete = 'off';
+        input.inputMode = 'decimal';
+        
+        const saveBtn = card.querySelector('.save-btn');
+        saveBtn.onclick = () => saveEntry(p, input.value, card);
+        
+        // Enter key moves to save or next input
+        input.onkeydown = (e) => {
+            if(e.key === 'Enter') {
+                saveEntry(p, input.value, card);
+                const allInputs = document.querySelectorAll('.actual-weight-input');
+                if(allInputs[index+1]) allInputs[index+1].focus();
+            }
+        };
+        
+        list.appendChild(clone);
+    });
+}
+
+function saveEntry(pallet, actualWeight, cardElement) {
+    const weight = parseFloat(actualWeight);
+    if(isNaN(weight)) return alert('Podaj poprawną wagę!');
+    
+    fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            sesja_id: {{ sesja_id }},
+            paleta_id: pallet.id,
+            nr_palety: pallet.nr_palety,
+            typ_palety: pallet.typ_palety,
+            nazwa: pallet.nazwa,
+            lokalizacja: lastLocation,
+            nr_partii: pallet.nr_partii,
+            waga_systemowa: pallet.stan_magazynowy,
+            waga_faktyczna: weight,
+            linia: pallet.linia,
+            data_produkcji: pallet.data_produkcji,
+            data_przydatnosci: pallet.data_przydatnosci
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if(data.success) {
+            cardElement.style.borderColor = '#10b981';
+            cardElement.style.background = '#f0fdf4';
+            // Show checkmark on button
+            const btn = cardElement.querySelector('.save-btn');
+            btn.innerHTML = '<span class="material-icons">done_all</span>';
+            btn.style.background = '#059669';
+            
+            // Do NOT clear scanner, let the user continue with other pallets in this location
+        } else {
+            alert("Błąd zapisu: " + data.message);
+        }
+    });
+}
+
+function clearSkaner() {
+    document.getElementById('lokalizacjaInput').value = '';
+    document.getElementById('resultsContainer').style.display = 'none';
+    document.getElementById('rackContainer').style.display = 'none';
+    document.getElementById('locationSearchCard').style.display = 'block';
+    localStorage.removeItem('lastInventoryLoc');
+    localStorage.removeItem('lastInventoryRack');
+    document.getElementById('lokalizacjaInput').focus();
+}
+
+
+function addNewPallet(loc) {
+    document.getElementById('newPalletLoc').value = loc || lastLocation;
+    document.getElementById('newPalletSSCC').value = '';
+    document.getElementById('newPalletName').value = '';
+    document.getElementById('newPalletWeight').value = '';
+    document.getElementById('newPalletModal').style.display = 'flex';
+    document.getElementById('newPalletSSCC').focus();
+}
+
+function saveNewPallet() {
+    const sscc = document.getElementById('newPalletSSCC').value.trim();
+    const name = document.getElementById('newPalletName').value.trim();
+    const type = document.getElementById('newPalletType').value;
+    const weight = parseFloat(document.getElementById('newPalletWeight').value);
+    const batch = document.getElementById('newPalletBatch').value.trim() || 'NOWA';
+    const dProd = document.getElementById('newPalletDateProd').value;
+    const dExp = document.getElementById('newPalletDateExp').value;
+    const loc = document.getElementById('newPalletLoc').value;
+    const packaging = document.getElementById('newPalletPackaging').value;
+
+    
+    if(!sscc || !name || isNaN(weight)) return alert('Wypełnij wszystkie pola!');
+    
+    fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            sesja_id: {{ sesja_id }},
+            paleta_id: null,
+            nr_palety: sscc,
+            typ_palety: type,
+            nazwa: name,
+            lokalizacja: loc,
+            nr_partii: batch,
+            waga_systemowa: 0,
+            waga_faktyczna: weight,
+            data_produkcji: dProd,
+            data_przydatnosci: dExp,
+            linia: 'PSD',
+            typ_opakowania: packaging
+        })
+
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            document.getElementById('newPalletModal').style.display = 'none';
+            if(currentRackPrefix) {
+                markCellDone(loc, false);
+                openSlotDetail(loc); // Refresh detail
+            } else {
+                searchLocation(); // Refresh list
+            }
+        } else {
+            alert("Błąd: " + data.message);
+        }
+    });
+}
+</script>
+
+<div id="newPalletModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 2000; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 20px 0;">
+    <div style="background: white; width: 95%; max-width: 450px; border-radius: 20px; padding: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); margin: auto;">
+
+        <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 800;">Dodaj Nową Paletę</h3>
+        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 13px;">Wpisz dane palety, której nie ma w systemie.</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Numer Palety / SSCC</label>
+                <input type="text" id="newPalletSSCC" class="weight-input" style="text-align: left; padding: 12px;" placeholder="Zeskanuj lub wpisz...">
+            </div>
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Nazwa Produktu / Materiału</label>
+                <input type="text" id="newPalletName" list="productList" class="weight-input" style="text-align: left; padding: 12px;" placeholder="Co to jest?">
+                <datalist id="productList"></datalist>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Typ (Kategoria)</label>
+                    <select id="newPalletType" class="weight-input" style="padding: 10px; height: 48px;">
+                        <option value="surowiec">Surowiec</option>
+                        <option value="opakowanie">Opakowanie</option>
+                        <option value="wyrób gotowy">Wyrób Gotowy</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Rodzaj opakowania</label>
+                    <select id="newPalletPackaging" class="weight-input" style="padding: 10px; height: 48px;">
+                        <option value="brak">Brak / Inne</option>
+                        <option value="worek">Worek</option>
+                        <option value="big-bag">Big-Bag</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+                <div>
+                    <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Stan (kg/szt)</label>
+                    <input type="number" id="newPalletWeight" class="weight-input" style="padding: 12px;" value="0">
+                </div>
+            </div>
+
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Numer Partii</label>
+                <input type="text" id="newPalletBatch" class="weight-input" style="text-align: left; padding: 12px;" placeholder="Nr partii...">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Data Prod.</label>
+                    <input type="date" id="newPalletDateProd" class="weight-input" style="padding: 10px;">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Data Przyd.</label>
+                    <input type="date" id="newPalletDateExp" class="weight-input" style="padding: 10px;">
+                </div>
+            </div>
+            
+            <input type="hidden" id="newPalletLoc">
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button onclick="saveNewPallet()" class="btn-primary" style="flex: 2; padding: 14px; border-radius: 12px; font-weight: 700; border: none; background: #3b82f6; color: white;">ZAPISZ</button>
+                <button onclick="document.getElementById('newPalletModal').style.display='none'" style="flex: 1; padding: 14px; border-radius: 12px; font-weight: 700; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b;">ANULUJ</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .btn-primary:active { transform: scale(0.98); }
+    input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 4px rgba(59,130,246,0.1); }
+</style>
+{% endblock %}

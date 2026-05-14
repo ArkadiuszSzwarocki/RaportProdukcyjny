@@ -1,0 +1,23 @@
+<!-- MODAL: ZDEJMIJ OPAKOWANIE Z MASZYNY -->
+<dialog id="returnPackagingModal" class="modal-premium" style="max-width: 400px; padding: 0; border: none; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+    <div class="modal-header" style="padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 12px 12px 0 0;">
+        <h4 class="modal-title" style="margin: 0; font-size: 1.1em; color: #2c3e50;">Zdejmij / Zwróć na magazyn</h4>
+        <button class="modal-close" onclick="closeReturnModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #95a5a6;">×</button>
+    </div>
+    <div class="modal-body" style="padding: 20px;">
+        <p id="returnOpakName" style="font-weight: bold; margin-bottom: 15px; color: #2c3e50; font-size: 1.05em;"></p>
+        <div class="form-group mb-15">
+            <label class="form-label" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85em; color: #647684;">Ile zostało na rolce? (szt)</label>
+            <input type="number" id="returnOpakQty" class="form-control" style="width: 100%; padding: 10px; border: 1px solid #dfe7ef; border-radius: 8px;" placeholder="0">
+        </div>
+        <div class="form-group mb-0">
+            <label class="form-label" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85em; color: #647684;">Gdzie odkładasz? (Lokalizacja)</label>
+            <input type="text" id="returnOpakLoc" class="form-control" style="width: 100%; padding: 10px; border: 1px solid #dfe7ef; border-radius: 8px;" placeholder="np. R-01-02-03">
+        </div>
+        <input type="hidden" id="returnOpakId">
+    </div>
+    <div class="modal-footer" style="padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px; background: #f8f9fa; border-radius: 0 0 12px 12px;">
+        <button class="btn-action btn-outline-secondary" onclick="closeReturnModal()" style="padding: 8px 16px;">Anuluj</button>
+        <button class="btn-action btn-primary" onclick="submitReturnPackaging()" style="padding: 8px 16px;">POTWIERDŹ ZWROT</button>
+    </div>
+</dialog>

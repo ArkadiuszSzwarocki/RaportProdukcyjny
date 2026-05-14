@@ -1,0 +1,403 @@
+{# === PANEL ETAPÓW ZASYP — widoczny tylko dla Zasyp gdy jest aktywne zlecenie === #}
+{% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active %}
+{% for p in plan %}{% if p[3] == 'w toku' %}
+{% set etapy_sesje = etapy_sesje_mapa.get(p[0]) if etapy_sesje_mapa is defined and etapy_sesje_mapa else [] %}
+{% set param = etapy_parametry.get(p[0]) if etapy_parametry is defined and etapy_parametry else {} %}
+{% for sesja in etapy_sesje %}
+{% set cur_szarza = sesja.szarza_nr|default(1) %}
+{% set etapy = sesja.etapy|default([]) %}
+{% set sesja_running = namespace(etap=None, label='') %}
+{% for etap_info in etapy %}
+    {% if sesja_running.etap is none and etap_info.is_running %}
+        {% set sesja_running.etap = etap_info.etap %}
+        {% set etap_info_str = etap_info.etap|string %}
+        {% if etap_info.etap == 1 %}
+            {% set sesja_running.label = 'Naważanie' %}
+        {% elif etap_info.etap == 2 %}
+            {% set sesja_running.label = 'Mieszanie i oczekiwanie na LAB' %}
+        {% elif etap_info.etap == 5 %}
+            {% set sesja_running.label = 'Opróżnianie' %}
+        {% elif etap_info_str|length > 1 and etap_info_str[0] == '3' %}
+            {% set sesja_running.label = 'Dosypka do mieszania' %}
+        {% elif etap_info_str|length > 1 and etap_info_str[0] == '4' %}
+            {% set sesja_running.label = 'Mieszanie po dosypce' %}
+        {% elif etap_info.etap == 3 %}
+            {% set sesja_running.label = 'Dosypka do mieszania' %}
+        {% elif etap_info.etap == 4 %}
+            {% set sesja_running.label = 'Mieszanie po dosypce' %}
+        {% else %}
+            {% set sesja_running.label = 'Etap ' ~ etap_info.etap %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+<div class="section-box mt-20 p-0" id="etapy-panel-{{ p[0] }}-{{ cur_szarza }}" style="border-left: 4px solid {% if sesja.is_current %}#e67e22{% else %}#cfd6dd{% endif %}; {% if not sesja.is_current %}opacity:0.92; margin-left:18px;{% endif %}">
+    <div class="p-10 p-10-bg d-flex justify-between align-center flex-wrap gap-8"
+         style="background: {% if sesja.is_current %}var(--card-header-bg, #fdf3e7){% else %}#f5f7fa{% endif %};">
+        <div class="d-flex align-center gap-8 flex-wrap">
+            <span style="font-size:1.3em;">⏱️</span>
+            {% if rola in ['laborant', 'laboratorium'] %}
+            <strong>Statusy etapów — Zasyp {{ cur_szarza }}:</strong>
+            {% else %}
+            <strong>Punkt Kontrolny Zasypu {{ cur_szarza }}:</strong>
+            {% endif %}
+            {% if sesja.is_current %}
+            <span class="badge-warning" style="font-size:0.72em; padding:2px 6px;">AKTUALNA</span>
+            {% else %}
+            <span class="badge-info" style="font-size:0.72em; padding:2px 6px;">WCZEŚNIEJSZA</span>
+            {% endif %}
+        </div>
+        <div class="agro-panel-header-actions">
+            {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] and sesja.is_current %}
+            <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;"
+                data-confirm="Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel zasypu, a obecne pozostaną poniżej.">
+                <input type="hidden" name="linia" value="{{ linia }}">
+                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
+                <button type="submit" class="btn-action btn-blue" style="padding: 4px 10px; font-size: 0.82em;">
+                    + KOLEJNY ETAP
+                </button>
+            </form>
+            {% endif %}
+            {% if rola != 'laborant' and sesja.is_current %}
+            {% if linia == 'AGRO' and p[3] == 'w toku' %}
+            <a href="{{ url_for('production.agro_mix_inventory', selected_plan_id=p[0]) }}"
+               class="btn-action"
+               data-slide
+               style="padding: 4px 10px; font-size: 0.82em; background:#9b59b6; color:#fff; font-weight:700;">
+                DODAJ MIX (zasyp #{{ cur_szarza }})
+            </a>
+            {% endif %}
+            <a href="{{ url_for('production.zasyp_usun_punkt_kontrolny_page', plan_id=p[0], linia=linia, sekcja=sekcja, szarza_nr=cur_szarza, zasyp_nr=cur_szarza, data=dzisiaj) }}"
+               class="btn-action"
+               data-slide
+               style="padding: 4px 10px; font-size: 0.82em; background:#c0392b; color:#fff;">
+                X
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="p-10">
+        {% set lab_status_view = rola in ['laborant', 'laboratorium'] %}
+        {% if lab_status_view %}
+        <div style="display:grid; grid-template-columns: 1fr; gap:8px;">
+            {% for e in etapy %}
+                {% set e_str = e.etap|string %}
+                {% set is_main = e.etap in [1, 2, 5, 6] %}
+                {% set is_mixer = e.etap in [3, 4] or (e_str|length > 1 and (e_str[0] == '3' or e_str[0] == '4')) %}
+                
+                {% if is_main or is_mixer %}
+                    {% if e.czas_stop %}
+                        {% set status_label = 'Zakończone' %}
+                        {% set status_icon = '✓' %}
+                        {% set status_bg = '#dcfce7' %}
+                        {% set status_color = '#166534' %}
+                    {% elif e.is_running or e.czas_start %}
+                        {% set status_label = 'Rozpoczęte' %}
+                        {% set status_icon = '▶' %}
+                        {% set status_bg = '#16a34a' %}
+                        {% set status_color = '#ffffff' %}
+                    {% else %}
+                        {% set status_label = 'Oczekuje' %}
+                        {% set status_icon = '⏳' %}
+                        {% set status_bg = '#e5e7eb' %}
+                        {% set status_color = '#374151' %}
+                    {% endif %}
+
+                    {% set label = 'Etap ' ~ e.etap %}
+                    {% if e.etap == 1 %}{% set label = 'Naważanie' %}
+                    {% elif e.etap == 2 %}{% set label = 'Mieszanie (LAB)' %}
+                    {% elif e.etap == 3 or e_str[0] == '3' %}{% set label = 'Dosypka ' ~ (e_str[1:] if e_str|length > 1 else '') %}
+                    {% elif e.etap == 4 or e_str[0] == '4' %}{% set label = 'Mieszanie II ' ~ (e_str[1:] if e_str|length > 1 else '') %}
+                    {% elif e.etap in [5, 6] %}{% set label = 'Opróżnianie' %}
+                    {% endif %}
+
+                    <div style="border:1px solid {% if e.is_running %}#16a34a{% else %}#dbe3ea{% endif %}; border-radius:8px; padding:10px; background:{% if e.is_running %}#f0faf4{% else %}#f9fbfd{% endif %}; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <div>
+                            <strong style="font-size:0.92em;">{{ label }}</strong>
+                            <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) }}" data-running="{{ 1 if e.is_running else 0 }}">{{ e.duration_str if e.duration_str else '00:00' }}</span></strong></div>
+                        </div>
+                        <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+            <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.8em; color:#2f3b4a; user-select:none;">
+                <span>AUTO ZASYP</span>
+                <input type="checkbox" class="auto-szarza-switch">
+            </label>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:10px;">
+            {% if etapy %}
+            {% set agro_dosypka_ns = namespace(has_extra=false, rendered_plus=false, max_mixer_etap=4) %}
+            {% for etap in etapy %}
+            {% set etap_str = etap.etap|string %}
+            {% if linia == 'AGRO' and etap_str|length > 1 and (etap_str[0] == '3' or etap_str[0] == '4') %}
+            {% set agro_dosypka_ns.has_extra = true %}
+            {% endif %}
+            {% if linia == 'AGRO' and (etap.etap == 4 or (etap_str|length > 1 and etap_str[0] == '4')) and etap.etap > agro_dosypka_ns.max_mixer_etap %}
+            {% set agro_dosypka_ns.max_mixer_etap = etap.etap %}
+            {% endif %}
+            {% endfor %}
+
+            {% set agro_next_ns = namespace(existing=[], label='', suffix=None, has_slot=false, base_pair_exists=false) %}
+            {% set flow_ns = namespace(next_start_etap=None) %}
+            {% if linia == 'AGRO' %}
+                {% for e in etapy %}
+                    {% do agro_next_ns.existing.append(e.etap) %}
+                {% endfor %}
+                {% set has3 = 3 in agro_next_ns.existing %}
+                {% set has4 = 4 in agro_next_ns.existing %}
+                {% set agro_next_ns.base_pair_exists = has3 and has4 %}
+                {% if not has3 and not has4 %}
+                    {% set agro_next_ns.label = '3/4' %}
+                    {% set agro_next_ns.has_slot = true %}
+                {% else %}
+                    {% set suffix_ns = namespace(max_suffix=0) %}
+                    {% for e in etapy %}
+                        {% set e_str = e.etap|string %}
+                        {% if e_str|length > 1 and (e_str[0] == '3' or e_str[0] == '4') %}
+                            {% set suf = e_str[1:]|int %}
+                            {% if suf > suffix_ns.max_suffix %}{% set suffix_ns.max_suffix = suf %}{% endif %}
+                        {% endif %}
+                    {% endfor %}
+                    {% set agro_next_ns.suffix = suffix_ns.max_suffix + 1 %}
+                    {% set agro_next_ns.label = ("3" ~ agro_next_ns.suffix) ~ "/" ~ ("4" ~ agro_next_ns.suffix) %}
+                    {% set agro_next_ns.has_slot = true %}
+                {% endif %}
+            {% endif %}
+
+            {% if not sesja.has_running %}
+                {% for e in etapy %}
+                    {% if flow_ns.next_start_etap is none and not e.czas_start %}
+                        {% set flow_ns.next_start_etap = e.etap %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+
+            {% set session_final_etap = 5 if linia == 'AGRO' else 6 %}
+            {% set session_state_ns = namespace(is_finished=false) %}
+            {% for e in etapy %}
+                {% if e.etap == session_final_etap and e.czas_stop %}
+                    {% set session_state_ns.is_finished = true %}
+                {% endif %}
+            {% endfor %}
+
+            {% for etap in etapy %}
+            {% set hide_agro_base_etap = linia == 'AGRO' and not agro_dosypka_ns.has_extra and etap.etap in [3, 4] and not etap.exists and not etap.czas_start and not etap.czas_stop %}
+            {% if hide_agro_base_etap %}
+            {# hidden placeholder for AGRO 3/4 when pair not yet created #}
+            {% else %}
+            {% set manual_box_id = 'manual-box-' ~ p[0] ~ '-' ~ cur_szarza ~ '-' ~ etap.etap %}
+            {% set can_manual_time_edit = (rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier']) and etap.czas_stop %}
+            <div style="border:1px solid {% if etap.is_running %}#e67e22{% elif etap.czas_stop %}#27ae60{% else %}#ddd{% endif %};
+                        border-radius:6px; padding:10px; word-break: break-word; overflow: hidden; position: relative;
+                        background:{% if etap.is_running %}#fdf3e7{% elif etap.czas_stop %}#f0faf4{% else %}#fafafa{% endif %};">
+                
+                <div style="position: absolute; top: 6px; right: 6px; margin: 0; z-index: 10; display: flex; gap: 4px;">
+                    {% if rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier'] %}
+                                                {% if not session_state_ns.is_finished %}
+                    {# Przycisk RESET #}
+                        <form action="{{ url_for('production.zasyp_etap_reset') }}" method="POST" style="margin: 0;"
+                            data-confirm="Zresetować czas? (Będziesz mógł wprowadzić go ręcznie)">
+                        <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                                        <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                                                        <input type="hidden" name="zasyp_nr" value="{{ cur_szarza }}">
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                        <input type="hidden" name="data_planu" value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
+                        <input type="hidden" name="etap" value="{{ etap.etap }}">
+                        <button type="submit" class="btn-icon" 
+                                style="background: none; border: none; cursor: pointer; padding: 4px; color: #333; display: flex; align-items: center; justify-content: center;" 
+                                title="Reset czasu (Restart etapu)">
+                            <span class="material-icons" style="font-size: 20px;">refresh</span>
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    {% if can_manual_time_edit %}
+                    <button type="button"
+                            class="btn-icon"
+                            data-toggle-manual-etap="{{ manual_box_id }}"
+                            title="Pokaż/ukryj ręczne wpisanie czasu"
+                            style="background:none; border:none; cursor:pointer; padding:4px; color:#4b5f75; display:flex; align-items:center; justify-content:center;">
+                        <span class="material-icons" style="font-size:18px;">schedule</span>
+                    </button>
+                    {% endif %}
+                    
+                    {# Przycisk USUŃ (X) - dla sub-etapów AGRO #}
+                                                                                                                                                                                                                         {% if (not session_state_ns.is_finished) and linia == 'AGRO' and (etap.etap in [3, 4] or etap.etap > 10) %}
+                        <form action="{{ url_for('production.zasyp_etap_delete') }}" method="POST" style="margin: 0;"
+                            data-confirm="Czy na pewno chcesz USUNĄĆ ten kafelek ({{ etap.etap }})?">
+                        <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                                        <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                                                        <input type="hidden" name="zasyp_nr" value="{{ cur_szarza }}">
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                        <input type="hidden" name="etap" value="{{ etap.etap }}">
+                        <button type="submit" class="btn-icon" 
+                                style="background: none; border: none; cursor: pointer; padding: 4px; color: #e74c3c; display: flex; align-items: center; justify-content: center;" 
+                                title="Usuń całkowicie">
+                            <span class="material-icons" style="font-size: 20px;">close</span>
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+
+                <div class="mb-5" style="padding-right: 40px; min-height: 68px; display: flex; flex-direction: column; justify-content: flex-start;">
+                    <div class="small" style="font-size:0.72em; color:#6b7280; min-height:16px; line-height:1.1; margin-bottom:4px;">
+                        {% if etap.is_running %}
+                        ▶ W TOKU
+                        {% elif etap.czas_stop %}
+                        ✓ DONE
+                        {% else %}
+                        -
+                        {% endif %}
+                    </div>
+                    <strong style="font-size:0.9em; line-height: 1.2; display:block;">
+                    {% set e_nr = etap.etap %}
+                    {% if e_nr == 1 %}Naważanie
+                    {% elif e_nr == 2 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB{% else %}Mieszanie{% endif %}
+                    {% elif e_nr == 3 %}Dosypka
+                    {% elif 30 < e_nr < 40 %}Dosypka 3{{ 'abcdefghi'[ (e_nr % 10 - 1) if (e_nr % 10 - 1) < 9 else 0 ] }}
+                    {% elif e_nr == 4 %}{% if linia == 'AGRO' %}Mieszanie i oczekiwanie na LAB po dosypce{% else %}Dosypka{% endif %}
+                    {% elif 40 < e_nr < 50 %}Mieszanie 4{{ 'abcdefghi'[ (e_nr % 10 - 1) if (e_nr % 10 - 1) < 9 else 0 ] }}
+                    {% elif e_nr == 5 %}{% if linia == 'AGRO' %}Opróżnianie{% else %}Mieszanie{% endif %}
+                    {% elif e_nr == 6 %}Opróżnianie
+                    {% else %}Etap {{ e_nr }}{% endif %}
+                    </strong>
+                </div>
+                {% if etap.czas_start_str %}
+                <div class="small text-muted">
+                    Start: <strong>{{ etap.czas_start_str }}</strong>
+                    {% if etap.start_login %}
+                    <span class="badge-info" style="font-size:0.75em;" title="Kto START">👤 {{ etap.start_login }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if etap.czas_stop_str %}
+                <div class="small text-muted">
+                    Stop: <strong>{{ etap.czas_stop_str }}</strong>
+                    {% if etap.stop_login %}
+                    <span class="badge-info" style="font-size:0.75em;" title="Kto STOP">👤 {{ etap.stop_login }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if etap.is_running or (etap.duration_str and etap.duration_str != '0m') %}
+                <div class="small" style="color:#555;">⏱ <span class="etap-live-timer" data-seconds="{{ etap.duration_s|default(0) }}" data-running="{{ 1 if etap.is_running else 0 }}">{{ etap.duration_str }}</span></div>
+                {% endif %}
+                <div class="d-flex gap-6 mt-6 flex-wrap" style="justify-content:center; align-items:center; min-height:32px;">
+                    {% set is_agro_pair_etap = linia == 'AGRO' and (etap.etap == 3 or etap.etap == 4 or (etap.etap > 10 and (etap.etap // 10 == 3 or etap.etap // 10 == 4))) %}
+                    {% set restart_plan_arg = request.args.get('restart_plan') %}
+                    {% set restart_etap_arg = request.args.get('restart_etap') %}
+                    {% set restart_szarza_arg = request.args.get('restart_szarza') %}
+                    {% if restart_plan_arg and restart_etap_arg %}
+                        {% set plan_cmp = restart_plan_arg|int == p[0] %}
+                        {% set etap_cmp = restart_etap_arg|int == etap.etap %}
+                        {% set szarza_cmp = (not restart_szarza_arg or restart_szarza_arg == '' or restart_szarza_arg|int == cur_szarza) %}
+                        {% set can_restart = plan_cmp and etap_cmp and szarza_cmp %}
+                    {% else %}
+                        {% set can_restart = False %}
+                    {% endif %}
+                    {% set lock_other_starts = sesja.has_running and sesja.active_etap != etap.etap and (not can_restart) %}
+                    {% set lock_by_sequence = (not sesja.has_running) and (flow_ns.next_start_etap is not none) and (etap.etap != flow_ns.next_start_etap) and (not can_restart) %}
+                    {% set lock_start_button = lock_other_starts or lock_by_sequence %}
+                    {% if not etap.czas_start or can_restart %}
+                                                <form action="{{ url_for('production.zasyp_etap_start') }}"
+                                                            method="POST"
+                                                            style="margin:0;"
+                                                            data-dashboard-submit="zasyp-start"
+                                                            data-etap="{{ etap.etap }}"
+                                                            data-szarza-default="{{ '%.1f'|format(param.wielkosc_szarzy_kg) if etap.etap == 1 and param.wielkosc_szarzy_kg else '' }}"
+                                                            >
+                        <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                        <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                        <input type="hidden" name="zasyp_nr" value="{{ cur_szarza }}">
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                        <input type="hidden" name="etap" value="{{ etap.etap }}">
+                        <input type="hidden" name="restart_intent" value="{{ 1 if can_restart else 0 }}">
+                            <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
+                        <input type="hidden" name="data_planu"
+                               value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
+                                                        {% if etap.etap == 1 %}
+                                                        <input type="hidden" name="wielkosc_szarzy_kg" value="">
+                                                        {% endif %}
+                        <button type="submit"
+                                class="btn-action btn-green"
+                            {% if lock_start_button %}disabled{% endif %}
+                            title="{% if lock_other_starts %}Najpierw zakończ aktywny etap {{ sesja.active_etap }}{% elif lock_by_sequence %}Najpierw uruchom etap {{ flow_ns.next_start_etap }}{% else %}Start etapu{% endif %}"
+                            style="font-size:0.75em; padding:3px 8px; min-width:110px; text-align:center; {% if lock_start_button %}opacity:0.45; cursor:not-allowed; filter:grayscale(35%);{% endif %}">{% if can_restart %}↺ Start ponownie{% else %}▶ Start{% endif %}</button>
+                    </form>
+                        {% elif etap.is_running %}
+                        {% if rola not in ['laborant', 'laboratorium'] %}
+                                                <form action="{{ url_for('production.zasyp_etap_stop') }}"
+                                                            method="POST" style="margin:0;"
+                                                            data-dashboard-submit="zasyp-stop"
+                                                            data-etap="{{ etap.etap }}"
+                                                            data-linia="{{ linia }}"
+                                                            >
+                        <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                                        <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                                                        <input type="hidden" name="zasyp_nr" value="{{ cur_szarza }}">
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                        <input type="hidden" name="etap" value="{{ etap.etap }}">
+                        <input type="hidden" name="auto_szarza_mode" value="manual" class="auto-szarza-mode-input">
+                        <button type="submit"
+                                class="btn-action btn-stop"
+                                style="font-size:0.75em; padding:3px 8px; min-width:110px; text-align:center;">⏹ Stop</button>
+                    </form>
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+                {% if can_manual_time_edit %}
+                <div id="{{ manual_box_id }}" class="mt-6" style="display:none; border-top: 1px dashed var(--border-color, #eee); padding-top: 6px;">
+                    <div class="small text-muted mb-5">Ręcznie (HH:MM):</div>
+                    <div class="d-flex gap-6 align-center flex-wrap">
+                        <form action="{{ url_for('production.zasyp_etap_manual_set') }}" method="POST"
+                              class="d-flex align-center gap-6 flex-wrap" style="margin:0;">
+                            <input type="hidden" name="plan_id" value="{{ p[0] }}">
+                                                                <input type="hidden" name="szarza_nr" value="{{ cur_szarza }}">
+                                                                <input type="hidden" name="zasyp_nr" value="{{ cur_szarza }}">
+                            <input type="hidden" name="linia" value="{{ linia }}">
+                            <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                            <input type="hidden" name="etap" value="{{ etap.etap }}">
+                             <input type="time" name="czas_start_hhmm" value="{{ etap.czas_start_str }}"
+                                 class="manual-time-input"
+                                   title="START (HH:MM)"
+                                   style="width:70px; padding:3px; border:1px solid #ccc; border-radius:4px; font-size:0.75em;">
+                             <input type="time" name="czas_stop_hhmm" value="{{ etap.czas_stop_str }}"
+                                 class="manual-time-input"
+                                   title="STOP (HH:MM)"
+                                   style="width:70px; padding:3px; border:1px solid #ccc; border-radius:4px; font-size:0.75em;">
+                            <button type="submit" class="btn-action btn-outline"
+                                    style="font-size:0.75em; padding:3px 8px;">Zapisz</button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+            {% else %}
+            <div class="small text-muted" style="grid-column:1/-1;">
+                Brak danych etapów — rozpocznij pierwszy etap.
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+            {% set total = sesja.total_duration_str if sesja.total_duration_str else '' %}
+        {% if total or sesja.has_running %}
+        <div class="small text-muted mt-8">Łączny czas etapów: <strong class="etapy-total-live-timer" data-seconds="{{ sesja.total_duration_s|default(0) }}" data-running="{{ 1 if sesja.has_running else 0 }}">{{ total if total else '00:00' }}</strong></div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+{% endif %}{% endfor %}
+{% endif %}

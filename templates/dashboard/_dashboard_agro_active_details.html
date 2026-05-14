@@ -1,0 +1,102 @@
+<div class="active-order-szarze-wrap">
+    <div class="active-order-szarze-panel">
+        {% if sekcja == 'Zasyp' %}
+        <div class="active-order-szarze-title">Lista zasypów zrobionych:</div>
+        {% else %}
+        <div class="active-order-szarze-title">Lista utworzonych palet:</div>
+        {% endif %}
+        {% set fb_palety = (palety_mapa.get(p[0]) if palety_mapa and (p[0] in palety_mapa) else []) %}
+        {% if fb_palety %}
+            {% for pal in fb_palety %}
+            {% set szarza_id = (pal[2]|int if pal|length > 2 else 0) %}
+            {% if szarza_id <= 0 %}{% set szarza_id = loop.index %}{% endif %}
+            <div class="active-order-szarze-item">
+                <div class="active-order-szarze-line">
+                    <div class="active-order-szarze-left">
+                        <span>#{{ loop.index if loop is defined else '' }} • {{ pal[1] }}</span>
+                        <strong class="text-primary">{{ pal[0]|int }} kg</strong>
+                        {% if pal|length > 5 %}
+                        <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-' }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="active-order-szarze-actions">
+                        {% if sekcja == 'Zasyp' %}
+                        <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=szarza_id, zasyp_id=szarza_id, linia=linia) }}"
+                           class="btn-action btn-blue"
+                           data-slide
+                           style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
+                           title="Dodaj dosypkę do tego zasypu">+ DOSYPKA</a>
+                        {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'lider', 'admin', 'zarzad'] %}
+                        <a href="{{ url_for('production.zasyp_notatka_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
+                           class="btn-action btn-outline-secondary szarza-note"
+                           data-slide
+                           data-note="{{ (pal[6] if pal|length>6 else '')|e }}"
+                           style="padding:2px 6px; font-size:0.75em; line-height:1; min-width:30px; text-align:center;"
+                           title="Dodaj/edytuj notatkę do zasypu">
+                            <span class="material-icons" style="font-size:16px; vertical-align:middle;">edit_note</span>
+                        </a>
+                        {% endif %}
+                        {% if pal[2] and pal[2]|int > 0 and rola in ['lider', 'admin'] %}
+                        <a href="{{ url_for('warehouse.confirm_delete_zasyp_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
+                           class="btn-action btn-danger"
+                           data-slide
+                           style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
+                           title="Usuń zasyp">Usuń</a>
+                        {% endif %}
+                        {% elif sekcja == 'Workowanie' %}
+                        <div style="display:flex; gap:4px; align-items:center;">
+                            {% if pal|length>2 and pal[2] > 0 %}
+                                <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2], linia=linia) }}"
+                                   class="btn-action btn-sm"
+                                   data-slide
+                                   style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
+                                   title="Edytuj wagę palety">EDYTUJ</a>
+                                {% if rola in ['lider', 'admin'] %}
+                                <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia) }}"
+                                   class="btn-action btn-danger btn-sm"
+                                   data-slide
+                                   style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
+                                   title="Usuń paletę">USUŃ</a>
+                                {% endif %}
+                            {% endif %}
+                            {% if pal|length>4 and pal[4] %}
+                            <span class="status-badge status-{{ pal[4]|replace(' ', '') }}" style="font-size:0.7em;">{{ pal[4]|upper }}</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if sekcja == 'Zasyp' and pal[3] and pal[3]|length > 0 %}
+                <div class="active-order-szarze-dosypki">
+                    {% for dosypka_item in pal[3] %}
+                    <div class="active-order-szarze-dosypki-item">{{ dosypka_item[0] }}: {{ dosypka_item[1] }} kg</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="small text-muted">Brak zarejestrowanych danych.</div>
+        {% endif %}
+        
+        {% if sekcja == 'Workowanie' and maszyna_opakowania %}
+        <div class="active-order-szarze-title" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 10px;">Materiały na maszynie:</div>
+        {% for opakowanie in maszyna_opakowania %}
+        <div class="active-order-szarze-item" style="background: {{ 'rgba(46, 204, 113, 0.1)' if opakowanie.is_linked else '#fff' }}; border-radius: 8px; padding: 10px; margin-bottom: 8px; border: 1px solid {{ '#2ecc71' if opakowanie.is_linked else '#dfe7ef' }};">
+            <div class="active-order-szarze-line" style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="active-order-szarze-left">
+                    <strong style="font-size: 0.9em; color: #2c3e50;">{{ opakowanie.nazwa }}</strong>
+                    <div style="font-size: 0.8em; color: #7f8c8d;">Stan: {{ opakowanie.stan_magazynowy|int }} szt</div>
+                </div>
+                <div class="active-order-szarze-actions" style="display: flex; flex-direction: column; gap: 4px;">
+                    {% if not opakowanie.is_linked %}
+                    <button class="btn-action btn-green" style="padding: 2px 6px; font-size: 0.7em;" onclick="linkPackaging({{ opakowanie.id }}, {{ p[0] }})">PODEPNIJ</button>
+                    {% endif %}
+                    <button class="btn-action btn-outline-danger" style="padding: 2px 6px; font-size: 0.7em;" onclick="openReturnPackagingModal({{ opakowanie.id }}, '{{ opakowanie.nazwa|e }}', {{ opakowanie.stan_magazynowy|int }})">ZDEJMIJ</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+</div>

@@ -1,0 +1,16 @@
+<div id="sidebarPwaBtn" style="display: none; padding: 10px 12px; margin-bottom: 10px;">
+    <button onclick="showPwaManualGuide()" style="width: 100%; background: #3b82f6; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);">
+        <span class="material-icons" style="font-size: 20px;">download</span> Zainstaluj App
+    </button>
+    <button onclick="toggleFullScreen()" style="width: 100%; background: #0f172a; color: white; border: 1px solid #334155; padding: 10px; border-radius: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; margin-top: 8px; font-size: 12px;">
+        <span class="material-icons" style="font-size: 18px;">fullscreen</span> Pełny Ekran
+    </button>
+</div>
+
+<div class="sidebar-footer">
+    {% if session.get('zalogowany') %}
+    <a href="/logout" class="sidebar-logout" title="{{ _('logout') }}">
+        <span class="material-icons">logout</span> {{ _('logout') }}
+    </a>
+    {% endif %}
+</div>

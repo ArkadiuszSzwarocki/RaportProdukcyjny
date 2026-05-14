@@ -1,0 +1,7 @@
+{# Planner-specific alerts and notifications #}
+{% if rola == 'planista' and quality_count and quality_count > 0 %}
+<div class="alert-warning d-flex justify-between align-center mb-10">
+    <div class="text-warning-dark font-bold">🔔 Są {{ quality_count }} zgłoszeń dezynfekcji od laboratorium — sprawdź i dodaj do planów.</div>
+    <div><a href="{{ url_for('quality.jakosc_index') }}" class="btn-action btn-warning">{{ _('przejdz_jakosc') }}</a></div>
+</div>
+{% endif %}

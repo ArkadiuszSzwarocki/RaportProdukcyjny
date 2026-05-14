@@ -1,0 +1,32 @@
+<div class="cards {% if agro_focus_mode %}agro-focus-mode{% endif %}">
+    {% include 'includes/dashboard_card_styles.html' %}
+    
+    {% set active_szarze_panel = namespace(rendered=false) %}
+    {% for p in plan %}
+        <div class="card {% if p[3]|lower == 'zakonczone' %}card-completed{% endif %}" 
+             data-id="{{ p[0] }}" 
+             style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower != 'w toku' %}display: none !important;{% endif %}">
+            
+            <div class="card-header">
+                <strong class="card-title">
+                    {{ loop.index }}. {{ p[1] }}
+                    {% if sekcja == 'Zasyp' %}
+                        <span class="zlecenie-id-badge">#{{ p[0] }}</span>
+                    {% endif %}
+                </strong>
+                <div class="header-actions">
+                    <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <div class="info-row">
+                    <span class="info-label">Planowana ilość:</span>
+                    <span class="info-value">{{ p[2] }} kg</span>
+                </div>
+                {# Tutaj reszta pól karty: postęp, przyciski akcji, etapy szarż itp. #}
+                {# Uwaga: Ze względu na ogromną złożoność tej części, sugeruję zostawić tu pętlę, a wydzielić jej środek #}
+            </div>
+        </div>
+    {% endfor %}
+</div>

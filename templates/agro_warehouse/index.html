@@ -1,0 +1,377 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    /* NATIVE VANILLA CSS ACCORDION - PREMIUM AGRO DESIGN */
+    .agro-magazyn-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 10px;
+    }
+
+    .agro-inventory-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 25px;
+    }
+
+    .inventory-item {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .inventory-item:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+        transform: translateY(-1px);
+    }
+
+    .item-header {
+        padding: 18px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        background: #fff;
+    }
+
+    .item-info {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex: 1;
+    }
+
+    .chevron-icon {
+        color: #94a3b8;
+        transition: transform 0.3s ease;
+        font-size: 24px;
+    }
+
+    .inventory-item.open .chevron-icon {
+        transform: rotate(180deg);
+        color: #3b82f6;
+    }
+
+    .product-name {
+        font-size: 17px;
+        font-weight: 700;
+        color: #0f172a;
+        min-width: 300px;
+    }
+
+    .product-stats {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .stat-pill {
+        padding: 5px 14px;
+        border-radius: 100px;
+        font-size: 13px;
+        font-weight: 700;
+        background: #f1f5f9;
+        color: #475569;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .stat-pill.weight {
+        background: #eff6ff;
+        color: #2563eb;
+        font-size: 15px;
+    }
+
+    .stat-pill.count {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #64748b;
+    }
+
+    .item-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn-action {
+        padding: 8px 16px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 700;
+        border: 1px solid #e2e8f0;
+        background: white;
+        color: #334155;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 38px;
+    }
+
+    .btn-action:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+        color: #0f172a;
+    }
+
+    .btn-usage {
+        background: #2563eb;
+        color: white;
+        border: none;
+        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+    }
+
+    .btn-usage:hover {
+        background: #1d4ed8;
+        transform: scale(1.02);
+    }
+
+    /* COLLAPSIBLE DETAILS */
+    .item-details {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+        background: #fcfdfe;
+    }
+
+    .inventory-item.open .item-details {
+        max-height: 2000px; /* Large enough for many pallets */
+        border-top: 1px solid #f1f5f9;
+    }
+
+    .details-content {
+        padding: 20px 24px 30px 68px;
+    }
+
+    .details-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .details-table th {
+        text-align: left;
+        padding: 10px 15px;
+        color: #94a3b8;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #f1f5f9;
+    }
+
+    .details-table td {
+        padding: 14px 15px;
+        border-bottom: 1px solid #f1f5f9;
+        color: #334155;
+        font-size: 14px;
+    }
+
+    .details-table tr:hover td {
+        background: #f8fafc;
+    }
+
+    .loc-badge {
+        background: #dbeafe;
+        color: #1d4ed8;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 800;
+        font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+        font-size: 12px;
+    }
+
+    .search-container {
+        background: white;
+        padding: 20px;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .search-input {
+        flex: 1;
+        border: 1px solid #e2e8f0;
+        padding: 12px 18px;
+        border-radius: 12px;
+        font-size: 15px;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    }
+</style>
+
+<div class="agro-magazyn-container">
+    <div class="section-header" style="margin-bottom: 30px;">
+        <h1 style="font-size: 28px; font-weight: 900; color: #0f172a; margin-bottom: 8px;">Suma surowców Agro</h1>
+        <p style="color: #64748b; font-size: 15px;">Zestawienie zbiorcze surowców (Suma surowców).</p>
+    </div>
+
+    <div class="search-container">
+        <span class="material-icons" style="color: #94a3b8;">search</span>
+        <input type="text" id="agroSearch" class="search-input" placeholder="Wpisz nazwę surowca, aby przefiltrować listę...">
+        <div style="color: #94a3b8; font-size: 13px; font-weight: 600;">
+            Widok: <span style="color: #0f172a;">Wszystkie</span>
+        </div>
+    </div>
+
+    <div class="agro-inventory-list">
+        {% for s in inventory %}
+        <div class="inventory-item" id="item-{{ loop.index }}">
+            <div class="item-header" onclick="toggleItem({{ loop.index }})">
+                <div class="item-info">
+                    <span class="material-icons chevron-icon">expand_more</span>
+                    <div class="product-name">{{ s.nazwa }}</div>
+                    <div class="product-stats">
+                        <div class="stat-pill weight">
+                            <span class="material-icons" style="font-size: 16px;">scale</span>
+                            {{ "{:,.0f}".format(s.total).replace(',', ' ') }} kg
+                        </div>
+                        <div class="stat-pill count">
+                            <span class="material-icons" style="font-size: 16px;">layers</span>
+                            {{ s.pallets|length }} palet
+                        </div>
+                    </div>
+                </div>
+                <div class="item-actions">
+                    <button class="btn-action" onclick="handleRename(event, '{{ s.nazwa }}')">
+                        <span class="material-icons" style="font-size: 16px;">edit</span> Zmień nazwę
+                    </button>
+                    <button class="btn-action" onclick="handleCorrection(event, '{{ s.nazwa }}')">
+                        <span class="material-icons" style="font-size: 16px;">history_edu</span> Korekta
+                    </button>
+                    <button class="btn-action btn-usage" onclick="handleUsage(event, '{{ s.nazwa }}')">
+                        <span class="material-icons" style="font-size: 18px;">output</span> Pobierz (FIFO)
+                    </button>
+                </div>
+            </div>
+            <div class="item-details">
+                <div class="details-content">
+                    <table class="details-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">Lp.</th>
+                                <th>ID Palety / Numer</th>
+                                <th>Lokalizacja</th>
+                                <th>Stan (kg)</th>
+                                <th>Data Dodania</th>
+                                <th>Partia</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in s.pallets %}
+                            <tr>
+                                <td style="color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
+                                <td style="font-weight: 700; color: #0f172a;">{{ p.nr_palety or p.id }}</td>
+                                <td><span class="loc-badge">{{ p.lokalizacja or 'BRAK' }}</span></td>
+                                <td style="font-weight: 800; color: #2563eb;">{{ p.stan_magazynowy or p.stan }} kg</td>
+                                <td style="color: #64748b;">{{ p.created_at or '-' }}</td>
+                                <td style="color: #64748b; font-family: monospace;">{{ p.nr_partii or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+    function toggleItem(id) {
+        const item = document.getElementById('item-' + id);
+        // Zamknij inne jeśli chcesz (opcjonalne)
+        // document.querySelectorAll('.inventory-item').forEach(i => { if(i.id !== 'item-'+id) i.classList.remove('open'); });
+        item.classList.toggle('open');
+    }
+
+    function handleUsage(e, name) {
+        e.stopPropagation();
+        if(typeof handleOpenUsageForGroup === 'function') {
+            handleOpenUsageForGroup(e, name, '', 0);
+        } else {
+            console.error('Funkcja handleOpenUsageForGroup nie jest dostępna.');
+        }
+    }
+
+    function handleCorrection(e, name) {
+        e.stopPropagation();
+        if(typeof handleOpenInventoryForGroup === 'function') {
+            handleOpenInventoryForGroup(e, name, 0);
+        }
+    }
+
+    function handleRename(e, name) {
+        e.stopPropagation();
+        if(typeof handleOpenRenameFromGroup === 'function') {
+            handleOpenRenameFromGroup(e, name);
+        }
+    }
+
+    // Filtrowanie na żywo
+    document.getElementById('agroSearch').addEventListener('input', function(e) {
+        const term = e.target.value.toLowerCase();
+        document.querySelectorAll('.inventory-item').forEach(item => {
+            const name = item.querySelector('.product-name').textContent.toLowerCase();
+            if (name.includes(term)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+</script>
+
+{# Dołączamy skrypty i modale z oryginalnego pliku #}
+{% include 'agro_warehouse/includes/modals.html' %}
+
+<script src="{{ url_for('static', filename='js/agro_warehouse.js') }}?v={{ static_version }}"></script>
+<script>
+    // Inicjalizacja danych dla JS (potrzebne do działania przycisków Pobierz/Korekta)
+    window._inventory_groups = [
+        {% for s in inventory %}
+        {
+            nazwa: {{ s.nazwa|tojson }},
+            total: {{ s.total }},
+            pallets: [
+                {% for p in s.pallets %}
+                { id: {{ p.id }}, nr_palety: {{ (p.nr_palety or '')|tojson }}, lokalizacja: {{ (p.lokalizacja or '')|tojson }}, stan: {{ p.stan_magazynowy or p.stan or 0 }} }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ]
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    window._inventory = [];
+    window._inventory_groups.forEach(function(g){
+        g.pallets.forEach(function(p){
+            const copy = Object.assign({}, p);
+            copy.parent_nazwa = g.nazwa;
+            window._inventory.push(copy);
+        });
+    });
+
+    function getFirstPalletIdForGroup(nazwa){
+        const g = window._inventory_groups.find(x => x.nazwa === nazwa);
+        if (!g || !g.pallets || g.pallets.length === 0) return null;
+        return g.pallets[0].id;
+    }
+</script>
+{% endblock %}

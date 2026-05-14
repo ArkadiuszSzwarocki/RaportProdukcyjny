@@ -1,0 +1,22 @@
+{% set role = session.get('rola', '').lower() %}
+{% set user_hall = 'ALL' if role in ['admin', 'zarzad', 'laborant', 'laboratorium', 'magazynier', 'planista'] else (session.get('grupa') or 'ALL').upper() %}
+{% set hall_view = session.get('selected_hall_view') %}
+{% set can_switch_halls = user_hall == 'ALL' %}
+{% set effective_hall = (hall_view or user_hall) if can_switch_halls else user_hall %}
+
+<div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+<aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
+    
+    {% include 'includes/sidebar/_sidebar_header.html' %}
+
+    <nav class="sidebar-nav">
+        {% include 'includes/sidebar/_sidebar_psd.html' %}
+        {% include 'includes/sidebar/_sidebar_agro.html' %}
+        {% include 'includes/sidebar/_sidebar_warehouse.html' %}
+        {% include 'includes/sidebar/_sidebar_admin.html' %}
+    </nav>
+
+    {% include 'includes/sidebar/_sidebar_footer.html' %}
+
+</aside>
+

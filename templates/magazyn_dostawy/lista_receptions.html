@@ -1,0 +1,176 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
+
+<style>
+.reception-list-screen {
+    max-width: 1480px;
+}
+
+.reception-hero {
+    border-radius: 18px;
+    border: 1px solid #dbe7ff;
+    background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 55%, #ffffff 100%);
+    padding: 18px;
+    margin-bottom: 18px;
+}
+
+.reception-hero-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.reception-title {
+    margin: 0;
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.reception-subtitle {
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 0.92rem;
+}
+
+.reception-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: #e7f1ff;
+    color: #1e40af;
+    border: 1px solid #cfe0ff;
+    margin-top: 8px;
+}
+</style>
+
+<div class="logistyka-container p-20 reception-list-screen">
+    <div class="reception-hero">
+        <div class="reception-hero-head">
+        <div>
+            <h1 class="reception-title">
+                <span class="material-icons" style="color:#2563eb;">inventory_2</span>
+                Przyjęcia Dostaw
+            </h1>
+            <p class="reception-subtitle">Zarządzanie dostawami surowców i opakowań (Hala {{ linia }}).</p>
+            <span class="reception-pill">
+                <span class="material-icons" style="font-size: 16px;">local_shipping</span>
+                Dostawy zewnętrzne
+            </span>
+        </div>
+        <div class="flex gap-10">
+            <a href="{{ url_for('magazyn_dostawy.reception_edit', linia=linia) }}" class="btn-premium">
+                <span class="material-icons">add</span> Nowa Dostawa
+            </a>
+        </div>
+        </div>
+    </div>
+
+    <div class="premium-card">
+        <div class="table-responsive">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Numer / Dostawca</th>
+                        <th>Status</th>
+                        <th style="width: 200px;">Postęp</th>
+                        <th class="text-right">Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in dostawy %}
+                    <tr>
+                        <td>
+                            {% if d.delivery_date %}
+                                <div class="font-bold">{{ d.delivery_date }}</div>
+                            {% elif d.created_at %}
+                                {% if d.created_at is string %}
+                                    <div class="font-bold">{{ d.created_at[:10] }}</div>
+                                {% else %}
+                                    <div class="font-bold">{{ d.created_at.strftime('%Y-%m-%d') }}</div>
+                                {% endif %}
+                            {% else %}
+                                <div class="font-bold">-</div>
+                            {% endif %}
+                            {% if d.created_at %}
+                                {% if d.created_at is string %}
+                                    <div class="small text-muted">{{ d.created_at[11:16] }}</div>
+                                {% else %}
+                                    <div class="small text-muted">{{ d.created_at.strftime('%H:%M') }}</div>
+                                {% endif %}
+                            {% else %}
+                                <div class="small text-muted">-</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="font-mono font-bold">{{ d.order_ref or 'DOST-' ~ d.id[:8] }}</div>
+                            <div class="small">{{ d.supplier or 'Dostawca nieznany' }}</div>
+                        </td>
+                        <td>
+                            {% if d.status == 'OCZEKUJE' %}
+                                <span class="premium-badge badge-warning">W TRAKCIE</span>
+                            {% elif d.status == 'COMPLETED' %}
+                                <span class="premium-badge badge-success">ZAKOŃCZONE</span>
+                            {% elif d.status == 'CANCELLED' %}
+                                <span class="premium-badge badge-danger">ANULOWANE</span>
+                            {% else %}
+                                <span class="premium-badge badge-info">{{ d.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set items = d.items_parsed or [] %}
+                            {% set ns = namespace(processed=0) %}
+                            {% for it in items %}
+                                {% if it.accepted or it.rejected %}
+                                    {% set ns.processed = ns.processed + 1 %}
+                                {% endif %}
+                            {% endfor %}
+                            <div class="flex justify-between items-center mb-4">
+                                <span class="small text-muted">Rozliczono</span>
+                                <span class="small font-bold">{{ ns.processed }} / {{ items|length }}</span>
+                            </div>
+                            <div class="premium-progress">
+                                <div class="premium-progress-bar" style="width: {{ (ns.processed / items|length * 100) if items|length > 0 else 0 }}%"></div>
+                            </div>
+                        </td>
+                        <td class="text-right">
+                            <div class="flex justify-end gap-10">
+                                {% if d.status == 'OCZEKUJE' %}
+                                <a href="{{ url_for('magazyn_dostawy.reception_edit', dostawa_id=d.id, linia=linia) }}" 
+                                   class="btn-premium-outline btn-xs" title="Edytuj">
+                                    <span class="material-icons" style="font-size:16px;">edit</span>
+                                </a>
+                                {% endif %}
+                                <a href="{{ url_for('magazyn_dostawy.raport_przesuniecia', dostawa_id=d.id, linia=linia) if d.status == 'COMPLETED' else url_for('magazyn_dostawy.reception_edit', dostawa_id=d.id, linia=linia) }}" 
+                                   class="btn-premium btn-xs">
+                                    Szczegóły
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-40 text-muted">
+                            Brak zarejestrowanych dostaw zewnętrznych.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

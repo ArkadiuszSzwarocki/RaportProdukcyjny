@@ -1,0 +1,229 @@
+{% extends 'layout.html' %}
+{% block title %}Magazyn Opakowań - AGROMES{% endblock %}
+
+{% block content %}
+<div class="agro-warehouse-packaging">
+    <div class="flex justify-between items-center mb-20">
+        <div>
+            <h1 class="text-2xl font-bold mb-4">Magazyn Opakowań - {{ linia|upper }}</h1>
+            <p class="text-muted small">Ewidencja worków, folii i innych materiałów pomocniczych.</p>
+        </div>
+        {% if session.get('rola') in ['magazynier','admin'] %}
+        <button class="btn btn-primary" onclick="openCreateOpakowanie()">
+            <span class="material-icons">add</span> Dodaj Opakowanie
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="tabs-container mb-20">
+        <div class="flex border-b gap-20 items-center justify-between flex-wrap">
+            <div class="flex gap-20">
+                <a href="{{ url_for('agro_warehouse.index', linia=linia) }}" class="tab-btn text-muted pb-10 px-4">Suma surowców</a>
+                <button class="tab-btn active border-b-2 border-primary pb-10 px-4 font-bold">Magazyn Opakowań</button>
+            </div>
+            
+            <div class="search-wrapper" style="position:relative; min-width:320px; margin-bottom:10px;">
+                <span class="material-icons" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:18px;">search</span>
+                <input type="text" id="inventorySearch" class="form-control" placeholder="Szukaj opakowania..." 
+                       style="padding-left:40px; border-radius:10px; height:42px; border:1px solid rgba(0,0,0,0.1); background:#fff;">
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nazwa</th>
+                            <th>Stan (szt/kg)</th>
+                            <th>Lokalizacja</th>
+                            <th>Ostatnia zmiana</th>
+                            <th class="text-right">Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for it in items %}
+                        <tr>
+                            <td>#{{ it.id }}</td>
+                            <td class="font-bold">{{ it.nazwa }}</td>
+                            <td>
+                                <span class="text-lg {% if it.stan_magazynowy <= 0 %}text-danger{% elif it.stan_magazynowy < 100 %}text-warning{% endif %}">
+                                    {{ it.stan_magazynowy }}
+                                </span>
+                            </td>
+                            <td>{{ it.lokalizacja or '<span class="text-muted">—</span>'|safe }}</td>
+                            <td class="text-muted small">{{ it.updated_at.strftime('%d.%m.%Y %H:%M') if it.updated_at else it.created_at.strftime('%d.%m.%Y %H:%M') if it.created_at else '—' }}</td>
+                            <td class="text-right">
+                                <button class="btn btn-ghost btn-xs" onclick="openInventoryOpakowanie({{ it.id }}, '{{ it.nazwa }}', {{ it.stan_magazynowy or 0 }})">Inwentaryzacja</button>
+                                {% if session.get('rola') in ['admin'] %}
+                                <button class="btn btn-ghost btn-xs" onclick="openEditOpakowanie({{ it.id }}, '{{ it.nazwa }}', {{ it.stan_magazynowy or 0 }}, '{{ it.lokalizacja or '' }}')">Edytuj</button>
+                                <button class="btn btn-ghost btn-xs text-danger" onclick="deleteOpakowanie({{ it.id }})">Usuń</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center p-20 text-muted">Brak zarejestrowanych opakowań.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: CREATE/EDIT OPAKOWANIE -->
+<dialog id="opakModal" class="modal-premium">
+    <div class="modal-header">
+        <h4 class="modal-title" id="opakModalTitle">Nowe opakowanie</h4>
+        <button class="modal-close" onclick="closeOpakModal()">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="form-group mb-15">
+            <label class="form-label">Nazwa materiału</label>
+            <input id="opakNazwa" class="form-control" placeholder="np. Worek 25kg PE">
+        </div>
+        <div class="form-group mb-15">
+            <label class="form-label">Ilość początkowa</label>
+            <input type="number" id="opakIlosc" class="form-control" placeholder="0">
+        </div>
+        <div class="form-group mb-0">
+            <label class="form-label">Lokalizacja</label>
+            <input id="opakLokal" class="form-control" placeholder="np. R-10">
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeOpakModal()">Anuluj</button>
+        <button class="btn btn-primary" id="opakSaveBtn" onclick="saveOpakowanie()">Zapisz</button>
+    </div>
+</dialog>
+
+<!-- MODAL: INVENTORY OPAKOWANIE -->
+<dialog id="invOpakModal" class="modal-premium">
+    <div class="modal-header">
+        <h4 class="modal-title">Inwentaryzacja Opakowania</h4>
+        <button class="modal-close" onclick="closeModal('invOpakModal')">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="mb-15">
+            <div class="text-muted xxs uppercase mb-4">Materiał</div>
+            <div class="font-bold" id="invOpakNazwa">—</div>
+        </div>
+        <div class="form-group mb-0">
+            <label class="form-label">Aktualny stan faktyczny</label>
+            <input type="number" id="invOpakQty" class="form-control">
+        </div>
+        <input type="hidden" id="invOpakId">
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('invOpakModal')">Anuluj</button>
+        <button class="btn btn-primary" onclick="submitInventoryOpakowanie()">Zapisz stan</button>
+    </div>
+</dialog>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Search filtering logic
+document.getElementById('inventorySearch').addEventListener('input', function(e) {
+    const val = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('table tbody tr');
+    
+    rows.forEach(row => {
+        const nameCell = row.querySelector('td.font-bold');
+        if (!nameCell) return; // skip "No results" row
+        const name = nameCell.textContent.toLowerCase();
+        row.style.display = name.includes(val) ? '' : 'none';
+    });
+});
+
+var _editingOpak = null;
+
+function openModal(id) {
+    const d = document.getElementById(id);
+    if (!d) return;
+    if (typeof d.showModal === 'function') { d.showModal(); return; }
+    d.style.display = 'block';
+}
+
+function closeModal(id) {
+    const d = document.getElementById(id);
+    if (!d) return;
+    if (typeof d.close === 'function') { try { d.close(); return; } catch(e) {} }
+    d.style.display = 'none';
+}
+
+function openCreateOpakowanie(){ 
+    _editingOpak = null; 
+    document.getElementById('opakModalTitle').innerText='Nowe opakowanie'; 
+    document.getElementById('opakNazwa').value=''; 
+    document.getElementById('opakIlosc').value=''; 
+    document.getElementById('opakLokal').value=''; 
+    openModal('opakModal'); 
+}
+
+function openEditOpakowanie(id,nazwa,ilosc,lokal){ 
+    _editingOpak=id; 
+    document.getElementById('opakModalTitle').innerText='Edytuj opakowanie'; 
+    document.getElementById('opakNazwa').value=nazwa; 
+    document.getElementById('opakIlosc').value=ilosc; 
+    document.getElementById('opakLokal').value=lokal; 
+    openModal('opakModal'); 
+}
+
+function closeOpakModal(){ closeModal('opakModal'); }
+
+function saveOpakowanie(){ 
+    var naz=document.getElementById('opakNazwa').value.trim(); 
+    var il=document.getElementById('opakIlosc').value; 
+    var lok=document.getElementById('opakLokal').value.trim(); 
+    if(!naz){ showAlert('Podaj nazwę'); return; } 
+    var payload={nazwa:naz,ilosc:il,lokalizacja:lok,linia:'{{ linia }}'}; 
+    var url='/agro/api/opakowania'; 
+    var method='POST'; 
+    if(_editingOpak){ payload.id=_editingOpak; method='PUT'; }
+    
+    fetch(url,{method:method,headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(payload)})
+        .then(r=>r.json())
+        .then(function(resp){ 
+            if(resp.success){ location.reload(); } 
+            else { showAlert(resp.error||'Błąd'); } 
+        }).catch(e=>showAlert(e)); 
+}
+
+function deleteOpakowanie(id){ 
+    if(!confirm('Usuń rekord?')) return; 
+    fetch('/agro/api/opakowania',{method:'DELETE',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({id:id})})
+        .then(r=>r.json())
+        .then(function(resp){ 
+            if(resp.success) location.reload(); 
+            else showAlert(resp.error||'Błąd'); 
+        }).catch(e=>showAlert(e)); 
+}
+
+function openInventoryOpakowanie(id, nazwa, stan) {
+    document.getElementById('invOpakId').value = id;
+    document.getElementById('invOpakNazwa').innerText = nazwa;
+    document.getElementById('invOpakQty').value = stan;
+    openModal('invOpakModal');
+}
+
+function submitInventoryOpakowanie() {
+    const id = document.getElementById('invOpakId').value;
+    const qty = document.getElementById('invOpakQty').value;
+    if (!id || qty === '') return showAlert('Podaj ilość');
+    
+    fetch('/agro/api/opakowania/inventory', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: id, actual_qty: qty, linia: '{{ linia }}' })
+    }).then(r => r.json()).then(res => {
+        if (res.success) location.reload();
+        else showAlert('Błąd: ' + (res.error || 'Nieznany'));
+    }).catch(e => showAlert(e));
+}
+</script>
+{% endblock %}

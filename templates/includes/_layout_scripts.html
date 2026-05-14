@@ -1,0 +1,61 @@
+<script>
+    /** JS ERROR TRAP: Capture and log frontend errors to the server */
+    window.onerror = function(message, source, lineno, colno, error) {
+        try {
+            const payload = {
+                message: message, url: source, line: lineno, column: colno,
+                stack: error ? error.stack : '', href: window.location.href
+            };
+            fetch('/api/log_frontend_error', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(() => {});
+        } catch(e) {}
+        return false;
+    };
+
+    /** Polyfill for Element.prototype.closest for older browsers (Zebra handhelds) */
+    if (!Element.prototype.matches) {
+        Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
+    }
+    if (!Element.prototype.closest) {
+        Element.prototype.closest = function(s) {
+            var el = this;
+            do {
+                if (el.matches(s)) return el;
+                el = el.parentElement || el.parentNode;
+            } while (el !== null && el.nodeType === 1);
+            return null;
+        };
+    }
+
+    /** Lightweight shims for early helper calls */
+    if (typeof window.formatError !== 'function') {
+        window.formatError = function (err) {
+            try {
+                if (!err && err !== 0) return '';
+                if (typeof err === 'object') {
+                    if (err.message) return String(err.message);
+                    try { return JSON.stringify(err); } catch (e) { return String(err); }
+                }
+                var s = String(err);
+                if (/^\s*[{\[]/.test(s)) {
+                    try { var parsed = JSON.parse(s); if (parsed && parsed.message) return String(parsed.message); return JSON.stringify(parsed); } catch (e) { }
+                }
+                return s;
+            } catch (e) { return 'Błąd'; }
+        };
+    }
+
+    if (typeof window.safeAlert !== 'function') {
+        window.safeAlert = function (title, message) {
+            try {
+                if (typeof window.showQuickPopup === 'function') {
+                    window.showQuickPopup(title || '', '<div class="p-10">' + (message || '') + '</div>');
+                    return;
+                }
+                alert((title ? title + "\n\n" : '') + (message || ''));
+            } catch (e) { alert(message || title || 'Error'); }
+        };
+    }
+</script>

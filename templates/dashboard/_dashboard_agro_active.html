@@ -1,0 +1,93 @@
+{% if (sekcja == 'Zasyp' or sekcja == 'Workowanie') and linia == 'AGRO' and ns.is_active and rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] %}
+    {% set fb_pid = ns.active_plan_id %}
+    {% set fb_szarza_nr = (etapy_curr_szarza.get(fb_pid, 1) if etapy_curr_szarza is defined and etapy_curr_szarza else 1) %}
+    {% set fb_etapy = (etapy_mapa.get(fb_pid, []) if etapy_mapa is defined and etapy_mapa else []) %}
+    {% set fb_sesje = (etapy_sesje_mapa.get(fb_pid, []) if etapy_sesje_mapa is defined and etapy_sesje_mapa else []) %}
+    {% set fb_controls = namespace(show_remove_last_pair=false) %}
+    {% set fb_running = namespace(items=[], count=0) %}
+
+    {% for e in fb_etapy %}
+        {% set e_str = e.etap|string %}
+        {% if e.etap == 3 or e.etap == 4 or (e_str|length > 1 and (e_str[0] == '3' or e_str[0] == '4')) %}
+            {% set fb_controls.show_remove_last_pair = true %}
+        {% endif %}
+    {% endfor %}
+
+    {% for sesja_info in fb_sesje %}
+        {% set sesja_nr = sesja_info.szarza_nr|default(1) %}
+        {% for e in sesja_info.etapy|default([]) %}
+            {% if e.is_running %}
+                {% set e_str = e.etap|string %}
+                {% if e.etap == 1 %}
+                    {% set etap_label = 'Naważanie' %}
+                {% elif e.etap == 2 %}
+                    {% set etap_label = 'Mieszanie i oczekiwanie na LAB' %}
+                {% elif e.etap == 5 %}
+                    {% set etap_label = 'Opróżnianie' %}
+                {% elif e_str|length > 1 and e_str[0] == '3' %}
+                    {% set etap_label = 'Dosypka do mieszania' %}
+                {% elif e_str|length > 1 and e_str[0] == '4' %}
+                    {% set etap_label = 'Mieszanie po dosypce' %}
+                {% elif e.etap == 3 %}
+                    {% set etap_label = 'Dosypka do mieszania' %}
+                {% elif e.etap == 4 %}
+                    {% set etap_label = 'Mieszanie po dosypce' %}
+                {% else %}
+                    {% set etap_label = 'Etap ' ~ e.etap %}
+                {% endif %}
+                {% set fb_running.items = fb_running.items + ['Zasyp ' ~ sesja_nr ~ ': ' ~ etap_label ~ ' • etap ' ~ e.etap] %}
+                {% set fb_running.count = fb_running.count + 1 %}
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+
+    {% set fb_kstats = kgph_stats_mapa.get(fb_pid) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
+    
+    <div class="active-order-floating-bar-wrap">
+        <div class="active-order-floating-bar">
+            <div class="active-order-status-inline">
+                {% if fb_running.count > 0 and rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
+                <span class="badge-success" style="font-size:0.72em; padding:2px 6px;">{% if fb_running.count > 1 %}AKTYWNE W TOKU ({{ fb_running.count }}){% else %}AKTYWNA W TOKU{% endif %}</span>
+                <span class="agro-session-running-hint">Otwarte: {{ fb_running.items|join(' | ') }}</span>
+                {% endif %}
+            </div>
+            <div class="agro-kgph-inline">
+                <!-- Machine Real-time Stats -->
+                <div id="machine-stats-container" class="agro-machine-stats-inline" style="display: none; margin-right: 12px;">
+                    <span class="agro-kgph-pill machine-stat-speed" title="Prędkość pakowaczki (na żywo)">
+                        <span class="material-icons" style="font-size: 14px; color: #2ecc71;">speed</span>
+                        <span id="machine-speed-value" style="font-weight: 800;">-</span> <small>bpm</small>
+                    </span>
+                    <span class="agro-kgph-pill machine-stat-status" title="Status połączenia z maszyną">
+                        <span id="machine-status-dot" class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #95a5a6; display: inline-block; margin-right: 4px;"></span>
+                        <span id="machine-status-text" style="font-size: 0.9em;">Maszyna: ---</span>
+                    </span>
+                </div>
+
+                {% if fb_kstats %}
+
+                <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
+                    data-kind="real" data-plan-id="{{ fb_pid }}"
+                    data-value="{{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '' }}"
+                    data-mass="{{ fb_kstats.real_mass_kg if fb_kstats.real_mass_kg is not none else '' }}"
+                    data-seconds="{{ fb_kstats.real_seconds if fb_kstats.real_seconds is not none else '' }}"
+                    title="Wydajność rzeczywista (kliknij aby zobaczyć wzór i dane)">
+                    Wydajność rzeczywista: {{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '-' }} kg/h
+                </span>
+                <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
+                    data-kind="timeline" data-plan-id="{{ fb_pid }}"
+                    data-value="{{ (fb_kstats.timeline|round(1)) if fb_kstats.timeline else '' }}"
+                    data-mass="{{ fb_kstats.timeline_mass_kg if fb_kstats.timeline_mass_kg is not none else '' }}"
+                    data-batch-mass="{{ fb_kstats.timeline_batch_mass_kg if fb_kstats.timeline_batch_mass_kg is not none else '' }}"
+                    data-seconds="{{ fb_kstats.timeline_seconds if fb_kstats.timeline_seconds is not none else '' }}"
+                    data-mode="{{ fb_kstats.timeline_mode or '' }}"
+                    data-closed-sessions="{{ fb_kstats.timeline_closed_sessions if fb_kstats.timeline_closed_sessions is not none else 0 }}"
+                    data-stage-sources='{{ (fb_kstats.timeline_sources if fb_kstats.timeline_sources is not none else [])|tojson|forceescape }}'
+                    title="Wydajność produkcyjna (kliknij aby zobaczyć wzór i dane)">
+                    Wydajność produkcyjna: {{ (fb_kstats.timeline|round(1)) if fb_kstats.timeline else '-' }} kg/h
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}

@@ -1,0 +1,51 @@
+{% if effective_hall in ['AGRO', 'ALL'] %}
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn" onclick="toggleNavSub('agro-sub')">
+        <span>PRODUKCJA AGRO</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="agro-sub" class="nav-sub {% if request.args.get('linia')|upper == 'AGRO' or (not request.args.get('linia') and effective_hall == 'AGRO') %}open{% endif %}">
+        {% if role_has_access('dashboard') %}
+        <a href="{{ url_for('main.index', linia='AGRO') }}"
+            class="nav-sub-item {% if (request.path == '/' or request.path == '') and (not request.args.get('sekcja') or request.args.get('sekcja') == 'Dashboard') and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">
+            Dashboard Agro
+        </a>
+        {% endif %}
+
+        {% if role_has_access('zasyp') %}
+        <a href="{{ url_for('main.index', sekcja='Zasyp', linia='AGRO') }}"
+            class="nav-sub-item {% if request.args.get('sekcja') == 'Zasyp' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
+            Zasyp Agro
+        </a>
+        {% endif %}
+
+        {% if role_has_access('bufor') %}
+        <a href="{{ url_for('planista.bufor_page', linia='AGRO') }}"
+            class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia')|upper == 'AGRO' %}active{% endif %}">
+            Bufor Agro
+        </a>
+        {% endif %}
+
+        {% if role_has_access('workowanie') %}
+        <a href="{{ url_for('main.index', sekcja='Workowanie', linia='AGRO') }}"
+            class="nav-sub-item {% if request.args.get('sekcja') == 'Workowanie' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
+            Workowanie Agro
+        </a>
+        {% endif %}
+
+        {% if role_has_access('magazyn') %}
+        <a href="{{ url_for('main.index', sekcja='Magazyn', linia='AGRO') }}" 
+           class="nav-sub-item {% if request.args.get('sekcja') == 'Magazyn' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
+            Magazyn Agro
+        </a>
+        {% endif %}
+
+        {% if role in ['lider', 'admin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %}
+        <a href="{{ url_for('production.zasyp_etapy_podsumowanie', linia='AGRO') }}"
+           class="nav-sub-item {% if 'zasyp_etapy_podsumowanie' in request.path %}active{% endif %}">
+            Raport Czasu Pracy
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

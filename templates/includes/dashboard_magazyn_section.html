@@ -1,0 +1,82 @@
+{% if sekcja == 'Magazyn' %}
+<div class="section-box mb-10">
+    <h4 class="m-0">📦 Palety do Zatwierdzenia</h4>
+    <div class="mt-10">
+        {% if unconfirmed_palety and unconfirmed_palety|length > 0 %}
+        <table class="modern-table small">
+            <thead>
+                <tr>
+                    <th>{{ _('nr') }}</th>
+                    <th>📋 Produkt</th>
+                    <th>🕒 Dodana</th>
+                    <th>⏱️ Czas</th>
+                    <th>✅ Akcja</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in unconfirmed_palety %}
+                <tr>
+                    <td class="text-muted font-bold">{{ p[0] }}</td>
+                    <td><strong class="text-primary">{{ p[2] }}</strong></td>
+                    <td class="time-display">{{ p[3] }}</td>
+                    <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</span></td>
+                    <td>
+                        <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=p[0], linia=linia) }}"
+                            class="btn-action btn-success btn-small" data-slide>{{ _('zatwierdz') }}</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-muted text-center p-10">{{ _('brak_palet_czekajacych') }}</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="section-box p-0">
+    <div class="p-15 p-15-bg">
+        <h4 class="m-0 mb-15">✅ Zatwierdzone Palety</h4>
+        <table class="modern-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>📦 Produkt</th>
+                    <th> Czas Potwierdzenia</th>
+                    <th>⚖️ Waga (kg)</th>
+                    <th>👤 Użytkownik</th>
+                    <th>📊 Status</th>
+                    <th class="text-right">⚙️ Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_rzeczywistego_potwierdzenia, user_login in magazyn_palety %}
+                <tr>
+                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                    <td><strong class="text-primary">{{ produkt }}</strong></td>
+                    <td class="time-display"><strong>{{ czas_rzeczywistego_potwierdzenia }}</strong></td>
+                    <td><strong class="text-success">{{ waga|int }} kg</strong></td>
+                    <td><span class="badge-info">{{ user_login or '-' }}</span></td>
+                    <td><span class="status-badge status-accepted">{{ status }}</span></td>
+                    <td class="text-right">
+                        <a href="javascript:void(0)" onclick="openPrintLabelModal('{{ url_for('warehouse.drukuj_etykiete', paleta_id=id, linia=linia) }}')" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę">
+                            <span class="material-icons" style="font-size:18px;">print</span>
+                        </a>
+                        {% if rola in ['produkcja', 'lider', 'admin'] %}
+                        <button type="button" class="btn-icon text-primary" title="{{ _('edytuj') }}" data-action="edit-palet" data-palet-id="{{ id }}" data-palet-waga="{{ waga }}">
+                            <span class="material-icons" style="font-size:18px;">edit</span>
+                        </button>
+                        <button type="button" class="btn-icon text-danger" title="{{ _('usun') }}" data-action="delete-palet" data-palet-id="{{ id }}" data-plan-date="{{ dzisiaj }}" data-confirm="Usunąć paletę?">
+                            <span class="material-icons" style="font-size:18px;">delete</span>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center p-30">Brak potwierdzonych palet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}

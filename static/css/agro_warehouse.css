@@ -1,0 +1,96 @@
+/* Agro Warehouse specific styling */
+.agro-magazyn-container .badge-dot { 
+    width: 8px; 
+    height: 8px; 
+    border-radius: 50%; 
+    display: inline-block; 
+}
+
+.bg-success { background-color: #10b981; }
+.bg-warning { background-color: #f59e0b; }
+.bg-error { background-color: #ef4444; }
+.uppercase { text-transform: uppercase; }
+.tracking-wider { letter-spacing: 0.05em; }
+
+.hover-glow:hover { 
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); 
+    transform: translateY(-4px); 
+    border-color: var(--primary-color); 
+}
+
+.btn-xs { padding: 4px 10px; font-size: 11px; height: auto; }
+.btn-xxs { padding: 4px 8px; font-size: 10px; height: auto; min-width:58px; }
+
+.group-details { width:100%; box-sizing:border-box; z-index:8; }
+.group-details > div { max-height:280px; overflow-y:auto; }
+.group-details .btn-xxs { padding:6px 8px; font-size:12px; }
+.group-details .pallet-row { margin-bottom:8px; }
+.group-details .pallet-info { overflow:hidden; }
+.group-details .pallet-info .text-muted { color:#6b7280; }
+.group-details .pallet-actions .btn { display:inline-block; }
+.group-details .pallet-actions button { width:100%; box-sizing:border-box; }
+
+/* Popup with pallet list (positioned near clicked tile) */
+.group-popup {
+    position: absolute;
+    width: 320px;
+    max-height: 420px;
+    overflow: hidden;
+    box-sizing: border-box;
+    background: #fff;
+    border: 1px solid #e6edf8;
+    border-radius: 10px;
+    padding: 10px;
+    z-index: 1100;
+    box-shadow: 0 10px 30px rgba(2,6,23,0.12);
+}
+
+.group-popup .popup-body { max-height:360px; overflow:auto; }
+.group-popup .pallet-row { margin-bottom:8px; }
+.group-popup .pallet-actions button { width:100%; box-sizing:border-box; }
+.group-popup .popup-close { position:absolute; right:8px; top:6px; cursor:pointer; color:#6b7280; }
+
+/* Statistics cards */
+.stat-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    transition: all 0.2s;
+}
+
+.stat-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+/* Inventory grid */
+.inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.inventory-tile {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.inventory-tile:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.inventory-tile.low-stock {
+    border-left: 4px solid #f59e0b;
+}
+
+.inventory-tile.out-of-stock {
+    border-left: 4px solid #ef4444;
+}

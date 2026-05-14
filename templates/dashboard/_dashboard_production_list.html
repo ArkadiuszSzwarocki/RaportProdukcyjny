@@ -1,0 +1,38 @@
+{# Renders the production plan cards and handles AGRO focus mode layout #}
+{% if sekcja != 'Magazyn' %}
+    <div class="cards {% if agro_focus_mode %}agro-focus-mode{% endif %}">
+        
+        {% set active_szarze_panel = namespace(rendered=false) %}
+        {% for p in plan %}
+            
+            {% include 'dashboard/_dashboard_order_card.html' %}
+
+            {% if sekcja in ['Zasyp', 'Workowanie'] and linia == 'AGRO' and ns.is_active and p[0] == ns.active_plan_id and not active_szarze_panel.rendered %}
+                {% set active_szarze_panel.rendered = true %}
+                {% include 'dashboard/_dashboard_agro_active_details.html' %}
+                {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
+                {% include 'dashboard/_dashboard_agro_machine_stats.html' %}
+                {% endif %}
+            {% endif %}
+
+            {% if sekcja == 'Zasyp' and linia == 'PSD' and p[3] == 'w toku' and ns.is_active and p[0] == ns.active_plan_id %}
+                {% set psd_zasypy_count = (palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0) %}
+                {% if psd_zasypy_count > 0 %}
+                <div id="details-{{ p[0] }}" class="details-row">
+                    {% include 'dashboard/_dashboard_agro_active_details.html' %}
+                </div>
+                {% endif %}
+            {% endif %}
+
+            {% if sekcja == 'Workowanie' and linia == 'PSD' and p[3] == 'w toku' and ns.is_active and p[0] == ns.active_plan_id %}
+                {% set psd_palety_count = (palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0) %}
+                {% if psd_palety_count > 0 %}
+                <div id="details-{{ p[0] }}" class="details-row">
+                    {% include 'dashboard/_dashboard_agro_active_details.html' %}
+                </div>
+                {% endif %}
+            {% endif %}
+
+        {% endfor %}
+    </div>
+{% endif %}

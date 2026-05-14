@@ -1,0 +1,62 @@
+<div class="top-bar">
+    <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
+        <span class="material-icons">menu</span>
+    </button>
+
+    <span id="topBarPageTitle" style="font-size:16px;font-weight:700;color:var(--text-secondary,#e2e8f0);margin-right:auto;padding-left:16px;display:none;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
+
+    {% if session.get('zalogowany') %}
+    <a href="{{ url_for('auth.report_issue') }}" class="btn-icon" title="{{ _('zgnlosz_problem') }}">
+        <span class="material-icons">report_problem</span>
+    </a>
+    <button type="button" id="bugReportTopButton" class="btn-icon text-warning {% if session.get('show_bug_icon_intro') %}bug-icon-onboarding-highlight{% endif %}" title="Zgłoś błąd w systemie" onclick="openBugReportModal()">
+        <span class="material-icons">bug_report</span>
+    </button>
+    {% endif %}
+
+    {% if session.get('zalogowany') %}
+    <div class="notifications-wrapper">
+        <button type="button" id="notificationsToggle" class="btn-icon" title="Powiadomienia" aria-label="Powiadomienia" aria-expanded="false" 
+            data-pending-deliveries="{{ _pending_total|default(0) }}" 
+            data-pending-link="{{ url_for('magazyn_dostawy.oczekujace', linia=_pending_hall_for_link|default('PSD')) }}">
+            <span class="material-icons">notifications</span>
+            <span id="notificationsBadge" class="notifications-badge">0</span>
+        </button>
+        <div id="notificationsMenu" class="notifications-menu" aria-hidden="true">
+            <div class="notifications-header">
+                <span class="notifications-title">Powiadomienia</span>
+                <div class="notifications-actions">
+                    <button type="button" id="notificationsMarkAll">Oznacz wszystkie</button>
+                </div>
+            </div>
+            <div id="notificationsList" class="notifications-list">
+                <div class="notifications-empty">Brak nowych powiadomień.</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="language-selector">
+        <button type="button" class="btn-icon language-toggle" title="{{ _('zmien_jezyk') }}" onclick="toggleLanguageMenu(); return false;">
+            <span class="material-icons">language</span>
+        </button>
+        <div id="languageMenu" class="language-menu hidden">
+            <a href="/api/set_language?language=pl" class="language-option"><span>🇵🇱</span> Polski</a>
+            <a href="/api/set_language?language=uk" class="language-option"><span>🇺🇦</span> Українська</a>
+            <a href="/api/set_language?language=en" class="language-option"><span>🇬🇧</span> English</a>
+        </div>
+    </div>
+
+    <div class="top-user-meta">
+        <span class="user-role">
+            <span class="user-role-label">{{ _('zalogowany') }}:</span>
+            <strong class="user-role-name">{{ session.get('imie_nazwisko') or session.get('login') or 'N/A' }}</strong>
+        </span>
+        {% if session.get('zalogowany') %}
+        <a href="/logout" class="mobile-logout-inline" title="{{ _('logout') }}" aria-label="{{ _('logout') }}">
+            <span class="material-icons">logout</span>
+            <span class="mobile-logout-label">{{ _('logout') }}</span>
+        </a>
+        {% endif %}
+    </div>
+</div>

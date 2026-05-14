@@ -1,0 +1,472 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
+
+<style>
+.delivery-form-screen {
+    max-width: 1480px;
+}
+
+.delivery-hero {
+    border-radius: 18px;
+    border: 1px solid #dbe7ff;
+    background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 55%, #ffffff 100%);
+    padding: 18px;
+    margin-bottom: 18px;
+}
+
+.delivery-hero-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.delivery-title {
+    margin: 0;
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.delivery-subtitle {
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 0.92rem;
+}
+
+.delivery-stage-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: #e7f1ff;
+    color: #1e40af;
+    border: 1px solid #cfe0ff;
+    margin-top: 8px;
+}
+
+.delivery-date-card {
+    min-width: 205px;
+    border: 1px solid #d8e4f7;
+    border-radius: 12px;
+    padding: 10px;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04);
+}
+
+.delivery-date-card input {
+    border: none;
+    width: 100%;
+    font-weight: 800;
+    font-size: 15px;
+    color: #1e293b;
+    background: transparent;
+    outline: none;
+}
+
+.delivery-panel {
+    background: #ffffff;
+    border: 1px solid #dce5f4;
+    border-radius: 14px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04);
+}
+
+.delivery-panel-head {
+    background: #f8fbff;
+    padding: 11px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.delivery-panel-head h6 {
+    margin: 0;
+    font-size: 0.74rem;
+    letter-spacing: 0.35px;
+    text-transform: uppercase;
+    color: #3b4f72;
+    font-weight: 800;
+}
+
+.delivery-panel-body {
+    padding: 20px;
+}
+
+.delivery-table-wrap {
+    overflow-x: auto;
+}
+
+.delivery-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.btn-cancel-reception,
+.btn-save-reception {
+    width: 170px;
+    height: 45px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.btn-cancel-reception {
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+    background: #ffffff;
+}
+
+.btn-save-reception {
+    border: 1px solid #14683a;
+    background: linear-gradient(180deg, #1f8c4f, #16713f);
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.btn-add-inline {
+    border: 1px solid #1f8c4f;
+    background: #1f8c4f;
+    color: #ffffff;
+    border-radius: 8px;
+    font-size: 11px;
+    padding: 8px 15px;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+@media (max-width: 900px) {
+    .delivery-actions {
+        justify-content: stretch;
+    }
+    .btn-cancel-reception,
+    .btn-save-reception {
+        width: 100%;
+    }
+}
+</style>
+
+<div class="logistyka-container p-20 delivery-form-screen" style="margin: 0 auto; font-family: sans-serif;">
+    
+    <div class="delivery-hero">
+        <div class="delivery-hero-head">
+            <div>
+                <h1 class="delivery-title">
+                    <span class="material-icons" style="color:#2563eb;">local_shipping</span>
+                    {% if dostawa %}Edycja Przyjęcia{% else %}Nowe Przyjęcie{% endif %}
+                </h1>
+                <p class="delivery-subtitle">Wprowadzanie towaru na stan magazynowy.</p>
+                <span class="delivery-stage-pill">
+                    <span class="material-icons" style="font-size: 16px;">playlist_add_check</span>
+                    Przyjęcie zewnętrznej dostawy
+                </span>
+            </div>
+            
+            <div class="delivery-date-card">
+                <label style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px;">Data Przyjęcia</label>
+                <input type="date" id="delivery_date" 
+                       value="{{ dostawa.delivery_date if dostawa else now_str[:10] }}">
+            </div>
+        </div>
+    </div>
+
+    <div class="delivery-panel">
+        <div class="delivery-panel-head">
+            <h6 style="margin: 0; font-size: 12px; font-weight: 700; color: #475569;">Informacje o Dostawie</h6>
+        </div>
+        <div class="delivery-panel-body">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; align-items: end;">
+                <div style="display: flex; flex-direction: column;">
+                    <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">NUMER WZ / DOKUMENTU</label>
+                    <input type="text" id="order_ref" class="premium-input" value="{{ dostawa.order_ref if dostawa else '' }}" placeholder="np. WZ/2024/123" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                </div>
+                <div style="display: flex; flex-direction: column;">
+                    <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">DOSTAWCA</label>
+                    <input type="text" id="supplier" class="premium-input" value="{{ dostawa.supplier if dostawa else '' }}" placeholder="Nazwa dostawcy" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                </div>
+                <div style="display: flex; flex-direction: column;">
+                    <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">LICZBA PALET W DOSTAWIE</label>
+                    <input type="number" id="pallets_count" class="premium-input" min="0" onchange="generateRows(this.value)" placeholder="Wpisz np. 5" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                </div>
+                <div style="display: flex; flex-direction: column;">
+                    <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">DOMYŚLNA LOKALIZACJA</label>
+                    <select id="default_loc" class="premium-input" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px; background: white;">
+                        {% for loc in lokalizacje %}
+                        <option value="{{ loc }}" {% if dostawa and dostawa.lokalizacja_do == loc %}selected{% endif %}>{{ loc }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="delivery-panel" style="margin-bottom: 24px;">
+        <div class="delivery-panel-head">
+            <h6 style="margin: 0; font-size: 12px; font-weight: 700; color: #475569;">Pozycje / Palety</h6>
+            <button onclick="addItem()" class="btn-add-inline">
+                + DODAJ RĘCZNIE
+            </button>
+        </div>
+        <div class="delivery-table-wrap">
+            <table id="itemsTable" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 50px;">#</th>
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b;">PRODUKT</th>
+                        <th style="padding: 12px 20px; text-align: right; font-size: 11px; color: #64748b; width: 120px;">ILOŚĆ</th>
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 80px;">J.M.</th>
+                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 140px;">TYP OPAK.</th>
+                        <th style="padding: 12px 20px; text-align: center; font-size: 11px; color: #64748b; width: 100px;">AKCJA</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div id="noItemsMsg" style="padding: 40px; text-align: center; color: #94a3b8; font-size: 13px;">
+                Brak dodanych pozycji. Wpisz liczbę palet lub dodaj ręcznie.
+            </div>
+        </div>
+    </div>
+
+    <div class="delivery-actions">
+        <a href="{{ url_for('magazyn_dostawy.reception_view', linia=linia) }}" 
+           class="btn-cancel-reception">
+            Anuluj
+        </a>
+        <button onclick="saveDostawa()" 
+                class="btn-save-reception">
+            <span class="material-icons" style="font-size: 18px;">save</span> ZAPISZ
+        </button>
+    </div>
+</div>
+
+<script>
+    let items = {{ (dostawa['items']|tojson if dostawa and dostawa.get('items') else '[]')|safe }};
+    const wszystkieProdukty = {{ wszystkie_produkty|tojson|safe }};
+
+    function renderItems() {
+        const tbody = document.querySelector('#itemsTable tbody');
+        const noItems = document.getElementById('noItemsMsg');
+        tbody.innerHTML = '';
+        
+        if (items.length === 0) {
+            noItems.style.display = 'block';
+            return;
+        }
+        noItems.style.display = 'none';
+
+        items.forEach((item, index) => {
+            // First Row: Product and Quantity
+            const row1 = document.createElement('tr');
+            row1.style.background = index % 2 === 0 ? '#fff' : '#fcfcfc';
+            row1.innerHTML = `
+                <td rowspan="2" style="padding: 10px 20px; font-size: 13px; color: #64748b; border-bottom: 2px solid #e2e8f0; vertical-align: middle;">${index + 1}</td>
+                <td style="padding: 10px 10px 5px 20px; border: none;">
+                    <input type="text" value="${item.productName || ''}" onchange="updateItem(${index}, 'productName', this.value)"
+                           list="productsList" placeholder="Wybierz produkt"
+                           style="width: 100%; height: 32px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0 8px; font-size: 13px;">
+                </td>
+                <td style="padding: 10px 10px 5px 10px; border: none;">
+                    <input type="number" value="${item.quantity || item.netWeight || item.unitsPerPallet || ''}" 
+                           onchange="updateItem(${index}, 'quantity', this.value)" placeholder="0"
+                           style="width: 100%; height: 32px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0 8px; font-size: 13px; text-align: right;">
+                </td>
+                <td style="padding: 10px 10px 5px 10px; border: none;">
+                    <select onchange="updateItem(${index}, 'unit', this.value)" style="width: 100%; height: 32px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 13px;">
+                        <option value="kg" ${item.unit === 'kg' || (!item.unit && item.packageForm !== 'packaging') ? 'selected' : ''}>kg</option>
+                        <option value="szt" ${item.unit === 'szt' || item.packageForm === 'packaging' ? 'selected' : ''}>szt</option>
+                    </select>
+                </td>
+                <td style="padding: 10px 10px 5px 10px; border: none;">
+                    <select onchange="updateItem(${index}, 'packageForm', this.value)" style="width: 100%; height: 32px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 13px;">
+                        <option value="bags" ${item.packageForm === 'bags' ? 'selected' : ''}>Worek</option>
+                        <option value="big_bag" ${item.packageForm === 'big_bag' ? 'selected' : ''}>Big-Bag</option>
+                        <option value="packaging" ${item.packageForm === 'packaging' ? 'selected' : ''}>Opakowanie</option>
+                    </select>
+                </td>
+                <td rowspan="2" style="padding: 10px 20px; text-align: center; border-bottom: 2px solid #e2e8f0; vertical-align: middle;">
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        ${index > 0 ? `<button onclick="copyFromPrevious(${index})" style="background:none; border:none; color:#94a3b8; cursor:pointer;"><span class="material-icons" style="font-size:18px;">content_copy</span></button>` : ''}
+                        <button onclick="removeItem(${index})" style="background:none; border:none; color:#ef4444; cursor:pointer;"><span class="material-icons" style="font-size:18px;">delete</span></button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(row1);
+
+            // Second Row: Batch and Dates
+            const row2 = document.createElement('tr');
+            row2.style.background = index % 2 === 0 ? '#fff' : '#fcfcfc';
+            row2.style.borderBottom = '2px solid #e2e8f0';
+            row2.innerHTML = `
+                <td style="padding: 0 10px 10px 20px; border: none;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <span style="font-size: 9px; color: #94a3b8; font-weight: 700; width: 45px;">PARTIA:</span>
+                        <input type="text" value="${item.nr_partii || ''}" onchange="updateItem(${index}, 'nr_partii', this.value)"
+                               placeholder="Nr partii" style="flex: 1; height: 28px; border: 1px solid #f1f5f9; border-radius: 4px; padding: 0 6px; font-size: 11px;">
+                    </div>
+                </td>
+                <td style="padding: 0 10px 10px 10px; border: none;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <span style="font-size: 9px; color: #94a3b8; font-weight: 700; width: 65px;">PRODUKCJA:</span>
+                        <input type="date" value="${item.data_produkcji || ''}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
+                               style="flex: 1; height: 28px; border: 1px solid #f1f5f9; border-radius: 4px; padding: 0 4px; font-size: 11px;">
+                    </div>
+                </td>
+                <td colspan="2" style="padding: 0 10px 10px 10px; border: none;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <span style="font-size: 9px; color: #94a3b8; font-weight: 700; width: 85px;">PRZYDATNOŚĆ:</span>
+                        <input type="date" value="${item.data_przydatnosci || ''}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
+                               style="flex: 1; height: 28px; border: 1px solid #f1f5f9; border-radius: 4px; padding: 0 4px; font-size: 11px;">
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(row2);
+        });
+    }
+
+    function generateRows(count) {
+        count = parseInt(count);
+        if (isNaN(count) || count < 0) return;
+        
+        const currentCount = items.length;
+
+        if (count > currentCount) {
+            for (let i = currentCount; i < count; i++) {
+                const lastItem = items.length > 0 ? items[items.length - 1] : null;
+                items.push({ 
+                    productName: lastItem ? lastItem.productName : '', 
+                    quantity: lastItem ? lastItem.quantity : 0, 
+                    unit: lastItem ? lastItem.unit : 'kg', 
+                    packageForm: lastItem ? lastItem.packageForm : 'bags',
+                    nr_partii: lastItem ? lastItem.nr_partii : '',
+                    data_produkcji: lastItem ? lastItem.data_produkcji : '',
+                    data_przydatnosci: lastItem ? lastItem.data_przydatnosci : '',
+                    accepted: false 
+                });
+            }
+        } else if (count < currentCount) {
+            items = items.slice(0, count);
+        }
+        renderItems();
+    }
+
+    function addItem() {
+        const lastItem = items.length > 0 ? items[items.length - 1] : null;
+        items.push({ 
+            productName: lastItem ? lastItem.productName : '', 
+            quantity: lastItem ? lastItem.quantity : 0, 
+            unit: lastItem ? lastItem.unit : 'kg', 
+            packageForm: lastItem ? lastItem.packageForm : 'bags',
+            nr_partii: lastItem ? lastItem.nr_partii : '',
+            data_produkcji: lastItem ? lastItem.data_produkcji : '',
+            data_przydatnosci: lastItem ? lastItem.data_przydatnosci : '',
+            accepted: false 
+        });
+        renderItems();
+    }
+
+    function updateItem(index, key, value) {
+        items[index][key] = value;
+        const it = items[index];
+        const q = parseFloat(it.quantity) || 0;
+        if (it.unit === 'szt' || it.packageForm === 'packaging') {
+            it.unitsPerPallet = q;
+            it.netWeight = 0;
+        } else {
+            it.netWeight = q;
+            it.unitsPerPallet = 0;
+        }
+    }
+
+    function removeItem(index) {
+        items.splice(index, 1);
+        renderItems();
+    }
+
+    function copyFromPrevious(index) {
+        if (index <= 0) return;
+        const prev = items[index - 1];
+        items[index] = JSON.parse(JSON.stringify(prev));
+        renderItems();
+    }
+
+    async function saveDostawa() {
+        const orderRef = document.getElementById('order_ref').value.trim();
+        if (!orderRef) return showToast('Podaj numer dokumentu (WZ)!', 'warning');
+        if (items.length === 0) return showToast('Dodaj przynajmniej jedną paletę!', 'warning');
+
+        items.forEach(it => {
+            const q = parseFloat(it.quantity) || parseFloat(it.netWeight) || parseFloat(it.unitsPerPallet) || 0;
+            if (it.unit === 'szt' || it.packageForm === 'packaging') {
+                it.unitsPerPallet = q;
+                it.netWeight = 0;
+            } else {
+                it.netWeight = q;
+                it.unitsPerPallet = 0;
+            }
+        });
+
+        const payload = {
+            id: "{{ dostawa.id if dostawa else '' }}",
+            order_ref: orderRef,
+            supplier: document.getElementById('supplier').value.trim(),
+            delivery_date: document.getElementById('delivery_date').value,
+            lokalizacja_do: document.getElementById('default_loc').value,
+            linia: "{{ linia }}",
+            items: items,
+            status: "OCZEKUJE"
+        };
+
+        try {
+            const res = await fetch("/magazyn-dostawy/api/zapisz", {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Zapisano pomyślnie!', 'success');
+                setTimeout(() => {
+                    location.href = "{{ url_for('magazyn_dostawy.reception_view', linia=linia) }}";
+                }, 500);
+            } else {
+                showToast('Błąd: ' + data.error, 'danger');
+            }
+        } catch (e) {
+            showToast('Błąd połączenia z serwerem', 'danger');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const datalist = document.createElement('datalist');
+        datalist.id = 'productsList';
+        wszystkieProdukty.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p;
+            datalist.appendChild(opt);
+        });
+        document.body.appendChild(datalist);
+        renderItems();
+    });
+</script>
+{% endblock %}

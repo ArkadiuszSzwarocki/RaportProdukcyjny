@@ -1,0 +1,27 @@
+Encountered unknown tag 'endif'.
+Traceback (most recent call last):
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\blueprints\routes_main.py", line 160, in index
+    return render_template('dashboard.html', **context)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\flask\templating.py", line 131, in _render
+    rv = template.render(context)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard.html", line 2, in top-level template code
+    {% import "_macros.html" as macros %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\layout.html", line 62, in top-level template code
+    {% block content %}{% endblock %}
+    ^^^^^^^^^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard.html", line 13, in block 'content'
+    {% include 'dashboard/_dashboard_agro_active.html' %}
+    ^^^^^^^^^^^^^^^^^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard\_dashboard_agro_active.html", line 91, in template
+    {% endif %}
+jinja2.exceptions.TemplateSyntaxError: Encountered unknown tag 'endif'.

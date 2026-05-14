@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raport przesuniecia {{ dostawa.order_ref or dostawa.id }}</title>
+    <style>
+        :root {
+            --border: #dbe2ea;
+            --text: #0f172a;
+            --muted: #64748b;
+            --head: #f8fafc;
+            --accent: #1d4ed8;
+            --ok: #166534;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+            color: var(--text);
+            background: #ffffff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 14px;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 800;
+        }
+
+        .subtitle {
+            margin: 6px 0 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .meta-grid {
+            margin-top: 14px;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .meta-card {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px;
+            background: #fff;
+        }
+
+        .meta-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--muted);
+            letter-spacing: 0.3px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .meta-value {
+            font-size: 14px;
+            font-weight: 800;
+            word-break: break-word;
+        }
+
+        .section {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+
+        .section-head {
+            background: var(--head);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 14px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.35px;
+            color: var(--muted);
+            font-weight: 800;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table-scroll {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .detail-table {
+            min-width: 1460px;
+            table-layout: auto;
+        }
+
+        .detail-table th,
+        .detail-table td {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .detail-table .mono {
+            word-break: break-all;
+        }
+
+        .detail-table col.c-lp { width: 3%; }
+        .detail-table col.c-product { width: 14%; }
+        .detail-table col.c-qty { width: 6%; }
+        .detail-table col.c-unit { width: 4%; }
+        .detail-table col.c-pallet { width: 10%; }
+        .detail-table col.c-batch { width: 5%; }
+        .detail-table col.c-prod-date { width: 5%; }
+        .detail-table col.c-exp-date { width: 5%; }
+        .detail-table col.c-source { width: 4.5%; }
+        .detail-table col.c-target { width: 4.5%; }
+        .detail-table col.c-issued { width: 5%; }
+        .detail-table col.c-accepted { width: 5%; }
+        .detail-table col.c-time { width: 9%; }
+        .detail-table col.c-status { width: 7%; }
+        .detail-table col.c-reason { width: 13%; }
+
+        th,
+        td {
+            border-bottom: 1px solid var(--border);
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+            font-size: 12px;
+        }
+
+        th {
+            background: #ffffff;
+            color: #334155;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.2px;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .mono {
+            font-family: Consolas, "Courier New", monospace;
+        }
+
+        .right {
+            text-align: right;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .pill {
+            display: inline-block;
+            border: 1px solid #bbf7d0;
+            color: var(--ok);
+            background: #f0fdf4;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .pill-rejected {
+            border-color: #fecaca;
+            color: #991b1b;
+            background: #fef2f2;
+        }
+
+        .pill-pending {
+            border-color: #fde68a;
+            color: #92400e;
+            background: #fffbeb;
+        }
+
+        .row-rejected td {
+            background: #fff7f7;
+        }
+
+        .totals {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 10px 14px 14px;
+            border-top: 1px solid var(--border);
+            background: #fcfdff;
+        }
+
+        .total-chip {
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .total-chip.moved {
+            border-color: #bbf7d0;
+            background: #f0fdf4;
+            color: #166534;
+        }
+
+        .total-chip.rejected {
+            border-color: #fecaca;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        .total-chip.reported {
+            border-color: #bfdbfe;
+            background: #eff6ff;
+            color: #1e3a8a;
+        }
+
+        .footer-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
+
+        .system-note {
+            margin-top: 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 8px 10px;
+            color: #64748b;
+            background: #f8fafc;
+            font-size: 10px;
+            line-height: 1.45;
+        }
+
+        .system-note strong {
+            color: #475569;
+            font-weight: 700;
+        }
+
+        .btn {
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 8px 14px;
+            background: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            color: #0f172a;
+            text-decoration: none;
+        }
+
+        .btn.primary {
+            background: var(--accent);
+            border-color: #1e40af;
+            color: #fff;
+        }
+
+        @media (max-width: 980px) {
+            .meta-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media print {
+            body {
+                padding: 0;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .table-scroll {
+                overflow: visible;
+            }
+
+            .detail-table {
+                min-width: 0;
+                table-layout: fixed;
+            }
+
+            .footer-actions {
+                display: none;
+            }
+
+            .container {
+                max-width: none;
+            }
+
+            .header {
+                margin-bottom: 8px;
+                padding: 10px;
+            }
+
+            .section {
+                margin-bottom: 8px;
+                overflow: visible;
+            }
+
+            .section-head {
+                padding: 6px 8px;
+                font-size: 10px;
+            }
+
+            th,
+            td {
+                padding: 4px 5px;
+                font-size: 10px;
+                line-height: 1.2;
+            }
+
+            .detail-table th,
+            .detail-table td {
+                padding: 3px 4px;
+                font-size: 9px;
+                overflow-wrap: anywhere;
+            }
+
+            .detail-table .mono {
+                font-size: 8.5px;
+                word-break: break-word;
+            }
+
+            .meta-grid {
+                margin-top: 8px;
+                gap: 6px;
+            }
+
+            .meta-card {
+                padding: 6px;
+            }
+
+            .meta-label {
+                font-size: 9px;
+            }
+
+            .meta-value {
+                font-size: 11px;
+            }
+
+            .totals {
+                padding: 6px 8px 8px;
+                gap: 6px;
+            }
+
+            .total-chip {
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+
+            .system-note {
+                margin-top: 8px;
+                padding: 6px 8px;
+                font-size: 9px;
+            }
+
+            thead {
+                display: table-header-group;
+            }
+
+            tr {
+                break-inside: avoid;
+            }
+
+            @page {
+                size: A4 landscape;
+                margin: 6mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Raport przesuniecia do druku</h1>
+            <p class="subtitle">Wygenerowano: {{ generated_at }}</p>
+
+            <div class="meta-grid">
+                <div class="meta-card">
+                    <div class="meta-label">Referencja</div>
+                    <div class="meta-value mono">{{ dostawa.order_ref or ('RUCH-' ~ dostawa.id[:8]) }}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Linia</div>
+                    <div class="meta-value">{{ dostawa.linia or '-' }}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Status</div>
+                    <div class="meta-value">{{ dostawa.status or '-' }}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Potwierdzil</div>
+                    <div class="meta-value">{{ dostawa.potwierdzone_przez or '-' }}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Wydal towar</div>
+                    <div class="meta-value">{{ dostawa.created_by or '-' }}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Data utworzenia</div>
+                    <div class="meta-value">{{ created_at_str }}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Data zamkniecia</div>
+                    <div class="meta-value">{{ confirmed_at_str }}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Skad</div>
+                    <div class="meta-value mono">{{ dostawa.lokalizacja_z or '-' }}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Dokad</div>
+                    <div class="meta-value mono">{{ dostawa.lokalizacja_do or '-' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Szczegoly pozycji</div>
+            <div class="table-scroll">
+            <table class="detail-table">
+                <colgroup>
+                    <col class="c-lp">
+                    <col class="c-product">
+                    <col class="c-qty">
+                    <col class="c-unit">
+                    <col class="c-pallet">
+                    <col class="c-batch">
+                    <col class="c-prod-date">
+                    <col class="c-exp-date">
+                    <col class="c-source">
+                    <col class="c-target">
+                    <col class="c-issued">
+                    <col class="c-accepted">
+                    <col class="c-time">
+                    <col class="c-status">
+                    <col class="c-reason">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th class="center">Lp.</th>
+                        <th>Produkt</th>
+                        <th class="right">Ilosc</th>
+                        <th>Jm</th>
+                        <th>Nr palety</th>
+                        <th>Partia</th>
+                        <th>Data prod.</th>
+                        <th>Data przyd.</th>
+                        <th>Skad</th>
+                        <th>Dokad</th>
+                        <th>Wydal</th>
+                        <th>Przyjal</th>
+                        <th>Czas przyjecia</th>
+                        <th>Status</th>
+                        <th>Powod odrzucenia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr{% if row.rejected %} class="row-rejected"{% endif %}>
+                        <td class="center">{{ row.lp }}</td>
+                        <td>{{ row.product_name }}</td>
+                        <td class="right">{{ '%.2f'|format(row.qty) }}</td>
+                        <td>{{ row.unit }}</td>
+                        <td class="mono">{{ row.nr_palety }}</td>
+                        <td>{{ row.nr_partii }}</td>
+                        <td>{{ row.data_produkcji }}</td>
+                        <td>{{ row.data_przydatnosci }}</td>
+                        <td class="mono">{{ row.source_location }}</td>
+                        <td class="mono">{{ row.target_location }}</td>
+                        <td>{{ row.issued_by }}</td>
+                        <td>{{ row.accepted_by if row.accepted else (row.rejected_by if row.rejected else '-') }}</td>
+                        <td>{{ row.accepted_at if row.accepted else (row.rejected_at if row.rejected else '-') }}</td>
+                        <td class="center">
+                            {% if row.rejected %}
+                            <span class="pill pill-rejected">{{ row.status_label }}</span>
+                            {% elif row.accepted %}
+                            <span class="pill">{{ row.status_label }}</span>
+                            {% else %}
+                            <span class="pill pill-pending">{{ row.status_label }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.rejected_reason if row.rejected else '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="15" class="center">Brak pozycji w raporcie.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">Podsumowanie przesunietych (przyjetych) wedlug nazw</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th class="center" style="width: 42px;">Lp.</th>
+                        <th>Nazwa produktu</th>
+                        <th class="right" style="width: 100px;">Suma</th>
+                        <th style="width: 60px;">Jm</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in summary_rows %}
+                    <tr>
+                        <td class="center">{{ row.lp }}</td>
+                        <td>{{ row.product_name }}</td>
+                        <td class="right">{{ '%.2f'|format(row.qty) }}</td>
+                        <td>{{ row.unit }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="center">Brak danych do podsumowania.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="totals">
+                {% if moved_total_rows %}
+                    {% for row in moved_total_rows %}
+                <div class="total-chip moved">Przesunieto: {{ '%.2f'|format(row.qty) }} {{ row.unit }}</div>
+                    {% endfor %}
+                {% else %}
+                <div class="total-chip moved">Przesunieto: brak</div>
+                {% endif %}
+
+                {% for row in rejected_total_rows %}
+                <div class="total-chip rejected">Odrzucono: {{ '%.2f'|format(row.qty) }} {{ row.unit }}</div>
+                {% endfor %}
+
+                {% for row in reported_total_rows %}
+                <div class="total-chip reported">Zgloszono: {{ '%.2f'|format(row.qty) }} {{ row.unit }}</div>
+                {% endfor %}
+
+                <div class="total-chip">Pozycji: {{ rows|length }}</div>
+                <div class="total-chip">Przyjete: {{ accepted_count }}</div>
+                <div class="total-chip">Odrzucone: {{ rejected_count }}</div>
+                <div class="total-chip">Oczekujace: {{ pending_count }}</div>
+            </div>
+        </div>
+
+        <div class="system-note">
+            <div><strong>Informacja systemowa:</strong> Ten raport zostal wygenerowany automatycznie przez system RaportProdukcyjny.</div>
+            <div>W ramach obowiazujacej procedury wewnetrznej loginy uzytkownikow (np. wydajacego i przyjmujacego towar) stanowia elektroniczny odpowiednik podpisu i sa traktowane jako autoryzacja czynnosci.</div>
+        </div>
+
+        <div class="footer-actions">
+            <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=(dostawa.linia or 'PSD')) }}" class="btn">Powrot</a>
+            <button type="button" class="btn primary" onclick="window.print()">Drukuj</button>
+        </div>
+    </div>
+
+    {% if autoprint %}
+    <script>
+        window.addEventListener('load', function () {
+            setTimeout(function () {
+                window.print();
+            }, 180);
+        });
+    </script>
+    {% endif %}
+</body>
+</html>

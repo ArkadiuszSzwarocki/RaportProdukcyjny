@@ -1,0 +1,33 @@
+<div id="wpisy-container" class="mb-20"
+    data-msg-error-loading="{{ _('blad_ladowania') }}"
+    data-msg-no-notes="{{ _('brak_notatek') }}"
+    data-msg-edit-wpis="{{ _('edytuj_wpis') }}">
+    {% if wpisy %}
+    {% for w in wpisy[:2] %}
+    <div class="alert-warning d-flex justify-between align-center mb-5">
+        <div>
+            <span>⚠️ <strong>{{ w[3] }}</strong> [{{ w[5] }}]: {{ w[2] }}</span>
+            <div class="small text-muted">
+                od {{ w[3] }}{% if w[4] %} — do {{ w[4] }}{% endif %}
+                {% if w[9] %}
+                {% set status_map = {'zgłoszony': '🔔 Zgłoszony', 'czeka_na_czesci': '⚙️ Czeka na części', 'zakończony': '✅ Zakończony', 'zamknięty': '🔒 Zamknięty'} %}
+                | Status: <strong>{{ status_map.get(w[9], w[9]) }}</strong>
+                {% endif %}
+                {% if w[10] %} | Zakończono: <strong>{{ w[10] }}</strong>{% endif %}
+            </div>
+        </div>
+
+        {% if rola in ['lider', 'admin'] %}
+        <div class="d-flex gap-8 align-center">
+            <a href="{{ url_for('journal.edytuj', id=w[0]) }}" title="{{ _('edytuj_wpis') }}"
+                class="font-bold text-warning-dark no-underline">✎</a>
+            <form action="{{ url_for('journal.usun_wpis', id=w[0]) }}" method="POST" class="m-0">
+                <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                <button type="submit" class="btn-icon text-warning-dark" aria-label="Usuń wpis">✖</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>

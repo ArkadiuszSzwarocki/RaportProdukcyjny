@@ -1,0 +1,21 @@
+    {% if sekcja == 'Zasyp' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tippy.css') }}">
+    <script src="{{ url_for('static', filename='vendor/popper.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/tippy.min.js') }}"></script>
+    {% endif %}
+
+    <!-- Core Dashboard Logic Scripts -->
+    <script src="{{ url_for('static', filename='js/dashboard/scheduler.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/toasts.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/config.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/card-actions.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/agro-banners.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/polling.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/ui.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/kgph.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/etapy.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/packaging.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/page-helpers.js') }}?v={{ static_version }}&v=4"></script>
+    <script src="{{ url_for('static', filename='js/dashboard/bootstrap.js') }}?v={{ static_version }}&v=4"></script>
+
+    {% include 'includes/dashboard_modals.html' %}

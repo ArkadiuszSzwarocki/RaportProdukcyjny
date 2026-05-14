@@ -1,0 +1,151 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="scanner-wrap" style="max-width: 800px; margin: 0 auto; padding: 20px;">
+    <div class="row items-center gap-12 mb-20">
+        <span class="material-icons" style="font-size: 40px; color: #3b82f6;">print</span>
+        <div>
+            <h1 class="header-title m-0">Tester Drukarki (4.00 x 5.98")</h1>
+            <p class="text-muted small">Weryfikacja połączenia i wymiarów etykiety ZPL</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-20">
+        <!-- STATUS DRUKARKI -->
+        <div class="section-box p-20">
+            <h3 class="m-0 mb-15 row items-center gap-8" style="font-size: 18px;">
+                <span class="material-icons text-primary">sensors</span> Status Połączenia
+            </h3>
+            <div id="statusCard" class="p-15 rounded-xl border-2 text-center" style="background: #f8fafc; border-color: #e2e8f0;">
+                <div id="statusIcon" class="material-icons" style="font-size: 48px; color: #64748b; margin-bottom: 10px;">hourglass_empty</div>
+                <div id="statusText" class="font-bold text-lg">Sprawdzanie...</div>
+                <div id="statusIp" class="text-muted small mt-4">IP: {{ printer_ip }}</div>
+            </div>
+            <button onclick="checkPrinterStatus()" class="btn btn-outline w-100 mt-15">
+                <span class="material-icons" style="font-size: 18px;">refresh</span> Odśwież Status
+            </button>
+        </div>
+
+        <!-- TEST WYDRUKU -->
+        <div class="section-box p-20">
+            <h3 class="m-0 mb-15 row items-center gap-8" style="font-size: 18px;">
+                <span class="material-icons text-success">print</span> Wydruk Testowy
+            </h3>
+            <p class="small text-muted mb-15">Wpisz ID dowolnej palety z bazy, aby wydrukować jej dane na nowym formacie 4x6 cala.</p>
+            
+            <div class="mb-15">
+                <label class="form-label small mb-4">ID Palety (np. 1, 42...)</label>
+                <div class="row gap-8">
+                    <input type="number" id="testPalletId" class="form-control" placeholder="ID" style="flex: 1;">
+                    <button onclick="printTestPallet()" class="btn btn-primary" id="printBtn">
+                        <span class="material-icons">play_arrow</span> DRUKUJ
+                    </button>
+                </div>
+            </div>
+
+            <div class="divider mb-15" style="opacity: 0.1;"></div>
+            
+            <button onclick="printDemoLabel()" class="btn btn-outline-primary w-100">
+                <span class="material-icons">info</span> DRUKUJ ETYKIETĘ DEMO
+            </button>
+            <p class="xxs text-muted mt-8 text-center italic">Wysyła przykładowe dane "PRODUKT TESTOWY" do drukarki.</p>
+        </div>
+    </div>
+
+    <!-- KONFIGURACJA -->
+    <div class="section-box p-20 mt-20">
+        <h3 class="m-0 mb-15 row items-center gap-8" style="font-size: 18px;">
+            <span class="material-icons text-warn">settings</span> Informacja o Formacie
+        </h3>
+        <div class="row gap-20 wrap">
+            <div style="flex: 1; min-width: 200px;">
+                <table class="modern-table small">
+                    <tr><td>Szerokość:</td><td><strong>4.00 inch</strong> (812 dots)</td></tr>
+                    <tr><td>Wysokość:</td><td><strong>5.98 inch</strong> (1214 dots)</td></tr>
+                    <tr><td>Rozdzielczość:</td><td><strong>203 DPI</strong></td></tr>
+                    <tr><td>ZPL Width:</td><td><code>^PW812</code></td></tr>
+                </table>
+            </div>
+            <div style="flex: 1; min-width: 200px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 15px;">
+                <div class="row gap-8 items-center text-warn mb-8">
+                    <span class="material-icons" style="font-size: 18px;">tips_and_updates</span>
+                    <strong class="small">Wskazówka</strong>
+                </div>
+                <p class="xxs text-muted m-0">Jeśli etykieta jest ucięta lub przesunięta, upewnij się, że w ustawieniach drukarki (Zebra Setup Utilities) ustawiono poprawny rozmiar papieru oraz wykonano kalibrację sensora przerw (Gap Sensor).</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function checkPrinterStatus() {
+    const card = document.getElementById('statusCard');
+    const icon = document.getElementById('statusIcon');
+    const text = document.getElementById('statusText');
+    
+    text.textContent = 'Sprawdzanie...';
+    icon.style.color = '#64748b';
+    icon.textContent = 'hourglass_empty';
+    card.style.borderColor = '#e2e8f0';
+
+    fetch('/agro/scanner/printer/status')
+        .then(r => r.json())
+        .then(d => {
+            if (d.online) {
+                icon.textContent = 'check_circle';
+                icon.style.color = '#22c55e';
+                text.textContent = 'ONLINE';
+                card.style.borderColor = '#22c55e';
+                card.style.background = '#f0fdf4';
+            } else {
+                icon.textContent = 'error';
+                icon.style.color = '#ef4444';
+                text.textContent = 'OFFLINE';
+                card.style.borderColor = '#ef4444';
+                card.style.background = '#fef2f2';
+            }
+        })
+        .catch(() => {
+            icon.textContent = 'cloud_off';
+            icon.style.color = '#ef4444';
+            text.textContent = 'BŁĄD POŁĄCZENIA';
+        });
+}
+
+function printTestPallet() {
+    const id = document.getElementById('testPalletId').value;
+    if (!id) return alert('Wpisz ID palety');
+    
+    const btn = document.getElementById('printBtn');
+    btn.disabled = true;
+    
+    fetch('/agro/scanner/print', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ surowiec_id: id, type: 'pallet', linia: 'AGRO' })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) alert('Zlecenie wysłane pomyślnie!');
+        else alert('Błąd: ' + d.message);
+    })
+    .finally(() => btn.disabled = false);
+}
+
+function printDemoLabel() {
+    // Używamy backendu zamiast bezpośredniego fetch do mostka (unikamy problemów SSL/CORS w przeglądarce)
+    fetch('/agro/scanner/test-print', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) alert('Etykieta DEMO wysłana pomyślnie!');
+        else alert('Błąd: ' + d.message);
+    })
+    .catch(e => alert('Błąd połączenia z serwerem: ' + e));
+}
+
+// Init
+checkPrinterStatus();
+</script>
+{% endblock %}

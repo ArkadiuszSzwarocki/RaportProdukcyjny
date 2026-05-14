@@ -1,0 +1,296 @@
+<div class="work-settlement-container">
+    <style>
+        .work-form {
+            background: #fdfefe;
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid #edeff2;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+        }
+        .work-form h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.15em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .context-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            border-left: 4px solid #2ecc71;
+            font-size: 0.9em;
+        }
+        .context-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+        .context-row:last-child {
+            margin-bottom: 0;
+        }
+        .work-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+        .work-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+        .work-form-group label {
+            font-weight: 600;
+            font-size: 0.9em;
+            color: #4a5568;
+        }
+        .work-form-group input,
+        .work-form-group select {
+            border: 1px solid #d6d9de;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.95em;
+        }
+        .work-form-group input[readonly] {
+            background: #f5f7f9;
+            color: #2d3748;
+        }
+        .calc-row {
+            margin-top: 14px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .calc-card {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.9em;
+        }
+        .calc-card strong {
+            display: block;
+            font-size: 1.05em;
+            margin-top: 4px;
+            color: #2d3748;
+        }
+        .calc-warning {
+            color: #c53030 !important;
+        }
+        .btn-work-save {
+            margin-top: 16px;
+            width: 100%;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 14px;
+            background: #27ae60;
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.98em;
+        }
+        .btn-work-save:hover {
+            background: #219150;
+        }
+        .btn-work-save:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .hint-box {
+            background: #fff3cd;
+            border: 1px solid #ffe08a;
+            color: #856404;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.9em;
+            margin-bottom: 14px;
+        }
+        .work-history {
+            border-top: 2px solid #f0f2f5;
+            padding-top: 18px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .history-row {
+            border: 1px solid #ebedf0;
+            border-radius: 8px;
+            background: #fff;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+        }
+        .history-main {
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+        .history-sub {
+            font-size: 0.86em;
+            color: #4b5563;
+        }
+        .history-meta {
+            font-size: 0.78em;
+            color: #9aa3af;
+            margin-top: 4px;
+        }
+        @media (max-width: 720px) {
+            .work-form-grid {
+                grid-template-columns: 1fr;
+            }
+            .calc-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <div class="work-form">
+        <h3><span class="material-icons">inventory_2</span> Rozliczenie Workowania AGRO</h3>
+
+        <div class="context-box">
+            <div class="context-row">
+                <span>Aktywne zlecenie:</span>
+                <strong>#{{ active_plan.id }} - {{ active_plan.produkt }}</strong>
+            </div>
+            <div class="context-row">
+                <span>Data planu:</span>
+                <strong>{{ active_plan.data_planu }}</strong>
+            </div>
+            <div class="context-row">
+                <span>Kg na worek (typ):</span>
+                <strong>{{ bag_kg|round(2) }} kg</strong>
+            </div>
+            <div class="context-row">
+                <span>Palety wykonane:</span>
+                <strong>{{ palety_count }} szt. / {{ palety_kg_wykonane|round(2) }} kg</strong>
+            </div>
+        </div>
+
+        {% if not packaging_items %}
+        <div class="hint-box">
+            Brak opakowan na stanie. Dodaj opakowanie w magazynie AGRO, aby zapisac rozliczenie.
+        </div>
+        {% endif %}
+
+        <form action="{{ url_for('production.agro_workowanie_rozliczenie_add') }}" method="POST" id="work-settlement-form">
+            <input type="hidden" name="data_planu" value="{{ data_planu }}">
+            <input type="hidden" name="plan_id" value="{{ active_plan.id }}">
+
+            <div class="work-form-grid">
+                <div class="work-form-group">
+                    <label for="opakowanie_id">Opakowanie</label>
+                    <select id="opakowanie_id" name="opakowanie_id" required>
+                        <option value="">-- wybierz opakowanie --</option>
+                        {% for item in packaging_items %}
+                        <option
+                            value="{{ item.id }}"
+                            data-stock="{{ item.stan_magazynowy or 0 }}"
+                            data-location="{{ item.lokalizacja or '' }}"
+                        >
+                            {{ item.nazwa }}{% if item.lokalizacja %} ({{ item.lokalizacja }}){% endif %} - stan: {{ '%.0f'|format(item.stan_magazynowy or 0) }} szt.
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="work-form-group">
+                    <label for="stan_przed_display">Stan magazynowy (szt.)</label>
+                    <input type="text" id="stan_przed_display" readonly value="-">
+                </div>
+
+                <div class="work-form-group">
+                    <label for="wyprodukowano_szt">Ilosc szt. wyprodukowana na koniec zmiany</label>
+                    <input type="number" id="wyprodukowano_szt" name="wyprodukowano_szt" min="0" step="1" required placeholder="0">
+                </div>
+
+                <div class="work-form-group">
+                    <label for="szt_na_palecie">Ilosc szt. na palecie</label>
+                    <input type="number" id="szt_na_palecie" name="szt_na_palecie" min="1" step="1" required placeholder="np. 40">
+                </div>
+            </div>
+
+            <div class="calc-row">
+                <div class="calc-card">
+                    Zuzyte worki (auto, z palet wykonanych)
+                    <strong id="zuzyte-worki-display">{{ estimated_bags }}</strong>
+                </div>
+                <div class="calc-card">
+                    Stan po rozliczeniu
+                    <strong id="stan-po-display">-</strong>
+                </div>
+                <div class="calc-card">
+                    Waga z palet wykonanych
+                    <strong>{{ palety_kg_wykonane|round(2) }} kg</strong>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-work-save" {% if not packaging_items %}disabled{% endif %}>
+                Zapisz rozliczenie
+            </button>
+        </form>
+    </div>
+
+    <div class="work-history">
+        <h4 class="m-0 mb-15" style="color: #6c757d; font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.5px;">Historia rozliczen ({{ data_planu }}):</h4>
+        {% for item in history %}
+        <div class="history-row">
+            <div class="history-main">{{ item.produkt }} - {{ item.opakowanie_biezace or item.opakowanie_nazwa }}</div>
+            <div class="history-sub">Zuzyte worki: <strong>{{ '%.0f'|format(item.zuzyte_worki or 0) }}</strong> | Stan: {{ '%.0f'|format(item.stan_przed or 0) }} -> {{ '%.0f'|format(item.stan_po or 0) }} szt.</div>
+            <div class="history-sub">Wykonano: {{ item.wyprodukowano_szt or 0 }} szt. | Na palecie: {{ item.szt_na_palecie or 0 }} szt. | {{ item.kg_na_worek or 20 }} kg/worek</div>
+            <div class="history-meta">{{ item.created_at.strftime('%H:%M') if item.created_at else '-' }} | {{ item.autor_login or '-' }}</div>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 20px; color: #adb5bd; font-style: italic; font-size: 0.9em;">
+            Brak zapisanych rozliczen dla wybranej daty.
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        (function () {
+            var select = document.getElementById('opakowanie_id');
+            var stockDisplay = document.getElementById('stan_przed_display');
+            var stockAfterDisplay = document.getElementById('stan-po-display');
+            var usedBagsDisplay = document.getElementById('zuzyte-worki-display');
+            var autoUsed = Number('{{ estimated_bags }}') || 0;
+
+            function formatInt(value) {
+                var n = Number(value);
+                if (!isFinite(n)) return '0';
+                return String(Math.round(n));
+            }
+
+            function refreshProjectedStock() {
+                if (!select) return;
+                var opt = select.options[select.selectedIndex];
+                if (!opt || !opt.value) {
+                    stockDisplay.value = '-';
+                    stockAfterDisplay.textContent = '-';
+                    stockAfterDisplay.classList.remove('calc-warning');
+                    usedBagsDisplay.textContent = formatInt(autoUsed);
+                    return;
+                }
+
+                var stock = Number(opt.getAttribute('data-stock') || 0);
+                if (!isFinite(stock)) stock = 0;
+
+                var stockAfter = stock - autoUsed;
+                stockDisplay.value = formatInt(stock);
+                stockAfterDisplay.textContent = formatInt(stockAfter);
+                if (stockAfter < 0) {
+                    stockAfterDisplay.classList.add('calc-warning');
+                } else {
+                    stockAfterDisplay.classList.remove('calc-warning');
+                }
+                usedBagsDisplay.textContent = formatInt(autoUsed);
+            }
+
+            if (select) {
+                select.addEventListener('change', refreshProjectedStock);
+            }
+            refreshProjectedStock();
+        })();
+    </script>
+</div>
