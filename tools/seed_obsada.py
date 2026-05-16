@@ -5,7 +5,7 @@ Użycie:
   python tools/seed_obsada.py --date 2026-01-29 \
       --assign Zasyp:12 --assign Workowanie:34 --lider-psd 12 --lider-agro 34
 
-Wymaga skonfigurowanego połączenia w `config.DB_CONFIG` (używa `db.get_db_connection`).
+Wymaga skonfigurowanego połączenia w `config.DB_CONFIG` (używa `db.get_db_connection`)
 """
 import argparse
 from datetime import datetime, date
@@ -86,7 +86,7 @@ def main():
                 inserted += 1
 
         conn.commit()
-        print(f'Gotowe. Dodano {inserted} wpisów do obsady dla {qdate}').
+        print(f'Gotowe. Dodano {inserted} wpisów do obsady dla {qdate}')
     finally:
         try:
             conn.close()

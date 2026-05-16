@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, session
 from app.services.mom_service import MomService
-from app.decorators import login_required, dynamic_role_required
+from app.decorators import login_required, dynamic_role_required, masteradmin_required
 
 mom_bp = Blueprint('mom', __name__)
 
@@ -100,12 +100,8 @@ def api_reopen(mom_id):
 
 
 @mom_bp.route('/agro/api/mom/<int:mom_id>/delete', methods=['DELETE'])
-@login_required
-@dynamic_role_required('agro_magazyn')
+@masteradmin_required
 def api_delete(mom_id):
     """Delete MOM."""
-    rola = session.get('rola', '')
-    if rola not in ('admin', 'lider'):
-        return jsonify({'error': 'Brak uprawnień'}), 403
     MomService.delete_mom(mom_id)
     return jsonify({'ok': True})

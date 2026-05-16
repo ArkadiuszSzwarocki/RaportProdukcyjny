@@ -69,4 +69,23 @@
         animation: rp-spin 1s linear infinite;
     }
     @keyframes rp-spin { to { transform: rotate(360deg); } }
+    /* No Orders Alert (Operator View) */
+    .no-orders-alert {
+        display: flex; align-items: flex-start; gap: 20px;
+        background: #fff; border: 2px dashed #f59e0b; border-radius: 16px;
+        padding: 24px; margin: 20px 0; box-shadow: 0 10px 25px rgba(245, 158, 11, 0.1);
+    }
+    .no-orders-alert .info-icon { font-size: 48px; color: #f59e0b; }
+    .no-orders-alert .alert-content { flex: 1; }
+    .no-orders-alert .alert-content strong { display: block; font-size: 18px; margin-bottom: 8px; color: #92400e; }
+    .no-orders-alert .alert-content p { color: #b45309; margin-bottom: 16px; font-size: 14px; line-height: 1.5; }
+    .btn-notify-planner {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: #f59e0b; color: #fff; border: 0; border-radius: 10px;
+        padding: 10px 20px; font-weight: 700; cursor: pointer;
+        transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+    .btn-notify-planner:hover { background: #d97706; transform: translateY(-1px); box-shadow: 0 6px 15px rgba(245, 158, 11, 0.4); }
+    .btn-notify-planner:active { transform: translateY(0); }
+    .btn-notify-planner .material-icons { font-size: 18px; }
 </style>

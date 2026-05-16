@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Zarządzanie Uprawnieniami | MasterAdmin{% endblock %}
+
+{% block content %}
+
+{% set section_labels = {
+    'psd': 'PRODUKCJA PSD',
+    'agro': 'PRODUKCJA AGRO',
+    'magazyn': 'MAGAZYNY',
+    'raporty': 'RAPORTY',
+    'jakosc': 'JAKOŚĆ',
+    'sim': 'SYMULATORY',
+    'ustawienia': 'ADMINISTRACJA',
+    'admin_analiza': 'ADMINISTRACJA & ANALIZA',
+    'diag': 'SYSTEM & DIAGNOSTYKA'
+} %}
+
+{% set key_to_section = {
+    'psd': 'psd',
+    'agro': 'agro',
+    'magazyn': 'magazyn',
+    'inwentaryzacja': 'magazyn',
+    'raporty': 'raporty',
+    'jakosc': 'jakosc',
+    'awarie': 'jakosc',
+    'sim': 'sim',
+    'ustawienia': 'ustawienia',
+    'planista': 'admin_analiza',
+    'moje_godziny': 'admin_analiza',
+    'wyniki': 'admin_analiza',
+    'struktura': 'admin_analiza',
+    'centrum': 'diag',
+    'baza_danych': 'diag',
+    'leaves': 'diag',
+    'production': 'diag'
+} %}
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4 animate__animated animate__fadeIn">
+        <div class="col-12 d-flex justify-content-between align-items-center bg-dark p-4 rounded-4 shadow-lg border border-secondary">
+            <div>
+                <h1 class="h3 mb-0 text-white fw-bold">
+                    <span class="material-icons align-middle me-2 text-warning">security</span>
+                    Macierz Uprawnień Systemowych
+                </h1>
+                <p class="text-secondary mb-0 mt-2 small">
+                    MasterAdmin Dashboard — Konfiguracja ról. 
+                    Struktura odzwierciedla menu boczne (Sidebar). 
+                    Zaznaczenie nagłówka sekcji ustawia dostęp dla wszystkich jej elementów.
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-lg rounded-pill px-4" onclick="location.reload()">
+                    <span class="material-icons align-middle me-1">refresh</span> Resetuj
+                </button>
+                <button type="button" id="savePermissionsBtn" class="btn btn-warning btn-lg rounded-pill px-4 fw-bold shadow">
+                    <span class="material-icons align-middle me-1">save</span> Zapisz Zmiany
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-dark border-secondary shadow-lg rounded-4 overflow-hidden mb-5 animate__animated animate__fadeInUp">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0 align-middle" id="permissionsTable">
+                    <thead>
+                        <tr class="border-bottom border-secondary bg-black bg-opacity-50">
+                            <th class="ps-4 py-4 text-secondary text-uppercase small tracking-wider" style="min-width: 350px;">Strona / Moduł / Funkcja</th>
+                            {% for role in roles %}
+                            <th class="text-center py-4 text-secondary text-uppercase small tracking-wider">
+                                {{ role|capitalize }}
+                            </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set current_section = [None] %}
+                        {% for page in pages %}
+                            {% set parts = page.split('.') %}
+                            {% set prefix = parts[0] %}
+                            {% set section_id = key_to_section.get(prefix, 'diag') %}
+                            
+                            {% if section_id != current_section[0] %}
+                                {# Section Header #}
+                                <tr class="bg-black bg-opacity-40 border-top border-bottom border-secondary section-header-row" data-section="{{ section_id }}">
+                                    <td class="ps-4 py-3 text-warning fw-bold text-uppercase small cursor-pointer d-flex align-items-center justify-content-between" onclick="toggleSection('{{ section_id }}')">
+                                        <div class="d-flex align-items-center">
+                                            <span class="material-icons me-2 text-secondary" style="font-size: 18px;">menu_open</span>
+                                            {{ section_labels.get(section_id, section_id|upper) }}
+                                        </div>
+                                    </td>
+                                    {% for role in roles %}
+                                    <td class="text-center py-3">
+                                        <div class="form-check form-switch d-inline-block">
+                                            <input class="form-check-input section-master-toggle" 
+                                                   type="checkbox" 
+                                                   data-role="{{ role }}" 
+                                                   data-section="{{ section_id }}"
+                                                   style="cursor: pointer; width: 2.4em; height: 1.2em; filter: grayscale(1) brightness(1.5);">
+                                        </div>
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                {% if current_section.append(section_id) %}{% endif %}
+                                {% if current_section.pop(0) %}{% endif %}
+                            {% endif %}
+
+                            {# Sub-item Row #}
+                            <tr class="border-bottom border-secondary sub-row-{{ section_id }}" data-page="{{ page }}" data-section="{{ section_id }}">
+                                <td class="ps-4 py-3">
+                                    <div class="ms-5 ps-3 d-flex align-items-center">
+                                        <div class="fw-bold text-white-50">
+                                            {{ labels.get(page, page) }}
+                                        </div>
+                                    </div>
+                                </td>
+                                {% for role in roles %}
+                                {% set access = permissions[page][role].access if permissions[page] and permissions[page][role] else false %}
+                                <td class="text-center py-3">
+                                    <div class="form-check form-switch d-inline-block">
+                                        <input class="form-check-input role-access-toggle" 
+                                               type="checkbox" 
+                                               data-role="{{ role }}" 
+                                               data-section="{{ section_id }}"
+                                               {% if access %}checked{% endif %}
+                                               style="cursor: pointer; width: 2.8em; height: 1.4em;">
+                                    </div>
+                                </td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .tracking-wider { letter-spacing: 0.1em; }
+    .table-dark { background-color: transparent; }
+    .table-hover tbody tr:hover { background-color: rgba(255, 255, 255, 0.05); }
+    .form-check-input:checked { background-color: #ffc107; border-color: #ffc107; }
+    .form-check-input { background-color: #343a40; border-color: #6c757d; }
+    .rounded-4 { border-radius: 1rem !important; }
+    .text-white-50 { color: rgba(255, 255, 255, 0.7) !important; }
+    .cursor-pointer { cursor: pointer; }
+    .section-header-row { transition: all 0.2s ease; }
+    .section-header-row:hover { background-color: rgba(255, 255, 255, 0.08) !important; }
+    
+    /* Custom Scrollbar */
+    .table-responsive::-webkit-scrollbar { height: 8px; }
+    .table-responsive::-webkit-scrollbar-track { background: #212529; }
+    .table-responsive::-webkit-scrollbar-thumb { background: #495057; border-radius: 4px; }
+    .table-responsive::-webkit-scrollbar-thumb:hover { background: #6c757d; }
+</style>
+
+<script>
+function toggleSection(sectionId) {
+    const rows = document.querySelectorAll(`.sub-row-${sectionId}`);
+    const header = document.querySelector(`.section-header-row[data-section="${sectionId}"]`);
+    const isCollapsed = header.classList.toggle('section-collapsed');
+    
+    rows.forEach(row => {
+        row.style.display = isCollapsed ? 'none' : 'table-row';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const saveBtn = document.getElementById('savePermissionsBtn');
+    
+    // Master Toggle Logic
+    const masterToggles = document.querySelectorAll('.section-master-toggle');
+    masterToggles.forEach(master => {
+        master.addEventListener('change', function() {
+            const section = this.getAttribute('data-section');
+            const role = this.getAttribute('data-role');
+            const isChecked = this.checked;
+            
+            const subToggles = document.querySelectorAll(`.role-access-toggle[data-section="${section}"][data-role="${role}"]`);
+            subToggles.forEach(sub => {
+                sub.checked = isChecked;
+                // Trigger change event if needed for any other logic
+                sub.dispatchEvent(new Event('change'));
+            });
+        });
+    });
+
+    // Initial check: if all sub-toggles are checked, check the master toggle
+    masterToggles.forEach(master => {
+        const section = master.getAttribute('data-section');
+        const role = master.getAttribute('data-role');
+        const subToggles = document.querySelectorAll(`.role-access-toggle[data-section="${section}"][data-role="${role}"]`);
+        
+        const allChecked = Array.from(subToggles).every(s => s.checked);
+        const someChecked = Array.from(subToggles).some(s => s.checked);
+        
+        master.checked = allChecked;
+        if (someChecked && !allChecked) {
+            master.indeterminate = true;
+        }
+    });
+
+    // Update master toggle state when a sub-toggle changes
+    const roleToggles = document.querySelectorAll('.role-access-toggle');
+    roleToggles.forEach(sub => {
+        sub.addEventListener('change', function() {
+            const section = this.getAttribute('data-section');
+            const role = this.getAttribute('data-role');
+            const master = document.querySelector(`.section-master-toggle[data-section="${section}"][data-role="${role}"]`);
+            
+            const subToggles = document.querySelectorAll(`.role-access-toggle[data-section="${section}"][data-role="${role}"]`);
+            const allChecked = Array.from(subToggles).every(s => s.checked);
+            const someChecked = Array.from(subToggles).some(s => s.checked);
+            
+            master.checked = allChecked;
+            master.indeterminate = someChecked && !allChecked;
+        });
+    });
+
+    saveBtn.addEventListener('click', function() {
+        const table = document.getElementById('permissionsTable');
+        const rows = table.querySelectorAll('tbody tr[data-page]');
+        const newPermissions = {};
+        
+        rows.forEach(row => {
+            const page = row.getAttribute('data-page');
+            newPermissions[page] = {};
+            
+            const toggles = row.querySelectorAll('.role-access-toggle');
+            toggles.forEach(toggle => {
+                const role = toggle.getAttribute('data-role');
+                const isChecked = toggle.checked;
+                
+                newPermissions[page][role] = {
+                    access: isChecked,
+                    readonly: false
+                };
+            });
+        });
+        
+        const originalHtml = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Zapisywanie...';
+        saveBtn.disabled = true;
+        
+        fetch('/admin/master/permissions/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(newPermissions)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (window.showToast) showToast(data.message, 'success');
+                else alert('SUKCES: ' + data.message);
+                setTimeout(() => location.reload(), 800);
+            } else {
+                alert('BŁĄD: ' + data.message);
+                saveBtn.innerHTML = originalHtml;
+                saveBtn.disabled = false;
+            }
+        })
+        .catch(error => {
+            alert('Błąd sieci: ' + error);
+            saveBtn.innerHTML = originalHtml;
+            saveBtn.disabled = false;
+        });
+    });
+});
+</script>
+{% endblock %}

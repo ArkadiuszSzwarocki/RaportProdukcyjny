@@ -6,7 +6,7 @@ from werkzeug.exceptions import HTTPException
 
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
-from app.decorators import login_required, roles_required
+from app.decorators import login_required, roles_required, masteradmin_required
 from app.services.planning_service import PlanningService
 from app.utils.validation import require_field
 from app.utils.pallet_id import generate_pallet_id
@@ -173,7 +173,7 @@ def register_warehouse_management_routes(
         return render_template('warehouse/popups/edit_pallet.html', paleta_id=paleta_id, waga=waga, sekcja=sekcja, linia=linia)
 
     @warehouse_bp.route('/confirm_delete_palete_page/<int:paleta_id>', methods=['GET'])
-    @login_required
+    @masteradmin_required
     def confirm_delete_palete_page(paleta_id):
         """Render delete confirmation for paleta."""
         linia = resolve_request_linia()
@@ -181,7 +181,7 @@ def register_warehouse_management_routes(
 
     @warehouse_bp.route('/confirm_delete_szarze_page/<int:szarza_id>', methods=['GET'], endpoint='confirm_delete_szarze_page')
     @warehouse_bp.route('/confirm_delete_zasyp_page/<int:szarza_id>', methods=['GET'], endpoint='confirm_delete_zasyp_page')
-    @login_required
+    @masteradmin_required
     def confirm_delete_szarze_page(szarza_id):
         """Render delete confirmation for zasyp (legacy route name)."""
         linia = resolve_request_linia()
@@ -290,8 +290,8 @@ def register_warehouse_management_routes(
         table_pal = get_table_name('palety_workowanie', linia)
         table_mag = get_table_name('magazyn_palety', linia)
 
-        role = session.get('rola', '')
-        if role not in ['magazynier', 'lider', 'admin']:
+        role = str(session.get('rola', '')).strip()
+        if role not in ['magazynier', 'lider', 'admin', 'masteradmin']:
             current_app.logger.warning(
                 '[WAREHOUSE-AUTH] User %s with role=%s tried to confirm paleta %s - insufficient permissions',
                 session.get('login'),
@@ -583,7 +583,7 @@ def register_warehouse_management_routes(
 
     @warehouse_bp.route('/usun_szarze/<int:id>', methods=['POST'], endpoint='usun_szarze')
     @warehouse_bp.route('/usun_zasyp/<int:id>', methods=['POST'], endpoint='usun_zasyp')
-    @roles_required('lider', 'admin')
+    @masteradmin_required
     def usun_szarze(id):
         """Delete zasyp from Zasyp section (legacy route name)."""
         linia = str(resolve_request_linia()).upper()
@@ -615,7 +615,7 @@ def register_warehouse_management_routes(
         return redirect(safe_return())
 
     @warehouse_bp.route('/usun_palete/<int:id>', methods=['POST'])
-    @roles_required('lider', 'admin')
+    @masteradmin_required
     def usun_palete(id):
         """Delete paleta from buffer."""
         linia = str(resolve_request_linia()).upper()
@@ -746,7 +746,7 @@ def register_warehouse_management_routes(
                     pass
 
     @warehouse_bp.route('/api/usun_palete_ajax', methods=['POST'])
-    @roles_required('produkcja', 'lider', 'admin')
+    @masteradmin_required
     def usun_palete_ajax():
         """AJAX: Usuń paletę tylko z magazyn_palety (potwierdzone w magazynie)."""
         data = request.get_json(force=True) or {}

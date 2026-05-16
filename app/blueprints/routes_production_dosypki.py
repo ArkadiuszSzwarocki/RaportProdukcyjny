@@ -355,7 +355,7 @@ def register_production_dosypki_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/anuluj_dosypke/<int:dosypka_id>', methods=['POST'])
-    @roles_required('laborant', 'laboratorium', 'admin')
+    @roles_required('masteradmin', 'laborant', 'laboratorium')
     def anuluj_dosypke(dosypka_id):
         """Mark dosypka as anulowana instead of deleting it."""
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'

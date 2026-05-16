@@ -3,7 +3,7 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify, send_file
 from datetime import date, datetime, timedelta
 from app.db import get_db_connection, get_table_name
-from app.decorators import login_required, roles_required, hall_restricted
+from app.decorators import login_required, roles_required, hall_restricted, masteradmin_required
 from app.services.leave_request_service import LeaveRequestService
 from app.services.attendance_service import AttendanceService
 from app.services.raport_service import RaportService
@@ -185,7 +185,7 @@ def panel_obecnosci():
 
 
 @leaves_bp.route('/usun_obecnosc/<int:id>', methods=['POST'])
-@login_required
+@masteradmin_required
 def usun_obecnosc(id):
     """Delete absence record - delegated to AttendanceService."""
     success = AttendanceService.delete_absence_record(id)
@@ -253,7 +253,7 @@ def zapisz_liderow_obsady():
 
 
 @leaves_bp.route('/usun_z_obsady/<int:id>', methods=['POST'])
-@login_required
+@masteradmin_required
 def usun_z_obsady(id):
     linia = request.form.get('linia') or request.args.get('linia', 'PSD')
     success = AttendanceService.remove_from_schedule(id, linia=linia)

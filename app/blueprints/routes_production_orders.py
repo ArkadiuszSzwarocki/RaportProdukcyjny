@@ -130,6 +130,18 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     except Exception:
                         pass
 
+                    try:
+                        from app.db import create_notifications
+                        create_notifications(
+                            typ='start_zlecenie',
+                            tytul=f"▶ Rozpoczęto: {produkt}",
+                            tresc=f"Linia {linia}, Sekcja {sekcja}: Rozpoczęto zlecenie {produkt} ({int(tonaz)} kg).",
+                            recipient_roles=['planista', 'admin', 'masteradmin'],
+                            link_url=url_for('planista.panel_planisty', linia=linia)
+                        )
+                    except Exception as e:
+                        current_app.logger.warning(f"Failed to create start notification: {e}")
+
                     if warning_info:
                         flash(f"ℹ️ {warning_info['message']}", 'info')
 
@@ -247,6 +259,18 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             try:
                 status_logger = logging.getLogger('status_changes')
                 status_logger.info(f"action=koniec_zlecenie plan_id={id} new=zakonczone user={session.get('login')} endpoint={request.path} caller=production.koniec_zlecenie sekcja={sekcja}")
+                
+                try:
+                    from app.db import create_notifications
+                    create_notifications(
+                        typ='koniec_zlecenie',
+                        tytul=f"■ Zakończono: {produkt}",
+                        tresc=f"Linia {linia}, Sekcja {sekcja}: Zakończono zlecenie {produkt}. Wykonano {rzeczywista_waga} kg.",
+                        recipient_roles=['planista', 'admin', 'masteradmin'],
+                        link_url=url_for('planista.panel_planisty', linia=linia)
+                    )
+                except Exception as e:
+                    current_app.logger.warning(f"Failed to create end notification: {e}")
             except Exception:
                 pass
 

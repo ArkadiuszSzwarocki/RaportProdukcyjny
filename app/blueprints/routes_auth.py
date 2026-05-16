@@ -42,7 +42,7 @@ def login():
                 session['zalogowany'] = True
                 session['user_id'] = int(uid)
                 # Normalize role to lowercase and resolve numeric IDs to string names
-                normalized_role = (rola or '').lower()
+                normalized_role = (rola or '').lower().strip()
                 if normalized_role.isdigit():
                     roles_order = ['admin', 'planista', 'pracownik', 'magazynier', 'dur', 'zarzad', 'laborant']
                     try:
@@ -54,7 +54,7 @@ def login():
                 session['rola'] = normalized_role
                 
                 # Admin and Management (Zarzad) must always see everything (PSD + AGRO)
-                if normalized_role in ['admin', 'zarzad']:
+                if normalized_role in ['admin', 'zarzad', 'masteradmin']:
                     session['grupa'] = 'ALL'
                 else:
                     session['grupa'] = (grupa or '').strip()

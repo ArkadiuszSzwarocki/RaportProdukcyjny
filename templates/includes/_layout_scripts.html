@@ -58,4 +58,180 @@
             } catch (e) { alert(message || title || 'Error'); }
         };
     }
+
+    /** Function for operators to notify the planner */
+    window.notifyPlanner = function(sekcja, linia) {
+        if (!confirm('Czy na pewno powiadomić planistę o braku zleceń w ' + sekcja + ' (' + linia + ')?')) return;
+        
+        fetch('/api/notify-planner', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sekcja: sekcja, linia: linia })
+        })
+        .then(r => r.json())
+        .then(j => {
+            if (j.success) {
+                window.safeAlert('Sukces', j.message);
+                // Disable button to prevent spam
+                const btn = document.querySelector('.btn-notify-planner');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.innerHTML = '<span class="material-icons">check</span> POWIADOMIONO';
+                }
+            } else {
+                window.safeAlert('Błąd', j.message || 'Nie udało się wysłać powiadomienia.');
+            }
+        })
+        .catch(e => {
+            console.error('Notification error:', e);
+            window.safeAlert('Błąd', 'Błąd sieci podczas wysyłania powiadomienia.');
+        });
+    };
+
+    /** Desktop Push Notifications Logic for Planners/Admins */
+    window.initPlannerNotifications = function() {
+        // Always start polling for badge updates if role matches
+        startNotificationPolling();
+
+        if (!("Notification" in window)) return;
+        
+        const box = document.getElementById('notif-permission-box');
+        const navBtn = document.getElementById('navNotifPermissionBtn');
+        
+        if (Notification.permission === "granted") {
+            if (box) box.style.display = 'none';
+            if (navBtn) navBtn.style.display = 'none';
+        } else if (Notification.permission !== "denied") {
+            if (box) box.style.display = 'inline-block';
+            if (navBtn) navBtn.style.display = 'inline-block';
+            
+            if (event && (event.type === 'click')) {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        if (box) box.style.display = 'none';
+                        if (navBtn) navBtn.style.display = 'none';
+                        new Notification("System Powiadomień", { body: "Powiadomienia zostały pomyślnie włączone!" });
+                    }
+                });
+            }
+        }
+    };
+
+    let lastKnownNotifId = 0;
+    let isPollingStarted = false;
+    function startNotificationPolling() {
+        if (isPollingStarted) return;
+        isPollingStarted = true;
+        
+        // Initial check to set the baseline ID so we don't spam old notifications
+        fetch('/api/system_state')
+            .then(r => r.json())
+            .then(j => {
+                if (j.success && j.state) {
+                    lastKnownNotifId = j.state.last_notif;
+                    console.log('Notifications baseline set to:', lastKnownNotifId);
+                    setInterval(pollNotifications, 10000); // Check every 10 seconds
+                }
+            })
+            .catch(e => {
+                isPollingStarted = false; // Allow retry on failure
+                console.error('Failed to set notification baseline:', e);
+            });
+    }
+
+    const originalTitle = document.title;
+    let unreadCount = 0;
+
+    function updateTitleBadge() {
+        if (unreadCount > 0) {
+            document.title = '(' + unreadCount + ') ' + originalTitle;
+        } else {
+            document.title = originalTitle;
+        }
+    }
+
+    function playNotificationSound() {
+        try {
+            // Simple beep using Web Audio API if no audio file is preferred
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.5);
+        } catch (e) {
+            console.error('Sound play failed:', e);
+        }
+    }
+
+    function pollNotifications() {
+        fetch('/api/system_state')
+            .then(r => r.json())
+            .then(j => {
+                if (j.success && j.state && j.state.last_notif > lastKnownNotifId) {
+                    // There are new notifications! Fetch details.
+                    fetch('/api/notifications?limit=10')
+                        .then(rn => rn.json())
+                        .then(jn => {
+                            if (jn.success && jn.notifications) {
+                                let newlyFound = 0;
+                                jn.notifications.forEach(n => {
+                                    if (n.id > lastKnownNotifId) {
+                                        newlyFound++;
+                                        // Desktop notification (outside the app window)
+                                        if (Notification.permission === "granted") {
+                                            const notif = new Notification(n.title, {
+                                                body: n.message,
+                                                icon: '/static/img/logo_circle.png',
+                                                tag: 'notif-' + n.id,
+                                                requireInteraction: false
+                                            });
+                                            notif.onclick = function() {
+                                                if (n.link_url) window.location.href = n.link_url;
+                                                window.focus();
+                                            };
+                                        }
+                                        lastKnownNotifId = Math.max(lastKnownNotifId, n.id);
+                                    }
+                                });
+
+                                if (newlyFound > 0) {
+                                    unreadCount = jn.unread_count || newlyFound;
+                                    updateTitleBadge();
+                                    playNotificationSound();
+                                    
+                                    // Update navbar badge if exists
+                                    const navBadge = document.getElementById('notificationsBadge');
+                                    if (navBadge) {
+                                        navBadge.innerText = unreadCount;
+                                        navBadge.style.display = unreadCount > 0 ? 'block' : 'none';
+                                    }
+                                }
+                            }
+                        });
+                }
+            });
+    }
+
+    // Reset badge when window gets focus
+    window.addEventListener('focus', function() {
+        unreadCount = 0;
+        updateTitleBadge();
+    });
+
+    // Auto-init for planner roles
+    {% if rola in ['planista', 'admin', 'masteradmin'] %}
+    document.addEventListener('DOMContentLoaded', function() {
+        window.initPlannerNotifications();
+    });
+    {% endif %}
 </script>

@@ -1,12 +1,12 @@
 from flask import current_app, jsonify, request, session
 
 from app.db import get_db_connection
-from app.decorators import roles_required
+from app.decorators import roles_required, masteradmin_required
 
 
 def register_api_attendance_admin_routes(api_bp):
     @api_bp.route('/obecnosc/delete-by-date', methods=['POST'])
-    @roles_required('admin')
+    @masteradmin_required
     def delete_obecnosc_by_date():
         """Delete all attendance entries for a date and employee, with session-based undo."""
         try:
@@ -87,7 +87,7 @@ def register_api_attendance_admin_routes(api_bp):
             return jsonify({'success': False, 'message': 'Błąd przy usuwaniu wpisów'}), 500
 
     @api_bp.route('/obecnosc/<int:obecnosc_id>', methods=['DELETE'])
-    @roles_required('admin')
+    @masteradmin_required
     def delete_obecnosc(obecnosc_id):
         """Delete a single attendance entry by ID, with session-based undo."""
         try:
@@ -134,7 +134,7 @@ def register_api_attendance_admin_routes(api_bp):
             return jsonify({'success': False, 'message': 'Błąd przy usuwaniu wpisu'}), 500
 
     @api_bp.route('/obecnosc/restore', methods=['POST'])
-    @roles_required('admin')
+    @masteradmin_required
     def restore_ostatnia_usuniety():
         """Restore the last deleted attendance entry or batch of entries from session."""
         try:

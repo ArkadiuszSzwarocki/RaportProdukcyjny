@@ -93,7 +93,12 @@
 <div class="section-box">
     <div class="section-header">
         <h2>⚠️ Pułapki błędów systemu (error.log)</h2>
-        <div><a href="/admin/centrum" class="btn">Powrót do Centrum</a></div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-outline-danger" onclick="clearErrorLog()" style="display:flex;align-items:center;gap:6px;">
+                <span class="material-icons" style="font-size:18px;">delete_sweep</span> Wyczyść Logi
+            </button>
+            <a href="/admin/centrum" class="btn">Powrót do Centrum</a>
+        </div>
     </div>
 
     <div class="card mb-15">
@@ -147,4 +152,36 @@
         {% endif %}
     </div>
 </div>
+<script>
+    function clearErrorLog() {
+        if (!confirm('Czy na pewno chcesz wyczyścić plik error.log? Tej operacji nie można cofnąć.')) return;
+        
+        const btn = event.currentTarget;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="material-icons rotating" style="font-size:18px;">sync</span> Czyszczenie...';
+        btn.disabled = true;
+
+        fetch('/admin/ustawienia/errors/clear', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (window.showToast) showToast(data.message, 'success');
+                else alert(data.message);
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                alert('Błąd: ' + data.message);
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            alert('Błąd połączenia: ' + error);
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        });
+    }
+</script>
 {% endblock %}

@@ -3,7 +3,7 @@
 from flask import Blueprint, request, redirect, url_for, flash, session, render_template, current_app, jsonify
 from datetime import date, datetime, timedelta, time
 from app.db import get_db_connection
-from app.decorators import login_required, roles_required
+from app.decorators import login_required, roles_required, masteradmin_required
 from app.dto.paleta import PaletaDTO
 import logging
 
@@ -37,7 +37,7 @@ def dodaj_wpis():
 
 
 @journal_bp.route('/usun_wpis/<int:id>', methods=['POST'])
-@login_required
+@masteradmin_required
 def usun_wpis(id):
     conn = get_db_connection()
     cursor = conn.cursor()

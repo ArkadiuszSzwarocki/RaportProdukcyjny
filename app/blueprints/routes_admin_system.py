@@ -1,7 +1,7 @@
-﻿from flask import flash, jsonify, redirect, render_template, request, url_for
+from flask import flash, jsonify, redirect, render_template, request, url_for
 
 from app.db import get_active_database_name, get_runtime_switchable_databases, set_active_database_name
-from app.decorators import admin_required, dynamic_role_required
+from app.decorators import admin_required, dynamic_role_required, masteradmin_required
 
 
 def register_admin_system_routes(admin_bp, *, list_online_users):
@@ -18,12 +18,12 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         return redirect(url_for('admin.admin_ustawienia_uzytkownicy'))
 
     @admin_bp.route('/admin/centrum')
-    @dynamic_role_required('ustawienia')
+    @dynamic_role_required('centrum')
     def admin_centrum_systemowe():
         return render_template('centrum_index.html')
 
     @admin_bp.route('/admin/centrum/audyt')
-    @dynamic_role_required('ustawienia')
+    @dynamic_role_required('centrum')
     def admin_centrum_audyt():
         from app.services.agro_warehouse_service import AgroWarehouseService
 
@@ -32,7 +32,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         return render_template('centrum_audyt.html', history=history)
 
     @admin_bp.route('/admin/centrum/visual-inspector')
-    @dynamic_role_required('ustawienia')
+    @dynamic_role_required('centrum')
     def admin_visual_inspector():
         return render_template('admin/visual_inspector.html')
 
@@ -42,7 +42,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         return render_template('ustawienia_index.html')
 
     @admin_bp.route('/admin/sekretna-baza')
-    @admin_required
+    @dynamic_role_required('baza_danych')
     def admin_secret_db():
         current_db = get_active_database_name()
         allowed_databases = get_runtime_switchable_databases()

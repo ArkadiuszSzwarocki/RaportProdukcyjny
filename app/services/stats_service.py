@@ -94,7 +94,7 @@ def get_worker_stats(d_od, d_do, tryb, linia='PSD'):
     if tryb == 'dzien':
         cursor.execute(
             "SELECT id, imie_nazwisko FROM pracownicy "
-            "WHERE id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad') AND pracownik_id IS NOT NULL) "
+            "WHERE id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad','masteradmin') AND pracownik_id IS NOT NULL) "
             "ORDER BY imie_nazwisko"
         )
         all_p = cursor.fetchall()

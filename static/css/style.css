@@ -1180,6 +1180,17 @@ button[type="submit"]:hover {
     margin-left: var(--spacing-sm);
 }
 
+.btn-outline-danger {
+    background: transparent;
+    color: var(--danger-light);
+    border: 2px solid var(--danger-light);
+}
+
+.btn-outline-danger:hover {
+    background: var(--danger-light);
+    color: white;
+}
+
 /* Action buttons */
 .btn-sm {
     padding: 6px 10px;

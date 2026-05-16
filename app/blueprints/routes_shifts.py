@@ -4,7 +4,7 @@ from flask import Blueprint, request, redirect, flash, session, current_app
 from datetime import date
 import time
 
-from app.decorators import login_required, roles_required
+from app.decorators import login_required, roles_required, masteradmin_required
 from app.db import get_db_connection
 
 shifts_bp = Blueprint('shifts', __name__)
@@ -68,21 +68,20 @@ def add_shift_note():
 
 
 @shifts_bp.route('/api/shift_note/<int:note_id>/delete', methods=['POST'])
-@login_required
-@roles_required('lider', 'admin')
+@masteradmin_required
 def delete_shift_note(note_id):
-    """Delete a shift note (owner or admin only)."""
+    """Delete a shift note (masteradmin only)."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Sprawdź czy notatka należy do zalogowanego użytkownika lub jest admin
+        # We now require masteradmin for any deletion
         cursor.execute("SELECT author FROM shift_notes WHERE id = %s", (note_id,))
         row = cursor.fetchone()
         author = session.get('login') or 'unknown'
         
-        if row and (row[0] == author or session.get('rola') == 'admin'):
+        if row:
             cursor.execute("DELETE FROM shift_notes WHERE id = %s", (note_id,))
             conn.commit()
             flash('Notatka usunięta', 'success')
@@ -123,7 +122,7 @@ def update_shift_note(note_id):
         row = cursor.fetchone()
         author = session.get('login') or 'unknown'
         
-        if row and (row[0] == author or session.get('rola') == 'admin'):
+        if row and (row[0] == author or session.get('rola') in ['admin', 'masteradmin']):
             cursor.execute("UPDATE shift_notes SET note = %s WHERE id = %s", (note_text, note_id))
             conn.commit()
             flash('Notatka zaktualizowana', 'success')

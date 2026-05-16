@@ -3,7 +3,7 @@ from datetime import date
 from flask import current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.db import get_db_connection, get_table_name
-from app.decorators import hall_restricted, roles_required
+from app.decorators import hall_restricted, roles_required, masteradmin_required
 from app.services.planning_service import PlanningService
 
 
@@ -64,7 +64,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
         return redirect(_build_context_return_url(linia, sekcja, data_planu))
 
     @planning_bp.route('/przywroc_usunietego_zlecenia/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad', 'lider')
+    @masteradmin_required
     def przywroc_usunietego_zlecenia(id):
         """Restore a deleted plan."""
         linia = request.args.get('linia') or request.form.get('linia', 'PSD')
@@ -88,7 +88,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
         return redirect(return_url_builder())
 
     @planning_bp.route('/usun_plan/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad', 'lider')
+    @masteradmin_required
     def usun_plan(id):
         """Unified route for plan deletion (PSD/AGRO)."""
         linia = request.form.get('linia') or request.args.get('linia') or 'PSD'

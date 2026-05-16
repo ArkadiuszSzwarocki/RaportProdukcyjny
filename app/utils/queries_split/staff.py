@@ -74,7 +74,7 @@ class StaffQueries:
         cursor.execute(
             "SELECT id, imie_nazwisko FROM pracownicy "
             "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s AND linia=%s) "
-            "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad') AND pracownik_id IS NOT NULL) "
+            "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad','masteradmin') AND pracownik_id IS NOT NULL) "
             "ORDER BY imie_nazwisko",
             (data_wpisu, linia)
         )

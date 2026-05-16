@@ -61,7 +61,7 @@ class DashboardService:
         """Backward compatible return for quality and leave requests."""
         q_count = ProductionService.get_pending_quality_count(linia, cursor=cursor)
         wnioski = []
-        if rola in ['admin', 'lider']:
+        if rola in ['admin', 'lider', 'masteradmin']:
             wnioski = QueryHelper.get_pending_leave_requests(limit=10)
         
         return {
@@ -262,7 +262,13 @@ class DashboardService:
             from app.services.agro_warehouse_service import AgroWarehouseService
             active_plan = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO', target_date=dzisiaj)
             if not active_plan:
-                return dict(default_ctx)
+                # If no active plan, try to fetch the last finished plan of the day
+                # to keep the settlement context visible for reports.
+                finished_plans = AgroWarehouseService.get_finished_plans_of_day(linia='AGRO', target_date=dzisiaj)
+                if finished_plans:
+                    active_plan = finished_plans[0] # Take the most recent one
+                else:
+                    return dict(default_ctx)
                 
             plan_id = int(active_plan['id'])
             packaging_items = AgroWarehouseService.get_linked_packaging(plan_id) or []

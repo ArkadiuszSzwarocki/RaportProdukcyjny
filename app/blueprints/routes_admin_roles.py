@@ -5,7 +5,7 @@ from flask import current_app, jsonify, render_template, request, session
 
 from app.core.audit import audit_log
 from app.db import get_db_connection
-from app.decorators import dynamic_role_required, login_required
+from app.decorators import dynamic_role_required, login_required, masteradmin_required
 
 
 ROLES_PAGES = [
@@ -24,6 +24,11 @@ ROLES_PAGES = [
     'wyniki',
     'podsumowanie_zasypow',
     'dosypki',
+    'logs',
+    'errors',
+    'centrum',
+    'performance',
+    'baza_danych',
 ]
 
 ROLES_PAGE_ALIASES = {
@@ -65,7 +70,7 @@ def _normalize_permissions_pages(perms):
 
 def register_admin_roles_routes(admin_bp):
     @admin_bp.route('/admin/ustawienia/roles')
-    @dynamic_role_required('ustawienia')
+    @masteradmin_required
     def admin_ustawienia_roles():
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -163,9 +168,9 @@ def register_admin_roles_routes(admin_bp):
         session_rola = str(session.get('rola') or '').lower()
         session_login = session.get('login') or '?'
         current_app.logger.debug('[ROLES_SAVE] Save attempt: login=%s rola=%s', session_login, session_rola)
-        if session_rola != 'admin':
-            current_app.logger.warning('[ROLES_SAVE] Rejected: not admin. login=%s rola=%s', session_login, session_rola)
-            return jsonify({'error': f'Brak uprawnień (twoja rola: {session_rola}, wymagana: admin)'}), 403
+        if session_rola not in ['admin', 'masteradmin']:
+            current_app.logger.warning('[ROLES_SAVE] Rejected: not authorized. login=%s rola=%s', session_login, session_rola)
+            return jsonify({'error': f'Brak uprawnień (twoja rola: {session_rola}, wymagana: admin/masteradmin)'}), 403
         try:
             current_app.logger.debug('admin_ustawienia_roles_save invoked by user=%s remote=%s', session_login, request.remote_addr)
             data = request.get_json(force=True)
@@ -268,7 +273,7 @@ def register_admin_roles_routes(admin_bp):
             return jsonify({'error': str(error)}), 500
 
     @admin_bp.route('/admin/ustawienia/roles/add', methods=['POST'])
-    @dynamic_role_required('ustawienia')
+    @masteradmin_required
     def admin_ustawienia_roles_add():
         """Dodaj nową rolę."""
         try:

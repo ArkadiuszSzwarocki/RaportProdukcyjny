@@ -44,7 +44,7 @@ def zarzad_required(f):
             return redirect('/login')
         
         # Uprawnienia do widoku /zarzad
-        if session.get('rola') not in ['zarzad', 'admin', 'planista', 'lider', 'laborant']:
+        if session.get('rola') not in ['zarzad', 'admin', 'planista', 'lider', 'laborant', 'masteradmin']:
             try:
                 is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
                 accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
@@ -57,7 +57,7 @@ def zarzad_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# 3. DOSTĘP DO PANELU ADMINA (Tylko Admin - tego brakowało!)
+# 3. DOSTĘP DO PANELU ADMINA (Tylko Admin i MasterAdmin)
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -71,7 +71,7 @@ def admin_required(f):
                 return jsonify({'success': False, 'error': 'unauthenticated'}), 401
             return redirect('/login')
         
-        if session.get('rola') != 'admin':
+        if session.get('rola') not in ['admin', 'masteradmin']:
             try:
                 current_app.logger.warning("[ADMIN_CHECK] Access denied for admin_required - session: %s", {k: session.get(k) for k in ('login','rola','imie_nazwisko')})
             except Exception:
@@ -82,6 +82,23 @@ def admin_required(f):
             except Exception:
                 is_xhr = False; accepts_json = False
             if is_xhr or accepts_json:
+                return jsonify({'success': False, 'error': 'forbidden'}), 403
+            return redirect('/')
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+# 4. TYLKO DLA MASTER ADMINA (Statystyki, Logi, Błędy)
+def masteradmin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'zalogowany' not in session:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+            return redirect('/login')
+        
+        if session.get('rola') != 'masteradmin':
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'success': False, 'error': 'forbidden'}), 403
             return redirect('/')
             
@@ -137,8 +154,8 @@ def roles_required(*roles, groups=None):
                 except Exception:
                     pass
 
-            # Admin always allowed
-            if r == 'admin':
+            # Super-users always allowed
+            if r in ['admin', 'masteradmin']:
                 return f(*args, **kwargs)
 
             user_rola = r
@@ -176,7 +193,7 @@ def hall_restricted(f):
     def decorated(*args, **kwargs):
         role = (session.get('rola') or '').lower()
         user_grupa = (session.get('grupa') or 'ALL').upper()
-        if user_grupa == 'ALL' or role in ['admin', 'zarzad', 'planista', 'lider', 'magazynier', 'laborant']:
+        if user_grupa == 'ALL' or role in ['admin', 'zarzad', 'planista', 'lider', 'magazynier', 'laborant', 'masteradmin']:
             return f(*args, **kwargs)
         
         # Determine target hall from request

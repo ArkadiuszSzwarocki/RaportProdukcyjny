@@ -16,6 +16,12 @@
 
     {% if session.get('zalogowany') %}
     <div class="notifications-wrapper">
+        {% if session.get('rola') in ['planista', 'admin', 'masteradmin'] %}
+        <button type="button" id="navNotifPermissionBtn" class="btn-icon text-warning" style="display:none; margin-right: 8px;" title="Włącz powiadomienia desktopowe" onclick="window.initPlannerNotifications()">
+            <span class="material-icons">notifications_paused</span>
+        </button>
+        {% endif %}
+        
         <button type="button" id="notificationsToggle" class="btn-icon" title="Powiadomienia" aria-label="Powiadomienia" aria-expanded="false" 
             data-pending-deliveries="{{ _pending_total|default(0) }}" 
             data-pending-link="{{ url_for('magazyn_dostawy.oczekujace', linia=_pending_hall_for_link|default('PSD')) }}">

@@ -712,6 +712,29 @@ class AgroWarehouseService:
             conn.close()
 
     @staticmethod
+    def get_finished_plans_of_day(linia='Agro', target_date=None):
+        """Helper to find finished Workowanie plans for a specific day."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            table_plan = get_table_name('plan_produkcji', linia)
+            
+            query = f"SELECT id, produkt, data_planu, typ_produkcji FROM {table_plan} WHERE status='zakonczone' AND sekcja='Workowanie'"
+            params = []
+            
+            if target_date:
+                query += " AND DATE(data_planu) = %s"
+                params.append(target_date)
+            else:
+                query += " AND DATE(data_planu) = CURDATE()"
+                
+            query += " ORDER BY real_stop DESC"
+            cursor.execute(query, params)
+            return cursor.fetchall()
+        finally:
+            conn.close()
+
+    @staticmethod
     def get_linked_packaging(plan_id):
         """Get all packaging items linked to a production plan."""
         conn = get_db_connection()

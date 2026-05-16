@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash
 
 from app.core.audit import audit_log
 from app.db import get_db_connection
-from app.decorators import dynamic_role_required
+from app.decorators import dynamic_role_required, masteradmin_required
 
 
 def register_admin_team_routes(admin_bp, *, load_roles):
@@ -246,7 +246,7 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         return redirect(url_for('admin.admin_ustawienia_zespol'))
 
     @admin_bp.route('/admin/pracownik/usun/<int:id>', methods=['POST'])
-    @dynamic_role_required('ustawienia')
+    @masteradmin_required
     def admin_usun_pracownika(id):
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -402,7 +402,7 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         return redirect(url_for('admin.admin_ustawienia_zespol'))
 
     @admin_bp.route('/admin/konto/usun/<int:id>', methods=['POST'])
-    @dynamic_role_required('ustawienia')
+    @masteradmin_required
     def admin_usun_konto(id):
         conn = get_db_connection()
         cursor = conn.cursor()

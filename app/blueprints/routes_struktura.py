@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from app.db import get_db_connection
-from app.decorators import login_required, zarzad_required
+from app.decorators import login_required, zarzad_required, masteradmin_required
 
 struktura_bp = Blueprint('struktura', __name__, url_prefix='/struktura')
 
@@ -34,7 +34,7 @@ def _get_board_members(cursor):
         SELECT p.id, p.imie_nazwisko, u.rola, p.dzial_id, p.przelozony_id
         FROM pracownicy p
         JOIN uzytkownicy u ON u.pracownik_id = p.id
-        WHERE u.rola IN ('zarzad', 'admin')
+        WHERE u.rola IN ('zarzad', 'admin', 'masteradmin')
         ORDER BY p.imie_nazwisko
         """
     )
@@ -122,7 +122,7 @@ def _build_structure_view_model(cursor):
         nieprzypisani = [
             employee for employee in employees
             if employee['dzial_id'] == department['id']
-            and employee['rola'] not in ['zarzad', 'admin', 'lider']
+            and employee['rola'] not in ['zarzad', 'admin', 'lider', 'masteradmin']
             and not any(employee['przelozony_id'] == l['id'] for l in liderzy)
         ]
 
@@ -149,7 +149,7 @@ def widok_struktury():
             zarzad=zarzad,
             departments=departments,
             rola=session.get('rola'),
-            can_manage=session.get('rola') in ['admin', 'zarzad']
+            can_manage=session.get('rola') in ['admin', 'zarzad', 'masteradmin']
         )
     except Exception as e:
         flash(f"Błąd ładowania struktury: {str(e)}", "danger")
@@ -214,7 +214,7 @@ def edytuj_dzial(dzial_id):
     return redirect(url_for('struktura.widok_struktury'))
 
 @struktura_bp.route('/dzialy/usun/<int:dzial_id>', methods=['POST'])
-@zarzad_required
+@masteradmin_required
 def usun_dzial(dzial_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -303,7 +303,7 @@ def dodaj_lidera_dzialu(dzial_id):
         cursor.execute("SELECT id, rola FROM uzytkownicy WHERE pracownik_id = %s", (lider_id,))
         u = cursor.fetchone()
         if u:
-            if u['rola'] in ['zarzad', 'admin']:
+            if u['rola'] in ['zarzad', 'admin', 'masteradmin']:
                 flash("Członek zarządu nie może zostać pomniejszony do lidera pionu.", "warning")
                 return redirect(url_for('struktura.widok_struktury'))
             cursor.execute("UPDATE uzytkownicy SET rola = 'lider' WHERE id = %s", (u['id'],))
@@ -321,7 +321,7 @@ def dodaj_lidera_dzialu(dzial_id):
 
 
 @struktura_bp.route('/dzial/<int:dzial_id>/lider/usun', methods=['POST'])
-@zarzad_required
+@masteradmin_required
 def usun_lidera_dzialu(dzial_id):
     lider_id_raw = request.form.get('lider_id')
     lider_id = int(lider_id_raw) if lider_id_raw and str(lider_id_raw).isdigit() else None
@@ -379,7 +379,7 @@ def dodaj_wspollidera(lider_id):
         cursor.execute("SELECT id, rola FROM uzytkownicy WHERE pracownik_id = %s", (wspollider_id,))
         u = cursor.fetchone()
         if u:
-            if u['rola'] in ['zarzad', 'admin']:
+            if u['rola'] in ['zarzad', 'admin', 'masteradmin']:
                 flash("Członek zarządu nie może zostać pomniejszony do współlidera.", "warning")
                 return redirect(url_for('struktura.widok_struktury'))
             cursor.execute("UPDATE uzytkownicy SET rola = 'lider' WHERE id = %s", (u['id'],))
@@ -424,7 +424,7 @@ def dodaj_pracownika_do_lidera(lider_id):
             flash("Wybrany pracownik nie istnieje.", "warning")
             return redirect(url_for('struktura.widok_struktury'))
 
-        cursor.execute("SELECT 1 FROM uzytkownicy WHERE pracownik_id = %s AND rola IN ('admin', 'zarzad')", (pracownik_id,))
+        cursor.execute("SELECT 1 FROM uzytkownicy WHERE pracownik_id = %s AND rola IN ('admin', 'zarzad', 'masteradmin')", (pracownik_id,))
         if cursor.fetchone():
             flash("Członek zarządu nie może podlegać kierownictwu pionu.", "warning")
             return redirect(url_for('struktura.widok_struktury'))

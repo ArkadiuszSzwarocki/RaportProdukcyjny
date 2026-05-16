@@ -1,4 +1,5 @@
 import html
+import json
 import os
 import re
 import time
@@ -7,7 +8,7 @@ from datetime import datetime, timedelta
 
 from flask import current_app, jsonify, render_template, request, session
 
-from app.decorators import admin_required, dynamic_role_required, login_required
+from app.decorators import admin_required, dynamic_role_required, login_required, masteradmin_required
 
 
 def _project_root():
@@ -191,8 +192,7 @@ def _filter_audit_entries(entries, *, user, action, trigger, ip, date_from, date
 
 def register_admin_diagnostics_routes(admin_bp):
     @admin_bp.route('/admin/ustawienia/errors')
-    @login_required
-    @dynamic_role_required('ustawienia')
+    @dynamic_role_required('errors')
     def ustawienia_errors():
         """View server error logs and application traps with structured parsing."""
         error_log_path = os.path.join(_project_root(), 'logs', 'error.log')
@@ -249,8 +249,172 @@ def register_admin_diagnostics_routes(admin_bp):
 
         return render_template('ustawienia_errors.html', errors=parsed_errors, lines=lines_count)
 
+    @admin_bp.route('/admin/ustawienia/errors/clear', methods=['POST'])
+    @dynamic_role_required('errors')
+    def clear_error_log():
+        """Clear the error.log file by truncating it."""
+        error_log_path = os.path.join(_project_root(), 'logs', 'error.log')
+        try:
+            if os.path.exists(error_log_path):
+                with open(error_log_path, 'w', encoding='utf-8') as f:
+                    f.write(f'--- Log wyczyszczony przez administratora {session.get("login")} o {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} ---\n')
+                return jsonify({'success': True, 'message': 'Log błędów został wyczyszczony.'})
+            else:
+                return jsonify({'success': False, 'message': 'Plik logu nie istnieje.'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Błąd podczas czyszczenia logu: {str(e)}'}), 500
+
+    @admin_bp.route('/admin/master/verify')
+    @masteradmin_required
+    def admin_master_verify():
+        """Run the verify_app.py script and return output."""
+        import subprocess
+        import sys
+        script_path = os.path.join(_project_root(), 'scripts', 'verify_app.py')
+        try:
+            result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, timeout=30)
+            output = result.stdout + "\n" + result.stderr
+            success = (result.returncode == 0)
+            return jsonify({'success': success, 'output': output})
+        except Exception as e:
+            return jsonify({'success': False, 'output': str(e)})
+
+    @admin_bp.route('/admin/master/permissions')
+    @masteradmin_required
+    def admin_master_permissions():
+        """UI to manage role permissions (RBAC)."""
+        project_root = _project_root()
+        cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
+        try:
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                permissions = json.load(f)
+        except Exception as e:
+            current_app.logger.error(f"Error loading role permissions: {e}")
+            permissions = {}
+            
+        # Standard roles list (excluding masteradmin which is hardcoded bypass)
+        roles = ['admin', 'zarzad', 'lider', 'planista', 'laborant', 'magazynier', 'dur', 'pracownik', 'widz']
+        
+        # Mapping for sorting order to match sidebar
+        section_order = {
+            'psd': 1,
+            'agro': 2,
+            'magazyn': 3,
+            'raporty': 4,
+            'jakosc': 5,
+            'sim': 6,
+            'ustawienia': 7,
+            'admin_analiza': 8,
+            'diag': 9
+        }
+        
+        key_to_section = {
+            'psd': 'psd',
+            'agro': 'agro',
+            'magazyn': 'magazyn',
+            'inwentaryzacja': 'magazyn',
+            'raporty': 'raporty',
+            'jakosc': 'jakosc',
+            'awarie': 'jakosc',
+            'sim': 'sim',
+            'ustawienia': 'ustawienia',
+            'planista': 'admin_analiza',
+            'moje_godziny': 'admin_analiza',
+            'wyniki': 'admin_analiza',
+            'struktura': 'admin_analiza',
+            'centrum': 'diag',
+            'baza_danych': 'diag',
+            'leaves': 'diag',
+            'production': 'diag'
+        }
+
+        # Mapping for human-readable labels matching sidebar
+        labels = {
+            'magazyn.view': 'Wszystkie Magazyny',
+            'magazyn.reception': 'Przyjęcie dostawy',
+            'magazyn.return': 'Przesunięcia Palet',
+            'magazyn.pending': 'Oczekujące Przyjęcia',
+            'magazyn.agro_total': 'Suma surowców',
+            'magazyn.agro_packaging': 'Opakowania Agro',
+            'magazyn.mom': 'Rozliczenie MOM',
+            'magazyn.card': 'Skaner & Drukarka',
+            'magazyn.inventory': 'Inwentaryzacja',
+            'psd.dashboard': 'Dashboard PSD',
+            'psd.zasyp': 'Zasyp PSD',
+            'psd.bufor': 'Bufor PSD',
+            'psd.workowanie': 'Workowanie PSD',
+            'psd.magazyn': 'Magazyn PSD',
+            'psd.zasyp_summary': 'Podsumowanie zasypów',
+            'agro.dashboard': 'Dashboard Agro',
+            'agro.zasyp': 'Zasyp Agro',
+            'agro.bufor': 'Bufor Agro',
+            'agro.workowanie': 'Workowanie Agro',
+            'agro.magazyn': 'Magazyn Agro',
+            'agro.zasyp_summary': 'Podsumowanie zasypów Agro',
+            'agro.pallet_report': 'Raport Palet AGRO',
+            'raporty.dostawy': 'Raport Dostaw',
+            'raporty.okresowe': 'Raporty Okresowe',
+            'raporty.agro_warehouse': 'Raport Magazynu Agro',
+            'raporty.agro_production': 'Raport Produkcji Agro',
+            'raporty.performance': 'Wydajność (KPI)',
+            'ustawienia.system': 'Ustawienia Systemu',
+            'ustawienia.zespol': 'Zespół i Konta',
+            'ustawienia.logs': 'Logi Systemowe',
+            'ustawienia.errors': 'Logi Błędów',
+            'ustawienia.backups': 'Kopie zapasowe',
+            'planista': 'Plan Produkcji',
+            'moje_godziny': 'Moje Godziny',
+            'wyniki': 'Wyniki i Statystyki',
+            'struktura': 'Struktura Organizacyjna',
+            'jakosc.index': 'Strona Jakość',
+            'jakosc.analysis': 'Analiza zasypów',
+            'awarie': 'Awarie i Usterki',
+            'sim.zebra': 'Symulator Zebra',
+            'sim.scanner': 'Symulator Skanera',
+            'centrum': 'Centrum Sterowania',
+            'baza_danych': 'Baza Danych',
+            'production.obsada': 'Zarządzanie Obsadą',
+            'leaves.view': 'Widok Obsady (Urlopy)',
+            'leaves.dodaj': 'Dodawanie do Obsady',
+            'leaves.usun': 'Usuwanie z Obsady'
+        }
+
+        # Get all pages from config and sort by section then by name
+        def sort_key(page):
+            prefix = page.split('.')[0]
+            section = key_to_section.get(prefix, 'diag')
+            return (section_order.get(section, 99), page)
+
+        pages = sorted(permissions.keys(), key=sort_key) if permissions else []
+        
+        return render_template('admin/permissions_editor.html', 
+                               permissions=permissions, 
+                               roles=roles, 
+                               pages=pages,
+                               labels=labels)
+
+    @admin_bp.route('/admin/master/permissions/save', methods=['POST'])
+    @masteradmin_required
+    def admin_master_permissions_save():
+        """API to save role permissions to JSON file."""
+        data = request.get_json() or {}
+        project_root = _project_root()
+        cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
+        
+        try:
+            # We trust the UI sends the full structure for now
+            # In a production app, we'd validate the keys
+            with open(cfg_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            # CLEAR CACHE if any was used (currently contexts.py reads it every time)
+            return jsonify({'success': True, 'message': 'Uprawnienia zostały zapisane pomyślnie!'})
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Błąd zapisu: {str(e)}'}), 500
+
+
     @admin_bp.route('/admin/ustawienia/logs')
-    @admin_required
+    @dynamic_role_required('logs')
     def admin_ustawienia_logs():
         """Admin-only view: show tail of application logs."""
         try:

@@ -1,4 +1,4 @@
-{% if sekcja|string|trim|lower == 'workowanie' and linia|string|trim|upper == 'AGRO' and agro_focus_mode %}
+{% if sekcja|string|trim|lower == 'workowanie' and linia|string|trim|upper == 'AGRO' %}
     {% if workowanie_rozliczenie_ctx %}
         {% set wrctx = workowanie_rozliczenie_ctx %}
         <div class="work-settlement-inline" style="margin-top: 24px;">

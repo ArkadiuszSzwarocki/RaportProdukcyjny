@@ -125,21 +125,25 @@ def register_warehouse_summary_routes(warehouse_bp):
     @roles_required('planista', 'lider', 'admin')
     def podsumowanie_zasypow():
         """Page: summary of zasypy (legacy: szarze) and dosypki durations per zlecenie with period filters."""
+        linia = request.args.get('linia') or 'PSD'
         period, qdate, start, end = _resolve_summary_range(request.args)
         group_by = request.args.get('group_by', 'plan')
+
+        from app.db import get_table_name
+        table_plan = get_table_name('plan_produkcji', linia)
 
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
             cursor.execute(
-                """
+                f"""
                 SELECT p.id, p.produkt, p.data_planu, p.real_start, p.tonaz,
                     (SELECT s.id FROM szarze s WHERE s.plan_id=p.id ORDER BY s.data_dodania ASC LIMIT 1) AS first_szarza_id,
                     (SELECT s.data_dodania FROM szarze s WHERE s.plan_id=p.id ORDER BY s.data_dodania ASC LIMIT 1) AS first_szarza_time,
                     (SELECT d.data_potwierdzenia FROM dosypki d WHERE d.plan_id=p.id AND d.szarza_id = (SELECT s2.id FROM szarze s2 WHERE s2.plan_id=p.id ORDER BY s2.data_dodania ASC LIMIT 1) AND d.potwierdzone=1 AND COALESCE(d.anulowana,0)=0 ORDER BY d.data_potwierdzenia ASC LIMIT 1) AS first_dosypka_confirmed_time,
                         (SELECT d.data_zlecenia FROM dosypki d WHERE d.plan_id=p.id AND d.szarza_id = (SELECT s2.id FROM szarze s2 WHERE s2.plan_id=p.id ORDER BY s2.data_dodania ASC LIMIT 1) AND COALESCE(d.anulowana,0)=0 ORDER BY d.data_zlecenia ASC LIMIT 1) AS first_dosypka_order_time,
                     (SELECT MIN(s3.data_dodania) FROM szarze s3 WHERE s3.plan_id=p.id AND s3.data_dodania > (SELECT s4.data_dodania FROM szarze s4 WHERE s4.plan_id=p.id ORDER BY s4.data_dodania ASC LIMIT 1)) AS next_szarza_time
-                FROM plan_produkcji p
+                FROM {table_plan} p
                 WHERE p.sekcja='Zasyp' AND p.data_planu >= %s AND p.data_planu < %s
                 ORDER BY p.data_planu, p.kolejnosc
                 """,
@@ -525,19 +529,23 @@ def register_warehouse_summary_routes(warehouse_bp):
     @roles_required('planista', 'lider', 'admin')
     def podsumowanie_zasypow_csv():
         """Return CSV export for the same query as podsumowanie_szarz/podsumowanie_zasypow."""
+        linia = request.args.get('linia') or 'PSD'
         period, qdate, start, end = _resolve_summary_range(request.args)
+
+        from app.db import get_table_name
+        table_plan = get_table_name('plan_produkcji', linia)
 
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
             cursor.execute(
-                """
+                f"""
                 SELECT p.id, p.produkt, p.data_planu, p.real_start,
                     (SELECT s.data_dodania FROM szarze s WHERE s.plan_id=p.id ORDER BY s.data_dodania ASC LIMIT 1) AS first_szarza_time,
                     (SELECT d.data_potwierdzenia FROM dosypki d WHERE d.plan_id=p.id AND d.szarza_id = (SELECT s2.id FROM szarze s2 WHERE s2.plan_id=p.id ORDER BY s2.data_dodania ASC LIMIT 1) AND d.potwierdzone=1 AND COALESCE(d.anulowana,0)=0 ORDER BY d.data_potwierdzenia ASC LIMIT 1) AS first_dosypka_confirmed_time,
                     (SELECT d.data_zlecenia FROM dosypki d WHERE d.plan_id=p.id AND d.szarza_id = (SELECT s2.id FROM szarze s2 WHERE s2.plan_id=p.id ORDER BY s2.data_dodania ASC LIMIT 1) AND COALESCE(d.anulowana,0)=0 ORDER BY d.data_zlecenia ASC LIMIT 1) AS first_dosypka_order_time,
                     (SELECT MIN(s3.data_dodania) FROM szarze s3 WHERE s3.plan_id=p.id AND s3.data_dodania > (SELECT s4.data_dodania FROM szarze s4 WHERE s4.plan_id=p.id ORDER BY s4.data_dodania ASC LIMIT 1)) AS next_szarza_time
-                FROM plan_produkcji p
+                FROM {table_plan} p
                 WHERE p.sekcja='Zasyp' AND p.data_planu >= %s AND p.data_planu < %s
                 ORDER BY p.data_planu, p.kolejnosc
                 """,

@@ -4,7 +4,7 @@ from flask import current_app, flash, redirect, render_template, request, sessio
 
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
-from app.decorators import login_required, roles_required
+from app.decorators import login_required, roles_required, masteradmin_required
 from app.services.zasyp_etapy_service import ZasypEtapyService
 
 
@@ -148,8 +148,7 @@ def register_production_zasyp_etapy_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_etap_delete', methods=['POST'])
-    @login_required
-    @roles_required('lider', 'admin', 'zarzad', 'pracownik', 'magazynier')
+    @masteradmin_required
     def zasyp_etap_delete():
         """Całkowite usunięcie rekordu etapu (dla sub-etapów AGRO)."""
         linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -334,7 +333,7 @@ def register_production_zasyp_etapy_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_usun_ostatnia_pare_dosypki/<int:plan_id>', methods=['POST'])
-    @roles_required('pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'magazynier', 'laborant', 'laboratorium')
+    @roles_required('masteradmin', 'laborant', 'laboratorium')
     def zasyp_usun_ostatnia_pare_dosypki(plan_id):
         """Usuwa ostatnio dodaną parę AGRO (39/49..31/41, a na końcu 3/4) dla bieżącej szarży."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -380,8 +379,7 @@ def register_production_zasyp_etapy_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_usun_punkt_kontrolny_page/<int:plan_id>', methods=['GET'])
-    @login_required
-    @roles_required('pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'magazynier')
+    @masteradmin_required
     def zasyp_usun_punkt_kontrolny_page(plan_id):
         """Render 2-step confirmation before removing a control point (szarza session)."""
         linia = request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -398,7 +396,7 @@ def register_production_zasyp_etapy_routes(
         )
 
     @production_bp.route('/zasyp_usun_punkt_kontrolny/<int:plan_id>', methods=['POST'])
-    @roles_required('pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'magazynier')
+    @masteradmin_required
     def zasyp_usun_punkt_kontrolny(plan_id):
         """Usuwa cały punkt kontrolny (całą sesję szarży) dla wskazanego planu."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'

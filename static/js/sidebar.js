@@ -2,6 +2,9 @@
  * Sidebar Navigation & Responsive Logic
  */
 (function () {
+    const SIDEBAR_STATE_KEY = 'sidebar_submenus_state';
+    const SIDEBAR_SCROLL_KEY = 'sidebar_scroll_pos';
+
     function initAria() {
         document.querySelectorAll('.nav-item-group').forEach(function (group) {
             var trigger = group.querySelector('.nav-item');
@@ -12,10 +15,89 @@
         });
     }
 
-    // Toggle submenu on click
+    // Save state to localStorage
+    function saveSidebarState() {
+        try {
+            const states = {};
+            document.querySelectorAll('.nav-sub').forEach(sub => {
+                if (sub.id) {
+                    states[sub.id] = sub.classList.contains('open');
+                }
+            });
+            localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(states));
+            console.log('[sidebar] state saved', states);
+        } catch (e) { console.error('[sidebar] save error', e); }
+    }
+
+    // Restore state from localStorage
+    function restoreSidebarState() {
+        try {
+            const saved = localStorage.getItem(SIDEBAR_STATE_KEY);
+            if (!saved) return;
+            const states = JSON.parse(saved);
+            console.log('[sidebar] restoring state', states);
+            
+            Object.keys(states).forEach(id => {
+                const sub = document.getElementById(id);
+                if (sub) {
+                    const shouldBeOpen = !!states[id];
+                    if (shouldBeOpen) {
+                        sub.classList.add('open');
+                    } else {
+                        // Only remove if it's not the current active path (to avoid overriding server logic if no state was saved)
+                        // But usually we want to respect the user's manual closure.
+                        sub.classList.remove('open');
+                    }
+                    const trigger = sub.previousElementSibling;
+                    if (trigger && trigger.classList.contains('nav-item')) {
+                        trigger.setAttribute('aria-expanded', shouldBeOpen ? 'true' : 'false');
+                    }
+                }
+            });
+        } catch (e) {
+            console.warn('[sidebar] failed to restore state', e);
+        }
+    }
+
+    // Save scroll position
+    function saveSidebarScroll() {
+        const sidebar = document.querySelector('.sidebar-nav');
+        if (sidebar) {
+            localStorage.setItem(SIDEBAR_SCROLL_KEY, sidebar.scrollTop);
+        }
+    }
+
+    // Restore scroll position
+    function restoreSidebarScroll() {
+        const sidebar = document.querySelector('.sidebar-nav');
+        if (sidebar) {
+            const pos = localStorage.getItem(SIDEBAR_SCROLL_KEY);
+            if (pos) {
+                sidebar.scrollTop = parseInt(pos, 10);
+            }
+        }
+    }
+
+    // Toggle submenu on click/touch
     function handleSubmenuClick(e) {
-        var trigger = e.target.closest('.nav-item-group > .nav-item');
+        var trigger = e.target.closest('.nav-item-group > .nav-item, .nav-sub-item');
         if (!trigger) return;
+        
+        // If it's a real link (<a>), save state and let it work normally
+        if (trigger.tagName === 'A' && trigger.getAttribute('href') && trigger.getAttribute('href') !== '#') {
+            saveSidebarState();
+            saveSidebarScroll();
+            
+            // Close sidebar on mobile when navigating
+            if (window.innerWidth <= 900) {
+                document.body.classList.remove('sidebar-open');
+            }
+            return;
+        }
+
+        // If it's a sub-item that isn't a link, just return
+        if (trigger.classList.contains('nav-sub-item')) return;
+
         var group = trigger.closest('.nav-item-group');
         var sub = group ? group.querySelector('.nav-sub') : null;
         if (!sub) return;
@@ -25,51 +107,34 @@
 
         var now = Date.now();
         var lastToggle = parseInt(group.getAttribute('data-last-toggle') || '0', 10);
-        if (now - lastToggle < 250) {
-            return;
-        }
+        if (now - lastToggle < 200) return;
         group.setAttribute('data-last-toggle', String(now));
 
         var isOpen = sub.classList.toggle('open');
         trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        
+        saveSidebarState();
     }
 
-    // Global toggle function (legacy/direct support)
+    // Global toggle function
     window.toggleNavSub = function(id) {
         const sub = document.getElementById(id);
         if (!sub) return;
-        
         const btn = sub.previousElementSibling;
-        const isOpen = sub.classList.contains('open');
-
-        if (isOpen) {
-            sub.classList.remove('open');
-            if(btn) btn.setAttribute('aria-expanded', 'false');
-        } else {
-            sub.classList.add('open');
-            if(btn) btn.setAttribute('aria-expanded', 'true');
-        }
+        const isOpen = sub.classList.toggle('open');
+        if(btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        saveSidebarState();
     };
 
     // Show current page name in top bar on desktop
     function updateTopBarTitle() {
         var titleEl = document.getElementById('topBarPageTitle');
         if (!titleEl) return;
-        var activeItem = document.querySelector('.sidebar .nav-item.active');
+        var activeItem = document.querySelector('.sidebar .nav-sub-item.active');
         if (!activeItem) return;
         
-        var textSpan = activeItem.querySelector('span.text-capitalize');
-        var label = textSpan ? textSpan.textContent.trim() : activeItem.textContent.replace(/[\u{1F300}-\u{1FFFF}]/gu, '').trim();
-        var raw = activeItem.textContent.trim();
-        var emojiMatch = raw.match(/^([\p{Extended_Pictographic}\uFE0F\u200D]+)/u);
-        var emoji = emojiMatch ? emojiMatch[1] : '';
-        titleEl.textContent = (emoji ? emoji + ' ' : '') + label;
-        
-        if (window.innerWidth >= 960) {
-            titleEl.style.display = 'flex';
-        } else {
-            titleEl.style.display = 'none';
-        }
+        var label = activeItem.textContent.replace(/[\u{1F300}-\u{1FFFF}]/gu, '').trim();
+        titleEl.textContent = label;
     }
 
     // Responsive Sidebar Logic
@@ -181,12 +246,70 @@
         });
     }
 
+    // Initialization
     document.addEventListener('DOMContentLoaded', function() {
-        initAria();
-        updateTopBarTitle();
+        const sidebarNav = document.querySelector('.sidebar-nav');
+        
+        // Always run responsiveness init if possible
         initResponsiveSidebar();
+        
+        if (sidebarNav) {
+            initAria();
+            restoreSidebarState();
+            restoreSidebarScroll();
+            
+            sidebarNav.addEventListener('click', handleSubmenuClick);
+            
+            // Handle scroll persistence on navigation
+            sidebarNav.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', saveSidebarScroll);
+            });
+            
+            // Watch for manual scroll to save it occasionally
+            let scrollTimeout;
+            sidebarNav.addEventListener('scroll', function() {
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(saveSidebarScroll, 500);
+            }, { passive: true });
+
+            // Fail-safe save on page unload
+            window.addEventListener('beforeunload', function() {
+                saveSidebarState();
+                saveSidebarScroll();
+            });
+        }
+        
+        updateTopBarTitle();
     });
     
-    document.addEventListener('click', handleSubmenuClick, true);
     window.addEventListener('resize', updateTopBarTitle);
+    window.runIntegrityCheck = function() {
+        if (!confirm('Czy na pewno chcesz uruchomić pełny test integralności systemu? Może to potrwać kilka sekund.')) return;
+        
+        const btn = event.currentTarget;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="material-icons rotating" style="font-size:16px; vertical-align:middle; margin-right:4px;">sync</span> Sprawdzanie...';
+        btn.style.pointerEvents = 'none';
+        btn.style.opacity = '0.7';
+
+        fetch('/admin/master/verify')
+            .then(response => response.json())
+            .then(data => {
+                btn.innerHTML = originalHtml;
+                btn.style.pointerEvents = 'auto';
+                btn.style.opacity = '1';
+                
+                if (data.success) {
+                    alert('SUKCES: System jest stabilny!\n\n' + data.output);
+                } else {
+                    alert('BŁĄD: Wykryto problemy!\n\n' + data.output);
+                }
+            })
+            .catch(error => {
+                btn.innerHTML = originalHtml;
+                btn.style.pointerEvents = 'auto';
+                btn.style.opacity = '1';
+                alert('Błąd komunikacji z serwerem: ' + error);
+            });
+    };
 })();

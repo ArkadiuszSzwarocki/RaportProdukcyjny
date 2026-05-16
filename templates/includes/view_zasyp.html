@@ -62,7 +62,16 @@
                 {% endif %}
 
                 {% if not plan %}
-                <p class="text-muted text-muted-italic text-center">Brak planu na dziś.</p>
+                <div class="no-orders-alert animate__animated animate__pulse animate__infinite">
+                    <span class="material-icons info-icon">error_outline</span>
+                    <div class="alert-content">
+                        <strong>Brak zaplanowanych zleceń!</strong>
+                        <p>Nie znaleziono zleceń na dzisiaj. Skontaktuj się z planistą, aby zaplanował produkcję.</p>
+                        <button type="button" class="btn-notify-planner" onclick="notifyPlanner('Zasyp', '{{ linia }}')">
+                            <span class="material-icons">send</span> POWIADOM PLANISTĘ
+                        </button>
+                    </div>
+                </div>
                 {% else %}
                 <div class="cards">
                     {% for p in plan if p[3] != 'w toku' %}

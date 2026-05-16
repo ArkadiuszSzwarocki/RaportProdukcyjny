@@ -1871,7 +1871,7 @@ def sync_dosypka_notifications(plan_id, author_name=None, created_by_user_id=Non
     own_cursor = cursor is None
     local_conn = conn
     local_cursor = cursor
-    recipient_roles = ('operator', 'pracownik', 'produkcja', 'lider', 'laborant', 'admin', 'zarzad')
+    recipient_roles = ('operator', 'pracownik', 'produkcja', 'lider', 'laborant', 'admin', 'zarzad', 'masteradmin')
 
     table_plan = get_table_name('plan_produkcji', linia)
     table_dosypki = get_table_name('dosypki', linia)

@@ -211,6 +211,37 @@ def register_api_runtime_routes(api_bp):
 
         return jsonify({'success': True})
 
+    @api_bp.route('/notify-planner', methods=['POST'])
+    @login_required
+    def notify_planner():
+        """Służy operatorowi do powiadomienia planisty o braku zleceń."""
+        try:
+            data = request.get_json() or {}
+            sekcja = data.get('sekcja', 'Produkcja')
+            linia = data.get('linia', 'PSD')
+            
+            user_login = session.get('login', 'Operator')
+            
+            from app.db import create_notifications
+            
+            # Tworzymy powiadomienie dla ról: planista i admin
+            tytul = f"Brak zleceń: {sekcja} ({linia})"
+            tresc = f"Operator {user_login} zgłasza brak zaplanowanych zleceń w sekcji {sekcja} na linii {linia}. Proszę o weryfikację planu."
+            
+            create_notifications(
+                typ='brak_zlecen',
+                tytul=tytul,
+                tresc=tresc,
+                recipient_roles=['planista', 'admin', 'masteradmin'],
+                link_url=url_for('planista.panel_planisty', linia=linia),
+                created_by_user_id=session.get('user_id')
+            )
+            
+            return jsonify({'success': True, 'message': 'Powiadomienie zostało wysłane do planisty.'})
+        except Exception as error:
+            current_app.logger.error('Error sending notification to planner: %s', error)
+            return jsonify({'success': False, 'message': f'Błąd: {str(error)}'}), 400
+
     @api_bp.route('/system_state', methods=['GET'])
     @login_required
     def get_system_state():

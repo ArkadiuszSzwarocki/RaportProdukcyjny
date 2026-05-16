@@ -60,6 +60,11 @@ def inject_role_permissions():
 
     def role_has_access(page):
         try:
+            r = str(session.get('rola') or '').lower().strip()
+            # 0. MasterAdmin Bypasses EVERYTHING - has access to every single page/API
+            if r == 'masteradmin':
+                return True
+
             # Read config every time (no caching)
             perms = {}
             try:
@@ -69,7 +74,6 @@ def inject_role_permissions():
                 current_app.logger.error(f"[DEBUG configs] Failed to load role_permissions.json from {cfg_path}: {e}")
                 perms = {}
             
-            r = str(session.get('rola') or '').lower()
             # Normalize common role name variants/synonyms (support numeric roles from DB)
             if r.isdigit():
                 try:
@@ -124,6 +128,10 @@ def inject_role_permissions():
 
     def role_is_readonly(page):
         try:
+            r = str(session.get('rola') or '').lower().strip()
+            if r == 'masteradmin':
+                return False
+
             # Read config every time (no caching)
             perms = {}
             try:
@@ -132,7 +140,6 @@ def inject_role_permissions():
             except Exception:
                 perms = {}
             
-            r = str(session.get('rola') or '').lower()
             # Normalize common role name variants/synonyms
             if r.isdigit():
                 try:
@@ -155,7 +162,17 @@ def inject_role_permissions():
         except Exception:
             return False
 
-    return dict(role_has_access=role_has_access, role_is_readonly=role_is_readonly)
+    # Pre-calculate master and admin access for templates
+    curr_role = str(session.get('rola') or '').lower().strip()
+    has_master_access = (curr_role == 'masteradmin')
+    has_admin_access = (curr_role in ['admin', 'masteradmin'])
+
+    return dict(
+        role_has_access=role_has_access, 
+        role_is_readonly=role_is_readonly,
+        has_master_access=has_master_access,
+        has_admin_access=has_admin_access
+    )
 
 
 def inject_translations():

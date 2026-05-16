@@ -2,6 +2,7 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from app.services.inwentaryzacja_service import InwentaryzacjaService
 from app.db import get_db_connection
+from app.decorators import masteradmin_required
 
 inwentaryzacja_bp = Blueprint('inwentaryzacja', __name__, url_prefix='/magazyn/inwentaryzacja')
 
@@ -105,6 +106,7 @@ def zatwierdz_inwentaryzacje():
     return jsonify({"success": success, "message": msg})
     
 @inwentaryzacja_bp.route('/api/usun-sesje', methods=['POST'])
+@masteradmin_required
 def usun_sesje():
     sesja_id = request.json.get('sesja_id')
     success, msg = InwentaryzacjaService.delete_session(sesja_id)

@@ -473,5 +473,6 @@
         dashboardTonazEdit: dashboardTonazEdit,
         editPalet: editPalet,
         deletePalet: deletePalet,
+        resolveCurrentPlanDate: resolveCurrentPlanDate,
     };
 })(window);

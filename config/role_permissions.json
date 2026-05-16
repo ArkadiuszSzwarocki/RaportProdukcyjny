@@ -1,243 +1,5 @@
 {
-  "dashboard": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": false,
-      "readonly": false
-    },
-    "pracownik": {
-      "access": false,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": false,
-      "readonly": false
-    },
-    "dur": {
-      "access": false,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": false,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    }
-  },
-  "ustawienia": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": false,
-      "readonly": false
-    },
-    "pracownik": {
-      "access": false,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": false,
-      "readonly": false
-    },
-    "dur": {
-      "access": false,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": false,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    }
-  },
-  "jakosc": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": false,
-      "readonly": false
-    },
-    "pracownik": {
-      "access": false,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": false,
-      "readonly": false
-    },
-    "dur": {
-      "access": false,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": true,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    }
-  },
-  "planista": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": true,
-      "readonly": false
-    },
-    "pracownik": {
-      "access": false,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": false,
-      "readonly": true
-    },
-    "dur": {
-      "access": false,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": false,
-      "readonly": true
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    }
-  },
-  "plan": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": true,
-      "readonly": false
-    },
-    "pracownik": {
-      "access": false,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": false,
-      "readonly": false
-    },
-    "dur": {
-      "access": false,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": false,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    }
-  },
-  "zasyp": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": false,
-      "readonly": true
-    },
-    "pracownik": {
-      "access": true,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": false,
-      "readonly": false
-    },
-    "dur": {
-      "access": false,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": true,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    }
-  },
-  "workowanie": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": false,
-      "readonly": true
-    },
-    "pracownik": {
-      "access": true,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": false,
-      "readonly": false
-    },
-    "dur": {
-      "access": false,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": false,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    }
-  },
-  "magazyn": {
+  "magazyn.view": {
     "admin": {
       "access": true,
       "readonly": false
@@ -271,7 +33,109 @@
       "readonly": false
     }
   },
-  "agro_magazyn": {
+  "magazyn.reception": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "magazyn.return": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "magazyn.pending": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "magazyn.agro_total": {
     "admin": {
       "access": true,
       "readonly": false
@@ -305,21 +169,21 @@
       "readonly": false
     }
   },
-  "bufor": {
+  "magazyn.agro_packaging": {
     "admin": {
       "access": true,
       "readonly": false
     },
     "planista": {
       "access": false,
-      "readonly": false
+      "readonly": true
     },
     "pracownik": {
       "access": true,
       "readonly": false
     },
     "magazynier": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "dur": {
@@ -339,75 +203,7 @@
       "readonly": false
     }
   },
-  "moje_godziny": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": true,
-      "readonly": false
-    },
-    "pracownik": {
-      "access": true,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": true,
-      "readonly": false
-    },
-    "dur": {
-      "access": true,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": true,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    }
-  },
-  "awarie": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": true,
-      "readonly": false
-    },
-    "pracownik": {
-      "access": true,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": true,
-      "readonly": false
-    },
-    "dur": {
-      "access": true,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": true,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    }
-  },
-  "wyniki": {
+  "magazyn.mom": {
     "admin": {
       "access": true,
       "readonly": false
@@ -441,7 +237,245 @@
       "readonly": false
     }
   },
-  "podsumowanie_zasypow": {
+  "magazyn.card": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "magazyn.inventory": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "psd.dashboard": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "psd.zasyp": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "psd.bufor": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "psd.workowanie": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "psd.magazyn": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "psd.zasyp_summary": {
     "admin": {
       "access": true,
       "readonly": false
@@ -475,7 +509,7 @@
       "readonly": false
     }
   },
-  "dosypki": {
+  "agro.dashboard": {
     "admin": {
       "access": true,
       "readonly": false
@@ -483,6 +517,40 @@
     "planista": {
       "access": false,
       "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "agro.zasyp": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
     },
     "pracownik": {
       "access": true,
@@ -509,7 +577,109 @@
       "readonly": false
     }
   },
-  "podsumowanie_szarz": {
+  "agro.bufor": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "agro.workowanie": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "agro.magazyn": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "agro.zasyp_summary": {
     "admin": {
       "access": true,
       "readonly": false
@@ -533,6 +703,278 @@
     "zarzad": {
       "access": true,
       "readonly": true
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "agro.pallet_report": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": true
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": true
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "raporty.dostawy": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": true
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": true
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "raporty.okresowe": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": true
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": true
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "raporty.agro_warehouse": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": true
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": true
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "raporty.agro_production": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": true
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": true
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "raporty.performance": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": true
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": true
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "ustawienia.system": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "ustawienia.zespol": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
     },
     "laborant": {
       "access": false,
@@ -544,74 +986,6 @@
     }
   },
   "ustawienia.logs": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": false,
-      "readonly": false
-    },
-    "pracownik": {
-      "access": false,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": false,
-      "readonly": false
-    },
-    "dur": {
-      "access": false,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": false,
-      "readonly": false
-    },
-    "lider": {
-      "access": false,
-      "readonly": false
-    }
-  },
-  "ustawienia.backups": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "planista": {
-      "access": false,
-      "readonly": false
-    },
-    "pracownik": {
-      "access": false,
-      "readonly": false
-    },
-    "magazynier": {
-      "access": false,
-      "readonly": false
-    },
-    "dur": {
-      "access": false,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": false,
-      "readonly": false
-    },
-    "lider": {
-      "access": false,
-      "readonly": false
-    }
-  },
-  "ustawienia.online_users": {
     "admin": {
       "access": true,
       "readonly": false
@@ -679,7 +1053,349 @@
       "readonly": false
     }
   },
-  "leaves.dodaj_do_obsady": {
+  "ustawienia.backups": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "planista": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": true,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": true
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": true
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "moje_godziny": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": true,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "wyniki": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": true
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": true
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": true
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "struktura": {},
+  "jakosc.index": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "jakosc.analysis": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "awarie": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": true,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "sim.zebra": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "sim.scanner": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "centrum": {},
+  "baza_danych": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "production.obsada": {
     "admin": {
       "access": true,
       "readonly": false
@@ -709,7 +1425,7 @@
       "readonly": true
     }
   },
-  "leaves.usun_z_obsady": {
+  "leaves.view": {
     "admin": {
       "access": true,
       "readonly": false
@@ -739,7 +1455,7 @@
       "readonly": true
     }
   },
-  "leaves.zapisz_liderow_obsady": {
+  "leaves.dodaj": {
     "admin": {
       "access": true,
       "readonly": false
@@ -769,37 +1485,7 @@
       "readonly": true
     }
   },
-  "leaves.obsada_for_date": {
-    "admin": {
-      "access": true,
-      "readonly": false
-    },
-    "lider": {
-      "access": true,
-      "readonly": false
-    },
-    "zarzad": {
-      "access": true,
-      "readonly": true
-    },
-    "planista": {
-      "access": true,
-      "readonly": true
-    },
-    "pracownik": {
-      "access": true,
-      "readonly": false
-    },
-    "laborant": {
-      "access": true,
-      "readonly": true
-    },
-    "widz": {
-      "access": true,
-      "readonly": true
-    }
-  },
-  "production.obsada_page": {
+  "leaves.usun": {
     "admin": {
       "access": true,
       "readonly": false

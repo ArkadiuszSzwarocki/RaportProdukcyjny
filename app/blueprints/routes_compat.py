@@ -2,7 +2,7 @@
 
 from typing import Tuple, Dict, Any, Union
 from flask import Blueprint, redirect, url_for, send_from_directory, jsonify, current_app, Response
-from app.decorators import login_required
+from app.decorators import login_required, masteradmin_required
 import os
 from datetime import datetime
 
@@ -67,7 +67,7 @@ def alias_dodaj_plan() -> Union[Response, str]:
 
 
 @compat_bp.route('/usun_plan/<int:id>', methods=['POST'])
-@login_required
+@masteradmin_required
 def alias_usun_plan(id: int) -> Union[Response, str]:
     """Legacy route - forwards to routes_api.usun_plan()"""
     return _call_view('planning.usun_plan', id)

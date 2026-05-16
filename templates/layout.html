@@ -18,6 +18,7 @@
     <!-- GLOBAL LAYOUT ASSETS -->
     {% include 'includes/_layout_styles.html' %}
     {% include 'includes/_layout_scripts.html' %}
+    <script src="{{ url_for('static', filename='js/perf_monitor.js') }}?v={{ static_version }}"></script>
 </head>
 
 {% set role = session.get('rola', '').lower() %}

@@ -5,7 +5,7 @@ from datetime import date, datetime
 from flask import Blueprint, render_template, request, session, redirect, url_for, current_app as app
 
 from app.db import get_db_connection, get_table_name
-from app.decorators import roles_required, login_required
+from app.decorators import roles_required, login_required, dynamic_role_required, masteradmin_required
 from app.services.dashboard_service import DashboardService
 from app.blueprints.routes_main_index_data import (
     build_dashboard_halls_context,
@@ -28,7 +28,7 @@ def index():
         aktywna_linia = request.args.get('linia') or sess_hall or user_grupa or 'PSD'
         
         # Force hall view if user has limited access
-        if user_grupa != 'ALL' and user_grupa != 'ADMIN' and user_grupa != 'ZARZAD':
+        if user_grupa != 'ALL' and user_grupa != 'ADMIN' and user_grupa != 'ZARZAD' and user_grupa != 'MASTERADMIN':
             if aktywna_linia != user_grupa:
                 aktywna_linia = user_grupa
                 
@@ -196,3 +196,21 @@ def machine_telemetry_proxy():
         return {'success': True, 'data': data}
     except Exception as e:
         return {'success': False, 'error': str(e)}, 500
+from app.decorators import roles_required, login_required, masteradmin_required
+
+# ... (other code)
+
+@main_bp.route('/performance')
+@dynamic_role_required('performance')
+def performance():
+    """Page to display client-side performance metrics."""
+    return render_template('performance.html')
+
+@main_bp.route('/api/perf_log', methods=['POST'])
+@dynamic_role_required('performance')
+def perf_log():
+    """Optional endpoint if we want to store performance logs on the server."""
+    data = request.json
+    # For now we just log it to app logger
+    app.logger.info(f"PERF_LOG: {data}")
+    return {"success": True}

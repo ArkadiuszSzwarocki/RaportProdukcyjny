@@ -5,7 +5,7 @@ from flask import current_app, flash, jsonify, redirect, request, session, url_f
 
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_plan_notification_context, get_table_name, log_plan_history
-from app.decorators import hall_restricted, roles_required
+from app.decorators import hall_restricted, roles_required, masteradmin_required
 from app.services.plan_movement_service import PlanMovementService
 from app.services.planning_service import PlanningService
 from app.services.notification_service import notify_workers_about_plan_change
@@ -523,7 +523,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         return jsonify({'success': success, 'message': message}), status_code
 
     @planning_bp.route('/usun_plan_ajax/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad', 'lider')
+    @masteradmin_required
     def api_usun_plan(id):
         """Soft delete plan via AJAX."""
         linia = request.args.get('linia') or request.form.get('linia') or request.get_json(silent=True, force=False) and request.get_json(silent=True).get('linia') or 'PSD'

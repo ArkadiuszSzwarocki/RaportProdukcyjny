@@ -104,7 +104,16 @@
     {% endif %}
 
     {% if not plan %}
-        <p class="text-muted text-muted-italic">{{ _('brak_zlecen') }}</p>
+        <div class="no-orders-alert animate__animated animate__pulse animate__infinite">
+            <span class="material-icons info-icon">error_outline</span>
+            <div class="alert-content">
+                <strong>Brak zaplanowanych zleceń!</strong>
+                <p>Nie znaleziono zleceń na dzisiaj. Skontaktuj się z planistą, aby zaplanował produkcję.</p>
+                <button type="button" class="btn-notify-planner" onclick="notifyPlanner('Workowanie', '{{ linia }}')">
+                    <span class="material-icons">send</span> POWIADOM PLANISTĘ
+                </button>
+            </div>
+        </div>
     {% else %}
         {% for p in plan if p[3] != 'w toku' %}
         <div class="plan-item {% if p[3] == 'zakonczone' %}bg-zakonczone{% endif %} {% if aktywne %}opacity-60{% endif %}" data-id="{{ p[0] }}">

@@ -305,6 +305,33 @@
 
 .machine-counter-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 700; background: #334155; color: white; border: 1px solid #475569; }
 
+/* Modal Enhancements */
+.quick-popup.open {
+    max-width: min(700px, 95vw);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.agro-modal-header h2 {
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.agro-modal-body .active-order-szarze-panel {
+    width: 100%;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+}
+
+.agro-modal-body .active-order-szarze-title {
+    background: #edf2f7;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
 /* Pulse animation for wrapped status */
 @keyframes pulse {
     0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }

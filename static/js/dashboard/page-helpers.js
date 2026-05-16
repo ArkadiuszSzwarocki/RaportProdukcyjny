@@ -198,16 +198,78 @@
     }
 
     function toggleDetails(id) {
-        var row = document.getElementById('details-' + id);
-        var icon = document.getElementById('icon-' + id);
-        if (!row) {
+        var detailsContainer = document.getElementById('details-' + id);
+        if (!detailsContainer) {
+            console.warn('[rp-debug] toggleDetails: details container not found for ID:', id);
             return;
         }
 
-        var isHidden = getComputedStyle(row).display === 'none' || row.style.display === 'none';
-        row.style.display = isHidden ? 'block' : 'none';
-        if (icon) {
-            icon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        var card = document.querySelector('.card[data-id="' + id + '"]');
+        var title = card ? card.getAttribute('data-order-title') : ('Zlecenie #' + id);
+        var summary = card ? card.getAttribute('data-order-summary') : '';
+        var paletyCount = card ? card.getAttribute('data-palety-count') : '0';
+        var sekcjaAttr = card ? card.getAttribute('data-sekcja') : 'Workowanie';
+        
+        var config = getConfigState();
+        var linia = (config && config.linia) ? String(config.linia).toUpperCase() : 'PSD';
+        
+        var dateIso = '';
+        if (global.dashboardCardActions && typeof global.dashboardCardActions.resolveCurrentPlanDate === 'function') {
+            dateIso = global.dashboardCardActions.resolveCurrentPlanDate();
+        } else {
+            // Local fallback if card-actions.js is not loaded yet or failed
+            var isoInput = document.getElementById('current-date-iso');
+            dateIso = (isoInput && isoInput.value) ? isoInput.value : '';
+            if (!dateIso) {
+                try {
+                    var params = new URLSearchParams(global.location.search);
+                    dateIso = params.get('data') || '';
+                } catch(e) {}
+            }
+        }
+
+        // Build Modal Header with Summary and Report Link
+        var modalHtml = '<div class="agro-modal-header mb-15" style="border-bottom: 2px solid #eee; padding-bottom: 12px; margin-bottom: 15px;">';
+        modalHtml += '<div class="d-flex justify-between align-center">';
+        modalHtml += '  <div>';
+        modalHtml += '    <h2 style="margin:0; color:#2c3e50; font-size:1.25em;">' + title + '</h2>';
+        modalHtml += '    <div style="font-size:0.9em; margin-top:4px;">';
+        modalHtml += '       <span class="text-muted">Wykonanie:</span> <strong>' + summary + '</strong>';
+        modalHtml += '       <span style="margin: 0 8px; color: #ccc;">|</span>';
+        modalHtml += '       <span class="text-muted">' + (sekcjaAttr === 'Zasyp' ? 'Zasypy' : 'Palety') + ':</span> <strong>' + paletyCount + ' szt.</strong>';
+        modalHtml += '    </div>';
+        modalHtml += '  </div>';
+        
+        if (linia === 'AGRO') {
+            var raportUrl = '/agro/raport_palet?data=' + encodeURIComponent(dateIso) + '&select=1';
+            modalHtml += '  <a href="' + raportUrl + '" class="btn-action btn-blue" style="text-decoration:none; display:flex; align-items:center; gap:5px; padding:8px 15px;">';
+            modalHtml += '    <span class="material-icons" style="font-size:18px;">print</span> RAPORT';
+            modalHtml += '  </a>';
+        }
+        modalHtml += '</div>';
+        modalHtml += '</div>';
+
+        // Add the actual details content
+        modalHtml += '<div class="agro-modal-body">' + detailsContainer.innerHTML + '</div>';
+
+        if (global.dashboardUi && typeof global.dashboardUi.openQuickPopup === 'function') {
+            global.dashboardUi.openQuickPopup(modalHtml);
+            
+            // Set modal title in the standard popup header if exists
+            var headerTitle = document.querySelector('#quickPopup .header-title');
+            if (headerTitle) {
+                headerTitle.textContent = 'Szczegóły zlecenia';
+            }
+            
+            // Re-bind slide links in the new content
+            if (typeof global.dashboardUi.bindSlideLinks === 'function') {
+                // Since bindSlideLinks usually binds to body, it might already work.
+                // But if it's specific, we might need a refresh.
+            }
+        } else {
+            // Fallback to inline toggle if UI helper missing
+            var isHidden = getComputedStyle(detailsContainer).display === 'none' || detailsContainer.style.display === 'none';
+            detailsContainer.style.display = isHidden ? 'block' : 'none';
         }
     }
 

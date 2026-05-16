@@ -1,4 +1,10 @@
-<div class="card {% if p[3]|lower == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}" style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower != 'w toku' %}display: none !important;{% endif %}">
+<div class="card {% if p[3]|lower == 'zakonczone' %}card-completed{% endif %}" 
+     data-id="{{ p[0] }}" 
+     data-order-title="{{ p[1] }}"
+     data-order-summary="{{ (p[7]|int if p[7] else 0) }} / {{ p[2]|int }} kg"
+     data-palety-count="{{ palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0 }}"
+     data-sekcja="{{ sekcja }}"
+     style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower == 'zaplanowane' %}display: none !important;{% endif %}">
     <div class="card-header">
         <strong class="card-title">
             {{ loop.index if loop is defined else '' }}. {{ p[1] }}
@@ -94,25 +100,29 @@
 
     <div class="card-actions">
         {% if sekcja != 'Magazyn' %}
-        {% if p[3] == 'w toku' %}
-            {% if sekcja == 'Workowanie' %}
-            {% set palety_count = (palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0) %}
-            <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
-            {% if linia == 'PSD' and palety_count > 0 %}
-            <button type="button" class="btn-action btn-blue" data-toggle-details="{{ p[0] }}">PALETY ({{ palety_count }}) <span id="icon-{{ p[0] }}">▼</span></button>
+            {# Production buttons - only for active orders #}
+            {% if p[3] == 'w toku' %}
+                {% if sekcja == 'Workowanie' %}
+                    <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
+                {% elif sekcja == 'Zasyp' %}
+                    {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
+                    {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
+                        <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
+                    {% endif %}
+                    <a href="{{ url_for('production.zasyp_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green manual-szarza-btn" data-slide>+ ZASYP</a>
+                {% endif %}
             {% endif %}
-            {% elif sekcja == 'Zasyp' %}
-            {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
-            {% set zasypy_count = (palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0) %}
-            {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
-            <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
+
+            {# Detail toggle buttons - for active AND completed orders #}
+            {% if p[3] in ['w toku', 'zakonczone'] %}
+                {% set palety_count = (palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0) %}
+                {% if palety_count > 0 %}
+                    <button type="button" class="btn-action btn-blue" data-toggle-details="{{ p[0] }}" style="display:flex; align-items:center; gap:5px;">
+                        <span class="material-icons" style="font-size:16px;">visibility</span>
+                        {% if sekcja == 'Zasyp' %}ZASYPY{% else %}PALETY{% endif %} ({{ palety_count }})
+                    </button>
+                {% endif %}
             {% endif %}
-            {% if linia == 'PSD' and zasypy_count > 0 %}
-            <button type="button" class="btn-action btn-blue" data-toggle-details="{{ p[0] }}">ZASYPY ({{ zasypy_count }}) <span id="icon-{{ p[0] }}">▼</span></button>
-            {% endif %}
-            <a href="{{ url_for('production.zasyp_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green manual-szarza-btn" data-slide>+ ZASYP</a>
-            {% endif %}
-        {% endif %}
         {% endif %}
     </div>
 </div>

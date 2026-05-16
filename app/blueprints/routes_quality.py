@@ -46,7 +46,7 @@ def jakosc_index():
 
 
 @quality_bp.route('/jakosc/dodaj', methods=['POST'])
-@roles_required('laborant', 'lider', 'zarzad', 'admin')
+@roles_required('laborant', 'lider', 'zarzad', 'admin', 'masteradmin')
 def jakosc_dodaj():
     """Utwórz nowe zlecenie jakościowe (sekcja 'Jakosc', typ_zlecenia='jakosc')."""
     try:
@@ -100,7 +100,7 @@ def jakosc_detail(plan_id):
 
         if request.method == 'POST':
             # Tylko role laboratorum/lider/zarzad/admin mogą przesyłać pliki.
-            if session.get('rola') not in ['laborant', 'lider', 'zarzad', 'admin']:
+            if session.get('rola') not in ['laborant', 'lider', 'zarzad', 'admin', 'masteradmin']:
                 flash('Brak uprawnień do przesyłania plików', 'danger')
                 return redirect(url_for('quality.jakosc_detail', plan_id=plan_id))
             f = request.files.get('file')
@@ -126,82 +126,112 @@ def jakosc_detail(plan_id):
 
 @quality_bp.route('/jakosc/podsumowanie_szarz', endpoint='jakosc_podsumowanie_szarz')
 @quality_bp.route('/jakosc/podsumowanie_zasypow', endpoint='jakosc_podsumowanie_zasypow')
-@roles_required('laborant', 'lider', 'admin')
+@roles_required('laborant', 'lider', 'admin', 'masteradmin')
 def jakosc_podsumowanie_zasypow():
     """Podsumowanie zasypów dla laboratorium: lista zasypów (legacy: szarż) z dosypkami i uwagami."""
     linia = request.args.get('linia') or 'PSD'
+    # SQL Filters
+    filter_date = request.args.get('date')
+    filter_period = request.args.get('period', 'day')
+    today_only = request.args.get('today') == '1'
+
     try:
         conn = get_db_connection()
         from app.db import get_table_name
         table_plan = get_table_name('plan_produkcji', linia)
         table_zasypy = get_table_name('szarze', linia)
         table_dosypki = get_table_name('dosypki', linia)
-        cursor = conn.cursor()
-        # Pobierz wszystkie zarejestrowane zasypy wraz z informacją o zleceniu/planie.
-        cursor.execute(f"""
+        cursor = conn.cursor(dictionary=True)
+
+        where_clauses = []
+        params = []
+
+        if today_only:
+            where_clauses.append("DATE(s.data_dodania) = CURDATE()")
+        elif filter_date:
+            try:
+                d_obj = datetime.strptime(filter_date, '%Y-%m-%d').date()
+                if filter_period == 'day':
+                    where_clauses.append("DATE(s.data_dodania) = %s")
+                    params.append(d_obj)
+                elif filter_period == 'week':
+                    start_week = d_obj - timedelta(days=d_obj.weekday())
+                    end_week = start_week + timedelta(days=6)
+                    where_clauses.append("DATE(s.data_dodania) BETWEEN %s AND %s")
+                    params.extend([start_week, end_week])
+                elif filter_period == 'month':
+                    where_clauses.append("YEAR(s.data_dodania) = %s AND MONTH(s.data_dodania) = %s")
+                    params.extend([d_obj.year, d_obj.month])
+            except Exception:
+                pass
+
+        where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+        limit_sql = " LIMIT 300" if not (filter_date or today_only) else ""
+
+        query = f"""
             SELECT s.id AS zasyp_id, s.plan_id, p.produkt AS plan_nazwa, s.data_dodania,
                    s.godzina, s.waga, s.pracownik_id, COALESCE(pr.imie_nazwisko, '') AS pracownik_name,
                    COALESCE(s.uwagi, '') AS uwagi
             FROM {table_zasypy} s
             LEFT JOIN {table_plan} p ON s.plan_id = p.id
             LEFT JOIN pracownicy pr ON s.pracownik_id = pr.id
+            {where_sql}
             ORDER BY s.data_dodania DESC
-        """)
-        zasypy = [
-            dict(
-                szarza_id=r[0],
-                zasyp_id=r[0],
-                plan_id=r[1],
-                plan_nazwa=r[2],
-                data_dodania=r[3],
-                godzina=r[4],
-                waga=r[5],
-                pracownik_id=r[6],
-                pracownik_name=r[7],
-                uwagi=r[8],
-            )
-            for r in cursor.fetchall()
-        ]
+            {limit_sql}
+        """
+        cursor.execute(query, tuple(params))
+        zasypy = cursor.fetchall()
 
-        # Dla każdego zasypu dołącz dosypki.
-        for s in zasypy:
-            sid = s['zasyp_id']
-            cursor.execute(f"SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana FROM {table_dosypki} WHERE szarza_id = %s ORDER BY data_zlecenia ASC", (sid,))
-            s['dosypki'] = [dict(id=r[0], nazwa=r[1], kg=r[2], data_zlecenia=r[3], potwierdzone=r[4], anulowana=r[5]) for r in cursor.fetchall()]
+        if zasypy:
+            z_ids = [z['zasyp_id'] for z in zasypy]
+            format_strings = ','.join(['%s'] * len(z_ids))
+            cursor.execute(f"""
+                SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana, szarza_id 
+                FROM {table_dosypki} 
+                WHERE szarza_id IN ({format_strings}) 
+                ORDER BY data_zlecenia ASC
+            """, tuple(z_ids))
+            dos_list = cursor.fetchall()
+            
+            dos_map = {}
+            for d in dos_list:
+                sz_id = d['szarza_id']
+                if sz_id not in dos_map:
+                    dos_map[sz_id] = []
+                dos_map[sz_id].append(d)
+            
+            for z in zasypy:
+                z['dosypki'] = dos_map.get(z['zasyp_id'], [])
+                z['szarza_id'] = z['zasyp_id']
+        else:
+            for z in zasypy:
+                z['dosypki'] = []
 
-        # Apply optional filters passed via query params (same param names as podsumowanie_szarz)
         filter_has_dosypki = request.args.get('sz_filter_has_dosypki')
         filter_no_dosypki = request.args.get('sz_filter_no_dosypki')
         filter_has_uwagi = request.args.get('sz_filter_has_uwagi')
         filter_surowiec = request.args.get('sz_filter_surowiec')
 
-        def match_filters(s):
-            # has dosypki
-            if filter_has_dosypki == '1' and (not s.get('dosypki') or len(s.get('dosypki')) == 0):
+        def match_filters(z):
+            if filter_has_dosypki == '1' and not z.get('dosypki'):
                 return False
-            if filter_no_dosypki == '1' and s.get('dosypki') and len(s.get('dosypki')) > 0:
+            if filter_no_dosypki == '1' and z.get('dosypki'):
                 return False
-            if filter_has_uwagi == '1' and not s.get('uwagi'):
+            if filter_has_uwagi == '1' and not z.get('uwagi'):
                 return False
             if filter_surowiec:
                 fs = filter_surowiec.strip().lower()
                 if fs:
                     found = False
-                    for d in s.get('dosypki') or []:
-                        try:
-                            if d.get('nazwa') and fs in d.get('nazwa').lower():
-                                found = True
-                                break
-                        except Exception:
-                            continue
+                    for d in z.get('dosypki', []):
+                        if d.get('nazwa') and fs in d['nazwa'].lower():
+                            found = True
+                            break
                     if not found:
                         return False
             return True
 
-        try:
-            filtered = [s for s in zasypy if match_filters(s)]
-        except Exception:
-            filtered = zasypy
+        filtered = [z for z in zasypy if match_filters(z)]
 
         cursor.close()
         conn.close()
@@ -213,20 +243,46 @@ def jakosc_podsumowanie_zasypow():
 
 @quality_bp.route('/jakosc/podsumowanie_szarz/fragment', endpoint='jakosc_podsumowanie_szarz_fragment')
 @quality_bp.route('/jakosc/podsumowanie_zasypow/fragment', endpoint='jakosc_podsumowanie_zasypow_fragment')
-@roles_required('laborant', 'lider', 'admin')
+@roles_required('laborant', 'lider', 'admin', 'masteradmin')
 def jakosc_podsumowanie_zasypow_fragment():
-    """Return HTML fragment for zasyp list (used by AJAX refresh).
-    Optional query param: today=1 to limit to today's zasypy (by data_dodania date).
-    """
+    """Return HTML fragment for zasyp list (used by AJAX refresh)."""
+    linia = request.args.get('linia') or 'PSD'
+    filter_date = request.args.get('date')
+    filter_period = request.args.get('period', 'day')
+    today_only = request.args.get('today') == '1'
+
     try:
-        linia = request.args.get('linia') or 'PSD'
-        today_only = request.args.get('today') == '1'
         conn = get_db_connection()
         from app.db import get_table_name
         table_plan = get_table_name('plan_produkcji', linia)
         table_zasypy = get_table_name('szarze', linia)
         table_dosypki = get_table_name('dosypki', linia)
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
+
+        where_clauses = []
+        params = []
+
+        if today_only:
+            where_clauses.append("DATE(s.data_dodania) = CURDATE()")
+        elif filter_date:
+            try:
+                d_obj = datetime.strptime(filter_date, '%Y-%m-%d').date()
+                if filter_period == 'day':
+                    where_clauses.append("DATE(s.data_dodania) = %s")
+                    params.append(d_obj)
+                elif filter_period == 'week':
+                    start_week = d_obj - timedelta(days=d_obj.weekday())
+                    end_week = start_week + timedelta(days=6)
+                    where_clauses.append("DATE(s.data_dodania) BETWEEN %s AND %s")
+                    params.extend([start_week, end_week])
+                elif filter_period == 'month':
+                    where_clauses.append("YEAR(s.data_dodania) = %s AND MONTH(s.data_dodania) = %s")
+                    params.extend([d_obj.year, d_obj.month])
+            except Exception:
+                pass
+
+        where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+        limit_sql = " LIMIT 300" if not (filter_date or today_only) else ""
 
         q = f"""
             SELECT s.id AS zasyp_id, s.plan_id, p.produkt AS plan_nazwa, s.data_dodania,
@@ -235,72 +291,68 @@ def jakosc_podsumowanie_zasypow_fragment():
             FROM {table_zasypy} s
             LEFT JOIN {table_plan} p ON s.plan_id = p.id
             LEFT JOIN pracownicy pr ON s.pracownik_id = pr.id
+            {where_sql}
+            ORDER BY s.data_dodania DESC
+            {limit_sql}
         """
-        params = []
-        if today_only:
-            q += " WHERE DATE(s.data_dodania) = CURDATE()"
-
-        q += " ORDER BY s.data_dodania DESC"
-
         cursor.execute(q, tuple(params))
-        zasypy = [
-            dict(
-                szarza_id=r[0],
-                zasyp_id=r[0],
-                plan_id=r[1],
-                plan_nazwa=r[2],
-                data_dodania=r[3],
-                godzina=r[4],
-                waga=r[5],
-                pracownik_id=r[6],
-                pracownik_name=r[7],
-                uwagi=r[8],
-            )
-            for r in cursor.fetchall()
-        ]
+        zasypy = cursor.fetchall()
 
-        # attach dosypki for each
-        for s in zasypy:
-            sid = s['zasyp_id']
-            cursor.execute(f"SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana FROM {table_dosypki} WHERE szarza_id = %s ORDER BY data_zlecenia ASC", (sid,))
-            s['dosypki'] = [dict(id=r[0], nazwa=r[1], kg=r[2], data_zlecenia=r[3], potwierdzone=r[4], anulowana=r[5]) for r in cursor.fetchall()]
+        if zasypy:
+            z_ids = [z['zasyp_id'] for z in zasypy]
+            format_strings = ','.join(['%s'] * len(z_ids))
+            cursor.execute(f"""
+                SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana, szarza_id 
+                FROM {table_dosypki} 
+                WHERE szarza_id IN ({format_strings}) 
+                ORDER BY data_zlecenia ASC
+            """, tuple(z_ids))
+            dos_list = cursor.fetchall()
+            
+            dos_map = {}
+            for d in dos_list:
+                sz_id = d['szarza_id']
+                if sz_id not in dos_map:
+                    dos_map[sz_id] = []
+                dos_map[sz_id].append(d)
+            
+            for z in zasypy:
+                z['dosypki'] = dos_map.get(z['zasyp_id'], [])
+                z['szarza_id'] = z['zasyp_id']
+        else:
+            for z in zasypy:
+                z['dosypki'] = []
 
-        # Apply same optional filters as main view
         filter_has_dosypki = request.args.get('sz_filter_has_dosypki')
         filter_no_dosypki = request.args.get('sz_filter_no_dosypki')
         filter_has_uwagi = request.args.get('sz_filter_has_uwagi')
         filter_surowiec = request.args.get('sz_filter_surowiec')
 
-        def match_filters(s):
-            if filter_has_dosypki == '1' and (not s.get('dosypki') or len(s.get('dosypki')) == 0):
+        def match_filters(z):
+            if filter_has_dosypki == '1' and not z.get('dosypki'):
                 return False
-            if filter_no_dosypki == '1' and s.get('dosypki') and len(s.get('dosypki')) > 0:
+            if filter_no_dosypki == '1' and z.get('dosypki'):
                 return False
-            if filter_has_uwagi == '1' and not s.get('uwagi'):
+            if filter_has_uwagi == '1' and not z.get('uwagi'):
                 return False
             if filter_surowiec:
                 fs = filter_surowiec.strip().lower()
                 if fs:
                     found = False
-                    for d in s.get('dosypki') or []:
-                        try:
-                            if d.get('nazwa') and fs in d.get('nazwa').lower():
-                                found = True
-                                break
-                        except Exception:
-                            continue
+                    for d in z.get('dosypki', []):
+                        if d.get('nazwa') and fs in d['nazwa'].lower():
+                            found = True
+                            break
                     if not found:
                         return False
             return True
 
-        try:
-            filtered = [s for s in zasypy if match_filters(s)]
-        except Exception:
-            filtered = zasypy
+        filtered = [z for z in zasypy if match_filters(z)]
 
         cursor.close()
         conn.close()
         return render_template('jakosc_podsumowanie_szarz_fragment.html', szarze=filtered, zasypy=filtered)
+
     except Exception as e:
         current_app.logger.exception('Failed to build fragment jakosc podsumowanie zasypow: %s', e)
         return ("", 500)

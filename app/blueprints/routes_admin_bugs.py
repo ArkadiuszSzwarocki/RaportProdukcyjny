@@ -4,7 +4,7 @@ import os
 from flask import current_app, flash, redirect, render_template, request, session, url_for
 
 from app.db import get_db_connection
-from app.decorators import dynamic_role_required, login_required
+from app.decorators import dynamic_role_required, login_required, masteradmin_required
 
 
 def register_admin_bug_routes(admin_bp, *, create_notification):
@@ -103,8 +103,7 @@ def register_admin_bug_routes(admin_bp, *, create_notification):
         return redirect(url_for('admin.admin_ustawienia_bugs'))
 
     @admin_bp.route('/admin/ustawienia/bugs/delete/<int:bug_id>', methods=['POST'])
-    @login_required
-    @dynamic_role_required('ustawienia')
+    @masteradmin_required
     def admin_delete_bug(bug_id):
         """Delete a bug report and its associated attachments."""
         conn = get_db_connection()
