@@ -27,7 +27,7 @@
             class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
       </nav>
 
-      {% if session.get('rola') in ['lider', 'admin'] %}
+      {% if session.get('rola') in ['lider', 'admin', 'masteradmin'] %}
       <div class="end-shift-wrapper-top" style="margin-left: auto;">
         <form method="POST" action="{{ url_for('leaves.zamknij_zmiane_global') }}" class="end-shift-form m-0"
           id="endShiftForm" style="display: flex; gap: 10px;">
@@ -188,7 +188,7 @@
             </div>
             <div class="note-text">{{ n.note }}</div>
           </div>
-          {% if session.get('rola') in ['lider', 'admin'] and session.get('imie_nazwisko') == n.author or
+          {% if session.get('rola') in ['lider', 'admin', 'masteradmin'] and session.get('imie_nazwisko') == n.author or
           session.get('login') == n.author %}
           <div class="note-actions">
             <button class="note-edit-btn" data-id="{{ n.id }}">✏️ Edytuj</button>

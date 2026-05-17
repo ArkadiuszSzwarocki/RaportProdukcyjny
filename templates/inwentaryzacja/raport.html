@@ -20,7 +20,7 @@
                 <span class="material-icons">print</span> DRUKUJ
             </button>
             
-            {% if sesja.status in ['CLOSED', 'COMPLETED'] and role in ['admin', 'kierownik', 'zarzad'] %}
+            {% if sesja.status in ['CLOSED', 'COMPLETED'] and role in ['admin', 'masteradmin', 'kierownik', 'zarzad'] %}
             <button onclick="openApplyModal()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #10b981; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
                 <span class="material-icons">task_alt</span> ZATWIERDŹ STANY (DB)
             </button>

@@ -72,7 +72,7 @@
                 <input type="date" id="obsada-date" value="{{ qdate.strftime('%Y-%m-%d') if qdate is defined else '' }}"
                     class="input-sm">
             </div>
-            {% if rola in ['lider','admin'] %}
+            {% if rola in ['lider','admin', 'masteradmin'] %}
             {% if linia == 'PSD' or not linia %}
             <div class="obsada-field-group">
                 <label for="lider_psd" class="obsada-field-label">{{ _('lider_psd_label') }}</label>
@@ -113,7 +113,7 @@
                     <h4>{{ s }}</h4>
                     {% if cnt > 0 %}<span class="obsada-count-badge">{{ cnt }}</span>{% endif %}
                 </div>
-                {% if rola in ['lider', 'admin', 'pracownik'] %}
+                {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
                 <div class="d-flex gap-5 align-center mb-8 obsada-worker-selector">
                     <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">
                     <select id="obsada-select-{{ loop.index0 }}" title="{{ _('wybierz_pracownika') }}"
@@ -145,7 +145,7 @@
                                     </div>
                                 </td>
                                 <td>
-                                    {% if rola in ['lider', 'admin', 'pracownik'] %}
+                                    {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik'] %}
                                     <form action="{{ url_for('leaves.usun_z_obsady', id=o[0]) }}" method="POST"
                                         class="m-0 d-inline-block">
                                         <button type="submit" class="delete-button"

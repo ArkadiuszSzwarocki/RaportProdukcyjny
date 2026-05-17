@@ -47,7 +47,7 @@
             {% endif %}
         </div>
         <div class="agro-panel-header-actions">
-            {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] and sesja.is_current and p[3] == 'w toku' %}
+            {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik', 'produkcja'] and sesja.is_current and p[3] == 'w toku' %}
             <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;"
                 data-confirm="Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel zasypu, a obecne pozostaną poniżej.">
                 <input type="hidden" name="linia" value="{{ linia }}">
@@ -192,13 +192,13 @@
             {# hidden placeholder for AGRO 3/4 when pair not yet created #}
             {% else %}
             {% set manual_box_id = 'manual-box-' ~ p[0] ~ '-' ~ cur_szarza ~ '-' ~ etap.etap %}
-            {% set can_manual_time_edit = (rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier']) and etap.czas_stop %}
+            {% set can_manual_time_edit = (rola in ['lider', 'admin', 'masteradmin', 'zarzad', 'pracownik', 'magazynier']) and etap.czas_stop %}
             <div style="border:1px solid {% if etap.is_running %}#e67e22{% elif etap.czas_stop %}#27ae60{% else %}#ddd{% endif %};
                         border-radius:6px; padding:10px; word-break: break-word; overflow: hidden; position: relative;
                         background:{% if etap.is_running %}#fdf3e7{% elif etap.czas_stop %}#f0faf4{% else %}#fafafa{% endif %};">
                 
                 <div style="position: absolute; top: 6px; right: 6px; margin: 0; z-index: 10; display: flex; gap: 4px;">
-                    {% if rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier'] and p[3] == 'w toku' %}
+                    {% if rola in ['lider', 'admin', 'masteradmin', 'zarzad', 'pracownik', 'magazynier'] and p[3] == 'w toku' %}
                         {% if not session_state_ns.is_finished %}
                     {# Przycisk RESET #}
                         <form action="{{ url_for('production.zasyp_etap_reset') }}" method="POST" style="margin: 0;"
