@@ -279,6 +279,27 @@ def register_admin_diagnostics_routes(admin_bp):
         except Exception as e:
             return jsonify({'success': False, 'output': str(e)})
 
+    @admin_bp.route('/admin/master/run-pytest')
+    @masteradmin_required
+    def admin_master_run_pytest():
+        """Run pytest unit and integration tests and return output."""
+        import subprocess
+        import sys
+        try:
+            # Uruchamiamy pytest z uproszczonym outputem
+            result = subprocess.run(
+                [sys.executable, '-m', 'pytest', '--tb=short', '-q'],
+                cwd=_project_root(),
+                capture_output=True,
+                text=True,
+                timeout=90
+            )
+            output = result.stdout + "\n" + result.stderr
+            success = (result.returncode == 0)
+            return jsonify({'success': success, 'output': output})
+        except Exception as e:
+            return jsonify({'success': False, 'output': str(e)})
+
     @admin_bp.route('/admin/master/db-stats')
     @masteradmin_required
     def admin_master_db_stats():

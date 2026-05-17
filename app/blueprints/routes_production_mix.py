@@ -21,6 +21,11 @@ def _safe_int(value, default=0):
         return default
 
 
+def _load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=None):
+    from app.services.dashboard_service import DashboardService
+    return DashboardService._load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=preferred_plan_id)
+
+
 def register_production_mix_routes(production_bp, bezpieczny_powrot):
 
     @production_bp.route('/agro/mix_rozliczenie', methods=['GET'])

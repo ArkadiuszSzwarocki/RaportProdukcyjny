@@ -9,7 +9,7 @@ from app.services.notification_service import notify_workers_about_plan_change
 
 def register_planista_bulk_routes(planista_bp):
     @planista_bp.route('/planista/add_czyszczenie', methods=['POST'])
-    @roles_required('planista', 'zarzad', 'admin')
+    @roles_required('planista', 'zarzad', 'admin', 'masteradmin')
     def add_czyszczenie():
         """Dodaj wpis Czyszczenie do planu produkcji."""
         conn = get_db_connection()
@@ -100,7 +100,7 @@ def register_planista_bulk_routes(planista_bp):
                 pass
 
     @planista_bp.route('/planista/bulk', methods=['GET'])
-    @roles_required('planista', 'admin', 'zarzad')
+    @roles_required('planista', 'admin', 'zarzad', 'masteradmin')
     def planista_bulk_page():
         """Render page for bulk adding plans."""
         wybrana_data = request.args.get('data', str(date.today()))

@@ -135,3 +135,27 @@ def get_worker_stats(d_od, d_do, tryb, linia='PSD'):
 
     conn.close()
     return p_stats
+
+def get_periodic_reports_data(rok, miesiac, linia='PSD'):
+    """Pobiera dane do raportów okresowych."""
+    conn = get_db_connection()
+    table_plan = get_table_name('plan_produkcji', linia)
+    cursor = conn.cursor()
+    
+    cursor.execute(f"SELECT MONTH(data_planu), COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) FROM {table_plan} WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu) ORDER BY MONTH(data_planu)", (rok,))
+    trend = cursor.fetchall()
+    conn.close()
+    
+    labels = [['Sty','Lut','Mar','Kwi','Maj','Cze','Lip','Sie','Wrz','Paź','Lis','Gru'][r[0]-1] for r in trend]
+    data = [float(r[1]) for r in trend]
+    
+    # Placeholder na pozostałe dane (awarie, zsumowane stats)
+    stats = [0, 0, 0] 
+    awarie = []
+    
+    return {
+        'labels_rok': labels,
+        'data_rok': data,
+        'stats': stats,
+        'awarie': awarie
+    }

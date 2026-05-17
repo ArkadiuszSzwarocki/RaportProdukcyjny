@@ -29,7 +29,7 @@ def register_production_zasyp_etapy_routes(
 
     @production_bp.route('/zasyp_etap_manual_set', methods=['POST'])
     @login_required
-    @roles_required('lider', 'admin', 'zarzad')
+    @roles_required('lider', 'admin', 'zarzad', 'masteradmin')
     def zasyp_etap_manual_set():
         """Ręczny zapis czasu START/STOP etapu (HH:MM) dla zlecenia Zasyp."""
         linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -98,7 +98,7 @@ def register_production_zasyp_etapy_routes(
 
     @production_bp.route('/zasyp_etap_reset', methods=['POST'])
     @login_required
-    @roles_required('lider', 'admin', 'zarzad', 'pracownik', 'magazynier')
+    @roles_required('lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'masteradmin')
     def zasyp_etap_reset():
         """Reset etapu (kasuje zapis czasu START/STOP i podpisy)."""
         linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -244,7 +244,7 @@ def register_production_zasyp_etapy_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_etapy_podsumowanie', methods=['GET'])
-    @roles_required('lider', 'admin', 'zarzad', 'laborant', 'laboratorium')
+    @roles_required('lider', 'admin', 'zarzad', 'laborant', 'laboratorium', 'masteradmin')
     def zasyp_etapy_podsumowanie():
         """Podsumowanie etapów Zasyp (per data) + metryki szarże/dosypki."""
         linia_input = request.args.get('linia') or session.get('selected_hall_view') or 'AGRO'
@@ -272,7 +272,7 @@ def register_production_zasyp_etapy_routes(
         )
 
     @production_bp.route('/zasyp_kolejny_pomiar/<int:plan_id>', methods=['POST'])
-    @roles_required('pracownik', 'produkcja', 'lider', 'admin')
+    @roles_required('pracownik', 'produkcja', 'lider', 'admin', 'masteradmin')
     def zasyp_kolejny_pomiar(plan_id):
         """Zwiększa licznik szarż dla zasyp_etapy i resetuje punkty kontrolne przed dodaniem fizycznej szarży z wagi."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -283,7 +283,7 @@ def register_production_zasyp_etapy_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/zasyp_dodaj_pare_dosypki/<int:plan_id>', methods=['POST'])
-    @roles_required('pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'magazynier', 'laborant', 'laboratorium')
+    @roles_required('pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'magazynier', 'laborant', 'laboratorium', 'masteradmin')
     def zasyp_dodaj_pare_dosypki(plan_id):
         """Dodaje do bieżącej szarży AGRO parę etapów: dosypka + mieszanie po dosypce."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'

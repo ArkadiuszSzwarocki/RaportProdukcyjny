@@ -2,7 +2,7 @@
 from flask import Blueprint, render_template, request, jsonify
 from datetime import datetime, date, timedelta
 from app.decorators import zarzad_required, dynamic_role_required
-from app.services.stats_service import get_date_range, get_kpi_data, get_chart_data, get_worker_stats
+from app.services.stats_service import get_date_range, get_kpi_data, get_chart_data, get_worker_stats, get_periodic_reports_data
 from app.db import get_db_connection # Do raportów okresowych jeśli nie przeniesione w całości
 
 zarzad_bp = Blueprint('zarzad', __name__)
@@ -82,22 +82,21 @@ def dzien_szczegoly():
     cursor = conn.cursor()
     try:
         cursor.execute(
-            f"""SELECT id, produkt, tonaz, tonaz_rzeczywisty, status,
-                      real_start, real_stop, typ_zlecenia
-               FROM {table_plan}
-               WHERE data_planu = %s AND sekcja = %s
-               ORDER BY real_start, id""",
+            f"""SELECT p.id, p.produkt, p.tonaz, p.tonaz_rzeczywisty, p.status,
+                      p.real_start, p.real_stop, p.typ_zlecenia,
+                      COUNT(pal.id) as palety_ilosc,
+                      COALESCE(SUM(pal.waga),0) as palety_waga
+               FROM {table_plan} p
+               LEFT JOIN {table_pal} pal ON p.id = pal.plan_id
+               WHERE p.data_planu = %s AND p.sekcja = %s
+               GROUP BY p.id
+               ORDER BY p.real_start, p.id""",
             (data_obj, sekcja)
         )
         rows = cursor.fetchall()
         zlecenia = []
         for r in rows:
-            plan_id, produkt, tonaz, tonaz_rz, status, real_start, real_stop, typ_zl = r
-            cursor.execute(
-                f"SELECT COUNT(1), COALESCE(SUM(waga),0) FROM {table_pal} WHERE plan_id=%s",
-                (plan_id,)
-            )
-            pal = cursor.fetchone()
+            plan_id, produkt, tonaz, tonaz_rz, status, real_start, real_stop, typ_zl, palety_ilosc, palety_waga = r
             zlecenia.append({
                 'id': plan_id,
                 'produkt': produkt or '',
@@ -107,8 +106,8 @@ def dzien_szczegoly():
                 'start': real_start.strftime('%H:%M') if real_start else None,
                 'stop': real_stop.strftime('%H:%M') if real_stop else None,
                 'typ': typ_zl or '',
-                'palety_ilosc': int(pal[0] or 0),
-                'palety_waga': float(pal[1] or 0),
+                'palety_ilosc': int(palety_ilosc or 0),
+                'palety_waga': float(palety_waga or 0),
             })
         return jsonify({'data': data_str, 'sekcja': sekcja, 'linia': linia, 'zlecenia': zlecenia})
     finally:
@@ -124,22 +123,14 @@ def raporty_okresowe():
     mc = request.args.get('miesiac', teraz.month, type=int)
     linia = request.args.get('linia') or 'PSD'
     
-    conn = get_db_connection()
-    from app.db import get_table_name
-    table_plan = get_table_name('plan_produkcji', linia)
-    cursor = conn.cursor()
-    # ... (oryginalne zapytania SQL lub przeniesione do serwisu) ...
-    # Dla skrócenia przykładu zostawiam jak jest, ale rekomenduję przeniesienie do services/stats_service.py
-    cursor.execute(f"SELECT MONTH(data_planu), COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) FROM {table_plan} WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu) ORDER BY MONTH(data_planu)", (rok,))
-    trend = cursor.fetchall()
-    conn.close()
-    
-    labels = [['Sty','Lut','Mar','Kwi','Maj','Cze','Lip','Sie','Wrz','Paź','Lis','Gru'][r[0]-1] for r in trend]
-    data = [float(r[1]) for r in trend]
-    
-    # Placeholder na pozostałe dane
-    stats = [0, 0, 0] 
-    awarie = []
+    report_data = get_periodic_reports_data(rok, mc, linia)
 
-    return render_template('raporty_okresowe.html', rok=rok, miesiac=mc, stats=stats, awarie=awarie, labels_rok=labels, data_rok=data)
-
+    return render_template(
+        'raporty_okresowe.html', 
+        rok=rok, 
+        miesiac=mc, 
+        stats=report_data['stats'], 
+        awarie=report_data['awarie'], 
+        labels_rok=report_data['labels_rok'], 
+        data_rok=report_data['data_rok']
+    )

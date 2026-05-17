@@ -62,7 +62,7 @@
                         <a href="javascript:void(0)" onclick="openPrintLabelModal('{{ url_for('warehouse.drukuj_etykiete', paleta_id=id, linia=linia) }}')" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę">
                             <span class="material-icons" style="font-size:18px;">print</span>
                         </a>
-                        {% if rola in ['produkcja', 'lider', 'admin'] %}
+                        {% if rola in ['produkcja', 'lider', 'admin', 'masteradmin'] %}
                         <button type="button" class="btn-icon text-primary" title="{{ _('edytuj') }}" data-action="edit-palet" data-palet-id="{{ id }}" data-palet-waga="{{ waga }}">
                             <span class="material-icons" style="font-size:18px;">edit</span>
                         </button>

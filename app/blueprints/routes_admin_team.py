@@ -21,7 +21,12 @@ def register_admin_team_routes(admin_bp, *, load_roles):
             "       u.id as user_id, u.login, u.rola, u.grupa as user_hall "
             "FROM pracownicy p "
             "LEFT JOIN uzytkownicy u ON p.id = u.pracownik_id "
-            "ORDER BY p.imie_nazwisko"
+            "UNION "
+            "SELECT p.id, p.imie_nazwisko, p.grupa as prac_hall, "
+            "       u.id as user_id, u.login, u.rola, u.grupa as user_hall "
+            "FROM uzytkownicy u "
+            "LEFT JOIN pracownicy p ON p.id = u.pracownik_id "
+            "ORDER BY COALESCE(imie_nazwisko, login)"
         )
         rows = cursor.fetchall()
 
@@ -378,11 +383,16 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         conn = get_db_connection()
         cursor = conn.cursor()
         user_id = request.form.get('id')
-        login = request.form.get('login')
+        login = request.form.get('login', '').strip()
         rola = request.form.get('rola')
         grupa = request.form.get('grupa', '').strip()
         haslo = request.form.get('haslo', '').strip()
         try:
+            if not login:
+                cursor.execute("SELECT login FROM uzytkownicy WHERE id=%s", (user_id,))
+                db_row = cursor.fetchone()
+                login = db_row[0] if db_row else ''
+            
             if haslo:
                 new_haslo = generate_password_hash(haslo, method='pbkdf2:sha256')
                 cursor.execute("UPDATE uzytkownicy SET login=%s, haslo=%s, rola=%s, grupa=%s WHERE id=%s", (login, new_haslo, rola, grupa, user_id))

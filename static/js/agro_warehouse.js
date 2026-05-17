@@ -585,4 +585,5 @@
         };
         if (!data.surowiec_id || data.actual_qty === "") return showAlert("Wypełnij wszystkie pola!");
         apiCall('/agro/api/inventory', data);
-    };
+        };
+    })();

@@ -145,11 +145,35 @@ def index():
                 'palety_count': agro_ctx.get('palety_count'),
                 'estimated_bags': agro_ctx.get('estimated_bags'),
                 'packaging_items': agro_ctx.get('packaging_items'),
-                'history': agro_ctx.get('history', [])
+                'history': agro_ctx.get('history', []),
+                'available_packaging': agro_ctx.get('available_packaging', []),
+                'all_linked_packaging': agro_ctx.get('all_linked_packaging', []),
+                'total_actual_consumed': agro_ctx.get('total_actual_consumed', 0.0),
+                'straty_workow': agro_ctx.get('straty_workow', 0.0),
             }
             context['maszyna_opakowania'] = agro_ctx.get('maszyna_opakowania', [])
+            context['available_packaging'] = agro_ctx.get('available_packaging', [])
+            context['all_linked_packaging'] = agro_ctx.get('all_linked_packaging', [])
+            context['total_actual_consumed'] = agro_ctx.get('total_actual_consumed', 0.0)
+            context['straty_workow'] = agro_ctx.get('straty_workow', 0.0)
             context['wrctx_error'] = agro_ctx.get('wrctx_error')
-            agro_focus_mode = bool(agro_ctx.get('active_plan'))
+            
+            # agro_focus_mode should only be True if the active_plan is actually in progress ('w toku').
+            # Since the packaging context can return a finished plan of the day as a fallback (for report/settlement view),
+            # we query the plan status directly from the database.
+            active_plan_obj = agro_ctx.get('active_plan')
+            if active_plan_obj:
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    table_plan = get_table_name('plan_produkcji', 'AGRO')
+                    cursor.execute(f"SELECT status FROM {table_plan} WHERE id = %s", (int(active_plan_obj['id']),))
+                    status_row = cursor.fetchone()
+                    conn.close()
+                    if status_row and str(status_row[0]).strip().lower() == 'w toku':
+                        agro_focus_mode = True
+                except Exception:
+                    pass
 
         context['agro_focus_mode'] = agro_focus_mode
         context['workowanie_rozliczenie_ctx'] = workowanie_rozliczenie_ctx

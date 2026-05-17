@@ -650,6 +650,74 @@
     }
   }
 
+  /* Two-column layout for AGRO planning with foil side registry */
+  .planning-layout-container {
+    display: flex;
+    gap: 25px;
+    align-items: flex-start;
+  }
+  
+  .planning-main-panel {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .planning-side-panel {
+    width: 340px;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e2e8f0;
+    position: sticky;
+    top: 20px;
+    display: none;
+  }
+  
+  .planning-side-panel.active {
+    display: block;
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(15px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .foil-card-item {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .foil-card-item:hover {
+    border-color: #4f46e5;
+    background: #f5f7ff;
+    transform: translateY(-1px);
+  }
+
+  .foil-card-item.selected {
+    border-color: #10b981;
+    background: #ecfdf5;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+  }
+
+  .foil-badge-selected {
+    background: #10b981;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 9999px;
+  }
+
 </style>
 
 <div class="bulk-page-container">
@@ -677,9 +745,12 @@
     </div>
   </div>
 
-  <!-- Form Card -->
-  <div class="bulk-form-card">
-    <h3>➕ Dodaj nowy plan produkcji</h3>
+  <!-- Main Planning Container with Side Panel -->
+  <div class="planning-layout-container">
+    <div class="planning-main-panel">
+      <!-- Form Card -->
+      <div class="bulk-form-card">
+        <h3>➕ Dodaj nowy plan produkcji</h3>
     <form id="bulkForm" method="post" action="#">
       <div class="form-grid">
         <div class="form-field produkty-container">
@@ -721,6 +792,23 @@
         <button type="button" id="btnAddRow" class="btn-action btn-action-success">Dodaj do listy</button>
       </div>
     </form>
+      </div>
+    </div>
+    
+    <!-- Side Panel for Foil Registry -->
+    <div class="planning-side-panel" id="foilSidePanel">
+      <h3 style="margin-top:0; margin-bottom:15px; font-size:15px; font-weight:700; color:#4f46e5; border-bottom:2px solid #eef2ff; padding-bottom:8px; display:flex; align-items:center; gap:8px;">
+        🎞️ Rejestr Folii (Magazyn)
+      </h3>
+      <div style="font-size:12px; color:#64748b; margin-bottom:15px; line-height:1.4;">
+        Wybierz folię z magazynu opakowań, w którą będzie pakowany ten produkt w planie AGRO:
+      </div>
+      <div id="foilListContainer" style="max-height: 400px; overflow-y: auto; padding-right:4px;">
+        <div class="text-muted" style="font-size:12px; padding:10px; text-align:center;">Ładowanie folii...</div>
+      </div>
+      <input type="hidden" id="selectedFoilId" value="">
+      <input type="hidden" id="selectedFoilNazwa" value="">
+    </div>
   </div>
 
   <!-- Table Card -->
@@ -1009,18 +1097,40 @@
       if (!produkt) { return safeAlert('Błąd', 'Wybierz produkt ze listy'); }
       if (tonaz === null || tonaz <= 0) { return safeAlert('Błąd', 'Podaj poprawną wagę (kg) większą od 0'); }
 
+      const sekcjaSelect = document.getElementById('sekcja_select');
+      const foilId = document.getElementById('selectedFoilId').value;
+      const foilNazwa = document.getElementById('selectedFoilNazwa').value;
+
+      if (sekcjaSelect.value === 'Agro' && !foilId) {
+        return safeAlert('Błąd', 'Musisz wybrać worki (folię) z Rejestru Folii dla zlecenia AGRO!');
+      }
+
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td><strong>${produkt}</strong></td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="delete-button">🗑️</button></td>`;
+      if (sekcjaSelect.value === 'Agro' && foilNazwa) {
+        tr.innerHTML = `<td><strong>${produkt}</strong></td><td>${nr}</td><td>${tonaz}</td><td>${typ} <br><small style="color:#4f46e5;font-weight:600;">🎞️ Folia: ${foilNazwa}</small></td><td><button type="button" class="delete-button">🗑️</button></td>`;
+      } else {
+        tr.innerHTML = `<td><strong>${produkt}</strong></td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="delete-button">🗑️</button></td>`;
+      }
+      
       tr.dataset.produkt = produkt;
       tr.dataset.nr = nr;
       tr.dataset.tonaz = tonaz;
       tr.dataset.typ = typ;
+      if (sekcjaSelect.value === 'Agro' && foilId) {
+        tr.dataset.opakowanie_id = foilId;
+      }
       tbody.appendChild(tr);
 
       selectProdukt.value = '';
       document.getElementById('inpNr').value = '';
       document.getElementById('inpTonaz').value = '';
       document.getElementById('inpTyp').value = 'worki_zgrzewane_25';
+
+      if (sekcjaSelect.value === 'Agro') {
+        document.getElementById('selectedFoilId').value = '';
+        document.getElementById('selectedFoilNazwa').value = '';
+        renderFoils();
+      }
 
       updateTableVisibility();
       updateSubmitState();
@@ -1079,7 +1189,8 @@
         nr_receptury: r.dataset.nr,
         tonaz: parseFloat(r.dataset.tonaz) || 0,
         typ_produkcji: r.dataset.typ,
-        sekcja: sekcja
+        sekcja: sekcja,
+        opakowanie_id: r.dataset.opakowanie_id ? parseInt(r.dataset.opakowanie_id) : null
       }));
 
       fetch('{{ url_for("planning.dodaj_plany_batch") }}', {
@@ -1193,6 +1304,78 @@
       manageModalBackdrop.classList.remove('active');
       manageModal.classList.remove('active');
     });
+
+    const sekcjaSelect = document.getElementById('sekcja_select');
+    const foilSidePanel = document.getElementById('foilSidePanel');
+    
+    let availableFoils = [];
+    const loadFoils = () => {
+      fetch('/agro/api/opakowania/list')
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.items) {
+            availableFoils = data.items;
+            renderFoils();
+          }
+        })
+        .catch(e => console.error('Error loading foils:', e));
+    };
+
+    const renderFoils = () => {
+      const container = document.getElementById('foilListContainer');
+      if (!container) return;
+      if (availableFoils.length === 0) {
+        container.innerHTML = '<div style="font-size:12px; color:#94a3b8; text-align:center; padding:15px;">Brak dostępnych folii w magazynie</div>';
+        return;
+      }
+      
+      const selectedId = document.getElementById('selectedFoilId').value;
+      
+      container.innerHTML = availableFoils.map(f => {
+        const isSelected = String(f.id) === String(selectedId);
+        return `
+          <div class="foil-card-item ${isSelected ? 'selected' : ''}" onclick="selectFoil(${f.id}, '${f.nazwa}')">
+            <div>
+              <div style="font-weight:600; font-size:13px; color:#1e293b;">${f.nazwa}</div>
+              <div style="font-size:11px; color:#64748b; margin-top:2.5px;">
+                Lok: <span style="font-weight:500;">${f.lokalizacja || '—'}</span> | Stan: <span style="font-weight:600; color:${f.stan_magazynowy > 100 ? '#10b981' : '#f59e0b'};">${f.stan_magazynowy} szt.</span>
+              </div>
+            </div>
+            ${isSelected ? '<span class="foil-badge-selected">✓ Wybrana</span>' : ''}
+          </div>
+        `;
+      }).join('');
+    };
+
+    window.selectFoil = (id, nazwa) => {
+      const currentId = document.getElementById('selectedFoilId').value;
+      if (String(currentId) === String(id)) {
+        document.getElementById('selectedFoilId').value = '';
+        document.getElementById('selectedFoilNazwa').value = '';
+      } else {
+        document.getElementById('selectedFoilId').value = id;
+        document.getElementById('selectedFoilNazwa').value = nazwa;
+      }
+      renderFoils();
+    };
+
+    const handleSekcjaChange = () => {
+      const sekcja = sekcjaSelect.value;
+      if (sekcja === 'Agro') {
+        foilSidePanel.classList.add('active');
+        if (availableFoils.length === 0) {
+          loadFoils();
+        }
+      } else {
+        foilSidePanel.classList.remove('active');
+        document.getElementById('selectedFoilId').value = '';
+        document.getElementById('selectedFoilNazwa').value = '';
+        renderFoils();
+      }
+    };
+
+    sekcjaSelect.addEventListener('change', handleSekcjaChange);
+    handleSekcjaChange();
 
     loadProdukty();
 

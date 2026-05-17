@@ -1,27 +1,34 @@
-Encountered unknown tag 'endif'.
+Could not build url for endpoint 'api.dodaj_palete' with values ['plan_id']. Did you mean 'warehouse.dodaj_palete' instead?
 Traceback (most recent call last):
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\blueprints\routes_main.py", line 160, in index
-    return render_template('dashboard.html', **context)
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\blueprints\routes_main.py", line 174, in index
+    return render_template('dashboard_global.html', **context)
+  File "C:\Users\arkad\AppData\Roaming\Python\Python313\site-packages\flask\templating.py", line 150, in render_template
     return _render(app, template, context)
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\flask\templating.py", line 131, in _render
+  File "C:\Users\arkad\AppData\Roaming\Python\Python313\site-packages\flask\templating.py", line 131, in _render
     rv = template.render(context)
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+  File "C:\Users\arkad\AppData\Roaming\Python\Python313\site-packages\jinja2\environment.py", line 1295, in render
     self.environment.handle_exception()
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+  File "C:\Users\arkad\AppData\Roaming\Python\Python313\site-packages\jinja2\environment.py", line 942, in handle_exception
     raise rewrite_traceback_stack(source=source)
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard.html", line 2, in top-level template code
-    {% import "_macros.html" as macros %}
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard_global.html", line 1, in top-level template code
+    {% extends 'layout.html' %}
     ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\layout.html", line 62, in top-level template code
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\layout.html", line 64, in top-level template code
     {% block content %}{% endblock %}
     ^^^^^^^^^
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard.html", line 13, in block 'content'
-    {% include 'dashboard/_dashboard_agro_active.html' %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
-    raise rewrite_traceback_stack(source=source)
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard\_dashboard_agro_active.html", line 91, in template
-    {% endif %}
-jinja2.exceptions.TemplateSyntaxError: Encountered unknown tag 'endif'.
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard_global.html", line 153, in block 'content'
+    <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" style="margin:0; display:flex; align-items:center; justify-content:space-between; gap:4px;">
+    ^^^^^^^
+  File "C:\Users\arkad\AppData\Roaming\Python\Python313\site-packages\flask\app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\arkad\AppData\Roaming\Python\Python313\site-packages\flask\app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+        endpoint,
+    ...<3 lines>...
+        force_external=_external,
+    )
+  File "C:\Users\arkad\AppData\Roaming\Python\Python313\site-packages\werkzeug\routing\map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'api.dodaj_palete' with values ['plan_id']. Did you mean 'warehouse.dodaj_palete' instead?

@@ -484,6 +484,68 @@
         bindDateOverview();
     }
 
+    async function showRaportZbiorczy(zasypId, linia) {
+        var normalizedLinia = linia || 'AGRO';
+        var modalEl = document.getElementById('modal-raport-zbiorczy');
+        if (!modalEl) {
+            return;
+        }
+        var modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        
+        var loadingEl = document.getElementById('raport-zbiorczy-loading');
+        var contentEl = document.getElementById('raport-zbiorczy-content');
+        if (loadingEl) loadingEl.style.display = 'block';
+        if (contentEl) contentEl.style.display = 'none';
+        
+        try {
+            var response = await fetch('/api/raport-zbiorczy/' + zasypId + '?linia=' + encodeURIComponent(normalizedLinia));
+            var data = await response.json();
+            
+            if (data.success) {
+                var r = data.raport;
+                var estimatedSum = ((r.szarze ? (r.szarze.suma_kg || 0) : 0) + (r.dosypki || []).reduce(function(sum, d) { return sum + (d.kg || 0); }, 0)).toFixed(1);
+                var html = '<div class="row mb-3">';
+                html += '  <div class="col-md-6 border-end">';
+                html += '    <h6 class="text-primary border-bottom pb-2"><i class="fas fa-industry me-1"></i> Dane Zasypu</h6>';
+                html += '    <p class="mb-1"><strong>Produkt:</strong> ' + (r.zasyp ? r.zasyp.produkt : 'Brak danych') + '</p>';
+                html += '    <p class="mb-1"><strong>Status zlecenia:</strong> <span class="badge bg-secondary">' + (r.zasyp ? r.zasyp.status : 'Brak danych') + '</span></p>';
+                html += '    <p class="mb-1 mt-2"><strong>Zasypano (szarże + dosypki):</strong> <span class="text-primary fw-bold">' + estimatedSum + ' kg</span></p>';
+                html += '  </div>';
+                html += '  <div class="col-md-6 ps-md-4">';
+                html += '    <h6 class="text-success border-bottom pb-2"><i class="fas fa-box me-1"></i> Wydajność Workowania</h6>';
+                html += '    <p class="mb-1"><strong>Czas pracy maszyny:</strong> ' + (r.palety ? r.palety.czas_pracy_h : '0') + ' h</p>';
+                html += '    <p class="mb-1 mt-2"><strong>Wydajność:</strong> <span class="badge bg-success fs-6">' + (r.palety ? r.palety.wydajnosc_kg_h : '0') + ' kg/h</span></p>';
+                html += '    <p class="mb-1 mt-2"><strong>Wyprodukowano:</strong> <strong>' + (r.palety ? r.palety.liczba : '0') + '</strong> palet (łącznie ' + (r.palety ? r.palety.suma_kg : '0') + ' kg)</p>';
+                html += '  </div>';
+                html += '</div>';
+                
+                html += '<h6 class="border-bottom pb-2 mt-4 text-warning"><i class="fas fa-scroll me-1"></i> Zużyte Opakowania i Folie na zleceniu</h6>';
+                html += '<ul class="list-group list-group-flush mt-2 shadow-sm">';
+                if (r.opakowania && r.opakowania.length > 0) {
+                    var itemsHtml = r.opakowania.map(function(o) {
+                        return '<li class="list-group-item d-flex justify-content-between align-items-center"><div><strong>' + o.opakowanie_nazwa + '</strong><br><small class="text-muted">Stan obecny na maszynie: ' + o.stan_po + '</small></div><span class="badge bg-primary rounded-pill" style="font-size: 0.9em;">Zużyto: ' + o.zuzyte_worki + '</span></li>';
+                    }).join('');
+                    html += itemsHtml;
+                } else {
+                    html += '<li class="list-group-item text-muted">Brak zarejestrowanych zużyć opakowań i folii dla tego zlecenia.</li>';
+                }
+                html += '</ul>';
+                
+                if (contentEl) contentEl.innerHTML = html;
+            } else {
+                if (contentEl) contentEl.innerHTML = '<div class="alert alert-warning">' + data.message + '</div>';
+            }
+        } catch (err) {
+            if (contentEl) contentEl.innerHTML = '<div class="alert alert-danger">Błąd podczas pobierania danych raportu.</div>';
+        } finally {
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (contentEl) contentEl.style.display = 'block';
+        }
+    }
+
+    global.showRaportZbiorczy = showRaportZbiorczy;
+
     global.dashboardPageHelpers = {
         init: init,
         openRaportPalet: openRaportPalet,
@@ -496,6 +558,7 @@
         formatElapsed: formatElapsed,
         toggleDetails: toggleDetails,
         closeAllModals: closeAllModals,
+        showRaportZbiorczy: showRaportZbiorczy,
     };
 
     ready(init);

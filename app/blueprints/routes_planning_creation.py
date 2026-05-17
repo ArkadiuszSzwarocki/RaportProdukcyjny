@@ -83,7 +83,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
             plan_id_provided = 0
 
         role = (session.get('rola') or '').lower()
-        is_admin_role = role in ['admin', 'planista', 'zarzad']
+        is_admin_role = role in ['admin', 'planista', 'zarzad', 'masteradmin']
         is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
         if not is_admin_role and not is_ops_role:
             flash('Brak uprawnień do dodawania planów lub zasypów.', 'warning')
@@ -476,7 +476,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
         return redirect(return_url_builder())
 
     @planning_bp.route('/dodaj_plany_batch', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad', 'lider')
+    @roles_required('planista', 'admin', 'zarzad', 'lider', 'masteradmin')
     def dodaj_plany_batch():
         """Add multiple plans in batch."""
         try:
@@ -544,11 +544,15 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                     return jsonify({'success': False, 'message': f'Wiersz {idx}: zlecenie dla {produkt} już istnieje na {data_planu} — edytuj istniejący plan.'})
 
                 if sekcja == 'Agro':
+                    opakowanie_id = plan.get('opakowanie_id')
+                    if not opakowanie_id:
+                        return jsonify({'success': False, 'message': f'Wiersz {idx}: musisz wybrać opakowanie/worki dla planu AGRO'})
+
                     nk_agro = max_seq_map_agro.get('Agro', 0) + 1
                     max_seq_map_agro['Agro'] = nk_agro
                     cursor.execute(
                         f'INSERT INTO {table_agro} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                        (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk_agro, 'agro', nr, 0),
+                        (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk_agro, typ, nr, 0),
                     )
 
                     nk_work_agro = max_seq_map_agro.get('Workowanie', 0) + 1
@@ -556,8 +560,18 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                     zasyp_id_agro = cursor.lastrowid
                     cursor.execute(
                         f'INSERT INTO {table_agro} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                        (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work_agro, 'agro', 0, zasyp_id_agro),
+                        (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work_agro, typ, 0, zasyp_id_agro),
                     )
+                    work_id_agro = cursor.lastrowid
+
+                    if opakowanie_id:
+                        try:
+                            cursor.execute(
+                                "INSERT INTO agro_plan_opakowania (plan_id, opakowanie_id, stan_poczatkowy, is_active) VALUES (%s, %s, 0.0, FALSE)",
+                                (work_id_agro, opakowanie_id)
+                            )
+                        except Exception as link_err:
+                            current_app.logger.error(f"Error linking packaging in batch: {link_err}", exc_info=True)
                     continue
 
                 nk_zasyp = max_seq_map.get('Zasyp', 0) + 1

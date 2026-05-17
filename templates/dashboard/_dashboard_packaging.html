@@ -21,3 +21,26 @@
         <button class="btn-action btn-primary" onclick="submitReturnPackaging()" style="padding: 8px 16px;">POTWIERDŹ ZWROT</button>
     </div>
 </dialog>
+
+<!-- MODAL: POBIERZ OPAKOWANIE Z MAGAZYNU -->
+<dialog id="linkPackagingModal" class="modal-premium" style="max-width: 400px; padding: 0; border: none; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+    <div class="modal-header" style="padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 12px 12px 0 0;">
+        <h4 class="modal-title" style="margin: 0; font-size: 1.1em; color: #2c3e50;">Pobierz z magazynu na maszynę</h4>
+        <button class="modal-close" onclick="closeLinkModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #95a5a6;">×</button>
+    </div>
+    <div class="modal-body" style="padding: 20px;">
+        <p id="linkOpakName" style="font-weight: bold; margin-bottom: 15px; color: #2c3e50; font-size: 1.05em;"></p>
+        <p id="linkOpakStockInfo" style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 15px;"></p>
+        <div class="form-group mb-15">
+            <label class="form-label" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85em; color: #647684;">Ile sztuk pobierasz na maszynę?</label>
+            <input type="number" id="linkOpakQty" class="form-control" style="width: 100%; padding: 10px; border: 1px solid #dfe7ef; border-radius: 8px;" placeholder="Wpisz ilość, np. 7000">
+            <small class="text-muted" style="display: block; margin-top: 4px; font-size: 0.75em;">Pozostaw puste lub 0, aby pobrać całą paletę.</small>
+        </div>
+        <input type="hidden" id="linkOpakId">
+        <input type="hidden" id="linkPlanId">
+    </div>
+    <div class="modal-footer" style="padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px; background: #f8f9fa; border-radius: 0 0 12px 12px;">
+        <button class="btn-action btn-outline-secondary" onclick="closeLinkModal()" style="padding: 8px 16px;">Anuluj</button>
+        <button class="btn-action btn-primary" onclick="submitLinkPackaging()" style="padding: 8px 16px; background: #27ae60;">POBIERZ I PODEPNIJ</button>
+    </div>
+</dialog>

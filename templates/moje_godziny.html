@@ -134,7 +134,9 @@
     transition: background 0.2s;
   }
 
-  .pdf-export-btn:hover { background: #b02a37; }
+  .pdf-export-btn:hover {
+    background: #b02a37;
+  }
 
   .stat-icon {
     font-size: 2.8rem;
@@ -435,6 +437,7 @@
   }
 
   @media (max-width: 768px) {
+
     html,
     body {
       overflow-x: hidden;
@@ -513,7 +516,7 @@
       gap: 10px;
     }
 
-    .modern-form-row > div {
+    .modern-form-row>div {
       min-width: 0;
       width: 100%;
       flex-basis: 100%;
@@ -674,7 +677,7 @@
       gap: 10px;
     }
 
-    .quick-popup .modern-form-row > div {
+    .quick-popup .modern-form-row>div {
       min-width: 100%;
     }
 
@@ -986,7 +989,8 @@
       <i class="far fa-calendar-alt text-primary"></i>
       <span>{{ d_od }} &mdash; {{ d_do }}</span>
     </div>
-    <a href="{{ url_for('panels.panel_wnioski_page') }}" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:8px; padding:10px 20px; border-radius:8px; font-weight:700; text-decoration:none; background:#007bff; color:white; border:none;">
+    <a href="{{ url_for('panels.panel_wnioski_page') }}" class="btn btn-primary"
+      style="display:inline-flex; align-items:center; gap:8px; padding:10px 20px; border-radius:8px; font-weight:700; text-decoration:none; background:#007bff; color:white; border:none;">
       <i class="fas fa-file-alt"></i> Wnioski
     </a>
   </div>
@@ -1024,58 +1028,67 @@
     <div class="stat-icon" style="color:#20c997"><i class="fas fa-business-time"></i></div>
     <div class="stat-details">
       <span class="stat-title">Łączne godziny</span>
-      <div><span class="stat-value" id="totalHours_{{ prefix }}">{{ '%.1f'|format(s.total_work_hours if s.total_work_hours is defined else 0) }}</span><span class="stat-unit">h</span></div>
+      <div><span class="stat-value" id="totalHours_{{ prefix }}">{{ '%.1f'|format(s.total_work_hours if
+          s.total_work_hours is defined else 0) }}</span><span class="stat-unit">h</span></div>
     </div>
   </div>
   <div class="stat-card bg-orange-left">
     <div class="stat-icon" style="color:#fd7e14"><i class="fas fa-clock"></i></div>
     <div class="stat-details">
       <span class="stat-title">Nadgodziny (zatw.)</span>
-      <div><span class="stat-value" id="nadgodzinyHours_{{ prefix }}">{{ '%.1f'|format(s.nadgodziny_hours if s.nadgodziny_hours is defined else 0) }}</span><span class="stat-unit">h</span></div>
+      <div><span class="stat-value" id="nadgodzinyHours_{{ prefix }}">{{ '%.1f'|format(s.nadgodziny_hours if
+          s.nadgodziny_hours is defined else 0) }}</span><span class="stat-unit">h</span></div>
     </div>
   </div>
   <div class="stat-card bg-warning-left">
     <div class="stat-icon text-warning"><i class="fas fa-door-open"></i></div>
     <div class="stat-details">
       <span class="stat-title">Wyjścia prywatne</span>
-      <div><span class="stat-value" id="wyjsciaHours_{{ prefix }}">{{ '%.2f'|format(s.wyjscia_hours) }}</span><span class="stat-unit">h</span></div>
+      <div><span class="stat-value" id="wyjsciaHours_{{ prefix }}">{{ '%.2f'|format(s.wyjscia_hours) }}</span><span
+          class="stat-unit">h</span></div>
     </div>
   </div>
   <div class="stat-card bg-red-left">
     <div class="stat-icon" style="color:#dc3545"><i class="fas fa-user-slash"></i></div>
     <div class="stat-details">
       <span class="stat-title">Nieobecności / L4</span>
-      <div><span class="stat-value" id="nieobecDays_{{ prefix }}">{{ s.nieobecnosc_days if s.nieobecnosc_days is defined else 0 }}</span><span class="stat-unit">dni</span></div>
+      <div><span class="stat-value" id="nieobecDays_{{ prefix }}">{{ s.nieobecnosc_days if s.nieobecnosc_days is defined
+          else 0 }}</span><span class="stat-unit">dni</span></div>
     </div>
   </div>
   <div class="stat-card bg-success-left">
     <div class="stat-icon text-success"><i class="fas fa-umbrella-beach"></i></div>
     <div class="stat-details">
       <span class="stat-title">Urlop użyty (okres)</span>
-      <div><span class="stat-value" id="urlopUsed_{{ prefix }}">{{ s.urlop_days_used if s.urlop_days_used is defined else 0 }}</span><span class="stat-unit">dni</span></div>
+      <div><span class="stat-value" id="urlopUsed_{{ prefix }}">{{ s.urlop_days_used if s.urlop_days_used is defined
+          else 0 }}</span><span class="stat-unit">dni</span></div>
     </div>
   </div>
   <div class="stat-card bg-purple-left">
     <div class="stat-icon" style="color:#6f42c1"><i class="fas fa-umbrella-beach"></i></div>
     <div class="stat-details">
       <span class="stat-title">Urlop bieżący (pula)</span>
-      <div><span class="stat-value" id="urlopBiez_{{ prefix }}">{{ s.urlop_biezacy if s.urlop_biezacy is defined else 0 }}</span><span class="stat-unit">dni</span></div>
+      <div><span class="stat-value" id="urlopBiez_{{ prefix }}">{{ s.urlop_biezacy if s.urlop_biezacy is defined else 0
+          }}</span><span class="stat-unit">dni</span></div>
     </div>
   </div>
   <div class="stat-card">
     <div class="stat-icon" style="color:#adb5bd"><i class="fas fa-history"></i></div>
     <div class="stat-details">
       <span class="stat-title">Urlop zaległy (pula)</span>
-      <div><span class="stat-value" id="urlopZal_{{ prefix }}">{{ s.urlop_zalegly if s.urlop_zalegly is defined else 0 }}</span><span class="stat-unit">dni</span></div>
+      <div><span class="stat-value" id="urlopZal_{{ prefix }}">{{ s.urlop_zalegly if s.urlop_zalegly is defined else 0
+          }}</span><span class="stat-unit">dni</span></div>
     </div>
   </div>
 </div>
 {% if s.typy %}
-<div class="summary-section-title"><i class="fas fa-layer-group" style="margin-right:5px"></i>Rozkład wg typów obecności</div>
+<div class="summary-section-title"><i class="fas fa-layer-group" style="margin-right:5px"></i>Rozkład wg typów obecności
+</div>
 <div class="type-breakdown-row">
   {% for typ_name, hours in s.typy.items() %}
   {% if hours > 0 %}
-  <span class="type-chip"><i class="fas fa-tag"></i>{{ typ_name }}: <span class="chip-hours">{{ '%.1f'|format(hours) }}h</span></span>
+  <span class="type-chip"><i class="fas fa-tag"></i>{{ typ_name }}: <span class="chip-hours">{{ '%.1f'|format(hours)
+      }}h</span></span>
   {% endif %}
   {% endfor %}
 </div>
@@ -1108,7 +1121,8 @@
   <div class="request-sidebar">
     <div class="content-card request-card" id="request-center-card">
       <h3 class="content-card-header"><i class="fas fa-paper-plane"></i> Centrum zgłoszeń</h3>
-      <p class="request-lead">Z tego panelu zgłosisz urlop, dzień wolny, wyjście prywatne albo nadgodziny. Kalendarz obok pokazuje od razu, jak wnioski wpływają na miesiąc.</p>
+      <p class="request-lead">Z tego panelu zgłosisz urlop, dzień wolny, wyjście prywatne albo nadgodziny. Kalendarz
+        obok pokazuje od razu, jak wnioski wpływają na miesiąc.</p>
       <div class="request-chip-row">
         <span class="request-chip"><i class="fas fa-umbrella-beach"></i> Urlop</span>
         <span class="request-chip"><i class="fas fa-calendar-day"></i> Dzień wolny</span>
@@ -1117,20 +1131,22 @@
       </div>
       <div class="request-note">
         <i class="fas fa-circle-info"></i>
-        Wyjście prywatne pokaże pola godzin. Dla urlopu, dnia wolnego i nieobecności możesz wskazać zakres dat oraz krótki powód.
+        Wyjście prywatne pokaże pola godzin. Dla urlopu, dnia wolnego i nieobecności możesz wskazać zakres dat oraz
+        krótki powód.
       </div>
     </div>
 
     <div class="content-card request-card" id="leave-request-card">
       <h3 class="content-card-header"><i class="fas fa-file-signature"></i> Złóż wniosek</h3>
-      {% if session.get('rola')|lower in ['lider','admin','zarzad'] and viewed_pid and viewed_pid != owner_pid %}
+      {% if session.get('rola')|lower in ['lider','admin','zarzad','masteradmin'] and viewed_pid and viewed_pid != owner_pid %}
       <div class="alert-box alert-info mb-3" style="margin-bottom:12px;">
         <i class="fas fa-user-check"></i>
-        Składasz wniosek <strong>w imieniu pracownika #{{ viewed_pid }}</strong>{% if viewed_summary and viewed_summary.imie_nazwisko %} &mdash; <strong>{{ viewed_summary.imie_nazwisko }}</strong>{% endif %}.
+        Składasz wniosek <strong>w imieniu pracownika #{{ viewed_pid }}</strong>{% if viewed_summary and
+        viewed_summary.imie_nazwisko %} &mdash; <strong>{{ viewed_summary.imie_nazwisko }}</strong>{% endif %}.
       </div>
       {% endif %}
       <form id="unified-request-form" method="POST" action="{{ url_for('leaves.submit_wniosek') }}" class="mb-0">
-        {% if session.get('rola')|lower in ['lider','admin','zarzad'] and viewed_pid and viewed_pid != owner_pid %}
+        {% if session.get('rola')|lower in ['lider','admin','zarzad','masteradmin'] and viewed_pid and viewed_pid != owner_pid %}
         <input type="hidden" name="target_pracownik_id" value="{{ viewed_pid }}">
         {% endif %}
         <div class="modern-form-row">
@@ -1151,7 +1167,8 @@
         <div id="uf-dates-row" class="modern-form-row mt-3">
           <div>
             <label for="data_od">{{ _('od') }}</label>
-            <input id="data_od" type="date" name="data_od" class="modern-form-control" required placeholder="RRRR-MM-DD">
+            <input id="data_od" type="date" name="data_od" class="modern-form-control" required
+              placeholder="RRRR-MM-DD">
           </div>
           <div id="uf-data-do-col">
             <label for="data_do">{{ _('do') }}</label>
@@ -1174,7 +1191,8 @@
         <div id="uf-hours-row" class="modern-form-row mt-3" style="display:none;">
           <div>
             <label for="uf-ilosc">Liczba godzin</label>
-            <input type="number" id="uf-ilosc" name="ilosc_nadgodzin" min="0.25" step="0.25" class="modern-form-control">
+            <input type="number" id="uf-ilosc" name="ilosc_nadgodzin" min="0.25" step="0.25"
+              class="modern-form-control">
           </div>
         </div>
 
@@ -1187,7 +1205,8 @@
         </div>
 
         <div class="modern-form-row action-row">
-          <button type="submit" class="btn-modern btn-primary-modern"><i class="fas fa-paper-plane"></i> Wyślij wniosek</button>
+          <button type="submit" class="btn-modern btn-primary-modern"><i class="fas fa-paper-plane"></i> Wyślij
+            wniosek</button>
         </div>
       </form>
     </div>
@@ -1340,7 +1359,8 @@
         </div>
         <div class="calendar-legend">
           <span class="calendar-legend-item"><span class="calendar-legend-dot pending"></span> Oczekuje</span>
-          <span class="calendar-legend-item"><span class="calendar-legend-dot approved"></span> Zatwierdzone wolne</span>
+          <span class="calendar-legend-item"><span class="calendar-legend-dot approved"></span> Zatwierdzone
+            wolne</span>
           <span class="calendar-legend-item"><span class="calendar-legend-dot assigned"></span> Zaplanowana praca</span>
           <span class="calendar-legend-item"><span class="calendar-legend-dot overtime"></span> HR</span>
         </div>
@@ -1349,7 +1369,8 @@
       <div class="mp-cal-row">
         {% set show_viewed = (calendar_days_viewed is defined and calendar_days_viewed) or (selected_pid) %}
         {% if show_viewed %}
-        {% set display_days = calendar_days_viewed if (calendar_days_viewed is defined and calendar_days_viewed) else calendar_days_owner %}
+        {% set display_days = calendar_days_viewed if (calendar_days_viewed is defined and calendar_days_viewed) else
+        calendar_days_owner %}
         {% set display_pid = viewed_pid or selected_pid or owner_pid %}
         {% else %}
         {% set display_days = calendar_days_owner %}
@@ -1383,23 +1404,29 @@
               {% if d.leave_status == 'approved' %}{% do classes.append('cal-leave-approved') %}{% endif %}
               {% if d.assigned %}{% do classes.append('cal-assigned') %}{% endif %}
 
-              <td data-date="{{ d.date }}" data-pid="{{ display_pid }}" class="{{ ' '.join(classes) }}" style="cursor: pointer;">
+              <td data-date="{{ d.date }}" data-pid="{{ display_pid }}" class="{{ ' '.join(classes) }}"
+                style="cursor: pointer;">
                 <div class="cal-day">
                   <span>{{ d.date.day }}</span>
-                  {% if wd == 5 or wd == 6 %}<i class="fas fa-mug-hot" style="font-size: 0.8rem; color:#adb5bd;"></i>{% endif %}
+                  {% if wd == 5 or wd == 6 %}<i class="fas fa-mug-hot" style="font-size: 0.8rem; color:#adb5bd;"></i>{%
+                  endif %}
                 </div>
                 <div class="cal-hours">
                   {% if d.nadgodziny > 0 %}
-                  {{ '%.2f'|format(d.hours) }}h <br><span class="text-success"><i class="fas fa-plus-circle"></i> {{ '%.2f'|format(d.nadgodziny) }}h OT</span>
+                  {{ '%.2f'|format(d.hours) }}h <br><span class="text-success"><i class="fas fa-plus-circle"></i> {{
+                    '%.2f'|format(d.nadgodziny) }}h OT</span>
                   {% else %}
                   <i class="far fa-clock"></i> {{ '%.2f'|format(d.hours) }} h
                   {% endif %}
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 4px; margin-top: auto;">
-                  {% if d.typ_label %}<div class="cal-type"><i class="fas fa-tag text-primary"></i> {{ d.typ_label }}</div>{% endif %}
-                  {% if d.approved %}<div class="badge-cal success"><i class="fas fa-check-circle"></i> Zatwierdzony</div>{% endif %}
-                  {% if d.hr %}<div class="badge-cal danger"><i class="fas fa-exclamation-triangle"></i> {{ _('hr') }}</div>{% endif %}
+                  {% if d.typ_label %}<div class="cal-type"><i class="fas fa-tag text-primary"></i> {{ d.typ_label }}
+                  </div>{% endif %}
+                  {% if d.approved %}<div class="badge-cal success"><i class="fas fa-check-circle"></i> Zatwierdzony
+                  </div>{% endif %}
+                  {% if d.hr %}<div class="badge-cal danger"><i class="fas fa-exclamation-triangle"></i> {{ _('hr') }}
+                  </div>{% endif %}
                 </div>
               </td>
 
@@ -1424,7 +1451,8 @@
         <h4 class="mobile-day-sheet-title">Szczegóły dnia</h4>
         <div id="mobileDaySheetDate" class="mobile-day-sheet-date"></div>
       </div>
-      <button type="button" class="mobile-day-sheet-close" onclick="closeMobileDaySheet()" aria-label="Zamknij">✕</button>
+      <button type="button" class="mobile-day-sheet-close" onclick="closeMobileDaySheet()"
+        aria-label="Zamknij">✕</button>
     </div>
     <div class="mobile-day-sheet-section">
       <div class="mobile-day-sheet-label">Godziny</div>
@@ -1436,9 +1464,11 @@
     </div>
     <div class="mobile-day-sheet-section">
       <div class="mobile-day-sheet-label">Szybka akcja</div>
-      <div class="mobile-day-sheet-value">Ustaw ten dzień w formularzu i przejdź od razu do zgłoszenia wolnego lub wyjścia prywatnego.</div>
+      <div class="mobile-day-sheet-value">Ustaw ten dzień w formularzu i przejdź od razu do zgłoszenia wolnego lub
+        wyjścia prywatnego.</div>
       <div class="mobile-day-sheet-actions">
-        <button type="button" class="mobile-day-sheet-btn primary" onclick="applyMobileDayToForm()">Ustaw tę datę w formularzu</button>
+        <button type="button" class="mobile-day-sheet-btn primary" onclick="applyMobileDayToForm()">Ustaw tę datę w
+          formularzu</button>
         <button type="button" class="mobile-day-sheet-btn secondary" onclick="closeMobileDaySheet()">Zamknij</button>
       </div>
     </div>
@@ -1457,7 +1487,7 @@
           <th>{{ _('stan') }}</th>
 
           {% set can_approve = false %}
-          {% if session.get('rola') in ['lider','admin'] %}
+          {% if session.get('rola')|lower in ['lider','admin','masteradmin'] %}
           {% for w in wnioski %}
           {% if w.pracownik_id != session.get('pracownik_id') %}
           {% set can_approve = true %}
@@ -1485,7 +1515,7 @@
           </td>
           {% if can_approve %}
           <td>
-            {% if session.get('rola') in ['lider','admin'] and w.pracownik_id != session.get('pracownik_id') %}
+            {% if session.get('rola')|lower in ['lider','admin','masteradmin'] and w.pracownik_id != session.get('pracownik_id') %}
             {% if w.status != 'approved' %}
             <button class="btn btn-sm btn-success wn-action" data-id="{{ w.id }}" data-action="approve"><i
                 class="fas fa-check"></i> Zatwierdź</button>
@@ -1679,23 +1709,23 @@
     }).catch(e => { console.error(e); showToast('Błąd sieci przy zapisie', 'danger'); });
   }
 
-  const LEAVE_URL   = '{{ url_for("leaves.submit_wniosek") }}';
-  const OT_URL      = '{{ url_for("overtime.submit_nadgodziny") }}';
+  const LEAVE_URL = '{{ url_for("leaves.submit_wniosek") }}';
+  const OT_URL = '{{ url_for("overtime.submit_nadgodziny") }}';
 
   // Toggle visibility of date/time/hours inputs depending on selected typ
   function updateWniosekFields() {
     try {
-      const form       = document.getElementById('unified-request-form');
-      const typ        = document.getElementById('typ_select').value;
-      const timeColOd  = document.getElementById('timeColOd');
-      const timeColDo  = document.getElementById('timeColDo');
-      const czasOd     = document.getElementById('czas_od');
-      const czasDo     = document.getElementById('czas_do');
-      const dataDoCol  = document.getElementById('uf-data-do-col');
-      const dataDo     = document.getElementById('data_do');
-      const dataOd     = document.getElementById('data_od');
-      const hoursRow   = document.getElementById('uf-hours-row');
-      const ufIlosc    = document.getElementById('uf-ilosc');
+      const form = document.getElementById('unified-request-form');
+      const typ = document.getElementById('typ_select').value;
+      const timeColOd = document.getElementById('timeColOd');
+      const timeColDo = document.getElementById('timeColDo');
+      const czasOd = document.getElementById('czas_od');
+      const czasDo = document.getElementById('czas_do');
+      const dataDoCol = document.getElementById('uf-data-do-col');
+      const dataDo = document.getElementById('data_do');
+      const dataOd = document.getElementById('data_od');
+      const hoursRow = document.getElementById('uf-hours-row');
+      const ufIlosc = document.getElementById('uf-ilosc');
       if (!timeColOd || !timeColDo || !dataOd) return;
 
       if (typ === 'Nadgodziny') {
@@ -1849,7 +1879,12 @@
 
   // Refresh summary counters (obecnosci, wyjscia_hours, typy) for given pid and target suffix ('owner'|'viewed')
   function refreshSummary(pid, suffix) {
-    if (!pid) return;
+    // ZABEZPIECZENIE: Jeśli pid to tekstowe 'None', puste pole lub undefined, przerywamy działanie
+    if (!pid || pid === 'None' || pid === '') {
+      console.log("[DEBUG] refreshSummary: Pomijam pobieranie, brak poprawnego pracownik_id (wartość: " + pid + ")");
+      return;
+    }
+
     const suf = suffix ? ('_' + suffix) : '';
     fetch('/api/wnioski/summary?pracownik_id=' + encodeURIComponent(pid), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(r => r.json()).then(j => {
@@ -1874,7 +1909,7 @@
   // ============ DELETE OBECNOSC HANDLER (ADMIN ONLY) ============
   document.addEventListener('DOMContentLoaded', function () {
     const role = '{{ session.get("rola", "").lower() }}';
-    const isAdmin = role === 'admin';
+    const isAdmin = role === 'admin' || role === 'masteradmin';
 
     console.log('[DEBUG] Role:', role);
     console.log('[DEBUG] isAdmin:', isAdmin);
@@ -2117,7 +2152,8 @@
     <tbody id="pdf-days-tbody">
       {% set cal = calendar_days_owner %}
       {% for d in cal %}
-      <tr class="pdf-row-{{ d.typ_label|lower or 'normal' }}{% if d.hours == 0 and not d.leave_status %} pdf-row-empty{% endif %}">
+      <tr
+        class="pdf-row-{{ d.typ_label|lower or 'normal' }}{% if d.hours == 0 and not d.leave_status %} pdf-row-empty{% endif %}">
         <td><strong>{{ d.date }}</strong></td>
         <td>{{ dni_pl[d.date.weekday()] if d.date else '' }}</td>
         <td class="pdf-num">{{ '%.1f'|format(d.hours) }} h</td>
@@ -2139,12 +2175,18 @@
   <h2 class="pdf-section-title" style="margin-top:24px;">Rozkład wg typów obecności</h2>
   <table class="pdf-table">
     <thead>
-      <tr><th>Typ</th><th>Godziny</th></tr>
+      <tr>
+        <th>Typ</th>
+        <th>Godziny</th>
+      </tr>
     </thead>
     <tbody>
       {% for typ_name, hours in owner_summary.typy.items() %}
       {% if hours > 0 %}
-      <tr><td>{{ typ_name }}</td><td class="pdf-num">{{ '%.1f'|format(hours) }} h</td></tr>
+      <tr>
+        <td>{{ typ_name }}</td>
+        <td class="pdf-num">{{ '%.1f'|format(hours) }} h</td>
+      </tr>
       {% endif %}
       {% endfor %}
     </tbody>
@@ -2158,13 +2200,27 @@
 
 <style>
   /* ---- Widoczne tylko w normalnym widoku --- */
-  #pdf-print-section { display: none; }
+  #pdf-print-section {
+    display: none;
+  }
 
   @media print {
+
     /* Ukryj WSZYSTKO poza sekcją print */
-    body > *, .sidebar, .topbar, nav, header, footer,
-    .content-card, .requests-calendar-layout, .mp-legend,
-    .dashboard-header, .dashboard-stats, script { display: none !important; }
+    body>*,
+    .sidebar,
+    .topbar,
+    nav,
+    header,
+    footer,
+    .content-card,
+    .requests-calendar-layout,
+    .mp-legend,
+    .dashboard-header,
+    .dashboard-stats,
+    script {
+      display: none !important;
+    }
 
     #pdf-print-section {
       display: block !important;
@@ -2174,7 +2230,9 @@
       padding: 10mm;
     }
 
-    .pdf-header { margin-bottom: 16px; }
+    .pdf-header {
+      margin-bottom: 16px;
+    }
 
     .pdf-logo-row {
       display: flex;
@@ -2186,7 +2244,11 @@
       margin-bottom: 8px;
     }
 
-    .pdf-logo-text { font-weight: 800; font-size: 10pt; color: #2c3e50; }
+    .pdf-logo-text {
+      font-weight: 800;
+      font-size: 10pt;
+      color: #2c3e50;
+    }
 
     .pdf-title {
       font-size: 18pt;
@@ -2235,11 +2297,18 @@
       vertical-align: middle;
     }
 
-    .pdf-table tr:nth-child(even) td { background: #f8f9fa; }
+    .pdf-table tr:nth-child(even) td {
+      background: #f8f9fa;
+    }
 
-    .pdf-row-empty td { color: #bbb; }
+    .pdf-row-empty td {
+      color: #bbb;
+    }
 
-    .pdf-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .pdf-num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
 
     .pdf-badge {
       border-radius: 4px;
@@ -2248,9 +2317,20 @@
       font-weight: 700;
     }
 
-    .pdf-badge-ok  { background: #d4edda; color: #155724; }
-    .pdf-badge-warn { background: #fff3cd; color: #856404; }
-    .pdf-badge-err  { background: #f8d7da; color: #721c24; }
+    .pdf-badge-ok {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .pdf-badge-warn {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .pdf-badge-err {
+      background: #f8d7da;
+      color: #721c24;
+    }
 
     .pdf-footer {
       margin-top: 24px;
@@ -2262,7 +2342,10 @@
     }
 
     /* Wymuszamy drukowanie kolorów tła */
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
   }
 </style>
 
@@ -2270,7 +2353,7 @@
   function exportPDF(isViewed) {
     // Wypełnij pola z właściwego podsumowania
     var prefix = isViewed ? 'viewed' : 'owner';
-    var getVal = function(id) {
+    var getVal = function (id) {
       var el = document.getElementById(id + '_' + prefix);
       return el ? el.textContent.trim() : '';
     };
@@ -2281,12 +2364,12 @@
     document.getElementById('pdf-date-generated').textContent = new Date().toLocaleString('pl-PL');
     document.getElementById('pdf-okres').textContent = '{{ d_od }} – {{ d_do }}';
     document.getElementById('pdf-total-h').textContent = getVal('totalHours');
-    document.getElementById('pdf-ot-h').textContent    = getVal('nadgodzinyHours');
+    document.getElementById('pdf-ot-h').textContent = getVal('nadgodzinyHours');
     document.getElementById('pdf-obecnosci').textContent = getVal('obecnosciCount');
-    document.getElementById('pdf-nieob').textContent   = getVal('nieobecDays');
+    document.getElementById('pdf-nieob').textContent = getVal('nieobecDays');
     document.getElementById('pdf-urlop-used').textContent = getVal('urlopUsed');
     document.getElementById('pdf-urlop-biez').textContent = getVal('urlopBiez');
-    document.getElementById('pdf-urlop-zal').textContent  = getVal('urlopZal');
+    document.getElementById('pdf-urlop-zal').textContent = getVal('urlopZal');
     document.getElementById('pdf-wyjscia').textContent = getVal('wyjsciaHours');
 
     // Przesuń sekcję PDF bezpośrednio do <body>, żeby CSS @media print mógł ją pokazać

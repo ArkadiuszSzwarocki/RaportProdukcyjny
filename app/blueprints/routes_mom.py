@@ -7,7 +7,7 @@ mom_bp = Blueprint('mom', __name__)
 
 @mom_bp.route('/agro/mom')
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('agro.magazyn')
 def index():
     """List all MOM documents."""
     status = request.args.get('status')
@@ -21,7 +21,7 @@ def index():
 
 @mom_bp.route('/agro/mom/<int:mom_id>')
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('agro.magazyn')
 def detail(mom_id):
     """Show single MOM detail with positions."""
     mom = MomService.get_mom(mom_id)
@@ -32,7 +32,7 @@ def detail(mom_id):
 
 @mom_bp.route('/agro/api/mom/open', methods=['POST'])
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('agro.magazyn')
 def api_open():
     """Create MOM for a plan_agro order."""
     data = request.get_json(silent=True) or request.form
@@ -50,7 +50,7 @@ def api_open():
 
 @mom_bp.route('/agro/api/mom/<int:mom_id>/refresh', methods=['POST'])
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('agro.magazyn')
 def api_refresh(mom_id):
     """Refresh moved quantities from warehouse moves."""
     ok = MomService.refresh(mom_id)
@@ -61,7 +61,7 @@ def api_refresh(mom_id):
 
 @mom_bp.route('/agro/api/mom/<int:mom_id>/usage', methods=['POST'])
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('agro.magazyn')
 def api_save_usage(mom_id):
     """Save manually-entered usage for MOM positions."""
     data = request.get_json(silent=True)
@@ -76,7 +76,7 @@ def api_save_usage(mom_id):
 
 @mom_bp.route('/agro/api/mom/<int:mom_id>/close', methods=['POST'])
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('agro.magazyn')
 def api_close(mom_id):
     """Close MOM — final reconciliation."""
     login = session.get('login', 'unknown')
@@ -89,7 +89,7 @@ def api_close(mom_id):
 
 @mom_bp.route('/agro/api/mom/<int:mom_id>/reopen', methods=['POST'])
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('agro.magazyn')
 def api_reopen(mom_id):
     """Reopen closed MOM (admin/lider)."""
     rola = session.get('rola', '')

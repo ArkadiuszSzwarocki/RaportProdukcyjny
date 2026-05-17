@@ -1,6 +1,8 @@
 import json
+import os
 import threading
 import time
+import logging
 from flask import current_app
 
 # Global storage for latest machine data
@@ -50,12 +52,17 @@ def on_message(client, userdata, msg):
         _latest_machine_data["last_update"] = time.time()
         
     except Exception as e:
-        pass
+        logging.error(f"[MQTT-SERVER] Błąd w parsowaniu on_message: {e}")
 
 def _run_mqtt_client():
     import paho.mqtt.client as mqtt
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-    client.username_pw_set("Lstech", "Lstech123")
+    
+    mqtt_user = os.environ.get("MQTT_USER", "Lstech")
+    mqtt_pass = os.environ.get("MQTT_PASS", "Lstech123")
+    mqtt_host = os.environ.get("MQTT_HOST", "176790fd232549269f80005dd8281ccb.s1.eu.hivemq.cloud")
+    
+    client.username_pw_set(mqtt_user, mqtt_pass)
     client.tls_set() # Wymagane dla HiveMQ Cloud
     
     client.on_connect = on_connect
@@ -63,8 +70,8 @@ def _run_mqtt_client():
     
     while not _stop_event.is_set():
         try:
-            print("[MQTT-SERVER] Próba połączenia z 176790fd232549269f80005dd8281ccb.s1.eu.hivemq.cloud...")
-            client.connect("176790fd232549269f80005dd8281ccb.s1.eu.hivemq.cloud", 8883, 60)
+            print(f"[MQTT-SERVER] Próba połączenia z {mqtt_host}...")
+            client.connect(mqtt_host, 8883, 60)
             client.loop_forever()
         except Exception as e:
             print(f"[MQTT-SERVER] Wyjątek: {e}. Reconnect za 10s...")

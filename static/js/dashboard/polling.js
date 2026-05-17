@@ -144,7 +144,9 @@
                     // Show banner only for AGRO, not for PSD
                     if (config.linia !== 'PSD') {
                         try {
-                            global.showZasypDosypkaAddedBanner(data);
+                            if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZasypDosypkaAddedBanner === 'function') {
+                                global.dashboardAgroBanners.showZasypDosypkaAddedBanner(data);
+                            }
                             state.lastRenderedZasypDosypkaAddedTs = Number(data.timestamp || 0) || state.lastRenderedZasypDosypkaAddedTs;
                         } catch (error) {
                             console.error('showZasypDosypkaAddedBanner err', error);
@@ -177,7 +179,11 @@
                         global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
                     }
 
-                    return fetchJson('/api/zasyp/poll_dosypka_added?linia=' + config.linia + '&last_seen=0')
+                    var safeLastSeen = Number(state.zasypDosypkaAddedLastSeen || 0);
+                    if (!isFinite(safeLastSeen) || safeLastSeen < 0) {
+                        safeLastSeen = 0;
+                    }
+                    return fetchJson('/api/zasyp/poll_dosypka_added?linia=' + config.linia + '&last_seen=' + safeLastSeen)
                         .then(function (eventData) {
                             if (!eventData || !eventData.new_event) {
                                 return;
@@ -206,7 +212,11 @@
         }, false);
 
         addTask('dosypka-hard-fallback-poll', 5000, function () {
-            return fetchJson('/api/zasyp/poll_dosypka_added?linia=' + config.linia + '&last_seen=0')
+            var safeLastSeen = Number(state.zasypDosypkaAddedLastSeen || 0);
+            if (!isFinite(safeLastSeen) || safeLastSeen < 0) {
+                safeLastSeen = 0;
+            }
+            return fetchJson('/api/zasyp/poll_dosypka_added?linia=' + config.linia + '&last_seen=' + safeLastSeen)
                 .then(function (eventData) {
                     if (!eventData || !eventData.new_event) {
                         return;

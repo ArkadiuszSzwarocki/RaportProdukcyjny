@@ -660,6 +660,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji", "uszkodzone_worki", "INT DEFAULT 0", "Dodawanie kolumny 'uszkodzone_worki'")
     _add_column_if_missing(cursor, "plan_produkcji", "is_deleted", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'is_deleted' dla soft delete")
     _add_column_if_missing(cursor, "plan_produkcji", "deleted_at", "DATETIME NULL", "Dodawanie kolumny 'deleted_at' dla soft delete")
+    _add_column_if_missing(cursor, "plan_produkcji", "sugerowana_folia", "VARCHAR(255) DEFAULT ''", "Dodawanie kolumny 'sugerowana_folia'")
     _add_column_if_missing(cursor, "dosypki", "szarza_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'szarza_id' do dosypek")
     _add_column_if_missing(cursor, "dosypki", "anulowana", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'anulowana' do dosypek")
     _add_column_if_missing(cursor, "dosypki", "data_anulowania", "DATETIME NULL", "Dodawanie kolumny 'data_anulowania' do dosypek")
@@ -754,6 +755,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji_agro", "is_deleted", "BOOLEAN DEFAULT 0", "Dodawanie kolumny 'is_deleted' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "deleted_at", "DATETIME NULL", "Dodawanie kolumny 'deleted_at' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "sugerowana_folia", "VARCHAR(255) DEFAULT ''", "Dodawanie kolumny 'sugerowana_folia' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji", "start_machine_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_machine_counter' (PSD)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_machine_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_machine_counter' (AGRO)")
     

@@ -552,7 +552,14 @@
 
             const expandedDetails = captureExpandedDetails();
 
-            const resp = await fetch(window.location.href, { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+            const resp = await fetch(window.location.href, { 
+                credentials: 'same-origin', 
+                cache: 'no-store', 
+                headers: { 
+                    'Cache-Control': 'no-cache',
+                    'X-Background-Request': 'true'
+                } 
+            });
             if (!resp.ok) return;
             const txt = await resp.text();
             const tmp = document.createElement('div'); tmp.innerHTML = txt;
@@ -673,18 +680,71 @@
         }
     }
 
-    // Override global fetch to show spinner for long requests
+    // Override global fetch to show spinner for long requests (excluding background/polling requests)
     if (window.fetch) {
         const _origFetch = window.fetch.bind(window);
         window.fetch = function () {
-            try { startGlobalSpinnerWatcher(); } catch (e) { }
+            let isBackground = false;
+            try {
+                const url = typeof arguments[0] === 'string' ? arguments[0] : (arguments[0] && arguments[0].url ? arguments[0].url : '');
+                const options = arguments[1] || {};
+                const headers = options.headers || {};
+
+                if (url) {
+                    const lowerUrl = url.toLowerCase();
+                    if (
+                        lowerUrl.includes('/api/system_state') ||
+                        lowerUrl.includes('/api/notifications') ||
+                        lowerUrl.includes('/api/log_frontend_error') ||
+                        lowerUrl.includes('/machine-telemetry') ||
+                        lowerUrl.includes('/poll_') || // covers all polling endpoints like poll_zwolnienie, poll_dosypka_added, etc.
+                        lowerUrl.includes('/pending_dosypki_badges') ||
+                        lowerUrl.includes('/current_plan') ||
+                        lowerUrl.includes('/production_moves') ||
+                        lowerUrl.includes('/production_items_for_return') ||
+                        lowerUrl.includes('/locations_inventory') ||
+                        lowerUrl.includes('/suggest-location') ||
+                        lowerUrl.includes('/wpisy_na_date') ||
+                        lowerUrl.includes('/potwierdz_dosypke') ||
+                        lowerUrl.includes('/ack_') ||
+                        lowerUrl.includes('/check_') ||
+                        lowerUrl.includes('/online-users') ||
+                        lowerUrl.includes('/printer/status')
+                    ) {
+                        isBackground = true;
+                    }
+                }
+
+                if (headers) {
+                    if (typeof headers.get === 'function') {
+                        if (headers.get('X-Background-Request') === 'true' || headers.get('x-background-request') === 'true') {
+                            isBackground = true;
+                        }
+                    } else {
+                        for (const key in headers) {
+                            if (key.toLowerCase() === 'x-background-request' && String(headers[key]) === 'true') {
+                                isBackground = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (e) { }
+
+            if (!isBackground) {
+                try { startGlobalSpinnerWatcher(); } catch (e) { }
+            }
+
             const p = _origFetch.apply(this, arguments);
-            try { 
-                Promise.resolve(p)
-                    .finally(() => endGlobalSpinnerWatcher())
-                    .catch(() => { /* handled by the caller */ }); 
-            } catch (e) { 
-                endGlobalSpinnerWatcher(); 
+
+            if (!isBackground) {
+                try { 
+                    Promise.resolve(p)
+                        .finally(() => endGlobalSpinnerWatcher())
+                        .catch(() => { /* handled by the caller */ }); 
+                } catch (e) { 
+                    endGlobalSpinnerWatcher(); 
+                }
             }
             return p;
         };

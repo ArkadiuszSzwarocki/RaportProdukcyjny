@@ -10,7 +10,7 @@ agro_warehouse_bp = Blueprint('agro_warehouse', __name__)
 
 @agro_warehouse_bp.route('/agro/magazyn')
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('agro.magazyn')
 def index():
     linia = request.args.get('linia', 'Agro')
     # Parse optional date (useful for viewing pallets by day)
@@ -57,7 +57,7 @@ def index():
 
 @agro_warehouse_bp.route('/agro/magazyn/opakowania')
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('agro.magazyn')
 def opakowania():
     """Simple view for packaging warehouse (magazyn_opakowania) in AGRO."""
     linia = request.args.get('linia', 'Agro')
@@ -161,7 +161,8 @@ def link_packaging():
         data = request.get_json()
         success, error = AgroWarehouseService.link_packaging_to_plan(
             data.get('opakowanie_id'),
-            data.get('plan_id')
+            data.get('plan_id'),
+            data.get('pobrana_ilosc')
         )
         return jsonify({'success': success, 'error': error})
     except Exception as e:
@@ -177,6 +178,34 @@ def return_packaging():
             data.get('opakowanie_id'),
             data.get('stan_po'),
             data.get('lokalizacja'),
+            session.get('login')
+        )
+        return jsonify({'success': success, 'error': error})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/opakowania/undo', methods=['POST'])
+@login_required
+def undo_packaging():
+    try:
+        data = request.get_json()
+        success, error = AgroWarehouseService.undo_packaging_pull(
+            data.get('link_id'),
+            session.get('login')
+        )
+        return jsonify({'success': success, 'error': error})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/opakowania/undo_return', methods=['POST'])
+@login_required
+def undo_return():
+    try:
+        data = request.get_json()
+        success, error = AgroWarehouseService.undo_packaging_return(
+            data.get('link_id'),
             session.get('login')
         )
         return jsonify({'success': success, 'error': error})
@@ -884,3 +913,27 @@ def raport_palet():
         return f"Błąd generowania raportu: {str(e)}", 500
     finally:
         conn.close()
+
+@agro_warehouse_bp.route('/agro/api/opakowania/list', methods=['GET'])
+@login_required
+def list_opakowania():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, nazwa, stan_magazynowy, lokalizacja, linia FROM magazyn_opakowania WHERE stan_magazynowy > 0 ORDER BY nazwa ASC")
+        items = cursor.fetchall()
+        result = []
+        for it in items:
+            result.append({
+                'id': it['id'],
+                'nazwa': it.get('nazwa') or '',
+                'stan_magazynowy': float(it['stan_magazynowy']) if it.get('stan_magazynowy') is not None else 0,
+                'lokalizacja': it.get('lokalizacja') or '',
+                'linia': it.get('linia') or 'PSD'
+            })
+        conn.close()
+        return jsonify({'success': True, 'items': result})
+    except Exception as e:
+        current_app.logger.error(f"Error in list_opakowania: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+

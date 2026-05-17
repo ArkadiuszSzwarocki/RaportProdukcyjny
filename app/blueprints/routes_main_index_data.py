@@ -56,6 +56,10 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role):
                 linia=linia,
                 cursor=cursor
             )
+            # Filter plan_dnia: if any order is 'w toku', hide 'zaplanowane', 'zakonczone' and 'zamkniete'
+            has_w_toku = any(str(p[3]).strip().lower() == 'w toku' for p in plan_dnia if len(p) > 3)
+            if has_w_toku:
+                plan_dnia = [p for p in plan_dnia if len(p) <= 3 or str(p[3]).strip().lower() not in ('zaplanowane', 'zakonczone', 'zamkniete')]
 
         halls_data[linia] = {
             'linia': linia,

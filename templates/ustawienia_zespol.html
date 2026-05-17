@@ -343,14 +343,20 @@
 
     <div class="team-grid" id="teamGrid">
         {% for p in team %}
-        <div class="person-card" data-name="{{ p.imie_nazwisko|lower }}" data-login="{{ (p.login or '')|lower }}" data-id="{{ p.id }}">
+        <div class="person-card" data-name="{{ (p.imie_nazwisko or '')|lower }}" data-login="{{ (p.login or '')|lower }}" data-id="{{ p.id or '' }}">
             <div class="person-header">
                 <div class="person-avatar {% if p.user_id %}has-account{% endif %}">
-                    {{ p.imie_nazwisko[:1].upper() if p.imie_nazwisko else '?' }}
+                    {{ p.imie_nazwisko[:1].upper() if p.imie_nazwisko else (p.login[:1].upper() if p.login else '?') }}
                 </div>
                 <div class="person-info">
-                    <h3 class="person-name">{{ p.imie_nazwisko }}</h3>
-                    <div class="person-id">ID Pracownika: #{{ p.id }}</div>
+                    <h3 class="person-name">{{ p.imie_nazwisko or p.login }}</h3>
+                    <div class="person-id">
+                        {% if p.id %}
+                            ID Pracownika: #{{ p.id }}
+                        {% else %}
+                            Tylko konto systemowe
+                        {% endif %}
+                    </div>
                 </div>
             </div>
 
@@ -379,9 +385,11 @@
 
             <div class="person-footer">
                 <div class="d-flex gap-5">
-                    <button class="btn-unified btn-edit" onclick="openEditPerson({{ p.id }})">✎ Dane</button>
+                    {% if p.id %}
+                        <button class="btn-unified btn-edit" onclick="openEditPerson({{ p.id }})">✎ Dane</button>
+                    {% endif %}
                     {% if p.user_id %}
-                        <button class="btn-unified btn-edit" onclick="openEditAccount({{ p.user_id }}, '{{ p.imie_nazwisko|e }}')">🔑 Hasło/Rola</button>
+                        <button class="btn-unified btn-edit" onclick="openEditAccount({{ p.user_id }}, '{{ (p.imie_nazwisko or p.login)|e }}', '{{ (p.login or '')|e }}')">🔑 Hasło/Rola</button>
                     {% endif %}
                 </div>
                 
@@ -513,16 +521,22 @@
         });
     }
 
-    function openEditAccount(userId, name) {
+    function openEditAccount(userId, name, currentLogin) {
          showQuickPopup('⚙️ Uprawnienia: ' + name, `
             <div class="popup-content-inner">
                 <form action="/admin/konto/edytuj" method="POST">
                     <input type="hidden" name="id" value="${userId}">
-                    <p style="color:#64748b; margin-bottom:32px;">Możesz zmienić hasło lub rolę użytkownika. Dane personalne edytuje się w profilu pracownika.</p>
+                    <p style="color:#64748b; margin-bottom:32px;">Możesz zmienić login, hasło lub rolę użytkownika. Dane personalne edytuje się w profilu pracownika.</p>
                     
-                    <div class="form-group">
-                        <label class="form-label">Zmień Hasło</label>
-                        <input name="haslo" type="password" class="input-unified" placeholder="Wpisz nowe lub zostaw puste">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div class="form-group">
+                            <label class="form-label">Login użytkownika</label>
+                            <input name="login" value="${currentLogin || ''}" required class="input-unified" placeholder="np. j.kowalski">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Zmień Hasło</label>
+                            <input name="haslo" type="password" class="input-unified" placeholder="Wpisz nowe lub zostaw puste">
+                        </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:24px;">

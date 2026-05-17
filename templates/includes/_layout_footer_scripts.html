@@ -15,7 +15,7 @@
 <script src="{{ url_for('static', filename='scripts.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/dosypki.js') }}?v={{ static_version }}"></script>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/mqtt.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard/machine-stats.js') }}?v={{ static_version }}"></script>
 
 <script>

@@ -246,23 +246,38 @@
     flex-wrap: wrap;
     align-items: flex-start;
     gap: 20px;
+    width: 100%;
+}
+.cards.agro-focus-mode .agro-column {
+    flex: 1 1 300px;
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 .cards.agro-focus-mode .card {
-    flex: 1 1 350px;
-    max-width: 600px;
+    width: 100%;
+    max-width: none !important;
+    margin: 0;
 }
 .cards.agro-focus-mode .active-order-szarze-wrap {
-    flex: 1 1 300px;
-    max-width: 500px;
+    width: 100%;
+    max-width: none !important;
+    margin: 0;
 }
 
 /* AGRO Focus Mode Layout - 3 Columns on wide screens */
 @media (min-width: 1400px) {
     .cards.agro-focus-mode {
         display: grid !important;
-        grid-template-columns: minmax(350px, 1.2fr) minmax(300px, 1fr) minmax(280px, 0.8fr);
+        grid-template-columns: minmax(350px, 1.25fr) minmax(320px, 1.05fr) minmax(300px, 1fr);
         gap: 20px;
         align-items: start;
+        width: 100%;
+    }
+    .cards.agro-focus-mode .agro-column {
+        max-width: none !important;
+        width: 100%;
     }
     .cards.agro-focus-mode .card,
     .cards.agro-focus-mode .active-order-szarze-wrap,

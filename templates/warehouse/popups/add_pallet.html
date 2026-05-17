@@ -2,17 +2,98 @@
   <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj zasyp{% else %}📦 {{ _('dodaj_palete') }}{% endif %}</h3>
   {% if sekcja == 'Workowanie' %}
   {# Workowanie: użyj dedykowanego endpointu dodaj_palete #}
+  {% set bag_kg = 25.0 %}
+  {% if typ %}
+    {% if '20' in typ|string %}{% set bag_kg = 20.0 %}
+    {% elif '25' in typ|string %}{% set bag_kg = 25.0 %}
+    {% elif '50' in typ|string %}{% set bag_kg = 50.0 %}
+    {% endif %}
+  {% endif %}
+  <div class="popup-tabs" style="display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+    <button type="button" id="tab-paleta" class="tab-btn active" style="flex: 1; padding: 6px; border: none; border-radius: 6px; background: #3498db; color: #fff; font-weight: bold; cursor: pointer;" onclick="switchAddTab('paleta')">Pełna paleta</button>
+    <button type="button" id="tab-worki" class="tab-btn" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 6px; background: #fff; color: #333; font-weight: bold; cursor: pointer;" onclick="switchAddTab('worki')">Sztuki worków</button>
+  </div>
+
   <form action="{{ url_for('warehouse.dodaj_palete', plan_id=plan_id) }}" method="POST">
-    <input id="waga_palety" name="waga_palety" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="{{ _('waga_palety') }}" title="{{ _('waga_palety_kg_info') }}">
+    <!-- Widok Palety -->
+    <div id="form-group-paleta">
+      <label class="form-label" style="font-weight: 600; font-size: 0.9em; color: #4a5568; display: block; margin-bottom: 6px;">Podaj wagę palety (kg):</label>
+      <input id="waga_palety" name="waga_palety" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="Waga palety (kg)" value="1000" style="width: 100%; box-sizing: border-box; margin-bottom: 15px;">
+    </div>
+
+    <!-- Widok Worków -->
+    <div id="form-group-worki" style="display: none;">
+      <label class="form-label" style="font-weight: 600; font-size: 0.9em; color: #4a5568; display: block; margin-bottom: 6px;">Podaj ilość worków (szt):</label>
+      <input id="szt_workow_popup" name="ilosc_workow" type="number" step="1" min="1" class="input-sm popup-input" placeholder="Ilość worków (szt)" value="10" oninput="updatePopupBagsWeight({{ bag_kg }})" style="width: 100%; box-sizing: border-box; margin-bottom: 5px;">
+      <div style="font-size: 0.85em; color: #7f8c8d; margin-bottom: 15px; text-align: center;">
+        Waga worka: <strong>{{ bag_kg }} kg</strong> | Razem: <strong id="popup_suma_workow_kg">{{ (10 * bag_kg)|int }} kg</strong>
+      </div>
+    </div>
+
     <input type="hidden" name="linia" value="{{ linia }}">
-      <input type="hidden" name="sekcja" value="Workowanie">
+    <input type="hidden" name="sekcja" value="Workowanie">
     <input type="hidden" name="ui_trigger" value="button:dodaj_palete_popup">
     
-    <div class="popup-button-group">
-      <button type="submit" class="btn-action btn-save">{{ _('dodaj_palete') }}</button>
-      <button type="button" class="btn-action btn-outline" data-action="close-popup">ANULUJ</button>
+    <div class="popup-button-group" style="display: flex; gap: 10px; margin-top: 15px;">
+      <button type="submit" class="btn-action btn-save" style="flex: 1;">ZAPISZ</button>
+      <button type="button" class="btn-action btn-outline" data-action="close-popup" style="flex: 1;">ANULUJ</button>
     </div>
   </form>
+
+  <script>
+    function switchAddTab(tab) {
+        var paletaTab = document.getElementById('tab-paleta');
+        var workiTab = document.getElementById('tab-worki');
+        var paletaGroup = document.getElementById('form-group-paleta');
+        var workiGroup = document.getElementById('form-group-worki');
+        var wagaInput = document.getElementById('waga_palety');
+        var sztInput = document.getElementById('szt_workow_popup');
+
+        if (tab === 'paleta') {
+            paletaTab.style.background = '#3498db';
+            paletaTab.style.color = '#fff';
+            paletaTab.style.border = 'none';
+            
+            workiTab.style.background = '#fff';
+            workiTab.style.color = '#333';
+            workiTab.style.border = '1px solid #ccc';
+            
+            paletaGroup.style.display = 'block';
+            workiGroup.style.display = 'none';
+            wagaInput.setAttribute('required', 'required');
+            sztInput.removeAttribute('required');
+            
+            wagaInput.value = "1000";
+        } else {
+            workiTab.style.background = '#3498db';
+            workiTab.style.color = '#fff';
+            workiTab.style.border = 'none';
+            
+            paletaTab.style.background = '#fff';
+            paletaTab.style.color = '#333';
+            paletaTab.style.border = '1px solid #ccc';
+            
+            paletaGroup.style.display = 'none';
+            workiGroup.style.display = 'block';
+            sztInput.setAttribute('required', 'required');
+            wagaInput.removeAttribute('required');
+            
+            updatePopupBagsWeight({{ bag_kg }});
+        }
+    }
+
+    function updatePopupBagsWeight(bagKg) {
+        var sztInput = document.getElementById('szt_workow_popup');
+        var wagaInput = document.getElementById('waga_palety');
+        var sumText = document.getElementById('popup_suma_workow_kg');
+        if (sztInput && wagaInput && sumText) {
+            var szt = parseInt(sztInput.value) || 0;
+            var total = Math.round(szt * bagKg);
+            sumText.textContent = total + ' kg';
+            wagaInput.value = total;
+        }
+    }
+  </script>
   {% else %}
   {# Zasyp: użyj dodaj_plan dla zasypu #}
   <form action="{{ url_for('planning.dodaj_plan') }}" method="POST">

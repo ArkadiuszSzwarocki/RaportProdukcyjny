@@ -96,7 +96,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
                     'danger',
                 )
 
-            current_role = session.get('rola', '')
+            current_role = str(session.get('rola') or '').strip().lower()
             produkt_provided = produkt if produkt and produkt.strip() else None
             sekcja_provided = sekcja if sekcja and sekcja.strip() else None
             data_provided = data_planu if data_planu and str(data_planu).strip() else None
@@ -108,7 +108,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             )
 
             if row[1] == 'zakonczone':
-                if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider']:
+                if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider', 'masteradmin']:
                     flash('Można jedynie edytować ilość (kg) dla zakończonych zleceń i wymagane są do tego uprawnienia', 'warning')
                     return redirect(return_url_builder())
             elif row[1] == 'w toku':
@@ -116,7 +116,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
                     if not is_tonaz_only:
                         flash('Gdy zlecenie w toku, planista może zmieniać tylko kg', 'warning')
                         return redirect(return_url_builder())
-                elif current_role == 'admin':
+                elif current_role in ['admin', 'masteradmin']:
                     if not is_tonaz_only:
                         flash('Gdy zlecenie w toku, można zmieniać tylko kg', 'warning')
                         return redirect(return_url_builder())
@@ -239,7 +239,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             if not before:
                 return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
 
-            current_role = session.get('rola', '')
+            current_role = str(session.get('rola') or '').strip().lower()
             produkt_provided = produkt if produkt and (produkt.strip() if isinstance(produkt, str) else str(produkt).strip()) else None
             sekcja_provided = sekcja if sekcja and (sekcja.strip() if isinstance(sekcja, str) else str(sekcja).strip()) else None
             data_provided = data_planu if data_planu and str(data_planu).strip() else None
@@ -252,10 +252,10 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             )
 
             if before[5] == 'zakonczone':
-                if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider']:
+                if not is_tonaz_only or current_role not in ['planista', 'admin', 'zarzad', 'lider', 'masteradmin']:
                     return jsonify({'success': False, 'message': 'Można jedynie edytować ilość (kg) dla zakończonych zleceń i wymagane są uprawnienia'}), 403
 
-            if before[5] == 'w toku' and current_role in ['planista', 'admin', 'zarzad', 'lider']:
+            if before[5] == 'w toku' and current_role in ['planista', 'admin', 'zarzad', 'lider', 'masteradmin']:
                 if not is_tonaz_only:
                     return jsonify({'success': False, 'message': 'Gdy zlecenie w toku, możesz zmieniać tylko kg'}), 403
             elif before[5] == 'w toku':

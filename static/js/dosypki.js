@@ -235,6 +235,15 @@
                     updateDosypkiBadge(planId, -1);
                 }
                 await fetchDosypki(container);
+
+                // Reload the page/dashboard to update active stage times and badges instantly
+                setTimeout(function () {
+                    if (typeof window.performPartialReload === 'function') {
+                        window.performPartialReload({ preserveScroll: true, source: 'dosypka-confirmed' });
+                    } else {
+                        window.location.reload();
+                    }
+                }, 300);
             } else {
                 btn.disabled = false;
                 if (originalText) btn.textContent = originalText;

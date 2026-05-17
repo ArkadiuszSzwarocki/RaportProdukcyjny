@@ -5,7 +5,16 @@
 
     <span id="topBarPageTitle" style="font-size:16px;font-weight:700;color:var(--text-secondary,#e2e8f0);margin-right:auto;padding-left:16px;display:none;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
 
-    <div class="top-bar-right">
+    
+
+        <div class="top-bar-right">
+        
+        {% if is_test_db %}
+        <div class="test-db-badge" style="background-color: #ef4444; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 6px; margin-right: 15px; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4); border: 1px solid #b91c1c; text-transform: uppercase;">
+            <span class="material-icons" style="font-size: 18px; color: #fff;">warning_amber</span>
+            TRYB TESTOWY
+        </div>
+        {% endif %}
         {% if session.get('zalogowany') %}
         <div class="top-user-meta">
             <span class="user-role">
@@ -14,6 +23,8 @@
             </span>
         </div>
         {% endif %}
+
+        
 
         <div class="top-icons-group">
             {% if session.get('zalogowany') %}
@@ -69,6 +80,7 @@
                 <span class="material-icons">logout</span>
             </a>
             {% endif %}
+            
         </div>
     </div>
 </div>

@@ -21,10 +21,9 @@ def snapshot():
 
 
 def run_tests():
-    print('\n=== Running pytest ===')
-    p = subprocess.run([sys.executable, '-m', 'pytest', '-q'], cwd=str(WATCH_DIR))
-    print('=== pytest exit code:', p.returncode, '===\n')
-    return p.returncode
+    # Testy zostały wyłączone na prośbę użytkownika.
+    print('\n[dev_watch] Pomijanie testów pytest (zgodnie z ustawieniem)...')
+    return 0
 
 
 def restart_server():
@@ -54,13 +53,11 @@ def main():
             if cur != last:
                 changed = [str(p) for p in cur.keys() if p not in last or cur[p] != last[p]]
                 print('Detected changes in:', changed)
-                rc = run_tests()
-                # If tests passed, restart app automatically
-                if rc == 0:
-                    try:
-                        restart_server()
-                    except Exception as e:
-                        print('[dev_watch] Failed to restart server:', e)
+                # Uruchamiamy restart serwera bezpośrednio po wykryciu zmian
+                try:
+                    restart_server()
+                except Exception as e:
+                    print('[dev_watch] Failed to restart server:', e)
                 last = cur
     except KeyboardInterrupt:
         print('Watcher stopped')
@@ -68,3 +65,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

@@ -27,7 +27,7 @@
             class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
       </nav>
 
-      {% if session.get('rola') in ['lider', 'admin'] %}
+      {% if session.get('rola')|lower|trim in ['lider', 'admin', 'masteradmin'] %}
       <div class="end-shift-wrapper-top" style="margin-left: auto;">
         <form method="POST" action="{{ url_for('leaves.zamknij_zmiane_global') }}" class="end-shift-form m-0"
           id="endShiftForm" style="display: flex; gap: 10px;">
@@ -89,6 +89,13 @@
               </form>
               {% elif p[3] == 'w toku' %}
               <a href="{{ url_for('main.index', sekcja='Zasyp', linia=h.linia) }}" class="btn-action btn-primary btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1.5; text-decoration: none;">👁 OTWÓRZ</a>
+              {% elif p[3] == 'zakonczone' and session.get('rola')|lower|trim in ['lider', 'admin', 'masteradmin', 'planista', 'zarzad'] %}
+              <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST" style="margin:0;" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                <input type="hidden" name="linia" value="{{ h.linia }}">
+                <input type="hidden" name="sekcja" value="Zasyp">
+                <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                <button type="submit" class="btn-action btn-warning btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1;">↻ WZNÓW</button>
+              </form>
               {% endif %}
             </td>
           </tr>
@@ -130,13 +137,76 @@
             <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
             <td>
               {% if p[3] == 'zaplanowane' %}
+              {% set user_role = session.get('rola')|default('')|string|lower|trim %}
+              {% set allowed = (allowed_work_start_ids is defined and (p[0] in allowed_work_start_ids)) %}
+              {% set work_start_bypass_role = user_role in ['admin', 'planista', 'zarzad', 'lider', 'magazynier', 'masteradmin'] %}
+              {% if allowed %}
               <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0;">
                 <input type="hidden" name="linia" value="{{ h.linia }}">
                 <input type="hidden" name="sekcja" value="Workowanie">
                 <button type="submit" class="btn-action btn-success btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1;">▶ START</button>
               </form>
+              {% else %}
+              <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)" style="margin-right: 5px;">🔒</span>
+              {% if work_start_bypass_role %}
+              <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0; display:inline;"
+                data-confirm="⚠️ Zlecenie '{{ p[1] }}' nie jest pierwsze w kolejce FIFO! Czy na pewno chcesz je uruchomić poza kolejnością jako Lider?">
+                <input type="hidden" name="linia" value="{{ h.linia }}">
+                <input type="hidden" name="sekcja" value="Workowanie">
+                <button type="submit" class="btn-action btn-danger btn-sm" 
+                  style="padding:2px 6px; font-size:0.68em; line-height: 1; border-radius: 4px; vertical-align: middle; background: #e74c3c; border: none; color: white;">
+                  Wymuś
+                </button>
+              </form>
+              {% endif %}
+              {% endif %}
               {% elif p[3] == 'w toku' %}
-              <a href="{{ url_for('main.index', sekcja='Workowanie', linia=h.linia) }}" class="btn-action btn-primary btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1.5; text-decoration: none;">👁 OTWÓRZ</a>
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                <a href="{{ url_for('main.index', sekcja='Workowanie', linia=h.linia) }}" class="btn-action btn-primary btn-sm" style="padding:4px 8px; font-size:0.8em; line-height: 1.2; text-decoration: none; text-align:center;">👁 OTWÓRZ</a>
+                
+                {% set user_role = session.get('rola')|lower|trim %}
+                {% if user_role in ['lider', 'admin', 'masteradmin', 'planista', 'zarzad', 'produkcja', 'pracownik', 'operator'] %}
+                <div class="dashed-action-box" style="border: 1px dashed #3498db; border-radius: 8px; padding: 8px; background: rgba(52, 152, 219, 0.04); display:flex; flex-direction:column; gap:6px; margin-top:4px;">
+                  <!-- Dodaj Paletę -->
+                  <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" style="margin:0; display:flex; align-items:center; justify-content:space-between; gap:4px;">
+                    <div style="display:flex; align-items:center; gap:2px;">
+                      <input type="number" step="1" name="waga_palety" value="1000" style="width:55px; padding:2px 4px; font-size:0.8em; border:1px solid #ced4da; border-radius:4px; text-align:center;" required>
+                      <span style="font-size:0.75em; font-weight:bold; color:#555;">kg</span>
+                    </div>
+                    <button type="submit" class="btn-action btn-success btn-sm" style="padding:2px 6px; font-size:0.75em; line-height: 1.1; background:#3498db; border-color:#3498db;">+ PALETA</button>
+                  </form>
+
+                  <!-- Dodaj Worki -->
+                  {% set bag_kg = 25.0 %}
+                  {% if p[9] %}
+                    {% if '20' in p[9]|string %}{% set bag_kg = 20.0 %}
+                    {% elif '25' in p[9]|string %}{% set bag_kg = 25.0 %}
+                    {% elif '50' in p[9]|string %}{% set bag_kg = 50.0 %}
+                    {% endif %}
+                  {% endif %}
+                  <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" style="margin:0; display:flex; flex-direction:column; gap:4px; border-top: 1px solid rgba(0,0,0,0.06); padding-top:6px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
+                      <div style="display:flex; align-items:center; gap:2px;">
+                        <input type="number" step="1" name="ilosc_workow" value="10" style="width:55px; padding:2px 4px; font-size:0.8em; border:1px solid #ced4da; border-radius:4px; text-align:center;" id="global_szt_workow_{{ p[0] }}" oninput="updateGlobalBagsWeight({{ p[0] }}, {{ bag_kg }})" required>
+                        <span style="font-size:0.75em; font-weight:bold; color:#555;">szt</span>
+                      </div>
+                      <input type="hidden" name="waga_palety" id="global_waga_palety_{{ p[0] }}" value="{{ (10 * bag_kg)|round(0)|int }}">
+                      <button type="submit" class="btn-action btn-primary btn-sm" style="padding:2px 6px; font-size:0.75em; line-height: 1.1; background:#27ae60; border-color:#27ae60;">+ WORKI</button>
+                    </div>
+                    <div style="font-size:0.7em; color:#7f8c8d; text-align:center; margin-top:2px;">
+                      Worek: {{ bag_kg }} kg | Razem: <span id="global_suma_workow_kg_{{ p[0] }}">{{ (10 * bag_kg)|round(0)|int }}</span> kg
+                    </div>
+                  </form>
+                </div>
+                {% endif %}
+              </div>
+              {% elif p[3] == 'zakonczone' and session.get('rola')|lower|trim in ['lider', 'admin', 'masteradmin', 'planista', 'zarzad'] %}
+              <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST" style="margin:0;" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
+                <input type="hidden" name="linia" value="{{ h.linia }}">
+                <input type="hidden" name="sekcja" value="Workowanie">
+                <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                <button type="submit" class="btn-action btn-warning btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1;">↻ WZNÓW</button>
+              </form>
               {% endif %}
             </td>
           </tr>
@@ -188,7 +258,7 @@
             </div>
             <div class="note-text">{{ n.note }}</div>
           </div>
-          {% if session.get('rola') in ['lider', 'admin'] and session.get('imie_nazwisko') == n.author or
+          {% if session.get('rola')|lower|trim in ['lider', 'admin', 'masteradmin'] and session.get('imie_nazwisko') == n.author or
           session.get('login') == n.author %}
           <div class="note-actions">
             <button class="note-edit-btn" data-id="{{ n.id }}">✏️ Edytuj</button>
@@ -591,6 +661,18 @@
       }
     });
   });
+
+  function updateGlobalBagsWeight(planId, bagKg) {
+    var input = document.getElementById('global_szt_workow_' + planId);
+    var span = document.getElementById('global_suma_workow_kg_' + planId);
+    var hidden = document.getElementById('global_waga_palety_' + planId);
+    if (input && span && hidden) {
+        var szt = parseInt(input.value) || 0;
+        var total = Math.round(szt * bagKg);
+        span.textContent = total;
+        hidden.value = total;
+    }
+  }
 </script>
 
 {% endblock %}

@@ -16,8 +16,13 @@
     },
     {
       "src": "/static/agro_logo.png",
-      "sizes": "192x192 512x512",
-      "type": "image/png",
+      "sizes": "298x80",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/img/logo_circle.png",
+      "sizes": "1024x1024",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     }
   ]

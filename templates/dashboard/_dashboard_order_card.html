@@ -29,12 +29,23 @@
             {% elif sekcja == 'Workowanie' %}
             {% set allowed = (allowed_work_start_ids is defined and (p[0] in allowed_work_start_ids)) %}
             {% set work_start_bypass_role = role_lc in ['admin', 'planista', 'zarzad', 'lider', 'magazynier'] %}
-            {% if (work_start_bypass_role or allowed) %}
+            {% if allowed %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
                 style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% else %}
-            <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)">🔒</span>
+            <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)" style="margin-right: 5px;">🔒</span>
+            {% if work_start_bypass_role %}
+            <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="display:inline;"
+                data-confirm="⚠️ Zlecenie '{{ p[1] }}' nie jest pierwsze w kolejce FIFO! Czy na pewno chcesz je uruchomić poza kolejnością jako Lider?">
+                <input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}">
+                <button type="submit" class="btn-action btn-danger btn-sm"
+                    style="padding: 2px 6px; font-size: 0.68em; line-height: 1; border-radius: 4px; vertical-align: middle; background: #e74c3c; border: none; color: white;"
+                    title="Uruchom poza kolejnością (Lider)">
+                    Wymuś
+                </button>
+            </form>
+            {% endif %}
             {% endif %}
             {% elif sekcja == 'Zasyp' %}
             {% set zasyp_blocked = (zasyp_has_active is defined and zasyp_has_active) %}
@@ -70,7 +81,7 @@
                 class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
             {% endif %}
             {% elif p[3] == 'zakonczone' %}
-            {% if rola in ['lider', 'admin'] %}
+            {% if rola in ['lider', 'admin', 'masteradmin', 'planista', 'zarzad'] %}
             <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]|int) }}" method="POST"
                 data-confirm="Wznowić {{ p[1] }}?" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_planu" value="{{ dzisiaj }}"><button
                     type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button></form>
@@ -82,7 +93,27 @@
     <div class="card-body">
         <div class="card-row"><strong>Plan:</strong> <span class="text-success">{{ p[2]|int }} kg</span></div>
         {% if p[7] and p[7]|int > 0 %}<div class="card-row"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>{% endif %}
-        <div class="card-row"><strong>Typ:</strong> {{ p[9]|upper }}</div>
+        {% if sekcja != 'Zasyp' %}
+            {% if linia == 'AGRO' %}
+                {% set typ_label_map = {
+                    'worki_zgrzewane_25': 'Worki 25 kg',
+                    'worki_zgrzewane_20': 'Worki 20 kg',
+                    'worki_zszywane_25': 'Szyte 25 kg',
+                    'worki_zszywane_20': 'Szyte 20 kg',
+                    'bigbag': 'BigBag'
+                } %}
+                {% set clean_typ = p[9]|lower|trim %}
+                <div class="card-row"><strong>Typ:</strong> <span style="font-weight: 600; color: #1e293b;">{{ typ_label_map.get(clean_typ, '20 kg' if clean_typ == 'agro' else p[9]|upper) }}</span></div>
+                {% if p[18] %}
+                    <div class="card-row text-muted" style="font-size: 0.82em; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
+                        <span class="material-icons" style="font-size: 13px; color: #4f46e5;">movie_filter</span>
+                        <strong style="color: #4f46e5; font-size: 0.9em;">Worki:</strong> <span style="font-weight: 500; color: #334155;">{{ p[18] }}</span>
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="card-row"><strong>Typ:</strong> {{ p[9]|upper }}</div>
+            {% endif %}
+        {% endif %}
         {% if p[4] %}<div class="card-row"><strong>🟢 Start:</strong> {{ p[4] }}</div>{% endif %}
         {% if p[5] %}<div class="card-row"><strong>🔴 Stop:</strong> {{ p[5] }}</div>{% endif %}
         {% if p[3] == 'w toku' and p[4] %}
@@ -103,11 +134,12 @@
             {# Production buttons - only for active orders #}
             {% if p[3] == 'w toku' %}
                 {% if sekcja == 'Workowanie' %}
-                    <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
+                    <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA / WORKI</a>
                 {% elif sekcja == 'Zasyp' %}
                     {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
-                    {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
-                        <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
+                    {% set clean_rola = rola|string|trim|lower %}
+                    {% if clean_rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'masteradmin'] %}
+                        <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-plan-id="{{ p[0] }}" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
                     {% endif %}
                     <a href="{{ url_for('production.zasyp_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green manual-szarza-btn" data-slide>+ ZASYP</a>
                 {% endif %}

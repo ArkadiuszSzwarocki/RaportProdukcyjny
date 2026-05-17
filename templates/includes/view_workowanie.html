@@ -70,7 +70,7 @@
                 </div>
 
                 <div class="flex-1 d-flex flex-column gap-10">
-                    {% if rola in ['produkcja','lider','admin','pracownik'] %}
+                    {% if rola in ['produkcja','lider','admin','pracownik','masteradmin'] %}
                     <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" class="dashed-blue">
                         <label class="header-title">{{ _('dodaj_pelna_palete') }}</label>
                         
@@ -80,6 +80,27 @@
                         </div>
 
                         <button type="submit" class="btn-add-plan w-100">+ DODAJ PALETĘ</button>
+                    </form>
+
+                    {% set bag_kg = 25.0 %}
+                    {% if p[9] %}
+                        {% if '20' in p[9]|string %}{% set bag_kg = 20.0 %}
+                        {% elif '25' in p[9]|string %}{% set bag_kg = 25.0 %}
+                        {% elif '50' in p[9]|string %}{% set bag_kg = 50.0 %}
+                        {% endif %}
+                    {% endif %}
+                    <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" class="dashed-blue mt-5" style="border-color:#27ae60; background:rgba(39, 174, 96, 0.03);">
+                        <label class="header-title" style="color:#27ae60;">DODAJ LUZEM WORKI</label>
+                        
+                        <div class="d-flex justify-center align-center gap-10">
+                            <input type="number" step="1" name="ilosc_workow" value="10" class="input-sm w-70" aria-label="Ilość worków (szt)" onclick="this.select()" id="szt_workow_{{ p[0] }}" oninput="updateBagsWeight({{ p[0] }}, {{ bag_kg }})" required>
+                            <span class="fs-150 font-bold">szt</span>
+                        </div>
+                        <div style="font-size:0.85em; text-align:center; color:#666; margin:4px 0;">
+                            Waga worka: {{ bag_kg }} kg | Łącznie: <span id="suma_workow_kg_{{ p[0] }}">{{ (10 * bag_kg)|round(0)|int }}</span> kg
+                        </div>
+                        <input type="hidden" name="waga_palety" id="waga_palety_workow_{{ p[0] }}" value="{{ (10 * bag_kg)|round(0)|int }}">
+                        <button type="submit" class="btn-add-plan w-100" style="background:#27ae60; border-color:#27ae60;">+ DODAJ WORKI</button>
                     </form>
                     {% endif %}
 
@@ -139,7 +160,7 @@
                     </form>
                 {% endif %}
                 
-                {% if rola in ['admin', 'lider'] %}
+                {% if rola in ['admin', 'lider', 'masteradmin', 'planista', 'zarzad'] %}
                     <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST" class="inline-form inline-display" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
                         <input type="hidden" name="linia" value="{{ linia }}">
                         <input type="hidden" name="sekcja" value="Workowanie">
@@ -148,7 +169,7 @@
                     </form>
                 {% endif %}
                 
-                {% if rola in ['planista', 'admin', 'lider'] %}
+                {% if rola in ['planista', 'admin', 'lider', 'masteradmin'] %}
                     <button type="button" class="btn-icon ml-5" title="{{ _('przenies_zlecenie') }}" data-action="move-order" data-order-id="{{ p[0] }}" data-order-name="{{ p[1] }}">📦</button>
                 {% endif %}
             </div>
@@ -206,7 +227,7 @@
 
 </script>
     
-    {% if rola in ['planista', 'admin', 'lider'] %}
+    {% if rola in ['planista', 'admin', 'lider', 'masteradmin'] %}
     <hr class="custom-hr">
     <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="form-flex">
         <input type="date" name="data_planu" value="{{ dzisiaj }}" required class="w-auto" aria-label="{{ _('plan') }}">
@@ -312,6 +333,18 @@ function confirmMoveWork(){
                 alert((j && j.message) || 'Błąd');
             }
         }).catch(function(){ alert('Błąd sieci'); });
+}
+
+function updateBagsWeight(planId, bagKg) {
+    var input = document.getElementById('szt_workow_' + planId);
+    var span = document.getElementById('suma_workow_kg_' + planId);
+    var hidden = document.getElementById('waga_palety_workow_' + planId);
+    if (input && span && hidden) {
+        var szt = parseInt(input.value) || 0;
+        var total = Math.round(szt * bagKg);
+        span.textContent = total;
+        hidden.value = total;
+    }
 }
 
 // Załaduj przy starcie

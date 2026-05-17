@@ -54,7 +54,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
 
                 if sekcja == 'Workowanie':
                     # Role is normalized here to avoid case/whitespace mismatches.
-                    if role_lc in ('planista', 'admin', 'zarzad'):
+                    if role_lc in ('planista', 'admin', 'zarzad', 'masteradmin'):
                         current_app.logger.debug(f'[KOLEJKA] bypass for role={role_lc} plan_id={id} produkt={produkt}')
                     else:
                         try:
@@ -98,7 +98,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
 
                                     # Bypass FIFO for selected roles
                                     role_lc = str(session.get('rola') or '').strip().lower()
-                                    can_bypass = role_lc in ['admin', 'lider', 'planista', 'zarzad']
+                                    can_bypass = role_lc in ['admin', 'lider', 'planista', 'zarzad', 'masteradmin']
 
                                     if not can_bypass:
                                         flash(
@@ -390,7 +390,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         linia = str(linia_input).upper()
         role = (session.get('rola') or '').lower()
-        is_admin_role = role in ['admin', 'zarzad', 'planista']
+        is_admin_role = role in ['admin', 'zarzad', 'planista', 'masteradmin']
         is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
         if not is_admin_role and not is_ops_role:
             flash('Brak uprawnień do dodawania zasypów.', 'warning')

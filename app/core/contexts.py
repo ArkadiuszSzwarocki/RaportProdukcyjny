@@ -16,7 +16,6 @@ _translations_cache = {}
 def inject_static_version():
     """Inject cache-busting static file version based on CSS modification time."""
     try:
-        # Use the latest modification time among key static assets (style + scripts)
         candidates = [
             os.path.join(current_app.root_path, 'static', 'css', 'style.css'),
             os.path.join(current_app.root_path, 'static', 'css', 'sidebar.css'),
@@ -61,11 +60,9 @@ def inject_role_permissions():
     def role_has_access(page):
         try:
             r = str(session.get('rola') or '').lower().strip()
-            # 0. MasterAdmin Bypasses EVERYTHING - has access to every single page/API
             if r == 'masteradmin':
                 return True
 
-            # Read config every time (no caching)
             perms = {}
             try:
                 with open(cfg_path, 'r', encoding='utf-8') as f:
@@ -74,7 +71,6 @@ def inject_role_permissions():
                 current_app.logger.error(f"[DEBUG configs] Failed to load role_permissions.json from {cfg_path}: {e}")
                 perms = {}
             
-            # Normalize common role name variants/synonyms (support numeric roles from DB)
             if r.isdigit():
                 try:
                     idx = int(r)
@@ -85,14 +81,9 @@ def inject_role_permissions():
                     pass
             if r in ['operator', 'stepnpio']:
                 r = 'pracownik'
-            # Do not log debug info here to avoid noisy logs during template rendering
             
-            # IMPORTANT: if config exists and contains pages, use ONLY config
-            # (no fallback to hardcoded rules)
             if perms and len(perms) > 0:
-                # Config has data - check if page is in config
                 page_key = _resolve_page_key(page, perms)
-                # Page in config -> check role access
                 page_perms = perms.get(page_key)
                 if page_perms is None:
                     current_app.logger.warning(f"role_has_access: page_key '{page_key}' not found in perms (original page: '{page}')")
@@ -103,7 +94,6 @@ def inject_role_permissions():
                 current_app.logger.info(f"role_has_access(page={page}, key={page_key}, role={r}) -> {result} (cfg: {role_cfg})")
                 return result
             
-            # Config empty - use fallback
             if page == 'dashboard':
                 return r in ['lider', 'admin']
             if page in ('zasyp', 'workowanie', 'magazyn'):
@@ -120,7 +110,6 @@ def inject_role_permissions():
                 return True
             if page == 'ustawienia':
                 return r == 'admin'
-            # unknown page key -> allow by default
             return True
         except Exception as e:
             current_app.logger.exception(f'role_has_access({page}) error: {e}')
@@ -132,7 +121,6 @@ def inject_role_permissions():
             if r == 'masteradmin':
                 return False
 
-            # Read config every time (no caching)
             perms = {}
             try:
                 with open(cfg_path, 'r', encoding='utf-8') as f:
@@ -140,7 +128,6 @@ def inject_role_permissions():
             except Exception:
                 perms = {}
             
-            # Normalize common role name variants/synonyms
             if r.isdigit():
                 try:
                     idx = int(r)
@@ -152,7 +139,6 @@ def inject_role_permissions():
             if r in ['operator', 'stepnpio']:
                 r = 'pracownik'
             if not perms:
-                # default: no readonly restrictions
                 return False
             page_key = _resolve_page_key(page, perms)
             page_perms = perms.get(page_key)
@@ -162,7 +148,6 @@ def inject_role_permissions():
         except Exception:
             return False
 
-    # Pre-calculate master and admin access for templates
     curr_role = str(session.get('rola') or '').lower().strip()
     has_master_access = (curr_role == 'masteradmin')
     has_admin_access = (curr_role in ['admin', 'masteradmin'])
@@ -176,47 +161,25 @@ def inject_role_permissions():
 
 
 def inject_translations():
-    """Inject translation function into templates.
-    
-    Supports language resolution in order:
-    1. session['app_language']
-    2. cookie 'app_language'
-    3. query param ?lang=
-    4. Accept-Language header
-    5. default: 'pl'
-    """
-    
+    """Inject translation function into templates."""
     def get_language():
-        """Get preferred language from various sources."""
-        # 1. Check session
         if 'app_language' in session:
             return session.get('app_language')
-        
-        # 2. Check cookie
         if 'app_language' in request.cookies:
             return request.cookies.get('app_language')
-        
-        # 3. Check query parameter ?lang=uk
         if 'lang' in request.args:
             return request.args.get('lang')
-        
-        # 4. Check Accept-Language header
         if request.headers.get('Accept-Language'):
             lang_header = request.headers.get('Accept-Language', '').lower()
             if 'uk' in lang_header:
                 return 'uk'
             elif 'en' in lang_header:
                 return 'en'
-        
-        # 5. Default to Polish
         return 'pl'
     
     def get_translation(key, default_text=''):
-        """Get translation for a given key."""
         try:
             lang = get_language()
-            
-            # Load translations if not in global cache
             if 'translations' not in _translations_cache:
                 project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
                 trans_paths = [
@@ -233,7 +196,6 @@ def inject_translations():
             
             translations = _translations_cache['translations']
             
-            # Get text for selected language
             if lang in translations and key in translations[lang]:
                 return translations[lang][key]
             elif 'pl' in translations and key in translations['pl']:
@@ -268,7 +230,7 @@ def inject_app_version():
 
 
 def inject_bug_report_counters():
-    """Inject unread bug reports count for templates (shown where applicable)."""
+    """Inject unread bug reports count for templates."""
     try:
         if not session.get('zalogowany'):
             return dict(unread_bug_reports_count=0)
@@ -298,7 +260,6 @@ def inject_delivery_counters():
         counts = {'PSD': 0, 'AGRO': 0, 'ALL': 0}
         total_pending = 0
 
-        # 1) Oczekujące dostawy/przesunięcia z modułu magazyn_dostawy
         cursor.execute(
             """
             SELECT UPPER(TRIM(COALESCE(linia, ''))) AS linia, COUNT(*)
@@ -315,7 +276,6 @@ def inject_delivery_counters():
                 counts[l] += qty
 
         counts['ALL'] = total_pending
-
         return dict(pending_deliveries=counts)
     except Exception:
         return dict(pending_deliveries={'PSD': 0, 'AGRO': 0, 'ALL': 0})
@@ -327,6 +287,30 @@ def inject_delivery_counters():
             pass
 
 
+def inject_db_env():
+    """Wstrzykuje informacje o aktywnym środowisku (baza testowa) do szablonów."""
+    is_test_db = False
+    try:
+        # Metoda 1: Sprawdza fizycznie podpiętą bazę z konfiguracji aplikacji
+        from app.db import get_active_database_name
+        active_db = str(get_active_database_name()).lower()
+        if 'test' in active_db:
+            is_test_db = True
+            
+        # Metoda 2: Zapasowe sprawdzenie zawartości pliku active_db.txt
+        if not is_test_db:
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            active_db_path = os.path.join(project_root, 'active_db.txt')
+            if os.path.exists(active_db_path):
+                with open(active_db_path, 'r', encoding='utf-8') as f:
+                    db_content = f.read().strip().lower()
+                    if 'test' in db_content:  # <--- Sprawdzamy czy ZAWIERA słowo test
+                        is_test_db = True
+    except Exception:
+        pass
+        
+    return dict(is_test_db=is_test_db)
+
 def register_contexts(app):
     """Register all context processors with Flask app."""
     app.context_processor(inject_static_version)
@@ -336,4 +320,4 @@ def register_contexts(app):
     app.context_processor(inject_app_version)
     app.context_processor(inject_bug_report_counters)
     app.context_processor(inject_delivery_counters)
-
+    app.context_processor(inject_db_env)

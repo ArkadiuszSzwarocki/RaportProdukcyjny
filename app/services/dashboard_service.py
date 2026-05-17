@@ -257,6 +257,10 @@ class DashboardService:
             'palety_kg_wykonane': 0.0,
             'palety_count': 0,
             'estimated_bags': 0,
+            'available_packaging': [],
+            'all_linked_packaging': [],
+            'total_actual_consumed': 0.0,
+            'straty_workow': 0.0,
         }
         try:
             from app.services.agro_warehouse_service import AgroWarehouseService
@@ -272,6 +276,8 @@ class DashboardService:
                 
             plan_id = int(active_plan['id'])
             packaging_items = AgroWarehouseService.get_linked_packaging(plan_id) or []
+            all_linked_packaging = AgroWarehouseService.get_all_linked_packaging(plan_id) or []
+            available_packaging = AgroWarehouseService.get_available_packaging_for_linking(plan_id) or []
             history = AgroWarehouseService.get_history(limit=10, plan_id=plan_id, linia='AGRO') or []
 
             table_palety = get_table_name('palety_workowanie', 'AGRO')
@@ -295,10 +301,13 @@ class DashboardService:
             # Determine bag weight from typ_produkcji (e.g. 'worki_zgrzewane_25' -> 25)
             import re
             bag_kg = 25.0
-            typ_prod = active_plan.get('typ_produkcji') or ''
-            kg_match = re.search(r'(\d+)', typ_prod)
-            if kg_match:
-                bag_kg = float(kg_match.group(1))
+            typ_prod = (active_plan.get('typ_produkcji') or '').strip().lower()
+            if typ_prod == 'agro':
+                bag_kg = 20.0
+            else:
+                kg_match = re.search(r'(\d+)', typ_prod)
+                if kg_match:
+                    bag_kg = float(kg_match.group(1))
             
             estimated_bags = int(round(palety_kg_wykonane / bag_kg)) if bag_kg > 0 else 0
 
@@ -313,6 +322,17 @@ class DashboardService:
                     }
                 )
             
+            total_actual_consumed = 0.0
+            for item in all_linked_packaging:
+                stan_przed = float(item.get('stan_poczatkowy') or 0.0)
+                if item.get('is_active'):
+                    total_actual_consumed += stan_przed
+                else:
+                    stan_po = float(item.get('stan_koncowy') or 0.0) if item.get('stan_koncowy') is not None else 0.0
+                    total_actual_consumed += max(stan_przed - stan_po, 0.0)
+            
+            straty_workow = max(total_actual_consumed - estimated_bags, 0.0)
+            
             return {
                 'active_plan': active_plan,
                 'packaging_items': packaging_items,
@@ -322,11 +342,188 @@ class DashboardService:
                 'palety_kg_wykonane': palety_kg_wykonane,
                 'palety_count': palety_count,
                 'estimated_bags': estimated_bags,
+                'available_packaging': available_packaging,
+                'all_linked_packaging': all_linked_packaging,
+                'total_actual_consumed': total_actual_consumed,
+                'straty_workow': straty_workow,
             }
         except Exception as error:
             out = dict(default_ctx)
             out['wrctx_error'] = str(error)
             return out
+
+    @staticmethod
+    def _load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=None) -> Dict[str, Any]:
+        """Loads the settlement context for AGRO Workowanie using an existing cursor."""
+        default_ctx = {
+            'active_plan': None,
+            'packaging_items': [],
+            'maszyna_opakowania': [],
+            'history': [],
+            'bag_kg': 25.0,
+            'palety_kg_wykonane': 0.0,
+            'palety_count': 0,
+            'estimated_bags': 0,
+            'available_packaging': [],
+            'all_linked_packaging': [],
+            'total_actual_consumed': 0.0,
+            'straty_workow': 0.0,
+        }
+        
+        try:
+            # 1. Fetch active plan
+            active_plan = None
+            table_plan = get_table_name('plan_produkcji', 'AGRO')
+            
+            if preferred_plan_id:
+                cursor.execute(
+                    f"SELECT id, produkt, data_planu, typ_produkcji, status, sugerowana_folia FROM {table_plan} WHERE id = %s",
+                    (preferred_plan_id,)
+                )
+                active_plan = cursor.fetchone()
+                
+            if not active_plan:
+                cursor.execute(
+                    f"SELECT id, produkt, data_planu, typ_produkcji, status, sugerowana_folia FROM {table_plan} WHERE status='w toku' AND sekcja='Workowanie' AND DATE(data_planu) = %s ORDER BY real_start DESC LIMIT 1",
+                    (data_planu,)
+                )
+                active_plan = cursor.fetchone()
+                
+            if not active_plan:
+                cursor.execute(
+                    f"SELECT id, produkt, data_planu, typ_produkcji, status, sugerowana_folia FROM {table_plan} WHERE status='zakonczone' AND sekcja='Workowanie' AND DATE(data_planu) = %s ORDER BY real_stop DESC LIMIT 1",
+                    (data_planu,)
+                )
+                active_plan = cursor.fetchone()
+                
+            if not active_plan:
+                return default_ctx
+
+            plan_id = int(active_plan['id'])
+            
+            # 2. Get linked packaging (active only)
+            cursor.execute("""
+                SELECT ap.id as link_id, ap.opakowanie_id, ap.stan_poczatkowy, ap.stan_koncowy, ap.is_active,
+                       o.nazwa, o.stan_magazynowy as current_stan
+                FROM agro_plan_opakowania ap
+                JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
+                WHERE ap.plan_id = %s AND ap.is_active = TRUE
+                ORDER BY ap.created_at ASC
+            """, (plan_id,))
+            packaging_items = cursor.fetchall() or []
+            
+            # 2b. Get all linked packaging
+            cursor.execute("""
+                SELECT ap.id as link_id, ap.opakowanie_id, ap.stan_poczatkowy, ap.stan_koncowy, ap.is_active,
+                       o.nazwa, o.stan_magazynowy as current_stan
+                FROM agro_plan_opakowania ap
+                JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
+                WHERE ap.plan_id = %s
+                ORDER BY ap.created_at ASC
+            """, (plan_id,))
+            all_linked_packaging = cursor.fetchall() or []
+            
+            # 2c. Get available warehouse packaging
+            cursor.execute("""
+                SELECT id, nazwa, stan_magazynowy, lokalizacja
+                FROM magazyn_opakowania
+                WHERE stan_magazynowy > 0
+                  AND id IN (
+                      SELECT opakowanie_id
+                      FROM agro_plan_opakowania
+                      WHERE plan_id = %s
+                  )
+                ORDER BY nazwa ASC
+            """, (plan_id,))
+            available_packaging = cursor.fetchall() or []
+            
+            # 3. Get history
+            cursor.execute("""
+                SELECT r.*, COALESCE(o.nazwa, r.opakowanie_nazwa) AS opakowanie_biezace
+                FROM agro_workowanie_rozliczenie r
+                LEFT JOIN magazyn_opakowania o ON o.id = r.opakowanie_id
+                WHERE r.plan_id = %s
+                ORDER BY r.created_at DESC LIMIT 10
+            """, (plan_id,))
+            history = cursor.fetchall() or []
+
+            # 4. Get palety totals
+            table_palety = get_table_name('palety_workowanie', 'AGRO')
+            cursor.execute(
+                f"SELECT COUNT(*), COALESCE(SUM(waga), 0) FROM {table_palety} WHERE plan_id=%s",
+                (plan_id,),
+            )
+            totals_row = cursor.fetchone() or (0, 0)
+            
+            if isinstance(totals_row, dict):
+                vals = list(totals_row.values())
+                palety_count = int(vals[0] or 0)
+                palety_kg_wykonane = float(vals[1] or 0.0)
+            else:
+                palety_count = int(totals_row[0] or 0)
+                palety_kg_wykonane = float(totals_row[1] or 0.0)
+            
+            # Determine bag weight from typ_produkcji (e.g. 'worki_zgrzewane_25' -> 25)
+            import re
+            bag_kg = 25.0
+            typ_prod = (active_plan.get('typ_produkcji') or '').strip().lower()
+            if typ_prod == 'agro':
+                bag_kg = 20.0
+            else:
+                kg_match = re.search(r'(\d+)', typ_prod)
+                if kg_match:
+                    bag_kg = float(kg_match.group(1))
+            
+            estimated_bags = int(round(palety_kg_wykonane / bag_kg)) if bag_kg > 0 else 0
+
+            maszyna_opakowania = []
+            for item in packaging_items:
+                maszyna_opakowania.append(
+                    {
+                        'id': item.get('opakowanie_id'),
+                        'nazwa': item.get('nazwa') or '',
+                        'stan_magazynowy': float(item.get('current_stan') or 0),
+                        'is_linked': bool(item.get('is_active')),
+                    }
+                )
+            
+            total_actual_consumed = 0.0
+            for item in all_linked_packaging:
+                stan_przed = float(item.get('stan_poczatkowy') or 0.0)
+                if item.get('is_active'):
+                    total_actual_consumed += stan_przed
+                else:
+                    stan_po = float(item.get('stan_koncowy') or 0.0) if item.get('stan_koncowy') is not None else 0.0
+                    total_actual_consumed += max(stan_przed - stan_po, 0.0)
+            
+            straty_workow = max(total_actual_consumed - estimated_bags, 0.0)
+            
+            return {
+                'active_plan': active_plan,
+                'packaging_items': packaging_items,
+                'maszyna_opakowania': maszyna_opakowania,
+                'history': history,
+                'bag_kg': bag_kg,
+                'palety_kg_wykonane': palety_kg_wykonane,
+                'palety_count': palety_count,
+                'estimated_bags': estimated_bags,
+                'available_packaging': available_packaging,
+                'all_linked_packaging': all_linked_packaging,
+                'total_actual_consumed': total_actual_consumed,
+                'straty_workow': straty_workow,
+            }
+            
+        except Exception as error:
+            import traceback
+            from flask import current_app
+            try:
+                current_app.logger.error(f"Error in _load_workowanie_rozliczenie_context: {error}\n{traceback.format_exc()}")
+            except Exception:
+                pass
+            out = dict(default_ctx)
+            out['wrctx_error'] = str(error)
+            return out
+
 
     @staticmethod
     def _calculate_elapsed_time(dt: Any) -> str:

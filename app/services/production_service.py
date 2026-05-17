@@ -58,8 +58,8 @@ class ProductionService:
             if len(p) > 14 and p[14]:
                 zasyp_id_original_map[p[0]] = p[14]
             
-            # Ensure we have enough space for extra metadata (indices 15, 16, 17...)
-            while len(p) < 17:
+            # Ensure we have enough space for extra metadata (indices 15, 16, 17, 18...)
+            while len(p) < 20:
                 p.append(None)
             
             src = przeniesione_map.get(p[0], '')
@@ -74,6 +74,21 @@ class ProductionService:
                         break
             p[15] = src
             p[16] = 0
+
+            if linia == 'AGRO':
+                try:
+                    cursor.execute("""
+                        SELECT o.nazwa 
+                        FROM agro_plan_opakowania ap
+                        JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
+                        WHERE ap.plan_id = %s
+                        ORDER BY ap.created_at DESC LIMIT 1
+                    """, (p[0],))
+                    op_row = cursor.fetchone()
+                    p[18] = op_row[0] if op_row else None
+                except Exception as e:
+                    _logger.warning(f"Failed to fetch packaging name for plan {p[0]}: {e}")
+                    p[18] = None
 
         # Carry-over tonaz lookup
         ProductionService._populate_carry_over_tonaz(plan_dnia, linia, zasyp_id_original_map)

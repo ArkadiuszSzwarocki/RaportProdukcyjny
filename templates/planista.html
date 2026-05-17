@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 
 {% block content %}
-{% set can_manage_plans = (session.get('rola') or '')|lower in ['planista', 'admin', 'zarzad'] %}
+{% set can_manage_plans = (session.get('rola') or '')|lower|trim in ['planista', 'admin', 'zarzad', 'masteradmin'] %}
 
 <!-- Sortable.js for drag-and-drop reordering -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -126,7 +126,12 @@ document.addEventListener('DOMContentLoaded', function () {
             <tr data-plan-id="{{ p.id }}">
                 <td class="text-muted font-bold">{{ loop.index }}</td>
                 <td>
-                    <strong class="text-primary">{{ p.produkt }}</strong>
+                    <strong class="text-primary product-summary-trigger" 
+                            style="cursor: pointer; text-decoration: underline dotted; transition: color 0.2s;"
+                            onclick="openZlecenieSummaryReport('{{ p.id }}', true)"
+                            title="Kliknij, aby otworzyć raport zbiorczy zlecenia">
+                        {{ p.produkt }}
+                    </strong>
                     {% if p.przeniesiony_z %}
                     <br><span style="display:inline-block;background:#e8f4fd;color:#1565c0;border:1px solid #90caf9;border-radius:10px;padding:1px 7px;font-size:0.78em;font-weight:600;margin-top:2px;">📦 przeniesione z {{ p.przeniesiony_z }}{% if p.przeniesiony_tonaz and p.przeniesiony_tonaz|int > 0 %}: {{ p.przeniesiony_tonaz|int }} kg{% endif %}</span>
                     {% if p.przeniesiony_tonaz and p.przeniesiony_tonaz|int > 0 and p.tonaz|int > p.przeniesiony_tonaz|int %}
@@ -309,7 +314,12 @@ document.addEventListener('DOMContentLoaded', function () {
             <tr data-plan-id="{{ p.id }}" {% if p.status in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
                 <td class="text-muted font-bold">{{ loop.index }}</td>
                 <td>
-                    <strong class="text-primary">{{ p.produkt }}</strong>
+                    <strong class="text-primary product-summary-trigger" 
+                            style="cursor: pointer; text-decoration: underline dotted; transition: color 0.2s;"
+                            onclick="openZlecenieSummaryReport('{{ p.id }}', false)"
+                            title="Kliknij, aby otworzyć raport zbiorczy zlecenia">
+                        {{ p.produkt }}
+                    </strong>
                     {% if p.przeniesiony_z %}
                     <br><span style="display:inline-block;background:#e8f4fd;color:#1565c0;border:1px solid #90caf9;border-radius:10px;padding:1px 7px;font-size:0.78em;font-weight:600;margin-top:2px;">📦 przeniesione z {{ p.przeniesiony_z }}{% if p.przeniesiony_tonaz and p.przeniesiony_tonaz|int > 0 %}: {{ p.przeniesiony_tonaz|int }} kg{% endif %}</span>
                     {% if p.przeniesiony_tonaz and p.przeniesiony_tonaz|int > 0 and p.tonaz|int > p.przeniesiony_tonaz|int %}
@@ -1568,13 +1578,204 @@ document.addEventListener('DOMContentLoaded', function(){
                     if(resp.ok){ window.location.reload(); return; }
                     return resp.text().then(function(t){ throw new Error(t || 'Błąd serwera'); });
                 }).catch(function(err){
-                    alert('Błąd dodawania: ' + (err && err.message ? err.message : err));
-                });
             });
         });
     });
 });
 </script>
+
+<script>
+function openZlecenieSummaryReport(planId, isAgro) {
+    // Show a loading dialog
+    const loadingHtml = `
+        <div class="d-flex flex-column align-center justify-center p-20" style="min-height: 200px;">
+            <div class="loading-spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
+            <div style="margin-top: 15px; color: #64748b; font-weight: 600;">Pobieranie danych zlecenia...</div>
+        </div>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+    const popup = showQuickPopup('📊 Raport zbiorczy zlecenia', loadingHtml, { width: '850px' });
+
+    fetch(`/api/plan/${planId}/summary?is_agro=${isAgro ? 1 : 0}`)
+        .then(resp => resp.json())
+        .then(res => {
+            if (!res.success) {
+                popup.element.querySelector('.qp-body').innerHTML = `
+                    <div class="p-20 text-center text-danger font-bold">
+                        ❌ Błąd ładowania danych: ${res.error || 'Nieznany błąd'}
+                    </div>
+                `;
+                return;
+            }
+
+            const p = res.plan;
+            const lp = res.linked_plan;
+            const metrics = res.metrics;
+            
+            // Format timestamps for header
+            const dateStr = p.data_planu || '';
+            const statusLabel = p.status === 'zakonczone' ? '✔ Zakończone' : (p.status === 'w toku' ? '⏳ W toku' : 'Plan');
+            
+            let html = `
+                <div class="summary-report-container" style="padding: 15px; font-family: inherit; color: #1e293b; max-height: calc(100vh - 120px); overflow-y: auto;">
+                    <!-- Header Info -->
+                    <div style="background: linear-gradient(135deg, #0f172a, #2563eb); color: white; padding: 20px 24px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.25);">
+                        <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.8; letter-spacing: 0.1em;">Zlecenie produkcyjne</div>
+                        <div style="font-size: 24px; font-weight: 800; margin: 4px 0 8px 0; line-height: 1.2; letter-spacing: -0.02em;">${p.produkt}</div>
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px; opacity: 0.9;">
+                            <span>📅 <strong>Data:</strong> ${dateStr}</span>
+                            <span>📊 <strong>Status:</strong> ${statusLabel}</span>
+                            <span>🏷️ <strong>Typ:</strong> ${p.typ_produkcji || 'standard'}</span>
+                            ${p.nr_receptury ? `<span>🔬 <strong>Receptura:</strong> ${p.nr_receptury}</span>` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Metrics Grid -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px;">
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <div style="font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Waga Zaplanowana</div>
+                            <div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 4px;">${res.plan.sekcja === 'Zasyp' ? res.plan.tonaz_plan : (res.linked_plan ? res.linked_plan.tonaz_plan : res.plan.tonaz_plan)} kg</div>
+                        </div>
+                        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <div style="font-size: 10px; color: #166534; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Zasyp Rzeczywisty</div>
+                            <div style="font-size: 18px; font-weight: 800; color: #15803d; margin-top: 4px;">${metrics.zasyp_actual_kg} kg</div>
+                        </div>
+                        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <div style="font-size: 10px; color: #1e40af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Spakowano Łącznie</div>
+                            <div style="font-size: 18px; font-weight: 800; color: #1d4ed8; margin-top: 4px;">${metrics.work_actual_kg} kg</div>
+                        </div>
+                        <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; padding: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                            <div style="font-size: 10px; color: #991b1b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Uszkodzone Worki</div>
+                            <div style="font-size: 18px; font-weight: 800; color: #b91c1c; margin-top: 4px;">${metrics.total_uszkodzone_worki} szt.</div>
+                        </div>
+                    </div>
+
+                    <!-- Split Columns: Zasyp vs Workowanie -->
+                    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
+                        
+                        <!-- COLUMN 1: ZASYP -->
+                        <div style="flex: 1; min-width: 320px; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
+                            <h4 style="margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 2px solid #e4e4e7; padding-bottom: 8px; color: #27272a; font-weight: 700; font-size: 14px;">
+                                🌾 SEKCJA ZASYP
+                            </h4>
+                            
+                            <!-- Mixing Times -->
+                            <div style="font-size: 12px; color: #52525b; margin-bottom: 15px; line-height: 1.6;">
+                                <div>⏱️ <strong>Czas start:</strong> ${res.plan.sekcja === 'Zasyp' ? (res.plan.real_start || 'brak') : (res.linked_plan && res.linked_plan.sekcja === 'Zasyp' ? (res.linked_plan.real_start || 'brak') : 'brak')}</div>
+                                <div>⏱️ <strong>Czas stop:</strong> ${res.plan.sekcja === 'Zasyp' ? (res.plan.real_stop || 'brak') : (res.linked_plan && res.linked_plan.sekcja === 'Zasyp' ? (res.linked_plan.real_stop || 'brak') : 'brak')}</div>
+                                <div>⏳ <strong>Czas trwania:</strong> ${metrics.zasyp_time_min} min</div>
+                                <div style="margin-top: 6px; font-weight: 700; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 4px 10px; border-radius: 6px; display: inline-block;">📈 Wydajność zasypu: ${metrics.zasyp_yield_kg_h} kg / godz.</div>
+                            </div>
+
+                            <h5 style="margin-bottom: 8px; font-size: 13px; color: #3f3f46; font-weight: 600;">📝 Log szarż i dosypek:</h5>
+                            ${res.szarze.length === 0 ? '<div style="color:#71717a; font-size:12px; font-style:italic; background:#f4f4f5; padding:12px; border-radius:8px; border:1px solid #e4e4e7;">Brak zarejestrowanych szarż.</div>' : `
+                                <div style="max-height: 250px; overflow-y: auto; border: 1px solid #e4e4e7; border-radius: 8px; background: white; box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                                        <thead>
+                                            <tr style="background: #f4f4f5; text-align: left; border-bottom: 1px solid #e4e4e7; position: sticky; top: 0; z-index: 10;">
+                                                <th style="padding: 8px 10px; font-weight: 600; color:#4b5563;">Szarża</th>
+                                                <th style="padding: 8px 10px; font-weight: 600; color:#4b5563;">Godzina</th>
+                                                <th style="padding: 8px 10px; font-weight: 600; color:#4b5563;">Waga</th>
+                                                <th style="padding: 8px 10px; font-weight: 600; color:#4b5563;">Pracownik</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${res.szarze.map((sz, idx) => `
+                                                <tr style="border-bottom: 1px solid #f4f4f5;">
+                                                    <td style="padding: 8px 10px; font-weight: 600;">#${idx+1}</td>
+                                                    <td style="padding: 8px 10px; color:#52525b;">${sz.godzina}</td>
+                                                    <td style="padding: 8px 10px; font-weight: 700; color:#15803d;">
+                                                        ${sz.waga_total} kg
+                                                        ${sz.dosypki.length > 0 ? `<br><span style="font-size:10px; color:#a21caf; font-weight:normal; display:inline-block; margin-top:2px;">(dosypka: +${sz.dosypki.map(d=>`${d.nazwa} ${d.kg}kg`).join(', ')})</span>` : ''}
+                                                    </td>
+                                                    <td style="padding: 8px 10px; color:#52525b;">${sz.pracownik || '-'}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `}
+                        </div>
+
+                        <!-- COLUMN 2: WORKOWANIE -->
+                        <div style="flex: 1; min-width: 320px; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
+                            <h4 style="margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 2px solid #e4e4e7; padding-bottom: 8px; color: #27272a; font-weight: 700; font-size: 14px;">
+                                📦 SEKCJA WORKOWANIE
+                            </h4>
+
+                            <!-- Bagging Times & Foil -->
+                            <div style="font-size: 12px; color: #52525b; margin-bottom: 15px; line-height: 1.6;">
+                                <div>⏱️ <strong>Czas start:</strong> ${res.plan.sekcja === 'Workowanie' ? (res.plan.real_start || 'brak') : (res.linked_plan && res.linked_plan.sekcja === 'Workowanie' ? (res.linked_plan.real_start || 'brak') : 'brak')}</div>
+                                <div>⏱️ <strong>Czas stop:</strong> ${res.plan.sekcja === 'Workowanie' ? (res.plan.real_stop || 'brak') : (res.linked_plan && res.linked_plan.sekcja === 'Workowanie' ? (res.linked_plan.real_stop || 'brak') : 'brak')}</div>
+                                <div>⏳ <strong>Czas trwania:</strong> ${metrics.work_time_min} min</div>
+                                <div style="margin-top: 6px; margin-bottom: 10px; font-weight: 700; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; padding: 4px 10px; border-radius: 6px; display: inline-block;">📈 Wydajność pakowania: ${metrics.work_yield_kg_h} kg / godz.</div>
+                                ${res.foil ? `
+                                    <div style="background: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; padding: 10px 14px; border-radius: 8px; margin-top: 6px; display: flex; align-items: center; gap: 10px; box-shadow: 0 1px 2px rgba(3,105,161,0.05);">
+                                        <div style="font-size: 24px;">🎞️</div>
+                                        <div>
+                                            <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.8;">Wyznaczona folia z planowania:</div>
+                                            <div style="font-size: 13px; font-weight: 700;">${res.foil.nazwa} (${res.foil.symbol || '-'})</div>
+                                            <div style="font-size: 11px; opacity: 0.9;">📍 Lokalizacja: <strong>${res.foil.lokalizacja || '-'}</strong></div>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <h5 style="margin-bottom: 8px; font-size: 13px; color: #3f3f46; font-weight: 600;">📊 Spakowane palety:</h5>
+                            ${res.palety.length === 0 ? '<div style="color:#71717a; font-size:12px; font-style:italic; background:#f4f4f5; padding:12px; border-radius:8px; border:1px solid #e4e4e7;">Brak spakowanych palet.</div>' : `
+                                <div style="max-height: 250px; overflow-y: auto; border: 1px solid #e4e4e7; border-radius: 8px; background: white; box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                                        <thead>
+                                            <tr style="background: #f4f4f5; text-align: left; border-bottom: 1px solid #e4e4e7; position: sticky; top: 0; z-index: 10;">
+                                                <th style="padding: 8px 10px; font-weight: 600; color:#4b5563;">Paleta</th>
+                                                <th style="padding: 8px 10px; font-weight: 600; color:#4b5563;">Godzina</th>
+                                                <th style="padding: 8px 10px; font-weight: 600; color:#4b5563;">Waga</th>
+                                                <th style="padding: 8px 10px; font-weight: 600; color:#4b5563;">Operator</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${res.palety.map((pal, idx) => `
+                                                <tr style="border-bottom: 1px solid #f4f4f5;">
+                                                    <td style="padding: 8px 10px; font-weight: 600;">#${idx+1}</td>
+                                                    <td style="padding: 8px 10px; color:#52525b;">${pal.godzina}</td>
+                                                    <td style="padding: 8px 10px; font-weight: 700; color:#1d4ed8;">${pal.waga} kg</td>
+                                                    <td style="padding: 8px 10px; color:#52525b;">${pal.dodal || '-'}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `}
+                        </div>
+
+                    </div>
+                </div>
+            `;
+            
+            popup.element.querySelector('.qp-body').innerHTML = html;
+        })
+        .catch(err => {
+            console.error('Error in openZlecenieSummaryReport:', err);
+            popup.element.querySelector('.qp-body').innerHTML = `
+                <div class="p-20 text-center text-danger font-bold">
+                    ❌ Błąd sieci: ${err.message || 'Nieznany błąd połączenia'}
+                </div>
+            `;
+        });
+}
+</script>
+
+<style>
+.product-summary-trigger:hover {
+    color: #2563eb !important;
+    text-shadow: 0 0 1px rgba(37,99,235,0.2);
+}
+</style>
 
 </div>
 

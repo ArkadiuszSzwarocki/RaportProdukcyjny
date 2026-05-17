@@ -312,4 +312,34 @@
                 alert('Błąd komunikacji z serwerem: ' + error);
             });
     };
+
+    window.runPytestCheck = function() {
+        if (!confirm('Czy na pewno chcesz uruchomić wszystkie testy jednostkowe i integracyjne (pytest)? Może to zająć od kilkunastu sekund do minuty.')) return;
+        
+        const btn = event.currentTarget;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="material-icons rotating" style="font-size:16px; vertical-align:middle; margin-right:4px;">sync</span> Testowanie...';
+        btn.style.pointerEvents = 'none';
+        btn.style.opacity = '0.7';
+
+        fetch('/admin/master/run-pytest')
+            .then(response => response.json())
+            .then(data => {
+                btn.innerHTML = originalHtml;
+                btn.style.pointerEvents = 'auto';
+                btn.style.opacity = '1';
+                
+                if (data.success) {
+                    alert('SUKCES: Wszystkie testy jednostkowe przeszły pomyślnie!\n\n' + data.output);
+                } else {
+                    alert('BŁĄD: Niektóre testy logiczne nie przeszły!\n\n' + data.output);
+                }
+            })
+            .catch(error => {
+                btn.innerHTML = originalHtml;
+                btn.style.pointerEvents = 'auto';
+                btn.style.opacity = '1';
+                alert('Błąd komunikacji z serwerem: ' + error);
+            });
+    };
 })();

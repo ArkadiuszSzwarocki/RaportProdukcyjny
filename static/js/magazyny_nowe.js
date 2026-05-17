@@ -588,6 +588,17 @@ function openReturnModal(linia) {
 
 function closeReturnModal() { document.getElementById('returnModal').style.display = 'none'; }
 
+function escapeHTML(str) {
+    if (!str && str !== 0) return '';
+    return String(str).replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+    }[tag] || tag));
+}
+
 function renderReturnItems(items, linia) {
     const body = document.getElementById('returnItemsBody');
     body.innerHTML = '';
@@ -600,14 +611,14 @@ function renderReturnItems(items, linia) {
         tr.style.cursor = 'pointer';
         tr.className = 'return-item-row';
         tr.innerHTML = `
-            <td><input type="radio" name="return_sel" value="${it.surowiec_id}" 
-                data-max="${it.do_zwrotu}" data-nazwa="${it.nazwa}" data-plan="${it.plan_id || ''}" data-lok="${it.lokalizacja || ''}" data-rid="${it.ruch_id}"></td>
-            <td class="font-bold">${it.nazwa}</td>
-            <td><span class="badge-outline small">${it.lokalizacja || '—'}</span></td>
-            <td class="text-right">${it.ilosc_pobrana}</td>
-            <td class="text-right text-success">${it.ilosc_zwrocona}</td>
-            <td class="text-right font-bold text-primary">${it.do_zwrotu}</td>
-            <td class="text-muted small">${it.data}</td>
+            <td><input type="radio" name="return_sel" value="${escapeHTML(it.surowiec_id)}" 
+                data-max="${escapeHTML(it.do_zwrotu)}" data-nazwa="${escapeHTML(it.nazwa)}" data-plan="${escapeHTML(it.plan_id || '')}" data-lok="${escapeHTML(it.lokalizacja || '')}" data-rid="${escapeHTML(it.ruch_id)}"></td>
+            <td class="font-bold">${escapeHTML(it.nazwa)}</td>
+            <td><span class="badge-outline small">${escapeHTML(it.lokalizacja || '—')}</span></td>
+            <td class="text-right">${escapeHTML(it.ilosc_pobrana)}</td>
+            <td class="text-right text-success">${escapeHTML(it.ilosc_zwrocona)}</td>
+            <td class="text-right font-bold text-primary">${escapeHTML(it.do_zwrotu)}</td>
+            <td class="text-muted small">${escapeHTML(it.data)}</td>
         `;
         tr.onclick = () => {
             const radio = tr.querySelector('input');
