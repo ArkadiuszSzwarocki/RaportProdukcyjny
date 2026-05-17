@@ -183,6 +183,35 @@ def return_packaging():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@agro_warehouse_bp.route('/agro/api/opakowania/undo_link', methods=['POST'])
+@login_required
+def undo_link_packaging():
+    try:
+        data = request.get_json()
+        link_id = data.get('link_id')
+        if not link_id:
+            return jsonify({'success': False, 'error': 'Brak link_id'}), 400
+        success, error = AgroWarehouseService.undo_packaging_link(link_id)
+        return jsonify({'success': success, 'error': error})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/opakowania/undo_return', methods=['POST'])
+@login_required
+def undo_return_packaging():
+    try:
+        data = request.get_json()
+        link_id = data.get('link_id')
+        if not link_id:
+            return jsonify({'success': False, 'error': 'Brak link_id'}), 400
+        success, error = AgroWarehouseService.undo_packaging_return(link_id, session.get('login'))
+        return jsonify({'success': success, 'error': error})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @agro_warehouse_bp.route('/agro/api/delivery', methods=['POST'])
 @roles_required('magazynier', 'admin')
 def add_delivery():

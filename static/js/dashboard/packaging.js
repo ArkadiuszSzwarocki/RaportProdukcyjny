@@ -59,3 +59,28 @@ function submitReturnPackaging() {
         else alert('Błąd: ' + (res.error || 'Nieznany'));
     }).catch(err => alert('Błąd połączenia: ' + err));
 }
+
+function undoPackagingLink(linkId) {
+    if(!confirm('Czy na pewno chcesz cofnąć podpięcie tego opakowania? Opcja ta usunie to powiązanie.')) return;
+    fetch('/agro/api/opakowania/undo_link', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ link_id: linkId })
+    }).then(r => r.json()).then(res => {
+        if(res.success) location.reload();
+        else alert('Błąd: ' + (res.error || 'Nieznany'));
+    }).catch(err => alert('Błąd połączenia: ' + err));
+}
+
+function undoPackagingReturn(linkId) {
+    if(!confirm('Czy na pewno chcesz cofnąć zwrot tego opakowania? Opcja ta przywróci je na maszynę oraz cofnie stan magazynowy.')) return;
+    fetch('/agro/api/opakowania/undo_return', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ link_id: linkId })
+    }).then(r => r.json()).then(res => {
+        if(res.success) location.reload();
+        else alert('Błąd: ' + (res.error || 'Nieznany'));
+    }).catch(err => alert('Błąd połączenia: ' + err));
+}
+

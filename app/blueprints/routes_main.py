@@ -145,9 +145,12 @@ def index():
                 'palety_count': agro_ctx.get('palety_count'),
                 'estimated_bags': agro_ctx.get('estimated_bags'),
                 'packaging_items': agro_ctx.get('packaging_items'),
+                'maszyna_opakowania': agro_ctx.get('maszyna_opakowania', []),
+                'inactive_opakowania': agro_ctx.get('inactive_opakowania', []),
                 'history': agro_ctx.get('history', [])
             }
             context['maszyna_opakowania'] = agro_ctx.get('maszyna_opakowania', [])
+            context['inactive_opakowania'] = agro_ctx.get('inactive_opakowania', [])
             context['wrctx_error'] = agro_ctx.get('wrctx_error')
             agro_focus_mode = bool(agro_ctx.get('active_plan'))
 

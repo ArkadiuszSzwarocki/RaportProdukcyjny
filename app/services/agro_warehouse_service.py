@@ -753,6 +753,25 @@ class AgroWarehouseService:
             conn.close()
 
     @staticmethod
+    def get_all_linked_packaging(plan_id):
+        """Get ALL packaging items linked to a production plan, active and inactive."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT ap.id as link_id, ap.opakowanie_id, ap.stan_poczatkowy, ap.stan_koncowy, ap.is_active,
+                       o.nazwa, o.stan_magazynowy as current_stan
+                FROM agro_plan_opakowania ap
+                JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
+                WHERE ap.plan_id = %s
+                ORDER BY ap.created_at ASC
+            """, (plan_id,))
+            return cursor.fetchall()
+        finally:
+            conn.close()
+
+
+    @staticmethod
     def _link_to_active_plan(cursor, opakowanie_id, lokalizacja, linia='Agro'):
         """Internal helper to link packaging to active plan if moved to machine."""
         if str(lokalizacja).lower() != 'maszyna' or str(linia).upper() != 'AGRO':
@@ -1159,3 +1178,59 @@ class AgroWarehouseService:
             return True
         finally:
             conn.close()
+
+    @staticmethod
+    def undo_packaging_link(link_id):
+        """Delete an active packaging link (Undo addition)."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, plan_id, opakowanie_id, stan_poczatkowy, is_active FROM agro_plan_opakowania WHERE id = %s", (link_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False, "Nie znaleziono takiego powiązania"
+            
+            cursor.execute("DELETE FROM agro_plan_opakowania WHERE id = %s", (link_id,))
+            conn.commit()
+            return True, None
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def undo_packaging_return(link_id, user_login):
+        """Restore an inactive packaging link to active state and revert warehouse stock."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, plan_id, opakowanie_id, stan_poczatkowy, stan_koncowy, is_active FROM agro_plan_opakowania WHERE id = %s", (link_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False, "Nie znaleziono powiązania"
+            
+            plan_id = row['plan_id']
+            opakowanie_id = row['opakowanie_id']
+            stan_poczatkowy = float(row['stan_poczatkowy'])
+            
+            # Restore is_active state
+            cursor.execute("UPDATE agro_plan_opakowania SET is_active = TRUE, stan_koncowy = NULL WHERE id = %s", (link_id,))
+            
+            # Restore main warehouse stock
+            cursor.execute("UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = 'Maszyna' WHERE id = %s", (stan_poczatkowy, opakowanie_id))
+            
+            # Delete corresponding history records from agro_workowanie_rozliczenie
+            cursor.execute("DELETE FROM agro_workowanie_rozliczenie WHERE plan_id = %s AND opakowanie_id = %s", (plan_id, opakowanie_id))
+            
+            # Delete corresponding history records from magazyn_ruch
+            table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+            cursor.execute(f"DELETE FROM {table_ruch} WHERE surowiec_id = %s AND typ_ruchu = 'ZWROT_Z_MASZYNY' ORDER BY id DESC LIMIT 1", (opakowanie_id,))
+            
+            conn.commit()
+            return True, None
+        except Exception as e:
+            conn.rollback()
+            return False, str(e)
+        finally:
+            conn.close()
+

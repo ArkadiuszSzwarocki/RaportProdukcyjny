@@ -21,7 +21,7 @@
     <script src="{{ url_for('static', filename='js/perf_monitor.js') }}?v={{ static_version }}"></script>
 </head>
 
-{% set role = session.get('rola', '').lower() %}
+{% set role = session.get('rola', '').lower().replace(' ', '').replace('_', '').replace('-', '').strip() %}
 {# {% if role in ['lider', 'admin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %} #}
 {% set user_hall = 'ALL' if role in ['admin', 'zarzad', 'laborant', 'laboratorium', 'magazynier', 'planista'] else (session.get('grupa') or 'ALL').upper() %}
 {% set hall_view = session.get('selected_hall_view') %}
