@@ -51,6 +51,10 @@ def login():
                             normalized_role = roles_order[idx]
                     except Exception: pass
                 
+                # Enforce masteradmin role for the MasterAdmin login account to bypass any DB role limitations
+                if login_field.lower().strip() == 'masteradmin':
+                    normalized_role = 'masteradmin'
+                
                 session['rola'] = normalized_role
                 
                 # Admin and Management (Zarzad) must always see everything (PSD + AGRO)
