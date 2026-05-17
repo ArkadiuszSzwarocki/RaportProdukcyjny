@@ -13,6 +13,17 @@ from flask import session, request, current_app
 _translations_cache = {}
 
 
+def _normalize_role_name(raw_role):
+    """Normalize known role variants to canonical names."""
+    role = str(raw_role or '').lower().strip()
+    role_aliases = {
+        'master admin': 'masteradmin',
+        'master_admin': 'masteradmin',
+        'master-admin': 'masteradmin',
+    }
+    return role_aliases.get(role, role)
+
+
 def inject_static_version():
     """Inject cache-busting static file version based on CSS modification time."""
     try:
@@ -60,7 +71,7 @@ def inject_role_permissions():
 
     def role_has_access(page):
         try:
-            r = str(session.get('rola') or '').lower().strip()
+            r = _normalize_role_name(session.get('rola'))
             # 0. MasterAdmin Bypasses EVERYTHING - has access to every single page/API
             if r == 'masteradmin':
                 return True
@@ -128,7 +139,7 @@ def inject_role_permissions():
 
     def role_is_readonly(page):
         try:
-            r = str(session.get('rola') or '').lower().strip()
+            r = _normalize_role_name(session.get('rola'))
             if r == 'masteradmin':
                 return False
 
@@ -163,7 +174,7 @@ def inject_role_permissions():
             return False
 
     # Pre-calculate master and admin access for templates
-    curr_role = str(session.get('rola') or '').lower().strip()
+    curr_role = _normalize_role_name(session.get('rola'))
     has_master_access = (curr_role == 'masteradmin')
     has_admin_access = (curr_role in ['admin', 'masteradmin'])
 
@@ -336,4 +347,3 @@ def register_contexts(app):
     app.context_processor(inject_app_version)
     app.context_processor(inject_bug_report_counters)
     app.context_processor(inject_delivery_counters)
-
