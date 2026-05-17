@@ -15,7 +15,7 @@
             </thead>
             <tbody>
                 {% for p in unconfirmed_palety %}
-                <tr>
+                <tr id="unconfirmed-row-{{ p[0] }}">
                     <td class="text-muted font-bold">{{ p[0] }}</td>
                     <td><strong class="text-primary">{{ p[2] }}</strong></td>
                     <td class="time-display">{{ p[3] }}</td>

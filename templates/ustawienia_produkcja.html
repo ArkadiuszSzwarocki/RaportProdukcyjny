@@ -162,6 +162,12 @@
         color: #2f7dd1;
         box-shadow: 0 4px 10px rgba(0,0,0,0.05);
     }
+
+    .surowiec-card:hover {
+        border-color: #ef4444 !important;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.08) !important;
+        transform: translateY(-1px);
+    }
 </style>
 
 <div class="prod-view">
@@ -251,6 +257,44 @@
             </tbody>
         </table>
     </div>
+
+    {% if linia == 'Agro' %}
+    <div class="table-container" style="margin-top: 24px;">
+        <div class="p-20 bb-1" style="background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);">
+            <h3 style="margin: 0; color: #203449; font-size: 1.25rem;">📖 Słownik Surowców AGRO</h3>
+            <p class="text-muted small" style="margin: 4px 0 0;">Zarządzaj słownikiem surowców używanych w zasypach i dosypkach na Hali 2 (AGRO).</p>
+        </div>
+
+        <div class="p-20 bb-1 d-flex gap-15 align-center flex-wrap" style="background: #fff; justify-content: space-between;">
+            <!-- Formularz dodawania -->
+            <form id="addSurowiecForm" onsubmit="addAgroSurowiec(event)" class="d-flex gap-10 align-center m-0 flex-wrap" style="flex: 1; min-width: 300px;">
+                <input type="text" id="newSurowiecName" placeholder="Nazwa nowego surowca..." required 
+                       class="search-input" style="padding-left: 20px; max-width: 350px; flex: 1;">
+                <button type="submit" class="btn btn-primary" style="white-space: nowrap;">➕ Dodaj surowiec</button>
+            </form>
+            
+            <!-- Wyszukiwarka słownika -->
+            <div class="search-wrapper" style="max-width: 300px; min-width: 200px;">
+                <span class="search-icon" style="top: 50%;">🔍</span>
+                <input type="text" id="dictSearch" placeholder="Filtruj surowce w słowniku..." class="search-input">
+            </div>
+        </div>
+
+        <div class="p-20" style="background: #fafbfc;">
+            <div id="surowceGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+                {% for s in surowce %}
+                <div class="surowiec-card" data-name="{{ s.nazwa|lower }}" style="display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 10px 16px; border-radius: 10px; border: 1px solid rgba(32, 52, 73, 0.08); box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: all 0.2s;">
+                    <span style="font-weight: 700; color: #334155;">{{ s.nazwa }}</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAgroSurowiec({{ s.id }}, '{{ s.nazwa }}')" 
+                            style="padding: 4px 8px; font-size: 0.78rem; border-radius: 6px;" title="Usuń ze słownika">🗑️</button>
+                </div>
+                {% else %}
+                <div id="emptyDictMessage" class="text-center p-30 text-muted" style="grid-column: 1 / -1;">Brak surowców w słowniku. Dodaj pierwszy surowiec powyżej.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <script>
@@ -263,6 +307,68 @@
             row.style.display = text.includes(term) ? '' : 'none';
         });
     });
+
+    // Filter dictionary
+    var dictSearch = document.getElementById('dictSearch');
+    if (dictSearch) {
+        dictSearch.addEventListener('input', function(e) {
+            let term = e.target.value.toLowerCase();
+            let cards = document.querySelectorAll('#surowceGrid .surowiec-card');
+            cards.forEach(card => {
+                let name = card.getAttribute('data-name');
+                card.style.display = name.includes(term) ? 'flex' : 'none';
+            });
+        });
+    }
+
+    function addAgroSurowiec(e) {
+        e.preventDefault();
+        var input = document.getElementById('newSurowiecName');
+        var val = input.value.trim();
+        if (!val) return;
+
+        var formData = new FormData();
+        formData.append('nazwa', val);
+
+        fetch('/admin/api/agro-surowce/add', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(r => r.json())
+        .then(function(j) {
+            if (j && j.success) {
+                alert('✅ ' + j.message);
+                location.reload();
+            } else {
+                alert('❌ ' + (j && j.message ? j.message : 'Błąd podczas dodawania'));
+            }
+        })
+        .catch(function(err) {
+            alert('❌ Błąd połączenia z serwerem');
+        });
+    }
+
+    function deleteAgroSurowiec(itemId, name) {
+        if (!confirm('Czy na pewno chcesz usunąć surowiec "' + name + '" ze słownika? Upewnij się, że nie jest on obecnie używany w aktywnych planach.')) return;
+
+        fetch('/admin/api/agro-surowce/delete/' + itemId, {
+            method: 'POST',
+            credentials: 'same-origin'
+        })
+        .then(r => r.json())
+        .then(function(j) {
+            if (j && j.success) {
+                alert('✅ ' + j.message);
+                location.reload();
+            } else {
+                alert('❌ ' + (j && j.message ? j.message : 'Błąd podczas usuwania'));
+            }
+        })
+        .catch(function(err) {
+            alert('❌ Błąd połączenia z serwerem');
+        });
+    }
 
     function moveIncompleteToNextDay(planId, currentDate) {
         if (!confirm('Czy przenieść to niezrealizowane zlecenie na następny dzień?')) return;

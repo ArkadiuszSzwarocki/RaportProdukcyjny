@@ -22,6 +22,7 @@
 </head>
 
 {% set role = session.get('rola', '').lower() %}
+{# {% if role in ['lider', 'admin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %} #}
 {% set user_hall = 'ALL' if role in ['admin', 'zarzad', 'laborant', 'laboratorium', 'magazynier', 'planista'] else (session.get('grupa') or 'ALL').upper() %}
 {% set hall_view = session.get('selected_hall_view') %}
 {% set can_switch_halls = user_hall == 'ALL' %}

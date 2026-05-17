@@ -279,6 +279,39 @@ def register_admin_diagnostics_routes(admin_bp):
         except Exception as e:
             return jsonify({'success': False, 'output': str(e)})
 
+    @admin_bp.route('/admin/master/db-stats')
+    @masteradmin_required
+    def admin_master_db_stats():
+        """Fetch database statistics (tables row counts and sizes) for MasterAdmin dashboard."""
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    table_name AS name, 
+                    table_rows AS rows, 
+                    round(((data_length + index_length) / 1024 / 1024), 3) AS size_mb 
+                FROM information_schema.TABLES 
+                WHERE table_schema = DATABASE()
+                ORDER BY (data_length + index_length) DESC
+            """)
+            stats = []
+            for name, rows, size_mb in cursor.fetchall():
+                stats.append({
+                    'name': name,
+                    'rows': int(rows or 0),
+                    'size_mb': float(size_mb or 0.0)
+                })
+            return jsonify({'success': True, 'stats': stats})
+        except Exception as e:
+            return jsonify({'success': False, 'message': str(e)}), 500
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
     @admin_bp.route('/admin/master/permissions')
     @masteradmin_required
     def admin_master_permissions():

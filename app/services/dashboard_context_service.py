@@ -164,7 +164,7 @@ class DashboardContextService:
             from app.services.zasyp_etapy_service import ZasypEtapyService
 
             for plan in plan_dnia:
-                if plan[3] == 'w toku':
+                if plan[3] in ['w toku', 'zakonczone', 'zamkniete']:
                     plan_id = plan[0]
                     sessions = ZasypEtapyService.get_etapy_sessions(plan_id=plan_id, linia=aktywna_linia)
                     latest = sessions[0] if sessions else ZasypEtapyService.get_etapy(plan_id=plan_id, linia=aktywna_linia)

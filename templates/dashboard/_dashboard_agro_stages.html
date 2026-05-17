@@ -1,6 +1,6 @@
 {# === PANEL ETAPÓW ZASYP — widoczny tylko dla Zasyp gdy jest aktywne zlecenie === #}
-{% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active %}
-{% for p in plan %}{% if p[3] == 'w toku' %}
+{% if sekcja == 'Zasyp' and linia == 'AGRO' %}
+{% for p in plan %}{% if p[3] in ['w toku', 'zakonczone', 'zamkniete'] %}
 {% set etapy_sesje = etapy_sesje_mapa.get(p[0]) if etapy_sesje_mapa is defined and etapy_sesje_mapa else [] %}
 {% set param = etapy_parametry.get(p[0]) if etapy_parametry is defined and etapy_parametry else {} %}
 {% for sesja in etapy_sesje %}
@@ -47,7 +47,7 @@
             {% endif %}
         </div>
         <div class="agro-panel-header-actions">
-            {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] and sesja.is_current %}
+            {% if rola in ['lider', 'admin', 'pracownik', 'produkcja'] and sesja.is_current and p[3] == 'w toku' %}
             <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;"
                 data-confirm="Czy na pewno chcesz rozpocząć nowy cykl pomiarowy? Utworzony zostanie nowy panel zasypu, a obecne pozostaną poniżej.">
                 <input type="hidden" name="linia" value="{{ linia }}">
@@ -58,8 +58,8 @@
                 </button>
             </form>
             {% endif %}
-            {% if rola != 'laborant' and sesja.is_current %}
-            {% if linia == 'AGRO' and p[3] == 'w toku' %}
+            {% if rola != 'laborant' and sesja.is_current and p[3] == 'w toku' %}
+            {% if linia == 'AGRO' %}
             <a href="{{ url_for('production.agro_mix_inventory', selected_plan_id=p[0]) }}"
                class="btn-action"
                data-slide
@@ -198,8 +198,8 @@
                         background:{% if etap.is_running %}#fdf3e7{% elif etap.czas_stop %}#f0faf4{% else %}#fafafa{% endif %};">
                 
                 <div style="position: absolute; top: 6px; right: 6px; margin: 0; z-index: 10; display: flex; gap: 4px;">
-                    {% if rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier'] %}
-                                                {% if not session_state_ns.is_finished %}
+                    {% if rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier'] and p[3] == 'w toku' %}
+                        {% if not session_state_ns.is_finished %}
                     {# Przycisk RESET #}
                         <form action="{{ url_for('production.zasyp_etap_reset') }}" method="POST" style="margin: 0;"
                             data-confirm="Zresetować czas? (Będziesz mógł wprowadzić go ręcznie)">
@@ -290,6 +290,7 @@
                 {% if etap.is_running or (etap.duration_str and etap.duration_str != '0m') %}
                 <div class="small" style="color:#555;">⏱ <span class="etap-live-timer" data-seconds="{{ etap.duration_s|default(0) }}" data-running="{{ 1 if etap.is_running else 0 }}">{{ etap.duration_str }}</span></div>
                 {% endif %}
+                {% if p[3] == 'w toku' %}
                 <div class="d-flex gap-6 mt-6 flex-wrap" style="justify-content:center; align-items:center; min-height:32px;">
                     {% set is_agro_pair_etap = linia == 'AGRO' and (etap.etap == 3 or etap.etap == 4 or (etap.etap > 10 and (etap.etap // 10 == 3 or etap.etap // 10 == 4))) %}
                     {% set restart_plan_arg = request.args.get('restart_plan') %}
@@ -355,6 +356,7 @@
                         {% endif %}
                     {% endif %}
                 </div>
+                {% endif %}
 
                 {% if can_manual_time_edit %}
                 <div id="{{ manual_box_id }}" class="mt-6" style="display:none; border-top: 1px dashed var(--border-color, #eee); padding-top: 6px;">

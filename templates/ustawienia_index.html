@@ -1,6 +1,9 @@
 {% extends "layout.html" %}
 
 {% block content %}
+{% set session_role = (session.get('rola') or '')|lower|trim %}
+{% set session_login = (session.get('login') or '')|lower|trim %}
+{% set has_master_section_access = session_role in ['admin', 'masteradmin'] or session_login in ['admin', 'masteradmin'] %}
 <style>
     .settings-view {
         display: grid;
@@ -298,7 +301,7 @@
                 </div>
             </article>
 
-            {% if session.get('rola', '').lower() == 'admin' %}
+            {% if session_role == 'admin' %}
             <article class="settings-card settings-card-muted">
                 <div class="settings-card-icon">🕵️</div>
                 <div class="settings-card-body">
@@ -337,6 +340,55 @@
                     <button type="button" id="btn-printer-ok" class="btn btn-outline-success" style="display: none;" disabled>Serwer aktywny</button>
                 </div>
             </article>
+
+            {% if has_master_section_access %}
+            <article class="settings-card settings-card-accent" style="min-height: 320px; background: linear-gradient(135deg, #1e1e2f 0%, #12121e 100%); border-color: rgba(255, 193, 7, 0.25); box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45); color: #fff;">
+                <div class="settings-card-icon" style="background: rgba(255, 193, 7, 0.15); color: #ffc107; font-size: 1.8rem;">⚡</div>
+                <div class="settings-card-body">
+                    <h3 style="color: #ffc107; font-weight: 700; display: flex; align-items: center; gap: 8px; margin: 0;">
+                        Weryfikacja MasterAdmin
+                    </h3>
+                    <p style="color: #a9b7c6; font-size: 0.92rem; margin: 6px 0 0;">Dynamiczny test integralności kodu, poprawności składni i certyfikatów SSL.</p>
+                    
+                    <!-- Terminal Emulator -->
+                    <div id="verify-terminal" style="display: none; background: #07070c; border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 12px; padding: 12px; font-family: 'Courier New', Courier, monospace; font-size: 0.8rem; height: 160px; overflow-y: auto; color: #ffc107; white-space: pre-wrap; margin-top: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8);">
+                        <div id="verify-terminal-lines"></div>
+                    </div>
+                </div>
+                <div class="settings-card-actions" style="margin-top: auto; display: flex; gap: 10px; padding-top: 15px;">
+                    <button type="button" id="btn-run-verify" class="btn btn-warning" style="flex: 1; font-weight: 700; background: #ffc107; border: none; color: #000; transition: all 0.2s;" onclick="runSystemVerification()">Uruchom testy</button>
+                    <a href="/admin/master/permissions" class="btn btn-outline-warning" style="flex: 1; border: 1px solid #ffc107; color: #ffc107; background: transparent; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">Macierz RBAC</a>
+                </div>
+            </article>
+
+            <article class="settings-card settings-card-muted" style="min-height: 320px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-color: rgba(56, 189, 248, 0.25); box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45); color: #fff;">
+                <div class="settings-card-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 1.8rem;">💾</div>
+                <div class="settings-card-body">
+                    <h3 style="color: #38bdf8; font-weight: 700; display: flex; align-items: center; gap: 8px; margin: 0;">
+                        Statystyki Bazy Danych
+                    </h3>
+                    <p style="color: #94a3b8; font-size: 0.92rem; margin: 6px 0 0;">Rozmiar tabel i wolumen rekordów bazy produkcyjnej w czasie rzeczywistym.</p>
+                    
+                    <!-- DB Stats Table Grid -->
+                    <div id="db-stats-container" style="display: none; background: #0b1329; border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 10px; height: 160px; overflow-y: auto; font-size: 0.78rem; color: #e2e8f0; margin-top: 10px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid rgba(56, 189, 248, 0.2); color: #38bdf8; font-weight: 700;">
+                                    <th style="text-align: left; padding: 4px;">Tabela</th>
+                                    <th style="text-align: right; padding: 4px;">Wiersze</th>
+                                    <th style="text-align: right; padding: 4px;">Rozmiar</th>
+                                </tr>
+                            </thead>
+                            <tbody id="db-stats-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="settings-card-actions" style="margin-top: auto; display: flex; gap: 10px; padding-top: 15px;">
+                    <button type="button" id="btn-run-db-stats" class="btn btn-info" style="flex: 1; font-weight: 700; background: #38bdf8; border: none; color: #000; transition: all 0.2s;" onclick="loadDbStats()">Analizuj DB</button>
+                    <a href="{{ url_for('admin.admin_secret_db') }}" class="btn btn-outline-info" style="flex: 1; border: 1px solid #38bdf8; color: #38bdf8; background: transparent; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">Przełącz DB</a>
+                </div>
+            </article>
+            {% endif %}
 
         </div>
     </div>
@@ -410,6 +462,114 @@
             } finally {
                 btn.textContent = originalText;
                 btn.disabled = false;
+            }
+        }
+
+        // MasterAdmin System Verification
+        async function runSystemVerification() {
+            const btn = document.getElementById('btn-run-verify');
+            const terminal = document.getElementById('verify-terminal');
+            const linesContainer = document.getElementById('verify-terminal-lines');
+            
+            terminal.style.display = 'block';
+            linesContainer.innerHTML = '<div style="color: #888;">> Inicjalizacja testów integralności...</div>';
+            btn.disabled = true;
+            btn.textContent = 'Testowanie...';
+            
+            try {
+                const resp = await fetch('/admin/master/verify');
+                const data = await resp.json();
+                
+                const lines = data.output.split('\n');
+                linesContainer.innerHTML = '';
+                
+                let idx = 0;
+                function printNextLine() {
+                    if (idx < lines.length) {
+                        const line = lines[idx];
+                        if (line.trim()) {
+                            let color = '#ffc107';
+                            if (line.includes('[OK]') || line.includes('[SUCCESS]')) color = '#32cd32';
+                            if (line.includes('[SYNTAX ERROR]') || line.includes('[CRITICAL ERROR]') || line.includes('[FAILED]')) color = '#ff4d4d';
+                            if (line.includes('[OSTRZEŻENIE]')) color = '#ff8c00';
+                            
+                            const div = document.createElement('div');
+                            div.style.color = color;
+                            div.style.marginBottom = '4px';
+                            div.textContent = '> ' + line;
+                            linesContainer.appendChild(div);
+                            terminal.scrollTop = terminal.scrollHeight;
+                        }
+                        idx++;
+                        setTimeout(printNextLine, 60);
+                    } else {
+                        btn.disabled = false;
+                        btn.textContent = 'Uruchom testy';
+                        if (data.success) {
+                            showToast('Wszystkie testy integralności przeszły pomyślnie!', 'success');
+                        } else {
+                            showToast('Weryfikacja wykryła błędy w systemie!', 'error');
+                        }
+                    }
+                }
+                printNextLine();
+                
+            } catch (e) {
+                const div = document.createElement('div');
+                div.style.color = '#ff4d4d';
+                div.textContent = '> Błąd krytyczny sieci podczas wykonywania skryptu!';
+                linesContainer.appendChild(div);
+                btn.disabled = false;
+                btn.textContent = 'Uruchom testy';
+            }
+        }
+
+        // MasterAdmin DB Statistics Loader
+        async function loadDbStats() {
+            const btn = document.getElementById('btn-run-db-stats');
+            const container = document.getElementById('db-stats-container');
+            const tbody = document.getElementById('db-stats-tbody');
+            
+            container.style.display = 'block';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 10px;">Analizowanie baz danych...</td></tr>';
+            btn.disabled = true;
+            btn.textContent = 'Analizowanie...';
+            
+            try {
+                const resp = await fetch('/admin/master/db-stats');
+                const data = await resp.json();
+                
+                if (data.success) {
+                    tbody.innerHTML = '';
+                    if (data.stats && data.stats.length > 0) {
+                        data.stats.forEach(stat => {
+                            const tr = document.createElement('tr');
+                            tr.style.borderBottom = '1px solid rgba(56, 189, 248, 0.1)';
+                            
+                            let nameColor = '#fff';
+                            if (stat.rows > 10000 || stat.size_mb > 5.0) {
+                                nameColor = '#ffc107';
+                            }
+                            
+                            tr.innerHTML = `
+                                <td style="padding: 6px 4px; color: ${nameColor}; font-weight: 500; font-family: monospace;">${stat.name}</td>
+                                <td style="text-align: right; padding: 6px 4px; color: #a9b7c6;">${stat.rows.toLocaleString()}</td>
+                                <td style="text-align: right; padding: 6px 4px; color: #38bdf8; font-weight: 700;">${stat.size_mb.toFixed(3)} MB</td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #ff4d4d; padding: 10px;">Brak tabel w bazie danych!</td></tr>';
+                    }
+                    showToast('Pomyślnie zaktualizowano statystyki bazodanowe.', 'success');
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: #ff4d4d; padding: 10px;">Błąd: ${data.message}</td></tr>`;
+                }
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #ff4d4d; padding: 10px;">Błąd połączenia sieciowego!</td></tr>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Analizuj DB';
             }
         }
 

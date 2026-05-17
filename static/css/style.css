@@ -287,9 +287,9 @@ body.sidebar-open {
     /* keep sidebar visible at top when scrolling */
     position: sticky;
     top: 60px;
-    height: calc(100vh - 60px);
-    overflow-y: auto;
-    overflow-x: hidden;
+    height: auto;
+    min-height: calc(100vh - 60px);
+    overflow: visible;
 }
 
 /* HALL SWITCHER */
@@ -5850,6 +5850,7 @@ body.theme-agro .sidebar .nav-item.active {
     }
     .capacity-bar strong {
         font-size: 16px !important;
+    }
 }
 
 /* ============================================================
@@ -5955,4 +5956,60 @@ body.theme-agro .sidebar .nav-item.active {
         gap: 10px !important;
     }
 }
+
+/* --- NEW PREMIUM TOP BAR LAYOUT --- */
+.top-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-left: auto;
+}
+
+.top-bar-right .top-user-meta {
+    margin-left: 0 !important;
+}
+
+.top-icons-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logout-btn-top {
+    color: #ff6b6b !important;
+    background: rgba(255, 107, 107, 0.12) !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 6px !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease;
+}
+
+.logout-btn-top:hover {
+    color: #ffffff !important;
+    background: #ff4d4f !important;
+    transform: translateY(-2px);
+}
+
+.logout-btn-top .material-icons {
+    font-size: 20px;
+}
+
+/* Responsive adjustments for top-bar-right on mobile/handheld screens */
+@media screen and (max-width: 900px) {
+    .top-bar-right {
+        gap: 8px !important;
+    }
+    .top-icons-group {
+        gap: 4px !important;
+    }
+    .logout-btn-top {
+        padding: 4px !important;
+    }
+    .logout-btn-top .material-icons {
+        font-size: 18px !important;
+    }
+}
+
 

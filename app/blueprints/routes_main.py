@@ -15,8 +15,15 @@ from app.blueprints.routes_main_index_data import (
     build_agro_mix_context
 )
 from app.services.mqtt_service import get_latest_data
+from app.blueprints.routes_main_layout import register_main_layout_routes
+from app.blueprints.routes_main_misc import register_main_misc_routes
+from app.blueprints.routes_main_reporting import register_main_reporting_routes
 
 main_bp = Blueprint('main', __name__)
+
+register_main_misc_routes(main_bp)
+register_main_layout_routes(main_bp)
+register_main_reporting_routes(main_bp)
 
 @main_bp.route('/')
 @login_required

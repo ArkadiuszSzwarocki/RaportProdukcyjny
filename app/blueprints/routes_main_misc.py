@@ -6,7 +6,7 @@ from flask import current_app, jsonify, redirect, request, session, url_for, fla
 
 def register_main_misc_routes(main_bp):
     @main_bp.route('/set_hall_view/<hall>')
-    def set_hall_view(hall):
+    def set_hall_view_path(hall):
         """Pin the current view to a specific hall for users with multi-hall access."""
         if hall in ['PSD', 'AGRO']:
             session['selected_hall_view'] = hall

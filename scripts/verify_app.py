@@ -52,10 +52,38 @@ def check_ssl():
         print("[OSTRZEŻENIE] [SSL] BRAK certyfikatów - uruchomiono w trybie nieszyfrowanym (http)")
         return 0 # Still 0 because it's a valid mode, but the wording matches user request
 
+def check_error_logs():
+    """Checks recent lines of error.log and prints warnings/errors if present."""
+    print("\n--- Sprawdzanie logów błędów ---")
+    root = Path(__file__).parent.parent
+    error_log = root / 'logs' / 'error.log'
+    
+    if not error_log.exists():
+        print("[OK] Brak pliku logs/error.log (brak błędów).")
+        return 0
+        
+    try:
+        with open(error_log, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+        
+        recent_lines = lines[-20:] if len(lines) > 20 else lines
+        errors_found = [line.strip() for line in recent_lines if 'ERROR' in line or 'CRITICAL' in line or 'Exception' in line]
+        
+        if errors_found:
+            print(f"[OSTRZEŻENIE] Znaleziono niedawne błędy w logs/error.log (ostatnie 20 linii):")
+            for err in errors_found[-5:]:
+                print(f"  -> {err}")
+        else:
+            print("[OK] Brak niedawnych błędów/wyjątków w logs/error.log.")
+    except Exception as e:
+        print(f"[BŁĄD] Nie można odczytać pliku logs/error.log: {e}")
+    return 0
+
 if __name__ == "__main__":
     syntax_err = check_syntax()
     import_err = check_imports()
     check_ssl()
+    check_error_logs()
     
     total = syntax_err + import_err
     if total > 0:

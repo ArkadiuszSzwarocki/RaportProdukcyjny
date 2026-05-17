@@ -314,26 +314,6 @@ def register_warehouse_management_routes(
         try:
             cursor = conn.cursor()
 
-            try:
-                cursor.execute(f"ALTER TABLE {table_pal} ADD COLUMN status VARCHAR(32) DEFAULT 'do_przyjecia'")
-                conn.commit()
-            except Exception as error:
-                current_app.logger.debug('ALTER TABLE potwierdz_palete: %s', error)
-                try:
-                    conn.rollback()
-                except Exception:
-                    pass
-
-            try:
-                cursor.execute(f"ALTER TABLE {table_pal} ADD COLUMN potwierdzil_login VARCHAR(128) NULL")
-                conn.commit()
-            except Exception as error:
-                current_app.logger.debug('ALTER TABLE potwierdz_palete (potwierdzil_login): %s', error)
-                try:
-                    conn.rollback()
-                except Exception:
-                    pass
-
             tara = 25
             try:
                 cursor.execute(f"SELECT COALESCE(tara,25) FROM {table_pal} WHERE id=%s", (paleta_id,))

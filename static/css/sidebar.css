@@ -165,9 +165,11 @@
 
 /* Sidebar layout adjustments from layout.css/style.css if any */
 .sidebar {
-    height: 100vh;
+    height: auto;
+    min-height: calc(100vh - 60px);
     position: sticky;
-    top: 0;
+    top: 60px;
+    overflow: visible;
 }
 
 @media (max-width: 900px) {

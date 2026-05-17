@@ -86,6 +86,18 @@
       .then(function (result) {
         var j = result.data || {};
         if (j.success) {
+          try {
+            var row = document.getElementById('unconfirmed-row-{{ paleta_id }}');
+            if (row) {
+              row.style.opacity = '0.35';
+              row.style.pointerEvents = 'none';
+              row.style.background = '#dbeafe';
+              var btn = row.querySelector('.btn-action');
+              if (btn) btn.style.display = 'none';
+            }
+          } catch(e) {
+            console.error('Failed to immediately disable parent row:', e);
+          }
           document.getElementById('difference-modal').style.display = 'none';
           closePopupAndReload();
           return;

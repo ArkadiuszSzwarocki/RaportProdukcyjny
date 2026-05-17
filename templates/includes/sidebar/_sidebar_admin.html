@@ -96,20 +96,23 @@
 {% endif %}
 
 <!-- MASTER ADMIN & DIAGNOSTYKA -->
-{% set has_master_access = (role == 'masteradmin') %}
-{% set show_diag = has_master_access or role_has_access('logs') or role_has_access('errors') or role_has_access('centrum') or role_has_access('performance') %}
+{% set master_access = has_master_access or role == 'masteradmin' %}
+{% set show_diag = master_access or role_has_access('logs') or role_has_access('errors') or role_has_access('centrum') or role_has_access('performance') %}
 
 {% if show_diag %}
 <div class="nav-item-group" style="border-top: 1px solid #334155; margin-top: 10px; padding-top: 10px;">
-    <button type="button" class="nav-item main-cat-btn" style="color: {% if has_master_access %}#fbbf24{% else %}#94a3b8{% endif %};">
-        <span class="material-icons" style="font-size: 18px;">{% if has_master_access %}security{% else %}settings_suggest{% endif %}</span>
-        <span>{% if has_master_access %}MASTER ADMIN{% else %}SYSTEM & DIAGNOSTYKA{% endif %}</span>
+    <button type="button" class="nav-item main-cat-btn" style="color: {% if master_access %}#fbbf24{% else %}#94a3b8{% endif %};">
+        <span class="material-icons" style="font-size: 18px;">{% if master_access %}security{% else %}settings_suggest{% endif %}</span>
+        <span>{% if master_access %}MASTER ADMIN{% else %}SYSTEM & DIAGNOSTYKA{% endif %}</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="master-sub" class="nav-sub {% if '/logs' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path %}open{% endif %}">
-        {% if has_master_access %}
+    <div id="master-sub" class="nav-sub {% if '/logs' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path or 'slownik-surowcow' in request.path %}open{% endif %}">
+        {% if master_access %}
         <a href="/admin/master/permissions" class="nav-sub-item {% if '/admin/master/permissions' in request.path %}active{% endif %}">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">admin_panel_settings</span> Zarządzanie Dostępem
+        </a>
+        <a href="/admin/master/slownik-surowcow" class="nav-sub-item {% if '/admin/master/slownik-surowcow' in request.path %}active{% endif %}">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">menu_book</span> Słownik Surowców AGRO
         </a>
         <a href="javascript:void(0)" onclick="runIntegrityCheck()" class="nav-sub-item">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span> Test Integralności
@@ -124,23 +127,23 @@
         </a>
         {% endif %}
         
-        {% if has_master_access or role_has_access('ustawienia.logs') %}
+        {% if master_access or role_has_access('ustawienia.logs') %}
         <a href="/admin/ustawienia/logs" class="nav-sub-item {% if '/admin/ustawienia/logs' in request.path %}active{% endif %}">Logi Systemowe</a>
         {% endif %}
         
-        {% if has_master_access or role_has_access('ustawienia.errors') %}
+        {% if master_access or role_has_access('ustawienia.errors') %}
         <a href="/admin/ustawienia/errors" class="nav-sub-item {% if '/admin/ustawienia/errors' in request.path %}active{% endif %}">Logi Błędów</a>
         {% endif %}
         
-        {% if has_master_access or role_has_access('centrum') %}
+        {% if master_access or role_has_access('centrum') %}
         <a href="/admin/centrum" class="nav-sub-item {% if '/admin/centrum' in request.path %}active{% endif %}">Centrum Sterowania</a>
         {% endif %}
         
-        {% if has_master_access or role_has_access('raporty.performance') %}
+        {% if master_access or role_has_access('raporty.performance') %}
         <a href="{{ url_for('main.performance') }}" class="nav-sub-item {% if request.endpoint == 'main.performance' %}active{% endif %}">Wydajność (KPI)</a>
         {% endif %}
         
-        {% if has_master_access or role_has_access('baza_danych') %}
+        {% if master_access or role_has_access('baza_danych') %}
         <a href="{{ url_for('admin.admin_secret_db') }}" class="nav-sub-item" style="color: #ef4444;">
             <span class="material-icons" style="font-size: 14px; vertical-align: middle;">storage</span> Baza Danych
         </a>
