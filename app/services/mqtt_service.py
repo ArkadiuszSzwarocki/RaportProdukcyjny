@@ -10,7 +10,8 @@ _latest_machine_data = {
     "status": "OFFLINE",
     "receptura": "Brak danych",
     "last_update": 0,
-    "is_wrapped": False # Nowy bit z owijarki
+    "is_wrapped": False, # Nowy bit z owijarki
+    "pallet_counter": 0  # Globalny licznik palet z paletyzatora
 }
 
 _mqtt_thread = None
@@ -22,6 +23,7 @@ def on_connect(client, userdata, flags, rc, properties=None):
         # Subskrybujemy konkretne urządzenia dla porządku
         client.subscribe("iot-2/type/cMT2108X2/id/agroPakowaczka")
         client.subscribe("iot-2/type/cMT2108X2/id/agroOwijarka")
+        client.subscribe("iot-2/type/cMT2108X2/id/agroPaletyzator")
     else:
         print(f"[MQTT-SERVER] Błąd połączenia, kod: {rc}")
 
@@ -46,6 +48,11 @@ def on_message(client, userdata, msg):
         elif "agroOwijarka" in topic:
             wrapped = d.get("wyjazdPaletaOwinieta", [False])[0] if isinstance(d.get("wyjazdPaletaOwinieta"), list) else d.get("wyjazdPaletaOwinieta", False)
             _latest_machine_data["is_wrapped"] = wrapped
+
+        # 3. Dane z Paletyzatora (Licznik Palet)
+        elif "agroPaletyzator" in topic:
+            pallet_cnt = d.get("licznikPalet_global", [0])[0] if isinstance(d.get("licznikPalet_global"), list) else d.get("licznikPalet_global", 0)
+            _latest_machine_data["pallet_counter"] = pallet_cnt
 
         _latest_machine_data["last_update"] = time.time()
         

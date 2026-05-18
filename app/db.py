@@ -756,6 +756,8 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji_agro", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji", "start_machine_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_machine_counter' (PSD)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_machine_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_machine_counter' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji", "start_pallet_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_pallet_counter' (PSD)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "start_pallet_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_pallet_counter' (AGRO)")
     
     # Ensure warehouse unique indexes for accurate pallet tracking
     # Strict rule: one material per location. Conflicting names will overwrite.

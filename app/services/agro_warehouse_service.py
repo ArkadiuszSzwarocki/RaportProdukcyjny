@@ -696,7 +696,7 @@ class AgroWarehouseService:
             cursor = conn.cursor(dictionary=True)
             table_plan = get_table_name('plan_produkcji', linia)
             
-            query = f"SELECT id, produkt, data_planu, typ_produkcji FROM {table_plan} WHERE status='w toku' AND sekcja='Workowanie'"
+            query = f"SELECT id, produkt, data_planu, typ_produkcji, start_machine_counter, start_pallet_counter FROM {table_plan} WHERE status='w toku' AND sekcja='Workowanie'"
             params = []
             
             if target_date:
@@ -1139,6 +1139,15 @@ class AgroWarehouseService:
         try:
             cursor = conn.cursor()
             
+            # Acquire database-level lock to prevent concurrency race conditions on MyISAM storage engine
+            cursor.execute("SELECT GET_LOCK('agro_pallet_register', 10)")
+            lock_res = cursor.fetchone()
+            if not lock_res or lock_res[0] != 1:
+                return False
+            
+            # Reset transaction snapshot so we see the latest committed data in repeatable-read isolation
+            conn.commit()
+            
             # Fetch plan info
             cursor.execute(f"SELECT produkt, sekcja FROM {table_plan} WHERE id=%s", (plan_id,))
             plan_row = cursor.fetchone()
@@ -1152,6 +1161,27 @@ class AgroWarehouseService:
             waga_input = 1000
             now_ts = datetime.now()
             user_login = 'System'
+            
+            # Cooldown check: prevent duplicate auto-registration (e.g. from multiple threads or bit flickering)
+            # Find the most recently added pallet for this plan
+            cursor.execute(
+                f"SELECT MAX(data_dodania) FROM {table_pal} WHERE plan_id = %s",
+                (plan_id,)
+            )
+            latest_row = cursor.fetchone()
+            if latest_row and latest_row[0]:
+                latest_date = latest_row[0]
+                if isinstance(latest_date, str):
+                    try:
+                        latest_date = datetime.strptime(latest_date, '%Y-%m-%d %H:%M:%S')
+                    except Exception:
+                        pass
+                
+                time_diff = (now_ts - latest_date).total_seconds()
+                if time_diff < 45:
+                    print(f"[COOLDOWN] Skipped auto-registering pallet. Last pallet added {time_diff:.1f}s ago (cooldown 45s).")
+                    return False
+            
             nr_palety = generate_pallet_id(linia)
             
             # Insert pallet
@@ -1177,6 +1207,10 @@ class AgroWarehouseService:
             audit_log('System: Automatycznie dodano paletę', f'plan_id={plan_id}, produkt={plan_produkt}, waga={waga_input} kg')
             return True
         finally:
+            try:
+                cursor.execute("SELECT RELEASE_LOCK('agro_pallet_register')")
+            except Exception:
+                pass
             conn.close()
 
     @staticmethod

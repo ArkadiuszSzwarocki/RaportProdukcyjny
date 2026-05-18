@@ -275,36 +275,67 @@ def start_daemon_threads(app, cleanup_enabled=False):
         from app.services.agro_warehouse_service import AgroWarehouseService
         
         def _agro_pallet_auto_register_loop():
-            _safe_log_info('AGRO Pallet Auto-Register thread started')
+            _safe_log_info('AGRO Pallet Auto-Register thread started (using Palletizer counter)')
             time.sleep(15) # Safety delay to let app initialize
-            last_wrapped_state = False
+            
+            # Map plan_id -> last_seen_counter
+            plan_counters = {}
             
             while True:
                 try:
-                    data = get_latest_data()
-                    current_wrapped = data.get('is_wrapped', False)
-                    
-                    # Detection of rising edge (False -> True)
-                    if current_wrapped and not last_wrapped_state:
-                        _safe_log_info('Detected rising edge on is_wrapped bit! Triggering auto-pallet registration.')
+                    active_plan = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO')
+                    if active_plan:
+                        plan_id = active_plan['id']
                         
-                        # Find active Workowanie plan for AGRO
-                        active_plan = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO')
-                        if active_plan:
-                            plan_id = active_plan['id']
-                            success = AgroWarehouseService.auto_register_pallet(plan_id, linia='AGRO')
-                            if success:
-                                _safe_log_info('Successfully auto-registered pallet for plan ID=%s', plan_id)
-                            else:
-                                _safe_log_warning('Failed to auto-register pallet for plan ID=%s', plan_id)
-                        else:
-                            _safe_log_warning('No active AGRO Workowanie plan found for auto-pallet registration.')
-                    
-                    last_wrapped_state = current_wrapped
+                        # Get latest telemetry
+                        data = get_latest_data()
+                        current_pallet_cnt = data.get('pallet_counter', 0)
+                        
+                        if current_pallet_cnt > 0:
+                            # If we haven't tracked this plan yet, initialize it
+                            if plan_id not in plan_counters:
+                                # Self-healing: if start_pallet_counter in database is 0, update it
+                                if not active_plan.get('start_pallet_counter'):
+                                    try:
+                                        from app.db import get_db_connection
+                                        conn = get_db_connection()
+                                        cursor = conn.cursor()
+                                        cursor.execute(
+                                            "UPDATE plan_produkcji_agro SET start_pallet_counter = %s WHERE id = %s",
+                                            (current_pallet_cnt, plan_id)
+                                        )
+                                        conn.commit()
+                                        conn.close()
+                                        _safe_log_info("Initialized start_pallet_counter to %s for plan ID=%s", current_pallet_cnt, plan_id)
+                                    except Exception as db_err:
+                                        _safe_log_warning("Failed to initialize start_pallet_counter: %s", db_err)
+                                
+                                plan_counters[plan_id] = current_pallet_cnt
+                                _safe_log_info("Tracking palletizer counter for plan ID=%s. Initial value: %s", plan_id, current_pallet_cnt)
+                            
+                            # Detect increment
+                            last_cnt = plan_counters[plan_id]
+                            if current_pallet_cnt > last_cnt:
+                                diff = current_pallet_cnt - last_cnt
+                                _safe_log_info("Palletizer counter incremented from %s to %s (diff=%s) for plan ID=%s! Triggering auto-pallet registration.", last_cnt, current_pallet_cnt, diff, plan_id)
+                                
+                                # Register exactly 'diff' pallets
+                                for _ in range(diff):
+                                    success = AgroWarehouseService.auto_register_pallet(plan_id, linia='AGRO')
+                                    if success:
+                                        _safe_log_info('Successfully auto-registered pallet for plan ID=%s', plan_id)
+                                    else:
+                                        _safe_log_warning('Failed or skipped auto-registering pallet for plan ID=%s', plan_id)
+                                
+                                # Update our tracked counter
+                                plan_counters[plan_id] = current_pallet_cnt
+                    else:
+                        # No active plan, clear counters map to release memory and allow reset
+                        plan_counters.clear()
                 except Exception:
                     _safe_log_exception('Error in AGRO pallet auto-register loop')
                 
-                time.sleep(1) # Check every second
+                time.sleep(1.0) # Check every second (highly sufficient and responsive for counter changes)
                 
         auto_reg_thread = threading.Thread(target=_agro_pallet_auto_register_loop, daemon=True)
         auto_reg_thread.start()
@@ -313,4 +344,3 @@ def start_daemon_threads(app, cleanup_enabled=False):
         _safe_log_exception('Failed to start AGRO pallet auto-register thread')
 
     _safe_log_info('Periodic refresh_bufor_queue thread disabled (event-driven mode)')
-
