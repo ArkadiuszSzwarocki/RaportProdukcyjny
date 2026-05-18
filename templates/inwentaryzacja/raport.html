@@ -20,6 +20,12 @@
                 <span class="material-icons">print</span> DRUKUJ
             </button>
             
+            {% if sesja.status == 'OPEN' and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
+            <button onclick="closeSessionFromReport()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #dc2626; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">lock</span> ZAMKNIJ SESJĘ
+            </button>
+            {% endif %}
+            
             {% if sesja.status in ['CLOSED', 'COMPLETED'] and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
             <button onclick="openApplyModal()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #10b981; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
                 <span class="material-icons">task_alt</span> ZATWIERDŹ STANY (DB)
@@ -123,13 +129,13 @@
                         </div>
                         {% endif %}
                     </td>
-                    <td style="padding: 15px; text-align: right; color: #64748b;">{{ e.waga_systemowa }} kg</td>
-                    <td style="padding: 15px; text-align: right; font-weight: 800; color: #0f172a;">{{ e.waga_faktyczna }} kg</td>
+                    <td style="padding: 15px; text-align: right; color: #64748b;">{{ e.waga_systemowa }} {{ e.jednostka or 'kg' }}</td>
+                    <td style="padding: 15px; text-align: right; font-weight: 800; color: #0f172a;">{{ e.waga_faktyczna }} {{ e.jednostka or 'kg' }}</td>
                     <td style="padding: 15px; text-align: right;">
                         {% if diff > 0 %}
-                            <span style="color: #059669; font-weight: 800;">+{{ diff }} kg</span>
+                            <span style="color: #059669; font-weight: 800;">+{{ "%.1f"|format(diff) }} {{ e.jednostka or 'kg' }}</span>
                         {% elif diff < 0 %}
-                            <span style="color: #dc2626; font-weight: 800;">{{ diff }} kg</span>
+                            <span style="color: #dc2626; font-weight: 800;">{{ "%.1f"|format(diff) }} {{ e.jednostka or 'kg' }}</span>
                         {% else %}
                             <span style="color: #94a3b8;">0</span>
                         {% endif %}
@@ -183,6 +189,22 @@
 </div>
 
 <script>
+function closeSessionFromReport() {
+    if(confirm("Czy na pewno chcesz zamknąć tę sesję inwentaryzacji?\n\nPo zamknięciu sesji będziesz mógł zatwierdzić stany w bazie danych.")) {
+        fetch('/magazyn/inwentaryzacja/api/zamknij-sesje', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sesja_id: {{ sesja.id }}})
+        }).then(r => r.json()).then(data => {
+            if(data.success) {
+                window.location.reload();
+            } else {
+                alert("Błąd podczas zamykania sesji: " + data.message);
+            }
+        });
+    }
+}
+
 function openApplyModal() {
     document.getElementById('applyModal').style.display = 'flex';
 }

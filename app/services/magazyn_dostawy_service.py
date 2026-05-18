@@ -276,6 +276,87 @@ class MagazynDostawyService:
                                     (None, linia, 'mix', curr_loc, orig_loc, f"Przywrócenie (usunięto z przesunięcia {order_ref})", login)
                                 )
 
+            # Process external delivery receptions
+            is_external_reception = not lokalizacja_z
+            if is_external_reception:
+                table_sur = get_table_name('magazyn_surowce', linia)
+                table_opk = get_table_name('magazyn_opakowania', linia)
+                
+                # Fetch printer info if printer_id is passed
+                printer_id = data.get('printer_id')
+                printer_ip = None
+                printer_name = None
+                if printer_id:
+                    cursor.execute("SELECT ip, nazwa FROM drukarki WHERE id = %s", (printer_id,))
+                    printer_info = cursor.fetchone()
+                    if printer_info:
+                        printer_ip = printer_info['ip']
+                        printer_name = printer_info['nazwa']
+                
+                for idx, item in enumerate(items):
+                    if item.get('id') in (None, ''):
+                        item['id'] = f"item_{idx}_{int(datetime.now().timestamp())}"
+                    
+                    if not item.get('nr_palety'):
+                        p_type = 'opakowanie' if item.get('packageForm') == 'packaging' else 'surowiec'
+                        item['nr_palety'] = generate_pallet_id(linia, type=p_type)
+                    
+                    # Ensure they are NOT accepted yet (they are pending Stage 2 confirmation!)
+                    item['accepted'] = False
+                    item.pop('accepted_by', None)
+                    item.pop('accepted_at', None)
+                    item.pop('lokalizacja_przyjecia', None)
+                    
+                    # Trigger printing for this pallet in the background!
+                    if printer_ip and printer_name:
+                        product_name = item.get('productName') or 'Brak nazwy'
+                        nr_palety = item.get('nr_palety')
+                        nr_partii = item.get('nr_partii')
+                        data_produkcji = item.get('data_produkcji') or None
+                        data_przydatnosci = item.get('data_przydatnosci') or None
+                        
+                        if item.get('packageForm') == 'packaging':
+                            qty = float(item.get('quantity') or item.get('unitsPerPallet') or 0)
+                            pallet_type = 'opakowanie'
+                        else:
+                            qty = float(item.get('quantity') or item.get('netWeight') or 0)
+                            pallet_type = 'surowiec'
+                        
+                        try:
+                            import threading
+                            import requests
+                            import urllib3
+                            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                            payload = {
+                                "drukarka": printer_name,
+                                "ip": printer_ip,
+                                "typ": pallet_type,
+                                "dane": {
+                                    "palletData": {
+                                        "nrPalety": nr_palety,
+                                        "productName": product_name,
+                                        "batchNumber": nr_partii or '---',
+                                        "productionDate": str(data_produkcji) if data_produkcji else '---',
+                                        "expiryDate": str(data_przydatnosci) if data_przydatnosci else '---',
+                                        "currentWeight": qty,
+                                        "labNotes": "Dostawa Oczekująca"
+                                    }
+                                }
+                            }
+                            def run_print(p=payload):
+                                url = "https://127.0.0.1:3001/drukuj-zpl"
+                                for _ in range(2):
+                                    try:
+                                        requests.post(url, json=p, verify=False, timeout=3)
+                                    except Exception:
+                                        pass
+                            threading.Thread(target=run_print, daemon=True).start()
+                        except Exception as pe:
+                            print(f"Błąd uruchomienia wątku drukowania: {pe}")
+                
+                # Status is always OCZEKUJE during creation/saving
+                status = 'OCZEKUJE'
+
             if old_data:
                 cursor.execute("""
                     UPDATE magazyn_dostawy
@@ -459,7 +540,7 @@ class MagazynDostawyService:
             conn.close()
 
     @staticmethod
-    def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None):
+    def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None):
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
@@ -560,37 +641,38 @@ class MagazynDostawyService:
             conn.commit()
             
             # --- AUTO DRUKOWANIE ETYKIET (2 SZT) W TLE ---
-            try:
-                import threading
-                import requests
-                import urllib3
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-                payload = {
-                    "drukarka": "Magazyn",
-                    "ip": "192.168.1.237",
-                    "typ": p_type,
-                    "dane": {
-                        "palletData": {
-                            "nrPalety": nr_palety,
-                            "productName": product_name,
-                            "batchNumber": nr_partii or '---',
-                            "productionDate": str(data_produkcji) if data_produkcji else '---',
-                            "expiryDate": str(data_przydatnosci) if data_przydatnosci else '---',
-                            "currentWeight": qty,
-                            "labNotes": "Dostawa Przyjęta"
+            if printer_ip and printer_name:
+                try:
+                    import threading
+                    import requests
+                    import urllib3
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                    payload = {
+                        "drukarka": printer_name,
+                        "ip": printer_ip,
+                        "typ": p_type,
+                        "dane": {
+                            "palletData": {
+                                "nrPalety": nr_palety,
+                                "productName": product_name,
+                                "batchNumber": nr_partii or '---',
+                                "productionDate": str(data_produkcji) if data_produkcji else '---',
+                                "expiryDate": str(data_przydatnosci) if data_przydatnosci else '---',
+                                "currentWeight": qty,
+                                "labNotes": "Dostawa Przyjęta"
+                            }
                         }
                     }
-                }
-                def run_print():
-                    url = "https://127.0.0.1:3001/drukuj-zpl"
-                    for _ in range(2):
-                        try:
-                            requests.post(url, json=payload, verify=False, timeout=3)
-                        except Exception:
-                            pass
-                threading.Thread(target=run_print, daemon=True).start()
-            except Exception as e:
-                print(f"Błąd uruchomienia wątku drukowania: {e}")
+                    def run_print():
+                        url = "https://127.0.0.1:3001/drukuj-zpl"
+                        for _ in range(2):
+                            try:
+                                requests.post(url, json=payload, verify=False, timeout=3)
+                            except Exception:
+                                pass
+                    threading.Thread(target=run_print, daemon=True).start()
+                except Exception as e:
+                    print(f"Błąd uruchomienia wątku drukowania: {e}")
             # --- KONIEC AUTO DRUKU ---
 
             return True, "", {
@@ -601,6 +683,7 @@ class MagazynDostawyService:
                 "total": len(items),
                 "linia": linia,
                 "dostawa_id": dostawa_id,
+                "nr_palety": nr_palety,
             }
         except Exception as e:
             return False, str(e), None

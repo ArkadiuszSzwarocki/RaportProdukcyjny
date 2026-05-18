@@ -146,31 +146,62 @@
     </div>
 </div>
 
-<!-- MODAL: START SESJI -->
-<div id="startModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
-    <div style="background: white; width: 400px; border-radius: 20px; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
-        <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 800;">Nowa Sesja Inwentaryzacji</h3>
-        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 14px;">Rozpocznij proces liczenia stanów magazynowych.</p>
-        
-        <form action="{{ url_for('inwentaryzacja.start') }}" method="POST">
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase;">Obszar / Lokalizacja</label>
-                <input type="text" name="lokalizacja" placeholder="Np. R02, PSD, MAGAZYN" required style="width: 100%; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; font-family: inherit; font-size: 14px; text-transform: uppercase;">
-
+<!-- MODAL: START SESJI — SKAN LOKALIZACJI -->
+<div id="startModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.85); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; width: 400px; border-radius: 20px; padding: 28px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <div>
+                <h3 style="margin:0 0 4px 0; font-size: 20px; font-weight: 800;">Nowa Inwentaryzacja</h3>
+                <p style="margin:0; color:#64748b; font-size:13px;">Zeskanuj lub wpisz obszar (regał, magazyn, lokalizację).</p>
             </div>
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase;">Komentarz (opcjonalnie)</label>
-                <textarea name="comment" placeholder="Np. Inwentaryzacja miesięczna maj" style="width: 100%; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; font-family: inherit; font-size: 14px; min-height: 80px;"></textarea>
+            <button onclick="document.getElementById('startModal').style.display='none'" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:26px;line-height:1;">×</button>
+        </div>
+
+        <form action="{{ url_for('inwentaryzacja.start') }}" method="POST" onsubmit="return validateStartForm()" data-ajax="false">
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; font-size: 11px; font-weight: 800; color: #475569; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px;">
+                    <span class="material-icons" style="font-size:14px; vertical-align:middle;">qr_code_scanner</span> Obszar / Lokalizacja
+                </label>
+                <input type="text" name="lokalizacja" id="inv_start_lok_input"
+                       placeholder="Zeskanuj QR lub wpisz np. R07, MGW01..."
+                       autofocus autocomplete="off"
+                       oninput="this.value=this.value.toUpperCase(); updateStartBtn()"
+                       style="width:100%; border:2px solid #e2e8f0; border-radius:12px; padding:16px 14px; font-family:inherit; font-size:16px; font-weight:800; text-transform:uppercase; outline:none; box-sizing:border-box; transition:border-color 0.2s;"
+                       onfocus="this.style.borderColor='#3b82f6'"
+                       onblur="this.style.borderColor='#e2e8f0'">
+                <input type="hidden" name="comment" value="">
             </div>
 
-            
             <div style="display: flex; gap: 10px;">
-                <button type="submit" class="btn-primary" style="flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;">ROZPOCZNIJ</button>
-                <button type="button" onclick="document.getElementById('startModal').style.display='none'" style="flex: 1; background: #f1f5f9; border: none; border-radius: 12px; color: #475569; font-weight: 700; cursor: pointer;">ANULUJ</button>
+                <button type="submit" id="inv_start_submit_btn"
+                        class="btn-primary" disabled
+                        style="flex:2; padding:14px; border-radius:12px; font-weight:800; border:none; cursor:pointer; font-size:15px; opacity:0.4; transition:opacity 0.2s; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <span class="material-icons">play_arrow</span> ROZPOCZNIJ
+                </button>
+                <button type="button" onclick="document.getElementById('startModal').style.display='none'"
+                        style="flex:1; background:#f1f5f9; border:none; border-radius:12px; color:#475569; font-weight:700; cursor:pointer;">ANULUJ</button>
             </div>
         </form>
     </div>
 </div>
+
+<script>
+function updateStartBtn() {
+    const val = document.getElementById('inv_start_lok_input').value.trim();
+    const btn = document.getElementById('inv_start_submit_btn');
+    btn.disabled = !val;
+    btn.style.opacity = val ? '1' : '0.4';
+}
+function validateStartForm() {
+    const val = document.getElementById('inv_start_lok_input').value.trim();
+    if (!val) { alert('Zeskanuj lub wpisz obszar!'); return false; }
+    return true;
+}
+// Auto-focus when modal opens
+document.querySelector('[onclick*="startModal"]')?.addEventListener?.('click', () => {
+    setTimeout(() => document.getElementById('inv_start_lok_input')?.focus(), 50);
+});
+</script>
 
 <!-- MODAL: EDYCJA SESJI -->
 <div id="editModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">

@@ -33,11 +33,20 @@
                     <th style="cursor: pointer;" onclick="sortTable(7)">⌛ Ważność ↕</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="palletTableBody" style="opacity:0; transition: opacity 0.15s ease;">
                 {% for item in items %}
-                <tr onclick="openPalletModal('{{ item.displayId }}', '{{ item.productName }}', '{{ item.amount }}', '{{ item.location }}', '{{ item.type }}', '{{ item.date_prod }}', '{{ item.id }}', '{{ item.linia }}', {{ 1 if item.is_blocked else 0 }}, '{{ item.date_added }}')" 
+                <tr class="pallet-row {% if item.is_blocked %}is-blocked-row{% endif %}"
                     style="cursor: pointer;"
-                    class="pallet-row {% if item.is_blocked %}is-blocked-row{% endif %}">
+                    data-display-id="{{ item.displayId }}"
+                    data-product="{{ item.productName }}"
+                    data-amount="{{ item.amount }}"
+                    data-location="{{ item.location or '' }}"
+                    data-type="{{ item.type }}"
+                    data-date="{{ item.date_prod }}"
+                    data-id="{{ item.id }}"
+                    data-linia="{{ item.linia }}"
+                    data-blocked="{{ 1 if item.is_blocked else 0 }}"
+                    data-date-added="{{ item.date_added }}">
                     <td style="text-align: center; color: #94a3b8; font-weight: 700; background: #f8fafc; font-size: 11px;">{{ loop.index }}</td>
                     <td class="font-bold">
                         <div style="display: flex; align-items: center; gap: 6px;">
@@ -80,10 +89,20 @@
 
     <!-- WIDOK KAFELKOWY (Grid) -->
     <div class="grid-view-wrapper" style="display: none;">
-        <div class="warehouse-grid">
+        <div class="warehouse-grid" id="palletGridContainer" style="opacity:0; transition: opacity 0.15s ease;">
             {% for item in items %}
-            <div class="pallet-card {% if item.is_blocked %}is-blocked-card{% endif %}" 
-                 onclick="openPalletModal('{{ item.displayId }}', '{{ item.productName }}', '{{ item.amount }}', '{{ item.location }}', '{{ item.type }}', '{{ item.date_prod }}', '{{ item.id }}', '{{ item.linia }}', {{ 1 if item.is_blocked else 0 }}, '{{ item.date_added }}')">
+            <div class="pallet-card {% if item.is_blocked %}is-blocked-card{% endif %}"
+                 style="cursor: pointer;"
+                 data-display-id="{{ item.displayId }}"
+                 data-product="{{ item.productName }}"
+                 data-amount="{{ item.amount }}"
+                 data-location="{{ item.location or '' }}"
+                 data-type="{{ item.type }}"
+                 data-date="{{ item.date_prod }}"
+                 data-id="{{ item.id }}"
+                 data-linia="{{ item.linia }}"
+                 data-blocked="{{ 1 if item.is_blocked else 0 }}"
+                 data-date-added="{{ item.date_added }}">
                 <div class="card-header">
                     <span class="loc-tag" data-loc-raw="{{ item.location or '' }}">
                         {% set loc_code = (item.location or '')|upper %}
@@ -187,6 +206,36 @@ function setViewMode(mode) {
 }
 </script>
 
-<script src="{{ url_for('static', filename='js/magazyny_nowe.js') }}"></script>
+<script src="{{ url_for('static', filename='js/magazyny_nowe.js') }}?v={{ static_version }}"></script>
+
+<script>
+// ---- DELEGOWANY EVENT LISTENER DLA MODALU PALETY ----
+// Używa data-* zamiast inline onclick - działa niezawodnie z każdą nazwą produktu
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('warehouseItemsContainer');
+    if (!container) return;
+
+    container.addEventListener('click', function(e) {
+        // Znajdź klikniętą paletę (wiersz tabeli lub kafelek)
+        const row = e.target.closest('tr.pallet-row, div.pallet-card');
+        if (!row) return;
+
+        // Odczytaj dane z atrybutów data-*
+        const d = row.dataset;
+        openPalletModal(
+            d.displayId   || '',
+            d.product      || '',
+            d.amount       || '',
+            d.location     || '',
+            d.type         || '',
+            d.date         || '',
+            d.id           || '',
+            d.linia        || '',
+            parseInt(d.blocked || '0'),
+            d.dateAdded    || ''
+        );
+    });
+});
+</script>
 
 {% endblock %}

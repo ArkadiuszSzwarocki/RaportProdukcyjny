@@ -60,18 +60,19 @@
 
     .settings-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         gap: 20px;
+        align-items: start;
     }
 
     .settings-card {
         position: relative;
         display: flex;
         flex-direction: column;
-        min-height: 250px;
+        min-height: 260px;
         padding: 24px;
         border-radius: 22px;
-        overflow: hidden;
+        overflow: visible;
         background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
         border: 1px solid rgba(32, 52, 73, 0.08);
         box-shadow: 0 18px 42px rgba(28, 44, 60, 0.08);
@@ -338,6 +339,18 @@
                 <div class="settings-card-actions">
                     <button type="button" id="btn-start-printer" class="btn btn-green" style="display: none;" onclick="startPrinterServer()">Uruchom Serwer Druku</button>
                     <button type="button" id="btn-printer-ok" class="btn btn-outline-success" style="display: none;" disabled>Serwer aktywny</button>
+                </div>
+            </article>
+
+            <article class="settings-card settings-card-accent">
+                <div class="settings-card-icon">🖨️</div>
+                <div class="settings-card-body">
+                    <h3>Zarządzanie Drukarkami</h3>
+                    <p>Konfiguruj drukarki etykiet i urządzenia ZPL.</p>
+                    <div class="settings-card-meta">Dodawaj i edytuj adresy IP fizycznych drukarek, które są dostępne w magazynie</div>
+                </div>
+                <div class="settings-card-actions">
+                    <a href="/admin/ustawienia/drukarki" class="btn btn-primary">Przejdź do Drukarek</a>
                 </div>
             </article>
 

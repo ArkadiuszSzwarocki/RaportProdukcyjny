@@ -58,6 +58,26 @@ class PrintServer:
         }
         return self._send_to_bridge(payload)
 
+    def print_finished_product_label(self, label_data: dict) -> tuple[bool, str]:
+        """Wysyła dane palety wyrobu gotowego do mostka ZPL 4x6 z kodem QR."""
+        payload = {
+            "drukarka": self.printer_name,
+            "ip": self.printer_ip,
+            "typ": "finished_product",
+            "dane": {
+                "palletData": {
+                    "nrPalety": label_data.get('nrPalety'),
+                    "productName": label_data.get('nazwa'),
+                    "batchNumber": label_data.get('partia') or '---',
+                    "productionDate": label_data.get('data') or datetime.now().strftime('%Y-%m-%d'),
+                    "expiryDate": label_data.get('termin') or '---',
+                    "currentWeight": label_data.get('ilosc'),
+                    "labNotes": label_data.get('uwagi') or ""
+                }
+            }
+        }
+        return self._send_to_bridge(payload)
+
     def print_location_label(self, label_data: dict) -> tuple[bool, str]:
         """Dla lokalizacji możemy wysłać surowy ZPL (mostek to wspiera)."""
         # Tu możemy zostawić stary ZPL lub przygotować dedykowany dla regałów

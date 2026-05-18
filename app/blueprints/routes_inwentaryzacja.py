@@ -32,7 +32,14 @@ def start():
 
 @inwentaryzacja_bp.route('/skaner/<int:sesja_id>')
 def skaner(sesja_id):
-    return render_template('inwentaryzacja/skaner.html', sesja_id=sesja_id)
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM magazyn_inwentaryzacja_sesje WHERE id = %s", (sesja_id,))
+    sesja = cursor.fetchone()
+    conn.close()
+    
+    target_lokalizacja = sesja.get('lokalizacja') if sesja else 'WSZYSTKO'
+    return render_template('inwentaryzacja/skaner.html', sesja_id=sesja_id, target_lokalizacja=target_lokalizacja)
 
 @inwentaryzacja_bp.route('/api/szukaj-lokalizacji', methods=['POST'])
 def szukaj_lokalizacji():
@@ -76,7 +83,8 @@ def zapisz_wpis():
         data.get('nr_palety'),
         data.get('data_produkcji'),
         data.get('data_przydatnosci'),
-        data.get('typ_opakowania', 'brak')
+        data.get('typ_opakowania', 'brak'),
+        data.get('jednostka', 'kg')
     )
 
     return jsonify({"success": success, "message": msg})
@@ -115,19 +123,19 @@ def lookup_pallet():
             
     # 1. Search in surowce
     if clean_id and code.startswith('SUR-'):
-        cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'surowiec' as typ_palety, linia FROM magazyn_surowce WHERE id = %s", (clean_id,))
+        cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'surowiec' as typ_palety, linia, jednostka FROM magazyn_surowce WHERE id = %s", (clean_id,))
         pallet = cursor.fetchone()
     else:
-        cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'surowiec' as typ_palety, linia FROM magazyn_surowce WHERE nr_palety = %s", (code,))
+        cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'surowiec' as typ_palety, linia, jednostka FROM magazyn_surowce WHERE nr_palety = %s", (code,))
         pallet = cursor.fetchone()
         
     # 2. Search in opakowania
     if not pallet:
         if clean_id and code.startswith('OPK-'):
-            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'opakowanie' as typ_palety, linia FROM magazyn_opakowania WHERE id = %s", (clean_id,))
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE id = %s", (clean_id,))
             pallet = cursor.fetchone()
         else:
-            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'opakowanie' as typ_palety, linia FROM magazyn_opakowania WHERE nr_palety = %s", (code,))
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE nr_palety = %s", (code,))
             pallet = cursor.fetchone()
             
     # 3. Search in wyroby gotowe (PSD / AGRO)
@@ -136,10 +144,10 @@ def lookup_pallet():
         for hall in hall_contexts:
             table = get_table_name('magazyn_palety', hall)
             if clean_id and (code.startswith('PAL-') or code.startswith('PAT-')):
-                cursor.execute(f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'wyrób gotowy' as typ_palety, linia FROM {table} WHERE id = %s", (clean_id,))
+                cursor.execute(f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE id = %s", (clean_id,))
                 pallet = cursor.fetchone()
             else:
-                cursor.execute(f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'wyrób gotowy' as typ_palety, linia FROM {table} WHERE nr_palety = %s", (code,))
+                cursor.execute(f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE nr_palety = %s", (code,))
                 pallet = cursor.fetchone()
             if pallet:
                 break
@@ -167,6 +175,15 @@ def zamknij_sesje():
 def zatwierdz_inwentaryzacje():
     sesja_id = request.json.get('sesja_id')
     success, msg = InwentaryzacjaService.apply_inventory(sesja_id, session.get('login', 'system'))
+    return jsonify({"success": success, "message": msg})
+    
+@inwentaryzacja_bp.route('/api/edytuj-sesje', methods=['POST'])
+def edytuj_sesje():
+    data = request.json
+    sesja_id = data.get('sesja_id')
+    lokalizacja = data.get('lokalizacja')
+    comment = data.get('comment')
+    success, msg = InwentaryzacjaService.update_session(sesja_id, lokalizacja, comment)
     return jsonify({"success": success, "message": msg})
     
 @inwentaryzacja_bp.route('/api/usun-sesje', methods=['POST'])

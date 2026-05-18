@@ -84,6 +84,7 @@ def reception_edit(dostawa_id=None):
     conn = get_db_connection()
     dostawa = None
     wszystkie_produkty = []
+    printers = []
     try:
         cursor = conn.cursor(dictionary=True)
         if dostawa_id:
@@ -104,6 +105,12 @@ def reception_edit(dostawa_id=None):
         )
         wszystkie_produkty = [r['nazwa'] for r in cursor.fetchall()]
 
+        try:
+            cursor.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1")
+            printers = cursor.fetchall()
+        except Exception as pe:
+            print(f"Error fetching printers in reception_edit: {pe}")
+
     finally:
         conn.close()
 
@@ -112,6 +119,7 @@ def reception_edit(dostawa_id=None):
         dostawa=dostawa, linia=linia,
         wszystkie_produkty=wszystkie_produkty,
         lokalizacje=BUFORY,
+        printers=printers,
         now_str=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
 
@@ -362,6 +370,13 @@ def przyjecie_ruchu(dostawa_id):
         )
         lokalizacja_z = str(dostawa.get('lokalizacja_z') or '').strip()
         is_external_delivery = (not lokalizacja_z) and (not has_item_source)
+
+        printers = []
+        try:
+            cursor.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1")
+            printers = cursor.fetchall()
+        except Exception as pe:
+            print(f"Error fetching printers in przyjecie_ruchu: {pe}")
     finally:
         conn.close()
 
@@ -373,6 +388,7 @@ def przyjecie_ruchu(dostawa_id):
         total_count=total_count,
         linia=linia,
         is_external_delivery=is_external_delivery,
+        printers=printers,
         now_str=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
 
@@ -386,6 +402,24 @@ def zapisz_dostawe():
 @magazyn_dostawy_bp.route('/api/przyjmij-pozycje/<dostawa_id>', methods=['POST'])
 def przyjmij_pozycje(dostawa_id):
     data = request.json
+    printer_id = data.get('printer_id')
+    
+    printer_ip = None
+    printer_name = None
+    if printer_id:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT ip, nazwa FROM drukarki WHERE id = %s", (printer_id,))
+            printer_info = cursor.fetchone()
+            if printer_info:
+                printer_ip = printer_info['ip']
+                printer_name = printer_info['nazwa']
+        except Exception as e:
+            print(f"Error loading printer in route: {e}")
+        finally:
+            conn.close()
+
     success, error, result = MagazynDostawyService.accept_item(
         dostawa_id, 
         data.get('item_id'), 
@@ -393,7 +427,9 @@ def przyjmij_pozycje(dostawa_id):
         session.get('login', 'system'),
         nr_partii=data.get('nr_partii'),
         data_produkcji=data.get('data_produkcji'),
-        data_przydatnosci=data.get('data_przydatnosci')
+        data_przydatnosci=data.get('data_przydatnosci'),
+        printer_ip=printer_ip,
+        printer_name=printer_name
     )
     if success:
         report_url = None
@@ -411,9 +447,72 @@ def przyjmij_pozycje(dostawa_id):
             "accepted_count": result["accepted_count"],
             "total": result["total"],
             "report_url": report_url,
+            "nr_palety": result.get("nr_palety"),
             "message": f"Przyjęto pomyślnie."
         })
     return jsonify({"success": False, "error": error}), 400
+
+@magazyn_dostawy_bp.route('/api/dodruk-etykiet', methods=['POST'])
+def dodruk_etykiet():
+    data = request.json
+    nr_palety = data.get('nr_palety')
+    printer_id = data.get('printer_id')
+    product_name = data.get('product_name')
+    nr_partii = data.get('nr_partii') or '---'
+    data_produkcji = data.get('data_produkcji') or '---'
+    data_przydatnosci = data.get('data_przydatnosci') or '---'
+    qty = data.get('qty') or 0.0
+    p_type = data.get('p_type') or 'surowiec'
+    
+    if not nr_palety or not printer_id:
+        return jsonify({"success": False, "error": "Brak nr_palety lub drukarki"}), 400
+        
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT ip, nazwa FROM drukarki WHERE id = %s", (printer_id,))
+        printer_row = cursor.fetchone()
+        if not printer_row:
+            return jsonify({"success": False, "error": "Drukarka nie istnieje"}), 404
+            
+        printer_ip = printer_row['ip']
+        printer_name = printer_row['nazwa']
+    finally:
+        conn.close()
+        
+    # Print 2 labels
+    try:
+        import threading
+        import requests
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        payload = {
+            "drukarka": printer_name,
+            "ip": printer_ip,
+            "typ": p_type,
+            "dane": {
+                "palletData": {
+                    "nrPalety": nr_palety,
+                    "productName": product_name,
+                    "batchNumber": nr_partii,
+                    "productionDate": str(data_produkcji),
+                    "expiryDate": str(data_przydatnosci),
+                    "currentWeight": float(qty),
+                    "labNotes": "Dodruk etykiety"
+                }
+            }
+        }
+        def run_print():
+            url = "https://127.0.0.1:3001/drukuj-zpl"
+            for _ in range(2):
+                try:
+                    requests.post(url, json=payload, verify=False, timeout=3)
+                except Exception:
+                    pass
+        threading.Thread(target=run_print, daemon=True).start()
+        return jsonify({"success": True, "message": f"Wysłano 2 etykiety do drukarki {printer_name}."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @magazyn_dostawy_bp.route('/api/odrzuc-pozycje/<dostawa_id>', methods=['POST'])

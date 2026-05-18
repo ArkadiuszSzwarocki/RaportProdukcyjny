@@ -1,0 +1,93 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+    <div class="row items-center space-between mb-20">
+        <h2>Zarządzanie Drukarkami Etykiet</h2>
+        <a href="{{ url_for('admin.admin_ustawienia') }}" class="btn btn-outline">Powrót do ustawień</a>
+    </div>
+
+    <div class="grid-2 gap-20">
+        <!-- Lista drukarek -->
+        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <h3 class="mb-15" style="border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">Dostępne drukarki</h3>
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table class="modern-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nazwa</th>
+                            <th>Adres IP</th>
+                            <th>Lokalizacja</th>
+                            <th>Status</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for printer in printers %}
+                        <tr>
+                            <td>{{ printer.id }}</td>
+                            <td class="font-bold">{{ printer.nazwa }}</td>
+                            <td style="font-family: monospace;">{{ printer.ip }}</td>
+                            <td>{{ printer.lokalizacja or '-' }}</td>
+                            <td>
+                                {% if printer.aktywna %}
+                                <span class="badge badge-success">Aktywna</span>
+                                {% else %}
+                                <span class="badge badge-danger">Nieaktywna</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form action="{{ url_for('admin.admin_delete_printer', printer_id=printer.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Czy na pewno chcesz usunąć tę drukarkę?');">
+                                    <button type="submit" class="btn-action btn-red" style="padding: 4px 8px; font-size: 11px;">Usuń</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted p-20">Brak skonfigurowanych drukarek.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Formularz dodawania nowej drukarki -->
+        <div style="background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px;">
+            <h3 class="mb-15" style="border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #2563eb;">Dodaj nową drukarkę</h3>
+            <form action="{{ url_for('admin.admin_add_printer') }}" method="POST">
+                <div class="mb-15">
+                    <label class="form-label font-bold">Nazwa drukarki <span class="text-danger">*</span></label>
+                    <input type="text" name="nazwa" class="form-control" required placeholder="np. Zebra Magazyn 1">
+                    <small class="text-muted">Rozpoznawalna nazwa dla magazynierów</small>
+                </div>
+                
+                <div class="mb-15">
+                    <label class="form-label font-bold">Adres IP maszyny <span class="text-danger">*</span></label>
+                    <input type="text" name="ip" class="form-control" required placeholder="np. 192.168.1.200">
+                    <small class="text-muted">Adres IPv4 w lokalnej sieci (musi być dostępny z serwera produkcyjnego)</small>
+                </div>
+                
+                <div class="mb-15">
+                    <label class="form-label font-bold">Lokalizacja / Opis</label>
+                    <input type="text" name="lokalizacja" class="form-control" placeholder="np. Biuro Magazyniera">
+                </div>
+                
+                <div class="mb-15">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" name="aktywna" value="1" checked style="width: 18px; height: 18px; accent-color: #2563eb;">
+                        <span class="font-bold text-dark">Drukarka aktywna w systemie</span>
+                    </label>
+                </div>
+
+                <div class="mt-20">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        <span class="material-icons" style="font-size: 18px; margin-right: 5px;">add_circle</span> DODAJ DRUKARKĘ
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

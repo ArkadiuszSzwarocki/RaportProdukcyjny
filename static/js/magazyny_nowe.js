@@ -11,6 +11,47 @@ let currentPallet = {};
 let scanBuffer = '';
 let scanTimeout = null;
 
+// ---- TOAST NOTIFICATIONS ----
+function showToast(message, type = 'success') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:10px;max-width:340px;';
+        document.body.appendChild(container);
+    }
+    const colors = { success: '#10b981', error: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
+    const icons  = { success: 'check_circle', error: 'error', warning: 'warning', info: 'info' };
+    const toast = document.createElement('div');
+    toast.style.cssText = `background:${colors[type]||colors.info};color:#fff;padding:14px 18px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;opacity:0;transform:translateX(40px);transition:all 0.3s ease;`;
+    toast.innerHTML = `<span class="material-icons" style="font-size:20px;">${icons[type]||icons.info}</span>${message}`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => { toast.style.opacity='1'; toast.style.transform='translateX(0)'; });
+    setTimeout(() => {
+        toast.style.opacity='0'; toast.style.transform='translateX(40px)';
+        setTimeout(() => toast.remove(), 350);
+    }, 4000);
+}
+
+// ---- HARD DELETE PALLET (admin only) ----
+function deletePalletPermanently() {
+    if (!currentPallet.id) return;
+    if (!confirm(`⚠️ TRWAŁE USUNIĘCIE\n\nPaleta: ${currentPallet.displayId}\nProdukt: ${currentPallet.productName}\n\nOperacja nieodwracalna. Kontynuować?`)) return;
+    
+    fetch('/magazyny-nowe/api/pallet/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: currentPallet.id, type: currentPallet.type, linia: currentPallet.linia })
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            removePalletFromDOM(currentPallet.id, `🗑️ ${data.message || 'Usunięto pomyślnie'}`);
+        } else {
+            showToast('Błąd: ' + (data.error || data.message || 'Nieznany błąd'), 'error');
+        }
+    }).catch(e => showToast('Błąd połączenia: ' + e, 'error'));
+}
+
+
 // Funkcja synchronizująca stan z widokiem (DOM)
 function syncStateFromDOM() {
     const checkedWh = document.querySelector('input[name="main_wh"]:checked');
@@ -51,44 +92,48 @@ function handleScan(barcode) {
 function openPalletModal(displayId, productName, amount, location, type, date, realId, linia, isBlocked, dateAdded) {
     currentPallet = { displayId, productName, amount, location, type, date, id: realId, linia: linia, is_blocked: isBlocked, date_added: dateAdded };
     
-    document.getElementById('modalDisplayId').textContent = displayId;
-    document.getElementById('modalProductName').textContent = productName;
-    document.getElementById('modalAmount').textContent = amount;
-    document.getElementById('modalLocation').textContent = location || 'Brak lokalizacji';
-    document.getElementById('modalType').textContent = type;
-    document.getElementById('modalDate').textContent = date || '-';
-    
-    const dateAddedEl = document.getElementById('modalDateAdded');
-    if (dateAddedEl) {
-        dateAddedEl.textContent = dateAdded || '-';
-    }
+    const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+    setEl('modalDisplayId', displayId);
+    setEl('modalProductName', productName);
+    setEl('modalAmount', amount);
+    setEl('modalLocation', location || 'Brak lokalizacji');
+    setEl('modalType', type);
+    setEl('modalDate', date || '-');
+    setEl('modalDateAdded', dateAdded || '-');
 
     // Blocking status indicator in modal
     const blockBtn = document.getElementById('toggleBlockBtn');
-    if (currentPallet.is_blocked) {
-        blockBtn.innerHTML = '<span class="material-icons">lock_open</span> ODBLOKUJ PALETĘ';
-        blockBtn.className = 'modal-btn-secondary';
-        blockBtn.style.background = '#10b981';
-        blockBtn.style.color = '#fff';
-    } else {
-        blockBtn.innerHTML = '<span class="material-icons">block</span> ZABLOKUJ PALETĘ';
-        blockBtn.className = 'modal-btn-secondary';
-        blockBtn.style.background = '#be123c';
-        blockBtn.style.color = '#fff';
+    if (blockBtn) {
+        if (currentPallet.is_blocked) {
+            blockBtn.innerHTML = '<span class="material-icons">lock_open</span> ODBLOKUJ PALETĘ';
+            blockBtn.className = 'modal-btn-secondary';
+            blockBtn.style.background = '#10b981';
+            blockBtn.style.color = '#fff';
+        } else {
+            blockBtn.innerHTML = '<span class="material-icons">block</span> ZABLOKUJ PALETĘ';
+            blockBtn.className = 'modal-btn-secondary';
+            blockBtn.style.background = '#be123c';
+            blockBtn.style.color = '#fff';
+        }
     }
     
     const returnBtn = document.getElementById('returnToRawBtn');
-    if(type === 'Wyrób Gotowy') {
-        returnBtn.style.display = 'flex';
-    } else {
-        returnBtn.style.display = 'none';
+    if (returnBtn) {
+        returnBtn.style.display = (type === 'Wyrób Gotowy') ? 'flex' : 'none';
     }
     
-    document.getElementById('modalHistoryContainer').style.display = 'none';
-    document.getElementById('modalHistoryList').innerHTML = '';
+    const histContainer = document.getElementById('modalHistoryContainer');
+    const histList = document.getElementById('modalHistoryList');
+    if (histContainer) histContainer.style.display = 'none';
+    if (histList) histList.innerHTML = '';
     
     const modal = document.getElementById('palletModal');
     const content = document.getElementById('palletModalContent');
+    
+    if (!modal || !content) {
+        console.error('Modal elements not found! Check _modals.html is included.');
+        return;
+    }
     
     modal.style.display = 'flex';
     setTimeout(() => {
@@ -105,6 +150,29 @@ function closePalletModal() {
         modal.style.display = 'none';
         currentPallet = {};
     }, 200); 
+}
+
+// Usuwa paletę z DOM bez przeładowania strony
+function removePalletFromDOM(palletId, message) {
+    closePalletModal();
+    
+    // Znajdź i usuń wiersz tabeli oraz kafelek
+    const row = document.querySelector(`tr[data-id="${palletId}"]`);
+    const card = document.querySelector(`.pallet-card[data-id="${palletId}"]`);
+    
+    [row, card].forEach(el => {
+        if (!el) return;
+        el.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        el.style.opacity = '0';
+        el.style.transform = 'scale(0.95)';
+        setTimeout(() => el.remove(), 320);
+    });
+    
+    // Pokaż toast zamiast alert
+    showToast(message || 'Operacja wykonana pomyślnie.', 'success');
+    
+    // Zaktualizuj banner filtra po chwili
+    setTimeout(filterTable, 400);
 }
 
 // ---- PALLET OPERATIONS ----
@@ -182,7 +250,7 @@ function promptUpdateWeight() {
 
 function promptDispatch() {
     if(!currentPallet.id) return;
-    if(confirm(`Czy na pewno chcesz WYDAĆ paletę ${currentPallet.displayId}? Paleta zostanie przeniesiona do lokalizacji EXPEDITION i jej stan zostanie wyzerowany.`)) {
+    if(confirm(`Czy na pewno chcesz WYDAĆ paletę ${currentPallet.displayId}?\n\nPaleta trafi do tabeli EXPEDITION (magazyn_archiwum) i zniknie z aktywnej listy.`)) {
         fetch('/magazyny-nowe/api/pallet/dispatch', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -193,8 +261,7 @@ function promptDispatch() {
             })
         }).then(r => r.json()).then(data => {
             if(data.success) {
-                alert("Wydano pomyślnie.");
-                window.location.reload();
+                removePalletFromDOM(currentPallet.id, `Paleta ${currentPallet.displayId} wydana do EXPEDITION ✓`);
             } else {
                 alert("Błąd: " + data.error);
             }
@@ -215,8 +282,7 @@ function promptArchive() {
             })
         }).then(r => r.json()).then(data => {
             if(data.success) {
-                alert("Zarchiwizowano pomyślnie.");
-                window.location.reload();
+                removePalletFromDOM(currentPallet.id, `Paleta ${currentPallet.displayId} zarchiwizowana ✓`);
             } else {
                 alert("Błąd: " + data.error);
             }
@@ -226,7 +292,7 @@ function promptArchive() {
 
 function promptReturnToRaw() {
     if(!currentPallet.id) return;
-    if(confirm(`Czy na pewno chcesz zwrócić paletę ${currentPallet.displayId} (${currentPallet.productName}) jako SUROWIEC? Paleta zostanie wyzerowana w wyrobach gotowych i dodana do surowców na lokalizację OSIP.`)) {
+    if(confirm(`Czy na pewno chcesz zwrócić paletę ${currentPallet.displayId} (${currentPallet.productName}) jako SUROWIEC?\nPaleta zostanie wyzerowana w wyrobach gotowych i dodana do surowców na lokalizację OSIP.`)) {
         fetch('/magazyny-nowe/api/pallet/return-to-raw', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -237,8 +303,7 @@ function promptReturnToRaw() {
             })
         }).then(r => r.json()).then(data => {
             if(data.success) {
-                alert(data.message || "Zwrócono pomyślnie.");
-                window.location.reload();
+                removePalletFromDOM(currentPallet.id, data.message || 'Zwrócono pomyślnie ✓');
             } else {
                 alert("Błąd: " + data.error);
             }
@@ -282,11 +347,49 @@ function togglePalletBlock() {
         })
     }).then(r => r.json()).then(data => {
         if(data.success) {
-            alert(data.message || "Status blokady zmieniony.");
-            window.location.reload();
+            showToast(data.message || 'Status blokady zmieniony.', 'success');
+            // Zaktualizuj stan wizualny wiersza bez reload
+            const row = document.querySelector(`tr[data-id="${currentPallet.id}"]`);
+            const card = document.querySelector(`.pallet-card[data-id="${currentPallet.id}"]`);
+            const newBlocked = !currentPallet.is_blocked;
+            [row, card].forEach(el => {
+                if (!el) return;
+                el.dataset.blocked = newBlocked ? '1' : '0';
+                el.classList.toggle('is-blocked-row', newBlocked);
+                el.classList.toggle('is-blocked-card', newBlocked);
+            });
+            closePalletModal();
         } else {
             alert("Błąd: " + data.error);
         }
+    });
+}
+
+function printCurrentPallet() {
+    if(!currentPallet.id) return;
+    const printerId = document.getElementById('printerSelect').value;
+    if(!printerId) {
+        alert("Wybierz drukarkę z listy przed wydrukiem.");
+        return;
+    }
+    
+    fetch('/magazyny-nowe/api/pallet/print', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            id: currentPallet.id,
+            type: currentPallet.type,
+            linia: currentPallet.linia,
+            printer_id: printerId
+        })
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            alert("Etykieta została pomyślnie wysłana do drukarki: " + data.message);
+        } else {
+            alert("Błąd podczas drukowania: " + data.error);
+        }
+    }).catch(e => {
+        alert("Błąd połączenia: " + e);
     });
 }
 
@@ -672,13 +775,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // 1. Zsynchronizuj zmienne JS z tym co zaznaczył serwer w HTML
     syncStateFromDOM();
 
-    // 2. Przywróć wyszukiwarkę (tylko to zostawiamy w localStorage)
+    // 2. Przywróć wyszukiwarkę i filtry z localStorage
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         const savedSearch = localStorage.getItem('warehouse_search');
         if (savedSearch) {
             searchInput.value = savedSearch;
+            currentSearchQuery = savedSearch;
         }
+        // Zapisuj przy każdym naciśnięciu klawisza
+        searchInput.addEventListener('input', function() {
+            localStorage.setItem('warehouse_search', this.value);
+            filterTable();
+        });
     }
 
     // Domyślnie sortuj po lokalizacji rosnąco (regał -> rząd -> miejsce).
@@ -711,13 +820,21 @@ document.addEventListener('DOMContentLoaded', function() {
 function filterTable() {
     const input = document.getElementById("searchInput");
     const filter = input ? input.value.toUpperCase().trim() : "";
+    
+    // Zapisz aktualną wartość wyszukiwania do localStorage (persist po reload)
+    if (input) {
+        localStorage.setItem('warehouse_search', input.value);
+    }
     const container = document.getElementById('warehouseItemsContainer');
     if (!container) return;
 
     syncStateFromDOM();
 
     // 1. Filter List View (Table Rows)
-    const rows = container.querySelectorAll(".list-view-wrapper tr:not(:first-child)");
+    const tbody = container.querySelector(".list-view-wrapper tbody");
+    if (!tbody) return;
+    const rows = tbody.querySelectorAll("tr");
+    let visibleRows = 0;
     rows.forEach(row => {
         const locCell = Array.from(row.getElementsByTagName("td")).find(td => td.getAttribute('data-label') === 'Lokalizacja');
         const locRaw = locCell ? (locCell.dataset.locRaw || locCell.textContent || '') : '';
@@ -726,10 +843,12 @@ function filterTable() {
         
         const match = isMatch(rowText, locText, filter);
         row.style.display = match ? "" : "none";
+        if (match) visibleRows++;
     });
 
     // 2. Filter Grid View (Cards)
     const cards = container.querySelectorAll(".pallet-card");
+    let visibleCards = 0;
     cards.forEach(card => {
         const locEl = card.querySelector(".loc-tag");
         const locRaw = locEl ? (locEl.dataset.locRaw || locEl.innerText || '') : '';
@@ -738,7 +857,81 @@ function filterTable() {
         
         const match = isMatch(cardText, locText, filter);
         card.style.display = match ? "" : "none";
+        if (match) visibleCards++;
     });
+
+    // 3. Aktualizuj banner statusu filtra
+    _updateFilterBanner(filter, visibleRows, rows.length);
+
+    // 4. Płynne pojawienie się przefiltrowanej listy (eliminuje flash pełnej listy)
+    requestAnimationFrame(() => {
+        if (tbody) tbody.style.opacity = '1';
+        const grid = document.getElementById('palletGridContainer');
+        if (grid) grid.style.opacity = '1';
+    });
+}
+
+function _updateFilterBanner(filter, visible, total) {
+    // Znajdź lub stwórz banner
+    let banner = document.getElementById('filterStatusBanner');
+    const tableWrapper = document.querySelector('.list-view-wrapper');
+    if (!tableWrapper) return;
+
+    const hasSearch = filter && filter.length > 0;
+    const hasWarehouse = currentWarehouseId && currentWarehouseId !== 'all';
+    const hasRack = currentSubWarehouseId && currentSubWarehouseId !== 'all';
+    const isFiltered = hasSearch || hasWarehouse || hasRack;
+
+    if (!isFiltered) {
+        // Ukryj banner gdy brak filtra
+        if (banner) banner.style.display = 'none';
+        return;
+    }
+
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'filterStatusBanner';
+        banner.style.cssText = [
+            'display:flex', 'align-items:center', 'gap:10px',
+            'padding:8px 14px', 'margin-bottom:8px',
+            'background:linear-gradient(135deg,#eff6ff,#dbeafe)',
+            'border:1px solid #93c5fd', 'border-radius:10px',
+            'font-size:13px', 'font-weight:600', 'color:#1d4ed8',
+            'flex-wrap:wrap'
+        ].join(';');
+        tableWrapper.insertAdjacentElement('beforebegin', banner);
+    }
+
+    // Buduj treść bannera
+    const parts = [];
+    if (hasSearch) parts.push(`🔍 Szukano: <strong>"${filter}"</strong>`);
+    if (hasWarehouse) parts.push(`🏭 Magazyn: <strong>${currentWarehouseId}</strong>`);
+    if (hasRack) parts.push(`📦 Regał: <strong>${currentSubWarehouseId}</strong>`);
+
+    const hidden = total - visible;
+    const resultInfo = hidden > 0
+        ? `<span style="margin-left:auto;background:#1d4ed8;color:#fff;padding:2px 10px;border-radius:20px;font-size:12px;">${visible} z ${total} rekordów</span>`
+        : `<span style="margin-left:auto;background:#10b981;color:#fff;padding:2px 10px;border-radius:20px;font-size:12px;">Wszystkie ${total} rekordów</span>`;
+
+    banner.style.display = 'flex';
+    banner.innerHTML = `
+        <span class="material-icons" style="font-size:18px;color:#2563eb;">filter_list</span>
+        <span>Przefiltrowano: ${parts.join(' &nbsp;·&nbsp; ')}</span>
+        ${resultInfo}
+        <button onclick="clearAllFilters()" style="border:none;background:none;cursor:pointer;color:#64748b;font-size:11px;padding:0 4px;" title="Wyczyść filtry">✕ wyczyść</button>
+    `;
+}
+
+function clearAllFilters() {
+    const input = document.getElementById('searchInput');
+    if (input) { input.value = ''; localStorage.removeItem('warehouse_search'); }
+    currentSearchQuery = '';
+    // Reset radio buttons
+    const allWh = document.getElementById('radio-all');
+    if (allWh) { allWh.checked = true; currentWarehouseId = 'all'; }
+    const allRack = document.getElementById('rack-all');
+    if (allRack) { allRack.checked = true; currentSubWarehouseId = 'all'; }
+    filterTable();
 }
 
 function isMatch(allText, locText, filter) {

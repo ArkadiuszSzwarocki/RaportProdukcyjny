@@ -130,13 +130,45 @@ def login():
 @auth_bp.route('/logout')
 def logout():
     """Clear session and redirect to login."""
-    from flask import current_app
+    from flask import current_app, make_response
     from app.core.audit import audit_log
+    from app.db import deactivate_active_session, deactivate_all_user_sessions
     audit_log('Wylogował się')
     current_app.logger.info("Użytkownik '%s' wylogował się", session.get('login', '—'))
-    deactivate_active_session(session.get('session_tracking_id'))
+    
+    user_id = session.get('user_id')
+    if user_id:
+        deactivate_all_user_sessions(user_id)
+    else:
+        deactivate_active_session(session.get('session_tracking_id'))
+        
     session.clear()
-    return redirect('/login')
+    resp = make_response(redirect('/login'))
+    # No-cache: zapobiega pokazywaniu starych stron z cache po cofnięciu się (mobile BFCache)
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
+
+
+@auth_bp.route('/api/logout', methods=['POST'])
+def api_logout():
+    """API endpoint dla beacon-based logout z mobile (navigator.sendBeacon)."""
+    from app.core.audit import audit_log
+    from app.db import deactivate_active_session, deactivate_all_user_sessions
+    try:
+        audit_log('Wylogował się (mobile beacon)')
+    except Exception:
+        pass
+    
+    user_id = session.get('user_id')
+    if user_id:
+        deactivate_all_user_sessions(user_id)
+    else:
+        deactivate_active_session(session.get('session_tracking_id'))
+        
+    session.clear()
+    return jsonify({'success': True, 'redirect': '/login'})
 
 
 @auth_bp.route('/zglos')

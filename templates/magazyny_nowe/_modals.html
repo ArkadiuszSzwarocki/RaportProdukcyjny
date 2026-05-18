@@ -42,9 +42,31 @@
                 <button onclick="togglePalletBlock()" id="toggleBlockBtn" class="modal-btn-secondary"><span class="material-icons">block</span> BLOKADA</button>
             </div>
 
+            <!-- MODUŁ DRUKOWANIA ETYKIETY -->
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 15px; margin-bottom: 20px;">
+                <div style="font-size: 13px; font-weight: 700; color: #166534; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                    <span class="material-icons" style="font-size: 18px;">print</span> WYDRUKUJ ETYKIETĘ (ZPL)
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <select id="printerSelect" class="form-control" style="flex: 1;">
+                        <option value="">-- Wybierz drukarkę --</option>
+                        {% for printer in printers %}
+                            <option value="{{ printer.id }}">{{ printer.nazwa }} ({{ printer.lokalizacja or printer.ip }})</option>
+                        {% endfor %}
+                    </select>
+                    <button onclick="printCurrentPallet()" class="btn-action btn-green" style="white-space: nowrap;">DRUKUJ</button>
+                </div>
+                {% if not printers %}
+                <div style="font-size: 11px; color: #991b1b; margin-top: 5px;">Brak dodanych drukarek w ustawieniach!</div>
+                {% endif %}
+            </div>
+
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <button onclick="promptDispatch()" class="modal-btn-outline" style="color: #10b981; border-color: #10b981;">
                     <span class="material-icons">local_shipping</span> WYDAJ PALETĘ (EXPEDITION)
+                </button>
+                <button id="returnToRawBtn" onclick="promptReturnToRaw()" class="modal-btn-outline" style="display: none; color: #f59e0b; border-color: #f59e0b;">
+                    <span class="material-icons">undo</span> ZWRÓĆ DO SUROWCÓW
                 </button>
                 <button onclick="fetchHistory()" class="modal-btn-outline" style="color: #3b82f6; border-color: #3b82f6;">
                     <span class="material-icons">history</span> POKAŻ HISTORIĘ RUCHÓW
@@ -53,6 +75,16 @@
             <div id="modalHistoryContainer" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
                 <ul id="modalHistoryList" style="list-style: none; padding: 0; margin: 0; font-size: 12px; display: flex; flex-direction: column; gap: 8px;"></ul>
             </div>
+
+            {% set role = (session.get('rola') or '')|lower|replace(' ','')|replace('_','') %}
+            {% if role in ('masteradmin', 'admin', 'administrator') %}
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 2px dashed #fecaca;">
+                <div style="font-size: 11px; font-weight: 700; color: #9f1239; letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase;">⚠️ Strefa niebezpieczna (Admin)</div>
+                <button onclick="deletePalletPermanently()" class="modal-btn-outline" style="color: #dc2626; border-color: #dc2626; font-size: 12px; width: 100%;">
+                    <span class="material-icons" style="font-size:16px;">delete_forever</span> USUŃ TRWALE (duplikat / testowa)
+                </button>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

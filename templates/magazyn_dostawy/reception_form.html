@@ -165,6 +165,110 @@
         width: 100%;
     }
 }
+
+/* Premium Modal Styles */
+.premium-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.premium-modal-content {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 480px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    animation: modalFadeIn 0.25s ease-out;
+}
+@keyframes modalFadeIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.premium-modal-header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    color: #ffffff;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.premium-modal-header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+.premium-modal-header .close-btn {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+}
+.premium-modal-body {
+    padding: 20px;
+}
+.premium-modal-body p {
+    margin: 8px 0;
+    font-size: 0.9rem;
+    color: #334155;
+}
+.premium-select {
+    width: 100%;
+    height: 40px;
+    border: 2px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 0 10px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1e293b;
+    background-color: #f8fafc;
+    outline: none;
+    margin-top: 5px;
+}
+.premium-select:focus {
+    border-color: #3b82f6;
+}
+.premium-modal-footer {
+    padding: 16px 20px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+.btn-cancel {
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.btn-confirm-print {
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #1d4ed8, #1e40af);
+    border: 1px solid #1e3a8a;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
 </style>
 
 <div class="logistyka-container p-20 delivery-form-screen" style="margin: 0 auto; font-family: sans-serif;">
@@ -253,10 +357,46 @@
            class="btn-cancel-reception">
             Anuluj
         </a>
-        <button onclick="saveDostawa()" 
+        <button onclick="openPrinterModal()" 
                 class="btn-save-reception">
             <span class="material-icons" style="font-size: 18px;">save</span> ZAPISZ
         </button>
+    </div>
+
+    <!-- Modal Drukarki -->
+    <div id="printerModal" class="premium-modal" style="display: none;">
+        <div class="premium-modal-content">
+            <div class="premium-modal-header">
+                <h3>Wybór Drukarki Etykiet</h3>
+                <button class="close-btn" onclick="closePrinterModal()">&times;</button>
+            </div>
+            <div class="premium-modal-body" style="text-align: left;">
+                <p>Zapisujesz przyjęcie dostawy zewnętrznej.</p>
+                <p>System automatycznie przypisze unikalne <strong>ID Palety (SSCC)</strong> dla każdej z pozycji, a zlecenie dostawy trafi do grupy oczekujących na potwierdzenie i wstawienie na regały.</p>
+                
+                <div class="field-box" style="margin-top: 15px;">
+                    <label for="modalPrinterSelect" style="color: #1e3a8a; font-weight: 800; display: block; margin-bottom: 5px; font-size: 0.75rem; text-transform: uppercase;">Gdzie wydrukować etykiety?</label>
+                    <select id="modalPrinterSelect" class="premium-select">
+                        <option value="">-- NIE DRUKUJ (Tylko zapisz dostawę) --</option>
+                        {% for pr in printers %}
+                        <option value="{{ pr.id }}" {% if loop.first %}selected{% endif %}>{{ pr.nazwa }} ({{ pr.lokalizacja }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <p style="font-size: 0.8rem; color: #64748b; margin-top: 12px; display: flex; align-items: center; gap: 4px;">
+                    <span class="material-icons" style="font-size: 16px; color: #3b82f6;">info</span>
+                    Dla każdej palety zostaną wydrukowane <strong>2 identyczne etykiety</strong>.
+                </p>
+            </div>
+            <div class="premium-modal-footer">
+                <button class="btn-cancel" onclick="closePrinterModal()">Anuluj</button>
+                <button class="btn-confirm-print" onclick="confirmSaveWithPrinter()">
+                    <span class="material-icons" style="font-size: 18px;">save</span>
+                    Potwierdź i Zapisz
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -410,7 +550,29 @@
         renderItems();
     }
 
-    async function saveDostawa() {
+    function openPrinterModal() {
+        const orderRef = document.getElementById('order_ref').value.trim();
+        if (!orderRef) return showToast('Podaj numer dokumentu (WZ)!', 'warning');
+        if (items.length === 0) return showToast('Dodaj przynajmniej jedną paletę!', 'warning');
+
+        const missingName = items.some(it => !it.productName || !it.productName.trim());
+        if (missingName) return showToast('Wypełnij nazwę produktu dla wszystkich pozycji!', 'warning');
+
+        document.getElementById('printerModal').style.display = 'flex';
+    }
+
+    function closePrinterModal() {
+        document.getElementById('printerModal').style.display = 'none';
+    }
+
+    async function confirmSaveWithPrinter() {
+        const printerSelect = document.getElementById('modalPrinterSelect');
+        const printerId = printerSelect ? printerSelect.value : '';
+        closePrinterModal();
+        await saveDostawa(printerId);
+    }
+
+    async function saveDostawa(printerId = null) {
         const orderRef = document.getElementById('order_ref').value.trim();
         if (!orderRef) return showToast('Podaj numer dokumentu (WZ)!', 'warning');
         if (items.length === 0) return showToast('Dodaj przynajmniej jedną paletę!', 'warning');
@@ -434,7 +596,8 @@
             lokalizacja_do: document.getElementById('default_loc').value,
             linia: "{{ linia }}",
             items: items,
-            status: "OCZEKUJE"
+            status: "OCZEKUJE",
+            printer_id: printerId || null
         };
 
         try {
@@ -447,7 +610,7 @@
             if (data.success) {
                 showToast('Zapisano pomyślnie!', 'success');
                 setTimeout(() => {
-                    location.href = "{{ url_for('magazyn_dostawy.reception_view', linia=linia) }}";
+                    location.href = `/magazyn-dostawy/oczekujace?linia={{ linia }}`;
                 }, 500);
             } else {
                 showToast('Błąd: ' + data.error, 'danger');

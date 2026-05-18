@@ -359,7 +359,7 @@
       "readonly": false
     },
     "laborant": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "magazynier": {
@@ -397,7 +397,7 @@
       "readonly": false
     },
     "laborant": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "magazynier": {
@@ -507,7 +507,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -545,7 +545,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -599,7 +599,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -637,7 +637,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -663,7 +663,7 @@
       "readonly": false
     },
     "laborant": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "magazynier": {
@@ -675,7 +675,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -697,7 +697,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -713,7 +713,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -735,7 +735,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -751,7 +751,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -773,7 +773,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -789,7 +789,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -811,11 +811,11 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "magazynier": {
@@ -827,7 +827,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -849,7 +849,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -865,7 +865,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -887,7 +887,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -903,7 +903,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -925,7 +925,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -941,7 +941,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -963,7 +963,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -979,7 +979,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -1001,7 +1001,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -1017,7 +1017,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -1225,7 +1225,7 @@
       "readonly": false
     },
     "lider": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "planista": {
@@ -1263,7 +1263,7 @@
       "readonly": false
     },
     "lider": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "planista": {
@@ -1301,7 +1301,7 @@
       "readonly": false
     },
     "lider": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "planista": {
@@ -1461,7 +1461,7 @@
       "readonly": false
     },
     "laborant": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "magazynier": {
@@ -1483,15 +1483,15 @@
   },
   "struktura": {
     "admin": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "zarzad": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "lider": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "planista": {
@@ -1533,7 +1533,7 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "laborant": {
@@ -1597,15 +1597,15 @@
   },
   "centrum": {
     "admin": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "zarzad": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "lider": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "planista": {
@@ -1663,7 +1663,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -1701,7 +1701,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -1739,7 +1739,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -1777,7 +1777,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {

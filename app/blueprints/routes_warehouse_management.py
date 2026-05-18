@@ -28,6 +28,7 @@ def register_warehouse_management_routes(
         linia = resolve_request_linia()
         table_plan = get_table_name('plan_produkcji', linia)
         table_pal = get_table_name('palety_workowanie', linia)
+        table_zasypy = get_table_name('szarze', linia)
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -79,6 +80,63 @@ def register_warehouse_management_routes(
             )
 
             conn.commit()
+
+            # --- AUTOMATYCZNY WYDRUK 2 ETYKIET W TLE ---
+            try:
+                # 1. Obliczenie powiązanego numeru zasypu/szarży
+                zasyp_nr = '?'
+                cursor.execute(
+                    f"SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s AND id <= %s",
+                    (plan_id, paleta_id),
+                )
+                cumulative_paleta_waga = cursor.fetchone()[0]
+
+                cursor.execute(f"SELECT zasyp_id FROM {table_plan} WHERE id = %s", (plan_id,))
+                zasyp_check = cursor.fetchone()
+                zasyp_plan_id = zasyp_check[0] if (zasyp_check and zasyp_check[0]) else plan_id
+
+                cursor.execute(
+                    f"SELECT id, waga, nr_szarzy FROM {table_zasypy} WHERE plan_id = %s ORDER BY data_dodania ASC, id ASC",
+                    (zasyp_plan_id,),
+                )
+                zasypy_rows = cursor.fetchall()
+
+                cumulative_zasyp = 0
+                for index, s_row in enumerate(zasypy_rows):
+                    cumulative_zasyp += s_row[1]
+                    zasyp_nr = s_row[2] if s_row[2] is not None else (index + 1)
+                    if cumulative_zasyp >= cumulative_paleta_waga:
+                        break
+
+                # 2. Obliczenie numeru LP palety
+                cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
+                res_lp = cursor.fetchone()
+                nr_palety_lp = res_lp[0] if res_lp else 1
+
+                # 3. Przygotowanie danych wydruku
+                label_data = {
+                    'nrPalety': nr_palety,
+                    'nazwa': plan_produkt,
+                    'ilosc': waga_input,
+                    'data': now_ts.strftime('%Y-%m-%d'),
+                    'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})"
+                }
+
+                # 4. Wysłanie 2 kopii do serwera druku
+                from app.services.print_server import get_printer
+                printer = get_printer()
+                for copy_num in range(1, 3):
+                    ok, print_msg = printer.print_finished_product_label(label_data)
+                    current_app.logger.info(
+                        'Automatyczny wydruk kopii %s/2 dla palety %s: sukces=%s, msg=%s',
+                        copy_num,
+                        nr_palety,
+                        ok,
+                        print_msg
+                    )
+            except Exception as print_err:
+                current_app.logger.error('Failed to trigger automatic print for paleta %s: %s', nr_palety, print_err)
+            # ---------------------------------------------
 
             try:
                 PlanningService.ensure_status_after_tonaz_update(plan_id, linia=linia)
@@ -944,7 +1002,7 @@ def register_warehouse_management_routes(
     @warehouse_bp.route('/drukuj_etykiete_zpl/<int:paleta_id>', methods=['POST'])
     @login_required
     def drukuj_etykiete_zpl(paleta_id):
-        """Sends ZPL label directly to printer 237 via PrintServer bridge."""
+        """Sends ZPL label directly to printer 237 via PrintServer bridge (2 copies)."""
         from app.services.print_server import get_printer
         linia = str(resolve_request_linia()).upper()
         table_plan = get_table_name('plan_produkcji', linia)
@@ -953,33 +1011,137 @@ def register_warehouse_management_routes(
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            # Fetch data for ZPL
+            # 1. Próba pobrania z magazyn_palety (potwierdzona paleta w magazynie)
             cursor.execute(f"""
-                SELECT mp.produkt, mp.waga_netto, pp.data_planu, pp.id as plan_id
+                SELECT mp.produkt, mp.waga_netto, pp.data_planu, pp.id as plan_id, mp.nr_palety
                 FROM {table_mag} mp
                 JOIN {table_plan} pp ON mp.plan_id = pp.id
-                WHERE mp.id = %s
-            """, (paleta_id,))
+                WHERE mp.paleta_workowanie_id = %s OR mp.id = %s
+            """, (paleta_id, paleta_id))
             row = cursor.fetchone()
-            if not row:
-                return jsonify({'success': False, 'message': 'Nie znaleziono palety'}), 404
             
-            produkt, waga, data_planu, plan_id = row
-            
-            # Prepare data for Printer
-            label_data = {
-                'id': paleta_id,
-                'nazwa': produkt,
-                'ilosc': waga,
-                'data': data_planu.strftime('%Y-%m-%d') if data_planu else datetime.now().strftime('%Y-%m-%d'),
-                'partia': f"ZLE-{plan_id}"
-            }
+            if row:
+                produkt, waga, data_planu, plan_id, nr_palety = row
+                
+                # Próba wyliczenia szarży i LP dla potwierdzonej palety
+                zasyp_nr = '?'
+                nr_palety_lp = 1
+                try:
+                    table_pal = get_table_name('palety_workowanie', linia)
+                    table_zasypy = get_table_name('szarze', linia)
+                    
+                    cursor.execute(f"SELECT id FROM {table_pal} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                    pw_row = cursor.fetchone()
+                    if pw_row:
+                        pw_id = pw_row[0]
+                        
+                        cursor.execute(
+                            f"SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s AND id <= %s",
+                            (plan_id, pw_id),
+                        )
+                        cumulative_paleta_waga = cursor.fetchone()[0]
+
+                        cursor.execute(f"SELECT zasyp_id FROM {table_plan} WHERE id = %s", (plan_id,))
+                        zasyp_check = cursor.fetchone()
+                        zasyp_plan_id = zasyp_check[0] if (zasyp_check and zasyp_check[0]) else plan_id
+
+                        cursor.execute(
+                            f"SELECT id, waga, nr_szarzy FROM {table_zasypy} WHERE plan_id = %s ORDER BY data_dodania ASC, id ASC",
+                            (zasyp_plan_id,),
+                        )
+                        zasypy_rows = cursor.fetchall()
+
+                        cumulative_zasyp = 0
+                        for index, s_row in enumerate(zasypy_rows):
+                            cumulative_zasyp += s_row[1]
+                            zasyp_nr = s_row[2] if s_row[2] is not None else (index + 1)
+                            if cumulative_zasyp >= cumulative_paleta_waga:
+                                break
+
+                        cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, pw_id))
+                        res_lp = cursor.fetchone()
+                        nr_palety_lp = res_lp[0] if res_lp else 1
+                except Exception as ex:
+                    current_app.logger.warning('Failed to compute extra details for confirmed pallet ZPL print: %s', ex)
+                
+                label_data = {
+                    'nrPalety': nr_palety,
+                    'nazwa': produkt,
+                    'ilosc': waga,
+                    'data': data_planu.strftime('%Y-%m-%d') if data_planu else datetime.now().strftime('%Y-%m-%d'),
+                    'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}"
+                }
+            else:
+                # 2. Próba pobrania z palety_workowanie (bufor przed przyjęciem)
+                table_pal = get_table_name('palety_workowanie', linia)
+                table_zasypy = get_table_name('szarze', linia)
+                
+                cursor.execute(f"""
+                    SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety
+                    FROM {table_pal} pw
+                    JOIN {table_plan} pp ON pw.plan_id = pp.id
+                    WHERE pw.id = %s
+                """, (paleta_id,))
+                pw_row = cursor.fetchone()
+                
+                if not pw_row:
+                    return jsonify({'success': False, 'message': 'Nie znaleziono palety (ani w buforze, ani w magazynie)'}), 404
+                
+                plan_id, waga, produkt, data_dodania, nr_palety = pw_row
+                
+                # Obliczenie powiązanego numeru zasypu/szarży
+                zasyp_nr = '?'
+                nr_palety_lp = 1
+                try:
+                    cursor.execute(
+                        f"SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s AND id <= %s",
+                        (plan_id, paleta_id),
+                    )
+                    cumulative_paleta_waga = cursor.fetchone()[0]
+
+                    cursor.execute(f"SELECT zasyp_id FROM {table_plan} WHERE id = %s", (plan_id,))
+                    zasyp_check = cursor.fetchone()
+                    zasyp_plan_id = zasyp_check[0] if (zasyp_check and zasyp_check[0]) else plan_id
+
+                    cursor.execute(
+                        f"SELECT id, waga, nr_szarzy FROM {table_zasypy} WHERE plan_id = %s ORDER BY data_dodania ASC, id ASC",
+                        (zasyp_plan_id,),
+                    )
+                    zasypy_rows = cursor.fetchall()
+
+                    cumulative_zasyp = 0
+                    for index, s_row in enumerate(zasypy_rows):
+                        cumulative_zasyp += s_row[1]
+                        zasyp_nr = s_row[2] if s_row[2] is not None else (index + 1)
+                        if cumulative_zasyp >= cumulative_paleta_waga:
+                            break
+
+                    cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
+                    res_lp = cursor.fetchone()
+                    nr_palety_lp = res_lp[0] if res_lp else 1
+                except Exception as ex:
+                    current_app.logger.warning('Failed to compute extra details for buffer pallet ZPL print: %s', ex)
+                
+                label_data = {
+                    'nrPalety': nr_palety,
+                    'nazwa': produkt,
+                    'ilosc': waga,
+                    'data': data_dodania.strftime('%Y-%m-%d') if data_dodania else datetime.now().strftime('%Y-%m-%d'),
+                    'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})"
+                }
             
             printer = get_printer()
-            ok, msg = printer.print_pallet_label(label_data)
+            ok = True
+            msg = "Wysłano do drukarki"
+            # Drukujemy 2 kopie etykiety wyrobu gotowego
+            for copy_num in range(1, 3):
+                print_ok, print_msg = printer.print_finished_product_label(label_data)
+                if not print_ok:
+                    ok = False
+                    msg = print_msg
             
             if ok:
-                audit_log('Wydruk etykiety ZPL', f'paleta_id={paleta_id}, produkt={produkt}, drukarka=237')
+                audit_log('Wydruk etykiety ZPL (ręczny)', f'paleta_id={paleta_id}, produkt={label_data["nazwa"]}, nr_palety={label_data["nrPalety"]}, kopie=2')
             
             return jsonify({'success': ok, 'message': msg})
         except Exception as e:

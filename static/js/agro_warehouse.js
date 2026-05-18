@@ -8,6 +8,47 @@
         current_plan_name: null
     };
 
+    // ---- ALERT HELPER (używa toast jeśli dostępny, fallback na alert) ----
+    window.showAlert = function(msg) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(String(msg), 'warning');
+        } else {
+            alert(msg);
+        }
+    };
+
+    // ---- HANDLERY DLA PRZYCISKÓW Z GRUPY (Zmień nazwę / Korekta / Pobierz FIFO) ----
+    window.handleOpenUsageForGroup = function(e, nazwa, lok, qty) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        // Znajdź pierwszą paletę z grupy
+        const g = (window._inventory_groups || []).find(x => x.nazwa === nazwa);
+        if (!g || !g.pallets || g.pallets.length === 0) {
+            showAlert('Brak palet dla: ' + nazwa); return;
+        }
+        const p = g.pallets[0];
+        openUsageFor(p.id, nazwa, p.lokalizacja || '', p.stan || 0);
+    };
+
+    window.handleOpenInventoryForGroup = function(e, nazwa, qty) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        const g = (window._inventory_groups || []).find(x => x.nazwa === nazwa);
+        if (!g || !g.pallets || g.pallets.length === 0) {
+            showAlert('Brak palet dla: ' + nazwa); return;
+        }
+        const p = g.pallets[0];
+        openInventoryFor(p.id, nazwa, p.stan || 0);
+    };
+
+    window.handleOpenRenameFromGroup = function(e, nazwa) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        const g = (window._inventory_groups || []).find(x => x.nazwa === nazwa);
+        if (!g || !g.pallets || g.pallets.length === 0) {
+            showAlert('Brak palet dla: ' + nazwa); return;
+        }
+        const p = g.pallets[0];
+        openRenameModal(p.id, nazwa);
+    };
+
     window.initWarehouse = function(config) {
         Object.assign(CONFIG, config);
         window._current_plan = { id: CONFIG.current_plan_id, name: CONFIG.current_plan_name };
