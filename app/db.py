@@ -1202,6 +1202,69 @@ def _auto_confirm_existing_palety(cursor):
         print(f"[INFO] Auto-confirm migration skipped or already applied: {e}")
 
 
+def _table_has_column(cursor, table_name, column_name):
+    try:
+        cursor.execute(
+            "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND COLUMN_NAME=%s",
+            (table_name, column_name),
+        )
+        return bool(cursor.fetchone())
+    except Exception:
+        return False
+
+
+def _standardize_warehouse_pallet_ids(cursor):
+    """Normalize all warehouse nr_palety values to SSCC-like format: AAA + 18 digits."""
+    from app.utils.pallet_id import generate_pallet_id, is_valid_pallet_id
+
+    table_specs = [
+        {'table': 'magazyn_surowce', 'type': 'surowiec', 'linia': 'PSD'},
+        {'table': 'magazyn_opakowania', 'type': 'opakowanie', 'linia': 'PSD'},
+        {'table': 'magazyn_dodatki', 'type': 'dodatek', 'linia': 'PSD'},
+        {'table': 'magazyn_palety', 'type': 'wyrób gotowy', 'linia': 'PSD'},
+        {'table': 'magazyn_palety_agro', 'type': 'wyrób gotowy', 'linia': 'AGRO'},
+        {'table': 'palety_workowanie', 'type': 'wyrób gotowy', 'linia': 'PSD'},
+        {'table': 'palety_agro', 'type': 'wyrób gotowy', 'linia': 'AGRO'},
+    ]
+
+    total_updated = 0
+    for spec in table_specs:
+        table_name = spec['table']
+
+        if not _table_has_column(cursor, table_name, 'id'):
+            continue
+        if not _table_has_column(cursor, table_name, 'nr_palety'):
+            continue
+
+        try:
+            cursor.execute(
+                f"SELECT id, nr_palety FROM {table_name} "
+                "WHERE nr_palety IS NULL OR TRIM(nr_palety) = '' OR nr_palety NOT REGEXP '^[A-Za-z]{3}[0-9]{18}$'"
+            )
+        except Exception:
+            continue
+
+        rows = cursor.fetchall() or []
+        updated = 0
+        for row_id, old_nr_palety in rows:
+            if is_valid_pallet_id(old_nr_palety):
+                continue
+
+            new_nr_palety = generate_pallet_id(spec['linia'], type=spec['type'], record_id=row_id)
+            cursor.execute(
+                f"UPDATE {table_name} SET nr_palety = %s WHERE id = %s",
+                (new_nr_palety, row_id),
+            )
+            updated += 1
+
+        if updated:
+            total_updated += updated
+            print(f"[MIGRATE] Standaryzacja SSCC w {table_name}: {updated} rekordow")
+
+    if total_updated:
+        print(f"[OK] Zaktualizowano {total_updated} rekordow nr_palety do formatu AAA+18 cyfr")
+
+
 def _seed_produkty(cursor):
     """Seed initial products/recipes into produkty_receptury table."""
     default_products = [
@@ -1236,6 +1299,9 @@ def setup_database():
         
         # 2. Run migrations (add missing columns)
         _migrate_columns(cursor)
+
+        # 2b. Normalize existing pallet IDs to SSCC-like format (AAA + 18 digits)
+        _standardize_warehouse_pallet_ids(cursor)
         
         # 3. Seed initial products
         _seed_produkty(cursor)
@@ -2216,4 +2282,4 @@ def is_session_active(session_id):
                 conn.close()
             except Exception:
                 pass
-        return True  # Fallback to True on DB error to prevent blocking users
+        return True  # Fallback to True on DB error to prevent blocking users

@@ -18,7 +18,7 @@ import re
 
 class ScannerService:
     SCAN_TOKEN_PATTERN = re.compile(
-        r'(R\d{6}|SUR-\d+|OPK-\d+|DOD-\d+|PAL-\d+|MS01|MP01|MDM01|MOP01|MGW01|MGW02|OS\d{2}|OSIP|BB\d{2}|MZ\d{2}(?:-\d{2})?|BF_MS01|BF_MP01|KO01|PSD01|PSD|RAMPA|MIX01|W_TRANZYCIE_OSIP)',
+        r'(R\d{6}|[A-Z]{3}\d{18}|SUR-\d+|OPK-\d+|DOD-\d+|PAL-\d+|MS01|MP01|MDM01|MOP01|MGW01|MGW02|OS\d{2}|OSIP|BB\d{2}|MZ\d{2}(?:-\d{2})?|BF_MS01|BF_MP01|KO01|PSD01|PSD|RAMPA|MIX01|W_TRANZYCIE_OSIP)',
         re.IGNORECASE,
     )
 
@@ -45,6 +45,10 @@ class ScannerService:
         return match.group(1), int(match.group(2))
 
     @staticmethod
+    def _is_sscc_code(code: str) -> bool:
+        return bool(re.match(r'^[A-Z]{3}\d{18}$', str(code or '').strip().upper()))
+
+    @staticmethod
     def _lookup_inventory_row(
         cur,
         base_table: str,
@@ -54,6 +58,7 @@ class ScannerService:
         name_col: str = 'nazwa',
         location_code: str | None = None,
         item_id: int | None = None,
+        pallet_no: str | None = None,
     ) -> dict | None:
         table_name = get_table_name(base_table, linia)
         where = [f"COALESCE({qty_col}, 0) > 0"]
@@ -65,6 +70,9 @@ class ScannerService:
         if item_id is not None:
             where.append("id = %s")
             params.append(item_id)
+        if pallet_no is not None:
+            where.append("UPPER(COALESCE(nr_palety, '')) = %s")
+            params.append(str(pallet_no).upper())
 
         sql = (
             f"SELECT id, {name_col} AS nazwa, {qty_col} AS ilosc, COALESCE(lokalizacja, '') AS lokalizacja "
@@ -89,7 +97,14 @@ class ScannerService:
                 return None
 
     @staticmethod
-    def _lookup_finished_goods(cur, linia: str, *, item_id: int | None = None, location_code: str | None = None) -> dict | None:
+    def _lookup_finished_goods(
+        cur,
+        linia: str,
+        *,
+        item_id: int | None = None,
+        location_code: str | None = None,
+        pallet_no: str | None = None,
+    ) -> dict | None:
         table_name = get_table_name('magazyn_palety', linia)
 
         if item_id is not None:
@@ -98,6 +113,17 @@ class ScannerService:
                     f"SELECT id, produkt AS nazwa, waga_netto AS ilosc, 'MGW01' AS lokalizacja "
                     f"FROM {table_name} WHERE id = %s AND COALESCE(waga_netto, 0) > 0 LIMIT 1",
                     (item_id,),
+                )
+                return cur.fetchone()
+            except Exception:
+                return None
+
+        if pallet_no is not None:
+            try:
+                cur.execute(
+                    f"SELECT id, produkt AS nazwa, waga_netto AS ilosc, COALESCE(lokalizacja, 'MGW01') AS lokalizacja "
+                    f"FROM {table_name} WHERE UPPER(COALESCE(nr_palety, '')) = %s AND COALESCE(waga_netto, 0) > 0 LIMIT 1",
+                    (str(pallet_no).upper(),),
                 )
                 return cur.fetchone()
             except Exception:
@@ -126,7 +152,7 @@ class ScannerService:
     def lookup_by_location(location_code: str, linia: str = 'Agro') -> dict | None:
         """Zwraca dane pozycji magazynowej dla kodu lokalizacji lub ID.
 
-        Obsługiwane prefiksy: SUR-, OPK-, DOD-, PAL- oraz kody lokalizacji.
+        Obsługiwane prefiksy: SUR-, OPK-, DOD-, PAL-, SSCC AAA+18 cyfr oraz kody lokalizacji.
         Returns None jeśli nie znaleziono pozycji z ilością > 0.
         """
         location_code = ScannerService._normalize_scanned_code(location_code)
@@ -134,6 +160,7 @@ class ScannerService:
             return None
 
         prefixed_type, prefixed_id = ScannerService._extract_prefixed_id(location_code)
+        is_sscc = ScannerService._is_sscc_code(location_code)
 
         numeric_id = None
         if prefixed_id is not None:
@@ -170,6 +197,39 @@ class ScannerService:
                             location_fallback='MGW01',
                         )
                     return None
+
+            if is_sscc:
+                for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
+                    sscc_row = ScannerService._lookup_inventory_row(
+                        cur,
+                        base_table,
+                        linia,
+                        qty_col=qty_col,
+                        pallet_no=location_code,
+                    )
+                    if sscc_row:
+                        return _normalize_lookup_item(
+                            sscc_row,
+                            inventory_type=inv_type,
+                            inventory_key=code_prefix,
+                            code_prefix=code_prefix,
+                            can_dispatch=can_dispatch,
+                            can_split=can_split,
+                            can_print_label=can_print,
+                        )
+
+                fg_row = ScannerService._lookup_finished_goods(cur, linia, pallet_no=location_code)
+                if fg_row:
+                    return _normalize_lookup_item(
+                        fg_row,
+                        inventory_type='Wyrób Gotowy',
+                        inventory_key='WYROB_GOTOWY',
+                        code_prefix='PAL',
+                        can_dispatch=False,
+                        can_split=False,
+                        can_print_label=False,
+                        location_fallback='MGW01',
+                    )
 
                 for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
                     if code_prefix != prefixed_type:
@@ -499,18 +559,20 @@ class ScannerService:
         try:
             cur = conn.cursor(dictionary=True)
             cur.execute(
-                f"SELECT id, nazwa, stan_magazynowy, lokalizacja FROM {table_surowce} WHERE id=%s",
+                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja FROM {table_surowce} WHERE id=%s",
                 (surowiec_id,)
             )
             row = cur.fetchone()
             if not row:
                 return None
+            nr_palety = (row.get('nr_palety') or '').strip()
             return {
                 'id': row['id'],
+                'nr_palety': nr_palety,
                 'nazwa': row['nazwa'],
                 'ilosc': float(row['stan_magazynowy'] or 0),
                 'lokalizacja': row.get('lokalizacja') or '',
-                'qr_data': f"SUR-{row['id']}|{row.get('lokalizacja') or ''}|{row['nazwa']}",
+                'qr_data': f"{nr_palety}|{row.get('lokalizacja') or ''}|{row['nazwa']}" if nr_palety else f"SUR-{row['id']}|{row.get('lokalizacja') or ''}|{row['nazwa']}",
                 'data': datetime.now().strftime('%d.%m.%Y %H:%M'),
             }
         finally:

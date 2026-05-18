@@ -121,6 +121,7 @@ def label(surowiec_id):
     return render_template(
         'agro_surowiec_etykieta.html',
         id=label_data['id'],
+        nr_palety=label_data.get('nr_palety') or '',
         nazwa=label_data['nazwa'],
         ilosc=label_data['ilosc'],
         lokalizacja=label_data['lokalizacja'],

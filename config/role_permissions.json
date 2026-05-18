@@ -67,7 +67,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -523,7 +523,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -561,7 +561,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -599,7 +599,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -637,7 +637,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -675,7 +675,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -713,7 +713,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -751,7 +751,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -789,7 +789,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -827,7 +827,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -865,7 +865,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -903,7 +903,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -941,7 +941,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -979,7 +979,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {
@@ -1017,7 +1017,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {

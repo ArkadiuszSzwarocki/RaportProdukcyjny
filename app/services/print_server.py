@@ -38,15 +38,20 @@ class PrintServer:
         except Exception as e:
             return False, f"Błąd połączenia z mostkiem: {str(e)}"
 
-    def print_pallet_label(self, label_data: dict) -> tuple[bool, str]:
+    def print_pallet_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
         """Wysyła dane palety do mostka, który wygeneruje ZPL 4x6."""
+        nr_palety = (label_data.get('nr_palety') or label_data.get('nrPalety') or '').strip()
+        if not nr_palety:
+            from app.utils.pallet_id import generate_pallet_id
+            nr_palety = generate_pallet_id('AGRO', type='surowiec', record_id=label_data.get('id'))
+
         payload = {
-            "drukarka": self.printer_name,
-            "ip": self.printer_ip,
+            "drukarka": override_name or self.printer_name,
+            "ip": override_ip or self.printer_ip,
             "typ": "raw_material",
             "dane": {
                 "palletData": {
-                    "nrPalety": f"SUR-{label_data.get('id')}",
+                    "nrPalety": nr_palety,
                     "productName": label_data.get('nazwa'),
                     "batchNumber": label_data.get('partia') or '---',
                     "productionDate": label_data.get('data') or datetime.now().strftime('%Y-%m-%d'),
@@ -58,15 +63,16 @@ class PrintServer:
         }
         return self._send_to_bridge(payload)
 
-    def print_finished_product_label(self, label_data: dict) -> tuple[bool, str]:
+    def print_finished_product_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
         """Wysyła dane palety wyrobu gotowego do mostka ZPL 4x6 z kodem QR."""
+        nr_palety = (label_data.get('nrPalety') or label_data.get('nr_palety') or '').strip()
         payload = {
-            "drukarka": self.printer_name,
-            "ip": self.printer_ip,
+            "drukarka": override_name or self.printer_name,
+            "ip": override_ip or self.printer_ip,
             "typ": "finished_product",
             "dane": {
                 "palletData": {
-                    "nrPalety": label_data.get('nrPalety'),
+                    "nrPalety": nr_palety,
                     "productName": label_data.get('nazwa'),
                     "batchNumber": label_data.get('partia') or '---',
                     "productionDate": label_data.get('data') or datetime.now().strftime('%Y-%m-%d'),

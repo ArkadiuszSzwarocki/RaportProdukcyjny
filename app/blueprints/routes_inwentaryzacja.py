@@ -114,15 +114,18 @@ def lookup_pallet():
     
     pallet = None
     
-    # Clean code: if it starts with prefix like SUR-, OPK-, PAL-
+    # Clean code: if it starts with prefix like SUR-, OPK-, DOD-, PAL-
     clean_id = None
+    code_prefix = None
     if '-' in code:
         parts = code.split('-')
+        if parts:
+            code_prefix = parts[0]
         if len(parts) > 1 and parts[1].isdigit():
             clean_id = int(parts[1])
             
     # 1. Search in surowce
-    if clean_id and code.startswith('SUR-'):
+    if clean_id and code_prefix == 'SUR':
         cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'surowiec' as typ_palety, linia, jednostka FROM magazyn_surowce WHERE id = %s", (clean_id,))
         pallet = cursor.fetchone()
     else:
@@ -131,19 +134,29 @@ def lookup_pallet():
         
     # 2. Search in opakowania
     if not pallet:
-        if clean_id and code.startswith('OPK-'):
+        # Legacy compatibility: accept old OPA-* IDs and normalize them to opakowania.
+        if clean_id and code_prefix in ('OPK', 'OPA'):
             cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE id = %s", (clean_id,))
             pallet = cursor.fetchone()
         else:
             cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE nr_palety = %s", (code,))
             pallet = cursor.fetchone()
+
+    # 3. Search in dodatki
+    if not pallet:
+        if clean_id and code_prefix == 'DOD':
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'brak' as typ_opakowania, 'dodatek' as typ_palety, linia, 'kg' as jednostka FROM magazyn_dodatki WHERE id = %s", (clean_id,))
+            pallet = cursor.fetchone()
+        else:
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'brak' as typ_opakowania, 'dodatek' as typ_palety, linia, 'kg' as jednostka FROM magazyn_dodatki WHERE nr_palety = %s", (code,))
+            pallet = cursor.fetchone()
             
-    # 3. Search in wyroby gotowe (PSD / AGRO)
+    # 4. Search in wyroby gotowe (PSD / AGRO)
     if not pallet:
         hall_contexts = ['PSD', 'AGRO']
         for hall in hall_contexts:
             table = get_table_name('magazyn_palety', hall)
-            if clean_id and (code.startswith('PAL-') or code.startswith('PAT-')):
+            if clean_id and code_prefix in ('PAL', 'PAT'):
                 cursor.execute(f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE id = %s", (clean_id,))
                 pallet = cursor.fetchone()
             else:

@@ -114,7 +114,7 @@
     <div class="hdr">
         <div class="hdr-left">
             <h1>Surowiec — Magazyn AGRO</h1>
-            <span>Paleta ID: <strong>SUR-{{ id }}</strong></span>
+            <span>Paleta ID: <strong>{{ nr_palety if nr_palety else ('SUR-' ~ id) }}</strong></span>
         </div>
         <div class="hdr-right">
             <span class="badge-agro">MS01</span>

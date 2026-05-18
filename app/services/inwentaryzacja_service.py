@@ -4,6 +4,27 @@ from datetime import datetime
 import json
 
 class InwentaryzacjaService:
+    ID_PREFIX_MAP = {
+        'surowiec': 'SUR',
+        'opakowanie': 'OPK',
+        'dodatek': 'DOD',
+        'wyrób gotowy': 'PAL',
+        'wyrob gotowy': 'PAL',
+    }
+
+    @staticmethod
+    def _build_display_id(typ_palety, item_id, nr_palety=None):
+        if nr_palety:
+            return nr_palety
+
+        pallet_type = str(typ_palety or '').strip().lower()
+        prefix = InwentaryzacjaService.ID_PREFIX_MAP.get(pallet_type)
+        if not prefix:
+            # Fallback keeps legacy behavior only for unknown types.
+            prefix = (pallet_type[:3].upper() if pallet_type else 'ID')
+
+        return f"{prefix}-{item_id}"
+
     @staticmethod
     def get_active_session(linia=None):
         conn = get_db_connection()
@@ -72,7 +93,11 @@ class InwentaryzacjaService:
                 for r in rows:
                     loc = r['lokalizacja']
                     if loc not in all_items: all_items[loc] = []
-                    r['displayId'] = r['nr_palety'] if r.get('nr_palety') else f"{r['typ_palety'][:3].upper()}-{r['id']}"
+                    r['displayId'] = InwentaryzacjaService._build_display_id(
+                        r.get('typ_palety'),
+                        r.get('id'),
+                        r.get('nr_palety')
+                    )
                     
                     # Check if counted
                     key = f"{r['typ_palety']}_{r['id']}"
@@ -169,7 +194,11 @@ class InwentaryzacjaService:
             
             # Helper to process pallets
             def process_pallet(p):
-                p['displayId'] = p['nr_palety'] if p.get('nr_palety') else f"{p['typ_palety'][:3].upper()}-{p['id']}"
+                p['displayId'] = InwentaryzacjaService._build_display_id(
+                    p.get('typ_palety'),
+                    p.get('id'),
+                    p.get('nr_palety')
+                )
                 key = f"{p['typ_palety']}_{p['id']}"
                 if key in counted_map:
                     p['counted'] = True

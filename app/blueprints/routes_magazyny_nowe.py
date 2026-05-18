@@ -478,15 +478,15 @@ def print_pallet_label():
         # Determine correct table
         if pallet_type == 'Wyrób Gotowy':
             table_mag = 'magazyn_palety' if linia == 'PSD' else 'magazyn_palety_agro'
-            cursor.execute(f"SELECT produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod FROM {table_mag} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table_mag} WHERE id = %s", (pallet_id,))
         elif pallet_type == 'Surowiec':
             table = 'magazyn_surowce' if linia == 'PSD' else 'magazyn_surowce_agro'
-            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod FROM {table} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s", (pallet_id,))
         elif pallet_type == 'Opakowanie':
             table = 'magazyn_opakowania' if linia == 'PSD' else 'magazyn_opakowania_agro'
-            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod FROM {table} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s", (pallet_id,))
         elif pallet_type == 'Dodatek':
-            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod FROM magazyn_dodatki WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM magazyn_dodatki WHERE id = %s", (pallet_id,))
         else:
             return jsonify({'success': False, 'error': 'Nieznany typ palety'}), 400
             
@@ -497,6 +497,7 @@ def print_pallet_label():
         from app.services.print_server import get_printer
         label_data = {
             'id': pallet_id,
+            'nr_palety': row.get('nr_palety') or '',
             'nazwa': row['productName'],
             'ilosc': row['amount'],
             'data': row['date_prod'].strftime('%Y-%m-%d') if row.get('date_prod') else datetime.now().strftime('%Y-%m-%d'),
@@ -504,7 +505,7 @@ def print_pallet_label():
         }
         
         printer_service = get_printer()
-        ok, msg = printer_service.print_pallet_label(label_data, override_ip=printer_ip)
+        ok, msg = printer_service.print_pallet_label(label_data, override_ip=printer_ip, override_name=printer_name)
         
         return jsonify({'success': ok, 'message': f'Wysłano do drukarki {printer_name}' if ok else msg})
     except Exception as e:
