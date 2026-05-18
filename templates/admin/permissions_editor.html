@@ -38,24 +38,22 @@
 
 <div class="container-fluid mt-4">
     <div class="row mb-4 animate__animated animate__fadeIn">
-        <div class="col-12 d-flex justify-content-between align-items-center bg-white p-4 rounded-4 shadow-sm border border-light">
+        <div class="col-12 d-flex justify-content-between align-items-center mt-2">
             <div>
-                <h1 class="h3 mb-0 text-dark fw-bold">
-                    <span class="material-icons align-middle me-2 text-warning">security</span>
+                <h1 class="h3 mb-0 text-dark fw-bold d-flex align-items-center">
+                    <span class="material-icons text-warning me-2" style="font-size: 32px;">security</span>
                     Macierz Uprawnień Systemowych
                 </h1>
-                <p class="text-secondary mb-0 mt-2 small">
-                    MasterAdmin Dashboard — Konfiguracja ról. 
-                    Struktura odzwierciedla menu boczne (Sidebar). 
-                    Zaznaczenie nagłówka sekcji ustawia dostęp dla wszystkich jej elementów.
+                <p class="text-secondary mb-0 mt-1" style="font-size: 14px;">
+                    MasterAdmin Dashboard — Konfiguracja ról. Zaznaczenie nagłówka sekcji ustawia dostęp dla wszystkich jej elementów.
                 </p>
             </div>
-            <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-secondary btn-lg rounded-pill px-4" onclick="location.reload()">
-                    <span class="material-icons align-middle me-1">refresh</span> Resetuj
+            <div class="d-flex gap-3">
+                <button type="button" class="btn-action btn-action-cancel" onclick="location.reload()" style="padding: 10px 20px; font-size: 15px; border-radius: 8px;">
+                    <span class="material-icons align-middle" style="font-size: 18px;">refresh</span> Resetuj
                 </button>
-                <button type="button" id="savePermissionsBtn" class="btn btn-warning btn-lg rounded-pill px-4 fw-bold shadow">
-                    <span class="material-icons align-middle me-1">save</span> Zapisz Zmiany
+                <button type="button" id="savePermissionsBtn" class="btn-action btn-success" style="padding: 10px 20px; font-size: 15px; border-radius: 8px; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);">
+                    <span class="material-icons align-middle" style="font-size: 18px;">save</span> Zapisz Zmiany
                 </button>
             </div>
         </div>
@@ -63,13 +61,13 @@
 
     <div class="card bg-white border-light shadow-sm rounded-4 overflow-hidden mb-5 animate__animated animate__fadeInUp">
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive" style="max-height: calc(100vh - 220px); overflow-y: auto;">
                 <table class="table table-hover mb-0 align-middle" id="permissionsTable">
-                    <thead>
-                        <tr class="border-bottom border-light bg-light">
-                            <th class="ps-4 py-4 text-secondary text-uppercase small tracking-wider" style="min-width: 350px;">Strona / Moduł / Funkcja</th>
+                    <thead style="position: sticky; top: 0; z-index: 1020; background: #f8fafc; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                        <tr class="border-bottom border-light">
+                            <th class="ps-4 py-4 text-secondary text-uppercase small tracking-wider" style="min-width: 350px; background: #f8fafc;">Strona / Moduł / Funkcja</th>
                             {% for role in roles %}
-                            <th class="text-center py-4 text-secondary text-uppercase small tracking-wider">
+                            <th class="text-center py-4 text-secondary text-uppercase small tracking-wider" style="background: #f8fafc;">
                                 {{ role|capitalize }}
                             </th>
                             {% endfor %}
@@ -84,10 +82,10 @@
                             
                             {% if section_id != current_section[0] %}
                                 {# Section Header #}
-                                <tr class="bg-light border-top border-bottom border-light section-header-row" data-section="{{ section_id }}">
-                                    <td class="ps-4 py-3 text-dark fw-bold text-uppercase small cursor-pointer d-flex align-items-center justify-content-between" onclick="toggleSection('{{ section_id }}')">
+                                <tr class="section-header-row" data-section="{{ section_id }}" style="background-color: #e2e8f0; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
+                                    <td class="ps-4 py-3 text-dark fw-bolder text-uppercase cursor-pointer d-flex align-items-center justify-content-between" style="font-size: 15px; letter-spacing: 0.5px;" onclick="toggleSection('{{ section_id }}')">
                                         <div class="d-flex align-items-center">
-                                            <span class="material-icons me-2 text-secondary" style="font-size: 18px;">menu_open</span>
+                                            <span class="material-icons me-2 text-primary" style="font-size: 20px;">folder_open</span>
                                             {{ section_labels.get(section_id, section_id|upper) }}
                                         </div>
                                     </td>
