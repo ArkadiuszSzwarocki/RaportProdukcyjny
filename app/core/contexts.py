@@ -341,8 +341,8 @@ def inject_delivery_counters():
 def inject_database_info():
     """Wstrzykuje informacje o podłączonej bazie danych (np. czy to baza testowa)."""
     try:
-        from app.config import DB_CONFIG
-        db_name = DB_CONFIG.get('database', '')
+        from app.db import get_active_database_name
+        db_name = get_active_database_name()
         is_test_db = 'test' in db_name.lower()
         return dict(db_name=db_name, is_test_db=is_test_db)
     except Exception:
