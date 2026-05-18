@@ -338,6 +338,17 @@ def inject_delivery_counters():
             pass
 
 
+def inject_database_info():
+    """Wstrzykuje informacje o podłączonej bazie danych (np. czy to baza testowa)."""
+    try:
+        from app.config import DB_CONFIG
+        db_name = DB_CONFIG.get('database', '')
+        is_test_db = 'test' in db_name.lower()
+        return dict(db_name=db_name, is_test_db=is_test_db)
+    except Exception:
+        return dict(db_name='Unknown', is_test_db=False)
+
+
 def register_contexts(app):
     """Register all context processors with Flask app."""
     app.context_processor(inject_static_version)
@@ -347,3 +358,4 @@ def register_contexts(app):
     app.context_processor(inject_app_version)
     app.context_processor(inject_bug_report_counters)
     app.context_processor(inject_delivery_counters)
+    app.context_processor(inject_database_info)
