@@ -1,5 +1,32 @@
 {# Renders the production plan cards and handles AGRO focus mode layout #}
 {% if sekcja != 'Magazyn' %}
+    <style>
+        /* Active Agro Details Side-by-Side Layout */
+        .active-agro-details-direct {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+            gap: 20px;
+            align-items: start;
+            width: 100%;
+            flex: 2 1 600px;
+        }
+
+        .active-agro-details-direct .active-order-szarze-panel {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        @media (min-width: 1400px) {
+            .cards.agro-focus-mode .active-agro-details-direct {
+                grid-column: 2 / -1;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(290px, 1fr));
+                gap: 20px;
+                align-items: start;
+                width: 100%;
+            }
+        }
+    </style>
     <div class="cards {% if agro_focus_mode %}agro-focus-mode{% endif %}">
         
         {% if not plan %}
