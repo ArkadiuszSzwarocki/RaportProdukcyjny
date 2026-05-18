@@ -20,9 +20,15 @@
                 <span class="material-icons">print</span> DRUKUJ
             </button>
             
-            {% if sesja.status in ['CLOSED', 'COMPLETED'] and role in ['admin', 'kierownik', 'zarzad'] %}
+            {% if sesja.status in ['CLOSED', 'COMPLETED'] and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
             <button onclick="openApplyModal()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #10b981; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
                 <span class="material-icons">task_alt</span> ZATWIERDŹ STANY (DB)
+            </button>
+            {% endif %}
+            
+            {% if sesja.status == 'APPLIED' and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
+            <button onclick="openRevertModal()" class="btn-outline" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: 1px solid #e2e8f0; background: #fffbeb; color: #b45309; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">undo</span> COFNIJ ZATWIERDZENIE
             </button>
             {% endif %}
         </div>
@@ -138,6 +144,25 @@
         </div>
     </div>
 </div>
+</div>
+
+<!-- MODAL: REVERT INVENTORY -->
+<div id="revertModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; width: 450px; border-radius: 24px; padding: 35px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
+        <div style="width: 70px; height: 70px; background: #fef3c7; color: #d97706; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+            <span class="material-icons" style="font-size: 36px;">undo</span>
+        </div>
+        <h3 style="margin: 0 0 10px 0; font-size: 22px; font-weight: 800; color: #0f172a;">Cofnąć zatwierdzenie?</h3>
+        <p style="margin: 0 0 30px 0; color: #475569; font-size: 15px; line-height: 1.5;">
+            Operacja ta <strong>przywróci sesję do stanu otwartego</strong>, umożliwiając ponowne skanowanie i korektę wpisów. Zmiany wprowadzone wcześniej w stanach magazynowych nie zostaną automatycznie cofnięte, ale ponowne zatwierdzenie nadpisze je poprawnymi wartościami.
+        </p>
+        
+        <div style="display: flex; gap: 12px;">
+            <button onclick="confirmRevert()" class="btn-primary" style="flex: 1.5; background: #f59e0b; color: white; padding: 14px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer; font-size: 15px;">TAK, COFNIJ ZATWIERDZENIE</button>
+            <button type="button" onclick="document.getElementById('revertModal').style.display='none'" style="flex: 1; background: #f1f5f9; border: none; border-radius: 12px; color: #475569; font-weight: 700; cursor: pointer; font-size: 15px;">ANULUJ</button>
+        </div>
+    </div>
+</div>
 
 <script>
 function openApplyModal() {
@@ -152,6 +177,25 @@ function confirmApply() {
     }).then(r => r.json()).then(data => {
         if(data.success) {
             alert("Baza danych została zaktualizowana pomyślnie.");
+            window.location.reload();
+        } else {
+            alert("Błąd: " + data.message);
+        }
+    });
+}
+
+function openRevertModal() {
+    document.getElementById('revertModal').style.display = 'flex';
+}
+
+function confirmRevert() {
+    fetch('{{ url_for("inwentaryzacja.cofnij_zatwierdzenie") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sesja_id: {{ sesja.id }}})
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            alert("Zatwierdzenie zostało wycofane. Sesja jest ponownie OTWARTA.");
             window.location.reload();
         } else {
             alert("Błąd: " + data.message);

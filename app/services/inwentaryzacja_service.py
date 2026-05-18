@@ -17,11 +17,19 @@ class InwentaryzacjaService:
             conn.close()
 
     @staticmethod
+    def get_active_sessions():
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT * FROM magazyn_inwentaryzacja_sesje WHERE status = 'OPEN' ORDER BY created_at DESC"
+            )
+            return cursor.fetchall()
+        finally:
+            conn.close()
+
+    @staticmethod
     def start_session(linia, user_login, comment='', lokalizacja='Wszystko'):
-        active = InwentaryzacjaService.get_active_session()
-        if active:
-            return False, "Istnieje już otwarta sesja inwentaryzacji."
-        
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
@@ -31,7 +39,6 @@ class InwentaryzacjaService:
             )
             conn.commit()
             return True, cursor.lastrowid
-
         finally:
             conn.close()
 
@@ -277,6 +284,20 @@ class InwentaryzacjaService:
             )
             conn.commit()
             return True, "Sesja została wznowiona"
+        finally:
+            conn.close()
+
+    @staticmethod
+    def revert_session(sesja_id):
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE magazyn_inwentaryzacja_sesje SET status = 'OPEN', closed_at = NULL WHERE id = %s",
+                (sesja_id,)
+            )
+            conn.commit()
+            return True, "Zatwierdzenie zostało wycofane. Sesja jest ponownie otwarta."
         finally:
             conn.close()
 

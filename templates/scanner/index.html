@@ -18,26 +18,33 @@
 .scan-card {
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 20px;
-  margin-bottom: 16px;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
 }
 
 .scan-title {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 800;
   color: #0f172a;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 
-/* Big scan input */
-.scan-input-wrap { position: relative; }
-.scan-input-wrap .material-icons {
+.scan-input-wrap .input-icon {
   position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
   color: var(--scan-accent); font-size: 24px;
+}
+#scan-btn {
+  width: auto !important;
+  padding: 0 16px !important;
+  flex-shrink: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
 }
 #scanInput {
   width: 100%;
@@ -54,6 +61,103 @@
 }
 #scanInput:focus { border-color: var(--scan-accent); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
 
+/* Custom premium form inputs */
+.form-control,
+.bags-table input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+  box-sizing: border-box;
+}
+
+.form-control:focus,
+.bags-table input:focus {
+  background: #ffffff;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+
+.form-label {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #475569 !important;
+  margin-bottom: 6px !important;
+}
+
+/* Beautiful custom buttons */
+.btn-primary {
+  background: #d35400 !important; /* AGRO orange */
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 12px rgba(211, 84, 0, 0.2) !important;
+}
+
+.btn-primary:hover {
+  background: #e67e22 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(211, 84, 0, 0.3) !important;
+}
+
+.btn-add-worek {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px dashed #cbd5e1 !important;
+  border-radius: 8px !important;
+  padding: 10px 16px !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease !important;
+  width: 100%;
+}
+
+.btn-add-worek:hover {
+  background: #e2e8f0 !important;
+  color: #1e293b !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Delete button in table rows */
+.btn-delete-row {
+  background: #fee2e2 !important;
+  color: #ef4444 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  width: 38px !important;
+  height: 38px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease !important;
+}
+
+.btn-delete-row:hover {
+  background: #fecaca !important;
+  color: #dc2626 !important;
+  transform: scale(1.05);
+}
+
+.btn-delete-row .material-icons {
+  font-size: 18px !important;
+}
+
 /* Pallet info card */
 .pallet-card {
   background: #f0fdf4;
@@ -68,18 +172,28 @@
 .pallet-qty  { font-size: 28px; font-weight: 700; color: #0f172a; margin: 8px 0; }
 
 /* bags table */
-.bags-table { width: 100%; border-collapse: collapse; }
+.bags-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 10px;
+}
 .bags-table th {
   background: #f8fafc;
-  font-size: 12px;
-  font-weight: 700;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: .4px;
-  padding: 8px 12px;
-  border: 1px solid #e2e8f0;
+  letter-spacing: 0.5px;
+  padding: 12px 10px;
+  border-bottom: 2px solid #e2e8f0;
+  text-align: left;
 }
-.bags-table td { padding: 6px 8px; border: 1px solid #e2e8f0; }
-.bags-table input { width: 100%; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.bags-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
 
 /* Status pill */
 .pill {
@@ -130,11 +244,11 @@
     </div>
     <div class="scan-input-wrap" style="display: flex; gap: 8px;">
       <div style="position: relative; flex: 1;">
-        <span class="material-icons">qr_code</span>
+        <span class="material-icons input-icon">qr_code</span>
         <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
                placeholder="R030101 albo SUR-42" autofocus>
       </div>
-      <button class="btn btn-primary" onclick="triggerScan()" style="padding: 0 20px;">
+      <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">
         <span class="material-icons">search</span>
       </button>
     </div>
@@ -201,7 +315,7 @@
         <span class="material-icons" style="color:#7c3aed;">call_split</span>
         Podziel paletę na worki
       </div>
-      <button class="btn btn-outline btn-sm row items-center gap-4" onclick="addBagRow()">
+      <button class="btn btn-add-worek row items-center gap-4" onclick="addBagRow()">
         <span class="material-icons" style="font-size:16px;">add</span> Dodaj worek
       </button>
     </div>
@@ -385,7 +499,7 @@ function addBagRow() {
     <td><input type="text" placeholder="np. R030201" style="text-transform:uppercase;" class="bag-loc"></td>
     <td><input type="text" placeholder="${currentPallet ? currentPallet.nazwa : ''}" class="bag-name"></td>
     <td style="text-align:center;">
-      <button class="btn btn-ghost btn-xs text-danger-color" onclick="removeBagRow(this)" title="Usuń">
+      <button class="btn btn-delete-row" onclick="removeBagRow(this)" title="Usuń">
         <span class="material-icons" style="font-size:16px;">delete</span>
       </button>
     </td>

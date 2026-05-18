@@ -1,23 +1,23 @@
 
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from app.services.inwentaryzacja_service import InwentaryzacjaService
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 from app.decorators import masteradmin_required
 
 inwentaryzacja_bp = Blueprint('inwentaryzacja', __name__, url_prefix='/magazyn/inwentaryzacja')
 
 @inwentaryzacja_bp.route('/')
 def index():
-    active_session = InwentaryzacjaService.get_active_session()
+    active_sessions = InwentaryzacjaService.get_active_sessions()
     
-    # Get recent sessions
+    # Get recent sessions ordered strictly by newest first (id DESC)
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM magazyn_inwentaryzacja_sesje ORDER BY created_at DESC LIMIT 20")
+    cursor.execute("SELECT * FROM magazyn_inwentaryzacja_sesje ORDER BY id DESC LIMIT 500")
     sessions = cursor.fetchall()
     conn.close()
     
-    return render_template('inwentaryzacja/index.html', active_session=active_session, sessions=sessions)
+    return render_template('inwentaryzacja/index.html', active_sessions=active_sessions, sessions=sessions)
 
 @inwentaryzacja_bp.route('/start', methods=['POST'])
 def start():
@@ -91,7 +91,71 @@ def raport(sesja_id):
     sesja = cursor.fetchone()
     conn.close()
     
-    return render_template('inwentaryzacja/raport.html', entries=entries, sesja=sesja)
+    role = (session.get('rola') or '').lower().replace(' ', '').replace('_', '').replace('-', '').strip()
+    
+    return render_template('inwentaryzacja/raport.html', entries=entries, sesja=sesja, role=role)
+
+@inwentaryzacja_bp.route('/api/lookup-pallet', methods=['GET'])
+def lookup_pallet():
+    code = request.args.get('code', '').strip().upper()
+    if not code:
+        return jsonify({"success": False, "message": "Brak kodu"})
+        
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    pallet = None
+    
+    # Clean code: if it starts with prefix like SUR-, OPK-, PAL-
+    clean_id = None
+    if '-' in code:
+        parts = code.split('-')
+        if len(parts) > 1 and parts[1].isdigit():
+            clean_id = int(parts[1])
+            
+    # 1. Search in surowce
+    if clean_id and code.startswith('SUR-'):
+        cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'surowiec' as typ_palety, linia FROM magazyn_surowce WHERE id = %s", (clean_id,))
+        pallet = cursor.fetchone()
+    else:
+        cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'surowiec' as typ_palety, linia FROM magazyn_surowce WHERE nr_palety = %s", (code,))
+        pallet = cursor.fetchone()
+        
+    # 2. Search in opakowania
+    if not pallet:
+        if clean_id and code.startswith('OPK-'):
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'opakowanie' as typ_palety, linia FROM magazyn_opakowania WHERE id = %s", (clean_id,))
+            pallet = cursor.fetchone()
+        else:
+            cursor.execute("SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'opakowanie' as typ_palety, linia FROM magazyn_opakowania WHERE nr_palety = %s", (code,))
+            pallet = cursor.fetchone()
+            
+    # 3. Search in wyroby gotowe (PSD / AGRO)
+    if not pallet:
+        hall_contexts = ['PSD', 'AGRO']
+        for hall in hall_contexts:
+            table = get_table_name('magazyn_palety', hall)
+            if clean_id and (code.startswith('PAL-') or code.startswith('PAT-')):
+                cursor.execute(f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'wyrób gotowy' as typ_palety, linia FROM {table} WHERE id = %s", (clean_id,))
+                pallet = cursor.fetchone()
+            else:
+                cursor.execute(f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, typ_opakowania, 'wyrób gotowy' as typ_palety, linia FROM {table} WHERE nr_palety = %s", (code,))
+                pallet = cursor.fetchone()
+            if pallet:
+                break
+                
+    conn.close()
+    
+    if pallet:
+        # Format dates as YYYY-MM-DD
+        if pallet.get('data_produkcji') and hasattr(pallet['data_produkcji'], 'strftime'):
+            pallet['data_produkcji'] = pallet['data_produkcji'].strftime('%Y-%m-%d')
+        if pallet.get('data_przydatnosci') and hasattr(pallet['data_przydatnosci'], 'strftime'):
+            pallet['data_przydatnosci'] = pallet['data_przydatnosci'].strftime('%Y-%m-%d')
+            
+        return jsonify({"success": True, "pallet": pallet})
+    else:
+        return jsonify({"success": False, "message": "Nie znaleziono palety o takim kodzie/SSCC"})
 
 @inwentaryzacja_bp.route('/api/zamknij-sesje', methods=['POST'])
 def zamknij_sesje():
@@ -116,5 +180,11 @@ def usun_sesje():
 def wznow_sesje():
     sesja_id = request.json.get('sesja_id')
     success, msg = InwentaryzacjaService.resume_session(sesja_id)
+    return jsonify({"success": success, "message": msg})
+    
+@inwentaryzacja_bp.route('/api/cofnij-zatwierdzenie', methods=['POST'])
+def cofnij_zatwierdzenie():
+    sesja_id = request.json.get('sesja_id')
+    success, msg = InwentaryzacjaService.revert_session(sesja_id)
     return jsonify({"success": success, "message": msg})
 

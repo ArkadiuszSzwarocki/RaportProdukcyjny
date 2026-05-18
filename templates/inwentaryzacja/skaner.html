@@ -597,13 +597,77 @@ function clearSkaner() {
     localStorage.removeItem('lastInventoryRack');
     document.getElementById('lokalizacjaInput').focus();
 }
+let lookedUpPalletId = null;
+let lookedUpSystemWeight = 0;
+let lookupTimeout = null;
 
+function handleSSCCInput() {
+    const code = document.getElementById('newPalletSSCC').value.trim();
+    const statusDiv = document.getElementById('lookupStatus');
+    
+    // Reset lookup state
+    statusDiv.style.display = 'none';
+    statusDiv.textContent = '';
+    lookedUpPalletId = null;
+    lookedUpSystemWeight = 0;
+    
+    if(lookupTimeout) clearTimeout(lookupTimeout);
+    if(code.length < 3) return;
+    
+    lookupTimeout = setTimeout(() => {
+        statusDiv.style.display = 'block';
+        statusDiv.style.color = '#3b82f6';
+        statusDiv.textContent = 'Szukanie palety w bazie...';
+        
+        fetch(`/magazyn/inwentaryzacja/api/lookup-pallet?code=${encodeURIComponent(code)}`)
+        .then(r => r.json())
+        .then(data => {
+            if(data.success) {
+                const p = data.pallet;
+                lookedUpPalletId = p.id;
+                lookedUpSystemWeight = p.stan_magazynowy || 0;
+                
+                statusDiv.style.color = '#10b981';
+                statusDiv.innerHTML = `🟢 Znaleziono w bazie: <strong>${p.nazwa}</strong> (Id: ${p.id})`;
+                
+                // Autofill other fields
+                document.getElementById('newPalletName').value = p.nazwa;
+                document.getElementById('newPalletType').value = p.typ_palety;
+                document.getElementById('newPalletWeight').value = p.stan_magazynowy;
+                document.getElementById('newPalletBatch').value = p.nr_partii || '';
+                document.getElementById('newPalletDateProd').value = p.data_produkcji || '';
+                document.getElementById('newPalletDateExp').value = p.data_przydatnosci || '';
+                document.getElementById('newPalletPackaging').value = p.typ_opakowania || 'brak';
+            } else {
+                statusDiv.style.color = '#64748b';
+                statusDiv.textContent = '⚪ Nowy kod palety (brak w bazie danych)';
+            }
+        })
+        .catch(err => {
+            statusDiv.style.color = '#ef4444';
+            statusDiv.textContent = '🔴 Błąd podczas szukania';
+        });
+    }, 400);
+}
 
 function addNewPallet(loc) {
+    lookedUpPalletId = null;
+    lookedUpSystemWeight = 0;
+    
+    const statusDiv = document.getElementById('lookupStatus');
+    if(statusDiv) {
+        statusDiv.style.display = 'none';
+        statusDiv.textContent = '';
+    }
+    
     document.getElementById('newPalletLoc').value = loc || lastLocation;
     document.getElementById('newPalletSSCC').value = '';
     document.getElementById('newPalletName').value = '';
-    document.getElementById('newPalletWeight').value = '';
+    document.getElementById('newPalletWeight').value = '0';
+    document.getElementById('newPalletBatch').value = '';
+    document.getElementById('newPalletDateProd').value = '';
+    document.getElementById('newPalletDateExp').value = '';
+    document.getElementById('newPalletPackaging').value = 'brak';
     document.getElementById('newPalletModal').style.display = 'flex';
     document.getElementById('newPalletSSCC').focus();
 }
@@ -619,7 +683,6 @@ function saveNewPallet() {
     const loc = document.getElementById('newPalletLoc').value;
     const packaging = document.getElementById('newPalletPackaging').value;
 
-    
     if(!sscc || !name || isNaN(weight)) return alert('Wypełnij wszystkie pola!');
     
     fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
@@ -627,20 +690,19 @@ function saveNewPallet() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             sesja_id: {{ sesja_id }},
-            paleta_id: null,
+            paleta_id: lookedUpPalletId,
             nr_palety: sscc,
             typ_palety: type,
             nazwa: name,
             lokalizacja: loc,
             nr_partii: batch,
-            waga_systemowa: 0,
+            waga_systemowa: lookedUpPalletId ? lookedUpSystemWeight : 0,
             waga_faktyczna: weight,
             data_produkcji: dProd,
             data_przydatnosci: dExp,
             linia: 'PSD',
             typ_opakowania: packaging
         })
-
     }).then(r => r.json()).then(data => {
         if(data.success) {
             document.getElementById('newPalletModal').style.display = 'none';
@@ -666,7 +728,8 @@ function saveNewPallet() {
         <div style="display: flex; flex-direction: column; gap: 15px;">
             <div>
                 <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Numer Palety / SSCC</label>
-                <input type="text" id="newPalletSSCC" class="weight-input" style="text-align: left; padding: 12px;" placeholder="Zeskanuj lub wpisz...">
+                <input type="text" id="newPalletSSCC" class="weight-input" style="text-align: left; padding: 12px;" placeholder="Zeskanuj lub wpisz..." oninput="handleSSCCInput()">
+                <div id="lookupStatus" style="font-size: 12px; margin-top: 6px; font-weight: 700; display: none;"></div>
             </div>
             <div>
                 <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Nazwa Produktu / Materiału</label>
