@@ -42,6 +42,29 @@
                     }
                 });
             }
+
+            // Restore sidebar scroll position
+            var sidebar = document.getElementById('appSidebar');
+            if (sidebar) {
+                var savedScroll = sessionStorage.getItem('sidebar_scroll_pos');
+                if (savedScroll !== null) {
+                    sidebar.scrollTop = parseInt(savedScroll, 10);
+                }
+
+                // Save scroll position before leaving page or scrolling
+                var saveScroll = function() {
+                    sessionStorage.setItem('sidebar_scroll_pos', sidebar.scrollTop);
+                };
+                sidebar.addEventListener('scroll', saveScroll, { passive: true });
+                
+                // Extra precaution: save on link click
+                sidebar.addEventListener('click', function(e) {
+                    var target = e.target.closest('a');
+                    if (target && target.href && !target.href.startsWith('javascript:')) {
+                        saveScroll();
+                    }
+                });
+            }
         } catch(e) {
             console.error('[sidebar inline] restore failed', e);
         }

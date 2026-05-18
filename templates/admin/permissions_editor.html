@@ -38,9 +38,9 @@
 
 <div class="container-fluid mt-4">
     <div class="row mb-4 animate__animated animate__fadeIn">
-        <div class="col-12 d-flex justify-content-between align-items-center bg-dark p-4 rounded-4 shadow-lg border border-secondary">
+        <div class="col-12 d-flex justify-content-between align-items-center bg-white p-4 rounded-4 shadow-sm border border-light">
             <div>
-                <h1 class="h3 mb-0 text-white fw-bold">
+                <h1 class="h3 mb-0 text-dark fw-bold">
                     <span class="material-icons align-middle me-2 text-warning">security</span>
                     Macierz Uprawnień Systemowych
                 </h1>
@@ -61,12 +61,12 @@
         </div>
     </div>
 
-    <div class="card bg-dark border-secondary shadow-lg rounded-4 overflow-hidden mb-5 animate__animated animate__fadeInUp">
+    <div class="card bg-white border-light shadow-sm rounded-4 overflow-hidden mb-5 animate__animated animate__fadeInUp">
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-dark table-hover mb-0 align-middle" id="permissionsTable">
+                <table class="table table-hover mb-0 align-middle" id="permissionsTable">
                     <thead>
-                        <tr class="border-bottom border-secondary bg-black bg-opacity-50">
+                        <tr class="border-bottom border-light bg-light">
                             <th class="ps-4 py-4 text-secondary text-uppercase small tracking-wider" style="min-width: 350px;">Strona / Moduł / Funkcja</th>
                             {% for role in roles %}
                             <th class="text-center py-4 text-secondary text-uppercase small tracking-wider">
@@ -84,8 +84,8 @@
                             
                             {% if section_id != current_section[0] %}
                                 {# Section Header #}
-                                <tr class="bg-black bg-opacity-40 border-top border-bottom border-secondary section-header-row" data-section="{{ section_id }}">
-                                    <td class="ps-4 py-3 text-warning fw-bold text-uppercase small cursor-pointer d-flex align-items-center justify-content-between" onclick="toggleSection('{{ section_id }}')">
+                                <tr class="bg-light border-top border-bottom border-light section-header-row" data-section="{{ section_id }}">
+                                    <td class="ps-4 py-3 text-dark fw-bold text-uppercase small cursor-pointer d-flex align-items-center justify-content-between" onclick="toggleSection('{{ section_id }}')">
                                         <div class="d-flex align-items-center">
                                             <span class="material-icons me-2 text-secondary" style="font-size: 18px;">menu_open</span>
                                             {{ section_labels.get(section_id, section_id|upper) }}
@@ -108,10 +108,10 @@
                             {% endif %}
 
                             {# Sub-item Row #}
-                            <tr class="border-bottom border-secondary sub-row-{{ section_id }}" data-page="{{ page }}" data-section="{{ section_id }}">
+                            <tr class="border-bottom border-light sub-row-{{ section_id }}" data-page="{{ page }}" data-section="{{ section_id }}">
                                 <td class="ps-4 py-3">
                                     <div class="ms-5 ps-3 d-flex align-items-center">
-                                        <div class="fw-bold text-white-50">
+                                        <div class="fw-bold text-secondary">
                                             {{ labels.get(page, page) }}
                                         </div>
                                     </div>
@@ -140,21 +140,19 @@
 
 <style>
     .tracking-wider { letter-spacing: 0.1em; }
-    .table-dark { background-color: transparent; }
-    .table-hover tbody tr:hover { background-color: rgba(255, 255, 255, 0.05); }
-    .form-check-input:checked { background-color: #ffc107; border-color: #ffc107; }
-    .form-check-input { background-color: #343a40; border-color: #6c757d; }
+    .table-hover tbody tr:hover { background-color: rgba(0, 0, 0, 0.03); }
+    .form-check-input:checked { background-color: #0f172a; border-color: #0f172a; }
+    .form-check-input { background-color: #e2e8f0; border-color: #cbd5e1; }
     .rounded-4 { border-radius: 1rem !important; }
-    .text-white-50 { color: rgba(255, 255, 255, 0.7) !important; }
     .cursor-pointer { cursor: pointer; }
     .section-header-row { transition: all 0.2s ease; }
-    .section-header-row:hover { background-color: rgba(255, 255, 255, 0.08) !important; }
+    .section-header-row:hover { background-color: rgba(0, 0, 0, 0.05) !important; }
     
     /* Custom Scrollbar */
     .table-responsive::-webkit-scrollbar { height: 8px; }
-    .table-responsive::-webkit-scrollbar-track { background: #212529; }
-    .table-responsive::-webkit-scrollbar-thumb { background: #495057; border-radius: 4px; }
-    .table-responsive::-webkit-scrollbar-thumb:hover { background: #6c757d; }
+    .table-responsive::-webkit-scrollbar-track { background: #f8fafc; }
+    .table-responsive::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .table-responsive::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 </style>
 
 <script>
