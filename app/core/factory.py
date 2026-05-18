@@ -128,7 +128,25 @@ def create_app(config_secret_key=None, init_db=True):
     # Start background daemon threads (skip when running under pytest to avoid
     # background DB connections during test collection)
     if 'PYTEST_CURRENT_TEST' not in os.environ:
-        start_daemon_threads(app, cleanup_enabled=True)
+        # Detect if we are in the parent process of Flask's Werkzeug reloader (app.py debug run)
+        # to avoid starting background threads twice (once in parent, once in child worker).
+        import sys
+        main_script = sys.argv[0] if (sys.argv and sys.argv[0]) else ''
+        
+        # Check if reloader is enabled via environment variable
+        reloader_enabled = os.environ.get('FLASK_USE_RELOADER') == 'true' or os.environ.get('RELOADER_ENABLED') == 'true'
+        
+        is_reloader_parent = (
+            reloader_enabled
+            and (main_script.endswith('app.py') or 'app.py' in main_script)
+            and os.environ.get('WERZEUG_RUN_MAIN') != 'true'
+        )
+        
+        if is_reloader_parent:
+            app.logger.info('Skipping start_daemon_threads() in Werkzeug reloader parent process (WERZEUG_RUN_MAIN=%s)', os.environ.get('WERZEUG_RUN_MAIN'))
+        else:
+            app.logger.info('Starting start_daemon_threads() in Flask process (WERZEUG_RUN_MAIN=%s, reloader_enabled=%s)', os.environ.get('WERZEUG_RUN_MAIN'), reloader_enabled)
+            start_daemon_threads(app, cleanup_enabled=True)
     else:
         app.logger.debug('Skipping start_daemon_threads() under pytest')
     

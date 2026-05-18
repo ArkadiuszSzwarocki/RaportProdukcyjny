@@ -1,4 +1,4 @@
-{% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active and rola in ['lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] %}
+{% if sekcja == 'Zasyp' and linia == 'AGRO' and ns.is_active and rola in ['masteradmin', 'lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] %}
     {% set fb_pid = ns.active_plan_id %}
     {% set fb_kstats = kgph_stats_mapa.get(fb_pid) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
     {% set fb_sesje = (etapy_sesje_mapa.get(fb_pid, []) if etapy_sesje_mapa is defined and etapy_sesje_mapa else []) %}
@@ -25,7 +25,7 @@
     <div class="active-order-floating-bar-wrap">
         <div class="active-order-floating-bar">
             <div class="active-order-status-inline">
-                {% if fb_running.count > 0 and rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
+                {% if fb_running.count > 0 and rola in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
                 <span class="badge-success" style="font-size:0.72em; padding:2px 6px;">AKTYWNE W TOKU ({{ fb_running.count }})</span>
                 <span class="agro-session-running-hint">Otwarte: {{ fb_running.items|join(' | ') }}</span>
                 {% endif %}

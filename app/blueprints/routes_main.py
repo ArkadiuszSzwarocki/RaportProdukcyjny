@@ -147,10 +147,12 @@ def index():
                 'packaging_items': agro_ctx.get('packaging_items'),
                 'maszyna_opakowania': agro_ctx.get('maszyna_opakowania', []),
                 'inactive_opakowania': agro_ctx.get('inactive_opakowania', []),
-                'history': agro_ctx.get('history', [])
+                'history': agro_ctx.get('history', []),
+                'all_warehouse_packaging': agro_ctx.get('all_warehouse_packaging', [])
             }
             context['maszyna_opakowania'] = agro_ctx.get('maszyna_opakowania', [])
             context['inactive_opakowania'] = agro_ctx.get('inactive_opakowania', [])
+            context['all_warehouse_packaging'] = agro_ctx.get('all_warehouse_packaging', [])
             context['wrctx_error'] = agro_ctx.get('wrctx_error')
             agro_focus_mode = bool(agro_ctx.get('active_plan'))
 
@@ -206,6 +208,7 @@ def machine_telemetry_proxy():
         return {'success': True, 'data': data}
     except Exception as e:
         return {'success': False, 'error': str(e)}, 500
+
 from app.decorators import roles_required, login_required, masteradmin_required
 
 # ... (other code)

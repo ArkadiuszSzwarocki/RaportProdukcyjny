@@ -7,7 +7,7 @@
   <a href="{{ url_for('quality.jakosc_podsumowanie_zasypow') }}" class="btn btn-sm btn-outline-primary">Podsumowanie zasypów (dla lab)</a>
 </div>
 
-{% if rola in ['laboratorium', 'lider', 'zarzad', 'admin'] %}
+{% if rola in ['laboratorium', 'lider', 'zarzad', 'admin', 'masteradmin'] %}
     <div>
   <form action="{{ url_for('quality.jakosc_dodaj') }}" method="POST" class="d-flex gap-8 align-center">
     <input type="text" name="produkt" title="{{ _('produkt') }}" placeholder="{{ _('produkt') }}" required class="input-sm" aria-label="Produkt">

@@ -17,7 +17,7 @@
             </div>
         </div>
 
-        {% if rola in ['lider', 'admin'] %}
+        {% if rola in ['lider', 'admin', 'masteradmin'] %}
         <div class="d-flex gap-8 align-center">
             <a href="{{ url_for('journal.edytuj', id=w[0]) }}" title="{{ _('edytuj_wpis') }}"
                 class="font-bold text-warning-dark no-underline">✎</a>

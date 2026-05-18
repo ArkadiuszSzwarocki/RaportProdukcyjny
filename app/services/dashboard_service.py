@@ -258,6 +258,7 @@ class DashboardService:
             'palety_kg_wykonane': 0.0,
             'palety_count': 0,
             'estimated_bags': 0,
+            'all_warehouse_packaging': [],
         }
         try:
             from app.services.agro_warehouse_service import AgroWarehouseService
@@ -274,6 +275,7 @@ class DashboardService:
             plan_id = int(active_plan['id'])
             packaging_items = AgroWarehouseService.get_all_linked_packaging(plan_id) or []
             history = AgroWarehouseService.get_history(limit=10, plan_id=plan_id, linia='AGRO') or []
+            all_warehouse_packaging = AgroWarehouseService.get_packaging_inventory(linia='AGRO') or []
 
             table_palety = get_table_name('palety_workowanie', 'AGRO')
             conn = get_db_connection()
@@ -330,6 +332,7 @@ class DashboardService:
                 'palety_kg_wykonane': palety_kg_wykonane,
                 'palety_count': palety_count,
                 'estimated_bags': estimated_bags,
+                'all_warehouse_packaging': all_warehouse_packaging,
             }
         except Exception as error:
             out = dict(default_ctx)

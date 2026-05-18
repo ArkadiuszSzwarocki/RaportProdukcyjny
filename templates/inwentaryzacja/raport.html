@@ -74,6 +74,24 @@
         </div>
     </div>
 
+    <!-- SEARCH & FILTER BAR -->
+    <div style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 15px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 280px;">
+            <span class="material-icons" style="color: #64748b;">search</span>
+            <input type="text" id="reportSearchInput" placeholder="Szukaj po produkcie, lokalizacji, kodzie palety, partii..." style="width: 100%; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; outline: none; transition: all 0.2s;" onkeyup="filterReportTable()">
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; min-width: 250px;">
+            <span style="font-size: 13px; color: #64748b; font-weight: 600;">Status różnic:</span>
+            <select id="diffFilterSelect" onchange="filterReportTable()" style="padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 13px; outline: none; background: white; font-weight: 600; color: #334155; cursor: pointer; flex: 1;">
+                <option value="all">Wszystkie pozycje</option>
+                <option value="diffs">Tylko różnice (niezgodności)</option>
+                <option value="ok">Tylko zgodne (0 różnicy)</option>
+                <option value="missing">Tylko braki (minus)</option>
+                <option value="surplus">Tylko nadwyżki (plus)</option>
+            </select>
+        </div>
+    </div>
+
     <!-- MAIN TABLE -->
     <div style="background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
         <table class="modern-table" style="width: 100%; border-collapse: collapse;">
@@ -199,6 +217,51 @@ function confirmRevert() {
             window.location.reload();
         } else {
             alert("Błąd: " + data.message);
+        }
+    });
+}
+
+function filterReportTable() {
+    const searchVal = document.getElementById('reportSearchInput').value.toLowerCase().trim();
+    const diffFilter = document.getElementById('diffFilterSelect').value;
+    const rows = document.querySelectorAll('.modern-table tbody tr');
+
+    rows.forEach(row => {
+        const locationCell = row.querySelector('td:nth-child(1)');
+        const palletCell = row.querySelector('td:nth-child(2)');
+        const productCell = row.querySelector('td:nth-child(3)');
+        const diffCell = row.querySelector('td:nth-child(6)');
+
+        if (!locationCell || !palletCell || !productCell || !diffCell) return;
+
+        const location = locationCell.innerText.toLowerCase();
+        const pallet = palletCell.innerText.toLowerCase();
+        const productInfo = productCell.innerText.toLowerCase();
+        
+        const diffText = diffCell.innerText.trim();
+        const isDiff = diffText !== '0' && diffText !== '';
+        const isMinus = diffText.includes('-');
+        const isPlus = diffText.includes('+');
+
+        const matchesSearch = location.includes(searchVal) || 
+                              pallet.includes(searchVal) || 
+                              productInfo.includes(searchVal);
+
+        let matchesDiff = true;
+        if (diffFilter === 'diffs') {
+            matchesDiff = isDiff;
+        } else if (diffFilter === 'ok') {
+            matchesDiff = !isDiff;
+        } else if (diffFilter === 'missing') {
+            matchesDiff = isMinus;
+        } else if (diffFilter === 'surplus') {
+            matchesDiff = isPlus;
+        }
+
+        if (matchesSearch && matchesDiff) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
         }
     });
 }

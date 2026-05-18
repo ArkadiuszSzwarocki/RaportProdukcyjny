@@ -74,8 +74,30 @@
                     </div>
                 {% else %}
                     <p style="color: #7f8c8d; font-size: 0.9em; margin: 10px 0 0 0; font-style: italic;">
-                        Brak podpiętych materiałów na maszynie. Kliknij "PODEPNIJ" na liście materiałów.
+                        Brak podpiętych materiałów na maszynie. Wybierz materiał z listy poniżej i kliknij "PODEPNIJ".
                     </p>
+                {% endif %}
+
+                <!-- PODPIĘCIE NOWEGO MATERIAŁU/FOLII Z MAGAZYNU -->
+                {% if wrctx.active_plan and wrctx.all_warehouse_packaging %}
+                <div style="margin-top: 15px; border-top: 1px dashed #c2ebd0; padding-top: 15px;">
+                    <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="display: block; font-size: 0.85em; font-weight: bold; color: #27ae60; margin-bottom: 5px;">Podepnij materiał / folię z magazynu:</label>
+                            <select id="select_warehouse_packaging" class="form-control" style="width: 100%; border-radius: 8px; height: 38px; border: 1px solid #c2ebd0; font-size: 0.9em; background: #fff; padding: 0 10px;">
+                                <option value="">-- Wybierz materiał z magazynu --</option>
+                                {% for item in wrctx.all_warehouse_packaging %}
+                                    <option value="{{ item.id }}">
+                                        {{ item.nazwa }} (Stan: {{ item.stan_magazynowy|int }} szt/kg){% if item.lokalizacja %} - {{ item.lokalizacja }}{% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" style="height: 38px; padding: 0 18px; display: inline-flex; align-items: center; gap: 5px; font-weight: bold; font-size: 0.9em; background: #27ae60; border-color: #27ae60; color: #fff; border-radius: 8px; cursor: pointer; border: none;" onclick="var select = document.getElementById('select_warehouse_packaging'); if(!select.value) { alert('Wybierz materiał!'); return; } linkPackaging(select.value, {{ wrctx.active_plan.id }});">
+                            <span class="material-icons" style="font-size: 18px;">add_circle</span> PODEPNIJ MATERIAŁ
+                        </button>
+                    </div>
+                </div>
                 {% endif %}
             </div>
 
