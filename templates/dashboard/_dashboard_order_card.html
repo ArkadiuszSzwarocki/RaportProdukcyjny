@@ -82,7 +82,16 @@
     <div class="card-body">
         <div class="card-row"><strong>Plan:</strong> <span class="text-success">{{ p[2]|int }} kg</span></div>
         {% if p[7] and p[7]|int > 0 %}<div class="card-row"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>{% endif %}
-        <div class="card-row"><strong>Typ:</strong> {{ p[9]|upper }}</div>
+        {% set typ_prod_display = p[9]|upper %}
+        {% if typ_prod_display == 'AGRO' or not typ_prod_display %}
+            {% set produkt_lc = p[1]|lower %}
+            {% if 'mleko' in produkt_lc or '20' in produkt_lc %}
+                {% set typ_prod_display = '20 KG' %}
+            {% else %}
+                {% set typ_prod_display = '25 KG' %}
+            {% endif %}
+        {% endif %}
+        <div class="card-row"><strong>Typ:</strong> {{ typ_prod_display }}</div>
         {% if p[4] %}<div class="card-row"><strong>🟢 Start:</strong> {{ p[4] }}</div>{% endif %}
         {% if p[5] %}<div class="card-row"><strong>🔴 Stop:</strong> {{ p[5] }}</div>{% endif %}
         {% if p[3] == 'w toku' and p[4] %}

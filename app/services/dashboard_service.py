@@ -302,6 +302,11 @@ class DashboardService:
             kg_match = re.search(r'(\d+)', typ_prod)
             if kg_match:
                 bag_kg = float(kg_match.group(1))
+            else:
+                # Inteligentny fallback po nazwie produktu
+                produkt_nazwa = str(active_plan.get('produkt') or '').lower()
+                if 'mleko' in produkt_nazwa or '20' in produkt_nazwa:
+                    bag_kg = 20.0
             
             estimated_bags = int(round(palety_kg_wykonane / bag_kg)) if bag_kg > 0 else 0
 
