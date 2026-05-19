@@ -71,6 +71,11 @@
         function render() {
             const e = getElements();
             if (!e.list || !e.badge) return;
+            const userRole = "{{ session.get('rola')|default('')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim }}";
+            if (userRole === 'laborant' || userRole === 'laboratorium') {
+                e.badge.style.display = 'none';
+                return;
+            }
             const badgeCount = state.notifications.length;
             e.badge.style.display = badgeCount > 0 ? 'inline-block' : 'none';
             e.badge.textContent = badgeCount > 99 ? '99+' : badgeCount;
@@ -107,11 +112,120 @@
     })();
 
     // Bug Report logic
+    function closeBugReportModal() {
+        try {
+            if (window.createQuickPopup && window.createQuickPopup._lastInst) {
+                try { window.createQuickPopup._lastInst.close(); } catch (e) { }
+            }
+            if (window.closeQuickPopup) {
+                try { window.closeQuickPopup(); } catch (e) { }
+            }
+
+            // Hard fallback: force hide overlay/popup even if helper couldn't close current instance.
+            var qp = document.getElementById('quickPopup');
+            var qb = document.getElementById('quickBackdrop');
+            if (qp) {
+                qp.classList.remove('open');
+                qp.setAttribute('aria-hidden', 'true');
+                qp.style.display = 'none';
+                qp.style.pointerEvents = 'none';
+            }
+            if (qb) {
+                qb.classList.remove('show');
+                qb.setAttribute('aria-hidden', 'true');
+                qb.style.display = 'none';
+                qb.style.pointerEvents = 'none';
+            }
+        } catch (e) { }
+    }
+
     function openBugReportModal() {
+        var html = '<form id="bugReportForm" enctype="multipart/form-data">';
+        html += '<div class="form-group">';
+        html += '<div class="text-muted small" style="margin-bottom:8px; line-height:1.45;">';
+        html += '<strong>Jak zgłosić skutecznie:</strong><br>';
+        html += '1) Co dokładnie klikasz (krok po kroku), 2) jaki jest efekt, 3) jaki efekt powinien być.<br>';
+        html += 'Dodaj też gdzie problem występuje (sekcja, linia, ekran).';
+        html += '</div></div>';
+        html += '<div class="form-group"><label style="display:block;margin-bottom:4px;font-weight:600;">Gdzie występuje problem? (sekcja/linia/ekran):</label>';
+        html += '<input type="text" name="gdzie" class="input-sm" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;" placeholder="Np. Zasyp AGRO - popup dosypki" required></div>';
+        html += '<div class="form-group" style="margin-top:12px;"><label style="display:block;margin-bottom:4px;font-weight:600;">Opis problemu i kroki odtworzenia:</label>';
+        html += '<textarea name="opis" rows="5" class="input-sm" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;resize:vertical;" placeholder="Np. 1. Wchodzę w ... 2. Klikam ... 3. Wyskakuje ..." required></textarea></div>';
+        html += '<div class="form-group" style="margin-top:12px;"><label style="display:block;margin-bottom:4px;font-weight:600;">Zrzuty ekranu (maksymalnie 3 zdjęcia):</label>';
+        html += '<input type="file" name="zalaczniki" accept="image/*" multiple id="bugScreenshots"></div>';
+        html += '<div class="text-muted small" style="margin-top:4px;font-size:11px;color:#64748b;">Najlepiej dodaj screen z wnętrza aplikacji z widocznym komunikatem lub błędnym stanem.</div>';
+        html += '<p class="text-muted small" id="bugFileCountMsg" style="margin-top:4px;font-size:11px;color:#1e293b;font-weight:700;"></p>';
+        html += '<div class="d-flex gap-10 mt-15" style="display:flex;gap:10px;margin-top:20px;">';
+        html += '<button type="button" class="btn-action btn-success" style="background:#16a34a;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;" onclick="submitBugReport()">Wyślij zgłoszenie</button>';
+        html += '<button type="button" class="btn-action btn-cancel" style="background:#64748b;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;" onclick="closeBugReportModal()">Anuluj</button>';
+        html += '<a href="/moje_zgloszenia_bledow" class="btn-action btn-outline" style="text-decoration:none;border:1px solid #cbd5e1;padding:8px 16px;border-radius:8px;color:#334155;font-weight:700;display:inline-flex;align-items:center;justify-content:center;">Moje zgłoszenia</a>';
+        html += '</div></form>';
+        
         if (window.showQuickPopup) {
-            showQuickPopup('🐞 Zgłoś błąd', '<form id="bugReportForm">...</form>');
+            showQuickPopup('🐞 Zgłoś błąd / usprawnienie w systemie', html);
+        }
+        
+        // Limit 3 files
+        var fileInput = document.getElementById('bugScreenshots');
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                if (this.files.length > 3) {
+                    alert('Możesz dodać maksymalnie 3 zrzuty ekranu!');
+                    this.value = '';
+                    document.getElementById('bugFileCountMsg').innerText = '';
+                } else {
+                    document.getElementById('bugFileCountMsg').innerText = 'Wybrano zrzutów: ' + this.files.length;
+                }
+            });
         }
     }
+
+    function submitBugReport() {
+        var form = document.getElementById('bugReportForm');
+        if(!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+        
+        var btn = form.querySelector('.btn-success');
+        var originalText = btn.innerText;
+        btn.innerText = 'Wysyłanie...';
+        btn.disabled = true;
+        
+        var formData = new FormData(form);
+        formData.append('sciezka', window.location.pathname + window.location.search);
+        
+        fetch('/api/zglos_blad_systemu', {
+            method: 'POST',
+            body: formData
+        }).then(r => r.json()).then(j => {
+            btn.disabled = false;
+            btn.innerText = originalText;
+            if(j && j.success) {
+                if (typeof safeAlert === 'function') {
+                    safeAlert('Sukces', 'Dziękujemy! Błąd został zapisany.');
+                } else {
+                    alert('Sukces: Dziękujemy! Błąd został zapisany.');
+                }
+                closeBugReportModal();
+            } else {
+                if (typeof safeAlert === 'function') {
+                    safeAlert('Błąd', (j && j.message) || 'Wystąpił problem przy wysyłaniu zgłoszenia.');
+                } else {
+                    alert((j && j.message) || 'Wystąpił problem przy wysyłaniu zgłoszenia.');
+                }
+            }
+        }).catch(e => {
+            btn.disabled = false;
+            btn.innerText = originalText;
+            if (typeof safeAlert === 'function') {
+                safeAlert('Błąd sieci', 'Nie udało się połączyć z serwerem.');
+            } else {
+                alert('Nie udało się połączyć z serwerem.');
+            }
+        });
+    }
+
 
     function ackBugIconIntro() {
         const modal = document.getElementById('bugIconIntroModal');
@@ -126,4 +240,82 @@
             }
         }).catch(err => console.error('Failed to ack bug icon intro:', err));
     }
+
+    function toggleLanguageMenu() {
+        const menu = document.getElementById('languageMenu');
+        if (menu) {
+            menu.classList.toggle('hidden');
+        }
+    }
+
+    document.addEventListener('click', function(e) {
+        const toggle = document.querySelector('.language-toggle');
+        const menu = document.getElementById('languageMenu');
+        if (menu && !menu.classList.contains('hidden')) {
+            if (toggle && !toggle.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.add('hidden');
+            }
+        }
+    });
+
+    // Unified system-state real-time polling to refresh views automatically
+    (function() {
+        // Only run for logged in users
+        const isUserLoggedIn = "{{ session.get('zalogowany')|default('') }}";
+        if (!isUserLoggedIn) return;
+
+        let sessionStateSum = 0;
+        const linia = "{{ session.get('selected_hall_view')|default('PSD') }}";
+
+        function checkSystemState() {
+            fetch('/api/system_state?linia=' + linia, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    window.location.replace('/login');
+                    return null;
+                }
+                if (!response.ok) return null;
+                return response.json();
+            })
+            .then(data => {
+                if (!data || !data.state) return;
+                
+                const s = data.state;
+                const currentSum = Number(s.last_pallet_psd || 0) +
+                                   Number(s.last_pallet_agro || 0) +
+                                   Number(s.last_plan || 0) +
+                                   Number(s.last_zasyp_psd || 0) +
+                                   Number(s.last_zasyp_agro || 0) +
+                                   Number(s.last_awaria || 0) +
+                                   Number(s.last_dosypka_psd || 0) +
+                                   Number(s.last_dosypka_agro || 0) +
+                                   Number(s.state_dosypka || 0);
+
+                if (sessionStateSum === 0) {
+                    sessionStateSum = currentSum;
+                    return;
+                }
+
+                if (currentSum !== sessionStateSum) {
+                    sessionStateSum = currentSum;
+                    
+                    // If on dashboard and performPartialReload is available, do a partial reload
+                    if (typeof window.performPartialReload === 'function') {
+                        window.performPartialReload({ preserveScroll: true, source: 'system-state-sync' });
+                    } else {
+                        window.location.reload();
+                    }
+                }
+            })
+            .catch(() => {});
+        }
+
+        // Poll every 4 seconds
+        setInterval(checkSystemState, 4000);
+        // Initial check after a brief delay
+        setTimeout(checkSystemState, 1000);
+    })();
 </script>

@@ -56,7 +56,7 @@
                     data-pending-deliveries="{{ _pending_total|default(0) }}" 
                     data-pending-link="{{ url_for('magazyn_dostawy.oczekujace', linia=_pending_hall_for_link|default('PSD')) }}">
                     <span class="material-icons">notifications</span>
-                    <span id="notificationsBadge" class="notifications-badge">0</span>
+                    <span id="notificationsBadge" class="notifications-badge" {% if role in ['laborant', 'laboratorium'] %}style="display: none !important;"{% endif %}>0</span>
                 </button>
                 <div id="notificationsMenu" class="notifications-menu" aria-hidden="true">
                     <div class="notifications-header">

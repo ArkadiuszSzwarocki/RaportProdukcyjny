@@ -341,37 +341,7 @@
     var sessionLastPallet = 0;
 
     function initSystemStatePolling() {
-        var config = getConfigState();
-        if (!config) return;
-
-        addTask('system-state-poll', 4000, function () {
-            return fetchJson('/api/system_state?linia=' + (config.linia || 'PSD'))
-                .then(function (data) {
-                    if (!data || !data.state) return;
-
-                    var lastAgro = Number(data.state.last_pallet_agro || 0);
-                    var lastPsd = Number(data.state.last_pallet_psd || 0);
-                    var currentMax = Math.max(lastAgro, lastPsd);
-
-                    if (sessionLastPallet === 0) {
-                        sessionLastPallet = currentMax;
-                        return;
-                    }
-
-                    if (currentMax > sessionLastPallet) {
-                        sessionLastPallet = currentMax;
-
-                        if (typeof global.performPartialReload === 'function') {
-                            global.performPartialReload({ preserveScroll: true, source: 'system-state-pallet' });
-                        } else {
-                            global.location.reload();
-                        }
-                    }
-                })
-                .catch(function (error) {
-                    // Fail silently in production
-                });
-        }, false);
+        // Handled globally in layout scripts
     }
 
     function init() {

@@ -122,7 +122,7 @@ def _minutes_to_mmss(minutes_value):
 def register_warehouse_summary_routes(warehouse_bp):
     @warehouse_bp.route('/podsumowanie_szarz', methods=['GET'], endpoint='podsumowanie_szarz')
     @warehouse_bp.route('/podsumowanie_zasypow', methods=['GET'], endpoint='podsumowanie_zasypow')
-    @roles_required('planista', 'lider', 'admin', 'laborant', 'laboratorium', 'zarzad')
+    @roles_required('lider', 'admin', 'zarzad', 'pracownik')
     def podsumowanie_zasypow():
         """Page: summary of zasypy (legacy: szarze) and dosypki durations per zlecenie with period filters."""
         linia = request.args.get('linia') or 'PSD'
@@ -526,7 +526,7 @@ def register_warehouse_summary_routes(warehouse_bp):
 
     @warehouse_bp.route('/podsumowanie_szarz.csv', methods=['GET'], endpoint='podsumowanie_szarz_csv')
     @warehouse_bp.route('/podsumowanie_zasypow.csv', methods=['GET'], endpoint='podsumowanie_zasypow_csv')
-    @roles_required('planista', 'lider', 'admin', 'laborant', 'laboratorium', 'zarzad')
+    @roles_required('lider', 'admin', 'zarzad', 'pracownik')
     def podsumowanie_zasypow_csv():
         """Return CSV export for the same query as podsumowanie_szarz/podsumowanie_zasypow."""
         linia = request.args.get('linia') or 'PSD'

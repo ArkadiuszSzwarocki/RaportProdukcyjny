@@ -35,7 +35,6 @@ def register_api_runtime_routes(api_bp):
             return jsonify({'success': False}), 500
 
     @api_bp.route('/set_language', methods=['GET', 'POST'])
-    @login_required
     def set_language():
         """Zmień język interfejsu aplikacji."""
         try:
@@ -292,6 +291,43 @@ def register_api_runtime_routes(api_bp):
             cursor.execute(f"SELECT MAX(id) FROM {get_table_name('palety_workowanie', 'AGRO')}")
             last_pallet_agro = cursor.fetchone()[0] or 0
 
+            # 5. Fetch last zasyp (szarża) for BOTH halls
+            try:
+                cursor.execute(f"SELECT MAX(id) FROM {get_table_name('szarze', 'PSD')}")
+                last_zasyp_psd = cursor.fetchone()[0] or 0
+                cursor.execute(f"SELECT MAX(id) FROM {get_table_name('szarze', 'AGRO')}")
+                last_zasyp_agro = cursor.fetchone()[0] or 0
+            except Exception:
+                last_zasyp_psd = 0
+                last_zasyp_agro = 0
+
+            # 6. Fetch last failure (awaria) ID
+            try:
+                cursor.execute("SELECT MAX(id) FROM dziennik_zmiany")
+                last_awaria = cursor.fetchone()[0] or 0
+            except Exception:
+                last_awaria = 0
+
+            # 7. Fetch last dosypka ID for BOTH halls
+            try:
+                cursor.execute(f"SELECT MAX(id) FROM {get_table_name('dosypki', 'PSD')}")
+                last_dosypka_psd = cursor.fetchone()[0] or 0
+                cursor.execute(f"SELECT MAX(id) FROM {get_table_name('dosypki', 'AGRO')}")
+                last_dosypka_agro = cursor.fetchone()[0] or 0
+            except Exception:
+                last_dosypka_psd = 0
+                last_dosypka_agro = 0
+
+            # 8. Fetch state sum of dosypki (potwierdzone + anulowana) to detect confirmations/cancellations
+            try:
+                cursor.execute(f"SELECT COALESCE(SUM(potwierdzone + COALESCE(anulowana, 0)), 0) FROM {get_table_name('dosypki', 'PSD')}")
+                state_dosypka_psd = int(cursor.fetchone()[0] or 0)
+                cursor.execute(f"SELECT COALESCE(SUM(potwierdzone + COALESCE(anulowana, 0)), 0) FROM {get_table_name('dosypki', 'AGRO')}")
+                state_dosypka_agro = int(cursor.fetchone()[0] or 0)
+            except Exception:
+                state_dosypka_psd = 0
+                state_dosypka_agro = 0
+
             cursor.close()
             conn.close()
 
@@ -304,7 +340,13 @@ def register_api_runtime_routes(api_bp):
                     'last_station_change': last_station_change,
                     'last_pallet_psd': last_pallet_psd,
                     'last_pallet_agro': last_pallet_agro,
-                    'last_pallet': max(last_pallet_psd, last_pallet_agro) # Fallback
+                    'last_pallet': max(last_pallet_psd, last_pallet_agro),
+                    'last_zasyp_psd': last_zasyp_psd,
+                    'last_zasyp_agro': last_zasyp_agro,
+                    'last_awaria': last_awaria,
+                    'last_dosypka_psd': last_dosypka_psd,
+                    'last_dosypka_agro': last_dosypka_agro,
+                    'state_dosypka': state_dosypka_psd + state_dosypka_agro
                 }
             }
             

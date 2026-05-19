@@ -78,6 +78,14 @@ def inject_role_permissions():
             if r == 'masteradmin':
                 return True
 
+            # If the page being checked is 'bufor', resolve it dynamically based on hall context
+            if page == 'bufor':
+                from flask import request
+                linia = (request.args.get('linia') or session.get('selected_hall_view') or session.get('grupa') or 'PSD').upper()
+                if linia not in ['PSD', 'AGRO']:
+                    linia = 'PSD'
+                page = f"{linia.lower()}.bufor"
+
             # Read config every time (no caching)
             perms = {}
             try:

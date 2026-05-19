@@ -1,3 +1,4 @@
+{% if role not in ['pracownik', 'magazynier'] %}
 <!-- RAPORTY -->
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
@@ -24,6 +25,7 @@
         {% endif %}
     </div>
 </div>
+{% endif %}
 
 <!-- ADMINISTRACJA & ANALIZA -->
 <div class="nav-item-group">

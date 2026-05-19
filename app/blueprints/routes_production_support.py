@@ -138,7 +138,7 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
         data = request.args.get('data') or str(date.today())
         sekcja = request.args.get('sekcja', 'Zasyp')
         return render_template(
-            'edytuj_szarze_popup.html',
+            'warehouse/popups/edit_zasyp.html',
             szarza_id=szarza_id,
             zasyp_id=szarza_id,
             uwagi=uwagi,

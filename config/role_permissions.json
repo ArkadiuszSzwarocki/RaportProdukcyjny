@@ -203,11 +203,11 @@
       "readonly": false
     },
     "planista": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "laborant": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "magazynier": {
@@ -469,11 +469,11 @@
       "readonly": false
     },
     "planista": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "laborant": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "magazynier": {

@@ -192,8 +192,13 @@
             hamburger.addEventListener('click', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                const open = document.body.classList.contains('sidebar-open');
-                if (open) closeSidebar(); else openSidebar();
+                if (window.innerWidth > 900) {
+                    const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+                    localStorage.setItem('sidebar_collapsed_desktop', isCollapsed ? '1' : '0');
+                } else {
+                    const open = document.body.classList.contains('sidebar-open');
+                    if (open) closeSidebar(); else openSidebar();
+                }
             });
         }
         

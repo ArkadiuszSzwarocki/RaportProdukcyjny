@@ -22,7 +22,7 @@
                     <div class="active-order-szarze-actions">
                         {% if sekcja == 'Zasyp' %}
                         {% set role_lc = rola|string|trim|lower %}
-                        {% if role_lc not in ['laborant', 'laboratorium'] %}
+                        {% if role_lc not in ['laborant', 'laboratorium'] and not (role_lc == 'pracownik' and (linia|upper == 'PSD' or (session.get('grupa')|default('')|upper == 'PSD'))) %}
                         <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=szarza_id, zasyp_id=szarza_id, linia=linia) }}"
                            class="btn-action btn-blue"
                            data-slide

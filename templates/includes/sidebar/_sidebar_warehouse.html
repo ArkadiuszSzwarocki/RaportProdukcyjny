@@ -1,3 +1,4 @@
+{% if role != 'pracownik' %}
 <div class="nav-item-group">
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0} %}
     {% set hall_key = (effective_hall or 'ALL')|upper %}
@@ -6,7 +7,7 @@
     <button type="button" class="nav-item main-cat-btn">
         <span class="text-capitalize nav-main-label">
             MAGAZYNY
-            {% if pending_for_hall > 0 %}
+            {% if pending_for_hall > 0 and role not in ['laborant', 'laboratorium'] %}
             <span class="nav-main-dot" aria-hidden="true"></span>
             {% endif %}
         </span>
@@ -29,14 +30,14 @@
         <a href="{{ url_for('magazyn_dostawy.oczekujace', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.oczekujace' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Oczekujące Przyjęcia</span>
-                {% if pending_for_hall > 0 %}
+                {% if pending_for_hall > 0 and role not in ['laborant', 'laboratorium'] %}
                 <span class="nav-pending-badge" aria-label="Są oczekujące przyjęcia">{{ '99+' if pending_for_hall > 99 else pending_for_hall }}</span>
                 {% endif %}
             </span>
         </a>
         {% endif %}
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
-
+ 
         {% if role_has_access('magazyn.agro_total') %}
         <a href="{{ url_for('agro_warehouse.index') }}" class="nav-sub-item {% if request.endpoint == 'agro_warehouse.index' %}active{% endif %}">Suma surowców</a>
         {% endif %}
@@ -57,3 +58,4 @@
         {% endif %}
     </div>
 </div>
+{% endif %}
