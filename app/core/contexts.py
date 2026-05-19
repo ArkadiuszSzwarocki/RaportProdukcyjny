@@ -340,6 +340,12 @@ def inject_delivery_counters():
             pass
 
 
+def inject_today_date():
+    """Inject current date 'dzisiaj' into templates globally to prevent UndefinedError in sidebar."""
+    from datetime import date
+    return dict(dzisiaj=str(date.today()))
+
+
 def inject_database_info():
     """Wstrzykuje informacje o podłączonej bazie danych (np. czy to baza testowa)."""
     try:
@@ -363,3 +369,4 @@ def register_contexts(app):
     app.context_processor(inject_bug_report_counters)
     app.context_processor(inject_delivery_counters)
     app.context_processor(inject_database_info)
+    app.context_processor(inject_today_date)

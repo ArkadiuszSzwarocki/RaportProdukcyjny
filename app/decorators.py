@@ -140,9 +140,16 @@ def roles_required(*roles, groups=None):
                     return jsonify({'success': False, 'error': 'unauthenticated'}), 401
                 return redirect('/login')
 
-            # Normalize role name - only lowercase
+            # Normalize role name - lowercase, strip and aliases
             raw_role = session.get('rola')
-            r = str(raw_role or '').lower()
+            r = str(raw_role or '').lower().strip()
+            role_aliases = {
+                'master admin': 'masteradmin',
+                'master_admin': 'masteradmin',
+                'master-admin': 'masteradmin',
+                'laboratorium': 'laborant',
+            }
+            r = role_aliases.get(r, r)
 
             # numeric role ids -> map to canonical names
             if r.isdigit():
@@ -191,7 +198,14 @@ def hall_restricted(f):
     
     @wraps(f)
     def decorated(*args, **kwargs):
-        role = (session.get('rola') or '').lower()
+        role = (session.get('rola') or '').lower().strip()
+        role_aliases = {
+            'master admin': 'masteradmin',
+            'master_admin': 'masteradmin',
+            'master-admin': 'masteradmin',
+            'laboratorium': 'laborant',
+        }
+        role = role_aliases.get(role, role)
         user_grupa = (session.get('grupa') or 'ALL').upper()
         if user_grupa == 'ALL' or role in ['admin', 'zarzad', 'planista', 'lider', 'magazynier', 'laborant', 'masteradmin']:
             return f(*args, **kwargs)
