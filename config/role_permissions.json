@@ -853,7 +853,7 @@
       "readonly": false
     },
     "laborant": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "magazynier": {
@@ -891,7 +891,7 @@
       "readonly": false
     },
     "laborant": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "magazynier": {
