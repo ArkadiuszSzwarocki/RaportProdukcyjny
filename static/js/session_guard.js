@@ -42,13 +42,20 @@
                 localStorage.setItem('session_hidden_at', _hiddenAt.toString());
             } catch(e) {}
         } else if (document.visibilityState === 'visible') {
-            // Sprawdź czy upłynął dopuszczalny czas nieaktywności w tle (np. 5 minut = 300 000 ms)
+            // Sprawdź czy upłynął dopuszczalny czas nieaktywności w tle (dostosowany do SESSION_TIMEOUT_MINUTES z serwera, domyślnie 40 minut)
             try {
                 var hiddenAtStr = localStorage.getItem('session_hidden_at');
                 if (hiddenAtStr) {
                     var hiddenAt = parseInt(hiddenAtStr, 10);
                     var timeAway = Date.now() - hiddenAt;
-                    var maxAwayTime = 5 * 60 * 1000; // 5 minut w tle
+                    
+                    var configEl = document.getElementById('session-timeout-config');
+                    var timeoutMinutes = 40;
+                    if (configEl) {
+                        timeoutMinutes = parseInt(configEl.getAttribute('data-timeout-minutes') || '40', 10);
+                    }
+                    var maxAwayTime = timeoutMinutes * 60 * 1000; // Dopasowanie do czasu sesji serwerowej
+                    
                     if (timeAway > maxAwayTime) {
                         localStorage.removeItem('session_hidden_at');
                         window.location.replace('/logout');
@@ -60,11 +67,6 @@
             // Wróciłem do apki w dozwolonym czasie — sprawdź sesję na serwerze
             _checkSessionAlive();
         }
-    });
-
-    // Fallback dla Safari/iOS (pagehide zamiast visibilitychange przy zamknięciu)
-    window.addEventListener('pagehide', function(e) {
-        if (e.persisted) return; // BFCache — strona może wrócić, nie wylogowuj
     });
 
     // ── 3. SPRAWDZENIE SESJI PO POWROCIE ────────────────────────────────────────
@@ -135,19 +137,8 @@
         window._skipTimeout = setTimeout(function() { window._skipSessionClose = false; }, 15000);
     }, { capture: true, passive: true });
 
-    // Wyślij sygnał wylogowania do serwera przy zamknięciu karty/przeglądarki
-    window.addEventListener('pagehide', function(e) {
-        if (e.persisted) return; // BFCache — strona może wrócić, nie wylogowuj
-        if (!window._skipSessionClose && !window.location.pathname.startsWith('/login')) {
-            navigator.sendBeacon('/api/logout');
-        }
-    });
-
-    window.addEventListener('beforeunload', function() {
-        if (!window._skipSessionClose && !window.location.pathname.startsWith('/login')) {
-            navigator.sendBeacon('/api/logout');
-        }
-    });
+    // Usunięto problematyczne pagehide i beforeunload wywołujące automatyczny logout (np. przy zwykłym odświeżeniu strony F5)
+    // Serwer sam poprawnie wyloguje sesję po upływie zdefiniowanego czasu bezczynności (SESSION_TIMEOUT_MINUTES).
 
     // ── 7. AKTYWNY LICZNIK SESJI (navbar countdown) ─────────────────────────────
     document.addEventListener('DOMContentLoaded', function() {
