@@ -7,6 +7,7 @@ DASHBOARD_TEMPLATE = ROOT / 'templates' / 'dashboard.html'
 ORDER_CARD_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_order_card.html'
 AGRO_ACTIVE_DETAILS_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_agro_active_details.html'
 LAYOUT_TEMPLATE = ROOT / 'templates' / 'layout.html'
+SIDEBAR_AGRO_TEMPLATE = ROOT / 'templates' / 'includes' / 'sidebar' / '_sidebar_agro.html'
 DOSYPKI_LIST_TEMPLATE = ROOT / 'templates' / 'dosypki_list.html'
 CSS_DASHBOARD = ROOT / 'static' / 'css' / 'dashboard.css'
 CONFIG_JS = ROOT / 'static' / 'js' / 'dashboard' / 'config.js'
@@ -112,16 +113,18 @@ def test_dashboard_template_keeps_cache_busting_suffix_for_dashboard_assets():
 
 
 def test_sidebar_time_report_is_only_exposed_for_agro_and_laboratory_roles():
-    content = LAYOUT_TEMPLATE.read_text(encoding='utf-8')
+    content = SIDEBAR_AGRO_TEMPLATE.read_text(encoding='utf-8')
 
     assert "url_for('production.zasyp_etapy_podsumowanie', linia='PSD')" not in content
-    assert "{% if role in ['lider', 'admin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %}" in content
+    assert "url_for('production.zasyp_etapy_podsumowanie', linia='AGRO')" in content
+    assert "{% if role_has_access('agro.zasyp_summary') %}" in content
 
 
-def test_laborant_has_dosypki_action_in_order_tile():
+def test_dosypki_action_in_order_tile_is_limited_to_production_roles():
     content = ORDER_CARD_TEMPLATE.read_text(encoding='utf-8')
 
-    assert "role_lc in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium']" in content
+    assert "role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad']" in content
+    assert "role_lc in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium']" not in content
 
 
 def test_dashboard_card_actions_skips_prevented_submit_events():
