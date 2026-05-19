@@ -21,6 +21,32 @@ def register_warehouse_management_routes(
     update_paleta_magazyn,
     safe_return,
 ):
+    def _select_preferred_printer(cursor):
+        """Pick production printer first, then fallback to any active printer."""
+        try:
+            cursor.execute(
+                """
+                SELECT nazwa, ip
+                FROM drukarki
+                WHERE aktywna = 1
+                ORDER BY
+                    CASE
+                        WHEN LOWER(COALESCE(nazwa, '')) LIKE '%zebra produkcja%' THEN 0
+                        WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%produk%' THEN 1
+                        ELSE 2
+                    END,
+                    id ASC
+                LIMIT 1
+                """
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None, None
+            return row[0], row[1]
+        except Exception as printer_err:
+            current_app.logger.warning('Nie udało się pobrać preferowanej drukarki: %s', printer_err)
+            return None, None
+
     @warehouse_bp.route('/dodaj_palete/<int:plan_id>', methods=['POST'])
     @login_required
     def dodaj_palete(plan_id):
@@ -125,13 +151,20 @@ def register_warehouse_management_routes(
                 # 4. Wysłanie 2 kopii do serwera druku
                 from app.services.print_server import get_printer
                 printer = get_printer()
+                override_name, override_ip = _select_preferred_printer(cursor)
                 for copy_num in range(1, 3):
-                    ok, print_msg = printer.print_finished_product_label(label_data)
+                    ok, print_msg = printer.print_finished_product_label(
+                        label_data,
+                        override_ip=override_ip,
+                        override_name=override_name,
+                    )
                     current_app.logger.info(
-                        'Automatyczny wydruk kopii %s/2 dla palety %s: sukces=%s, msg=%s',
+                        'Automatyczny wydruk kopii %s/2 dla palety %s: sukces=%s, drukarka=%s, ip=%s, msg=%s',
                         copy_num,
                         nr_palety,
                         ok,
+                        override_name or printer.printer_name,
+                        override_ip or printer.printer_ip,
                         print_msg
                     )
             except Exception as print_err:
@@ -1002,7 +1035,7 @@ def register_warehouse_management_routes(
     @warehouse_bp.route('/drukuj_etykiete_zpl/<int:paleta_id>', methods=['POST'])
     @login_required
     def drukuj_etykiete_zpl(paleta_id):
-        """Sends ZPL label directly to printer 237 via PrintServer bridge (2 copies)."""
+        """Send ZPL label via print bridge (2 copies)."""
         from app.services.print_server import get_printer
         linia = str(resolve_request_linia()).upper()
         table_plan = get_table_name('plan_produkcji', linia)
@@ -1131,11 +1164,16 @@ def register_warehouse_management_routes(
                 }
             
             printer = get_printer()
+            override_name, override_ip = _select_preferred_printer(cursor)
             ok = True
             msg = "Wysłano do drukarki"
             # Drukujemy 2 kopie etykiety wyrobu gotowego
             for copy_num in range(1, 3):
-                print_ok, print_msg = printer.print_finished_product_label(label_data)
+                print_ok, print_msg = printer.print_finished_product_label(
+                    label_data,
+                    override_ip=override_ip,
+                    override_name=override_name,
+                )
                 if not print_ok:
                     ok = False
                     msg = print_msg

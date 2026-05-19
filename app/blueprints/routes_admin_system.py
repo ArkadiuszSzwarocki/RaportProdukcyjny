@@ -251,6 +251,57 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
                 }
             )
         return jsonify({'success': True, 'online_users': result, 'active_window_minutes': 30})
+
+    @admin_bp.route('/admin/api/diagnostics/instances')
+    @dynamic_role_required('ustawienia')
+    def admin_instance_diagnostics_api():
+        from app.db import get_db_connection
+        from app.core.daemon import get_instance_identity
+
+        conn = get_db_connection()
+        rows = []
+        message = ''
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT
+                    instance_id,
+                    hostname,
+                    pid,
+                    component,
+                    status,
+                    started_at,
+                    last_heartbeat,
+                    extra,
+                    TIMESTAMPDIFF(SECOND, last_heartbeat, NOW()) AS heartbeat_age_s
+                FROM app_instance_heartbeat
+                ORDER BY last_heartbeat DESC
+                LIMIT 200
+                """
+            )
+            rows = cursor.fetchall() or []
+            for row in rows:
+                age = int(row.get('heartbeat_age_s') or 0)
+                row['is_online'] = age <= 30
+                for field in ('started_at', 'last_heartbeat'):
+                    value = row.get(field)
+                    if hasattr(value, 'strftime'):
+                        row[field] = value.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception as e:
+            message = f'Brak danych heartbeat: {e}'
+        finally:
+            conn.close()
+
+        return jsonify(
+            {
+                'success': True,
+                'local_instance': get_instance_identity(),
+                'instances': rows,
+                'message': message,
+            }
+        )
+
     @admin_bp.route('/admin/api/printer-server/status')
     @dynamic_role_required('ustawienia')
     def admin_printer_server_status():

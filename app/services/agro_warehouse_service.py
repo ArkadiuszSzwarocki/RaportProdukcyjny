@@ -1126,7 +1126,7 @@ class AgroWarehouseService:
         finally:
             conn.close()
     @staticmethod
-    def auto_register_pallet(plan_id, linia='AGRO'):
+    def auto_register_pallet(plan_id, linia='AGRO', source_instance=None):
         """Automatically registers a 1000kg pallet for a given plan."""
         from app.utils.pallet_id import generate_pallet_id
         from app.services.planning_service import PlanningService
@@ -1161,6 +1161,7 @@ class AgroWarehouseService:
             waga_input = 1000
             now_ts = datetime.now()
             user_login = 'System'
+            source_instance = str(source_instance or 'unknown')[:120]
             
             # Cooldown check: prevent duplicate auto-registration (e.g. from multiple threads or bit flickering)
             # Find the most recently added pallet for this plan
@@ -1204,7 +1205,10 @@ class AgroWarehouseService:
             except Exception:
                 pass
                 
-            audit_log('System: Automatycznie dodano paletę', f'plan_id={plan_id}, produkt={plan_produkt}, waga={waga_input} kg')
+            audit_log(
+                'System: Automatycznie dodano paletę',
+                f'plan_id={plan_id}, produkt={plan_produkt}, waga={waga_input} kg, source_instance={source_instance}',
+            )
             return True
         finally:
             try:

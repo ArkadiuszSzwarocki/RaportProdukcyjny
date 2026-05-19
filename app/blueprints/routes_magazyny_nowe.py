@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request
+from datetime import datetime
+
+from flask import Blueprint, jsonify, render_template, request, session
 from app.db import get_db_connection, get_table_name
 
 magazyny_nowe_bp = Blueprint('magazyny_nowe', __name__, url_prefix='/magazyny-nowe')
@@ -270,7 +272,6 @@ def summary():
 
     return render_template('magazyny_nowe/summary.html', summary=summary_data, linia=linia)
 
-from flask import jsonify, session
 from app.services.magazyny_nowe_service import MagazynyNoweService
 
 @magazyny_nowe_bp.route('/api/pallet/history', methods=['GET'])

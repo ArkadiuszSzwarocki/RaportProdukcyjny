@@ -5,6 +5,7 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_TEMPLATE = ROOT / 'templates' / 'dashboard.html'
 ORDER_CARD_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_order_card.html'
+AGRO_ACTIVE_DETAILS_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_agro_active_details.html'
 LAYOUT_TEMPLATE = ROOT / 'templates' / 'layout.html'
 DOSYPKI_LIST_TEMPLATE = ROOT / 'templates' / 'dosypki_list.html'
 CSS_DASHBOARD = ROOT / 'static' / 'css' / 'dashboard.css'
@@ -168,3 +169,16 @@ def test_dosypki_are_rendered_below_batch_not_in_side_column():
     assert 'grid-template-columns: minmax(280px, 1.2fr) minmax(240px, 0.8fr);' not in content
     assert '.szarza-row-layout {' in content
     assert 'display: block;' in content
+
+
+def test_workowanie_manual_zpl_print_passes_linia_to_backend():
+    content = AGRO_ACTIVE_DETAILS_TEMPLATE.read_text(encoding='utf-8')
+
+    assert "drukujPaleteZpl(this, {{ pal[2] }}, '{{ linia }}')" in content
+    assert "fetch('/drukuj_etykiete_zpl/' + paletaId + '?linia=' + liniaParam" in content
+
+
+def test_global_direct_zpl_print_uses_existing_non_api_route():
+    content = GLOBAL_SCRIPTS_JS.read_text(encoding='utf-8')
+
+    assert "const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia='" in content

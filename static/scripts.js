@@ -1316,7 +1316,7 @@
         if (!paletaId) return;
         if (typeof showToast === 'function') showToast('Wysyłanie do drukarki 237...', 'info');
         
-        const url = '/api/drukuj_etykiete_zpl/' + paletaId + '?linia=' + (linia || 'PSD');
+        const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
         fetch(url, { 
             method: 'POST', 
             headers: { 'X-Requested-With': 'XMLHttpRequest' },

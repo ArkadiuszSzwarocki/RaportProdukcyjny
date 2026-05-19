@@ -1,6 +1,7 @@
 """Background daemon threads for maintenance tasks."""
 
 import os
+import socket
 import time
 import threading
 from flask import current_app
@@ -11,6 +12,223 @@ _reminded_palety = set()
 
 # Global logger for palety-specific events
 palety_logger = None
+
+_INSTANCE_HOSTNAME = socket.gethostname() or 'unknown-host'
+_INSTANCE_PID = os.getpid()
+_INSTANCE_STARTED_TS = int(time.time())
+_INSTANCE_STARTED_AT = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(_INSTANCE_STARTED_TS))
+_INSTANCE_ID = f"{_INSTANCE_HOSTNAME}:{_INSTANCE_PID}:{_INSTANCE_STARTED_TS}"
+
+
+def _resolve_pallet_counter_action(last_cnt, current_cnt):
+    """Decide how auto-register should react to pallet counter movement.
+
+    Returns one of: 'none', 'register_single', 'jump', 'reset'.
+    """
+    if current_cnt < last_cnt:
+        return 'reset'
+    if current_cnt == last_cnt:
+        return 'none'
+    if (current_cnt - last_cnt) == 1:
+        return 'register_single'
+    return 'jump'
+
+
+def get_instance_identity():
+    """Return runtime identity for diagnosing multi-instance behavior."""
+    return {
+        'instance_id': _INSTANCE_ID,
+        'hostname': _INSTANCE_HOSTNAME,
+        'pid': _INSTANCE_PID,
+        'started_at': _INSTANCE_STARTED_AT,
+    }
+
+
+def _is_rising_edge(previous_state, current_state):
+    """True only on False -> True transitions."""
+    return (not bool(previous_state)) and bool(current_state)
+
+
+def _ensure_instance_heartbeat_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_instance_heartbeat (
+            instance_id VARCHAR(128) PRIMARY KEY,
+            hostname VARCHAR(128) NOT NULL,
+            pid INT NOT NULL,
+            component VARCHAR(64) NOT NULL,
+            status VARCHAR(64) NOT NULL,
+            started_at DATETIME NOT NULL,
+            last_heartbeat DATETIME NOT NULL,
+            extra VARCHAR(255) NULL,
+            INDEX idx_component_heartbeat (component, last_heartbeat)
+        )
+        """
+    )
+
+
+def _update_instance_heartbeat(component, status='running', extra=''):
+    """Upsert daemon heartbeat so we can spot duplicated running instances."""
+    from app.db import get_db_connection
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        _ensure_instance_heartbeat_table(cursor)
+        cursor.execute(
+            """
+            INSERT INTO app_instance_heartbeat
+                (instance_id, hostname, pid, component, status, started_at, last_heartbeat, extra)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)
+            ON DUPLICATE KEY UPDATE
+                status = VALUES(status),
+                last_heartbeat = VALUES(last_heartbeat),
+                extra = VALUES(extra)
+            """,
+            (
+                _INSTANCE_ID,
+                _INSTANCE_HOSTNAME,
+                _INSTANCE_PID,
+                component,
+                status,
+                _INSTANCE_STARTED_AT,
+                str(extra or '')[:255],
+            ),
+        )
+        conn.commit()
+    except Exception as hb_err:
+        _safe_log_warning('Failed to update instance heartbeat: %s', hb_err)
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _acquire_named_lock(lock_name, timeout_seconds=0):
+    """Try to acquire a MySQL named lock and keep it by holding the connection."""
+    from app.db import get_db_connection
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT GET_LOCK(%s, %s)", (str(lock_name), int(timeout_seconds)))
+        row = cursor.fetchone()
+        acquired = bool(row and int(row[0]) == 1)
+        if acquired:
+            return conn
+    except Exception as lock_err:
+        _safe_log_warning('Failed to acquire named lock %s: %s', lock_name, lock_err)
+
+    if conn:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return None
+
+
+def _release_named_lock(conn, lock_name):
+    """Release a MySQL named lock and close its connection safely."""
+    if not conn:
+        return
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT RELEASE_LOCK(%s)", (str(lock_name),))
+    except Exception as lock_err:
+        _safe_log_warning('Failed to release named lock %s: %s', lock_name, lock_err)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _select_preferred_printer(cursor):
+    """Pick production printer first, then fallback to any active printer."""
+    cursor.execute(
+        """
+        SELECT id, nazwa, ip, lokalizacja
+        FROM drukarki
+        WHERE aktywna = 1
+        ORDER BY
+            CASE
+                WHEN LOWER(COALESCE(nazwa, '')) LIKE '%zebra produkcja%' THEN 0
+                WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%produk%' THEN 1
+                ELSE 2
+            END,
+            id ASC
+        LIMIT 1
+        """
+    )
+    return cursor.fetchone()
+
+
+def _print_wrapped_pallet_label_once(plan_id, last_printed_pallet_ids, linia='AGRO'):
+    """On wrap rising edge print exactly one label for the newest pallet of active plan."""
+    from app.db import get_db_connection, get_table_name
+    from app.services.print_server import get_printer
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        table_plan = get_table_name('plan_produkcji', linia)
+        table_pal = get_table_name('palety_workowanie', linia)
+
+        cursor.execute(
+            f"""
+            SELECT pw.id, pw.nr_palety, pw.waga, pw.data_dodania, p.produkt
+            FROM {table_pal} pw
+            JOIN {table_plan} p ON p.id = pw.plan_id
+            WHERE pw.plan_id = %s
+            ORDER BY pw.id DESC
+            LIMIT 1
+            """,
+            (plan_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return False, 'Brak palety do wydruku po sygnale owijarki', None
+
+        pallet_id = int(row['id'])
+        if last_printed_pallet_ids.get(plan_id) == pallet_id:
+            return False, 'Duplikat sygnału owijarki - paleta już wydrukowana', pallet_id
+
+        printer_row = _select_preferred_printer(cursor)
+        printer = get_printer()
+
+        label_data = {
+            'nrPalety': (row.get('nr_palety') or f"AUTO-{pallet_id}"),
+            'nazwa': row.get('produkt') or 'Brak produktu',
+            'ilosc': float(row.get('waga') or 0),
+            'data': row['data_dodania'].strftime('%Y-%m-%d') if row.get('data_dodania') else time.strftime('%Y-%m-%d'),
+            'partia': f"AUTO OWIJARKA PLAN {plan_id}",
+            'uwagi': f"wrap_edge instance={_INSTANCE_ID}",
+        }
+
+        override_ip = printer_row.get('ip') if printer_row else None
+        override_name = printer_row.get('nazwa') if printer_row else None
+        ok, msg = printer.print_finished_product_label(
+            label_data,
+            override_ip=override_ip,
+            override_name=override_name,
+        )
+        if ok:
+            last_printed_pallet_ids[plan_id] = pallet_id
+        return ok, msg, pallet_id
+    except Exception as print_err:
+        return False, f'Błąd triggera owijarki: {print_err}', None
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def _safe_log_info(msg, *args, **kwargs):
@@ -275,13 +493,76 @@ def start_daemon_threads(app, cleanup_enabled=False):
         from app.services.agro_warehouse_service import AgroWarehouseService
         
         def _agro_pallet_auto_register_loop():
-            _safe_log_info('AGRO Pallet Auto-Register thread started (using Palletizer counter)')
+            _safe_log_info(
+                'AGRO Pallet Auto-Register thread started (using Palletizer counter, instance=%s)',
+                _INSTANCE_ID,
+            )
             time.sleep(15) # Safety delay to let app initialize
             
             # Map plan_id -> last_seen_counter
             plan_counters = {}
+            # Map plan_id -> previous wrapped bit value
+            plan_wrap_states = {}
+            # Map plan_id -> last pallet id printed by wrap rising edge
+            last_printed_wrap_pallet_ids = {}
+            next_heartbeat_at = 0.0
+            leader_lock_name = 'agro_pallet_daemon_leader'
+            leader_lock_conn = None
+            next_lock_retry_at = 0.0
             
             while True:
+                daemon_status = 'running'
+                heartbeat_note = 'idle'
+
+                # Only one process should execute AGRO auto-register logic at a time.
+                # If lock is busy, stay in standby and only publish heartbeat.
+                if not leader_lock_conn:
+                    now_ts = time.time()
+                    if now_ts >= next_lock_retry_at:
+                        leader_lock_conn = _acquire_named_lock(leader_lock_name, timeout_seconds=0)
+                        next_lock_retry_at = now_ts + 2.0
+                        if leader_lock_conn:
+                            _safe_log_info(
+                                'AGRO daemon became lock leader (lock=%s, instance=%s).',
+                                leader_lock_name,
+                                _INSTANCE_ID,
+                            )
+
+                    if not leader_lock_conn:
+                        daemon_status = 'standby'
+                        heartbeat_note = 'standby:leader_lock_busy'
+                        if now_ts >= next_heartbeat_at:
+                            _update_instance_heartbeat(
+                                component='agro_pallet_daemon',
+                                status=daemon_status,
+                                extra=heartbeat_note,
+                            )
+                            next_heartbeat_at = now_ts + 15
+                        time.sleep(1.0)
+                        continue
+                else:
+                    try:
+                        leader_lock_conn.ping(reconnect=False, attempts=1, delay=0)
+                    except Exception:
+                        _safe_log_warning(
+                            'Lost AGRO daemon leader lock connection. Switching to standby and retrying lock (instance=%s).',
+                            _INSTANCE_ID,
+                        )
+                        _release_named_lock(leader_lock_conn, leader_lock_name)
+                        leader_lock_conn = None
+                        daemon_status = 'standby'
+                        heartbeat_note = 'standby:leader_lock_lost'
+                        now_ts = time.time()
+                        if now_ts >= next_heartbeat_at:
+                            _update_instance_heartbeat(
+                                component='agro_pallet_daemon',
+                                status=daemon_status,
+                                extra=heartbeat_note,
+                            )
+                            next_heartbeat_at = now_ts + 15
+                        time.sleep(1.0)
+                        continue
+
                 try:
                     active_plan = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO')
                     if active_plan:
@@ -290,6 +571,43 @@ def start_daemon_threads(app, cleanup_enabled=False):
                         # Get latest telemetry
                         data = get_latest_data()
                         current_pallet_cnt = data.get('pallet_counter', 0)
+                        current_wrapped = bool(data.get('is_wrapped'))
+                        heartbeat_note = f'plan={plan_id};counter={current_pallet_cnt};wrapped={int(current_wrapped)}'
+
+                        # Initialize wrapped baseline for new plans, then only print on False->True transitions.
+                        if plan_id not in plan_wrap_states:
+                            plan_wrap_states[plan_id] = current_wrapped
+                            _safe_log_info(
+                                'Tracking owijarka bit for plan ID=%s. Initial wrapped=%s (instance=%s)',
+                                plan_id,
+                                current_wrapped,
+                                _INSTANCE_ID,
+                            )
+                        else:
+                            prev_wrapped = plan_wrap_states.get(plan_id)
+                            if _is_rising_edge(prev_wrapped, current_wrapped):
+                                ok_print, wrap_msg, printed_pallet_id = _print_wrapped_pallet_label_once(
+                                    plan_id,
+                                    last_printed_wrap_pallet_ids,
+                                    linia='AGRO',
+                                )
+                                if ok_print:
+                                    _safe_log_info(
+                                        'Wrap rising edge detected for plan ID=%s -> printed one label for pallet ID=%s (instance=%s).',
+                                        plan_id,
+                                        printed_pallet_id,
+                                        _INSTANCE_ID,
+                                    )
+                                else:
+                                    _safe_log_warning(
+                                        'Wrap rising edge detected for plan ID=%s but label print skipped/failed: %s (pallet ID=%s, instance=%s).',
+                                        plan_id,
+                                        wrap_msg,
+                                        printed_pallet_id,
+                                        _INSTANCE_ID,
+                                    )
+                                heartbeat_note = f'{heartbeat_note};wrap_edge=1;print_ok={int(ok_print)};pallet_id={printed_pallet_id}'
+                            plan_wrap_states[plan_id] = current_wrapped
                         
                         if current_pallet_cnt > 0:
                             # If we haven't tracked this plan yet, initialize it
@@ -311,29 +629,86 @@ def start_daemon_threads(app, cleanup_enabled=False):
                                         _safe_log_warning("Failed to initialize start_pallet_counter: %s", db_err)
                                 
                                 plan_counters[plan_id] = current_pallet_cnt
-                                _safe_log_info("Tracking palletizer counter for plan ID=%s. Initial value: %s", plan_id, current_pallet_cnt)
+                                _safe_log_info(
+                                    "Tracking palletizer counter for plan ID=%s. Initial value: %s (instance=%s)",
+                                    plan_id,
+                                    current_pallet_cnt,
+                                    _INSTANCE_ID,
+                                )
                             
                             # Detect increment
                             last_cnt = plan_counters[plan_id]
-                            if current_pallet_cnt > last_cnt:
+                            action = _resolve_pallet_counter_action(last_cnt, current_pallet_cnt)
+
+                            if action == 'reset':
+                                _safe_log_warning(
+                                    "Palletizer counter moved backwards from %s to %s for plan ID=%s. Resyncing baseline without auto-register.",
+                                    last_cnt,
+                                    current_pallet_cnt,
+                                    plan_id,
+                                )
+                                plan_counters[plan_id] = current_pallet_cnt
+                            elif action in ('register_single', 'jump'):
                                 diff = current_pallet_cnt - last_cnt
-                                _safe_log_info("Palletizer counter incremented from %s to %s (diff=%s) for plan ID=%s! Triggering auto-pallet registration.", last_cnt, current_pallet_cnt, diff, plan_id)
-                                
-                                # Register exactly 'diff' pallets
-                                for _ in range(diff):
-                                    success = AgroWarehouseService.auto_register_pallet(plan_id, linia='AGRO')
+
+                                # Strict mode: auto-register only on a single-step increment.
+                                # Larger jumps can happen after telemetry hiccups/restarts and must not create multiple pallets at once.
+                                if action == 'register_single':
+                                    _safe_log_info(
+                                        "Palletizer counter incremented from %s to %s (diff=%s) for plan ID=%s. Triggering single auto-pallet registration (instance=%s).",
+                                        last_cnt,
+                                        current_pallet_cnt,
+                                        diff,
+                                        plan_id,
+                                        _INSTANCE_ID,
+                                    )
+                                    success = AgroWarehouseService.auto_register_pallet(
+                                        plan_id,
+                                        linia='AGRO',
+                                        source_instance=_INSTANCE_ID,
+                                    )
                                     if success:
-                                        _safe_log_info('Successfully auto-registered pallet for plan ID=%s', plan_id)
+                                        _safe_log_info(
+                                            'Successfully auto-registered pallet for plan ID=%s (instance=%s)',
+                                            plan_id,
+                                            _INSTANCE_ID,
+                                        )
                                     else:
-                                        _safe_log_warning('Failed or skipped auto-registering pallet for plan ID=%s', plan_id)
-                                
-                                # Update our tracked counter
+                                        _safe_log_warning(
+                                            'Failed or skipped auto-registering pallet for plan ID=%s (instance=%s)',
+                                            plan_id,
+                                            _INSTANCE_ID,
+                                        )
+                                else:
+                                    _safe_log_warning(
+                                        "Palletizer counter jump detected from %s to %s (diff=%s) for plan ID=%s. Skipping auto-register (requires diff=1, instance=%s).",
+                                        last_cnt,
+                                        current_pallet_cnt,
+                                        diff,
+                                        plan_id,
+                                        _INSTANCE_ID,
+                                    )
+
+                                # Always resync tracked counter after handling positive movement.
                                 plan_counters[plan_id] = current_pallet_cnt
                     else:
                         # No active plan, clear counters map to release memory and allow reset
                         plan_counters.clear()
+                        plan_wrap_states.clear()
+                        last_printed_wrap_pallet_ids.clear()
+                        heartbeat_note = 'idle:no_active_plan'
                 except Exception:
                     _safe_log_exception('Error in AGRO pallet auto-register loop')
+                    heartbeat_note = 'error:loop_exception'
+
+                now_ts = time.time()
+                if now_ts >= next_heartbeat_at:
+                    _update_instance_heartbeat(
+                        component='agro_pallet_daemon',
+                        status=daemon_status,
+                        extra=heartbeat_note,
+                    )
+                    next_heartbeat_at = now_ts + 15
                 
                 time.sleep(1.0) # Check every second (highly sufficient and responsive for counter changes)
                 

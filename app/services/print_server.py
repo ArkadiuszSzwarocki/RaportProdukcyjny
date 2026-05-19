@@ -24,6 +24,8 @@ class PrintServer:
     def __init__(self):
         # Mostek (bridge) działa zazwyczaj na tej samej maszynie co serwer WWW
         self.bridge_url = os.getenv('PRINTER_BRIDGE_URL', 'https://127.0.0.1:3001')
+        self.bridge_connect_timeout = float(os.getenv('PRINTER_BRIDGE_CONNECT_TIMEOUT', '2'))
+        self.bridge_read_timeout = float(os.getenv('PRINTER_BRIDGE_READ_TIMEOUT', '12'))
         self.printer_ip = os.getenv('PRINTER_IP', '192.168.1.237')
         self.printer_name = "Magazyn"
 
@@ -101,7 +103,12 @@ class PrintServer:
 
     def _send_to_bridge(self, payload: dict) -> tuple[bool, str]:
         try:
-            resp = requests.post(f"{self.bridge_url}/drukuj-zpl", json=payload, verify=False, timeout=5)
+            resp = requests.post(
+                f"{self.bridge_url}/drukuj-zpl",
+                json=payload,
+                verify=False,
+                timeout=(self.bridge_connect_timeout, self.bridge_read_timeout),
+            )
             if resp.status_code == 200 and resp.json().get('success'):
                 return True, "Wysłano do drukarki przez mostek"
             return False, resp.json().get('message', 'Błąd mostka')
