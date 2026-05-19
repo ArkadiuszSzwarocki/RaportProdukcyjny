@@ -21,11 +21,14 @@
                     </div>
                     <div class="active-order-szarze-actions">
                         {% if sekcja == 'Zasyp' %}
+                        {% set role_lc = rola|string|trim|lower %}
+                        {% if role_lc not in ['laborant', 'laboratorium'] %}
                         <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=szarza_id, zasyp_id=szarza_id, linia=linia) }}"
                            class="btn-action btn-blue"
                            data-slide
                            style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
                            title="Dodaj dosypkę do tego zasypu">+ DOSYPKA</a>
+                        {% endif %}
                         {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
                         <a href="{{ url_for('production.zasyp_notatka_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
                            class="btn-action btn-outline-secondary szarza-note"

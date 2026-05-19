@@ -35,6 +35,8 @@
                 </div>
             </div>
 
+            {% set role = (session.get('rola') or '')|lower|replace(' ','')|replace('_','') %}
+            {% if role not in ('laborant', 'laboratorium') %}
             <div class="grid-2 gap-10" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
                 <button onclick="promptMoveLocation()" class="modal-btn-primary"><span class="material-icons">place</span> PRZENIEŚ</button>
                 <button onclick="promptUpdateWeight()" class="modal-btn-primary"><span class="material-icons">scale</span> ZMIEŃ ILOŚĆ</button>
@@ -72,6 +74,7 @@
                     <span class="material-icons">history</span> POKAŻ HISTORIĘ RUCHÓW
                 </button>
             </div>
+            {% endif %}
             <div id="modalHistoryContainer" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
                 <ul id="modalHistoryList" style="list-style: none; padding: 0; margin: 0; font-size: 12px; display: flex; flex-direction: column; gap: 8px;"></ul>
             </div>

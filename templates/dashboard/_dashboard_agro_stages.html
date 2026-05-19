@@ -87,38 +87,41 @@
                 {% set is_mixer = e.etap in [3, 4] or (e_str|length > 1 and (e_str[0] == '3' or e_str[0] == '4')) %}
                 
                 {% if is_main or is_mixer %}
-                    {% if e.czas_stop %}
-                        {% set status_label = 'Zakończone' %}
-                        {% set status_icon = '✓' %}
-                        {% set status_bg = '#dcfce7' %}
-                        {% set status_color = '#166534' %}
-                    {% elif e.is_running or e.czas_start %}
-                        {% set status_label = 'Rozpoczęte' %}
-                        {% set status_icon = '▶' %}
-                        {% set status_bg = '#16a34a' %}
-                        {% set status_color = '#ffffff' %}
-                    {% else %}
-                        {% set status_label = 'Oczekuje' %}
-                        {% set status_icon = '⏳' %}
-                        {% set status_bg = '#e5e7eb' %}
-                        {% set status_color = '#374151' %}
-                    {% endif %}
+                    {% set hide_mixer_etap = is_mixer and not e.is_running and not e.czas_start and not e.czas_stop %}
+                    {% if not hide_mixer_etap %}
+                        {% if e.czas_stop %}
+                            {% set status_label = 'Zakończone' %}
+                            {% set status_icon = '✓' %}
+                            {% set status_bg = '#dcfce7' %}
+                            {% set status_color = '#166534' %}
+                        {% elif e.is_running or e.czas_start %}
+                            {% set status_label = 'Rozpoczęte' %}
+                            {% set status_icon = '▶' %}
+                            {% set status_bg = '#16a34a' %}
+                            {% set status_color = '#ffffff' %}
+                        {% else %}
+                            {% set status_label = 'Oczekuje' %}
+                            {% set status_icon = '⏳' %}
+                            {% set status_bg = '#e5e7eb' %}
+                            {% set status_color = '#374151' %}
+                        {% endif %}
 
-                    {% set label = 'Etap ' ~ e.etap %}
-                    {% if e.etap == 1 %}{% set label = 'Naważanie' %}
-                    {% elif e.etap == 2 %}{% set label = 'Mieszanie (LAB)' %}
-                    {% elif e.etap == 3 or e_str[0] == '3' %}{% set label = 'Dosypka ' ~ (e_str[1:] if e_str|length > 1 else '') %}
-                    {% elif e.etap == 4 or e_str[0] == '4' %}{% set label = 'Mieszanie II ' ~ (e_str[1:] if e_str|length > 1 else '') %}
-                    {% elif e.etap in [5, 6] %}{% set label = 'Opróżnianie' %}
-                    {% endif %}
+                        {% set label = 'Etap ' ~ e.etap %}
+                        {% if e.etap == 1 %}{% set label = 'Naważanie' %}
+                        {% elif e.etap == 2 %}{% set label = 'Mieszanie (LAB)' %}
+                        {% elif e.etap == 3 or e_str[0] == '3' %}{% set label = 'Dosypka ' ~ (e_str[1:] if e_str|length > 1 else '') %}
+                        {% elif e.etap == 4 or e_str[0] == '4' %}{% set label = 'Mieszanie II ' ~ (e_str[1:] if e_str|length > 1 else '') %}
+                        {% elif e.etap in [5, 6] %}{% set label = 'Opróżnianie' %}
+                        {% endif %}
 
-                    <div style="border:1px solid {% if e.is_running %}#16a34a{% else %}#dbe3ea{% endif %}; border-radius:8px; padding:10px; background:{% if e.is_running %}#f0faf4{% else %}#f9fbfd{% endif %}; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-                        <div>
-                            <strong style="font-size:0.92em;">{{ label }}</strong>
-                            <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) }}" data-running="{{ 1 if e.is_running else 0 }}">{{ e.duration_str if e.duration_str else '00:00' }}</span></strong></div>
+                        <div style="border:1px solid {% if e.is_running %}#16a34a{% else %}#dbe3ea{% endif %}; border-radius:8px; padding:10px; background:{% if e.is_running %}#f0faf4{% else %}#f9fbfd{% endif %}; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <div>
+                                <strong style="font-size:0.92em;">{{ label }}</strong>
+                                <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) }}" data-running="{{ 1 if e.is_running else 0 }}">{{ e.duration_str if e.duration_str else '00:00' }}</span></strong></div>
+                            </div>
+                            <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
                         </div>
-                        <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
-                    </div>
+                    {% endif %}
                 {% endif %}
             {% endfor %}
         </div>

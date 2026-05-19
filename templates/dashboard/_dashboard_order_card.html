@@ -132,10 +132,12 @@
             {% if p[3] in ['w toku', 'zakonczone'] %}
                 {% set palety_count = (palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0) %}
                 {% if palety_count > 0 %}
+                    {% if not (sekcja == 'Zasyp' and role_lc in ['laborant', 'laboratorium']) %}
                     <button type="button" class="btn-action btn-blue" data-toggle-details="{{ p[0] }}" style="display:flex; align-items:center; gap:5px;">
                         <span class="material-icons" style="font-size:16px;">visibility</span>
                         {% if sekcja == 'Zasyp' %}ZASYPY{% else %}PALETY{% endif %} ({{ palety_count }})
                     </button>
+                    {% endif %}
                 {% endif %}
             {% endif %}
         {% endif %}
