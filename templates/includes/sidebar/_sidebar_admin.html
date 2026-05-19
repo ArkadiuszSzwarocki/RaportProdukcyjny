@@ -34,7 +34,7 @@
         <span class="material-icons chevron">expand_more</span>
     </button>
     <div id="admin-ana-sub" class="nav-sub {% if request.path.startswith('/planista') or request.path.startswith('/zarzad') or request.path.startswith('/moje_godziny') or request.path.startswith('/struktura') %}open{% endif %}">
-        {% if role_has_access('planista') %}
+        {% if role_has_access('planista') and role != 'planista' %}
         <a href="/planista?linia={{ request.args.get('linia', 'PSD') }}" class="nav-sub-item {% if request.path.startswith('/planista') %}active{% endif %}">Plan Produkcji</a>
         {% endif %}
 

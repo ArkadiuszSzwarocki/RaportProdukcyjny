@@ -10,8 +10,33 @@
     {% include 'includes/sidebar/_sidebar_header.html' %}
 
     <nav class="sidebar-nav">
-        {% include 'includes/sidebar/_sidebar_psd.html' %}
-        {% include 'includes/sidebar/_sidebar_agro.html' %}
+        {% if role == 'planista' %}
+            <div class="nav-item-group">
+                <button type="button" class="nav-item main-cat-btn">
+                    <span>PLAN PRODUKCJI</span>
+                    <span class="material-icons chevron">expand_more</span>
+                </button>
+                <div id="plan-sub" class="nav-sub {% if request.path.startswith('/planista') or request.path.startswith('/bufor') %}open{% endif %}">
+                    <a href="/planista?tab=psd" class="nav-sub-item {% if request.path.startswith('/planista') and (request.args.get('tab', 'psd') == 'psd' or request.args.get('linia') == 'PSD') %}active{% endif %}">
+                        Plan PSD
+                    </a>
+                    <a href="/planista?tab=agro" class="nav-sub-item {% if request.path.startswith('/planista') and (request.args.get('tab') == 'agro' or request.args.get('linia') == 'AGRO') %}active{% endif %}">
+                        Plan AGRO
+                    </a>
+                    <a href="{{ url_for('planista.bufor_page', linia='PSD') }}"
+                        class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
+                        Bufor PSD
+                    </a>
+                    <a href="{{ url_for('planista.bufor_page', linia='AGRO') }}"
+                        class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia')|upper == 'AGRO' %}active{% endif %}">
+                        Bufor Agro
+                    </a>
+                </div>
+            </div>
+        {% else %}
+            {% include 'includes/sidebar/_sidebar_psd.html' %}
+            {% include 'includes/sidebar/_sidebar_agro.html' %}
+        {% endif %}
         {% include 'includes/sidebar/_sidebar_warehouse.html' %}
         {% include 'includes/sidebar/_sidebar_admin.html' %}
     </nav>

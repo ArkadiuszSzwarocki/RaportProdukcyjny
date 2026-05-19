@@ -116,7 +116,7 @@
                     <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                 {% elif sekcja == 'Zasyp' %}
                     {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
-                    {% if role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad', 'laborant', 'laboratorium'] %}
+                    {% if role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] or role_lc in ['laborant', 'laboratorium'] %}
                         <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
                     {% endif %}
                     {% if role_lc in ['laborant', 'laboratorium', 'admin', 'masteradmin', 'lider'] %}
