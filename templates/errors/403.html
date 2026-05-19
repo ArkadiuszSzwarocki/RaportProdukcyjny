@@ -1,0 +1,52 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container" style="max-width: 650px; margin: 40px auto; padding: 20px;">
+    <div style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(226, 232, 240, 0.8); border-radius: 20px; padding: 40px; text-align: center; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);">
+        <div style="display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; background: #fff1f2; color: #e11d48; border-radius: 50%; margin-bottom: 24px; box-shadow: 0 10px 20px rgba(225, 29, 72, 0.15);">
+            <span class="material-icons" style="font-size: 48px;">block</span>
+        </div>
+        
+        <h1 style="font-size: 2.2rem; font-weight: 800; color: #0f172a; margin-bottom: 12px; letter-spacing: -0.5px;">Brak uprawnień do tej strony</h1>
+        <p style="font-size: 1.05rem; color: #475569; margin-bottom: 30px; line-height: 1.6;">
+            Próbujesz otworzyć stronę: <strong style="color: #0f172a; font-family: monospace; background: #f1f5f9; padding: 3px 8px; border-radius: 6px; border: 1px solid #e2e8f0; word-break: break-all;">{{ page_url or request.path }}</strong>
+        </p>
+
+        <div style="text-align: left; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; margin-bottom: 30px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-weight: 700; color: #334155;">
+                <span class="material-icons" style="color: #64748b; font-size: 20px;">info</span> Informacje o uprawnieniach:
+            </div>
+            
+            <div style="font-size: 0.95rem; margin-bottom: 10px; color: #475569;">
+                Twoja obecna rola: <strong style="color: #e11d48; text-transform: uppercase; background: #fff1f2; padding: 2px 6px; border-radius: 4px; font-size: 0.85em;">{{ user_role|upper }}</strong>
+            </div>
+
+            <div style="font-size: 0.95rem; color: #475569; line-height: 1.5;">
+                Kto ma dostęp do tego zasobu?
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+                    {% if allowed_roles %}
+                        {% for r in allowed_roles %}
+                            <span style="background: #e2e8f0; color: #334155; padding: 4px 10px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; text-transform: capitalize;">{{ r }}</span>
+                        {% endfor %}
+                    {% else %}
+                        <span style="background: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 6px; font-size: 0.82rem; font-weight: 600;">Tylko administrator (MasterAdmin)</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 30px;">
+            Jeżeli uważasz, że powinieneś mieć dostęp do tej strony, skontaktuj się z administratorem systemu w celu nadania odpowiednich uprawnień.
+        </p>
+
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <a href="/" class="btn-action btn-blue" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 10px 24px; font-weight: 700; border-radius: 10px; font-size: 0.95rem;">
+                <span class="material-icons" style="font-size: 18px;">dashboard</span> Powrót do Pulpitu
+            </a>
+            <a href="/logout" class="btn-action btn-outline-secondary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 10px 20px; font-weight: 700; border-radius: 10px; font-size: 0.95rem;">
+                <span class="material-icons" style="font-size: 18px;">logout</span> Zmień konto
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import session, redirect, request, jsonify, current_app
+from flask import session, redirect, request, jsonify, current_app, render_template
 
 # 1. WYMAGANE LOGOWANIE (Dla wszystkich podstron)
 def login_required(f):
@@ -52,7 +52,14 @@ def zarzad_required(f):
                 is_xhr = False; accepts_json = False
             if is_xhr or accepts_json:
                 return jsonify({'success': False, 'error': 'forbidden'}), 403
-            return redirect('/')
+            
+            user_rola = str(session.get('rola') or '').lower().strip()
+            return render_template(
+                'errors/403.html',
+                page_url=request.path,
+                user_role=user_rola,
+                allowed_roles=['zarzad', 'admin', 'planista', 'lider', 'laborant', 'masteradmin']
+            ), 403
             
         return f(*args, **kwargs)
     return decorated_function
@@ -83,7 +90,14 @@ def admin_required(f):
                 is_xhr = False; accepts_json = False
             if is_xhr or accepts_json:
                 return jsonify({'success': False, 'error': 'forbidden'}), 403
-            return redirect('/')
+            
+            user_rola = str(session.get('rola') or '').lower().strip()
+            return render_template(
+                'errors/403.html',
+                page_url=request.path,
+                user_role=user_rola,
+                allowed_roles=['admin', 'masteradmin']
+            ), 403
             
         return f(*args, **kwargs)
     return decorated_function
@@ -100,7 +114,14 @@ def masteradmin_required(f):
         if session.get('rola') != 'masteradmin':
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'success': False, 'error': 'forbidden'}), 403
-            return redirect('/')
+            
+            user_rola = str(session.get('rola') or '').lower().strip()
+            return render_template(
+                'errors/403.html',
+                page_url=request.path,
+                user_role=user_rola,
+                allowed_roles=['masteradmin']
+            ), 403
             
         return f(*args, **kwargs)
     return decorated_function
@@ -175,7 +196,13 @@ def roles_required(*roles, groups=None):
                 current_app.logger.warning(f"[roles_required] Access DENIED - User role '{user_rola}' not in {roles_lower}")
                 if is_xhr or accepts_json:
                     return jsonify({'success': False, 'error': 'forbidden'}), 403
-                return redirect('/')
+                
+                return render_template(
+                    'errors/403.html',
+                    page_url=request.path,
+                    user_role=user_rola,
+                    allowed_roles=list(roles)
+                ), 403
 
             if groups and user_grupa not in groups:
                 if is_xhr or accepts_json:
@@ -264,7 +291,40 @@ def dynamic_role_required(page_name):
             
             if is_xhr or accepts_json:
                 return jsonify({'success': False, 'error': 'forbidden'}), 403
-            return redirect('/')
+            
+            # Show a beautiful Forbidden page
+            import os, json
+            user_rola = str(session.get('rola') or '').lower().strip()
+            
+            # Find allowed roles from role_permissions.json
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
+            allowed_roles = []
+            try:
+                if os.path.exists(cfg_path):
+                    with open(cfg_path, 'r', encoding='utf-8') as file:
+                        perms = json.load(file)
+                    
+                    # Resolve key
+                    page_key = page_name
+                    page_aliases = {'podsumowanie_zasypow': 'podsumowanie_szarz'}
+                    if page_key not in perms and page_key in page_aliases:
+                        page_key = page_aliases[page_key]
+                    
+                    if page_key in perms:
+                        page_perms = perms[page_key]
+                        for role_name, role_cfg in page_perms.items():
+                            if role_cfg.get('access'):
+                                allowed_roles.append(role_name)
+            except Exception as e:
+                current_app.logger.error(f"Error reading role_permissions in dynamic_role_required: {e}")
+                
+            return render_template(
+                'errors/403.html',
+                page_url=request.path,
+                user_role=user_rola,
+                allowed_roles=allowed_roles
+            ), 403
 
         return decorated
     return wrapper
