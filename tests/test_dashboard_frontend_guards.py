@@ -4,6 +4,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_TEMPLATE = ROOT / 'templates' / 'dashboard.html'
+ORDER_CARD_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_order_card.html'
 LAYOUT_TEMPLATE = ROOT / 'templates' / 'layout.html'
 DOSYPKI_LIST_TEMPLATE = ROOT / 'templates' / 'dosypki_list.html'
 CSS_DASHBOARD = ROOT / 'static' / 'css' / 'dashboard.css'
@@ -112,6 +113,12 @@ def test_sidebar_time_report_is_only_exposed_for_agro_and_laboratory_roles():
 
     assert "url_for('production.zasyp_etapy_podsumowanie', linia='PSD')" not in content
     assert "{% if role in ['lider', 'admin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %}" in content
+
+
+def test_laborant_has_dosypki_action_in_order_tile():
+    content = ORDER_CARD_TEMPLATE.read_text(encoding='utf-8')
+
+    assert "role_lc in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium']" in content
 
 
 def test_dosypki_fragment_uses_fragment_role_context_instead_of_removed_legacy_globals():

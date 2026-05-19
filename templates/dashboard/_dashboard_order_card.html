@@ -109,13 +109,14 @@
 
     <div class="card-actions">
         {% if sekcja != 'Magazyn' %}
+            {% set role_lc = rola|string|trim|lower %}
             {# Production buttons - only for active orders #}
             {% if p[3] == 'w toku' %}
                 {% if sekcja == 'Workowanie' %}
                     <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                 {% elif sekcja == 'Zasyp' %}
                     {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
-                    {% if rola in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
+                    {% if role_lc in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium'] %}
                         <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
                     {% endif %}
                     <a href="{{ url_for('production.zasyp_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green manual-szarza-btn" data-slide>+ ZASYP</a>
