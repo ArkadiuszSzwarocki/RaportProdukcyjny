@@ -75,10 +75,22 @@ class InwentaryzacjaService:
             counted_map = {} # Key: f"{typ_palety}_{paleta_id}" -> row
             new_items_list = [] # List of new items (paleta_id is None)
             
+            # Prepare LIKE patterns for robust matching
+            clean_prefix = rack_prefix.strip().upper()
+            base_prefix = clean_prefix
+            if base_prefix.startswith('R-'): base_prefix = base_prefix[2:]
+            elif base_prefix.startswith('R'): base_prefix = base_prefix[1:]
+            
+            p1 = f"{base_prefix}%"
+            p2 = f"R{base_prefix}%"
+            p3 = f"R-{base_prefix}%"
+            like_clause = "(UPPER(TRIM(lokalizacja)) LIKE %s OR UPPER(TRIM(lokalizacja)) LIKE %s OR UPPER(TRIM(lokalizacja)) LIKE %s)"
+            params = (p1, p2, p3)
+
             if sesja_id:
                 cursor.execute(
-                    "SELECT id, paleta_id, nr_palety, typ_palety, nazwa, nr_partii, waga_systemowa, waga_faktyczna, lokalizacja, data_produkcji, data_przydatnosci, typ_opakowania, linia, jednostka FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND lokalizacja LIKE %s",
-                    (sesja_id, f"{rack_prefix}%")
+                    f"SELECT id, paleta_id, nr_palety, typ_palety, nazwa, nr_partii, waga_systemowa, waga_faktyczna, lokalizacja, data_produkcji, data_przydatnosci, typ_opakowania, linia, jednostka FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND {like_clause}",
+                    (sesja_id, *params)
                 )
                 for row in cursor.fetchall():
                     if row['paleta_id']:
@@ -88,10 +100,18 @@ class InwentaryzacjaService:
 
             hall_contexts = ['PSD', 'AGRO']
             
+            def normalize_loc_key(loc_str):
+                l = str(loc_str).strip().upper()
+                if l.startswith('R-'): return 'R' + l[2:]
+                if not l.startswith('R') and l and l[0].isdigit(): return 'R' + l
+                return l
+
             # Helper to add items to map
             def add_to_map(rows):
                 for r in rows:
-                    loc = r['lokalizacja']
+                    raw_loc = r['lokalizacja']
+                    loc = normalize_loc_key(raw_loc)
+                    r['lokalizacja'] = loc # update it so frontend gets consistent value
                     if loc not in all_items: all_items[loc] = []
                     r['displayId'] = InwentaryzacjaService._build_display_id(
                         r.get('typ_palety'),
@@ -112,17 +132,19 @@ class InwentaryzacjaService:
                     
                     all_items[loc].append(r)
 
+            # LIKE patterns were already defined above in this function.
+
             # 1. Surowce
             cursor.execute(
-                "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'surowiec' as typ_palety, linia, jednostka FROM magazyn_surowce WHERE lokalizacja LIKE %s AND stan_magazynowy > 0", 
-                (f"{rack_prefix}%",)
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'surowiec' as typ_palety, linia, jednostka FROM magazyn_surowce WHERE {like_clause} AND stan_magazynowy > 0", 
+                params
             )
             add_to_map(cursor.fetchall())
             
             # 2. Opakowania
             cursor.execute(
-                "SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE lokalizacja LIKE %s AND stan_magazynowy > 0", 
-                (f"{rack_prefix}%",)
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE {like_clause} AND stan_magazynowy > 0", 
+                params
             )
             add_to_map(cursor.fetchall())
 
@@ -130,14 +152,14 @@ class InwentaryzacjaService:
             for hall in hall_contexts:
                 table = get_table_name('magazyn_palety', hall)
                 cursor.execute(
-                    f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE lokalizacja LIKE %s AND waga_netto > 0", 
-                    (f"{rack_prefix}%",)
+                    f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE {like_clause} AND waga_netto > 0", 
+                    params
                 )
                 add_to_map(cursor.fetchall())
             
             # 4. Add newly created items (paleta_id is None)
             for new_p in new_items_list:
-                if new_p['nazwa'] == 'PUSTE GNIAZDO' or (new_p['waga_faktyczna'] is not None and new_p['waga_faktyczna'] <= 0):
+                if new_p['nazwa'] != 'PUSTE GNIAZDO' and (new_p['waga_faktyczna'] is not None and new_p['waga_faktyczna'] <= 0):
                     continue
                 loc = new_p['lokalizacja']
                 if loc not in all_items: all_items[loc] = []
@@ -179,10 +201,19 @@ class InwentaryzacjaService:
             counted_map = {} # Key: f"{typ_palety}_{paleta_id}" -> row
             new_items_list = [] # List of new items
             
+            # Prepare IN variants for robust matching
+            clean_loc = lokalizacja.strip().upper()
+            base_loc = clean_loc
+            if base_loc.startswith('R-'): base_loc = base_loc[2:]
+            elif base_loc.startswith('R'): base_loc = base_loc[1:]
+            
+            loc_variants = (base_loc, f"R{base_loc}", f"R-{base_loc}")
+            in_clause = "UPPER(TRIM(lokalizacja)) IN (%s, %s, %s)"
+
             if sesja_id:
                 cursor.execute(
-                    "SELECT id, paleta_id, nr_palety, typ_palety, nazwa, nr_partii, waga_systemowa, waga_faktyczna, data_produkcji, data_przydatnosci, typ_opakowania, linia, jednostka FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND lokalizacja = %s", 
-                    (sesja_id, lokalizacja)
+                    f"SELECT id, paleta_id, nr_palety, typ_palety, nazwa, nr_partii, waga_systemowa, waga_faktyczna, data_produkcji, data_przydatnosci, typ_opakowania, linia, jednostka FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND {in_clause}", 
+                    (sesja_id, *loc_variants)
                 )
                 for row in cursor.fetchall():
                     if row['paleta_id']:
@@ -210,11 +241,13 @@ class InwentaryzacjaService:
                     p['jednostka'] = p.get('jednostka') or 'kg'
                 return p
 
+            # IN variants were already defined above in this function.
+
             # 1. Surowce
             table_sur = 'magazyn_surowce'
             cursor.execute(
-                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'surowiec' as typ_palety, linia, jednostka FROM {table_sur} WHERE lokalizacja = %s AND stan_magazynowy > 0", 
-                (lokalizacja,)
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'surowiec' as typ_palety, linia, jednostka FROM {table_sur} WHERE {in_clause} AND stan_magazynowy > 0", 
+                loc_variants
             )
             for p in cursor.fetchall():
                 all_pallets.append(process_pallet(p))
@@ -222,8 +255,8 @@ class InwentaryzacjaService:
             # 2. Opakowania
             table_opk = 'magazyn_opakowania'
             cursor.execute(
-                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM {table_opk} WHERE lokalizacja = %s AND stan_magazynowy > 0", 
-                (lokalizacja,)
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM {table_opk} WHERE {in_clause} AND stan_magazynowy > 0", 
+                loc_variants
             )
             for p in cursor.fetchall():
                 all_pallets.append(process_pallet(p))
@@ -232,8 +265,8 @@ class InwentaryzacjaService:
             for hall in hall_contexts:
                 table = get_table_name('magazyn_palety', hall)
                 cursor.execute(
-                    f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE lokalizacja = %s AND waga_netto > 0", 
-                    (lokalizacja,)
+                    f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE {in_clause} AND waga_netto > 0", 
+                    loc_variants
                 )
                 for p in cursor.fetchall():
                     if not p.get('linia'): p['linia'] = hall
@@ -241,7 +274,7 @@ class InwentaryzacjaService:
             
             # 4. Append new pallets
             for new_p in new_items_list:
-                if new_p['nazwa'] == 'PUSTE GNIAZDO' or (new_p['waga_faktyczna'] is not None and new_p['waga_faktyczna'] <= 0):
+                if new_p['nazwa'] != 'PUSTE GNIAZDO' and (new_p['waga_faktyczna'] is not None and new_p['waga_faktyczna'] <= 0):
                     continue
                 synthetic = {
                     "id": None,

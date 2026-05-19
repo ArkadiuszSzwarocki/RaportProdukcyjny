@@ -871,6 +871,7 @@ def _migrate_columns(cursor):
     
     # Inwentaryzacja wpisy packaging type
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_wpisy", "typ_opakowania", "VARCHAR(50) DEFAULT 'brak'", "Dodawanie kolumny 'typ_opakowania' do wpisów inwentaryzacyjnych")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_wpisy", "jednostka", "VARCHAR(10) DEFAULT 'kg'", "Dodawanie kolumny 'jednostka' do wpisów inwentaryzacyjnych")
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_sesje", "lokalizacja", "VARCHAR(100) DEFAULT 'Wszystko'", "Dodawanie kolumny 'lokalizacja' do sesji inwentaryzacyjnych")
 
 

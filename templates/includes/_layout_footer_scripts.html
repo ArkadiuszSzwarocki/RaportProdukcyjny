@@ -302,11 +302,9 @@
                 if (currentSum !== sessionStateSum) {
                     sessionStateSum = currentSum;
                     
-                    // If on dashboard and performPartialReload is available, do a partial reload
+                    // Ciche odświeżenie (tylko na stronach które to obsługują, np. dashboard)
                     if (typeof window.performPartialReload === 'function') {
                         window.performPartialReload({ preserveScroll: true, source: 'system-state-sync' });
-                    } else {
-                        window.location.reload();
                     }
                 }
             })

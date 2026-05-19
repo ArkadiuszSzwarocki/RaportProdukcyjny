@@ -547,21 +547,35 @@ function openSlotDetail(locId) {
     content.innerHTML = '';
     
     const items = rackData[locId] || [];
-    if(items.length === 0) {
+    const isExplicitlyEmpty = items.length === 1 && items[0].nazwa === 'PUSTE GNIAZDO';
+
+    if(items.length === 0 || isExplicitlyEmpty) {
+        let statusHtml = '';
+        if(isExplicitlyEmpty) {
+            statusHtml = `<div style="background: #dcfce7; color: #166534; padding: 12px; border-radius: 12px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            <span class="material-icons">check_circle</span> POTWIERDZONO: PUSTE GNIAZDO
+                          </div>`;
+        } else {
+            statusHtml = `<p style="color: #64748b; font-size: 14px; margin-bottom: 15px;">To gniazdo jest puste systemowo.</p>`;
+        }
+
         content.innerHTML = `
             <div style="text-align: center; padding: 20px;">
-                <p style="color: #64748b; font-size: 14px; margin-bottom: 15px;">To gniazdo jest puste systemowo.</p>
+                ${statusHtml}
                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <button id="btnConfirmEmpty" class="btn-primary" style="background:#10b981; border:none; padding:12px; border-radius:12px; color:white; font-weight:700;">POTWIERDŹ PUSTE</button>
+                    ${!isExplicitlyEmpty ? `<button id="btnConfirmEmpty" class="btn-primary" style="background:#10b981; border:none; padding:12px; border-radius:12px; color:white; font-weight:700;">POTWIERDŹ PUSTE</button>` : ''}
                     <button onclick="addNewPallet('${locId}')" style="background:white; border:1px solid #3b82f6; padding:12px; border-radius:12px; color:#3b82f6; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px;">
                         <span class="material-icons">add</span> DODAJ PALETĘ
                     </button>
                 </div>
             </div>
         `;
-        document.getElementById('btnConfirmEmpty').onclick = () => markEmpty(locId);
+        if(!isExplicitlyEmpty) {
+            document.getElementById('btnConfirmEmpty').onclick = () => markEmpty(locId);
+        }
     } else {
-        items.forEach(p => {
+        const realItems = items.filter(p => p.nazwa !== 'PUSTE GNIAZDO');
+        realItems.forEach(p => {
             const card = document.createElement('div');
             card.className = 'pallet-card';
             card.style.transition = 'all 0.2s';
@@ -693,7 +707,8 @@ function openSlotDetail(locId) {
                         saveBtn.style.background = '#059669';
                         markCellDone(locId, false);
                         
-                        refreshRackData(currentRackPrefix, locId);
+                        refreshRackData(currentRackPrefix);
+                        setTimeout(() => { closeDetail(); }, 300);
                     } else {
                         saveBtn.innerHTML = '<span class="material-icons">error</span>';
                         saveBtn.style.background = '#ef4444';
@@ -718,7 +733,7 @@ function openSlotDetail(locId) {
         footerDiv.style.marginTop = '15px';
         footerDiv.style.display = 'grid';
         
-        const hasSavedQty = items.some(i => i.counted && i.waga_faktyczna > 0);
+        const hasSavedQty = realItems.some(i => i.counted && i.waga_faktyczna > 0);
         if (hasSavedQty) {
             footerDiv.style.gridTemplateColumns = '1fr';
             footerDiv.style.gap = '10px';
@@ -774,6 +789,7 @@ function markEmpty(locId) {
         }).then(() => {
             markCellDone(locId, true);
             refreshRackData(currentRackPrefix, locId);
+            setTimeout(() => closeDetail(), 1000);
         });
     } else {
         let count = 0;
@@ -797,6 +813,7 @@ function markEmpty(locId) {
                 if(count === items.length) {
                     markCellDone(locId, true);
                     refreshRackData(currentRackPrefix, locId);
+                    setTimeout(() => closeDetail(), 1000);
                 }
             });
         });
@@ -827,15 +844,27 @@ function markCellDone(locId, isEmpty) {
 function renderPallets(pallets) {
     const list = document.getElementById('palletsList');
     list.innerHTML = '';
-    currentPallets = pallets;
+    const realPallets = pallets.filter(p => p.nazwa !== 'PUSTE GNIAZDO');
+    currentPallets = realPallets;
     
-    const hasSavedQty = pallets.some(p => p.counted && p.waga_faktyczna > 0);
+    const hasSavedQty = realPallets.some(p => p.counted && p.waga_faktyczna > 0);
     const mainBtn = document.getElementById('btnAddPalletMain');
     if (mainBtn) {
         mainBtn.style.display = hasSavedQty ? 'none' : 'flex';
     }
     
-    if(pallets.length === 0) {
+    // Check if explicitly empty
+    const isExplicitlyEmpty = pallets.length === 1 && pallets[0].nazwa === 'PUSTE GNIAZDO';
+
+    if(realPallets.length === 0) {
+        if (isExplicitlyEmpty) {
+            list.innerHTML = `
+                <div style="text-align:center; padding:30px; background:#f0fdf4; border-radius:12px; border:1px solid #10b981;">
+                    <span class="material-icons" style="font-size:40px; color:#10b981;">check_circle</span>
+                    <div style="color:#166534; font-weight:700; margin-top:8px;">POTWIERDZONO: PUSTE GNIAZDO</div>
+                </div>`;
+            return;
+        }
         list.innerHTML = `
             <div style="text-align:center; padding:30px; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">
                 <span class="material-icons" style="font-size:40px; color:#94a3b8;">inventory_2</span>
@@ -845,7 +874,7 @@ function renderPallets(pallets) {
         return;
     }
     
-    pallets.forEach((p, index) => {
+    realPallets.forEach((p, index) => {
         const systemQty = p.stan_magazynowy || 0;
         const isCounted = p.counted;
         
