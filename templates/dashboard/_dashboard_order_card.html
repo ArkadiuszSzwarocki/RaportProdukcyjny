@@ -122,7 +122,9 @@
                     {% if role_lc in ['laborant', 'laboratorium', 'admin', 'masteradmin', 'lider'] %}
                         <a href="{{ url_for('production.dosypka_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-blue" data-slide>+ DOSYPKA</a>
                     {% endif %}
+                    {% if role_lc not in ['laborant', 'laboratorium'] %}
                     <a href="{{ url_for('production.zasyp_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green manual-szarza-btn" data-slide>+ ZASYP</a>
+                    {% endif %}
                 {% endif %}
             {% endif %}
 

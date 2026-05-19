@@ -35,7 +35,12 @@ def index():
         aktywna_linia = request.args.get('linia') or sess_hall or user_grupa or 'PSD'
         
         # Force hall view if user has limited access
-        if user_grupa != 'ALL' and user_grupa != 'ADMIN' and user_grupa != 'ZARZAD' and user_grupa != 'MASTERADMIN':
+        role = str(session.get('rola') or '').lower().strip()
+        role_aliases = {'master admin': 'masteradmin', 'master_admin': 'masteradmin', 'master-admin': 'masteradmin', 'laboratorium': 'laborant'}
+        role = role_aliases.get(role, role)
+        
+        is_exempt = role in ['admin', 'masteradmin', 'zarzad', 'laborant', 'laboratorium', 'planista', 'magazynier']
+        if not is_exempt and user_grupa != 'ALL' and user_grupa != 'ADMIN' and user_grupa != 'ZARZAD' and user_grupa != 'MASTERADMIN':
             if aktywna_linia != user_grupa:
                 aktywna_linia = user_grupa
                 

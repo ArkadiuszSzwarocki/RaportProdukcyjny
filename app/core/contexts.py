@@ -20,6 +20,7 @@ def _normalize_role_name(raw_role):
         'master admin': 'masteradmin',
         'master_admin': 'masteradmin',
         'master-admin': 'masteradmin',
+        'laboratorium': 'laborant',
     }
     return role_aliases.get(role, role)
 
