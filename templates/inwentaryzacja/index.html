@@ -2,8 +2,9 @@
 
 {% block content %}
 <div class="inventory-container p-20" style="max-width: 1000px; margin: 0 auto; font-family: 'Inter', sans-serif;">
+    {% set role = (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim %}
     
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; flex-wrap: wrap; gap: 15px;">
         <div>
             <h1 style="margin: 0; font-size: 32px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">Inwentaryzacja</h1>
             <p style="margin: 5px 0 0 0; color: #64748b; font-size: 15px;">Zarządzanie sesjami liczenia stanów magazynowych.</p>
@@ -32,9 +33,11 @@
                 
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <h2 style="margin: 0; font-size: 24px; font-weight: 800;">Obszar: {{ active.lokalizacja }} (#{{ active.id }})</h2>
+                    {% if role not in ['magazynier'] %}
                     <button onclick="openEditModal({{ active.id }}, '{{ active.lokalizacja }}', '{{ active.comment or '' }}')" class="btn-icon" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 5px;" title="Edytuj dane sesji">
                         <span class="material-icons" style="font-size: 18px;">edit</span>
                     </button>
+                    {% endif %}
                 </div>
                 <p style="margin: 5px 0 25px 0; opacity: 0.9;">Operator: <strong>{{ active.created_by }}</strong> {% if active.comment %} | Komentarz: {{ active.comment }}{% endif %}</p>
                 
@@ -115,6 +118,7 @@
                             <a href="{{ url_for('inwentaryzacja.raport', sesja_id=s.id) }}" class="btn-icon" title="Pokaż Raport">
                                 <span class="material-icons" style="font-size: 20px;">summarize</span>
                             </a>
+                            {% if role not in ['magazynier'] %}
                             {% if s.status != 'APPLIED' %}
                             <button onclick="openEditModal({{ s.id }}, '{{ s.lokalizacja }}', '{{ s.comment or '' }}')" class="btn-icon" title="Edytuj Sesję" style="border:none; cursor:pointer;">
                                 <span class="material-icons" style="font-size: 20px; color: #64748b;">edit</span>
@@ -134,6 +138,7 @@
                             <button onclick="deleteSession({{ s.id }})" class="btn-icon" title="Usuń Sesję" style="border:none; cursor:pointer;">
                                 <span class="material-icons" style="font-size: 20px; color: #ef4444;">delete</span>
                             </button>
+                            {% endif %}
                             {% endif %}
                         </div>
 

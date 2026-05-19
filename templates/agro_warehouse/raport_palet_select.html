@@ -36,9 +36,15 @@
         </div>
 
         <div style="margin-top: 30px; text-align: center;">
+            {% if (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim == 'magazynier' %}
+            <a href="/set_hall_view?hall=AGRO&sekcja=Magazyn" class="btn-action" style="background: #95a5a6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px;">
+                Powrót
+            </a>
+            {% else %}
             <a href="javascript:history.back()" class="btn-action" style="background: #95a5a6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px;">
                 Powrót
             </a>
+            {% endif %}
         </div>
     </div>
 </div>

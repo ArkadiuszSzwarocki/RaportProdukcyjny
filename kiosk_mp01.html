@@ -1,0 +1,1890 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WMS Terminal MP01 - Kiosk Magazynowy</title>
+    
+    <!-- Google Fonts: Outfit for premium modern feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Palette: Sleek Space Dark Mode with neon accents */
+            --primary: #0f172a;
+            --primary-light: #1e293b;
+            --accent: #3b82f6;
+            --accent-rgb: 59, 130, 246;
+            --accent-glow: rgba(59, 130, 246, 0.25);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.25);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.25);
+            --warning: #f59e0b;
+            --bg: #090d16;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-hover: rgba(47, 63, 89, 0.85);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-focus: rgba(59, 130, 246, 0.5);
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --active-glow: 0 0 15px rgba(59, 130, 246, 0.5);
+            --success-glow-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+        }
+
+        /* Prevent zooming on touch devices & ensure immersive viewport */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- HEADER & STATUS BAR --- */
+        header {
+            background-color: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 14px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 50;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title svg {
+            width: 28px;
+            height: 28px;
+            fill: var(--accent);
+            filter: drop-shadow(0 0 8px var(--accent-glow));
+        }
+
+        .header-title h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #fff 30%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 1.8s infinite;
+        }
+
+        .pulse-dot.offline {
+            background-color: var(--danger);
+            box-shadow: 0 0 8px var(--danger);
+        }
+
+        .pulse-dot.demo {
+            background-color: var(--warning);
+            box-shadow: 0 0 8px var(--warning);
+        }
+
+        .settings-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            transition: color 0.2s, transform 0.2s;
+        }
+
+        .settings-btn:hover, .settings-btn:active {
+            color: var(--text);
+            transform: rotate(45deg);
+        }
+
+        .settings-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+        /* --- TABS BAR --- */
+        .tabs {
+            display: flex;
+            background-color: rgba(15, 23, 42, 0.4);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 16px;
+            gap: 8px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 18px 12px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            position: relative;
+            transition: color 0.3s, background-color 0.3s;
+            border-radius: 8px 8px 0 0;
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .tab-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .tab-btn:hover {
+            color: var(--text);
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            background-color: var(--primary-light);
+            border-bottom: 3px solid var(--accent);
+            box-shadow: inset 0 -3px 0 var(--accent);
+        }
+
+        /* --- MAIN VIEWPORTS --- */
+        .viewport {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .view-container {
+            display: none;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .view-container.active {
+            display: flex;
+            animation: fadeIn 0.35s ease-out;
+        }
+
+        /* --- TWO COLUMNS LAYOUT FOR TABLETS --- */
+        .two-cols {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 20px;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- GLASS CARDS --- */
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .glass-card-header {
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .glass-card-header h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .glass-card-header h2 svg {
+            width: 22px;
+            height: 22px;
+            fill: var(--accent);
+        }
+
+        .glass-card-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+        }
+
+        /* --- TOUCH INPUT CONTROLS --- */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Large touch-friendly input and select */
+        .touch-input, .touch-select {
+            width: 100%;
+            height: 56px;
+            background-color: rgba(15, 23, 42, 0.6);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 18px;
+            font-weight: 500;
+            padding: 0 16px;
+            transition: all 0.2s ease;
+            outline: none;
+            display: flex;
+            align-items: center;
+        }
+
+        .touch-input:focus, .touch-select:focus {
+            border-color: var(--accent);
+            background-color: rgba(15, 23, 42, 0.9);
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+        }
+
+        /* Special highlight for active active-input */
+        .touch-input.active-input {
+            border-color: var(--accent);
+            box-shadow: 0 0 14px rgba(59, 130, 246, 0.4);
+            background-color: rgba(30, 41, 59, 0.9);
+        }
+
+        /* Customized Quantity Counter (+ / - Buttons) */
+        .counter-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .counter-btn {
+            width: 58px;
+            height: 56px;
+            background: var(--primary-light);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 24px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .counter-btn:active {
+            background: var(--accent);
+            transform: scale(0.95);
+        }
+
+        .counter-input {
+            flex: 1;
+            text-align: center;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        /* --- TOUCH NUMERIC KEYPAD --- */
+        .numpad-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .numpad-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            flex: 1;
+        }
+
+        .numpad-key {
+            background-color: rgba(30, 41, 59, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 22px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            height: 68px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .numpad-key:active {
+            background-color: var(--accent);
+            transform: scale(0.95);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .numpad-key.key-action {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            font-size: 16px;
+            text-transform: uppercase;
+        }
+
+        .numpad-key.key-submit {
+            background-color: var(--success);
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+            grid-column: span 3;
+            height: 64px;
+            box-shadow: 0 4px 10px var(--success-glow);
+        }
+
+        .numpad-key.key-submit:active {
+            background-color: #059669;
+            transform: scale(0.98);
+        }
+
+        .numpad-key.key-submit:disabled {
+            background-color: rgba(30, 41, 59, 0.4);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* --- PREVIEW LABEL WIDGET --- */
+        .preview-label-widget {
+            border: 2px dashed rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.02);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .preview-label-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .preview-box {
+            background: #fff;
+            color: #000;
+            border-radius: 8px;
+            padding: 14px;
+            font-family: monospace;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .preview-barcode {
+            height: 40px;
+            background: repeating-linear-gradient(90deg, #000, #000 2px, #fff 2px, #fff 6px);
+            margin: 6px 0;
+            width: 100%;
+        }
+
+        /* --- KROK 2: CLICK & DROP COLUMN LAYOUT --- */
+        .list-column {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .tiles-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Custom scrollbar for premium touch experience */
+        .tiles-scroll::-webkit-scrollbar, .view-container::-webkit-scrollbar, .glass-card-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        .tiles-scroll::-webkit-scrollbar-thumb, .view-container::-webkit-scrollbar-thumb, .glass-card-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        /* Pallet Tile Cards */
+        .pallet-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 2px solid var(--border-color);
+            border-radius: 14px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pallet-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            background-color: var(--text-muted);
+            transition: background-color 0.25s;
+        }
+
+        .pallet-card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            background: var(--card-hover);
+        }
+
+        /* Selected State */
+        .pallet-card.selected-pallet {
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.1);
+            box-shadow: var(--active-glow);
+            transform: translateX(4px);
+        }
+
+        .pallet-card.selected-pallet::before {
+            background-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        .pallet-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .pallet-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            margin: 0;
+        }
+
+        .pallet-meta {
+            font-size: 13px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 12px;
+        }
+
+        .pallet-weight-badge {
+            background-color: var(--primary-light);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--accent);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+        }
+
+        .pallet-weight-badge span {
+            font-size: 9px;
+            font-weight: 500;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        /* --- VISUAL WAREHOUSE RACK SYSTEM --- */
+        .warehouse-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .rack-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .rack-column {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .rack-column h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .bay-grid {
+            display: grid;
+            grid-template-rows: repeat(2, 64px);
+            gap: 10px;
+        }
+
+        /* Location Rack Cells */
+        .location-cell {
+            background: rgba(30, 41, 59, 0.4);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .location-cell::after {
+            content: 'ODŁÓŻ TUTAJ';
+            position: absolute;
+            bottom: 4px;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            opacity: 0;
+            color: var(--success);
+            transition: opacity 0.2s;
+        }
+
+        .location-cell:hover, .location-cell:active {
+            border-color: var(--success);
+            background: rgba(16, 185, 129, 0.08);
+        }
+
+        /* When pallet selected, locations pulse with green border */
+        .has-selected-pallet .location-cell {
+            border-color: rgba(16, 185, 129, 0.4);
+            animation: pulse-border 2s infinite;
+        }
+
+        .has-selected-pallet .location-cell:hover, .has-selected-pallet .location-cell:active {
+            border-color: var(--success);
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+            background: rgba(16, 185, 129, 0.15);
+        }
+
+        .has-selected-pallet .location-cell::after {
+            opacity: 0.8;
+        }
+
+        .location-cell h5 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .location-cell p {
+            margin: 2px 0 0 0;
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        /* Special styling for floor zones */
+        .floor-zone {
+            flex: 1;
+            min-height: 80px;
+            background: rgba(30, 41, 59, 0.2);
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .floor-zone:hover, .floor-zone:active {
+            border-color: var(--success);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .has-selected-pallet .floor-zone {
+            border-color: rgba(16, 185, 129, 0.4);
+            animation: pulse-border-dash 2s infinite;
+        }
+
+        .has-selected-pallet .floor-zone:hover, .has-selected-pallet .floor-zone:active {
+            border-color: var(--success);
+            background: rgba(16, 185, 129, 0.12);
+        }
+
+        .floor-zone h5 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .floor-zone p {
+            margin: 4px 0 0 0;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* --- TOAST NOTIFICATIONS --- */
+        #toastContainer {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 380px;
+            width: calc(100% - 48px);
+            pointer-events: none;
+        }
+
+        .toast {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            color: #fff;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            pointer-events: auto;
+            transform: translateY(-20px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .toast-success {
+            border-left: 4px solid var(--success);
+        }
+        .toast-success .toast-icon {
+            background-color: var(--success-glow);
+            color: var(--success);
+        }
+
+        .toast-error {
+            border-left: 4px solid var(--danger);
+        }
+        .toast-error .toast-icon {
+            background-color: var(--danger-glow);
+            color: var(--danger);
+        }
+
+        .toast-warning {
+            border-left: 4px solid var(--warning);
+        }
+        .toast-warning .toast-icon {
+            background-color: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-title {
+            font-weight: 700;
+            font-size: 15px;
+            margin-bottom: 2px;
+        }
+
+        .toast-msg {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* --- CONFIG SETTINGS MODAL --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        .modal-card {
+            background-color: var(--primary-light);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .modal-close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+        }
+
+        .modal-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            background: rgba(0,0,0,0.15);
+        }
+
+        .modal-btn {
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-cancel {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-cancel:active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-save {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .btn-save:active {
+            background: #2563eb;
+        }
+
+        /* Toggle Switches */
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .toggle-row:last-child {
+            border-bottom: none;
+        }
+
+        .toggle-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .toggle-label {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .toggle-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 58px;
+            height: 32px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 34px;
+            border: 1px solid var(--border-color);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 24px;
+            width: 24px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        input:checked + .slider {
+            background-color: var(--success);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.99); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes pulse-border {
+            0% { border-color: rgba(16, 185, 129, 0.3); }
+            50% { border-color: rgba(16, 185, 129, 0.95); box-shadow: 0 0 8px rgba(16, 185, 129, 0.25); }
+            100% { border-color: rgba(16, 185, 129, 0.3); }
+        }
+
+        @keyframes pulse-border-dash {
+            0% { border-color: rgba(16, 185, 129, 0.3); }
+            50% { border-color: rgba(16, 185, 129, 0.95); box-shadow: 0 0 8px rgba(16, 185, 129, 0.25); }
+            100% { border-color: rgba(16, 185, 129, 0.3); }
+        }
+
+        /* --- EMPTY STATE LAYOUT --- */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--text-muted);
+            height: 100%;
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            fill: rgba(255,255,255,0.15);
+            margin-bottom: 16px;
+        }
+
+        .empty-state h4 {
+            margin: 0 0 6px 0;
+            color: var(--text);
+            font-size: 16px;
+        }
+
+        .empty-state p {
+            margin: 0;
+            font-size: 13px;
+            max-width: 240px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- FLOAT TOASTS NOTIFICATIONS -->
+    <div id="toastContainer"></div>
+
+    <!-- MAIN HEADER -->
+    <header>
+        <div class="header-title">
+            <!-- Box/Cargo Icon -->
+            <svg viewBox="0 0 24 24">
+                <path d="M12 21a1 1 0 0 1-.5-.13l-8-4.5A1 1 0 0 1 3 15.5v-7a1 1 0 0 1 .5-.87l8-4.5a1 1 0 0 1 1 0l8 4.5A1 1 0 0 1 21 8.5v7a1 1 0 0 1-.5.87l-8 4.5a1 1 0 0 1-.5.13zM5 8.9v5.73l6 3.38v-5.74zm8 9.11 6-3.38V8.9l-6 3.37zM12 4.4 6 7.78l6 3.37 6-3.37z"/>
+            </svg>
+            <h1>WMS Kiosk - Magazyn MP01</h1>
+        </div>
+        <div class="header-status">
+            <div class="status-pill" id="statusPillContainer">
+                <span class="pulse-dot" id="statusDot"></span>
+                <span id="statusText">🟢 Online (QNAP)</span>
+            </div>
+            <button class="settings-btn" onclick="openSettingsModal()" title="Ustawienia połączenia">
+                <!-- Cog Icon -->
+                <svg viewBox="0 0 24 24">
+                    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- ZAKŁADKI (TABS) -->
+    <div class="tabs">
+        <button class="tab-btn active" id="tabBtn1" onclick="switchTab('tab1')">
+            <!-- Edit/Pen Icon -->
+            <svg viewBox="0 0 24 24">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+            </svg>
+            Krok 1: Rejestracja & Waga
+        </button>
+        <button class="tab-btn" id="tabBtn2" onclick="switchTab('tab2')">
+            <!-- Layers/Grid Icon -->
+            <svg viewBox="0 0 24 24">
+                <path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/>
+            </svg>
+            Krok 2: Rozkładanie na MP01
+        </button>
+    </div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="viewport">
+        
+        <!-- ================= KROK 1: FORMULARZ REJESTRACJI ================= -->
+        <div id="tab1" class="view-container active">
+            <div class="two-cols">
+                
+                <!-- Left: Form Card -->
+                <div class="glass-card">
+                    <div class="glass-card-header">
+                        <h2>
+                            <!-- Form Icon -->
+                            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm0 8H7v-2h10v2z"/></svg>
+                            Formularz przyjęcia z wagi
+                        </h2>
+                        <span id="formValidationIndicator" style="font-size: 13px; color: var(--danger);">🔴 Wypełnij dane</span>
+                    </div>
+                    
+                    <div class="glass-card-content">
+                        <div class="form-group">
+                            <label for="docNumber">Nr dokumentu papierowego:</label>
+                            <input type="text" id="docNumber" class="touch-input" placeholder="np. WZ/123/2026" onfocus="activateInput(this)" oninput="updateLabelPreview()">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="materialSelect">Surowiec / Opakowanie:</label>
+                            <select id="materialSelect" class="touch-select" onchange="updateLabelPreview()">
+                                <option value="">Pobieranie słownika...</option>
+                            </select>
+                        </div>
+
+                        <!-- Touch Pallet Counter -->
+                        <div class="form-group">
+                            <label>Ilość palet do zarejestrowania:</label>
+                            <div class="counter-container">
+                                <button class="counter-btn" onclick="adjustPalletQty(-1)">−</button>
+                                <input type="number" id="palletQty" class="touch-input counter-input" value="1" min="1" readonly onfocus="activateInput(this)" onchange="updateLabelPreview()">
+                                <button class="counter-btn" onclick="adjustPalletQty(1)">+</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="palletWeight">Dokładna waga netto (kg):</label>
+                            <input type="number" id="palletWeight" class="touch-input" step="0.01" placeholder="np. 950.50" readonly onfocus="activateInput(this)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Keypad and Preview Card -->
+                <div class="glass-card">
+                    <div class="glass-card-header">
+                        <h2>⌨️ Wpisz wagę (Ekran dotykowy)</h2>
+                        <span id="numpadActiveField" style="font-size: 13px; color: var(--accent); font-weight: bold;">AKTYWNE: WAGA</span>
+                    </div>
+
+                    <div class="glass-card-content" style="gap: 12px;">
+                        
+                        <!-- Visual Preview Label Widget -->
+                        <div class="preview-label-widget">
+                            <div class="preview-label-title">
+                                <span>🏷️ Podgląd Etykiety WMS</span>
+                            </div>
+                            <div class="preview-box">
+                                <div style="display:flex; justify-content:space-between; font-weight:bold; border-bottom:1px solid #000; padding-bottom:2px; font-size:11px;">
+                                    <span>AGRONETZEWERK WMS</span>
+                                    <span>MP01</span>
+                                </div>
+                                <div style="font-size: 14px; font-weight:800; margin-top:2px;" id="lblMaterial">--- WYBIERZ SUROWIEC ---</div>
+                                <div style="display:flex; justify-content:space-between; margin-top: 4px; font-size:11px;">
+                                    <div>Dokument: <b id="lblDoc">---</b></div>
+                                    <div>Ilość: <b id="lblQty">1 szt</b></div>
+                                </div>
+                                <div class="preview-barcode"></div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px;">
+                                    <span id="lblDate">DATA: --/--/----</span>
+                                    <div style="font-size:18px; font-weight:800;" id="lblWeight">0.00 kg</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Virtual Numpad -->
+                        <div class="numpad-card" style="flex:1;">
+                            <div class="numpad-grid">
+                                <button class="numpad-key" onclick="numpadPress('1')">1</button>
+                                <button class="numpad-key" onclick="numpadPress('2')">2</button>
+                                <button class="numpad-key" onclick="numpadPress('3')">3</button>
+
+                                <button class="numpad-key" onclick="numpadPress('4')">4</button>
+                                <button class="numpad-key" onclick="numpadPress('5')">5</button>
+                                <button class="numpad-key" onclick="numpadPress('6')">6</button>
+
+                                <button class="numpad-key" onclick="numpadPress('7')">7</button>
+                                <button class="numpad-key" onclick="numpadPress('8')">8</button>
+                                <button class="numpad-key" onclick="numpadPress('9')">9</button>
+
+                                <button class="numpad-key key-action" onclick="numpadPress('C')">C</button>
+                                <button class="numpad-key" onclick="numpadPress('0')">0</button>
+                                <button class="numpad-key" onclick="numpadPress('.')">.</button>
+
+                                <button class="numpad-key key-action" onclick="numpadPress('⌫')" style="grid-column: span 3; font-size: 20px;">⌫ Cofnij</button>
+                                
+                                <button class="numpad-key key-submit" id="btnRegister" onclick="registerPallets()">
+                                    📥 Zarejestruj i Drukuj Etykiety
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================= KROK 2: ROZKŁADANIE (CLICK & DROP) ================= -->
+        <div id="tab2" class="view-container">
+            <div class="two-cols">
+                
+                <!-- Left: Pending Pallets List -->
+                <div class="glass-card list-column">
+                    <div class="glass-card-header">
+                        <h2>
+                            <!-- List Icon -->
+                            <svg viewBox="0 0 24 24"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-7v2h14V6H7z"/></svg>
+                            Oczekujące w Buforze
+                        </h2>
+                        <button class="modal-btn btn-cancel" onclick="loadPendingPallets()" style="padding: 6px 12px; font-size: 13px;" id="btnRefreshPending">
+                            🔄 Odśwież
+                        </button>
+                    </div>
+                    
+                    <div class="glass-card-content">
+                        <div class="tiles-scroll" id="pendingPalletsGrid">
+                            <!-- Populated dynamically -->
+                            <div class="empty-state">
+                                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                                <h4>Pobieranie palet...</h4>
+                                <p>Czekaj na połączenie z serwerem</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Visual Warehouse Rack Bays -->
+                <div class="glass-card list-column" id="rackCardContainer">
+                    <div class="glass-card-header">
+                        <h2>
+                            <!-- Warehouse/Map Icon -->
+                            <svg viewBox="0 0 24 24"><path d="M12 2L2 7v13c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7L12 2zm0 2.84L19.5 8 12 11.16 4.5 8 12 4.84zM4 19.5V9.75l7.25 2.9v9.7L4 19.5zm16 0l-7.25 2.85v-9.7l7.25-2.9v9.75z"/></svg>
+                            Regały i Lokalizacje Docelowe
+                        </h2>
+                        <span id="allocationHelper" style="font-size: 13px; color: var(--text-muted);">Najpierw wybierz paletę</span>
+                    </div>
+
+                    <div class="glass-card-content" style="overflow-y: auto;">
+                        <div class="warehouse-layout">
+                            
+                            <!-- Regał 1 (Rack 1) -->
+                            <div class="rack-column">
+                                <h4>Regał wysokiego składowania R1</h4>
+                                <div class="bay-grid">
+                                    <!-- Level B (Upper) -->
+                                    <div class="location-cell" onclick="allocateLocation('R1-B')" title="Kliknij aby odłożyć">
+                                        <h5>R1-B</h5>
+                                        <p>Poziom 1 (Góra)</p>
+                                    </div>
+                                    <!-- Level A (Lower) -->
+                                    <div class="location-cell" onclick="allocateLocation('R1-A')" title="Kliknij aby odłożyć">
+                                        <h5>R1-A</h5>
+                                        <p>Poziom 0 (Dół)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Regał 2 (Rack 2) -->
+                            <div class="rack-column">
+                                <h4>Regał wysokiego składowania R2</h4>
+                                <div class="bay-grid">
+                                    <!-- Level B (Upper) -->
+                                    <div class="location-cell" onclick="allocateLocation('R2-B')" title="Kliknij aby odłożyć">
+                                        <h5>R2-B</h5>
+                                        <p>Poziom 1 (Góra)</p>
+                                    </div>
+                                    <!-- Level A (Lower) -->
+                                    <div class="location-cell" onclick="allocateLocation('R2-A')" title="Kliknij aby odłożyć">
+                                        <h5>R2-A</h5>
+                                        <p>Poziom 0 (Dół)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Floor Zone (Strefa podłogowa) -->
+                            <div style="display:flex; flex-direction:column; gap: 8px;">
+                                <label style="font-size: 12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Strefy otwarte</label>
+                                <div class="floor-zone" onclick="allocateLocation('STREFA_PODLOGOWA')" title="Kliknij aby odłożyć na podłodze">
+                                    <h5>
+                                        <span>📦</span>
+                                        Strefa Podłogowa (Bufor)
+                                    </h5>
+                                    <p>Szybkie składowanie bezpośrednie (Podłoga)</p>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= SETTINGS CONFIG MODAL ================= -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>⚙️ Konfiguracja terminala MP01</h3>
+                <button class="modal-close-btn" onclick="closeSettingsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="cfgApiBase">Adres API QNAP (HTTP/FastAPI):</label>
+                    <input type="text" id="cfgApiBase" class="touch-input" style="height:50px; font-size:16px;">
+                    <p style="margin: 4px 0 0 0; font-size:12px; color:var(--text-muted);">Domyślnie: <code>http://mlecznadroga.mycloudnas.com:8000/api</code></p>
+                </div>
+
+                <!-- Toggle Demo Mode -->
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Tryb Demonstracyjny (Demo Mock)</span>
+                        <span class="toggle-sub">Symuluje odpowiedzi bez łączenia z QNAP</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="cfgDemoMode" onchange="toggleDemoModeFlag(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-cancel" onclick="closeSettingsModal()">Anuluj</button>
+                <button class="modal-btn btn-save" onclick="saveSettings()">Zapisz ustawienia</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= JAVASCRIPT LOGIC ================= -->
+    <script>
+        // --- BASE CONFIGURATION & STATE ---
+        let API_BASE = "http://mlecznadroga.mycloudnas.com:8000/api";
+        let isDemoMode = false;
+        let selectedPalletId = null;
+        let activeFocusedInputId = 'palletWeight'; // default focus target for numpad
+
+        // Mock Database for Local Offline Simulation (WOW factor!)
+        const MOCK_MATERIALS = [
+            { nazwa: "Mączka Chlebowa Premium" },
+            { nazwa: "Sól Paszowa Ciech" },
+            { nazwa: "Skrobia Ziemniaczana Mod" },
+            { nazwa: "Kwas Cytrynowy E330" },
+            { nazwa: "Węglan Wapnia Paszowy" },
+            { nazwa: "Serwatka w proszku 11%" }
+        ];
+
+        let mockPendingPallets = [
+            { id: 4012, material_name: "Mączka Chlebowa Premium", weight: 950.50, document_number: "WZ/091/2026" },
+            { id: 4013, material_name: "Sól Paszowa Ciech", weight: 1000.00, document_number: "WZ/102/2026" },
+            { id: 4014, material_name: "Kwas Cytrynowy E330", weight: 500.25, document_number: "WZ/103/2026" },
+            { id: 4015, material_name: "Serwatka w proszku 11%", weight: 850.00, document_number: "WZ/104/2026" }
+        ];
+
+        // --- TOAST SYSTEMS ---
+        function showToast(title, msg, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            let iconMarkup = '✔️';
+            if (type === 'error') iconMarkup = '❌';
+            if (type === 'warning') iconMarkup = '⚠️';
+
+            toast.innerHTML = `
+                <div class="toast-icon">${iconMarkup}</div>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-msg">${msg}</div>
+                </div>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => { toast.classList.add('show'); }, 50);
+            
+            // Remove after 4 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => { toast.remove(); }, 300);
+            }, 4000);
+        }
+
+        // --- STARTUP INITS & CONFIG LOAD ---
+        window.onload = async () => {
+            // Load settings from localStorage
+            const savedApi = localStorage.getItem('wms_api_base');
+            const savedDemo = localStorage.getItem('wms_demo_mode');
+
+            if (savedApi) {
+                API_BASE = savedApi;
+            }
+            if (savedDemo !== null) {
+                isDemoMode = (savedDemo === 'true');
+            } else {
+                // If we fail a fast connection to QNAP, auto-enable demo mode to prevent bad first impression
+                isDemoMode = false;
+            }
+
+            document.getElementById('cfgApiBase').value = API_BASE;
+            document.getElementById('cfgDemoMode').checked = isDemoMode;
+
+            // Set current date in label preview
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('pl-PL') + ' ' + now.toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('lblDate').textContent = `DATA: ${dateStr}`;
+
+            updateLabelPreview();
+            
+            // Connect and verify connection in background
+            await checkConnectionAndLoad();
+        };
+
+        // Network check
+        async function checkConnectionAndLoad() {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+
+            if (isDemoMode) {
+                statusDot.className = 'pulse-dot demo';
+                statusText.textContent = '🟡 Tryb Symulacji (Demo)';
+                showToast("Tryb demonstracyjny", "Praca w środowisku offline z mock-danych.", "warning");
+                loadMockDictionary();
+                return;
+            }
+
+            statusText.textContent = '⏳ Łączenie...';
+            
+            try {
+                // Quick ping to check API availability
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s limit
+                
+                const response = await fetch(`${API_BASE}/slownik/surowce`, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (response.ok) {
+                    statusDot.className = 'pulse-dot';
+                    statusText.textContent = '🟢 Online (QNAP)';
+                    loadDictionary();
+                } else {
+                    throw new Error("HTTP error status: " + response.status);
+                }
+            } catch (err) {
+                console.warn("Connection to actual API failed. Falling back to Demo Mode.", err);
+                statusDot.className = 'pulse-dot offline';
+                statusText.textContent = '🔴 Brak sieci - Auto Demo';
+                isDemoMode = true;
+                document.getElementById('cfgDemoMode').checked = true;
+                localStorage.setItem('wms_demo_mode', 'true');
+                showToast("Brak połączenia z serwerem QNAP", "Automatycznie uruchomiono lokalną symulację (Demo)!", "error");
+                loadMockDictionary();
+            }
+        }
+
+        // --- ZAKŁADKI (TABS SWITCH) ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            
+            if (tabId === 'tab1') {
+                document.getElementById('tabBtn1').classList.add('active');
+                activateInput(document.getElementById(activeFocusedInputId));
+            } else {
+                document.getElementById('tabBtn2').classList.add('active');
+                loadPendingPallets();
+                deselectPallet();
+            }
+        }
+
+        // --- MODAL CONFIG MANAGEMENT ---
+        function openSettingsModal() {
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        function toggleDemoModeFlag(checked) {
+            // purely UI response
+        }
+
+        function saveSettings() {
+            const apiVal = document.getElementById('cfgApiBase').value.trim();
+            const demoVal = document.getElementById('cfgDemoMode').checked;
+
+            if (!apiVal) {
+                showToast("Błąd", "Adres API nie może być pusty!", "error");
+                return;
+            }
+
+            API_BASE = apiVal;
+            isDemoMode = demoVal;
+
+            localStorage.setItem('wms_api_base', API_BASE);
+            localStorage.setItem('wms_demo_mode', isDemoMode.toString());
+
+            closeSettingsModal();
+            showToast("Zapisano konfigurację", "Ustawienia zostały pomyślnie zapisane lokalnie.", "success");
+            
+            // Re-eval connection status
+            checkConnectionAndLoad();
+        }
+
+        // --- KROK 1: POBIERANIE SŁOWNIKA ---
+        async function loadDictionary() {
+            const select = document.getElementById('materialSelect');
+            select.innerHTML = '<option value="">Pobieranie danych...</option>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/slownik/surowce`);
+                if (!response.ok) throw new Error("Błąd sieci");
+                const data = await response.json();
+                
+                populateDictionary(data);
+            } catch (err) {
+                console.error(err);
+                showToast("Błąd", "Nie udało się pobrać słownika surowców z QNAP.", "error");
+                loadMockDictionary();
+            }
+        }
+
+        function loadMockDictionary() {
+            populateDictionary(MOCK_MATERIALS);
+        }
+
+        function populateDictionary(data) {
+            const select = document.getElementById('materialSelect');
+            select.innerHTML = '<option value="">-- Wybierz surowiec --</option>';
+            
+            if (!data || data.length === 0) {
+                select.innerHTML = '<option value="">Brak dostępnych surowców</option>';
+                return;
+            }
+
+            data.forEach(item => {
+                select.innerHTML += `<option value="${item.nazwa}">${item.nazwa}</option>`;
+            });
+            updateLabelPreview();
+        }
+
+        // --- TOUCH INPUT SYSTEM & NUMPAD FOCUS ---
+        function activateInput(element) {
+            if (!element) return;
+            
+            // Remove previous active classes
+            document.querySelectorAll('.touch-input').forEach(el => el.classList.remove('active-input'));
+            
+            element.classList.add('active-input');
+            activeFocusedInputId = element.id;
+
+            const headerIndicator = document.getElementById('numpadActiveField');
+            if (element.id === 'palletWeight') {
+                headerIndicator.textContent = 'AKTYWNE: WAGA (KG)';
+                headerIndicator.style.color = 'var(--accent)';
+            } else if (element.id === 'palletQty') {
+                headerIndicator.textContent = 'AKTYWNE: ILOŚĆ PALET';
+                headerIndicator.style.color = 'var(--warning)';
+            } else {
+                headerIndicator.textContent = 'AKTYWNE: WPISYWANIE';
+                headerIndicator.style.color = 'var(--text)';
+            }
+        }
+
+        function adjustPalletQty(delta) {
+            const input = document.getElementById('palletQty');
+            let currentVal = parseInt(input.value) || 1;
+            currentVal += delta;
+            if (currentVal < 1) currentVal = 1;
+            input.value = currentVal;
+            
+            // trigger focus & preview update
+            activateInput(input);
+            updateLabelPreview();
+        }
+
+        // Keypad click processor
+        function numpadPress(key) {
+            const activeInput = document.getElementById(activeFocusedInputId);
+            if (!activeInput) return;
+
+            let currentVal = activeInput.value.toString();
+
+            if (key === 'C') {
+                activeInput.value = '';
+            } else if (key === '⌫') {
+                activeInput.value = currentVal.substring(0, currentVal.length - 1);
+            } else {
+                // Prevent duplicate dots
+                if (key === '.' && currentVal.includes('.')) return;
+                
+                // Set default value behavior
+                if (currentVal === '0' && key !== '.') {
+                    activeInput.value = key;
+                } else {
+                    activeInput.value = currentVal + key;
+                }
+            }
+
+            // Fire input events to trigger live updates
+            updateLabelPreview();
+        }
+
+        // --- LABEL PREVIEW LIVELINK ---
+        function updateLabelPreview() {
+            const docNo = document.getElementById('docNumber').value.trim();
+            const material = document.getElementById('materialSelect').value;
+            const qty = document.getElementById('palletQty').value;
+            const weight = document.getElementById('palletWeight').value;
+
+            document.getElementById('lblMaterial').textContent = material ? material.toUpperCase() : "--- WYBIERZ SUROWIEC ---";
+            document.getElementById('lblDoc').textContent = docNo ? docNo : "---";
+            document.getElementById('lblQty').textContent = `${qty || 1} paleta(y)`;
+            document.getElementById('lblWeight').textContent = `${parseFloat(weight || 0).toFixed(2)} kg`;
+
+            // Simple live validation check in form header
+            const validationText = document.getElementById('formValidationIndicator');
+            if (docNo && material && weight && parseFloat(weight) > 0) {
+                validationText.textContent = '🟢 Gotowy do rejestracji';
+                validationText.style.color = 'var(--success)';
+            } else {
+                validationText.textContent = '🔴 Wypełnij dane';
+                validationText.style.color = 'var(--danger)';
+            }
+        }
+
+        // --- KROK 1: WYSYŁANIE REJESTRACJI ---
+        async function registerPallets() {
+            const docNo = document.getElementById('docNumber').value.trim();
+            const material = document.getElementById('materialSelect').value;
+            const qty = parseInt(document.getElementById('palletQty').value) || 1;
+            const weight = parseFloat(document.getElementById('palletWeight').value) || 0;
+
+            if (!docNo) {
+                showToast("Brak danych", "Wpisz numer dokumentu WZ!", "error");
+                document.getElementById('docNumber').focus();
+                return;
+            }
+            if (!material) {
+                showToast("Brak danych", "Wybierz surowiec z listy rozwijanej!", "error");
+                return;
+            }
+            if (weight <= 0) {
+                showToast("Brak danych", "Podaj prawidłową wagę (waga musi być większa niż 0 kg)!", "error");
+                activateInput(document.getElementById('palletWeight'));
+                return;
+            }
+
+            const btn = document.getElementById('btnRegister');
+            btn.disabled = true;
+            const originalBtnText = btn.innerHTML;
+            btn.innerHTML = '<span style="display:flex; align-items:center; justify-content:center; gap:8px;">⏳ Zapisywanie...</span>';
+
+            const payload = {
+                document_number: docNo,
+                pallets: [
+                    { material_name: material, quantity: qty, weight: weight }
+                ]
+            };
+
+            if (isDemoMode) {
+                // SIMULATION OF REGISTRATION & PRINTING SUCCESS
+                setTimeout(() => {
+                    const newPalletId = Math.floor(1000 + Math.random() * 9000);
+                    
+                    // Add mock pallet to memory list for Step 2
+                    mockPendingPallets.push({
+                        id: newPalletId,
+                        material_name: material,
+                        weight: weight,
+                        document_number: docNo
+                    });
+
+                    showToast(`Sukces (DEMO)`, `Zapisano paletę ${newPalletId}. Etykieta została zasymulowana.`, "success");
+                    
+                    // Clean up inputs (keep document number for convenience)
+                    document.getElementById('palletWeight').value = '';
+                    updateLabelPreview();
+                    
+                    btn.disabled = false;
+                    btn.innerHTML = originalBtnText;
+
+                    // Automatically focus weight again for next round
+                    activateInput(document.getElementById('palletWeight'));
+                }, 1000);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/mp01/register-and-print`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast(`Sukces!`, `Zarejestrowano pomyślnie. Etykiety wysłane do drukarki Zebra.`, "success");
+                    
+                    // Reset input
+                    document.getElementById('palletWeight').value = '';
+                    updateLabelPreview();
+                    activateInput(document.getElementById('palletWeight'));
+                } else {
+                    showToast("Błąd serwera", `Nie udało się zarejestrować: ${result.detail || 'Błąd API'}`, "error");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Błąd połączenia", "Nie można połączyć się z serwerem WMS na QNAP.", "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalBtnText;
+            }
+        }
+
+        // --- KROK 2: POBIERANIE OCZEKUJĄCYCH Z BUFORA ---
+        async function loadPendingPallets() {
+            const grid = document.getElementById('pendingPalletsGrid');
+            const btn = document.getElementById('btnRefreshPending');
+            
+            btn.disabled = true;
+            btn.textContent = "Ładowanie...";
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                    <h4>Pobieranie danych...</h4>
+                    <p>Trwa pobieranie aktualnej listy buforowej.</p>
+                </div>
+            `;
+            
+            deselectPallet();
+
+            if (isDemoMode) {
+                setTimeout(() => {
+                    renderPalletsList(mockPendingPallets);
+                    btn.disabled = false;
+                    btn.textContent = "🔄 Odśwież";
+                }, 400);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/mp01/pending`); 
+                if (!response.ok) throw new Error("Błąd podczas pobierania palet z API");
+                const pallets = await response.json();
+                
+                renderPalletsList(pallets);
+            } catch (err) {
+                console.error(err);
+                showToast("Błąd", "Nie można pobrać bufora palet. Użyj symulacji.", "error");
+                grid.innerHTML = `
+                    <div class="empty-state" style="color:var(--danger);">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                        <h4>Błąd pobierania danych</h4>
+                        <p>Połączenie z serwerem zostało zerwane.</p>
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "🔄 Odśwież";
+            }
+        }
+
+        function renderPalletsList(pallets) {
+            const grid = document.getElementById('pendingPalletsGrid');
+            grid.innerHTML = '';
+            
+            if (!pallets || pallets.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <h4>Wszystko rozłożone!</h4>
+                        <p>Brak oczekujących palet w buforze MP01.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            pallets.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'pallet-card';
+                card.id = `pallet-${p.id}`;
+                
+                card.innerHTML = `
+                    <div class="pallet-info">
+                        <h4 class="pallet-title">ID: ${p.id}</h4>
+                        <div class="pallet-meta" style="font-weight: 600; color: #fff; margin-top:2px;">${p.material_name}</div>
+                        <div class="pallet-meta">
+                            <span>Dok: <b>${p.document_number}</b></span>
+                        </div>
+                    </div>
+                    <div class="pallet-weight-badge">
+                        ${parseFloat(p.weight).toFixed(1)}
+                        <span>kg</span>
+                    </div>
+                `;
+                
+                card.onclick = () => selectPallet(p.id, card);
+                grid.appendChild(card);
+            });
+        }
+
+        function selectPallet(id, element) {
+            document.querySelectorAll('.pallet-card').forEach(el => el.classList.remove('selected-pallet'));
+            
+            element.classList.add('selected-pallet');
+            selectedPalletId = id;
+            
+            // Add custom visual signal to rack layout
+            document.getElementById('rackCardContainer').classList.add('has-selected-pallet');
+            document.getElementById('allocationHelper').innerHTML = `Wybrana paleta: <b style="color:var(--accent)">#${id}</b> → KLIKNIJ LOKALIZACJĘ DOCELOWĄ`;
+            
+            showToast("Wybrano paletę", `Paleta #${id} jest gotowa do odłożenia na regał.`, "success");
+        }
+
+        function deselectPallet() {
+            selectedPalletId = null;
+            document.getElementById('rackCardContainer').classList.remove('has-selected-pallet');
+            document.getElementById('allocationHelper').textContent = "Najpierw wybierz paletę";
+        }
+
+        // --- KROK 2: CLICK & DROP LOKALIZACJE ---
+        async function allocateLocation(locationName) {
+            if (!selectedPalletId) {
+                showToast("Wybierz paletę", "Wskaż najpierw paletę z lewej kolumny (Bufor)!", "warning");
+                return;
+            }
+
+            // Block clicks
+            document.getElementById('rackCardContainer').classList.remove('has-selected-pallet');
+            
+            if (isDemoMode) {
+                // DEMO SUCCESS SIMULATION
+                setTimeout(() => {
+                    // Remove local mock item
+                    mockPendingPallets = mockPendingPallets.filter(p => p.id !== selectedPalletId);
+                    
+                    showToast("Odłożono paletę", `Zakończono sukcesem. Paleta #${selectedPalletId} przypisana do: ${locationName}`, "success");
+                    deselectPallet();
+                    loadPendingPallets();
+                }, 600);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/mp01/allocate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pallet_id: selectedPalletId,
+                        target_location: locationName
+                    })
+                });
+
+                if (response.ok) {
+                    showToast("Odłożono paletę", `Pomyślnie odłożono paletę #${selectedPalletId} na miejsce ${locationName}`, "success");
+                    deselectPallet();
+                    loadPendingPallets(); // Refresh buffer list
+                } else {
+                    const result = await response.json();
+                    showToast("Błąd relokacji", `Błąd: ${result.detail || 'Brak uprawnień'}`, "error");
+                    // re-highlight pallet on failure
+                    const el = document.getElementById(`pallet-${selectedPalletId}`);
+                    if (el) selectPallet(selectedPalletId, el);
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Błąd połączenia", "Serwer QNAP nie odpowiedział na żądanie relokacji.", "error");
+                // restore selected state
+                const el = document.getElementById(`pallet-${selectedPalletId}`);
+                if (el) selectPallet(selectedPalletId, el);
+            }
+        }
+    </script>
+</body>
+</html>

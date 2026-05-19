@@ -3,7 +3,7 @@
 {% block content %}
 <div class="inventory-report p-20" style="max-width: 1200px; margin: 0 auto; font-family: 'Inter', sans-serif;">
     
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap; gap: 15px;">
         <div>
             <a href="{{ url_for('inwentaryzacja.index') }}" style="color: #64748b; text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; font-size: 13px; font-weight: 700;">
                 <span class="material-icons" style="font-size: 16px;">arrow_back</span> Powrót do listy
@@ -15,7 +15,7 @@
 
         </div>
         
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button onclick="window.print()" class="btn-outline" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: 1px solid #e2e8f0; background: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
                 <span class="material-icons">print</span> DRUKUJ
             </button>

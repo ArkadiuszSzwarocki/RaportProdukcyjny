@@ -150,7 +150,11 @@
                 <label for="reportDatePicker" style="font-size:0.9em; color:#666; margin-right:6px;">Zmień datę:</label>
                 <input type="date" id="reportDatePicker" value="{{ data_planu }}" style="padding:6px;border-radius:6px;border:1px solid #d1d5db;">
                 <button type="button" onclick="changeReportDate()" style="padding:8px 12px;background:#3498db;color:#fff;border-radius:6px;border:none;cursor:pointer;">Pokaż</button>
-                <a href="/set_hall_view?hall=AGRO&sekcja=Workowanie" style="padding:8px 12px;background:#6c757d;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;margin-left:20px;font-weight:bold;">⬅️ Wróć na Workowanie</a>
+                {% if (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim == 'magazynier' %}
+                    <a href="/set_hall_view?hall=AGRO&sekcja=Magazyn" style="padding:8px 12px;background:#6c757d;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;margin-left:20px;font-weight:bold;">⬅️ Wróć</a>
+                {% else %}
+                    <a href="javascript:history.back()" style="padding:8px 12px;background:#6c757d;color:#fff;border-radius:6px;border:none;cursor:pointer;text-decoration:none;margin-left:20px;font-weight:bold;">⬅️ Wróć</a>
+                {% endif %}
             </div>
         </div>
         <div class="header-meta">
@@ -324,9 +328,15 @@
     </div>
 
     <div class="report-actions no-print">
-        <a href="/set_hall_view?hall=AGRO&sekcja=Workowanie" class="btn-print" style="background-color: #6c757d; text-decoration: none; margin-right: 15px; display: inline-block;">
-            ⬅️ Powrót na Workowanie
+        {% if (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim == 'magazynier' %}
+        <a href="/set_hall_view?hall=AGRO&sekcja=Magazyn" class="btn-print" style="background-color: #6c757d; text-decoration: none; margin-right: 15px; display: inline-block;">
+            ⬅️ Wróć
         </a>
+        {% else %}
+        <a href="javascript:history.back()" class="btn-print" style="background-color: #6c757d; text-decoration: none; margin-right: 15px; display: inline-block;">
+            ⬅️ Wróć
+        </a>
+        {% endif %}
         <button class="btn-print" onclick="window.print()">
             🖨️ Drukuj Raport
         </button>
