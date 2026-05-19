@@ -879,6 +879,23 @@ def _migrate_columns(cursor):
     # Własna data produkcji dla planów
     _add_column_if_missing(cursor, "plan_produkcji", "data_produkcji", "DATE DEFAULT NULL", "Dodawanie kolumny 'data_produkcji' (PSD)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "data_produkcji", "DATE DEFAULT NULL", "Dodawanie kolumny 'data_produkcji' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "opakowanie_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'opakowanie_id' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "etykieta_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'etykieta_id' (AGRO)")
+
+    try:
+        cursor.execute("SHOW INDEX FROM plan_produkcji_agro WHERE Key_name = 'idx_plan_agro_opakowanie'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE plan_produkcji_agro ADD INDEX idx_plan_agro_opakowanie (opakowanie_id)")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_plan_agro_opakowanie: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM plan_produkcji_agro WHERE Key_name = 'idx_plan_agro_etykieta'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE plan_produkcji_agro ADD INDEX idx_plan_agro_etykieta (etykieta_id)")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_plan_agro_etykieta: {e}")
+
 
 
 
@@ -1295,6 +1312,29 @@ def _seed_produkty(cursor):
     print("[OK] Produkty zainicjalizowane w bazie danych")
 
 
+def _seed_etykiety(cursor):
+    """Seed initial labels into slownik_etykiety_agro table."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS slownik_etykiety_agro (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(255) UNIQUE NOT NULL
+        )
+    """)
+    
+    default_labels = [
+        "Biała",
+        "Biała z paskiem brązowym",
+        "Biała z paskiem fioletowym",
+        "Biała z paskiem żółtym"
+    ]
+    for label in default_labels:
+        cursor.execute("SELECT id FROM slownik_etykiety_agro WHERE nazwa=%s", (label,))
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO slownik_etykiety_agro (nazwa) VALUES (%s)", (label,))
+    
+    print("[OK] Etykiety AGRO zainicjalizowane w bazie danych")
+
+
 def setup_database():
     """Main setup function - orchestrates all database initialization."""
     try:
@@ -1312,6 +1352,9 @@ def setup_database():
         
         # 3. Seed initial products
         _seed_produkty(cursor)
+        
+        # Seed labels
+        _seed_etykiety(cursor)
         
         # 4. Seed default users (including password migration)
         _seed_default_users(cursor)

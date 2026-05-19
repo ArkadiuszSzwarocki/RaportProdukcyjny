@@ -105,6 +105,11 @@ def panel_planisty():
         bufor_source_date = bufor_context['bufor_source_date']
         bufor_source_date_fmt = bufor_context['bufor_source_date_fmt']
 
+        cursor.execute("SELECT id, nazwa FROM magazyn_opakowania ORDER BY nazwa")
+        opakowania = cursor.fetchall()
+        cursor.execute("SELECT id, nazwa FROM slownik_etykiety_agro ORDER BY id")
+        etykiety = cursor.fetchall()
+
         rola = session.get('rola')
         return render_template('planista.html',
                                plany=plany_list, wybrana_data=wybrana_data, wybrana_linia=wybrana_linia,
@@ -118,7 +123,8 @@ def panel_planisty():
                                has_incomplete_plans=has_incomplete_plans,
                                has_incomplete_psd=has_incomplete_psd, has_incomplete_agro=has_incomplete_agro,
                                bufor_remaining=bufor_remaining,
-                               bufor_source_date=bufor_source_date, bufor_source_date_fmt=bufor_source_date_fmt)
+                               bufor_source_date=bufor_source_date, bufor_source_date_fmt=bufor_source_date_fmt,
+                               opakowania=opakowania, etykiety=etykiety)
     except Exception as e:
         import traceback
         error_msg = f"Error loading panel_planisty: {str(e)}\n{traceback.format_exc()}"

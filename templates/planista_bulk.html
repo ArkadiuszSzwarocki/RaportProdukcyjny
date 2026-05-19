@@ -650,7 +650,63 @@
     }
   }
 
+  /* Searchable Select Autocomplete styles */
+  .searchable-select-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+  .searchable-select-wrapper .input-badge-indicator {
+    position: absolute;
+    left: 10px;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+  }
+  .searchable-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    max-height: 250px;
+    overflow-y: auto;
+    margin-top: 4px;
+  }
+  .searchable-select-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #f1f1f1;
+    font-size: 0.95em;
+    color: #333;
+    transition: background 0.15s ease;
+  }
+  .searchable-select-item:hover, .searchable-select-item.highlighted {
+    background: #e0f2f1;
+    color: #004d40;
+  }
+  .stripe-badge {
+    display: inline-block;
+    width: 30px;
+    height: 12px;
+    border-radius: 2px;
+    margin-right: 8px;
+    vertical-align: middle;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
+  }
+
 </style>
+
 
 <div class="bulk-page-container">
   <h2 class="bulk-page-title">📥 {{ _('dodawanie_zlecen') }}</h2>
@@ -711,6 +767,29 @@
             <option value="worki_zszywane_20">Szyte 20 kg</option>
             <option value="bigbag">BigBag</option>
           </select>
+      </div>
+      
+      <!-- AGRO specyficzne pola (opakowanie i etykieta) -->
+      <div id="agroFieldsContainer" style="display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;">
+        <div class="form-grid-row">
+          <div class="form-field">
+            <label style="font-weight: 600; color: #004d40;">Worek (wymagane)</label>
+            <div class="searchable-select-wrapper" id="wrapper_inpOpakowanie">
+              <span class="input-badge-indicator" id="inpOpakowanie_indicator"></span>
+              <input type="text" id="inpOpakowanie_search" class="searchable-select-input" placeholder="Wpisz lub wybierz worek..." autocomplete="off" style="width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px;">
+              <input type="hidden" id="inpOpakowanie" name="opakowanie_id">
+              <div id="inpOpakowanie_dropdown" class="searchable-select-dropdown" style="display: none;"></div>
+            </div>
+          </div>
+          <div class="form-field">
+            <label style="font-weight: 600; color: #4a148c;">Etykieta (wymagane)</label>
+            <div class="searchable-select-wrapper" id="wrapper_inpEtykieta">
+              <span class="input-badge-indicator" id="inpEtykieta_indicator"></span>
+              <input type="text" id="inpEtykieta_search" class="searchable-select-input" placeholder="Wpisz lub wybierz etykietę..." autocomplete="off" style="width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px;">
+              <input type="hidden" id="inpEtykieta" name="etykieta_id">
+              <div id="inpEtykieta_dropdown" class="searchable-select-dropdown" style="display: none;"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -736,6 +815,8 @@
           <th>{{ _('nr_receptury') }}</th>
           <th>{{ _('waga_kg_symbol') }}</th>
           <th>{{ _('typ_produkcji') }}</th>
+          <th class="col-worek" style="display: none;">Worek</th>
+          <th class="col-etykieta" style="display: none;">Etykieta</th>
           <th>Akcje</th>
         </tr>
       </thead>
@@ -798,6 +879,23 @@
 
 <script>
   (function () {
+    const globalOpakowania = [
+      {% for o in opakowania %}
+        { id: {{ o.id }}, nazwa: {{ o.nazwa|tojson }} },
+      {% endfor %}
+    ];
+    const globalEtykiety = [
+      {% for e in etykiety %}
+        { id: {{ e.id }}, nazwa: {{ e.nazwa|tojson }} },
+      {% endfor %}
+    ];
+
+    // Initialize searchable selects for packaging & labels
+    setTimeout(function() {
+      initSearchableSelect('inpOpakowanie', 'inpOpakowanie_search', 'inpOpakowanie_dropdown', 'inpOpakowanie_indicator', globalOpakowania, false);
+      initSearchableSelect('inpEtykieta', 'inpEtykieta_search', 'inpEtykieta_dropdown', 'inpEtykieta_indicator', globalEtykiety, true);
+    }, 100);
+
     const tbody = document.querySelector('#bulkTable tbody');
     const bulkTable = document.querySelector('#bulkTable');
     const emptyState = document.querySelector('#emptyState');
@@ -813,6 +911,8 @@
     const manageModalBackdrop = document.getElementById('manageModalBackdrop');
     const manageModal = document.getElementById('manageModal');
     const productsList = document.getElementById('productsList');
+    const sekcjaSelect = document.getElementById('sekcja_select');
+    const agroFieldsContainer = document.getElementById('agroFieldsContainer');
 
     let produktyList = [];
 
@@ -999,6 +1099,40 @@
       }
     }
 
+    function toggleAgroFields() {
+      const isAgro = sekcjaSelect && sekcjaSelect.value === 'Agro';
+      if (agroFieldsContainer) {
+        if (isAgro) {
+          agroFieldsContainer.style.display = 'block';
+        } else {
+          agroFieldsContainer.style.display = 'none';
+          if (window.clearSearchableSelects) {
+            if (window.clearSearchableSelects['inpOpakowanie']) window.clearSearchableSelects['inpOpakowanie']();
+            if (window.clearSearchableSelects['inpEtykieta']) window.clearSearchableSelects['inpEtykieta']();
+          }
+        }
+      }
+
+      // Show/hide worek/etykieta columns in bulk table headers and rows
+      if (bulkTable) {
+        const thWorek = bulkTable.querySelector('th.col-worek');
+        const thEtykieta = bulkTable.querySelector('th.col-etykieta');
+        if (thWorek) thWorek.style.display = isAgro ? '' : 'none';
+        if (thEtykieta) thEtykieta.style.display = isAgro ? '' : 'none';
+
+        const tdWoreks = bulkTable.querySelectorAll('td.col-worek');
+        const tdEtykietas = bulkTable.querySelectorAll('td.col-etykieta');
+        tdWoreks.forEach(td => td.style.display = isAgro ? '' : 'none');
+        tdEtykietas.forEach(td => td.style.display = isAgro ? '' : 'none');
+      }
+    }
+
+    if (sekcjaSelect) {
+      sekcjaSelect.addEventListener('change', toggleAgroFields);
+      // Run immediately on page load to set correct initial state
+      setTimeout(toggleAgroFields, 50);
+    }
+
     const addRow = () => {
       const produkt = selectProdukt.value.trim();
       const nr = document.getElementById('inpNr').value.trim();
@@ -1009,18 +1143,58 @@
       if (!produkt) { return safeAlert('Błąd', 'Wybierz produkt ze listy'); }
       if (tonaz === null || tonaz <= 0) { return safeAlert('Błąd', 'Podaj poprawną wagę (kg) większą od 0'); }
 
+      const isAgro = sekcjaSelect && sekcjaSelect.value === 'Agro';
+      let opakowanieId = '';
+      let opakowanieNazwa = '';
+      let etykietaId = '';
+      let etykietaNazwa = '';
+
+      if (isAgro) {
+        const inpOpak = document.getElementById('inpOpakowanie');
+        const inpEtyk = document.getElementById('inpEtykieta');
+        const inpOpakSearch = document.getElementById('inpOpakowanie_search');
+        const inpEtykSearch = document.getElementById('inpEtykieta_search');
+        if (!inpOpak || !inpEtyk || !inpOpak.value || !inpEtyk.value) {
+          return safeAlert('Błąd', 'Dla sekcji AGRO wybór worka oraz etykiety jest obowiązkowy!');
+        }
+        opakowanieId = inpOpak.value;
+        opakowanieNazwa = inpOpakSearch.value;
+        etykietaId = inpEtyk.value;
+        etykietaNazwa = inpEtykSearch.value;
+      }
+
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td><strong>${produkt}</strong></td><td>${nr}</td><td>${tonaz}</td><td>${typ}</td><td><button type="button" class="delete-button">🗑️</button></td>`;
+      tr.innerHTML = `<td><strong>${produkt}</strong></td>` +
+                     `<td>${nr}</td>` +
+                     `<td>${tonaz}</td>` +
+                     `<td>${typ}</td>` +
+                     `<td class="col-worek" style="${isAgro ? '' : 'display: none;'}">${opakowanieNazwa}</td>` +
+                     `<td class="col-etykieta" style="${isAgro ? '' : 'display: none;'}">${etykietaNazwa}</td>` +
+                     `<td><button type="button" class="delete-button">🗑️</button></td>`;
+      
       tr.dataset.produkt = produkt;
       tr.dataset.nr = nr;
       tr.dataset.tonaz = tonaz;
       tr.dataset.typ = typ;
+      if (isAgro) {
+        tr.dataset.opakowanieId = opakowanieId;
+        tr.dataset.opakowanieNazwa = opakowanieNazwa;
+        tr.dataset.etykietaId = etykietaId;
+        tr.dataset.etykietaNazwa = etykietaNazwa;
+      }
+
       tbody.appendChild(tr);
 
       selectProdukt.value = '';
       document.getElementById('inpNr').value = '';
       document.getElementById('inpTonaz').value = '';
       document.getElementById('inpTyp').value = 'worki_zgrzewane_25';
+      if (isAgro) {
+        if (window.clearSearchableSelects) {
+          if (window.clearSearchableSelects['inpOpakowanie']) window.clearSearchableSelects['inpOpakowanie']();
+          if (window.clearSearchableSelects['inpEtykieta']) window.clearSearchableSelects['inpEtykieta']();
+        }
+      }
 
       updateTableVisibility();
       updateSubmitState();
@@ -1047,6 +1221,7 @@
     const submitBtn = document.getElementById('btnSubmitAll');
 
     function validateRows(rows) {
+      const sekcja = sekcjaSelect ? sekcjaSelect.value : '';
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         const produkt = (r.dataset.produkt || '').trim();
@@ -1055,6 +1230,11 @@
         if (!produkt) return { ok: false, message: `Wiersz ${i + 1}: brak produktu` };
         if (!typ) return { ok: false, message: `Wiersz ${i + 1}: brak typu produkcji` };
         if (!(ton > 0)) return { ok: false, message: `Wiersz ${i + 1}: waga (kg) powinna być większa niż 0` };
+        if (sekcja === 'Agro') {
+          if (!r.dataset.opakowanieId || !r.dataset.etykietaId) {
+            return { ok: false, message: `Wiersz ${i + 1}: brak wybranego worka lub etykiety dla zlecenia AGRO` };
+          }
+        }
       }
       return { ok: true };
     }
@@ -1073,13 +1253,15 @@
       if (!valid.ok) return safeAlert('Błąd', valid.message);
 
       const data_planu = document.getElementById('data_planu').value || '{{ wybrana_data }}';
-      const sekcja = document.getElementById('sekcja_select').value;
+      const sekcja = sekcjaSelect ? sekcjaSelect.value : '';
       const payload = rows.map(r => ({
         produkt: r.dataset.produkt,
         nr_receptury: r.dataset.nr,
         tonaz: parseFloat(r.dataset.tonaz) || 0,
         typ_produkcji: r.dataset.typ,
-        sekcja: sekcja
+        sekcja: sekcja,
+        opakowanie_id: r.dataset.opakowanieId ? parseInt(r.dataset.opakowanieId) : null,
+        etykieta_id: r.dataset.etykietaId ? parseInt(r.dataset.etykietaId) : null
       }));
 
       fetch('{{ url_for("planning.dodaj_plany_batch") }}', {

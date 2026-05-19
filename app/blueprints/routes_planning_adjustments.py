@@ -220,6 +220,8 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         typ_produkcji = data.get('typ_produkcji')
         nazwa_zlecenia = data.get('nazwa_zlecenia')
         data_produkcji = data.get('data_produkcji')
+        opakowanie_id = data.get('opakowanie_id')
+        etykieta_id = data.get('etykieta_id')
         linia = data.get('linia', 'PSD')
 
         try:
@@ -233,7 +235,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             table_plan = get_table_name('plan_produkcji', linia)
             cursor = conn.cursor()
             cursor.execute(
-                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji FROM {table_plan} WHERE id=%s",
+                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, opakowanie_id, etykieta_id FROM {table_plan} WHERE id=%s",
                 (pid,),
             )
             before = cursor.fetchone()
@@ -303,6 +305,37 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
                 params.append('zaplanowane')
                 changes['status'] = {'before': 'zakonczone', 'after': 'zaplanowane'}
 
+            if linia.upper() == 'AGRO':
+                # Enforce that opakowanie_id and etykieta_id are present (not NULL/None/empty) for AGRO orders.
+                if opakowanie_id is not None:
+                    try:
+                        opakowanie_id_int = int(opakowanie_id) if opakowanie_id not in (None, '', 'None') else None
+                    except Exception:
+                        opakowanie_id_int = None
+                else:
+                    opakowanie_id_int = before[11]
+
+                if etykieta_id is not None:
+                    try:
+                        etykieta_id_int = int(etykieta_id) if etykieta_id not in (None, '', 'None') else None
+                    except Exception:
+                        etykieta_id_int = None
+                else:
+                    etykieta_id_int = before[12]
+
+                if not opakowanie_id_int or not etykieta_id_int:
+                    return jsonify({'success': False, 'message': 'Dla linii AGRO wyznaczony worek (opakowanie) oraz etykieta są obowiązkowe!'}), 400
+
+                if opakowanie_id is not None and opakowanie_id_int != before[11]:
+                    updates.append('opakowanie_id=%s')
+                    params.append(opakowanie_id_int)
+                    changes['opakowanie_id'] = {'before': before[11], 'after': opakowanie_id_int}
+
+                if etykieta_id is not None and etykieta_id_int != before[12]:
+                    updates.append('etykieta_id=%s')
+                    params.append(etykieta_id_int)
+                    changes['etykieta_id'] = {'before': before[12], 'after': etykieta_id_int}
+
             if data_produkcji is not None:
                 data_prod_val = data_produkcji.strip() if data_produkcji and str(data_produkcji).strip() else None
                 before_prod_date = before[10]
@@ -357,7 +390,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
                     if (before[3] or '').lower() == 'zasyp':
                         linked_updates = []
                         linked_params = []
-                        for field in ['produkt', 'typ_produkcji', 'nazwa_zlecenia', 'data_planu', 'tonaz']:
+                        for field in ['produkt', 'typ_produkcji', 'nazwa_zlecenia', 'data_planu', 'tonaz', 'opakowanie_id', 'etykieta_id']:
                             if field in changes:
                                 if field == 'tonaz' and (before[9] == 'carry_over_ghost' or 'carry-over' in (before[7] or '').lower()):
                                     continue

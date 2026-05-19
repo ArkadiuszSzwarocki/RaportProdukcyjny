@@ -123,10 +123,24 @@ document.addEventListener('DOMContentLoaded', function () {
         </thead>
         <tbody id="plans-agro-tbody">
             {% for p in plany_agro %}
-            <tr data-plan-id="{{ p.id }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}">
+            <tr data-plan-id="{{ p.id }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-opakowanie-id="{{ p.opakowanie_id or '' }}" data-etykieta-id="{{ p.etykieta_id or '' }}" data-produkt="{{ p.produkt }}">
                 <td class="text-muted font-bold">{{ loop.index }}</td>
                 <td>
                     <strong class="text-primary">{{ p.produkt }}</strong>
+                    {% if p.opakowanie_nazwa or p.etykieta_nazwa %}
+                    <div style="font-size: 0.82em; margin-top: 4px; line-height: 1.4;">
+                        {% if p.opakowanie_nazwa %}
+                        <span style="display: inline-block; background: #e0f2f1; color: #004d40; border: 1px solid #b2dfdb; border-radius: 4px; padding: 1px 6px; font-weight: 500;">
+                            Worek: <b>{{ p.opakowanie_nazwa }}</b>
+                        </span>
+                        {% endif %}
+                        {% if p.etykieta_nazwa %}
+                        <span style="display: inline-block; background: #f3e5f5; color: #4a148c; border: 1px solid #e1bee7; border-radius: 4px; padding: 1px 6px; font-weight: 500; margin-left: 4px;">
+                            Etykieta: <b>{{ p.etykieta_nazwa }}</b>
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                     {% if p.przeniesiony_z %}
                     <br><span style="display:inline-block;background:#e8f4fd;color:#1565c0;border:1px solid #90caf9;border-radius:10px;padding:1px 7px;font-size:0.78em;font-weight:600;margin-top:2px;">📦 przeniesione z {{ p.przeniesiony_z }}{% if p.przeniesiony_tonaz and p.przeniesiony_tonaz|int > 0 %}: {{ p.przeniesiony_tonaz|int }} kg{% endif %}</span>
                     {% if p.przeniesiony_tonaz and p.przeniesiony_tonaz|int > 0 and p.tonaz|int > p.przeniesiony_tonaz|int %}
@@ -488,6 +502,18 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!currentLinia || currentLinia === '') {
         currentLinia = '{{ wybrana_linia or "PSD" }}';
     }
+    
+    // Global lists for AGRO packaging and labels
+    var globalOpakowania = [
+        {% for o in opakowania %}
+            { id: {{ o.id }}, nazwa: {{ o.nazwa|tojson }} },
+        {% endfor %}
+    ];
+    var globalEtykiety = [
+        {% for e in etykiety %}
+            { id: {{ e.id }}, nazwa: {{ e.nazwa|tojson }} },
+        {% endfor %}
+    ];
     var pnMsgs = {
         zapisz: '{{ _("zapisz") }}',
         anuluj: '{{ _("anuluj") }}'
@@ -779,10 +805,12 @@ document.addEventListener('DOMContentLoaded', function () {
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
         if (!tr) return;
         // Table columns: 0=Lp, 1=Produkt, 2=Typ, 3=Plan
-        var produkt = tr.children[1].innerText.trim();
+        var produkt = tr.getAttribute('data-produkt') || (tr.children[1].querySelector('strong') ? tr.children[1].querySelector('strong').innerText.trim() : tr.children[1].innerText.trim());
         var typ = tr.querySelector('.badge-sekcja') ? tr.querySelector('.badge-sekcja').innerText : '';
         var tonaz = tr.children[3].innerText.replace(/[^0-9\.\,]/g, '').replace(',', '.') || 0;
         var dataProdukcji = tr.getAttribute('data-data-produkcji') || '';
+        var opakowanieId = tr.getAttribute('data-opakowanie-id') || '';
+        var etykietaId = tr.getAttribute('data-etykieta-id') || '';
 
         var html = '<form id="editForm_' + id + '" class="form-group">';
         html += '<div class="form-group"><label>Produkt:</label><input id="e_prod_' + id + '" name="produkt" value="' + produkt + '" required></div>';
@@ -790,6 +818,25 @@ document.addEventListener('DOMContentLoaded', function () {
         html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_' + id + '" name="tonaz" type="number" step="0.1" value="' + tonaz + '" required></div>';
         html += '<div class="form-group"><label>Data:</label><input id="e_date_' + id + '" name="data_planu" type="date" value="{{ wybrana_data }}"></div>';
         html += '<div class="form-group"><label>Data produkcji (opcjonalnie):</label><input id="e_prod_date_' + id + '" name="data_produkcji" type="date" value="' + dataProdukcji + '"></div>';
+        
+        if (currentLinia.toLowerCase() === 'agro') {
+            html += '<div class="form-group"><label style="font-weight: 600; color: #004d40;">Worek (wymagane):</label>';
+            html += '<div class="searchable-select-wrapper" id="wrapper_e_opakowanie_' + id + '">';
+            html += '  <span class="input-badge-indicator" id="e_opakowanie_indicator_' + id + '"></span>';
+            html += '  <input type="text" id="e_opakowanie_search_' + id + '" class="searchable-select-input" placeholder="Wpisz lub wybierz worek..." autocomplete="off" style="width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px;">';
+            html += '  <input type="hidden" id="e_opakowanie_' + id + '" name="opakowanie_id">';
+            html += '  <div id="e_opakowanie_dropdown_' + id + '" class="searchable-select-dropdown" style="display: none;"></div>';
+            html += '</div></div>';
+
+            html += '<div class="form-group"><label style="font-weight: 600; color: #4a148c;">Etykieta (wymagane):</label>';
+            html += '<div class="searchable-select-wrapper" id="wrapper_e_etykieta_' + id + '">';
+            html += '  <span class="input-badge-indicator" id="e_etykieta_indicator_' + id + '"></span>';
+            html += '  <input type="text" id="e_etykieta_search_' + id + '" class="searchable-select-input" placeholder="Wpisz lub wybierz etykietę..." autocomplete="off" style="width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px;">';
+            html += '  <input type="hidden" id="e_etykieta_' + id + '" name="etykieta_id">';
+            html += '  <div id="e_etykieta_dropdown_' + id + '" class="searchable-select-dropdown" style="display: none;"></div>';
+            html += '</div></div>';
+        }
+
         html += '<div class="d-flex gap-10 mt-15">';
         html += '  <button type="button" class="btn-action btn-success" onclick="submitEdit(' + id + ')">Zapisz</button>';
         html += '  <button type="button" class="btn-action btn-cancel" onclick="if(window.createQuickPopup && window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close()">Anuluj</button>';
@@ -797,6 +844,23 @@ document.addEventListener('DOMContentLoaded', function () {
         html += '</form>';
         var popup = showQuickPopup('Edytuj zlecenie', html);
         if (popup) window.createQuickPopup._lastInst = popup;
+
+        if (currentLinia.toLowerCase() === 'agro') {
+            initSearchableSelect('e_opakowanie_' + id, 'e_opakowanie_search_' + id, 'e_opakowanie_dropdown_' + id, 'e_opakowanie_indicator_' + id, globalOpakowania, false);
+            initSearchableSelect('e_etykieta_' + id, 'e_etykieta_search_' + id, 'e_etykieta_dropdown_' + id, 'e_etykieta_indicator_' + id, globalEtykiety, true);
+            
+            if (opakowanieId) {
+                if (window.setSearchableSelectValue['e_opakowanie_' + id]) {
+                    window.setSearchableSelectValue['e_opakowanie_' + id](opakowanieId);
+                }
+            }
+            if (etykietaId) {
+                if (window.setSearchableSelectValue['e_etykieta_' + id]) {
+                    window.setSearchableSelectValue['e_etykieta_' + id](etykietaId);
+                }
+            }
+        }
+
         setTimeout(function () { var inp = document.getElementById('e_prod_' + id); if (inp) inp.focus(); }, 200);
     }
 
@@ -805,9 +869,23 @@ document.addEventListener('DOMContentLoaded', function () {
         var ton = document.getElementById('e_ton_' + id).value;
         var dt = document.getElementById('e_date_' + id).value;
         var dp = document.getElementById('e_prod_date_' + id).value;
+        
+        var payload = { id: id, produkt: prod, tonaz: ton, data_planu: dt, data_produkcji: dp, linia: currentLinia };
+        
+        if (currentLinia.toLowerCase() === 'agro') {
+            var opakSel = document.getElementById('e_opakowanie_' + id);
+            var etykSel = document.getElementById('e_etykieta_' + id);
+            if (!opakSel || !etykSel || !opakSel.value || !etykSel.value) {
+                safeAlert('Brak danych', 'Wybór worka oraz etykiety jest obowiązkowy dla zleceń AGRO!');
+                return;
+            }
+            payload.opakowanie_id = parseInt(opakSel.value);
+            payload.etykieta_id = parseInt(etykSel.value);
+        }
+
         fetch('/api/edytuj_plan_ajax', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, produkt: prod, tonaz: ton, data_planu: dt, data_produkcji: dp, linia: currentLinia })
+            body: JSON.stringify(payload)
         }).then(r => r.json()).then(j => {
             if (j && j.success) {
                 if (window.createQuickPopup && window.createQuickPopup._lastInst) {
@@ -1485,6 +1563,61 @@ document.addEventListener('DOMContentLoaded', function () {
     .modern-table tr.expanded td .d-flex.align-center { align-items: flex-start; }
     /* Stronger override in case other styles force centering */
     .modern-table tr.expanded td .d-flex { align-items: flex-start !important; }
+
+    /* Searchable Select Autocomplete styles */
+    .searchable-select-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
+    }
+    .searchable-select-wrapper .input-badge-indicator {
+        position: absolute;
+        left: 10px;
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 5;
+    }
+    .searchable-select-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 9999;
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 4px;
+    }
+    .searchable-select-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #f1f1f1;
+        font-size: 0.9em;
+        color: #333;
+        transition: background 0.15s ease;
+    }
+    .searchable-select-item:hover, .searchable-select-item.highlighted {
+        background: #e0f2f1;
+        color: #004d40;
+    }
+    .stripe-badge {
+        display: inline-block;
+        width: 30px;
+        height: 12px;
+        border-radius: 2px;
+        margin-right: 8px;
+        vertical-align: middle;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
+    }
 </style>
 
 </style>

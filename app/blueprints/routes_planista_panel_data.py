@@ -208,13 +208,17 @@ def load_agro_plan_rows(cursor, wybrana_data):
     t_pp_agro = get_table_name('plan_produkcji', 'AGRO')
     cursor.execute(
         f"""
-        SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci,
-               COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki,
-               COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
-               zasyp_id, data_produkcji
-        FROM {t_pp_agro}
-        WHERE data_planu = %s
-        ORDER BY kolejnosc
+        SELECT p.id, p.sekcja, p.produkt, p.tonaz, p.status, p.kolejnosc, p.real_start, p.real_stop, p.tonaz_rzeczywisty, p.typ_produkcji, p.wyjasnienie_rozbieznosci,
+               COALESCE(p.uszkodzone_worki, 0) AS uszkodzone_worki,
+               COALESCE(p.nazwa_zlecenia, '') AS nazwa_zlecenia,
+               p.zasyp_id, p.data_produkcji, p.opakowanie_id, p.etykieta_id,
+               o.nazwa AS opakowanie_nazwa,
+               e.nazwa AS etykieta_nazwa
+        FROM {t_pp_agro} p
+        LEFT JOIN magazyn_opakowania o ON p.opakowanie_id = o.id
+        LEFT JOIN slownik_etykiety_agro e ON p.etykieta_id = e.id
+        WHERE p.data_planu = %s
+        ORDER BY p.kolejnosc
         """,
         (wybrana_data,),
     )

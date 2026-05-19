@@ -105,4 +105,20 @@ def register_planista_bulk_routes(planista_bp):
         """Render page for bulk adding plans."""
         wybrana_data = request.args.get('data', str(date.today()))
         domyslna_sekcja = request.args.get('sekcja', 'Zasyp')
-        return render_template('planista_bulk.html', wybrana_data=wybrana_data, domyslna_sekcja=domyslna_sekcja)
+        
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, nazwa FROM magazyn_opakowania ORDER BY nazwa")
+            opakowania = cursor.fetchall()
+            cursor.execute("SELECT id, nazwa FROM slownik_etykiety_agro ORDER BY id")
+            etykiety = cursor.fetchall()
+        except Exception as e:
+            current_app.logger.error(f"Error fetching bulk resources: {e}")
+            opakowania = []
+            etykiety = []
+        finally:
+            try: conn.close()
+            except: pass
+            
+        return render_template('planista_bulk.html', wybrana_data=wybrana_data, domyslna_sekcja=domyslna_sekcja, opakowania=opakowania, etykiety=etykiety)
