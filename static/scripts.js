@@ -1080,6 +1080,10 @@
             const forms = m.querySelectorAll('form');
             forms.forEach(function (innerForm) {
                 innerForm.addEventListener('submit', function (evt) {
+                    if (evt.defaultPrevented) {
+                        return;
+                    }
+
                     const confirmMsg = innerForm.dataset.confirm;
                     if (confirmMsg && !confirm(confirmMsg)) return;
 

@@ -9,8 +9,10 @@ LAYOUT_TEMPLATE = ROOT / 'templates' / 'layout.html'
 DOSYPKI_LIST_TEMPLATE = ROOT / 'templates' / 'dosypki_list.html'
 CSS_DASHBOARD = ROOT / 'static' / 'css' / 'dashboard.css'
 CONFIG_JS = ROOT / 'static' / 'js' / 'dashboard' / 'config.js'
+CARD_ACTIONS_JS = ROOT / 'static' / 'js' / 'dashboard' / 'card-actions.js'
 DASHBOARD_JS_DIR = ROOT / 'static' / 'js' / 'dashboard'
 DOSYPKI_JS = ROOT / 'static' / 'js' / 'dosypki.js'
+GLOBAL_SCRIPTS_JS = ROOT / 'static' / 'scripts.js'
 CACHE_BUST_SUFFIX = '&dashboard_refactor=4'
 EXPECTED_DASHBOARD_ASSETS = [
     'js/dashboard/scheduler.js',
@@ -119,6 +121,18 @@ def test_laborant_has_dosypki_action_in_order_tile():
     content = ORDER_CARD_TEMPLATE.read_text(encoding='utf-8')
 
     assert "role_lc in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium']" in content
+
+
+def test_dashboard_card_actions_skips_prevented_submit_events():
+    content = CARD_ACTIONS_JS.read_text(encoding='utf-8')
+
+    assert 'if (event.defaultPrevented) {' in content
+
+
+def test_quick_popup_submit_handler_respects_prevented_event():
+    content = GLOBAL_SCRIPTS_JS.read_text(encoding='utf-8')
+
+    assert 'if (evt.defaultPrevented) {' in content
 
 
 def test_dosypki_fragment_uses_fragment_role_context_instead_of_removed_legacy_globals():
