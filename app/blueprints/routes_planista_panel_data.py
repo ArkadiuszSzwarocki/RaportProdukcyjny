@@ -15,7 +15,7 @@ def load_primary_plan_rows(cursor, wybrana_data, wybrana_linia):
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci,
                COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki,
                COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
-               zasyp_id
+               zasyp_id, data_produkcji
         FROM {table_plan}
         WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
         ORDER BY kolejnosc
@@ -29,7 +29,7 @@ def load_primary_plan_rows(cursor, wybrana_data, wybrana_linia):
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci,
                COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki,
                COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
-               zasyp_id
+               zasyp_id, data_produkcji
         FROM {table_plan}
         WHERE data_planu = %s AND LOWER(sekcja) = 'workowanie'
         ORDER BY kolejnosc
@@ -59,6 +59,12 @@ def load_primary_plan_rows(cursor, wybrana_data, wybrana_linia):
             continue
 
         plany_list.append(dict(work_row))
+
+    for plan in plany_list:
+        if plan.get('data_produkcji') and hasattr(plan['data_produkcji'], 'strftime'):
+            plan['data_produkcji'] = plan['data_produkcji'].strftime('%Y-%m-%d')
+        elif not plan.get('data_produkcji'):
+            plan['data_produkcji'] = ''
 
     return plany_list
 
@@ -205,7 +211,7 @@ def load_agro_plan_rows(cursor, wybrana_data):
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci,
                COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki,
                COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
-               zasyp_id
+               zasyp_id, data_produkcji
         FROM {t_pp_agro}
         WHERE data_planu = %s
         ORDER BY kolejnosc
@@ -238,6 +244,12 @@ def load_agro_plan_rows(cursor, wybrana_data):
             target = zasyp_lookup.get(product_name)
             if target:
                 target['uszkodzone_worki'] = (target.get('uszkodzone_worki') or 0) + (row.get('uszkodzone_worki') or 0)
+
+    for plan in plany_agro:
+        if plan.get('data_produkcji') and hasattr(plan['data_produkcji'], 'strftime'):
+            plan['data_produkcji'] = plan['data_produkcji'].strftime('%Y-%m-%d')
+        elif not plan.get('data_produkcji'):
+            plan['data_produkcji'] = ''
 
     return plany_agro
 

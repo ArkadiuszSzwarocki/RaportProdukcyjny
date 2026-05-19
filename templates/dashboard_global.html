@@ -82,7 +82,7 @@
             <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
             <td>
               {% if p[3] == 'zaplanowane' %}
-              <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0;">
+              <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
                 <input type="hidden" name="linia" value="{{ h.linia }}">
                 <input type="hidden" name="sekcja" value="Zasyp">
                 <button type="submit" class="btn-action btn-success btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1;">▶ START</button>
@@ -130,7 +130,7 @@
             <td><span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span></td>
             <td>
               {% if p[3] == 'zaplanowane' %}
-              <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0;">
+              <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="margin:0;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
                 <input type="hidden" name="linia" value="{{ h.linia }}">
                 <input type="hidden" name="sekcja" value="Workowanie">
                 <button type="submit" class="btn-action btn-success btn-sm" style="padding:2px 8px; font-size:0.8em; line-height: 1;">▶ START</button>

@@ -202,14 +202,12 @@ def _print_wrapped_pallet_label_once(plan_id, last_printed_pallet_ids, linia='AG
         printer_row = _select_preferred_printer(cursor)
         printer = get_printer()
 
-        label_data = {
-            'nrPalety': (row.get('nr_palety') or f"AUTO-{pallet_id}"),
-            'nazwa': row.get('produkt') or 'Brak produktu',
-            'ilosc': float(row.get('waga') or 0),
-            'data': row['data_dodania'].strftime('%Y-%m-%d') if row.get('data_dodania') else time.strftime('%Y-%m-%d'),
-            'partia': f"AUTO OWIJARKA PLAN {plan_id}",
-            'uwagi': f"wrap_edge instance={_INSTANCE_ID}",
-        }
+        from app.utils.pallet_label import prepare_pallet_label_data
+        label_data = prepare_pallet_label_data(cursor, pallet_id, linia)
+        if not label_data:
+            return False, 'Nie udało się przygotować danych etykiety', pallet_id
+
+        label_data['uwagi'] = f"wrap_edge instance={_INSTANCE_ID}"
 
         override_ip = printer_row.get('ip') if printer_row else None
         override_name = printer_row.get('nazwa') if printer_row else None

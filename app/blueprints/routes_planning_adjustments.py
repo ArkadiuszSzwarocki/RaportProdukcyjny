@@ -219,6 +219,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         data_planu = data.get('data_planu')
         typ_produkcji = data.get('typ_produkcji')
         nazwa_zlecenia = data.get('nazwa_zlecenia')
+        data_produkcji = data.get('data_produkcji')
         linia = data.get('linia', 'PSD')
 
         try:
@@ -232,7 +233,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             table_plan = get_table_name('plan_produkcji', linia)
             cursor = conn.cursor()
             cursor.execute(
-                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, '') FROM {table_plan} WHERE id=%s",
+                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji FROM {table_plan} WHERE id=%s",
                 (pid,),
             )
             before = cursor.fetchone()
@@ -301,6 +302,19 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
                 updates.append('status=%s')
                 params.append('zaplanowane')
                 changes['status'] = {'before': 'zakonczone', 'after': 'zaplanowane'}
+
+            if data_produkcji is not None:
+                data_prod_val = data_produkcji.strip() if data_produkcji and str(data_produkcji).strip() else None
+                before_prod_date = before[10]
+                if before_prod_date is not None and hasattr(before_prod_date, 'strftime'):
+                    before_prod_date_str = before_prod_date.strftime('%Y-%m-%d')
+                else:
+                    before_prod_date_str = str(before_prod_date) if before_prod_date else None
+
+                if data_prod_val != before_prod_date_str:
+                    updates.append('data_produkcji=%s')
+                    params.append(data_prod_val)
+                    changes['data_produkcji'] = {'before': before_prod_date_str, 'after': data_prod_val}
 
             if updates:
                 sql = f"UPDATE {table_plan} SET {', '.join(updates)} WHERE id=%s"

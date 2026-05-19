@@ -133,7 +133,7 @@
             
             <div>
                 {% if p[3] == 'zaplanowane' %}
-                    <form action="/start_zlecenie/{{ p[0] }}" method="POST">
+                    <form action="/start_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
                         <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                         <button type="submit" class="btn-start btn-small" aria-label="{{ _('start') }}">▶ {{ _('start') }}</button>
                     </form>

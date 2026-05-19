@@ -108,7 +108,7 @@
 
                         <div class="card-actions">
                             {% if p[3] == 'zaplanowane' and rola in ['admin', 'masteradmin', 'lider', 'produkcja'] %}
-                            <form action="/start_zlecenie/{{ p[0] }}" method="POST">
+                            <form action="/start_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
                                 <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
                                 <button type="submit" class="btn-start">▶ START</button>
                             </form>

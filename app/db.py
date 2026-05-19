@@ -166,7 +166,8 @@ def _create_tables(cursor):
             tonaz_rzeczywisty FLOAT,
             kolejnosc INT DEFAULT 0,
             typ_produkcji VARCHAR(20) DEFAULT 'worki_zgrzewane_25',
-            wyjasnienie_rozbieznosci TEXT
+            wyjasnienie_rozbieznosci TEXT,
+            data_produkcji DATE DEFAULT NULL
         )
     """)
 
@@ -192,7 +193,8 @@ def _create_tables(cursor):
             uszkodzone_worki INT DEFAULT 0,
             is_deleted BOOLEAN DEFAULT 0,
             deleted_at DATETIME NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            data_produkcji DATE DEFAULT NULL
         )
     """)
 
@@ -873,6 +875,10 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_wpisy", "typ_opakowania", "VARCHAR(50) DEFAULT 'brak'", "Dodawanie kolumny 'typ_opakowania' do wpisów inwentaryzacyjnych")
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_wpisy", "jednostka", "VARCHAR(10) DEFAULT 'kg'", "Dodawanie kolumny 'jednostka' do wpisów inwentaryzacyjnych")
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_sesje", "lokalizacja", "VARCHAR(100) DEFAULT 'Wszystko'", "Dodawanie kolumny 'lokalizacja' do sesji inwentaryzacyjnych")
+
+    # Własna data produkcji dla planów
+    _add_column_if_missing(cursor, "plan_produkcji", "data_produkcji", "DATE DEFAULT NULL", "Dodawanie kolumny 'data_produkcji' (PSD)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "data_produkcji", "DATE DEFAULT NULL", "Dodawanie kolumny 'data_produkcji' (AGRO)")
 
 
 

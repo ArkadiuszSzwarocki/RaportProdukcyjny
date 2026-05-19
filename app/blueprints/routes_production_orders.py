@@ -124,6 +124,13 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     # Ensure only one active plan per section in this hall
                     cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
                     cursor.execute(f"UPDATE {table_plan} SET status='w toku', real_start=NOW(), real_stop=NULL, start_machine_counter=%s, start_pallet_counter=%s WHERE id=%s", (start_counter, start_pallet_counter, id))
+                    
+                    # Update custom production date if provided
+                    data_prod_post = request.form.get('data_produkcji') or request.args.get('data_produkcji')
+                    if data_prod_post and data_prod_post.strip():
+                        cursor.execute(f"UPDATE {table_plan} SET data_produkcji = %s WHERE id = %s", (data_prod_post.strip(), id))
+                        current_app.logger.info('Ustawiono własną datę produkcji %s dla zlecenia ID=%s', data_prod_post.strip(), id)
+
                     current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
                     audit_log('Uruchomił zlecenie', f'ID={id}, produkt={produkt}, sekcja={sekcja}')
                     flash(f"✅ Uruchomiono: {produkt}", 'success')

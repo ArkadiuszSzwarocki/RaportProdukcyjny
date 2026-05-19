@@ -31,7 +31,7 @@
             {% set work_start_bypass_role = role_lc in ['admin', 'masteradmin', 'planista', 'zarzad', 'lider', 'magazynier'] %}
             {% if (work_start_bypass_role or allowed) %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
+                style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% else %}
             <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)">🔒</span>
@@ -43,12 +43,12 @@
             <span class="btn-icon-disabled" title="Zablokowane (Inne zlecenie w toku)">🔒</span>
             {% else %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
+                style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% endif %}
             {% else %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
+                style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% endif %}
             {% elif p[3] == 'w toku' %}

@@ -234,4 +234,30 @@
         window.initPlannerNotifications();
     });
     {% endif %}
+
+    /** Prompt operator for a custom production date when starting an order */
+    window.confirmStartOrder = function(form, productName, planId) {
+        var input = prompt("Rozpoczynasz zlecenie: " + productName + "\n\nWpisz datę produkcji (RRRR-MM-DD), jeśli chcesz ją zmienić/ustawić.\nPozostaw puste, aby użyć dotychczasowej daty (bez zmian):");
+        if (input === null) {
+            return false; // Operator clicked Cancel
+        }
+        var trimmed = input.trim();
+        if (trimmed !== "") {
+            var dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!dateRegex.test(trimmed)) {
+                alert("❌ Nieprawidłowy format daty! Użyj formatu RRRR-MM-DD (np. 2026-05-19).");
+                return false;
+            }
+            // Add hidden input to the form
+            var hiddenInput = form.querySelector('input[name="data_produkcji"]');
+            if (!hiddenInput) {
+                hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'data_produkcji';
+                form.appendChild(hiddenInput);
+            }
+            hiddenInput.value = trimmed;
+        }
+        return true;
+    };
 </script>
