@@ -133,6 +133,9 @@ tests/*.png
 tests/*.jpg
 
 # One-off debug/check/inspect scripts (root-level and in scripts/)
+analyze_files.py
+analyze_json.py
+final_analyze.py
 start_server.py
 scripts/_inspect_*.py
 scripts/check_*.py
