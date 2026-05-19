@@ -469,7 +469,7 @@ def production_moves():
 
 @agro_warehouse_bp.route('/agro/report/warehouse', methods=['GET'])
 @login_required
-@roles_required('lider', 'admin')
+@dynamic_role_required('raporty.agro_warehouse')
 def report_warehouse():
     try:
         linia = request.args.get('linia', 'Agro')
@@ -503,7 +503,7 @@ def report_warehouse():
 
 @agro_warehouse_bp.route('/agro/report/production', methods=['GET'])
 @login_required
-@roles_required('lider', 'admin')
+@dynamic_role_required('raporty.agro_production')
 def report_production():
     try:
         linia = request.args.get('linia', 'Agro')
@@ -532,7 +532,7 @@ def report_production():
 
 @agro_warehouse_bp.route('/agro/report/combined', methods=['GET'])
 @login_required
-@roles_required('lider', 'admin')
+@dynamic_role_required('raporty.agro_production')
 def report_combined():
     try:
         linia = request.args.get('linia', 'Agro')
