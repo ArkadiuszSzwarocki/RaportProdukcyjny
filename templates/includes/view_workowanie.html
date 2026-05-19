@@ -70,7 +70,7 @@
                 </div>
 
                 <div class="flex-1 d-flex flex-column gap-10">
-                    {% if rola in ['masteradmin', 'produkcja','lider','admin','pracownik'] %}
+                    {% if rola in ['produkcja','lider','admin', 'masteradmin','pracownik'] %}
                     <form action="{{ url_for('api.dodaj_palete', plan_id=p[0]) }}" method="POST" class="dashed-blue">
                         <label class="header-title">{{ _('dodaj_pelna_palete') }}</label>
                         
@@ -139,7 +139,7 @@
                     </form>
                 {% endif %}
                 
-                {% if rola in ['masteradmin', 'admin', 'lider'] %}
+                {% if rola in ['admin', 'masteradmin', 'lider'] %}
                     <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST" class="inline-form inline-display" onsubmit="return confirm('Wznowić {{ p[1] }}?');">
                         <input type="hidden" name="linia" value="{{ linia }}">
                         <input type="hidden" name="sekcja" value="Workowanie">
@@ -148,7 +148,7 @@
                     </form>
                 {% endif %}
                 
-                {% if rola in ['masteradmin', 'planista', 'admin', 'lider'] %}
+                {% if rola in ['planista', 'admin', 'masteradmin', 'lider'] %}
                     <button type="button" class="btn-icon ml-5" title="{{ _('przenies_zlecenie') }}" data-action="move-order" data-order-id="{{ p[0] }}" data-order-name="{{ p[1] }}">📦</button>
                 {% endif %}
             </div>
@@ -206,7 +206,7 @@
 
 </script>
     
-    {% if rola in ['masteradmin', 'planista', 'admin', 'lider'] %}
+    {% if rola in ['planista', 'admin', 'masteradmin', 'lider'] %}
     <hr class="custom-hr">
     <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="form-flex">
         <input type="date" name="data_planu" value="{{ dzisiaj }}" required class="w-auto" aria-label="{{ _('plan') }}">

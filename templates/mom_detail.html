@@ -23,7 +23,7 @@
                 <span class="material-icons" style="font-size:16px;">lock</span> Zamknij MOM
             </button>
             {% else %}
-            {% if session.get('rola') in ['admin', 'lider', 'masteradmin'] %}
+            {% if session.get('rola') in ['admin', 'masteradmin', 'lider'] %}
             <button class="btn btn-outline btn-sm" onclick="reopenMom()">
                 <span class="material-icons" style="font-size:16px;">lock_open</span> Otwórz ponownie
             </button>

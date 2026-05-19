@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 
 {% block content %}
-{% set can_manage_plans = (session.get('rola') or '')|lower in ['planista', 'admin', 'zarzad', 'masteradmin'] %}
+{% set can_manage_plans = (session.get('rola') or '')|lower in ['planista', 'admin', 'masteradmin', 'zarzad'] %}
 
 <!-- Sortable.js for drag-and-drop reordering -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>

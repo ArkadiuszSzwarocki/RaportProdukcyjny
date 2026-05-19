@@ -27,7 +27,7 @@
                     <td><span class="badge-info">{{ user_login or '-' }}</span></td>
                     <td><span class="status-badge status-accepted">{{ status }}</span></td>
                     <td>
-                        {% if rola in ['produkcja', 'lider', 'admin'] %}
+                        {% if rola in ['produkcja', 'lider', 'admin', 'masteradmin'] %}
                         <button type="button" class="btn-icon text-primary" title="Edytuj wagę"
                             onclick="editPalet({{ id }}, {{ waga }})">
                             <span class="material-icons" style="font-size:18px;">edit</span>
@@ -50,7 +50,7 @@
     </div>
     {% endif %}
 
-    {% if rola in ['produkcja', 'lider', 'admin'] %}
+    {% if rola in ['produkcja', 'lider', 'admin', 'masteradmin'] %}
     <hr class="custom-hr">
     <h4>+ Dodaj Zadanie dla Magazynu</h4>
     <form action="{{ url_for('api.dodaj_plan') }}" method="POST" class="form-flex">

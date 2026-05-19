@@ -26,7 +26,7 @@
                            data-slide
                            style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
                            title="Dodaj dosypkę do tego zasypu">+ DOSYPKA</a>
-                        {% if pal[2] and pal[2]|int > 0 and rola in ['masteradmin', 'laborant', 'laboratorium', 'lider', 'admin', 'zarzad'] %}
+                        {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
                         <a href="{{ url_for('production.zasyp_notatka_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
                            class="btn-action btn-outline-secondary szarza-note"
                            data-slide
@@ -36,7 +36,7 @@
                             <span class="material-icons" style="font-size:16px; vertical-align:middle;">edit_note</span>
                         </a>
                         {% endif %}
-                        {% if pal[2] and pal[2]|int > 0 and rola in ['masteradmin', 'lider', 'admin'] %}
+                        {% if pal[2] and pal[2]|int > 0 and rola in ['lider', 'admin', 'masteradmin'] %}
                         <a href="{{ url_for('warehouse.confirm_delete_zasyp_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
                            class="btn-action btn-danger"
                            data-slide
@@ -55,7 +55,7 @@
                                         class="btn-action btn-purple btn-sm"
                                         style="padding:2px 8px; font-size:0.72em; line-height:1.1; background-color:#8e44ad; color:white; border:none; cursor:pointer;"
                                         title="Drukuj ponownie etykiety ZPL">DRUKUJ (ZPL)</button>
-                                {% if rola in ['masteradmin', 'lider', 'admin'] %}
+                                {% if rola in ['lider', 'admin', 'masteradmin'] %}
                                 <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia) }}"
                                    class="btn-action btn-danger btn-sm"
                                    data-slide
@@ -120,4 +120,3 @@ if (typeof drukujPaleteZpl === 'undefined') {
     }
 }
 </script>
-

@@ -637,7 +637,7 @@
                         <button class="btn btn-sm js-move-order btn-move-order" data-plan-id="{{ b.id }}"
                             data-produkt="{{ b.produkt }}" title="{{ _('przenies_zlecenie') }}">📦 {{
                             _('przenies_zlecenie') }}</button>
-                        {% if session.rola in ['admin', 'planista', 'zarzad'] %}
+                        {% if session.rola in ['admin', 'masteradmin', 'planista', 'zarzad'] %}
                         <button class="btn btn-danger btn-sm js-trash-order" data-plan-id="{{ b.id }}" data-produkt="{{ b.produkt }}" title="Usuń z bufora">🗑️</button>
                         {% endif %}
 

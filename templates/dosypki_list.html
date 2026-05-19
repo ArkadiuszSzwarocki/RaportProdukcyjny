@@ -147,7 +147,7 @@
                     <td>{{ d.kg }} kg</td>
                     <td>{{ d.data_zlecenia }}</td>
                     <td>
-                        {% if rola in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'] %}
+                        {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
                         <button class="btn-action btn-save dosypka-confirm-btn" data-id="{{ d.id }}">✓ Potwierdź</button>
                         {% endif %}
                     </td>

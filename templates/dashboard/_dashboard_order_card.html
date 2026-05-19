@@ -52,9 +52,9 @@
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% endif %}
             {% elif p[3] == 'w toku' %}
-            {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola in ['masteradmin', 'lider', 'admin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] and (not ns.is_active or p[0] != ns.active_plan_id) %}
+            {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola in ['lider', 'admin', 'masteradmin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] and (not ns.is_active or p[0] != ns.active_plan_id) %}
             <div class="agro-header-controls">
-                {% if rola in ['masteradmin', 'lider', 'admin', 'pracownik', 'produkcja'] %}
+                {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik', 'produkcja'] %}
                 <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;"
                     data-confirm="Czy na pewno chcesz rozpocząć nowy cykl pomiarowy?">
                     <input type="hidden" name="linia" value="{{ linia }}">
@@ -70,7 +70,7 @@
                 class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
             {% endif %}
             {% elif p[3] == 'zakonczone' %}
-            {% if rola in ['masteradmin', 'lider', 'admin'] %}
+            {% if rola in ['lider', 'admin', 'masteradmin'] %}
             <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]|int) }}" method="POST"
                 data-confirm="Wznowić {{ p[1] }}?" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_planu" value="{{ dzisiaj }}"><button
                     type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button></form>
@@ -116,7 +116,7 @@
                     <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                 {% elif sekcja == 'Zasyp' %}
                     {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
-                    {% if role_lc in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium'] %}
+                    {% if role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
                         <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
                     {% endif %}
                     <a href="{{ url_for('production.zasyp_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-green manual-szarza-btn" data-slide>+ ZASYP</a>
