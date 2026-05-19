@@ -46,16 +46,16 @@ if __name__ == '__main__':
             print(f"[INFO] Certyfikaty są obecne, ale wyłączone (USE_SSL=false).")
         print(f"[INFO] Serwer działa w trybie nieszyfrowanym (HTTP).")
         
-    print(f"[OK] Auto-reload WŁĄCZONY")
+    print(f"[OK] Auto-reload WYŁĄCZONY (Zwiększa stabilność procesów na Windows)")
     print(f"[TIP] Jeśli w logach pojawi się 'Bad request version', zmień https:// na http:// w przeglądarce.")
     print(f"{'='*70}\n")
     
-    # Run Flask development server with auto-reload
+    # Run Flask development server without auto-reload for maximum stability on Windows
     app.run(
         host='0.0.0.0',
         port=8082,
         debug=True,
-        use_reloader=True,
+        use_reloader=False,
         use_debugger=True,
         threaded=True,
         ssl_context=ssl_context

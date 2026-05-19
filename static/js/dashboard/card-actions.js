@@ -397,6 +397,10 @@
     }
 
     function handleSubmit(event) {
+        if (event.defaultPrevented) {
+            return;
+        }
+
         var form = event.target;
         if (!form || !form.getAttribute) {
             return;

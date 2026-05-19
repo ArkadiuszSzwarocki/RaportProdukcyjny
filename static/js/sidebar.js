@@ -221,9 +221,19 @@
         if (overlay) {
             overlay.addEventListener('click', function () { if (window.innerWidth <= 900) closeSidebar(); });
         }
-        navItems.forEach(item => item.addEventListener('click', function() {
-            if (window.innerWidth <= 900) closeSidebar();
-        }));
+        // On mobile: close sidebar ONLY when a real sub-link is clicked (not section headers)
+        if (sidebar) {
+            sidebar.addEventListener('click', function(e) {
+                if (window.innerWidth > 900) return;
+                const link = e.target.closest('a.nav-sub-item');
+                if (!link) return; // ignore section header clicks
+                const href = link.getAttribute('href');
+                if (href && href !== '#') {
+                    // Real navigation link — close sidebar after short delay
+                    setTimeout(closeSidebar, 80);
+                }
+            });
+        }
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape' && window.innerWidth <= 900) closeSidebar();
         });

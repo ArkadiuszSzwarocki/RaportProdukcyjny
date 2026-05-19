@@ -51,6 +51,10 @@
                                    data-slide
                                    style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
                                    title="Edytuj wagę palety">EDYTUJ</a>
+                                <button onclick="drukujPaleteZpl(this, {{ pal[2] }}, '{{ linia }}')" 
+                                        class="btn-action btn-purple btn-sm"
+                                        style="padding:2px 8px; font-size:0.72em; line-height:1.1; background-color:#8e44ad; color:white; border:none; cursor:pointer;"
+                                        title="Drukuj ponownie etykiety ZPL">DRUKUJ (ZPL)</button>
                                 {% if rola in ['lider', 'admin', 'masteradmin'] %}
                                 <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia) }}"
                                    class="btn-action btn-danger btn-sm"
@@ -78,25 +82,41 @@
         {% else %}
         <div class="small text-muted">Brak zarejestrowanych danych.</div>
         {% endif %}
-        
-        {% if sekcja == 'Workowanie' and maszyna_opakowania %}
-        <div class="active-order-szarze-title" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 10px;">Materiały na maszynie:</div>
-        {% for opakowanie in maszyna_opakowania %}
-        <div class="active-order-szarze-item" style="background: {{ 'rgba(46, 204, 113, 0.1)' if opakowanie.is_linked else '#fff' }}; border-radius: 8px; padding: 10px; margin-bottom: 8px; border: 1px solid {{ '#2ecc71' if opakowanie.is_linked else '#dfe7ef' }};">
-            <div class="active-order-szarze-line" style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="active-order-szarze-left">
-                    <strong style="font-size: 0.9em; color: #2c3e50;">{{ opakowanie.nazwa }}</strong>
-                    <div style="font-size: 0.8em; color: #7f8c8d;">Stan: {{ opakowanie.stan_magazynowy|int }} szt</div>
-                </div>
-                <div class="active-order-szarze-actions" style="display: flex; flex-direction: column; gap: 4px;">
-                    {% if not opakowanie.is_linked %}
-                    <button class="btn-action btn-green" style="padding: 2px 6px; font-size: 0.7em;" onclick="linkPackaging({{ opakowanie.id }}, {{ p[0] }})">PODEPNIJ</button>
-                    {% endif %}
-                    <button class="btn-action btn-outline-danger" style="padding: 2px 6px; font-size: 0.7em;" onclick="openReturnPackagingModal({{ opakowanie.id }}, '{{ opakowanie.nazwa|e }}', {{ opakowanie.stan_magazynowy|int }})">ZDEJMIJ</button>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-        {% endif %}
     </div>
 </div>
+
+<script>
+if (typeof drukujPaleteZpl === 'undefined') {
+    function drukujPaleteZpl(btn, paletaId, linia) {
+        const originalText = btn.textContent;
+        btn.textContent = 'DRUKOWANIE...';
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        const liniaParam = encodeURIComponent(linia || 'AGRO');
+        
+        fetch('/drukuj_etykiete_zpl/' + paletaId + '?linia=' + liniaParam, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Etykieta została wysłana do drukarki.');
+            } else {
+                alert('Błąd wydruku: ' + data.message);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Wystąpił błąd komunikacji z serwerem.');
+        })
+        .finally(() => {
+            btn.textContent = originalText;
+            btn.disabled = false;
+            btn.style.opacity = '1';
+        });
+    }
+}
+</script>

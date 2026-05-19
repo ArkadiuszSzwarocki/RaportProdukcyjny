@@ -24,6 +24,8 @@ class PrintServer:
     def __init__(self):
         # Mostek (bridge) działa zazwyczaj na tej samej maszynie co serwer WWW
         self.bridge_url = os.getenv('PRINTER_BRIDGE_URL', 'https://127.0.0.1:3001')
+        self.bridge_connect_timeout = float(os.getenv('PRINTER_BRIDGE_CONNECT_TIMEOUT', '2'))
+        self.bridge_read_timeout = float(os.getenv('PRINTER_BRIDGE_READ_TIMEOUT', '12'))
         self.printer_ip = os.getenv('PRINTER_IP', '192.168.1.237')
         self.printer_name = "Magazyn"
 
@@ -38,15 +40,41 @@ class PrintServer:
         except Exception as e:
             return False, f"Błąd połączenia z mostkiem: {str(e)}"
 
-    def print_pallet_label(self, label_data: dict) -> tuple[bool, str]:
+    def print_pallet_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
         """Wysyła dane palety do mostka, który wygeneruje ZPL 4x6."""
+        nr_palety = (label_data.get('nr_palety') or label_data.get('nrPalety') or '').strip()
+        if not nr_palety:
+            from app.utils.pallet_id import generate_pallet_id
+            nr_palety = generate_pallet_id('AGRO', type='surowiec', record_id=label_data.get('id'))
+
         payload = {
-            "drukarka": self.printer_name,
-            "ip": self.printer_ip,
+            "drukarka": override_name or self.printer_name,
+            "ip": override_ip or self.printer_ip,
             "typ": "raw_material",
             "dane": {
                 "palletData": {
-                    "nrPalety": f"SUR-{label_data.get('id')}",
+                    "nrPalety": nr_palety,
+                    "productName": label_data.get('nazwa'),
+                    "batchNumber": label_data.get('partia') or '---',
+                    "productionDate": label_data.get('data') or datetime.now().strftime('%Y-%m-%d'),
+                    "expiryDate": label_data.get('termin') or '---',
+                    "currentWeight": label_data.get('ilosc'),
+                    "labNotes": label_data.get('uwagi') or ""
+                }
+            }
+        }
+        return self._send_to_bridge(payload)
+
+    def print_finished_product_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
+        """Wysyła dane palety wyrobu gotowego do mostka ZPL 4x6 z kodem QR."""
+        nr_palety = (label_data.get('nrPalety') or label_data.get('nr_palety') or '').strip()
+        payload = {
+            "drukarka": override_name or self.printer_name,
+            "ip": override_ip or self.printer_ip,
+            "typ": "finished_product",
+            "dane": {
+                "palletData": {
+                    "nrPalety": nr_palety,
                     "productName": label_data.get('nazwa'),
                     "batchNumber": label_data.get('partia') or '---',
                     "productionDate": label_data.get('data') or datetime.now().strftime('%Y-%m-%d'),
@@ -75,7 +103,12 @@ class PrintServer:
 
     def _send_to_bridge(self, payload: dict) -> tuple[bool, str]:
         try:
-            resp = requests.post(f"{self.bridge_url}/drukuj-zpl", json=payload, verify=False, timeout=5)
+            resp = requests.post(
+                f"{self.bridge_url}/drukuj-zpl",
+                json=payload,
+                verify=False,
+                timeout=(self.bridge_connect_timeout, self.bridge_read_timeout),
+            )
             if resp.status_code == 200 and resp.json().get('success'):
                 return True, "Wysłano do drukarki przez mostek"
             return False, resp.json().get('message', 'Błąd mostka')

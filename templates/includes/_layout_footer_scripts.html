@@ -83,8 +83,9 @@
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 });
                 if (r.status === 401) {
-                    // Session expired, stop polling to avoid log spam
+                    // Session expired — stop polling and redirect to login immediately
                     if (notifsInterval) clearInterval(notifsInterval);
+                    window.location.replace('/login');
                     return;
                 }
                 if (r.ok) {

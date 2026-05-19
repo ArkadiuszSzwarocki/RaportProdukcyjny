@@ -4,12 +4,17 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_TEMPLATE = ROOT / 'templates' / 'dashboard.html'
+ORDER_CARD_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_order_card.html'
+AGRO_ACTIVE_DETAILS_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_agro_active_details.html'
 LAYOUT_TEMPLATE = ROOT / 'templates' / 'layout.html'
+SIDEBAR_AGRO_TEMPLATE = ROOT / 'templates' / 'includes' / 'sidebar' / '_sidebar_agro.html'
 DOSYPKI_LIST_TEMPLATE = ROOT / 'templates' / 'dosypki_list.html'
 CSS_DASHBOARD = ROOT / 'static' / 'css' / 'dashboard.css'
 CONFIG_JS = ROOT / 'static' / 'js' / 'dashboard' / 'config.js'
+CARD_ACTIONS_JS = ROOT / 'static' / 'js' / 'dashboard' / 'card-actions.js'
 DASHBOARD_JS_DIR = ROOT / 'static' / 'js' / 'dashboard'
 DOSYPKI_JS = ROOT / 'static' / 'js' / 'dosypki.js'
+GLOBAL_SCRIPTS_JS = ROOT / 'static' / 'scripts.js'
 CACHE_BUST_SUFFIX = '&dashboard_refactor=4'
 EXPECTED_DASHBOARD_ASSETS = [
     'js/dashboard/scheduler.js',
@@ -108,10 +113,30 @@ def test_dashboard_template_keeps_cache_busting_suffix_for_dashboard_assets():
 
 
 def test_sidebar_time_report_is_only_exposed_for_agro_and_laboratory_roles():
-    content = LAYOUT_TEMPLATE.read_text(encoding='utf-8')
+    content = SIDEBAR_AGRO_TEMPLATE.read_text(encoding='utf-8')
 
     assert "url_for('production.zasyp_etapy_podsumowanie', linia='PSD')" not in content
-    assert "{% if role in ['lider', 'admin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %}" in content
+    assert "url_for('production.zasyp_etapy_podsumowanie', linia='AGRO')" in content
+    assert "{% if role_has_access('agro.zasyp_summary') %}" in content
+
+
+def test_dosypki_action_in_order_tile_is_limited_to_production_roles():
+    content = ORDER_CARD_TEMPLATE.read_text(encoding='utf-8')
+
+    assert "role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad']" in content
+    assert "role_lc in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium']" not in content
+
+
+def test_dashboard_card_actions_skips_prevented_submit_events():
+    content = CARD_ACTIONS_JS.read_text(encoding='utf-8')
+
+    assert 'if (event.defaultPrevented) {' in content
+
+
+def test_quick_popup_submit_handler_respects_prevented_event():
+    content = GLOBAL_SCRIPTS_JS.read_text(encoding='utf-8')
+
+    assert 'if (evt.defaultPrevented) {' in content
 
 
 def test_dosypki_fragment_uses_fragment_role_context_instead_of_removed_legacy_globals():
@@ -147,3 +172,16 @@ def test_dosypki_are_rendered_below_batch_not_in_side_column():
     assert 'grid-template-columns: minmax(280px, 1.2fr) minmax(240px, 0.8fr);' not in content
     assert '.szarza-row-layout {' in content
     assert 'display: block;' in content
+
+
+def test_workowanie_manual_zpl_print_passes_linia_to_backend():
+    content = AGRO_ACTIVE_DETAILS_TEMPLATE.read_text(encoding='utf-8')
+
+    assert "drukujPaleteZpl(this, {{ pal[2] }}, '{{ linia }}')" in content
+    assert "fetch('/drukuj_etykiete_zpl/' + paletaId + '?linia=' + liniaParam" in content
+
+
+def test_global_direct_zpl_print_uses_existing_non_api_route():
+    content = GLOBAL_SCRIPTS_JS.read_text(encoding='utf-8')
+
+    assert "const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia='" in content

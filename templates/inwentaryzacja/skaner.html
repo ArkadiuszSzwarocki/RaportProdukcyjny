@@ -74,6 +74,9 @@
         <a href="{{ url_for('inwentaryzacja.index') }}" style="color: #64748b; text-decoration: none; display: flex; align-items: center; gap: 5px;">
             <span class="material-icons">arrow_back</span> Powrót
         </a>
+        <button onclick="openInstructionsModal()" style="border: none; background: #eff6ff; color: #2563eb; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);" title="Instrukcja Obsługi">
+            <span class="material-icons" style="font-size: 20px;">info</span>
+        </button>
         <div style="text-align: right;">
             <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Sesja #{{ sesja_id }}</div>
             <div id="connectionStatus" style="font-size: 11px; color: #10b981; font-weight: 700;">● ONLINE</div>
@@ -82,39 +85,53 @@
 
     <!-- SCANNER SECTION -->
     <div id="locationSearchCard" class="scanner-card" style="max-width: 500px; margin-left: auto; margin-right: auto;">
-
-        <label style="display: block; font-size: 11px; font-weight: 800; color: #475569; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Zeskanuj Lokalizację</label>
+        <label style="display: block; font-size: 11px; font-weight: 800; color: #475569; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+            <span class="material-icons" style="font-size:14px; vertical-align:middle;">qr_code_scanner</span> Zeskanuj Lokalizację
+        </label>
         <div class="input-group">
             <span class="material-icons input-icon">place</span>
-            <input type="text" id="lokalizacjaInput" class="scanner-input" placeholder="Np. PSD01" 
+            <input type="text" id="lokalizacjaInput" class="scanner-input" placeholder="Np. R070101, MGW01..." 
                    style="text-transform: uppercase;"
                    oninput="this.value = this.value.toUpperCase()"
-                   onkeydown="if(event.key==='Enter') searchLocation()">
+                   onkeydown="if(event.key==='Enter'){event.preventDefault(); searchLocation();}"
+                   autofocus>
         </div>
         <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <button onclick="searchLocation()" class="btn-primary" style="padding: 14px; border-radius: 12px; font-weight: 700; border: none; background: #3b82f6; color: white;">SZUKAJ</button>
             <button onclick="clearSkaner()" style="padding: 14px; border-radius: 12px; font-weight: 700; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b;">CZYŚĆ</button>
         </div>
+        <div style="margin-top: 12px; text-align:center;">
+            <a href="{{ url_for('inwentaryzacja.index') }}" style="font-size:12px; color:#64748b; text-decoration:none; font-weight:600;">← Wróć do listy sesji</a>
+        </div>
     </div>
 
     <!-- RESULTS SECTION -->
     <div id="resultsContainer" style="display: none; max-width: 500px; margin: 0 auto;">
-        <div style="padding: 10px 5px; color: #64748b; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px;">
-            <span class="material-icons" style="font-size: 18px;">inventory_2</span>
-            Palety w: <span id="activeLocation" style="color: #1e293b; font-weight: 800;"></span>
+        <div style="padding: 10px 5px; color: #64748b; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;">
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span class="material-icons" style="font-size: 18px;">inventory_2</span>
+                Palety w: <span id="activeLocation" style="color: #1e293b; font-weight: 800;"></span>
+            </div>
+            <button onclick="clearSkaner()" style="font-size:11px; font-weight:700; color:#3b82f6; background:none; border:none; cursor:pointer; text-decoration:underline;">← Skanuj inną</button>
         </div>
         
-        <div id="palletsList" style="margin-bottom: 25px;">
+        <div id="palletsList" style="margin-bottom: 15px;">
             <!-- Palety będą tutaj renderowane -->
         </div>
 
-        <button onclick="addNewPallet()" style="width: 100%; padding: 15px; border: 2px dashed #cbd5e1; border-radius: 12px; background: white; color: #64748b; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 20px;">
-            <span class="material-icons">add</span> NOWA PALETA (SPOZA LISTY)
+        <button id="btnAddPalletMain" onclick="addNewPallet()" style="width: 100%; padding: 15px; border: 2px dashed #3b82f6; border-radius: 12px; background: #f0f9ff; color: #2563eb; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px;">
+            <span class="material-icons">add_circle</span> DODAJ PALETĘ (BRAK W SYSTEMIE)
         </button>
+    </div>
 
-        <a href="{{ url_for('inwentaryzacja.raport', sesja_id=sesja_id) }}" style="width: 100%; padding: 18px; border: none; border-radius: 12px; background: #0f172a; color: white; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; margin-bottom: 40px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
-            <span class="material-icons">summarize</span> PRZEJDŹ DO RAPORTU
+    <!-- FLOATING FINISH BUTTON -->
+    <div id="floatingFinishBanner" style="display: none; position:fixed; bottom:0; left:0; right:0; padding:12px 16px; background:white; border-top:2px solid #f1f5f9; box-shadow:0 -4px 20px rgba(0,0,0,0.08); z-index:500; gap:10px; max-width:500px; margin:0 auto;">
+        <a href="{{ url_for('inwentaryzacja.raport', sesja_id=sesja_id) }}" style="flex:1; padding:14px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; color:#475569; font-weight:700; text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:6px; font-size:13px;">
+            <span class="material-icons" style="font-size:18px;">summarize</span> RAPORT
         </a>
+        <button onclick="finishInventory()" style="flex:2; padding:14px; border:none; border-radius:12px; background:#dc2626; color:white; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <span class="material-icons">check_circle</span> ZAKOŃCZ INWENTARYZACJĘ
+        </button>
     </div>
 
     <!-- RACK GRID SECTION -->
@@ -130,24 +147,121 @@
             </div>
         </div>
 
-        <div id="slotDetail" style="display: none; background: white; border-radius: 16px; border: 2px solid #3b82f6; padding: 15px; margin-top: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 500px; margin-left: auto; margin-right: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <div id="detailLocTitle" style="font-weight: 800; color: #3b82f6; font-size: 16px;">R01-01-01</div>
-                <button onclick="closeDetail()" style="border: none; background: #f1f5f9; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-                    <span class="material-icons" style="font-size: 18px;">close</span>
-                </button>
-            </div>
-            <div id="detailContent">
-                <!-- Content of slot -->
+        <div id="slotDetail" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 16px;">
+            <div style="background: white; border-radius: 20px; border: 2px solid #3b82f6; padding: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div id="detailLocTitle" style="font-weight: 800; color: #3b82f6; font-size: 20px; letter-spacing: -0.5px;">R01-01-01</div>
+                    <button onclick="closeDetail()" style="border: none; background: #f1f5f9; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s;">
+                         <span class="material-icons" style="font-size: 20px; color: #64748b;">close</span>
+                    </button>
+                </div>
+                <div id="detailContent" style="flex: 1; overflow-y: auto;">
+                    <!-- Content of slot -->
+                </div>
             </div>
         </div>
-
-        <a href="{{ url_for('inwentaryzacja.raport', sesja_id=sesja_id) }}" style="width: 100%; padding: 18px; border: none; border-radius: 12px; background: #0f172a; color: white; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; margin-top: 20px; margin-bottom: 40px;">
-            <span class="material-icons">summarize</span> PRZEJDŹ DO RAPORTU
-        </a>
     </div>
 
+    <!-- BOTTOM SPACING -->
+    <div style="height: 100px;"></div>
 </div>
+
+<!-- MODAL Z INSTRUKCJĄ OBSŁUGI -->
+<div id="instructionsModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 3000; align-items: center; justify-content: center; padding: 16px;">
+    <div style="background: white; border-radius: 20px; border: 2px solid #3b82f6; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="material-icons" style="color: #3b82f6; font-size: 24px;">menu_book</span>
+                <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: #0f172a;">Instrukcja Obsługi Inwentaryzacji</h3>
+            </div>
+            <button onclick="closeInstructionsModal()" style="border: none; background: #f1f5f9; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s;">
+                 <span class="material-icons" style="font-size: 20px; color: #64748b;">close</span>
+            </button>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 15px; text-align: left;">
+            <!-- KROK 1 -->
+            <div style="background: #f8fafc; border-radius: 12px; padding: 15px; border-left: 4px solid #3b82f6;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="background: #dbeafe; color: #2563eb; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">1</span>
+                    <strong style="color: #1e293b; font-size: 14px;">Wyszukiwanie gniazda</strong>
+                </div>
+                <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;">
+                    Zeskanuj kod kreskowy gniazda (SSCC/Lokalizację) czytnikiem lub wybierz je bezpośrednio na <strong>Mapie Regału</strong>, klikając w odpowiedni kafelek.
+                </p>
+            </div>
+
+            <!-- KROK 2 -->
+            <div style="background: #f8fafc; border-radius: 12px; padding: 15px; border-left: 4px solid #10b981;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="background: #dcfce7; color: #059669; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">2</span>
+                    <strong style="color: #1e293b; font-size: 14px;">Liczenie i Zapis (Auto-Save)</strong>
+                </div>
+                <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;">
+                    Wpisz stan faktyczny palety. Zmiana zapisuje się <strong>automatycznie</strong> po kliknięciu poza pole, zmianie jednostki lub wciśnięciu klawisza Enter.
+                </p>
+            </div>
+
+            <!-- KROK 3 -->
+            <div style="background: #f8fafc; border-radius: 12px; padding: 15px; border-left: 4px solid #f59e0b;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="background: #fef3c7; color: #d97706; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">3</span>
+                    <strong style="color: #1e293b; font-size: 14px;">Zatwierdzanie sesji</strong>
+                </div>
+                <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;">
+                    Po doliczeniu wszystkich gniazd kliknij czerwony przycisk <strong>ZAKOŃCZ INWENTARYZACJĘ</strong> na dole ekranu, aby wygenerować raport różnic.
+                </p>
+            </div>
+
+            <!-- PRZYCISKI -->
+            <div style="background: #f0fdf4; border-radius: 12px; padding: 15px; border: 1px solid #bbf7d0;">
+                <strong style="color: #166534; font-size: 13px; display: block; margin-bottom: 8px;">Opis Przycisków i Oznaczeń w Oknie Szczegółów:</strong>
+                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span class="material-icons" style="font-size: 18px; color: #10b981;">save</span>
+                        <span><strong>Zielona Dyskietka</strong> — Ręczny zapis wprowadzonej wagi / ilości palety.</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span class="material-icons" style="font-size: 18px; color: #059669;">done_all</span>
+                        <span><strong>Podwójny ptaszek</strong> — Potwierdzenie zapisu pozycji na serwerze.</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span style="background: #10b981; color: white; padding: 3px 6px; border-radius: 6px; font-weight: bold; font-size: 9px;">POTWIERDŹ PUSTE</span>
+                        <span>Szybkie zerowanie i oznaczenie gniazda jako puste (bez dodatkowych pytań).</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span style="border: 1px solid #3b82f6; color: #3b82f6; padding: 3px 6px; border-radius: 6px; font-weight: bold; font-size: 9px;">+ DODAJ PALETĘ / KOLEJNĄ</span>
+                        <span>Rejestracja nowej palety (widoczna tylko, gdy gniazdo jest wyzerowane / puste).</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LEGENDA KAFELKÓW -->
+            <div style="background: #eff6ff; border-radius: 12px; padding: 15px; border: 1px solid #bfdbfe;">
+                <strong style="color: #1e40af; font-size: 13px; display: block; margin-bottom: 8px;">Legenda Kafelków Mapy Regału:</strong>
+                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span style="background: #dbeafe; width: 14px; height: 14px; border-radius: 3px; display: inline-block;"></span>
+                        <span><strong>Niebieski kafelek (1)</strong> — Gniazdo zawiera palety w systemie, jeszcze niepoliczone.</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span style="background: #dcfce7; width: 14px; height: 14px; border-radius: 3px; display: inline-block;"></span>
+                        <span><strong>Zielony kafelek (1 / 0)</strong> — Gniazdo policzone (1 = z paletami, 0 = puste).</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; color: #374151;">
+                        <span style="background: #ffffff; border: 1px solid #e2e8f0; width: 14px; height: 14px; border-radius: 3px; display: inline-block;"></span>
+                        <span><strong>Biały kafelek (0)</strong> — Gniazdo systemowo puste, jeszcze niepoliczone.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: center;">
+            <button onclick="closeInstructionsModal()" class="btn-primary" style="background:#3b82f6; border:none; padding:12px 30px; border-radius:12px; color:white; font-weight:700; cursor:pointer;">ROZUMIEM</button>
+        </div>
+    </div>
+</div>
+
 
 <!-- TEMPLATE DLA PALETY -->
 <template id="palletTemplate">
@@ -200,6 +314,22 @@ window.addEventListener('load', () => {
         document.getElementById('lokalizacjaInput').value = savedLoc;
         document.getElementById('locationSearchCard').style.display = 'none';
         searchLocation();
+    } else {
+        // Jeśli to nowa sesja i nie ma nic w localStorage, spróbuj automatycznie załadować obszar sesji
+        const target = "{{ target_lokalizacja }}".trim().toUpperCase();
+        if (target && target !== 'WSZYSTKO' && target !== 'WSZYSTKIE') {
+            document.getElementById('lokalizacjaInput').value = target;
+            document.getElementById('locationSearchCard').style.display = 'none';
+            if (target.startsWith('R') && target.length >= 3 && target.length <= 4) {
+                loadRack(target);
+            } else {
+                searchLocation();
+            }
+        } else {
+            // Ukryj baner zakończenia na czystym ekranie wyszukiwania
+            const banner = document.getElementById('floatingFinishBanner');
+            if (banner) banner.style.display = 'none';
+        }
     }
 });
 
@@ -249,7 +379,6 @@ function searchLocation() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({lokalizacja: rawLoc, sesja_id: {{ sesja_id }}})
     })
-
     .then(r => r.json())
     .then(data => {
         if(data.success) {
@@ -259,12 +388,15 @@ function searchLocation() {
             document.getElementById('activeLocation').textContent = rawLoc;
             document.getElementById('resultsContainer').style.display = 'block';
             
+            // Pokaż dolny baner z raportem i zakończeniem
+            const banner = document.getElementById('floatingFinishBanner');
+            if (banner) banner.style.display = 'flex';
+            
             setTimeout(() => {
                 const inputs = document.querySelectorAll('.actual-weight-input');
                 if(inputs.length > 0) inputs[0].focus();
             }, 100);
         }
-
     });
 }
 
@@ -278,7 +410,6 @@ function loadRack(prefix) {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({prefix: prefix, sesja_id: {{ sesja_id }}})
     })
-
     .then(r => r.json())
     .then(data => {
         if(data.success) {
@@ -288,10 +419,14 @@ function loadRack(prefix) {
             document.getElementById('activeRack').textContent = prefix;
             renderRackGrid(prefix);
             document.getElementById('rackContainer').style.display = 'block';
+            
+            // Pokaż dolny baner z raportem i zakończeniem
+            const banner = document.getElementById('floatingFinishBanner');
+            if (banner) banner.style.display = 'flex';
+            
             document.getElementById('lokalizacjaInput').value = '';
             document.getElementById('lokalizacjaInput').focus();
         }
-
     });
 }
 
@@ -328,14 +463,37 @@ function renderRackGrid(prefix) {
             const items = rackData[locId] || [];
             const hasCounted = items.some(i => i.counted);
             
-            if(items.length > 0) {
-                cell.style.background = hasCounted ? '#dcfce7' : '#dbeafe'; // green if at least one counted, blue if items exist
-                cell.style.color = hasCounted ? '#166534' : '#1e40af';
-                cell.innerHTML = `<span>${colStr}-${rowStr}</span><span style="font-size:10px; margin-top:2px;">${hasCounted ? '✅' : '📦'}</span>`;
-            } else {
-                cell.style.color = '#94a3b8';
-                cell.textContent = `${colStr}-${rowStr}`;
+            // Determine if there is a pallet in the slot currently (systemic or actual)
+            let hasPallet = false;
+            if (items.length > 0) {
+                const countedItems = items.filter(i => i.counted);
+                if (countedItems.length > 0) {
+                    hasPallet = countedItems.some(i => i.waga_faktyczna > 0);
+                } else {
+                    hasPallet = true; // system has it, not counted yet
+                }
             }
+
+            if(items.length > 0) {
+                cell.style.background = hasCounted ? '#dcfce7' : '#dbeafe'; // green if counted, blue if systemic exists
+                cell.style.color = hasCounted ? '#166534' : '#1e40af';
+            } else {
+                if (hasCounted) {
+                    cell.style.background = '#dcfce7'; // green if confirmed empty
+                    cell.style.color = '#166534';
+                } else {
+                    cell.style.background = '#ffffff'; // white if system empty & uncounted
+                    cell.style.color = '#94a3b8';
+                }
+            }
+
+            const indicatorNum = hasPallet ? '1' : '0';
+            const numColor = hasPallet ? (hasCounted ? '#166534' : '#2563eb') : '#94a3b8';
+            
+            cell.innerHTML = `
+                <span>${colStr}-${rowStr}</span>
+                <span style="font-size: 13px; font-weight: 900; margin-top: 3px; color: ${numColor};">${indicatorNum}</span>
+            `;
 
             
             cell.onclick = () => highlightAndOpenSlot(locId);
@@ -362,6 +520,24 @@ function highlightAndOpenSlot(locId) {
     openSlotDetail(locId);
 }
 
+function refreshRackData(prefix, activeLocIdToOpen) {
+    return fetch('{{ url_for("inwentaryzacja.szukaj_regalu") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({prefix: prefix, sesja_id: {{ sesja_id }}})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if(data.success) {
+            rackData = data.rack_data;
+            renderRackGrid(prefix);
+            if(activeLocIdToOpen) {
+                openSlotDetail(activeLocIdToOpen);
+            }
+        }
+    });
+}
+
 function openSlotDetail(locId) {
     const detail = document.getElementById('slotDetail');
     const title = document.getElementById('detailLocTitle');
@@ -376,59 +552,230 @@ function openSlotDetail(locId) {
             <div style="text-align: center; padding: 20px;">
                 <p style="color: #64748b; font-size: 14px; margin-bottom: 15px;">To gniazdo jest puste systemowo.</p>
                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <button onclick="markEmpty('${locId}')" class="btn-primary" style="background:#10b981; border:none; padding:12px; border-radius:12px; color:white; font-weight:700;">POTWIERDŹ PUSTE</button>
+                    <button id="btnConfirmEmpty" class="btn-primary" style="background:#10b981; border:none; padding:12px; border-radius:12px; color:white; font-weight:700;">POTWIERDŹ PUSTE</button>
                     <button onclick="addNewPallet('${locId}')" style="background:white; border:1px solid #3b82f6; padding:12px; border-radius:12px; color:#3b82f6; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px;">
                         <span class="material-icons">add</span> DODAJ PALETĘ
                     </button>
                 </div>
             </div>
         `;
+        document.getElementById('btnConfirmEmpty').onclick = () => markEmpty(locId);
     } else {
         items.forEach(p => {
             const card = document.createElement('div');
             card.className = 'pallet-card';
+            card.style.transition = 'all 0.2s';
+            card.style.position = 'relative';
+            
+            const systemQty = p.stan_magazynowy || 0;
+            const displayWeight = p.counted && p.waga_faktyczna !== null && p.waga_faktyczna !== undefined ? p.waga_faktyczna : '';
+            
             card.innerHTML = `
-                <div style="font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">${p.typ_palety}</div>
-                <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 10px;">${p.nazwa}</div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                    <div style="overflow: hidden; flex: 1; padding-right: 8px;">
+                        <div style="font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">${p.typ_palety}</div>
+                        <div style="font-size: 14px; font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="pallet-pname">${p.nazwa}</div>
+                        <div style="font-size: 11px; color: #64748b; font-family: monospace;">${p.displayId}</div>
+                    </div>
+                    <div style="text-align: right; font-size: 11px; color: #64748b; font-weight: 700; flex-shrink: 0;">
+                        SYS: <span style="font-size: 13px; font-weight: 800; color: #334155;">${systemQty} ${p.jednostka || 'kg'}</span>
+                    </div>
+                </div>
+                <div class="slot-change-indicator" style="display:none; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-bottom:8px;"></div>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <input type="number" step="0.1" id="weight-${p.id}-${p.typ_palety}" class="weight-input" placeholder="STAN FAKTYCZNY" value="${p.stan_magazynowy}">
-                    <button class="save-btn" style="background: ${p.counted ? '#059669' : '#10b981'}" onclick="saveSlotEntry('${locId}', ${p.id}, '${p.typ_palety}', '${p.nazwa}', '${p.nr_partii}', ${p.stan_magazynowy}, this)">
+                    <div style="display: flex; flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
+                        <input type="number" step="0.1" class="weight-input slot-weight-input" placeholder="STAN FAKTYCZNY" value="${displayWeight}" style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
+                        <select class="slot-unit-select" style="border: none; background: #f1f5f9; padding: 12px; font-weight: 800; font-size: 13px; color: #475569; outline: none; border-left: 1px solid #e2e8f0; height: 100%; cursor: pointer;">
+                            <option value="kg" ${(p.jednostka || 'kg') === 'kg' ? 'selected' : ''}>kg</option>
+                            <option value="szt" ${(p.jednostka || 'kg') === 'szt' ? 'selected' : ''}>szt</option>
+                        </select>
+                    </div>
+                    <button class="save-btn" style="background: ${p.counted ? '#059669' : '#10b981'}" title="Zapisz">
                         <span class="material-icons">${p.counted ? 'done_all' : 'save'}</span>
                     </button>
                 </div>
-
             `;
+            
             content.appendChild(card);
+            
+            const input = card.querySelector('.slot-weight-input');
+            const unitSelect = card.querySelector('.slot-unit-select');
+            const saveBtn = card.querySelector('.save-btn');
+            const indicator = card.querySelector('.slot-change-indicator');
+            const nameEl = card.querySelector('.pallet-pname');
+            
+            function updateSlotCardStyle() {
+                const w = parseFloat(input.value);
+                const unit = unitSelect.value;
+                if(isNaN(w) || input.value === '') { 
+                    indicator.style.display='none'; 
+                    card.style.borderColor = '#e2e8f0';
+                    card.style.background = '#f8fafc';
+                    nameEl.style.textDecoration = 'none';
+                    nameEl.style.color = '#0f172a';
+                    return; 
+                }
+                indicator.style.display = 'block';
+                if(w <= 0) {
+                    indicator.style.background = '#fee2e2';
+                    indicator.style.color = '#dc2626';
+                    indicator.innerHTML = `<s>${p.nazwa}</s> — USUNIĘTO (${systemQty} ${p.jednostka || 'kg'} → 0)`;
+                    card.style.borderColor = '#fca5a5';
+                    card.style.background = '#fff5f5';
+                    nameEl.style.textDecoration = 'line-through';
+                    nameEl.style.color = '#dc2626';
+                } else if(w !== systemQty || unit !== (p.jednostka || 'kg')) {
+                    indicator.style.background = '#fef9c3';
+                    indicator.style.color = '#92400e';
+                    indicator.innerHTML = `✏️ Korekta: ${systemQty} ${p.jednostka || 'kg'} → <strong>${w} ${unit}</strong>`;
+                    card.style.borderColor = '#fbbf24';
+                    card.style.background = '#fffbeb';
+                    nameEl.style.textDecoration = 'none';
+                    nameEl.style.color = '#0f172a';
+                } else {
+                    indicator.style.background = '#dcfce7';
+                    indicator.style.color = '#166534';
+                    indicator.innerHTML = `✅ Potwierdzono: ${w} ${unit}`;
+                    card.style.borderColor = '#10b981';
+                    card.style.background = '#f0fdf4';
+                    nameEl.style.textDecoration = 'none';
+                    nameEl.style.color = '#0f172a';
+                }
+            }
+            
+            input.addEventListener('input', updateSlotCardStyle);
+            unitSelect.addEventListener('change', updateSlotCardStyle);
+            if(p.counted) {
+                updateSlotCardStyle();
+            }
+            
+            // Auto-save on blur/change
+            input.addEventListener('change', () => {
+                if (input.value !== '') {
+                    saveBtn.click();
+                }
+            });
+            unitSelect.addEventListener('change', () => {
+                if (input.value !== '') {
+                    saveBtn.click();
+                }
+            });
+            
+            saveBtn.onclick = () => {
+                const weight = parseFloat(input.value);
+                const unit = unitSelect.value;
+                if(isNaN(weight)) return alert('Podaj poprawną wagę!');
+                
+                saveBtn.innerHTML = '<span class="material-icons">hourglass_top</span>';
+                saveBtn.style.background = '#94a3b8';
+                
+                fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        sesja_id: {{ sesja_id }},
+                        paleta_id: p.id,
+                        nr_palety: p.nr_palety,
+                        typ_palety: p.typ_palety,
+                        nazwa: p.nazwa,
+                        lokalizacja: locId,
+                        nr_partii: p.nr_partii,
+                        waga_systemowa: systemQty,
+                        waga_faktyczna: weight,
+                        linia: p.linia || 'PSD',
+                        data_produkcji: p.data_produkcji,
+                        data_przydatnosci: p.data_przydatnosci,
+                        jednostka: unit
+                    })
+                }).then(r => r.json()).then(data => {
+                    if(data.success) {
+                        saveBtn.innerHTML = '<span class="material-icons">done_all</span>';
+                        saveBtn.style.background = '#059669';
+                        markCellDone(locId, false);
+                        
+                        refreshRackData(currentRackPrefix, locId);
+                    } else {
+                        saveBtn.innerHTML = '<span class="material-icons">error</span>';
+                        saveBtn.style.background = '#ef4444';
+                        alert('Błąd: ' + data.message);
+                    }
+                }).catch(() => {
+                    saveBtn.innerHTML = '<span class="material-icons">save</span>';
+                    saveBtn.style.background = '#10b981';
+                });
+            };
+            
+            input.addEventListener('keydown', (e) => {
+                if(e.key === 'Enter') {
+                    e.preventDefault();
+                    saveBtn.click();
+                }
+            });
         });
         
         // Also add options to add/clear
-        content.innerHTML += `
-            <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        const footerDiv = document.createElement('div');
+        footerDiv.style.marginTop = '15px';
+        footerDiv.style.display = 'grid';
+        
+        const hasSavedQty = items.some(i => i.counted && i.waga_faktyczna > 0);
+        if (hasSavedQty) {
+            footerDiv.style.gridTemplateColumns = '1fr';
+            footerDiv.style.gap = '10px';
+            footerDiv.innerHTML = `
+                <button id="btnConfirmEmptyFooter" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700; width: 100%;">WYCZYŚĆ (PUSTE)</button>
+            `;
+        } else {
+            footerDiv.style.gridTemplateColumns = '1fr 1fr';
+            footerDiv.style.gap = '10px';
+            footerDiv.innerHTML = `
                 <button onclick="addNewPallet('${locId}')" style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:10px; color:#64748b; font-size:12px; font-weight:700;">+ DODAJ KOLEJNĄ</button>
-                <button onclick="markEmpty('${locId}')" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700;">WYCZYŚĆ (PUSTE)</button>
-            </div>
-        `;
+                <button id="btnConfirmEmptyFooter" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700;">WYCZYŚĆ (PUSTE)</button>
+            `;
+        }
+        content.appendChild(footerDiv);
+        document.getElementById('btnConfirmEmptyFooter').onclick = () => markEmpty(locId);
     }
     
-    detail.style.display = 'block';
+    detail.style.display = 'flex';
 }
 
 function closeDetail() {
     document.getElementById('slotDetail').style.display = 'none';
 }
 
+// Close modal when clicking on the backdrop
+document.getElementById('slotDetail').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('slotDetail')) {
+        closeDetail();
+    }
+});
+
 function markEmpty(locId) {
-    if(!confirm(`Czy na pewno gniazdo ${locId} jest puste?`)) return;
+    // Confirmed empty without additional question as requested
     
     // If there were items, we need to set them to 0
     const items = rackData[locId] || [];
     if(items.length === 0) {
-        // Just record that we checked it
-        saveEntry({id: null, nr_palety: null, typ_palety: 'surowiec', nazwa: 'PUSTE GNIAZDO', linia: 'PSD', nr_partii: '-', stan_magazynowy: 0}, 0, null);
-        markCellDone(locId, true);
-        closeDetail();
+        fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                sesja_id: {{ sesja_id }},
+                paleta_id: null,
+                typ_palety: 'surowiec',
+                nazwa: 'PUSTE GNIAZDO',
+                lokalizacja: locId,
+                nr_partii: '-',
+                waga_systemowa: 0,
+                waga_faktyczna: 0,
+                linia: 'PSD'
+            })
+        }).then(() => {
+            markCellDone(locId, true);
+            refreshRackData(currentRackPrefix, locId);
+        });
     } else {
-        // Set each item to 0
         let count = 0;
         items.forEach(p => {
             fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
@@ -443,61 +790,36 @@ function markEmpty(locId) {
                     nr_partii: p.nr_partii,
                     waga_systemowa: p.stan_magazynowy,
                     waga_faktyczna: 0,
-                    linia: p.linia
+                    linia: p.linia || 'PSD'
                 })
             }).then(() => {
                 count++;
                 if(count === items.length) {
                     markCellDone(locId, true);
-                    closeDetail();
+                    refreshRackData(currentRackPrefix, locId);
                 }
             });
         });
     }
 }
 
-function saveSlotEntry(locId, pId, typ, nazwa, partia, systemWeight, btn) {
-    const weightInput = document.getElementById(`weight-${pId}-${typ}`);
-    const weight = parseFloat(weightInput.value);
-    
-    fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            sesja_id: {{ sesja_id }},
-            paleta_id: pId,
-            typ_palety: typ,
-            nazwa: nazwa,
-            lokalizacja: locId,
-            nr_partii: partia,
-            waga_systemowa: systemWeight,
-            waga_faktyczna: weight,
-            linia: 'PSD' // Default
-        })
-    }).then(r => r.json()).then(data => {
-        if(data.success) {
-            btn.innerHTML = '<span class="material-icons">done</span>';
-            btn.style.background = '#059669';
-            markCellDone(locId, false);
-        }
-    });
-}
-
 function markCellDone(locId, isEmpty) {
     const cell = document.getElementById(`cell-${locId}`);
     if(cell) {
-        cell.style.background = isEmpty ? '#f1f5f9' : '#dcfce7'; 
-        cell.style.color = isEmpty ? '#64748b' : '#166534';
+        cell.style.background = '#dcfce7'; 
+        cell.style.color = '#166534';
         cell.style.borderColor = '#10b981';
         
         const col = locId.slice(-4, -2);
         const row = locId.slice(-2);
         
-        if(isEmpty) {
-            cell.innerHTML = `<span>${col}-${row}</span><span style="font-size:10px; margin-top:2px;">✅</span>`;
-        } else {
-            cell.innerHTML = `<span>${col}-${row}</span><span style="font-size:10px; margin-top:2px;">✅</span>`;
-        }
+        const val = isEmpty ? '0' : '1';
+        const numColor = isEmpty ? '#94a3b8' : '#166534';
+        
+        cell.innerHTML = `
+            <span>${col}-${row}</span>
+            <span style="font-size: 13px; font-weight: 900; margin-top: 3px; color: ${numColor};">${val}</span>
+        `;
     }
 }
 
@@ -507,52 +829,147 @@ function renderPallets(pallets) {
     list.innerHTML = '';
     currentPallets = pallets;
     
+    const hasSavedQty = pallets.some(p => p.counted && p.waga_faktyczna > 0);
+    const mainBtn = document.getElementById('btnAddPalletMain');
+    if (mainBtn) {
+        mainBtn.style.display = hasSavedQty ? 'none' : 'flex';
+    }
+    
     if(pallets.length === 0) {
-        list.innerHTML = '<div style="text-align: center; padding: 20px; color: #94a3b8; font-style: italic;">Brak palet zarejestrowanych w tej lokalizacji.</div>';
+        list.innerHTML = `
+            <div style="text-align:center; padding:30px; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">
+                <span class="material-icons" style="font-size:40px; color:#94a3b8;">inventory_2</span>
+                <div style="color:#64748b; font-weight:700; margin-top:8px;">Brak palet w tej lokalizacji systemowo.</div>
+                <div style="color:#94a3b8; font-size:12px; margin-top:4px;">Możesz dodać paletę poniżej.</div>
+            </div>`;
         return;
     }
     
-    const template = document.getElementById('palletTemplate');
     pallets.forEach((p, index) => {
-        const clone = template.content.cloneNode(true);
-        const card = clone.querySelector('.pallet-card');
+        const systemQty = p.stan_magazynowy || 0;
+        const isCounted = p.counted;
         
-        card.querySelector('.product-name').textContent = p.nazwa;
-        card.querySelector('.pallet-type').textContent = p.typ_palety;
-        card.querySelector('.pallet-id').textContent = p.displayId;
+        const card = document.createElement('div');
+        card.className = 'pallet-card';
+        card.dataset.palletId = p.id;
+        card.style.transition = 'all 0.2s';
+        if(isCounted) { card.style.borderColor='#10b981'; card.style.background='#f0fdf4'; }
+        
+        card.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+                <div style="overflow:hidden; flex:1;">
+                    <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase;">${p.typ_palety}</div>
+                    <div style="font-size:15px; font-weight:800; color:#0f172a;" class="pname-${index}">${p.nazwa}</div>
+                    <div style="font-size:11px; color:#64748b; font-family:monospace;">${p.displayId}</div>
+                </div>
+                <div style="text-align:right; font-size:11px; color:#64748b; font-weight:700; flex-shrink:0; margin-left:10px;">
+                    SYS: <span style="font-size:14px; font-weight:800; color:#334155;">${systemQty} ${p.jednostka || 'kg'}</span>
+                </div>
+            </div>
+            <div id="change-indicator-${index}" style="display:none; padding:6px 10px; border-radius:8px; font-size:12px; font-weight:700; margin-bottom:8px;"></div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div style="display: flex; flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
+                    <input type="number" step="0.1" class="weight-input actual-weight-input" 
+                           id="winput-${index}" placeholder="STAN FAKTYCZNY" autocomplete="off" inputmode="decimal"
+                           value="${isCounted && p.waga_faktyczna !== null && p.waga_faktyczna !== undefined ? p.waga_faktyczna : ''}"
+                           style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
+                    <select class="actual-unit-select" id="uinput-${index}" style="border: none; background: #f1f5f9; padding: 12px; font-weight: 800; font-size: 13px; color: #475569; outline: none; border-left: 1px solid #e2e8f0; height: 100%; cursor: pointer;">
+                        <option value="kg" ${(p.jednostka || 'kg') === 'kg' ? 'selected' : ''}>kg</option>
+                        <option value="szt" ${(p.jednostka || 'kg') === 'szt' ? 'selected' : ''}>szt</option>
+                    </select>
+                </div>
+                <button class="save-btn" id="sbtn-${index}" title="Zapisz"
+                        style="background:${isCounted ? '#059669' : '#10b981'}">
+                    <span class="material-icons">${isCounted ? 'done_all' : 'save'}</span>
+                </button>
+            </div>`;
+        
+        list.appendChild(card);
         
         const input = card.querySelector('.actual-weight-input');
-        if(p.counted) {
-            card.style.borderColor = '#10b981';
-            card.style.background = '#f0fdf4';
-            card.querySelector('.save-btn').innerHTML = '<span class="material-icons">done_all</span>';
-            card.querySelector('.save-btn').style.background = '#059669';
-        }
-        input.value = '';
-
-        input.autocomplete = 'off';
-        input.inputMode = 'decimal';
-        
+        const unitSelect = card.querySelector('.actual-unit-select');
         const saveBtn = card.querySelector('.save-btn');
-        saveBtn.onclick = () => saveEntry(p, input.value, card);
+        const indicator = card.querySelector(`#change-indicator-${index}`);
         
-        // Enter key moves to save or next input
-        input.onkeydown = (e) => {
-            if(e.key === 'Enter') {
-                saveEntry(p, input.value, card);
-                const allInputs = document.querySelectorAll('.actual-weight-input');
-                if(allInputs[index+1]) allInputs[index+1].focus();
+        // Live visual feedback when weight changes
+        function updateListStyle() {
+            const w = parseFloat(input.value);
+            const unit = unitSelect.value;
+            if(isNaN(w) || input.value === '') { indicator.style.display='none'; return; }
+            indicator.style.display = 'block';
+            if(w <= 0) {
+                // USUWANIE: czerwone przekreślenie
+                indicator.style.background = '#fee2e2';
+                indicator.style.color = '#dc2626';
+                indicator.innerHTML = `<s>${p.nazwa}</s> — USUNIĘTO (${systemQty} ${p.jednostka || 'kg'} → 0)`;
+                card.style.borderColor = '#fca5a5';
+                card.style.background = '#fff5f5';
+                card.querySelector('.pname-'+index)?.style && (card.querySelector('.pname-'+index).style.textDecoration='line-through');
+                card.querySelector('.pname-'+index)?.style && (card.querySelector('.pname-'+index).style.color='#dc2626');
+            } else if(w !== systemQty || unit !== (p.jednostka || 'kg')) {
+                // KOREKTA: żółte
+                indicator.style.background = '#fef9c3';
+                indicator.style.color = '#92400e';
+                indicator.innerHTML = `✏️ Korekta: ${systemQty} ${p.jednostka || 'kg'} → <strong>${w} ${unit}</strong>`;
+                card.style.borderColor = '#fbbf24';
+                card.style.background = '#fffbeb';
+                card.querySelector('.pname-'+index)?.style && (card.querySelector('.pname-'+index).style.textDecoration='none');
+                card.querySelector('.pname-'+index)?.style && (card.querySelector('.pname-'+index).style.color='#0f172a');
+            } else {
+                // OK: zielone
+                indicator.style.background = '#dcfce7';
+                indicator.style.color = '#166534';
+                indicator.innerHTML = `✅ Potwierdzono: ${w} ${unit}`;
+                card.style.borderColor = '#10b981';
+                card.style.background = '#f0fdf4';
+                card.querySelector('.pname-'+index)?.style && (card.querySelector('.pname-'+index).style.textDecoration='none');
+                card.querySelector('.pname-'+index)?.style && (card.querySelector('.pname-'+index).style.color='#0f172a');
             }
-        };
+        }
         
-        list.appendChild(clone);
+        input.addEventListener('input', updateListStyle);
+        unitSelect.addEventListener('change', updateListStyle);
+        
+        // Auto-save on blur/change
+        input.addEventListener('change', () => {
+            if (input.value !== '') {
+                saveBtn.click();
+            }
+        });
+        unitSelect.addEventListener('change', () => {
+            if (input.value !== '') {
+                saveBtn.click();
+            }
+        });
+        
+        saveBtn.onclick = () => saveEntry(p, input.value, card, saveBtn, unitSelect.value);
+        input.addEventListener('keydown', (e) => {
+            if(e.key === 'Enter') {
+                e.preventDefault();
+                saveEntry(p, input.value, card, saveBtn, unitSelect.value);
+                const allInputs = document.querySelectorAll('.actual-weight-input');
+                if(allInputs[index+1]) { allInputs[index+1].focus(); allInputs[index+1].select(); }
+            }
+        });
+        
+        // Trigger live visual feedback on render if already counted
+        if(isCounted) {
+            updateListStyle();
+        }
     });
+    
+    // Focus first unfilled input
+    const inputs = list.querySelectorAll('.actual-weight-input');
+    const empty = Array.from(inputs).find(i => !i.value);
+    if(empty) { setTimeout(() => { empty.focus(); }, 100); }
 }
 
-function saveEntry(pallet, actualWeight, cardElement) {
+function saveEntry(pallet, actualWeight, cardElement, btn, unit) {
     const weight = parseFloat(actualWeight);
     if(isNaN(weight)) return alert('Podaj poprawną wagę!');
     
+    if(btn) { btn.innerHTML = '<span class="material-icons">hourglass_top</span>'; btn.style.background='#94a3b8'; }
+
     fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -568,24 +985,45 @@ function saveEntry(pallet, actualWeight, cardElement) {
             waga_faktyczna: weight,
             linia: pallet.linia,
             data_produkcji: pallet.data_produkcji,
-            data_przydatnosci: pallet.data_przydatnosci
+            data_przydatnosci: pallet.data_przydatnosci,
+            jednostka: unit || 'kg'
         })
     })
     .then(r => r.json())
     .then(data => {
         if(data.success) {
-            cardElement.style.borderColor = '#10b981';
-            cardElement.style.background = '#f0fdf4';
-            // Show checkmark on button
-            const btn = cardElement.querySelector('.save-btn');
-            btn.innerHTML = '<span class="material-icons">done_all</span>';
-            btn.style.background = '#059669';
-            
-            // Do NOT clear scanner, let the user continue with other pallets in this location
+            if(weight <= 0) {
+                // Wizualnie usuń: przekreślenie, czerwone, szary przycisk
+                cardElement.style.opacity = '0.6';
+                if(btn) { btn.innerHTML='<span class="material-icons">delete_forever</span>'; btn.style.background='#ef4444'; }
+            } else {
+                cardElement.style.borderColor = '#10b981';
+                cardElement.style.background = '#f0fdf4';
+                if(btn) { btn.innerHTML='<span class="material-icons">done_all</span>'; btn.style.background='#059669'; }
+            }
         } else {
-            alert("Błąd zapisu: " + data.message);
+            if(btn) { btn.innerHTML='<span class="material-icons">error</span>'; btn.style.background='#ef4444'; }
+            alert('Błąd zapisu: ' + (data.message || data.error || 'Nieznany'));
         }
+    }).catch(() => {
+        if(btn) { btn.innerHTML='<span class="material-icons">save</span>'; btn.style.background='#10b981'; }
     });
+}
+
+function finishInventory() {
+    if(confirm('Zakończyć sesję inwentaryzacji #{{ sesja_id }}?\n\nSesja zostanie zamknięta. Możesz ją potem zatwierdzić z raportu.')) {
+        fetch('/magazyn/inwentaryzacja/api/zamknij-sesje', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({sesja_id: {{ sesja_id }}})
+        }).then(r=>r.json()).then(data => {
+            if(data.success) {
+                window.location.href = '{{ url_for("inwentaryzacja.raport", sesja_id=sesja_id) }}';
+            } else {
+                alert('Błąd: ' + (data.message || data.error));
+            }
+        });
+    }
 }
 
 function clearSkaner() {
@@ -595,18 +1033,94 @@ function clearSkaner() {
     document.getElementById('locationSearchCard').style.display = 'block';
     localStorage.removeItem('lastInventoryLoc');
     localStorage.removeItem('lastInventoryRack');
+    
+    // Ukryj dolny baner zakończenia
+    const banner = document.getElementById('floatingFinishBanner');
+    if (banner) banner.style.display = 'none';
+    
     document.getElementById('lokalizacjaInput').focus();
 }
+let lookedUpPalletId = null;
+let lookedUpSystemWeight = 0;
+let lookupTimeout = null;
 
+function handleSSCCInput() {
+    const code = document.getElementById('newPalletSSCC').value.trim();
+    const statusDiv = document.getElementById('lookupStatus');
+    
+    // Reset lookup state
+    statusDiv.style.display = 'none';
+    statusDiv.textContent = '';
+    lookedUpPalletId = null;
+    lookedUpSystemWeight = 0;
+    
+    if(lookupTimeout) clearTimeout(lookupTimeout);
+    if(code.length < 3) return;
+    
+    lookupTimeout = setTimeout(() => {
+        statusDiv.style.display = 'block';
+        statusDiv.style.color = '#3b82f6';
+        statusDiv.textContent = 'Szukanie palety w bazie...';
+        
+        fetch(`/magazyn/inwentaryzacja/api/lookup-pallet?code=${encodeURIComponent(code)}`)
+        .then(r => r.json())
+        .then(data => {
+            if(data.success) {
+                const p = data.pallet;
+                lookedUpPalletId = p.id;
+                lookedUpSystemWeight = p.stan_magazynowy || 0;
+                
+                statusDiv.style.color = '#10b981';
+                statusDiv.innerHTML = `🟢 Znaleziono w bazie: <strong>${p.nazwa}</strong> (Id: ${p.id})`;
+                
+                // Autofill other fields
+                document.getElementById('newPalletName').value = p.nazwa;
+                document.getElementById('newPalletType').value = p.typ_palety;
+                document.getElementById('newPalletWeight').value = p.stan_magazynowy;
+                document.getElementById('newPalletBatch').value = p.nr_partii || '';
+                document.getElementById('newPalletDateProd').value = p.data_produkcji || '';
+                document.getElementById('newPalletDateExp').value = p.data_przydatnosci || '';
+                document.getElementById('newPalletPackaging').value = p.typ_opakowania || 'brak';
+                document.getElementById('newPalletUnit').value = p.jednostka || 'kg';
+            } else {
+                statusDiv.style.color = '#64748b';
+                statusDiv.textContent = '⚪ Nowy kod palety (brak w bazie danych)';
+            }
+        })
+        .catch(err => {
+            statusDiv.style.color = '#ef4444';
+            statusDiv.textContent = '🔴 Błąd podczas szukania';
+        });
+    }, 400);
+}
 
 function addNewPallet(loc) {
+    lookedUpPalletId = null;
+    lookedUpSystemWeight = 0;
+    
+    const statusDiv = document.getElementById('lookupStatus');
+    if(statusDiv) {
+        statusDiv.style.display = 'none';
+        statusDiv.textContent = '';
+    }
+    
     document.getElementById('newPalletLoc').value = loc || lastLocation;
     document.getElementById('newPalletSSCC').value = '';
     document.getElementById('newPalletName').value = '';
-    document.getElementById('newPalletWeight').value = '';
+    document.getElementById('newPalletWeight').value = '0';
+    document.getElementById('newPalletUnit').value = 'kg';
+    document.getElementById('newPalletBatch').value = '';
+    document.getElementById('newPalletDateProd').value = '';
+    document.getElementById('newPalletDateExp').value = '';
+    document.getElementById('newPalletPackaging').value = 'brak';
     document.getElementById('newPalletModal').style.display = 'flex';
     document.getElementById('newPalletSSCC').focus();
 }
+
+// Switch unit automatically based on category/type choice
+document.getElementById('newPalletType').addEventListener('change', (e) => {
+    document.getElementById('newPalletUnit').value = (e.target.value === 'opakowanie') ? 'szt' : 'kg';
+});
 
 function saveNewPallet() {
     const sscc = document.getElementById('newPalletSSCC').value.trim();
@@ -618,8 +1132,8 @@ function saveNewPallet() {
     const dExp = document.getElementById('newPalletDateExp').value;
     const loc = document.getElementById('newPalletLoc').value;
     const packaging = document.getElementById('newPalletPackaging').value;
+    const unit = document.getElementById('newPalletUnit').value;
 
-    
     if(!sscc || !name || isNaN(weight)) return alert('Wypełnij wszystkie pola!');
     
     fetch('{{ url_for("inwentaryzacja.zapisz_wpis") }}', {
@@ -627,26 +1141,26 @@ function saveNewPallet() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             sesja_id: {{ sesja_id }},
-            paleta_id: null,
+            paleta_id: lookedUpPalletId,
             nr_palety: sscc,
             typ_palety: type,
             nazwa: name,
             lokalizacja: loc,
             nr_partii: batch,
-            waga_systemowa: 0,
+            waga_systemowa: lookedUpPalletId ? lookedUpSystemWeight : 0,
             waga_faktyczna: weight,
             data_produkcji: dProd,
             data_przydatnosci: dExp,
             linia: 'PSD',
-            typ_opakowania: packaging
+            typ_opakowania: packaging,
+            jednostka: unit
         })
-
     }).then(r => r.json()).then(data => {
         if(data.success) {
             document.getElementById('newPalletModal').style.display = 'none';
             if(currentRackPrefix) {
                 markCellDone(loc, false);
-                openSlotDetail(loc); // Refresh detail
+                refreshRackData(currentRackPrefix, loc); // Refresh rack data AND slot detail popup!
             } else {
                 searchLocation(); // Refresh list
             }
@@ -655,6 +1169,19 @@ function saveNewPallet() {
         }
     });
 }
+
+function openInstructionsModal() {
+    document.getElementById('instructionsModal').style.display = 'flex';
+}
+function closeInstructionsModal() {
+    document.getElementById('instructionsModal').style.display = 'none';
+}
+// Close instructions modal when clicking backdrop
+document.getElementById('instructionsModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('instructionsModal')) {
+        closeInstructionsModal();
+    }
+});
 </script>
 
 <div id="newPalletModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 2000; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 20px 0;">
@@ -666,7 +1193,8 @@ function saveNewPallet() {
         <div style="display: flex; flex-direction: column; gap: 15px;">
             <div>
                 <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Numer Palety / SSCC</label>
-                <input type="text" id="newPalletSSCC" class="weight-input" style="text-align: left; padding: 12px;" placeholder="Zeskanuj lub wpisz...">
+                <input type="text" id="newPalletSSCC" class="weight-input" style="text-align: left; padding: 12px;" placeholder="Zeskanuj lub wpisz..." oninput="handleSSCCInput()">
+                <div id="lookupStatus" style="font-size: 12px; margin-top: 6px; font-weight: 700; display: none;"></div>
             </div>
             <div>
                 <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Nazwa Produktu / Materiału</label>
@@ -691,10 +1219,17 @@ function saveNewPallet() {
                     </select>
                 </div>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
                 <div>
-                    <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Stan (kg/szt)</label>
+                    <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Stan (faktyczny)</label>
                     <input type="number" id="newPalletWeight" class="weight-input" style="padding: 12px;" value="0">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Jednostka</label>
+                    <select id="newPalletUnit" class="weight-input" style="padding: 10px; height: 48px;">
+                        <option value="kg">kg</option>
+                        <option value="szt">szt</option>
+                    </select>
                 </div>
             </div>
 

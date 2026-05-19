@@ -78,6 +78,13 @@ def set_active_database_name(database_name, verify_connection=True):
         DB_CONFIG['database'] = target_name
     
     _persist_database_name(target_name)
+    
+    # Automatically initialize / migrate tables in the newly active database!
+    try:
+        setup_database()
+    except Exception as e:
+        print(f"[WARN] Failed to setup database {target_name} on switch: {e}")
+        
     return target_name
 
 def get_db_connection(retries=3):
@@ -596,6 +603,16 @@ def _create_tables(cursor):
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS drukarki (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(100) NOT NULL,
+            ip VARCHAR(100) NOT NULL,
+            lokalizacja VARCHAR(255) DEFAULT '',
+            aktywna TINYINT(1) DEFAULT 1
+        )
+    """)
+
 
 def _add_column_if_missing(cursor, table, column, definition, description=""):
     """Helper to add column if it doesn't exist."""
@@ -756,6 +773,8 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji_agro", "zasyp_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'zasyp_id' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji", "start_machine_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_machine_counter' (PSD)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_machine_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_machine_counter' (AGRO)")
+    _add_column_if_missing(cursor, "plan_produkcji", "start_pallet_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_pallet_counter' (PSD)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "start_pallet_counter", "INT DEFAULT 0", "Dodawanie kolumny 'start_pallet_counter' (AGRO)")
     
     # Ensure warehouse unique indexes for accurate pallet tracking
     # Strict rule: one material per location. Conflicting names will overwrite.
@@ -1183,6 +1202,69 @@ def _auto_confirm_existing_palety(cursor):
         print(f"[INFO] Auto-confirm migration skipped or already applied: {e}")
 
 
+def _table_has_column(cursor, table_name, column_name):
+    try:
+        cursor.execute(
+            "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND COLUMN_NAME=%s",
+            (table_name, column_name),
+        )
+        return bool(cursor.fetchone())
+    except Exception:
+        return False
+
+
+def _standardize_warehouse_pallet_ids(cursor):
+    """Normalize all warehouse nr_palety values to SSCC-like format: AAA + 18 digits."""
+    from app.utils.pallet_id import generate_pallet_id, is_valid_pallet_id
+
+    table_specs = [
+        {'table': 'magazyn_surowce', 'type': 'surowiec', 'linia': 'PSD'},
+        {'table': 'magazyn_opakowania', 'type': 'opakowanie', 'linia': 'PSD'},
+        {'table': 'magazyn_dodatki', 'type': 'dodatek', 'linia': 'PSD'},
+        {'table': 'magazyn_palety', 'type': 'wyrób gotowy', 'linia': 'PSD'},
+        {'table': 'magazyn_palety_agro', 'type': 'wyrób gotowy', 'linia': 'AGRO'},
+        {'table': 'palety_workowanie', 'type': 'wyrób gotowy', 'linia': 'PSD'},
+        {'table': 'palety_agro', 'type': 'wyrób gotowy', 'linia': 'AGRO'},
+    ]
+
+    total_updated = 0
+    for spec in table_specs:
+        table_name = spec['table']
+
+        if not _table_has_column(cursor, table_name, 'id'):
+            continue
+        if not _table_has_column(cursor, table_name, 'nr_palety'):
+            continue
+
+        try:
+            cursor.execute(
+                f"SELECT id, nr_palety FROM {table_name} "
+                "WHERE nr_palety IS NULL OR TRIM(nr_palety) = '' OR nr_palety NOT REGEXP '^[A-Za-z]{3}[0-9]{18}$'"
+            )
+        except Exception:
+            continue
+
+        rows = cursor.fetchall() or []
+        updated = 0
+        for row_id, old_nr_palety in rows:
+            if is_valid_pallet_id(old_nr_palety):
+                continue
+
+            new_nr_palety = generate_pallet_id(spec['linia'], type=spec['type'], record_id=row_id)
+            cursor.execute(
+                f"UPDATE {table_name} SET nr_palety = %s WHERE id = %s",
+                (new_nr_palety, row_id),
+            )
+            updated += 1
+
+        if updated:
+            total_updated += updated
+            print(f"[MIGRATE] Standaryzacja SSCC w {table_name}: {updated} rekordow")
+
+    if total_updated:
+        print(f"[OK] Zaktualizowano {total_updated} rekordow nr_palety do formatu AAA+18 cyfr")
+
+
 def _seed_produkty(cursor):
     """Seed initial products/recipes into produkty_receptury table."""
     default_products = [
@@ -1217,6 +1299,9 @@ def setup_database():
         
         # 2. Run migrations (add missing columns)
         _migrate_columns(cursor)
+
+        # 2b. Normalize existing pallet IDs to SSCC-like format (AAA + 18 digits)
+        _standardize_warehouse_pallet_ids(cursor)
         
         # 3. Seed initial products
         _seed_produkty(cursor)
@@ -2078,3 +2163,123 @@ def list_online_users(active_within_minutes=30):
         except Exception:
             pass
         return []
+
+
+def deactivate_all_user_sessions(user_id):
+    """Mark all active sessions of a user as logged out in the database."""
+    if not user_id:
+        return False
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE aktywne_sesje SET is_active = 0, last_seen = NOW() WHERE user_id = %s",
+            (user_id,)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception:
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return False
+
+
+def is_session_active(session_id):
+    """Check if the session tracking ID is still active in the database."""
+    if not session_id:
+        return False
+    
+    from flask import session, request
+    from datetime import datetime
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT is_active FROM aktywne_sesje WHERE session_id = %s",
+            (session_id,)
+        )
+        row = cursor.fetchone()
+        
+        # If the session exists in DB, respect its active status
+        if row is not None:
+            is_act = row[0]
+            cursor.close()
+            conn.close()
+            return is_act == 1
+            
+        # If the session does NOT exist in DB, but the Flask session cookie claims
+        # we are logged in, we automatically replicate/reconstruct the session context!
+        # This prevents database switches or purges from logging the user out.
+        if session.get('zalogowany') and session.get('user_id'):
+            u_id = session.get('user_id')
+            u_login = session.get('login')
+            u_rola = session.get('rola') or ''
+            u_prac = session.get('pracownik_id')
+            u_name = session.get('imie_nazwisko') or u_login
+            u_grupa = session.get('grupa')
+            
+            # 1. Ensure the employee exists
+            if u_prac:
+                cursor.execute("SELECT id FROM pracownicy WHERE id = %s", (u_prac,))
+                if not cursor.fetchone():
+                    cursor.execute(
+                        "INSERT INTO pracownicy (id, imie_nazwisko) VALUES (%s, %s)",
+                        (u_prac, u_name)
+                    )
+            
+            # 2. Ensure the user exists
+            cursor.execute("SELECT id FROM uzytkownicy WHERE id = %s", (u_id,))
+            if not cursor.fetchone():
+                cursor.execute(
+                    "INSERT INTO uzytkownicy (id, login, haslo, rola, pracownik_id, grupa) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (u_id, u_login, 'replicated_dummy_hash', u_rola, u_prac, u_grupa)
+                )
+                
+            # 3. Create the active session
+            forwarded_for = request.headers.get('X-Forwarded-For', '')
+            client_ip = (forwarded_for.split(',')[0].strip() if forwarded_for else request.remote_addr)
+            cursor.execute("""
+                INSERT INTO aktywne_sesje 
+                (session_id, user_id, login, rola, pracownik_id, display_name, ip_address, last_path, logged_in_at, last_seen, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
+            """, (
+                session_id,
+                u_id,
+                u_login,
+                u_rola,
+                u_prac,
+                u_name,
+                client_ip,
+                request.path,
+                datetime.now(),
+                datetime.now()
+            ))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+            
+        cursor.close()
+        conn.close()
+        return False
+    except Exception as e:
+        print(f"[WARN] Failed auto-replicating session context in is_session_active: {e}")
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return True  # Fallback to True on DB error to prevent blocking users

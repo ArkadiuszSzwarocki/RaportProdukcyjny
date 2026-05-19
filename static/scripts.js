@@ -138,6 +138,12 @@
         if (checkedCheckboxes.length > 0) return true;
 
         if (!active) return false;
+
+        // Minor/simple inputs do not block auto-refresh if focus/value is preserved
+        if (active.name === 'waga_palety' || active.name === 'tonaz' || active.id === 'move_to_date_work') {
+            return false;
+        }
+
         if (active.matches && active.matches('input, textarea, select')) return true;
         return !!(active.closest && active.closest('[contenteditable="true"]'));
     }
@@ -552,6 +558,27 @@
 
             const expandedDetails = captureExpandedDetails();
 
+            // --- Focus and Input value preservation ---
+            let focusedElementInfo = null;
+            const active = document.activeElement;
+            if (active && active.tagName && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+                let selector = '';
+                if (active.id) {
+                    selector = '#' + active.id;
+                } else if (active.name) {
+                    selector = `${active.tagName.toLowerCase()}[name="${active.name}"]`;
+                }
+                
+                if (selector) {
+                    focusedElementInfo = {
+                        selector: selector,
+                        value: active.value,
+                        selectionStart: active.selectionStart,
+                        selectionEnd: active.selectionEnd
+                    };
+                }
+            }
+
             const resp = await fetch(window.location.href, { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
             if (!resp.ok) return;
             const txt = await resp.text();
@@ -582,6 +609,22 @@
 
                 // Clear suppression shortly after inline scripts executed
                 try { setTimeout(function () { try { window.__partialReloadSuppressClick = false; } catch (e) { } }, 300); } catch (e) { }
+
+                // Restore focused element and its value/cursor selection
+                if (focusedElementInfo) {
+                    try {
+                        const restored = curMain.querySelector(focusedElementInfo.selector);
+                        if (restored) {
+                            restored.value = focusedElementInfo.value;
+                            restored.focus();
+                            if (typeof restored.setSelectionRange === 'function' && restored.selectionStart !== null) {
+                                restored.setSelectionRange(restored.selectionStart, restored.selectionEnd);
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('Restore focus failed', err);
+                    }
+                }
 
                 // Restore scroll position after content update
                 setTimeout(() => {
@@ -622,6 +665,88 @@
 
     // Expose to window for external scripts
     window.performPartialReload = performPartialReload;
+
+    // AJAX form interception on production dashboards to prevent full-page reload
+    document.addEventListener('submit', function (e) {
+        const form = e.target;
+        
+        // Only intercept forms inside #mainContent
+        if (!form.closest('#mainContent')) return;
+        
+        // Don't intercept slide-over or explicitly non-ajax forms
+        if (form.hasAttribute('data-slide') || form.getAttribute('data-ajax') === 'false') return;
+        
+        // Only POST forms without a blank/new target
+        if (form.method && form.method.toLowerCase() !== 'post') return;
+        if (form.target && form.target !== '_self') return;
+        
+        // Check if we are in a production section
+        const section = getCurrentSection().toLowerCase();
+        const path = window.location.pathname.toLowerCase();
+        const isSupported = (section === 'zasyp' || section === 'workowanie' || section === 'magazyn' || path.includes('/magazyn') || path.includes('/dashboard'));
+        if (!isSupported) return;
+        
+        // Handle confirmation dialogs
+        if (form.hasAttribute('data-confirm-msg')) {
+            const msg = form.getAttribute('data-confirm-msg');
+            if (!confirm(msg)) {
+                e.preventDefault();
+                return;
+            }
+        }
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const url = form.action || window.location.href;
+        const formData = new FormData(form);
+        
+        // Disable submit buttons to prevent double-clicks
+        const submitBtns = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+        submitBtns.forEach(btn => btn.disabled = true);
+        
+        // Fetch silently
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(async function (response) {
+            if (response.status === 401) {
+                window.location.reload();
+                return;
+            }
+            
+            let json = null;
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.indexOf('application/json') !== -1) {
+                try {
+                    json = await response.json();
+                } catch (err) {}
+            }
+            
+            if (json && json.success === false) {
+                alert(json.message || 'Błąd operacji');
+                submitBtns.forEach(btn => btn.disabled = false);
+                return;
+            }
+            
+            // Do a silent partial reload to pull the new data
+            await performPartialReload({ force: true, preserveScroll: true, source: 'form-ajax' });
+            
+            if (typeof window.showToast === 'function') {
+                window.showToast('Zapisano!', 'success');
+            }
+        })
+        .catch(function (error) {
+            console.error('AJAX submit failed', error);
+            alert('Błąd sieci podczas zapisywania');
+            submitBtns.forEach(btn => btn.disabled = false);
+        });
+    }, true); // Use capturing phase to intercept before other handlers
 
     // --- Global spinner for slow navigations / long fetches ---
     let _spinnerTimer = null;
@@ -955,6 +1080,10 @@
             const forms = m.querySelectorAll('form');
             forms.forEach(function (innerForm) {
                 innerForm.addEventListener('submit', function (evt) {
+                    if (evt.defaultPrevented) {
+                        return;
+                    }
+
                     const confirmMsg = innerForm.dataset.confirm;
                     if (confirmMsg && !confirm(confirmMsg)) return;
 
@@ -1187,7 +1316,7 @@
         if (!paletaId) return;
         if (typeof showToast === 'function') showToast('Wysyłanie do drukarki 237...', 'info');
         
-        const url = '/api/drukuj_etykiete_zpl/' + paletaId + '?linia=' + (linia || 'PSD');
+        const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
         fetch(url, { 
             method: 'POST', 
             headers: { 'X-Requested-With': 'XMLHttpRequest' },

@@ -248,6 +248,17 @@ def register_api_runtime_routes(api_bp):
         """Returns the latest sequence IDs for various system entities to enable smart polling."""
         try:
             linia = request.args.get('linia', 'PSD').upper()
+            
+            import time
+            global _system_state_cache
+            if '_system_state_cache' not in globals():
+                _system_state_cache = {}
+
+            now = time.time()
+            cached = _system_state_cache.get(linia)
+            if cached and (now - cached['timestamp'] < 2.0):
+                return jsonify(cached['data'])
+
             from app.db import get_table_name, get_db_connection
 
             # Resolve table names based on line
@@ -284,7 +295,7 @@ def register_api_runtime_routes(api_bp):
             cursor.close()
             conn.close()
 
-            return jsonify({
+            response_data = {
                 'success': True,
                 'state': {
                     'last_move': last_move,
@@ -295,7 +306,13 @@ def register_api_runtime_routes(api_bp):
                     'last_pallet_agro': last_pallet_agro,
                     'last_pallet': max(last_pallet_psd, last_pallet_agro) # Fallback
                 }
-            })
+            }
+            
+            _system_state_cache[linia] = {
+                'timestamp': now,
+                'data': response_data
+            }
+            return jsonify(response_data)
         except Exception as e:
             current_app.logger.error(f"Error in get_system_state: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500

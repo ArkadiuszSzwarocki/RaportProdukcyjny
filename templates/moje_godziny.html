@@ -1123,14 +1123,14 @@
 
     <div class="content-card request-card" id="leave-request-card">
       <h3 class="content-card-header"><i class="fas fa-file-signature"></i> Złóż wniosek</h3>
-      {% if session.get('rola')|lower in ['lider','admin', 'masteradmin','zarzad'] and viewed_pid and viewed_pid != owner_pid %}
+      {% if session.get('rola')|lower in ['lider','admin','masteradmin','zarzad'] and viewed_pid and viewed_pid != owner_pid %}
       <div class="alert-box alert-info mb-3" style="margin-bottom:12px;">
         <i class="fas fa-user-check"></i>
         Składasz wniosek <strong>w imieniu pracownika #{{ viewed_pid }}</strong>{% if viewed_summary and viewed_summary.imie_nazwisko %} &mdash; <strong>{{ viewed_summary.imie_nazwisko }}</strong>{% endif %}.
       </div>
       {% endif %}
       <form id="unified-request-form" method="POST" action="{{ url_for('leaves.submit_wniosek') }}" class="mb-0">
-        {% if session.get('rola')|lower in ['lider','admin', 'masteradmin','zarzad'] and viewed_pid and viewed_pid != owner_pid %}
+        {% if session.get('rola')|lower in ['lider','admin','masteradmin','zarzad'] and viewed_pid and viewed_pid != owner_pid %}
         <input type="hidden" name="target_pracownik_id" value="{{ viewed_pid }}">
         {% endif %}
         <div class="modern-form-row">
@@ -1457,7 +1457,7 @@
           <th>{{ _('stan') }}</th>
 
           {% set can_approve = false %}
-          {% if session.get('rola') in ['lider','admin', 'masteradmin'] %}
+          {% if session.get('rola')|lower in ['lider','admin','masteradmin'] %}
           {% for w in wnioski %}
           {% if w.pracownik_id != session.get('pracownik_id') %}
           {% set can_approve = true %}
@@ -1485,7 +1485,7 @@
           </td>
           {% if can_approve %}
           <td>
-            {% if session.get('rola') in ['lider','admin', 'masteradmin'] and w.pracownik_id != session.get('pracownik_id') %}
+            {% if session.get('rola')|lower in ['lider','admin','masteradmin'] and w.pracownik_id != session.get('pracownik_id') %}
             {% if w.status != 'approved' %}
             <button class="btn btn-sm btn-success wn-action" data-id="{{ w.id }}" data-action="approve"><i
                 class="fas fa-check"></i> Zatwierdź</button>
@@ -1874,7 +1874,7 @@
   // ============ DELETE OBECNOSC HANDLER (ADMIN ONLY) ============
   document.addEventListener('DOMContentLoaded', function () {
     const role = '{{ session.get("rola", "").lower() }}';
-    const isAdmin = role === 'admin';
+    const isAdmin = role === 'admin' || role === 'masteradmin';
 
     console.log('[DEBUG] Role:', role);
     console.log('[DEBUG] isAdmin:', isAdmin);

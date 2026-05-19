@@ -165,11 +165,26 @@
 
 /* Sidebar layout adjustments from layout.css/style.css if any */
 .sidebar {
-    height: auto;
-    min-height: calc(100vh - 60px);
+    height: calc(100vh - 60px);
     position: sticky;
     top: 60px;
-    overflow: visible;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Custom scrollbar for sidebar */
+.sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+.sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.sidebar::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+.sidebar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.2);
 }
 
 @media (max-width: 900px) {

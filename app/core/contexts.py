@@ -34,6 +34,7 @@ def inject_static_version():
             os.path.join(current_app.root_path, 'static', 'css', 'inline-styles.css'),
             os.path.join(current_app.root_path, 'static', 'scripts.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'sidebar.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'magazyny_nowe.js'),
         ]
         mtimes = []
         for p in candidates:
@@ -338,6 +339,19 @@ def inject_delivery_counters():
             pass
 
 
+def inject_database_info():
+    """Wstrzykuje informacje o podłączonej bazie danych (np. czy to baza testowa)."""
+    try:
+        from app.db import get_active_database_name
+        db_name = get_active_database_name()
+        is_test_db = 'test' in db_name.lower()
+        print(f"[DEBUG context] inject_database_info: db_name={db_name}, is_test={is_test_db}")
+        return dict(db_name=db_name, is_test_db=is_test_db)
+    except Exception as e:
+        print(f"[ERROR context] inject_database_info failed: {e}")
+        return dict(db_name='Unknown', is_test_db=False)
+
+
 def register_contexts(app):
     """Register all context processors with Flask app."""
     app.context_processor(inject_static_version)
@@ -347,3 +361,4 @@ def register_contexts(app):
     app.context_processor(inject_app_version)
     app.context_processor(inject_bug_report_counters)
     app.context_processor(inject_delivery_counters)
+    app.context_processor(inject_database_info)

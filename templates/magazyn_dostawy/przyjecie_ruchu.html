@@ -337,6 +337,156 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Premium Modal Styles */
+.premium-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.premium-modal-content {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 480px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    animation: modalFadeIn 0.25s ease-out;
+}
+@keyframes modalFadeIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.premium-modal-header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    color: #ffffff;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.premium-modal-header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+.premium-modal-header .close-btn {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+}
+.premium-modal-body {
+    padding: 20px;
+}
+.premium-modal-body p {
+    margin: 8px 0;
+    font-size: 0.9rem;
+    color: #334155;
+}
+.premium-select {
+    width: 100%;
+    height: 40px;
+    border: 2px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 0 10px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1e293b;
+    background-color: #f8fafc;
+    outline: none;
+    margin-top: 5px;
+}
+.premium-select:focus {
+    border-color: #3b82f6;
+}
+.premium-modal-footer {
+    padding: 16px 20px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+.btn-cancel {
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.btn-confirm-print {
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #1d4ed8, #1e40af);
+    border: 1px solid #1e3a8a;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+/* Done State Styles */
+.receipt-item.done {
+    opacity: 1;
+    border: 2px solid #22c55e;
+    background: #f0fdf4;
+}
+.done-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #dcfce7;
+    color: #15803d;
+    font-weight: 800;
+    font-size: 0.78rem;
+    border: 1px solid #bbf7d0;
+}
+.reject-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #b91c1c;
+    font-weight: 800;
+    font-size: 0.78rem;
+    border: 1px solid #fecaca;
+}
+.btn-reprint {
+    background: linear-gradient(180deg, #10b981, #059669);
+    border: 1px solid #047857;
+    color: #ffffff;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-weight: 800;
+    font-size: 0.82rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.btn-reprint:hover {
+    background: linear-gradient(180deg, #059669, #047857);
+}
 </style>
 
 <div class="logistyka-container p-20 receipt-screen" data-no-autorefresh="true">
@@ -429,16 +579,27 @@
         </div>
     </div>
 
-    {% if pending_items %}
+    {% if pending_count > 0 %}
+    <div style="margin-bottom: 12px; padding: 12px 16px; border-radius: 10px; background: #fffbeb; border: 1px solid #fef3c7; color: #b45309; font-weight: 800; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+        <span class="material-icons" style="font-size: 20px;">info</span>
+        Do rozliczenia pozostało jeszcze {{ pending_count }} pozycji z {{ total_count }}.
+    </div>
+    {% else %}
+    <div style="margin-bottom: 12px; padding: 12px 16px; border-radius: 10px; background: #ecfdf5; border: 1px solid #d1fae5; color: #065f46; font-weight: 800; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+        <span class="material-icons" style="font-size: 20px;">check_circle</span>
+        Wszystkie pozycje zostały rozliczone.
+    </div>
+    {% endif %}
+
     <div class="receipt-list">
-        {% for item in pending_items %}
+        {% for item in dostawa.items_parsed %}
         {% set idx = loop.index0 %}
         {% set qty = item.netWeight if item.netWeight else item.unitsPerPallet %}
         {% set qty_unit = 'szt' if item.packageForm == 'packaging' else 'kg' %}
         {% set dprod = item.data_produkcji[:10] if item.data_produkcji and item.data_produkcji is string else (item.data_produkcji.strftime('%Y-%m-%d') if item.data_produkcji else '') %}
         {% set dexp = item.data_przydatnosci[:10] if item.data_przydatnosci and item.data_przydatnosci is string else (item.data_przydatnosci.strftime('%Y-%m-%d') if item.data_przydatnosci else '') %}
 
-        <div id="row_{{ idx }}" class="receipt-item">
+        <div id="row_{{ idx }}" class="receipt-item{% if item.accepted %} done{% elif item.rejected %} rejected{% endif %}">
             <div class="receipt-head">
                 <div class="receipt-left">
                     <span class="idx-badge">{{ loop.index }}</span>
@@ -447,12 +608,64 @@
                         <div class="item-meta">ID pozycji: {{ item.id }}</div>
                     </div>
                 </div>
-                <span class="qty-pill">
-                    <span class="material-icons" style="font-size: 15px;">scale</span>
-                    {{ qty or 0 }} {{ qty_unit }}
-                </span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    {% if item.accepted %}
+                    <span class="done-badge">
+                        <span class="material-icons" style="font-size: 14px;">check_circle</span>
+                        ROZLICZONE
+                    </span>
+                    {% elif item.rejected %}
+                    <span class="reject-badge">
+                        <span class="material-icons" style="font-size: 14px;">cancel</span>
+                        ODRZUCONE
+                    </span>
+                    {% endif %}
+                    <span class="qty-pill">
+                        <span class="material-icons" style="font-size: 15px;">scale</span>
+                        {{ qty or 0 }} {{ qty_unit }}
+                    </span>
+                </div>
             </div>
 
+            {% if item.accepted %}
+            <!-- Accepted state view with assigned pallet ID and reprint action -->
+            <div style="padding: 15px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 15px; background: #f0fdf4;">
+                <div>
+                    <div style="font-size: 0.95rem; font-weight: 800; color: #15803d;">
+                        ID palety (SSCC): <span style="font-family: monospace; font-size: 1.05rem; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">{{ item.nr_palety or '---' }}</span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: #166534; margin-top: 4px;">
+                        Przyjęto na lokalizację: <strong>{{ item.lokalizacja_przyjecia or '---' }}</strong>
+                        {% if item.nr_partii %}| Partia: <strong>{{ item.nr_partii }}</strong>{% endif %}
+                        {% if item.accepted_by %}| Magazynier: <strong>{{ item.accepted_by }}</strong>{% endif %}
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="display: flex; flex-direction: column;">
+                        <label style="font-size: 0.68rem; font-weight: 800; color: #15803d; text-transform: uppercase; margin-bottom: 3px;">Drukarka do dodruku</label>
+                        <select id="reprint_printer_{{ idx }}" class="premium-select" style="margin: 0; height: 34px; font-size: 0.8rem; border-color: #a7f3d0; width: 180px;">
+                            {% for pr in printers %}
+                            <option value="{{ pr.id }}">{{ pr.nazwa }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button class="btn-reprint" style="height: 34px; margin-top: 14px;" onclick="reprintLabel({{ idx }}, {{ item.nr_palety|tojson }}, {{ item.productName|tojson }}, {{ item.nr_partii|tojson }}, {{ dprod|tojson }}, {{ dexp|tojson }}, {{ qty }}, {{ 'packaging' if item.packageForm == 'packaging' else 'surowiec'|tojson }})">
+                        <span class="material-icons" style="font-size: 16px;">print</span>
+                        Dodrukuj etykietę (2 szt)
+                    </button>
+                </div>
+            </div>
+
+            {% elif item.rejected %}
+            <!-- Rejected state view -->
+            <div style="padding: 15px; background: #fef2f2; color: #991b1b;">
+                <div style="font-weight: 800;">Pozycja została odrzucona</div>
+                <div style="font-size: 0.85rem; margin-top: 4px;">Powób: <strong>{{ item.rejected_reason or 'Brak podanego powodu' }}</strong></div>
+                {% if item.rejected_by %}<div style="font-size: 0.8rem; margin-top: 2px;">Odrzucił: <strong>{{ item.rejected_by }}</strong> o {{ item.rejected_at }}</div>{% endif %}
+            </div>
+
+            {% else %}
+            <!-- Editable pending state view -->
             <div class="top-row-grid{% if is_external %} external{% endif %}">
                 {% if not is_external %}
                 <div class="field-box source">
@@ -483,7 +696,7 @@
                     <input id="loc_{{ idx }}" type="text" placeholder="np. R040101" value="{{ item.lokalizacja_przyjecia or '' }}" list="locationSuggestionsList" oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" autocomplete="off">
                 </div>
                 <div class="row-actions-inline">
-                    <button id="btn_{{ idx }}" class="btn-confirm" onclick='acceptItem({{ item.get('id')|tojson }}, {{ idx }})'>
+                    <button id="btn_{{ idx }}" class="btn-confirm" onclick='acceptItemClick({{ item.get('id')|tojson }}, {{ idx }}, {{ item.productName|tojson }})'>
                         <span class="material-icons" style="font-size: 18px;">check_circle</span>
                         Potwierdź przyjęcie
                     </button>
@@ -493,20 +706,47 @@
                     </button>
                 </div>
             </div>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
-    {% else %}
-    <div class="completed-wrap">
-        <div class="text-success font-bold mb-8" style="font-size: 1.08rem;">Wszystkie pozycje zostały już rozliczone.</div>
-        <div class="text-muted small mb-15">{{ 'Dostawa jest zakończona i widoczna w raporcie logistycznym.' if is_external else 'Ruch jest zakończony i widoczny w raporcie logistycznym.' }}</div>
-        {% if is_external %}
-        <a href="{{ url_for('magazyn_dostawy.reception_view', linia=linia) }}" class="btn-premium">Powrót do przyjęć</a>
-        {% else %}
-        <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=linia) }}" class="btn-premium">Powrót do przesunięć</a>
-        {% endif %}
+
+    <!-- Modal Drukarki -->
+    <div id="printerModal" class="premium-modal" style="display: none;">
+        <div class="premium-modal-content">
+            <div class="premium-modal-header">
+                <h3>Wybór Drukarki Etykiet</h3>
+                <button class="close-btn" onclick="closePrinterModal()">&times;</button>
+            </div>
+            <div class="premium-modal-body">
+                <p>Potwierdzasz przyjęcie pozycji:</p>
+                <p><strong id="modalProductName" style="font-size: 1.05rem; color: #1e3a8a;"></strong></p>
+                <p style="margin-top: 10px;">System automatycznie przypisze unikalne <strong>ID Palety</strong>.</p>
+                
+                <div class="field-box" style="margin-top: 15px;">
+                    <label for="modalPrinterSelect" style="color: #1e3a8a; font-weight: 800;">Gdzie wydrukować etykiety?</label>
+                    <select id="modalPrinterSelect" class="premium-select">
+                        <option value="">-- NIE DRUKUJ --</option>
+                        {% for pr in printers %}
+                        <option value="{{ pr.id }}" {% if loop.first %}selected{% endif %}>{{ pr.nazwa }} ({{ pr.lokalizacja }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <p style="font-size: 0.8rem; color: #64748b; margin-top: 12px; display: flex; align-items: center; gap: 4px;">
+                    <span class="material-icons" style="font-size: 16px; color: #3b82f6;">info</span>
+                    Zostaną wydrukowane <strong>2 identyczne etykiety</strong>.
+                </p>
+            </div>
+            <div class="premium-modal-footer">
+                <button class="btn-cancel" onclick="closePrinterModal()">Anuluj</button>
+                <button class="btn-confirm-print" onclick="confirmAcceptWithPrinter()">
+                    <span class="material-icons" style="font-size: 18px;">print</span>
+                    Potwierdź i Drukuj (2 szt)
+                </button>
+            </div>
+        </div>
     </div>
-    {% endif %}
 </div>
 
 <script>
@@ -694,32 +934,63 @@ async function cancelTransferOrder(dostawaId, orderRef) {
     }
 }
 
-async function acceptItem(itemId, idx) {
+let pendingAcceptItem = null;
+
+function acceptItemClick(itemId, idx, productName) {
     const locEl = document.getElementById(`loc_${idx}`);
     const sourceEl = document.getElementById(`src_${idx}`);
     const batchEl = document.getElementById(`batch_${idx}`);
     const prodEl = document.getElementById(`prod_${idx}`);
     const expEl = document.getElementById(`exp_${idx}`);
-    const btn = document.getElementById(`btn_${idx}`);
-    const rejectBtn = document.getElementById(`reject_btn_${idx}`);
 
-    const lokalizacja = (locEl.value || '').trim().toUpperCase();
+    const location = (locEl.value || '').trim().toUpperCase();
     const sourceSpot = (sourceEl ? sourceEl.value : '').trim().toUpperCase();
     const nrPartii = (batchEl.value || '').trim();
     const dataProdukcji = prodEl.value || null;
     const dataPrzydatnosci = expEl.value || null;
 
-    if (!lokalizacja) {
+    if (!location) {
         safeToast('Podaj lokalizację odstawienia.', 'warning');
         locEl.focus();
         return;
     }
 
-    if (!isExternalDelivery && sourceSpot && sourceSpot !== '---' && sourceSpot === lokalizacja) {
-        safeToast(`Nie można przyjąć na tę samą lokalizację (${lokalizacja}), z której przyjmujesz.`, 'warning');
+    if (!isExternalDelivery && sourceSpot && sourceSpot !== '---' && sourceSpot === location) {
+        safeToast(`Nie można przyjąć na tę samą lokalizację (${location}), z której przyjmujesz.`, 'warning');
         locEl.focus();
         return;
     }
+
+    pendingAcceptItem = {
+        itemId: itemId,
+        idx: idx,
+        location: location,
+        productName: productName,
+        nrPartii: nrPartii,
+        dataProdukcji: dataProdukcji,
+        dataPrzydatnosci: dataPrzydatnosci
+    };
+
+    document.getElementById('modalProductName').textContent = productName;
+    document.getElementById('printerModal').style.display = 'flex';
+}
+
+function closePrinterModal() {
+    document.getElementById('printerModal').style.display = 'none';
+    pendingAcceptItem = null;
+}
+
+async function confirmAcceptWithPrinter() {
+    if (!pendingAcceptItem) return;
+
+    const { itemId, idx, location, nrPartii, dataProdukcji, dataPrzydatnosci } = pendingAcceptItem;
+    const printerSelect = document.getElementById('modalPrinterSelect');
+    const printerId = printerSelect ? printerSelect.value : '';
+
+    closePrinterModal();
+
+    const btn = document.getElementById(`btn_${idx}`);
+    const rejectBtn = document.getElementById(`reject_btn_${idx}`);
 
     btn.disabled = true;
     if (rejectBtn) rejectBtn.disabled = true;
@@ -731,10 +1002,11 @@ async function acceptItem(itemId, idx) {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 item_id: itemId,
-                lokalizacja: lokalizacja,
+                lokalizacja: location,
                 nr_partii: nrPartii,
                 data_produkcji: dataProdukcji,
-                data_przydatnosci: dataPrzydatnosci
+                data_przydatnosci: dataPrzydatnosci,
+                printer_id: printerId || null
             })
         });
         const data = await res.json();
@@ -755,16 +1027,61 @@ async function acceptItem(itemId, idx) {
             const finalUrl = data.report_url || postListUrl;
             setTimeout(() => {
                 window.location.href = finalUrl;
-            }, 250);
+            }, 2000);
             return;
         }
 
-        markRowAsProcessed(idx, 'accepted');
+        setTimeout(() => {
+            window.location.reload();
+        }, 300);
     } catch (e) {
         safeToast('Błąd połączenia z serwerem.', 'danger');
         btn.disabled = false;
         if (rejectBtn) rejectBtn.disabled = false;
         btn.textContent = 'Potwierdź przyjęcie';
+    }
+}
+
+async function reprintLabel(idx, nrPalety, productName, batch, dateProd, dateExp, qty, pType) {
+    const printerSelect = document.getElementById(`reprint_printer_${idx}`);
+    const printerId = printerSelect ? printerSelect.value : '';
+    if (!printerId) {
+        safeToast('Wybierz drukarkę przed dodrukiem!', 'warning');
+        return;
+    }
+
+    const btn = event.currentTarget;
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="font-size: 16px;">hourglass_empty</span> Drukowanie...';
+
+    try {
+        const resp = await fetch('/api/dodruk-etykiet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                nr_palety: nrPalety,
+                printer_id: printerId,
+                product_name: productName,
+                nr_partii: batch || '---',
+                data_produkcji: dateProd || '---',
+                data_przydatnosci: dateExp || '---',
+                qty: qty,
+                p_type: pType
+            })
+        });
+
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            safeToast(data.message || 'Etykiety wysłane do drukarki.', 'success');
+        } else {
+            safeToast('Błąd: ' + (data.error || 'Nieznany błąd'), 'danger');
+        }
+    } catch (e) {
+        safeToast('Błąd komunikacji z serwerem.', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
     }
 }
 

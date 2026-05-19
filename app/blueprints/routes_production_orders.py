@@ -112,15 +112,18 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 if status_obecny != 'w toku':
                     # Capture machine counter for AGRO Workowanie
                     start_counter = 0
+                    start_pallet_counter = 0
                     if sekcja == 'Workowanie' and linia == 'AGRO':
                         try:
-                            start_counter = get_latest_data().get('counter', 0)
+                            latest_d = get_latest_data()
+                            start_counter = latest_d.get('counter', 0)
+                            start_pallet_counter = latest_d.get('pallet_counter', 0)
                         except Exception:
                             pass
 
                     # Ensure only one active plan per section in this hall
                     cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
-                    cursor.execute(f"UPDATE {table_plan} SET status='w toku', real_start=NOW(), real_stop=NULL, start_machine_counter=%s WHERE id=%s", (start_counter, id))
+                    cursor.execute(f"UPDATE {table_plan} SET status='w toku', real_start=NOW(), real_stop=NULL, start_machine_counter=%s, start_pallet_counter=%s WHERE id=%s", (start_counter, start_pallet_counter, id))
                     current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
                     audit_log('Uruchomił zlecenie', f'ID={id}, produkt={produkt}, sekcja={sekcja}')
                     flash(f"✅ Uruchomiono: {produkt}", 'success')

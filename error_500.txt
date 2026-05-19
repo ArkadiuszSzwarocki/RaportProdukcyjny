@@ -1,7 +1,7 @@
-Encountered unknown tag 'endif'.
+'current_app' is undefined
 Traceback (most recent call last):
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\blueprints\routes_main.py", line 160, in index
-    return render_template('dashboard.html', **context)
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\app\blueprints\routes_main.py", line 171, in index
+    return render_template('dashboard_global.html', **context)
   File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\flask\templating.py", line 150, in render_template
     return _render(app, template, context)
   File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\flask\templating.py", line 131, in _render
@@ -11,17 +11,15 @@ Traceback (most recent call last):
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
   File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
     raise rewrite_traceback_stack(source=source)
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard.html", line 2, in top-level template code
-    {% import "_macros.html" as macros %}
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard_global.html", line 1, in top-level template code
+    {% extends 'layout.html' %}
     ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\layout.html", line 62, in top-level template code
-    {% block content %}{% endblock %}
-    ^^^^^^^^^
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard.html", line 13, in block 'content'
-    {% include 'dashboard/_dashboard_agro_active.html' %}
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\layout.html", line 45, in top-level template code
+    {% include 'includes/_layout_navbar.html' %}
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\includes\_layout_navbar.html", line 33, in top-level template code
+    <div id="session-timeout-config" data-timeout-minutes="{{ current_app.config.get('SESSION_TIMEOUT_MINUTES', 40) }}" style="display: none;"></div>
     ^^^^^^^^^^^^^^^^^
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
-    raise rewrite_traceback_stack(source=source)
-  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\templates\dashboard\_dashboard_agro_active.html", line 91, in template
-    {% endif %}
-jinja2.exceptions.TemplateSyntaxError: Encountered unknown tag 'endif'.
+  File "C:\Users\arkad\Documents\GitHub\RaportProdukcyjny\.venv\Lib\site-packages\jinja2\environment.py", line 490, in getattr
+    return getattr(obj, attribute)
+jinja2.exceptions.UndefinedError: 'current_app' is undefined

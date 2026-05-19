@@ -55,15 +55,140 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @admin_bp.route('/admin/sekretna-baza/switch', methods=['POST'])
     @admin_required
     def admin_secret_db_switch():
+        from flask import session
+        from datetime import datetime
         target_db = (request.form.get('database') or '').strip()
         previous_db = get_active_database_name()
+        
+        session_id = session.get('session_tracking_id')
+        session_row = None
+        user_row = None
+        pracownik_row = None
+        
+        user_id = session.get('user_id')
+        if session_id or user_id:
+            conn = None
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor(dictionary=True)
+                if session_id:
+                    cursor.execute(
+                        "SELECT user_id, login, rola, pracownik_id, display_name, ip_address, last_path, logged_in_at, last_seen, is_active FROM aktywne_sesje WHERE session_id = %s",
+                        (session_id,)
+                    )
+                    session_row = cursor.fetchone()
+                
+                # Fetch user record to prevent foreign key errors on target database
+                u_id = (session_row.get('user_id') if session_row else None) or user_id
+                if u_id:
+                    cursor.execute("SELECT id, login, haslo, rola, pracownik_id, grupa FROM uzytkownicy WHERE id = %s", (u_id,))
+                    user_row = cursor.fetchone()
+                    if user_row and user_row.get('pracownik_id'):
+                        cursor.execute("SELECT id, imie_nazwisko FROM pracownicy WHERE id = %s", (user_row['pracownik_id'],))
+                        pracownik_row = cursor.fetchone()
+                
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                if conn:
+                    try: conn.close()
+                    except Exception: pass
+
         try:
             selected_db = set_active_database_name(target_db, verify_connection=True)
-            flash(f'PrzeĹ‚Ä…czono bazÄ™: {previous_db} â†’ {selected_db}', 'success')
+            
+            # Replicate user context to the new database to satisfy foreign key constraints
+            if user_id or user_row:
+                conn = None
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    
+                    if pracownik_row:
+                        cursor.execute("SELECT id FROM pracownicy WHERE id = %s", (pracownik_row['id'],))
+                        if not cursor.fetchone():
+                            cursor.execute(
+                                "INSERT INTO pracownicy (id, imie_nazwisko) VALUES (%s, %s)",
+                                (pracownik_row['id'], pracownik_row['imie_nazwisko'])
+                            )
+                            
+                    if user_row:
+                        cursor.execute("SELECT id FROM uzytkownicy WHERE id = %s", (user_row['id'],))
+                        if not cursor.fetchone():
+                            cursor.execute(
+                                "INSERT INTO uzytkownicy (id, login, haslo, rola, pracownik_id, grupa) VALUES (%s, %s, %s, %s, %s, %s)",
+                                (user_row['id'], user_row['login'], user_row['haslo'], user_row['rola'], user_row['pracownik_id'], user_row['grupa'])
+                            )
+                        else:
+                            cursor.execute(
+                                "UPDATE uzytkownicy SET login = %s, haslo = %s, rola = %s, pracownik_id = %s, grupa = %s WHERE id = %s",
+                                (user_row['login'], user_row['haslo'], user_row['rola'], user_row['pracownik_id'], user_row['grupa'], user_row['id'])
+                            )
+                    
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                except Exception as e:
+                    print(f"[WARN] Failed to replicate user context to {target_db}: {e}")
+                    if conn:
+                        try: conn.rollback(); conn.close()
+                        except Exception: pass
+
+            # Copy active session to the new database to prevent session invalidation / automatic logout
+            if session_id:
+                u_id = (session_row.get('user_id') if session_row else None) or session.get('user_id')
+                u_login = (session_row.get('login') if session_row else None) or session.get('login')
+                u_rola = (session_row.get('rola') if session_row else None) or session.get('rola')
+                u_prac = (session_row.get('pracownik_id') if session_row else None) or session.get('pracownik_id')
+                u_name = (session_row.get('display_name') if session_row else None) or session.get('imie_nazwisko') or u_login
+                u_ip = (session_row.get('ip_address') if session_row else None) or request.remote_addr
+                u_path = (session_row.get('last_path') if session_row else None) or request.path
+                u_logged = (session_row.get('logged_in_at') if session_row else None) or datetime.now()
+                u_seen = (session_row.get('last_seen') if session_row else None) or datetime.now()
+                u_active = (session_row.get('is_active') if session_row else 1)
+                
+                conn = None
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO aktywne_sesje 
+                        (session_id, user_id, login, rola, pracownik_id, display_name, ip_address, last_path, logged_in_at, last_seen, is_active)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE 
+                        is_active = VALUES(is_active),
+                        last_seen = VALUES(last_seen),
+                        last_path = VALUES(last_path),
+                        ip_address = VALUES(ip_address)
+                    """, (
+                        session_id,
+                        u_id,
+                        u_login,
+                        u_rola,
+                        u_prac,
+                        u_name,
+                        u_ip,
+                        u_path,
+                        u_logged,
+                        u_seen,
+                        u_active
+                    ))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                except Exception as e:
+                    import traceback
+                    print("[ERROR] Failed to copy active session to target database:")
+                    traceback.print_exc()
+                    if conn:
+                        try: conn.rollback(); conn.close()
+                        except Exception: pass
+            
+            flash(f'Przełączono bazę: {previous_db} → {selected_db}', 'success')
         except ValueError as error:
             flash(str(error), 'error')
         except Exception as error:
-            flash(f'Nie udaĹ‚o siÄ™ przeĹ‚Ä…czyÄ‡ bazy na {target_db}: {error}', 'error')
+            flash(f'Nie udało się przełączyć bazy na {target_db}: {error}', 'error')
         return redirect(url_for('admin.admin_secret_db'))
 
     @admin_bp.route('/admin/ustawienia/zalogowani')
@@ -126,6 +251,57 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
                 }
             )
         return jsonify({'success': True, 'online_users': result, 'active_window_minutes': 30})
+
+    @admin_bp.route('/admin/api/diagnostics/instances')
+    @dynamic_role_required('ustawienia')
+    def admin_instance_diagnostics_api():
+        from app.db import get_db_connection
+        from app.core.daemon import get_instance_identity
+
+        conn = get_db_connection()
+        rows = []
+        message = ''
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT
+                    instance_id,
+                    hostname,
+                    pid,
+                    component,
+                    status,
+                    started_at,
+                    last_heartbeat,
+                    extra,
+                    TIMESTAMPDIFF(SECOND, last_heartbeat, NOW()) AS heartbeat_age_s
+                FROM app_instance_heartbeat
+                ORDER BY last_heartbeat DESC
+                LIMIT 200
+                """
+            )
+            rows = cursor.fetchall() or []
+            for row in rows:
+                age = int(row.get('heartbeat_age_s') or 0)
+                row['is_online'] = age <= 30
+                for field in ('started_at', 'last_heartbeat'):
+                    value = row.get(field)
+                    if hasattr(value, 'strftime'):
+                        row[field] = value.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception as e:
+            message = f'Brak danych heartbeat: {e}'
+        finally:
+            conn.close()
+
+        return jsonify(
+            {
+                'success': True,
+                'local_instance': get_instance_identity(),
+                'instances': rows,
+                'message': message,
+            }
+        )
+
     @admin_bp.route('/admin/api/printer-server/status')
     @dynamic_role_required('ustawienia')
     def admin_printer_server_status():
@@ -162,3 +338,65 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             return jsonify({'success': True, 'message': 'Wysłano polecenie startu serwera druku.'})
         except Exception as e:
             return jsonify({'success': False, 'message': f'Błąd startu: {str(e)}'}), 500
+
+    @admin_bp.route('/admin/ustawienia/drukarki')
+    @dynamic_role_required('ustawienia')
+    def admin_ustawienia_drukarki():
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        printers = []
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM drukarki ORDER BY id ASC")
+            printers = cursor.fetchall()
+        except Exception as e:
+            flash(f"Błąd pobierania drukarek: {e}", "error")
+        finally:
+            conn.close()
+        return render_template('ustawienia_drukarki.html', printers=printers)
+
+    @admin_bp.route('/admin/ustawienia/drukarki/add', methods=['POST'])
+    @dynamic_role_required('ustawienia')
+    def admin_add_printer():
+        nazwa = request.form.get('nazwa', '').strip()
+        ip = request.form.get('ip', '').strip()
+        lokalizacja = request.form.get('lokalizacja', '').strip()
+        aktywna = 1 if request.form.get('aktywna') else 0
+        
+        if not nazwa or not ip:
+            flash("Nazwa i adres IP są wymagane.", "error")
+            return redirect(url_for('admin.admin_ustawienia_drukarki'))
+            
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO drukarki (nazwa, ip, lokalizacja, aktywna) VALUES (%s, %s, %s, %s)",
+                (nazwa, ip, lokalizacja, aktywna)
+            )
+            conn.commit()
+            flash(f"Dodano drukarkę: {nazwa}", "success")
+        except Exception as e:
+            flash(f"Błąd podczas dodawania drukarki: {e}", "error")
+        finally:
+            conn.close()
+            
+        return redirect(url_for('admin.admin_ustawienia_drukarki'))
+
+    @admin_bp.route('/admin/ustawienia/drukarki/delete/<int:printer_id>', methods=['POST'])
+    @dynamic_role_required('ustawienia')
+    def admin_delete_printer(printer_id):
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM drukarki WHERE id = %s", (printer_id,))
+            conn.commit()
+            flash("Drukarka została usunięta.", "success")
+        except Exception as e:
+            flash(f"Błąd podczas usuwania drukarki: {e}", "error")
+        finally:
+            conn.close()
+            
+        return redirect(url_for('admin.admin_ustawienia_drukarki'))

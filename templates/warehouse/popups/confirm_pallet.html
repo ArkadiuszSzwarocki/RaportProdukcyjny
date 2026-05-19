@@ -2,7 +2,7 @@
 <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
   <div class="form-field">
     <label for="waga_palety">Waga rzeczywista (kg)</label>
-    <input id="waga_palety" name="waga_palety" type="number" min="0" step="0.1" value="" required class="input-sm" placeholder="Zważ paletę i wpisz wagę">
+    <input id="waga_palety" name="waga_palety" type="text" inputmode="decimal" value="" required class="input-sm" placeholder="np. 1 000">
   </div>
   <div style="display:flex; gap:8px;">
     <button type="submit" class="btn-action btn-success" style="flex:1;" data-default-label="{{ _('zatwierdz_btn') }}">{{ _('zatwierdz_btn') }}</button>
@@ -27,6 +27,25 @@
 
 <script>
   var pendingConfirmPayload = null;
+
+  document.getElementById('waga_palety').addEventListener('input', function(e) {
+    var cursorPosition = this.selectionStart;
+    var originalLength = this.value.length;
+    
+    var val = this.value.replace(/[^\d.,]/g, '').replace(',', '.');
+    var parts = val.split('.');
+    if (parts.length > 2) {
+      parts = [parts[0], parts.slice(1).join('')];
+    }
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    var newVal = parts.join(this.value.includes(',') ? ',' : '.');
+    
+    this.value = newVal;
+    
+    var newLength = newVal.length;
+    var diff = newLength - originalLength;
+    this.setSelectionRange(cursorPosition + diff, cursorPosition + diff);
+  });
 
   function setSubmitButtonState(isBusy, busyLabel) {
     var btn = document.querySelector('#potwierdz-form button[type="submit"]');
@@ -121,7 +140,8 @@
   function submitConfirmForm(event) {
     event.preventDefault();
     var wagaInput = document.getElementById('waga_palety');
-    var waga = parseFloat(wagaInput.value);
+    var wagaRaw = wagaInput.value.replace(/\s+/g, '').replace(',', '.');
+    var waga = parseFloat(wagaRaw);
     
     if (!isFinite(waga) || waga <= 0) {
       alert('Wpisz poprawną wagę');

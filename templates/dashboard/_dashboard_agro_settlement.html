@@ -30,7 +30,7 @@
                 }
             </style>
             <div class="work-form">
-                <h3><span class="material-icons">inventory_2</span> Podsumowanie zlecenia AGRO</h3>
+                <h3><span class="material-icons">inventory_2</span> Bieżący bilans worków (na żywo)</h3>
                 <div class="ctx-box">
                     <div class="ctx-row"><span>Wykonano palet:</span><strong>{{ (wrctx.palety_count or 0) }} szt. / {{ (wrctx.palety_kg_wykonane or 0)|round(2) }} kg</strong></div>
                     <div class="ctx-row"><span>Waga worka (typ):</span><strong>{{ (wrctx.bag_kg or 25.0) }} kg</strong></div>
@@ -46,6 +46,95 @@
                     </a>
                 </div>
             </div>
+
+            <!-- Sekcja: Materiały pod bieżącą produkcję (Materiały na maszynie) -->
+            <div class="work-form" style="margin-top: 15px; border-color: #2ecc71; box-shadow: 0 4px 16px rgba(46,204,113,0.08);">
+                <h3 style="color: #27ae60;"><span class="material-icons" style="color: #2ecc71; vertical-align: middle;">settings_suggest</span> Materiały pod bieżącą produkcję:</h3>
+                
+                {% if wrctx.maszyna_opakowania %}
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                    {% for opakowanie in wrctx.maszyna_opakowania %}
+                        <div style="background: #f4fbf7; border: 1px solid #c2ebd0; border-left: 5px solid #2ecc71; border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="font-size: 1.05em; color: #2c3e50;">{{ opakowanie.nazwa }}</strong>
+                                <div style="font-size: 0.88em; color: #7f8c8d; margin-top: 3px;">
+                                    Pobrano: <strong style="color: #27ae60;">{{ opakowanie.stan_poczatkowy|int }} szt.</strong>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="btn-action btn-outline-secondary btn-sm" style="padding: 4px 8px; font-size: 0.8em; border-color: #dcdde1; color: #7f8c8d;" onclick="undoPackagingLink({{ opakowanie.link_id }})">
+                                    <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 2px;">undo</span> Cofnij
+                                </button>
+                                <button class="btn-action btn-danger btn-sm" style="padding: 4px 10px; font-size: 0.85em; background: #e74c3c;" onclick="openReturnPackagingModal({{ opakowanie.opakowanie_id }}, '{{ opakowanie.nazwa|e }}', {{ opakowanie.stan_poczatkowy|int }})">
+                                    Zdejmij / Zwróć
+                                </button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    </div>
+                {% else %}
+                    <p style="color: #7f8c8d; font-size: 0.9em; margin: 10px 0 0 0; font-style: italic;">
+                        Brak podpiętych materiałów na maszynie. Wybierz materiał z listy poniżej i kliknij "PODEPNIJ".
+                    </p>
+                {% endif %}
+
+                <!-- PODPIĘCIE NOWEGO MATERIAŁU/FOLII Z MAGAZYNU -->
+                {% if wrctx.active_plan and wrctx.all_warehouse_packaging %}
+                <div style="margin-top: 15px; border-top: 1px dashed #c2ebd0; padding-top: 15px;">
+                    <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="display: block; font-size: 0.85em; font-weight: bold; color: #27ae60; margin-bottom: 5px;">Podepnij materiał / folię z magazynu:</label>
+                            <select id="select_warehouse_packaging" class="form-control" style="width: 100%; border-radius: 8px; height: 38px; border: 1px solid #c2ebd0; font-size: 0.9em; background: #fff; padding: 0 10px;">
+                                <option value="">-- Wybierz materiał z magazynu --</option>
+                                {% for item in wrctx.all_warehouse_packaging %}
+                                    <option value="{{ item.id }}">
+                                        {{ item.nazwa }} (Stan: {{ item.stan_magazynowy|int }} szt/kg){% if item.lokalizacja %} - {{ item.lokalizacja }}{% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" style="height: 38px; padding: 0 18px; display: inline-flex; align-items: center; gap: 5px; font-weight: bold; font-size: 0.9em; background: #27ae60; border-color: #27ae60; color: #fff; border-radius: 8px; cursor: pointer; border: none;" onclick="var select = document.getElementById('select_warehouse_packaging'); if(!select.value) { alert('Wybierz materiał!'); return; } linkPackaging(select.value, {{ wrctx.active_plan.id }});">
+                            <span class="material-icons" style="font-size: 18px;">add_circle</span> PODEPNIJ MATERIAŁ
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Sekcja: Zdjęte / zwrócone materiały -->
+            <div class="work-form" style="margin-top: 15px; border-color: #95a5a6; box-shadow: 0 4px 16px rgba(149,165,166,0.08);">
+                <h3 style="color: #7f8c8d;"><span class="material-icons" style="color: #7f8c8d; vertical-align: middle;">assignment_returned</span> Zdjęte / zwrócone materiały:</h3>
+                
+                {% if wrctx.inactive_opakowania %}
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                    {% for opakowanie in wrctx.inactive_opakowania %}
+                        {% set zuzycie = (opakowanie.stan_poczatkowy - (opakowanie.stan_koncowy or 0))|int %}
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 5px solid #7f8c8d; border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="font-size: 1.05em; color: #2c3e50; text-decoration: line-through; opacity: 0.75;">{{ opakowanie.nazwa }}</strong>
+                                <div style="font-size: 0.88em; color: #64748b; margin-top: 3px; line-height: 1.45;">
+                                    Pobrano: <strong>{{ opakowanie.stan_poczatkowy|int }} szt.</strong> | Zwrócono: <strong>{{ (opakowanie.stan_koncowy or 0)|int }} szt.</strong><br>
+                                    <span style="color: #27ae60; font-weight: 700;">Zużycie: {{ zuzycie }} szt.</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span class="badge" style="background: #e2e8f0; color: #475569; font-weight: 800; font-size: 0.8em; display: inline-flex; align-items: center; gap: 3px; padding: 4px 8px; border-radius: 6px;">
+                                    <span class="material-icons" style="font-size: 14px; color: #10b981;">check_circle</span> Zdjęty
+                                </span>
+                                <button class="btn-action btn-outline-warning btn-sm" style="padding: 4px 8px; font-size: 0.8em; color: #d35400; border-color: #f39c12;" onclick="undoPackagingReturn({{ opakowanie.link_id }})">
+                                    <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 2px;">history</span> Cofnij zwrot
+                                </button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    </div>
+                {% else %}
+                    <p style="color: #7f8c8d; font-size: 0.9em; margin: 10px 0 0 0; font-style: italic;">
+                        Brak zdjętych lub zwróconych materiałów dla tego zlecenia.
+                    </p>
+                {% endif %}
+            </div>
+
             {% if wrctx.history %}
             <div class="whist">
                 <h4 style="margin:12px 0;color:#6c757d;font-size:0.85em;text-transform:uppercase;">Historia rozliczeń:</h4>

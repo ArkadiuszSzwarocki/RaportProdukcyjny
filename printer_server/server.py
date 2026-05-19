@@ -118,8 +118,11 @@ def drukuj_zpl():
         # Nazwa Produktu
         zpl_string += f"^FO40,110^A0N,60,60^FB720,2,0,L^FD{str(nazwa)[:60]}^FS\n"
         
-        # Kod kreskowy (Przesunięty do lewej, grubość 2)
-        zpl_string += f"^FO30,260^BY2^BCN,180,Y,N,N^FD{id_palety}^FS\n"
+        # Kod QR (Wyśrodkowany, współczynnik powiększenia 8)
+        zpl_string += f"^FO300,250^BQN,2,8^FDQA,{id_palety}^FS\n"
+        
+        # Tekst ID palety pod kodem QR (wyśrodkowany bold)
+        zpl_string += f"^FO40,465^A0N,35,35^FB720,1,0,C^FD{id_palety}^FS\n"
         
         # Dane produkcyjne
         zpl_string += f"^FO60,520^A0N,35,35^FDPARTIA: {partia}^FS\n"

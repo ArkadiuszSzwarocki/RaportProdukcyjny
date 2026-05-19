@@ -252,11 +252,13 @@ class DashboardService:
             'active_plan': None,
             'packaging_items': [],
             'maszyna_opakowania': [],
+            'inactive_opakowania': [],
             'history': [],
             'bag_kg': 25.0,
             'palety_kg_wykonane': 0.0,
             'palety_count': 0,
             'estimated_bags': 0,
+            'all_warehouse_packaging': [],
         }
         try:
             from app.services.agro_warehouse_service import AgroWarehouseService
@@ -271,8 +273,9 @@ class DashboardService:
                     return dict(default_ctx)
                 
             plan_id = int(active_plan['id'])
-            packaging_items = AgroWarehouseService.get_linked_packaging(plan_id) or []
+            packaging_items = AgroWarehouseService.get_all_linked_packaging(plan_id) or []
             history = AgroWarehouseService.get_history(limit=10, plan_id=plan_id, linia='AGRO') or []
+            all_warehouse_packaging = AgroWarehouseService.get_packaging_inventory(linia='AGRO') or []
 
             table_palety = get_table_name('palety_workowanie', 'AGRO')
             conn = get_db_connection()
@@ -299,29 +302,42 @@ class DashboardService:
             kg_match = re.search(r'(\d+)', typ_prod)
             if kg_match:
                 bag_kg = float(kg_match.group(1))
+            else:
+                # Inteligentny fallback po nazwie produktu
+                produkt_nazwa = str(active_plan.get('produkt') or '').lower()
+                if 'mleko' in produkt_nazwa or '20' in produkt_nazwa:
+                    bag_kg = 20.0
             
             estimated_bags = int(round(palety_kg_wykonane / bag_kg)) if bag_kg > 0 else 0
 
             maszyna_opakowania = []
+            inactive_opakowania = []
             for item in packaging_items:
-                maszyna_opakowania.append(
-                    {
-                        'id': item.get('opakowanie_id'),
-                        'nazwa': item.get('nazwa') or '',
-                        'stan_magazynowy': float(item.get('current_stan') or 0),
-                        'is_linked': bool(item.get('is_active')),
-                    }
-                )
+                p_item = {
+                    'link_id': item.get('link_id'),
+                    'opakowanie_id': item.get('opakowanie_id'),
+                    'nazwa': item.get('nazwa') or '',
+                    'stan_poczatkowy': float(item.get('stan_poczatkowy') or 0),
+                    'stan_koncowy': float(item.get('stan_koncowy') or 0) if item.get('stan_koncowy') is not None else None,
+                    'is_active': bool(item.get('is_active')),
+                    'stan_magazynowy': float(item.get('current_stan') or 0),
+                }
+                if p_item['is_active']:
+                    maszyna_opakowania.append(p_item)
+                else:
+                    inactive_opakowania.append(p_item)
             
             return {
                 'active_plan': active_plan,
                 'packaging_items': packaging_items,
                 'maszyna_opakowania': maszyna_opakowania,
+                'inactive_opakowania': inactive_opakowania,
                 'history': history,
                 'bag_kg': bag_kg,
                 'palety_kg_wykonane': palety_kg_wykonane,
                 'palety_count': palety_count,
                 'estimated_bags': estimated_bags,
+                'all_warehouse_packaging': all_warehouse_packaging,
             }
         except Exception as error:
             out = dict(default_ctx)

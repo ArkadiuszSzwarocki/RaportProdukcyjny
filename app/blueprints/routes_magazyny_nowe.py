@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request
+from datetime import datetime
+
+from flask import Blueprint, jsonify, render_template, request, session
 from app.db import get_db_connection, get_table_name
 
 magazyny_nowe_bp = Blueprint('magazyny_nowe', __name__, url_prefix='/magazyny-nowe')
@@ -10,8 +12,16 @@ def index():
     shared_linia = linia if linia in ('PSD', 'AGRO') else 'PSD'
     conn = get_db_connection()
     items = []
+    printers = []
     try:
         cursor = conn.cursor(dictionary=True)
+        
+        # Load active printers
+        try:
+            cursor.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1")
+            printers = cursor.fetchall()
+        except Exception as e:
+            print(f"Error fetching printers: {e}")
         
         # 1. Surowce
         table_surowce = get_table_name('magazyn_surowce', linia)
@@ -196,7 +206,7 @@ def index():
     finally:
         conn.close()
 
-    return render_template('magazyny_nowe/dashboard.html', items=items, linia=linia, zakladki=magazyny_zakladki, aktywna_zakladka='all', stats=stats)
+    return render_template('magazyny_nowe/dashboard.html', items=items, linia=linia, zakladki=magazyny_zakladki, aktywna_zakladka='all', stats=stats, printers=printers)
 
 @magazyny_nowe_bp.route('/summary')
 def summary():
@@ -262,7 +272,6 @@ def summary():
 
     return render_template('magazyny_nowe/summary.html', summary=summary_data, linia=linia)
 
-from flask import jsonify, session
 from app.services.magazyny_nowe_service import MagazynyNoweService
 
 @magazyny_nowe_bp.route('/api/pallet/history', methods=['GET'])
@@ -442,3 +451,125 @@ def pallet_return_to_raw():
         
     success, msg = MagazynyNoweService.return_pallet_to_raw(pallet_id, pallet_type, worker, linia)
     return jsonify({'success': success, 'message': msg})
+
+@magazyny_nowe_bp.route('/api/pallet/print', methods=['POST'])
+def print_pallet_label():
+    data = request.get_json()
+    pallet_id = data.get('id')
+    pallet_type = data.get('type')
+    printer_id = data.get('printer_id')
+    linia = data.get('linia', 'PSD')
+    
+    if not all([pallet_id, pallet_type, printer_id]):
+        return jsonify({'success': False, 'error': 'Brak parametrów (id, typ, drukarka)'}), 400
+        
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Find printer details
+        cursor.execute("SELECT ip, nazwa FROM drukarki WHERE id = %s", (printer_id,))
+        printer_info = cursor.fetchone()
+        if not printer_info:
+            return jsonify({'success': False, 'error': 'Drukarka nie istnieje w systemie'}), 404
+            
+        printer_ip = printer_info['ip']
+        printer_name = printer_info['nazwa']
+        
+        # Determine correct table
+        if pallet_type == 'Wyrób Gotowy':
+            table_mag = 'magazyn_palety' if linia == 'PSD' else 'magazyn_palety_agro'
+            cursor.execute(f"SELECT produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table_mag} WHERE id = %s", (pallet_id,))
+        elif pallet_type == 'Surowiec':
+            table = 'magazyn_surowce' if linia == 'PSD' else 'magazyn_surowce_agro'
+            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s", (pallet_id,))
+        elif pallet_type == 'Opakowanie':
+            table = 'magazyn_opakowania' if linia == 'PSD' else 'magazyn_opakowania_agro'
+            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s", (pallet_id,))
+        elif pallet_type == 'Dodatek':
+            cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM magazyn_dodatki WHERE id = %s", (pallet_id,))
+        else:
+            return jsonify({'success': False, 'error': 'Nieznany typ palety'}), 400
+            
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': 'Nie znaleziono palety w bazie'}), 404
+            
+        from app.services.print_server import get_printer
+        label_data = {
+            'id': pallet_id,
+            'nr_palety': row.get('nr_palety') or '',
+            'nazwa': row['productName'],
+            'ilosc': row['amount'],
+            'data': row['date_prod'].strftime('%Y-%m-%d') if row.get('date_prod') else datetime.now().strftime('%Y-%m-%d'),
+            'partia': row.get('batch') or f"{pallet_type[:3]}-{pallet_id}"
+        }
+        
+        printer_service = get_printer()
+        ok, msg = printer_service.print_pallet_label(label_data, override_ip=printer_ip, override_name=printer_name)
+        
+        return jsonify({'success': ok, 'message': f'Wysłano do drukarki {printer_name}' if ok else msg})
+    except Exception as e:
+        print(f"Error printing label: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@magazyny_nowe_bp.route('/api/pallet/delete', methods=['POST'])
+def delete_pallet():
+    """Trwałe usunięcie palety z bazy danych (np. duplikaty testowe). Wymaga roli admin/masteradmin."""
+    from flask import session as flask_session
+    role = (flask_session.get('rola') or '').lower().replace(' ', '').replace('_', '').strip()
+    if role not in ('masteradmin', 'admin', 'administrator'):
+        return jsonify({'success': False, 'error': 'Brak uprawnień. Wymagana rola admin.'}), 403
+
+    data = request.get_json()
+    pallet_id = data.get('id')
+    pallet_type = data.get('type')
+    linia = data.get('linia', 'PSD')
+
+    if not all([pallet_id, pallet_type]):
+        return jsonify({'success': False, 'error': 'Brak parametrów id lub type'}), 400
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        if pallet_type in ('Surowiec',):
+            table = get_table_name('magazyn_surowce', linia)
+            col_amount = 'stan_magazynowy'
+            col_name = 'nazwa'
+        elif pallet_type in ('Opakowanie',):
+            table = get_table_name('magazyn_opakowania', linia)
+            col_amount = 'stan_magazynowy'
+            col_name = 'nazwa'
+        else:
+            table = get_table_name('magazyn_palety', linia)
+            col_amount = 'waga_netto'
+            col_name = 'produkt'
+
+        cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': f'Paleta ID {pallet_id} nie istnieje w tabeli {table}'}), 404
+
+        # Archive before delete
+        try:
+            cursor.execute("""
+                INSERT INTO magazyn_archiwum (original_id, nr_palety, nazwa, typ_palety, linia, waga_ostatnia, lokalizacja_ostatnia, user_login, komentarz)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (row['id'], row.get('nr_palety'), row.get(col_name), pallet_type, linia,
+                  row.get(col_amount, 0), row.get('lokalizacja'), flask_session.get('login', 'admin'),
+                  'USUNIĘTO: duplikat/paleta testowa'))
+        except Exception as ae:
+            print(f"Archive warning (non-fatal): {ae}")
+
+        cursor.execute(f"DELETE FROM {table} WHERE id = %s", (pallet_id,))
+        conn.commit()
+        return jsonify({'success': True, 'message': f'Paleta {row.get("nr_palety", pallet_id)} usunięta trwale.'})
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting pallet: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()

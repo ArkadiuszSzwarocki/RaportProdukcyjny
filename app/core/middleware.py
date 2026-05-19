@@ -3,8 +3,8 @@
 import re
 import time
 from datetime import timedelta
-from flask import request, session, redirect, current_app, url_for
-from app.db import get_db_connection, ensure_session_tracking_id, touch_active_session, deactivate_active_session
+from flask import request, session, redirect, current_app, url_for, jsonify
+from app.db import get_db_connection, ensure_session_tracking_id, touch_active_session, deactivate_active_session, is_session_active
 
 
 def register_middleware(app):
@@ -194,13 +194,33 @@ def ensure_default_language(app):
 
 
 def track_active_session(app):
-    """Persist lightweight online presence for logged-in users."""
+    """Persist lightweight online presence for logged-in users and validate session status."""
     def middleware():
         try:
             if not session.get('zalogowany') or not session.get('user_id') or not session.get('login'):
                 return
 
             session['session_tracking_id'] = ensure_session_tracking_id(session.get('session_tracking_id'))
+            
+            # Check if this session has been deactivated (e.g. from logout on another device)
+            if not is_session_active(session.get('session_tracking_id')):
+                try:
+                    app.logger.info("Session %s was deactivated in DB. Force logging out user %s.", 
+                                    session.get('session_tracking_id'), session.get('login'))
+                except Exception:
+                    pass
+                session.clear()
+                
+                try:
+                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                    accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+                except Exception:
+                    is_xhr = False; accepts_json = False
+                
+                if is_xhr or accepts_json:
+                    return jsonify({'success': False, 'error': 'unauthenticated'}), 401
+                return redirect(url_for('auth.login', timeout=1))
+
             now_ts = time.time()
             last_ping = float(session.get('last_presence_ping') or 0)
             if now_ts - last_ping < 20:
@@ -232,7 +252,7 @@ def enforce_session_timeout(app):
 
     If user's last activity (stored in `session['last_activity']`) is older than the configured
     timeout, the session is cleared and the active session is deactivated in the DB.
-    Returns a redirect to `/login` when timed out.
+    Returns 401 status for AJAX/JSON requests or a redirect to `/login` when timed out.
     """
     def middleware():
         try:
@@ -266,6 +286,15 @@ def enforce_session_timeout(app):
                 except Exception:
                     pass
                 session.clear()
+                
+                try:
+                    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                    accepts_json = request.accept_mimetypes.best_match(['application/json', 'text/html']) == 'application/json'
+                except Exception:
+                    is_xhr = False; accepts_json = False
+                
+                if is_xhr or accepts_json:
+                    return jsonify({'success': False, 'error': 'unauthenticated', 'timeout': True}), 401
                 # Redirect to login with a timeout flag so the login page can show a message
                 return redirect(url_for('auth.login', timeout=1))
 

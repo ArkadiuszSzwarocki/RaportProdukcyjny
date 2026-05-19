@@ -19,9 +19,11 @@
     {% include 'includes/_layout_styles.html' %}
     {% include 'includes/_layout_scripts.html' %}
     <script src="{{ url_for('static', filename='js/perf_monitor.js') }}?v={{ static_version }}"></script>
+    <!-- SESSION GUARD: intercepts 401, handles visibility-based logout -->
+    <script src="{{ url_for('static', filename='js/session_guard.js') }}?v={{ static_version }}"></script>
 </head>
 
-{% set role = session.get('rola', '').lower() %}
+{% set role = session.get('rola', '').lower().replace(' ', '').replace('_', '').replace('-', '').strip() %}
 {# {% if role in ['lider', 'admin', 'masteradmin', 'zarzad', 'planista', 'laborant', 'laboratorium'] %} #}
 {% set user_hall = 'ALL' if role in ['admin', 'masteradmin', 'zarzad', 'laborant', 'laboratorium', 'magazynier', 'planista'] else (session.get('grupa') or 'ALL').upper() %}
 {% set hall_view = session.get('selected_hall_view') %}

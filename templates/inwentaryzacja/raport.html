@@ -20,9 +20,21 @@
                 <span class="material-icons">print</span> DRUKUJ
             </button>
             
+            {% if sesja.status == 'OPEN' and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
+            <button onclick="closeSessionFromReport()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #dc2626; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">lock</span> ZAMKNIJ SESJĘ
+            </button>
+            {% endif %}
+            
             {% if sesja.status in ['CLOSED', 'COMPLETED'] and role in ['admin', 'masteradmin', 'kierownik', 'zarzad'] %}
             <button onclick="openApplyModal()" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: none; background: #10b981; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
                 <span class="material-icons">task_alt</span> ZATWIERDŹ STANY (DB)
+            </button>
+            {% endif %}
+            
+            {% if sesja.status == 'APPLIED' and role in ['admin', 'masteradmin', 'kierownik', 'zarzad', 'lider'] %}
+            <button onclick="openRevertModal()" class="btn-outline" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: 1px solid #e2e8f0; background: #fffbeb; color: #b45309; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons">undo</span> COFNIJ ZATWIERDZENIE
             </button>
             {% endif %}
         </div>
@@ -68,6 +80,24 @@
         </div>
     </div>
 
+    <!-- SEARCH & FILTER BAR -->
+    <div style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 15px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 280px;">
+            <span class="material-icons" style="color: #64748b;">search</span>
+            <input type="text" id="reportSearchInput" placeholder="Szukaj po produkcie, lokalizacji, kodzie palety, partii..." style="width: 100%; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; outline: none; transition: all 0.2s;" onkeyup="filterReportTable()">
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; min-width: 250px;">
+            <span style="font-size: 13px; color: #64748b; font-weight: 600;">Status różnic:</span>
+            <select id="diffFilterSelect" onchange="filterReportTable()" style="padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 13px; outline: none; background: white; font-weight: 600; color: #334155; cursor: pointer; flex: 1;">
+                <option value="all">Wszystkie pozycje</option>
+                <option value="diffs">Tylko różnice (niezgodności)</option>
+                <option value="ok">Tylko zgodne (0 różnicy)</option>
+                <option value="missing">Tylko braki (minus)</option>
+                <option value="surplus">Tylko nadwyżki (plus)</option>
+            </select>
+        </div>
+    </div>
+
     <!-- MAIN TABLE -->
     <div style="background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
         <table class="modern-table" style="width: 100%; border-collapse: collapse;">
@@ -99,13 +129,13 @@
                         </div>
                         {% endif %}
                     </td>
-                    <td style="padding: 15px; text-align: right; color: #64748b;">{{ e.waga_systemowa }} kg</td>
-                    <td style="padding: 15px; text-align: right; font-weight: 800; color: #0f172a;">{{ e.waga_faktyczna }} kg</td>
+                    <td style="padding: 15px; text-align: right; color: #64748b;">{{ e.waga_systemowa }} {{ e.jednostka or 'kg' }}</td>
+                    <td style="padding: 15px; text-align: right; font-weight: 800; color: #0f172a;">{{ e.waga_faktyczna }} {{ e.jednostka or 'kg' }}</td>
                     <td style="padding: 15px; text-align: right;">
                         {% if diff > 0 %}
-                            <span style="color: #059669; font-weight: 800;">+{{ diff }} kg</span>
+                            <span style="color: #059669; font-weight: 800;">+{{ "%.1f"|format(diff) }} {{ e.jednostka or 'kg' }}</span>
                         {% elif diff < 0 %}
-                            <span style="color: #dc2626; font-weight: 800;">{{ diff }} kg</span>
+                            <span style="color: #dc2626; font-weight: 800;">{{ "%.1f"|format(diff) }} {{ e.jednostka or 'kg' }}</span>
                         {% else %}
                             <span style="color: #94a3b8;">0</span>
                         {% endif %}
@@ -138,8 +168,43 @@
         </div>
     </div>
 </div>
+</div>
+
+<!-- MODAL: REVERT INVENTORY -->
+<div id="revertModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; width: 450px; border-radius: 24px; padding: 35px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
+        <div style="width: 70px; height: 70px; background: #fef3c7; color: #d97706; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+            <span class="material-icons" style="font-size: 36px;">undo</span>
+        </div>
+        <h3 style="margin: 0 0 10px 0; font-size: 22px; font-weight: 800; color: #0f172a;">Cofnąć zatwierdzenie?</h3>
+        <p style="margin: 0 0 30px 0; color: #475569; font-size: 15px; line-height: 1.5;">
+            Operacja ta <strong>przywróci sesję do stanu otwartego</strong>, umożliwiając ponowne skanowanie i korektę wpisów. Zmiany wprowadzone wcześniej w stanach magazynowych nie zostaną automatycznie cofnięte, ale ponowne zatwierdzenie nadpisze je poprawnymi wartościami.
+        </p>
+        
+        <div style="display: flex; gap: 12px;">
+            <button onclick="confirmRevert()" class="btn-primary" style="flex: 1.5; background: #f59e0b; color: white; padding: 14px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer; font-size: 15px;">TAK, COFNIJ ZATWIERDZENIE</button>
+            <button type="button" onclick="document.getElementById('revertModal').style.display='none'" style="flex: 1; background: #f1f5f9; border: none; border-radius: 12px; color: #475569; font-weight: 700; cursor: pointer; font-size: 15px;">ANULUJ</button>
+        </div>
+    </div>
+</div>
 
 <script>
+function closeSessionFromReport() {
+    if(confirm("Czy na pewno chcesz zamknąć tę sesję inwentaryzacji?\n\nPo zamknięciu sesji będziesz mógł zatwierdzić stany w bazie danych.")) {
+        fetch('/magazyn/inwentaryzacja/api/zamknij-sesje', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sesja_id: {{ sesja.id }}})
+        }).then(r => r.json()).then(data => {
+            if(data.success) {
+                window.location.reload();
+            } else {
+                alert("Błąd podczas zamykania sesji: " + data.message);
+            }
+        });
+    }
+}
+
 function openApplyModal() {
     document.getElementById('applyModal').style.display = 'flex';
 }
@@ -155,6 +220,70 @@ function confirmApply() {
             window.location.reload();
         } else {
             alert("Błąd: " + data.message);
+        }
+    });
+}
+
+function openRevertModal() {
+    document.getElementById('revertModal').style.display = 'flex';
+}
+
+function confirmRevert() {
+    fetch('{{ url_for("inwentaryzacja.cofnij_zatwierdzenie") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sesja_id: {{ sesja.id }}})
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            alert("Zatwierdzenie zostało wycofane. Sesja jest ponownie OTWARTA.");
+            window.location.reload();
+        } else {
+            alert("Błąd: " + data.message);
+        }
+    });
+}
+
+function filterReportTable() {
+    const searchVal = document.getElementById('reportSearchInput').value.toLowerCase().trim();
+    const diffFilter = document.getElementById('diffFilterSelect').value;
+    const rows = document.querySelectorAll('.modern-table tbody tr');
+
+    rows.forEach(row => {
+        const locationCell = row.querySelector('td:nth-child(1)');
+        const palletCell = row.querySelector('td:nth-child(2)');
+        const productCell = row.querySelector('td:nth-child(3)');
+        const diffCell = row.querySelector('td:nth-child(6)');
+
+        if (!locationCell || !palletCell || !productCell || !diffCell) return;
+
+        const location = locationCell.innerText.toLowerCase();
+        const pallet = palletCell.innerText.toLowerCase();
+        const productInfo = productCell.innerText.toLowerCase();
+        
+        const diffText = diffCell.innerText.trim();
+        const isDiff = diffText !== '0' && diffText !== '';
+        const isMinus = diffText.includes('-');
+        const isPlus = diffText.includes('+');
+
+        const matchesSearch = location.includes(searchVal) || 
+                              pallet.includes(searchVal) || 
+                              productInfo.includes(searchVal);
+
+        let matchesDiff = true;
+        if (diffFilter === 'diffs') {
+            matchesDiff = isDiff;
+        } else if (diffFilter === 'ok') {
+            matchesDiff = !isDiff;
+        } else if (diffFilter === 'missing') {
+            matchesDiff = isMinus;
+        } else if (diffFilter === 'surplus') {
+            matchesDiff = isPlus;
+        }
+
+        if (matchesSearch && matchesDiff) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
         }
     });
 }
