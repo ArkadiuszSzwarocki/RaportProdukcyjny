@@ -2,17 +2,64 @@
 Handles login, logout, and user-specific interface settings (e.g., bug icon acknowledgment).
 """
 
-from flask import Blueprint, render_template, request, redirect, session, flash, make_response, jsonify
+from flask import Blueprint, render_template, request, redirect, session, flash, make_response, jsonify, current_app
 from datetime import datetime
 import time
 from werkzeug.security import check_password_hash
 import os
+import subprocess
+import sys
 
 from app.decorators import login_required
 from app.db import get_db_connection, ensure_session_tracking_id, touch_active_session, deactivate_active_session
 from app.utils.validation import require_field
 
 auth_bp = Blueprint('auth', __name__)
+
+
+def _printer_server_script_path():
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '..', '..', '..', 'printer_server', 'server.py')
+    )
+
+
+def _is_printer_server_running():
+    try:
+        import requests
+        import urllib3
+
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        response = requests.get('https://127.0.0.1:3001/status', timeout=1.5, verify=False)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+def _start_printer_server():
+    server_path = _printer_server_script_path()
+    if not os.path.exists(server_path):
+        return False, f'Nie znaleziono pliku serwera: {server_path}', 404
+
+    if _is_printer_server_running():
+        return True, 'Serwer druku juz dziala.', 200
+
+    try:
+        creation_flags = 0
+        if os.name == 'nt':
+            creation_flags = 0x00000010
+
+        subprocess.Popen(
+            [sys.executable, server_path],
+            cwd=os.path.dirname(server_path),
+            creationflags=creation_flags,
+            start_new_session=True,
+        )
+        time.sleep(1.2)
+        if _is_printer_server_running():
+            return True, 'Serwer druku uruchomiony.', 200
+        return True, 'Wyslano polecenie startu serwera druku.', 200
+    except Exception as error:
+        return False, f'Blad startu serwera druku: {error}', 500
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -125,6 +172,25 @@ def login():
         return resp
     except Exception:
         return render_template('login.html')
+
+
+@auth_bp.route('/api/printer-server/start', methods=['POST'])
+def start_printer_server_public():
+    """Allow starting print server from login screen using PIN."""
+    payload = request.get_json(silent=True) or request.form or {}
+    pin_value = str(payload.get('pin', '')).strip()
+    expected_pin = str(os.getenv('PRINTER_SERVER_START_PIN', '0606')).strip()
+
+    if pin_value != expected_pin:
+        return jsonify({'success': False, 'message': 'Nieprawidlowy PIN.'}), 403
+
+    success, message, status_code = _start_printer_server()
+    try:
+        current_app.logger.info('[PRINTER-START-PUBLIC] success=%s, status=%s, ip=%s', success, status_code, request.remote_addr)
+    except Exception:
+        pass
+
+    return jsonify({'success': success, 'message': message}), status_code
 
 
 @auth_bp.route('/logout')

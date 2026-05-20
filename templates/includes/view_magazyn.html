@@ -66,6 +66,52 @@
 </div>
 
 <script>
+    function parseJsonResponse(response) {
+        return response.text().then(function (text) {
+            try {
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    data: text ? JSON.parse(text) : {}
+                };
+            } catch (error) {
+                return {
+                    ok: false,
+                    status: response.status,
+                    data: {
+                        success: false,
+                        message: 'Blad parsowania JSON: ' + error.message
+                    }
+                };
+            }
+        });
+    }
+
+    function roleAssignmentMessage(actionLabel) {
+        var action = actionLabel || 'tej operacji';
+        return 'Brak uprawnien do ' + action + '. To wynika z przydzialu rol. Skontaktuj sie z liderem lub administratorem.';
+    }
+
+    function resolveRequestMessage(result, actionLabel, fallbackMessage) {
+        var status = result ? result.status : 0;
+        var payload = (result && result.data) ? result.data : {};
+        var apiMessage = payload.message || payload.error || '';
+
+        if (status === 401 || payload.error === 'unauthenticated') {
+            return 'Sesja wygasla. Zaloguj sie ponownie.';
+        }
+
+        if (status === 403 || payload.error === 'forbidden') {
+            return roleAssignmentMessage(actionLabel);
+        }
+
+        if (apiMessage) {
+            return apiMessage;
+        }
+
+        return fallbackMessage;
+    }
+
     function editPalet(id, waga) {
         var newWaga = prompt('Nowa waga (kg):', waga);
         if (newWaga && newWaga !== waga) {
@@ -75,15 +121,16 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: id, waga: newWaga, data_planu: '{{ dzisiaj }}', linia: linia })
             })
-                .then(r => r.json())
-                .then(j => {
-                    if (j && j.success) {
+                .then(parseJsonResponse)
+                .then(result => {
+                    var j = result.data;
+                    if (result.ok && j && j.success) {
                         location.reload();
                     } else {
-                        alert('Błąd: ' + (j && j.message || 'Nie udało się edytować'));
+                        alert(resolveRequestMessage(result, 'edycji palety', 'Nie udalo sie edytowac palety.'));
                     }
                 })
-                .catch(e => alert('Błąd: ' + e));
+                .catch(e => alert('Blad polaczenia: ' + e.message));
         }
     }
 
@@ -94,14 +141,15 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: id, data_planu: data, linia: linia })
         })
-            .then(r => r.json())
-            .then(j => {
-                if (j && j.success) {
+            .then(parseJsonResponse)
+            .then(result => {
+                var j = result.data;
+                if (result.ok && j && j.success) {
                     location.reload();
                 } else {
-                    alert('Błąd: ' + (j && j.message || 'Nie udało się usunąć'));
+                    alert(resolveRequestMessage(result, 'usuniecia palety', 'Nie udalo sie usunac palety.'));
                 }
             })
-            .catch(e => alert('Błąd: ' + e));
+            .catch(e => alert('Blad polaczenia: ' + e.message));
     }
 </script>

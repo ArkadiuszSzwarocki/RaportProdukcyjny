@@ -230,7 +230,7 @@ def register_warehouse_management_routes(
         return render_template('warehouse/popups/edit_pallet.html', paleta_id=paleta_id, waga=waga, sekcja=sekcja, linia=linia)
 
     @warehouse_bp.route('/confirm_delete_palete_page/<int:paleta_id>', methods=['GET'])
-    @masteradmin_required
+    @roles_required('lider', 'admin')
     def confirm_delete_palete_page(paleta_id):
         """Render delete confirmation for paleta."""
         linia = resolve_request_linia()
@@ -672,7 +672,7 @@ def register_warehouse_management_routes(
         return redirect(safe_return())
 
     @warehouse_bp.route('/usun_palete/<int:id>', methods=['POST'])
-    @masteradmin_required
+    @roles_required('lider', 'admin')
     def usun_palete(id):
         """Delete paleta from buffer."""
         linia = str(resolve_request_linia()).upper()
@@ -803,7 +803,7 @@ def register_warehouse_management_routes(
                     pass
 
     @warehouse_bp.route('/api/usun_palete_ajax', methods=['POST'])
-    @masteradmin_required
+    @roles_required('produkcja', 'lider', 'admin')
     def usun_palete_ajax():
         """AJAX: Usuń paletę tylko z magazyn_palety (potwierdzone w magazynie)."""
         data = request.get_json(force=True) or {}

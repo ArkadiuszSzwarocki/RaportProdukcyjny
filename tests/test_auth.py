@@ -204,3 +204,36 @@ class TestAuthenticationFlow:
         # Shift closing (usually admin can do this)
         response = admin_client.post('/zamknij_zmiane')
         assert response.status_code in [200, 302, 500]
+
+
+class TestPublicPrinterServerStart:
+    """Tests for starting printer server from login screen."""
+
+    def test_login_page_contains_printer_server_button(self, client):
+        response = client.get('/login')
+
+        assert response.status_code == 200
+        assert b'Wlacz serwer druku' in response.data
+        assert b'btn-start-printer-server' in response.data
+
+    def test_public_printer_server_start_rejects_invalid_pin(self, client):
+        response = client.post('/api/printer-server/start', json={'pin': '1234'})
+
+        assert response.status_code == 403
+        payload = response.get_json()
+        assert payload['success'] is False
+
+    def test_public_printer_server_start_accepts_valid_pin(self, client):
+        with patch('app.blueprints.routes_auth._start_printer_server', return_value=(True, 'OK', 200)) as mocked_start:
+            response = client.post('/api/printer-server/start', json={'pin': '0606'})
+
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload['success'] is True
+        mocked_start.assert_called_once()
+
+    def test_public_printer_server_start_uses_pin_from_env(self, client):
+        with patch.dict('os.environ', {'PRINTER_SERVER_START_PIN': '7777'}):
+            response = client.post('/api/printer-server/start', json={'pin': '0606'})
+
+        assert response.status_code == 403

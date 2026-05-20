@@ -9,6 +9,7 @@ AGRO_ACTIVE_DETAILS_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_ag
 LAYOUT_TEMPLATE = ROOT / 'templates' / 'layout.html'
 SIDEBAR_AGRO_TEMPLATE = ROOT / 'templates' / 'includes' / 'sidebar' / '_sidebar_agro.html'
 DOSYPKI_LIST_TEMPLATE = ROOT / 'templates' / 'dosypki_list.html'
+VIEW_MAGAZYN_TEMPLATE = ROOT / 'templates' / 'includes' / 'view_magazyn.html'
 CSS_DASHBOARD = ROOT / 'static' / 'css' / 'dashboard.css'
 CONFIG_JS = ROOT / 'static' / 'js' / 'dashboard' / 'config.js'
 CARD_ACTIONS_JS = ROOT / 'static' / 'js' / 'dashboard' / 'card-actions.js'
@@ -185,3 +186,13 @@ def test_global_direct_zpl_print_uses_existing_non_api_route():
     content = GLOBAL_SCRIPTS_JS.read_text(encoding='utf-8')
 
     assert "const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia='" in content
+
+
+def test_pallet_actions_show_role_assignment_info_for_forbidden_requests():
+    card_actions_content = CARD_ACTIONS_JS.read_text(encoding='utf-8')
+    magazyn_content = VIEW_MAGAZYN_TEMPLATE.read_text(encoding='utf-8')
+
+    assert 'status === 403' in card_actions_content
+    assert 'To wynika z przydzialu rol.' in card_actions_content
+    assert 'status === 403' in magazyn_content
+    assert 'To wynika z przydzialu rol.' in magazyn_content

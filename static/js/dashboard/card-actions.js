@@ -60,6 +60,31 @@
         });
     }
 
+    function roleAssignmentMessage(actionLabel) {
+        var action = actionLabel || 'tej operacji';
+        return 'Brak uprawnien do ' + action + '. To wynika z przydzialu rol. Skontaktuj sie z liderem lub administratorem.';
+    }
+
+    function resolveRequestMessage(result, actionLabel, fallbackMessage) {
+        var status = result ? result.status : 0;
+        var payload = (result && result.data) ? result.data : {};
+        var apiMessage = payload.message || payload.error || '';
+
+        if (status === 401 || payload.error === 'unauthenticated') {
+            return 'Sesja wygasla. Zaloguj sie ponownie.';
+        }
+
+        if (status === 403 || payload.error === 'forbidden') {
+            return roleAssignmentMessage(actionLabel);
+        }
+
+        if (apiMessage) {
+            return apiMessage;
+        }
+
+        return fallbackMessage;
+    }
+
     function resolveCurrentPlanDate() {
         var isoInput = document.getElementById('current-date-iso');
         if (isoInput && isoInput.value) {
@@ -270,18 +295,17 @@
                 data_planu: resolveCurrentPlanDate(),
             }),
         })
-            .then(function (response) {
-                return response.json();
-            })
-            .then(function (payload) {
-                if (payload && payload.success) {
+            .then(parseJsonResponse)
+            .then(function (result) {
+                var payload = result.data;
+                if (result.ok && payload && payload.success) {
                     global.location.reload();
                     return;
                 }
-                global.alert('Błąd: ' + ((payload && payload.message) || 'Nie udało się edytować'));
+                global.alert(resolveRequestMessage(result, 'edycji palety', 'Nie udalo sie edytowac palety.'));
             })
             .catch(function (error) {
-                global.alert('Błąd: ' + error);
+                global.alert('Blad polaczenia: ' + error.message);
             });
     }
 
@@ -298,18 +322,17 @@
                 data_planu: data 
             }),
         })
-            .then(function (response) {
-                return response.json();
-            })
-            .then(function (payload) {
-                if (payload && payload.success) {
+            .then(parseJsonResponse)
+            .then(function (result) {
+                var payload = result.data;
+                if (result.ok && payload && payload.success) {
                     global.location.reload();
                     return;
                 }
-                global.alert('Błąd: ' + ((payload && payload.message) || 'Nie udało się usunąć'));
+                global.alert(resolveRequestMessage(result, 'usuniecia palety', 'Nie udalo sie usunac palety.'));
             })
             .catch(function (error) {
-                global.alert('Błąd: ' + error);
+                global.alert('Blad polaczenia: ' + error.message);
             });
     }
 
@@ -333,15 +356,15 @@
             .then(parseJsonResponse)
             .then(function (result) {
                 var payload = result.data;
-                if (payload && payload.success) {
+                if (result.ok && payload && payload.success) {
                     global.alert(payload.message || 'Zlecenie usunięte');
                     global.location.reload();
                     return;
                 }
-                global.alert((payload && payload.message) || 'Błąd usunięcia');
+                global.alert(resolveRequestMessage(result, 'usuniecia zlecenia', 'Nie udalo sie usunac zlecenia.'));
             })
             .catch(function (error) {
-                global.alert('Błąd sieci: ' + error.message);
+                global.alert('Blad sieci: ' + error.message);
             });
     }
 
