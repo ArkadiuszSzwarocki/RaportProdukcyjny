@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_TEMPLATE = ROOT / 'templates' / 'dashboard.html'
 ORDER_CARD_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_order_card.html'
 AGRO_ACTIVE_DETAILS_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_agro_active_details.html'
+PRODUCTION_LIST_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_production_list.html'
 LAYOUT_TEMPLATE = ROOT / 'templates' / 'layout.html'
 SIDEBAR_AGRO_TEMPLATE = ROOT / 'templates' / 'includes' / 'sidebar' / '_sidebar_agro.html'
 DOSYPKI_LIST_TEMPLATE = ROOT / 'templates' / 'dosypki_list.html'
@@ -178,8 +179,7 @@ def test_dosypki_are_rendered_below_batch_not_in_side_column():
 def test_workowanie_manual_zpl_print_passes_linia_to_backend():
     content = AGRO_ACTIVE_DETAILS_TEMPLATE.read_text(encoding='utf-8')
 
-    assert "drukujPaleteZpl(this, {{ pal[2] }}, '{{ linia }}')" in content
-    assert "fetch('/drukuj_etykiete_zpl/' + paletaId + '?linia=' + liniaParam" in content
+    assert "drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}')" in content
 
 
 def test_global_direct_zpl_print_uses_existing_non_api_route():
@@ -196,3 +196,13 @@ def test_pallet_actions_show_role_assignment_info_for_forbidden_requests():
     assert 'To wynika z przydzialu rol.' in card_actions_content
     assert 'status === 403' in magazyn_content
     assert 'To wynika z przydzialu rol.' in magazyn_content
+
+
+def test_agro_workowanie_add_pallet_uses_silent_partial_reload_and_section_focus():
+    card_actions_content = CARD_ACTIONS_JS.read_text(encoding='utf-8')
+    production_list_content = PRODUCTION_LIST_TEMPLATE.read_text(encoding='utf-8')
+
+    assert "source: 'add-pallet-workowanie-agro'" in card_actions_content
+    assert 'isAgroWorkowanieContext' in card_actions_content
+    assert 'scrollToProductionSection' in card_actions_content
+    assert 'dashboard-production-section' in production_list_content

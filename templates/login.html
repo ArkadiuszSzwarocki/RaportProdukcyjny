@@ -25,23 +25,30 @@
         }
 
         .btn-login {
-            display: block;
-            margin: 20px auto 0 !important;
+            display: inline-block;
+            margin: 0 !important;
             padding: 8px 24px !important;
             font-size: 14px !important;
             width: auto !important;
         }
 
+        .login-actions {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
         .printer-server-box {
-            margin-top: 16px;
-            padding-top: 10px;
-            border-top: 1px solid #e5e7eb;
+            margin-top: 8px;
             text-align: center;
         }
 
         .btn-printer-start {
             display: inline-block;
-            margin: 8px 0 0;
+            margin: 0;
             padding: 8px 16px;
             border: 1px solid #16a34a;
             border-radius: 6px;
@@ -108,11 +115,13 @@
             <label for="haslo" class="form-label">{{ _('haslo') }}</label>
             <input type="password" id="haslo" name="haslo" class="form-input" placeholder="{{ _('wpisz_haslo') }}" required aria-label="Hasło">
         </div>
-        <button type="submit" class="btn-login">{{ _('wejdz') }}</button>
+        <div class="login-actions">
+            <button type="submit" class="btn-login">{{ _('wejdz') }}</button>
+            <button type="button" id="btn-start-printer-server" class="btn-printer-start">🖨 Wlacz serwer druku</button>
+        </div>
     </form>
 
     <div class="printer-server-box">
-        <button type="button" id="btn-start-printer-server" class="btn-printer-start">Wlacz serwer druku</button>
         <div id="printer-server-status" class="printer-server-status"></div>
     </div>
 
@@ -161,6 +170,11 @@ function setPrinterStatus(message, isError) {
 function startPrinterServerFromLogin() {
     const button = document.getElementById('btn-start-printer-server');
     if (!button) {
+        return;
+    }
+
+    if (typeof window.prompt !== 'function') {
+        setPrinterStatus('Ta przegladarka nie obsluguje okna PIN (prompt).', true);
         return;
     }
 

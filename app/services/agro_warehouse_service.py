@@ -1,5 +1,44 @@
-from app.db import get_db_connection, get_table_name
+import logging
+import os
 from datetime import datetime
+
+from app.db import get_db_connection, get_table_name
+
+
+logger = logging.getLogger(__name__)
+
+
+def _get_auto_pallet_cooldown_seconds():
+    """Return cooldown for auto pallet registration (seconds)."""
+    raw_value = os.getenv('AGRO_AUTO_PALLET_COOLDOWN_SECONDS', '0')
+    try:
+        parsed = float(raw_value)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid AGRO_AUTO_PALLET_COOLDOWN_SECONDS=%r. Falling back to 0s.",
+            raw_value,
+        )
+        return 0.0
+    return max(0.0, parsed)
+
+def _select_preferred_printer(cursor):
+    """Pick production printer first, then fallback to any active printer."""
+    cursor.execute(
+        """
+        SELECT id, nazwa, ip, lokalizacja
+        FROM drukarki
+        WHERE aktywna = 1
+        ORDER BY
+            CASE
+                WHEN LOWER(COALESCE(nazwa, '')) LIKE '%zebra produkcja%' THEN 0
+                WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%produk%' THEN 1
+                ELSE 2
+            END,
+            id ASC
+        LIMIT 1
+        """
+    )
+    return cursor.fetchone()
 
 class AgroWarehouseService:
     @staticmethod
@@ -1162,26 +1201,33 @@ class AgroWarehouseService:
             now_ts = datetime.now()
             user_login = 'System'
             source_instance = str(source_instance or 'unknown')[:120]
+            cooldown_seconds = _get_auto_pallet_cooldown_seconds()
             
-            # Cooldown check: prevent duplicate auto-registration (e.g. from multiple threads or bit flickering)
-            # Find the most recently added pallet for this plan
-            cursor.execute(
-                f"SELECT MAX(data_dodania) FROM {table_pal} WHERE plan_id = %s",
-                (plan_id,)
-            )
-            latest_row = cursor.fetchone()
-            if latest_row and latest_row[0]:
-                latest_date = latest_row[0]
-                if isinstance(latest_date, str):
-                    try:
-                        latest_date = datetime.strptime(latest_date, '%Y-%m-%d %H:%M:%S')
-                    except Exception:
-                        pass
-                
-                time_diff = (now_ts - latest_date).total_seconds()
-                if time_diff < 45:
-                    print(f"[COOLDOWN] Skipped auto-registering pallet. Last pallet added {time_diff:.1f}s ago (cooldown 45s).")
-                    return False
+            # Optional cooldown can be used as an emergency guard against hardware bit flickering.
+            if cooldown_seconds > 0:
+                cursor.execute(
+                    f"SELECT MAX(data_dodania) FROM {table_pal} WHERE plan_id = %s",
+                    (plan_id,)
+                )
+                latest_row = cursor.fetchone()
+                if latest_row and latest_row[0]:
+                    latest_date = latest_row[0]
+                    if isinstance(latest_date, str):
+                        try:
+                            latest_date = datetime.strptime(latest_date, '%Y-%m-%d %H:%M:%S')
+                        except Exception:
+                            pass
+
+                    time_diff = (now_ts - latest_date).total_seconds()
+                    if time_diff < cooldown_seconds:
+                        logger.warning(
+                            "[COOLDOWN] Skipped auto-registering pallet for plan_id=%s. "
+                            "Last pallet added %.1fs ago (cooldown %.1fs).",
+                            plan_id,
+                            time_diff,
+                            cooldown_seconds,
+                        )
+                        return False
             
             nr_palety = generate_pallet_id(linia)
             
@@ -1190,6 +1236,7 @@ class AgroWarehouseService:
                 f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s)",
                 (plan_id, waga_input, now_ts, user_login, nr_palety),
             )
+            paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
             
             # Update plan tonnage
             cursor.execute(
@@ -1204,6 +1251,56 @@ class AgroWarehouseService:
                 PlanningService.ensure_status_after_tonaz_update(plan_id, linia=linia)
             except Exception:
                 pass
+
+            if paleta_id:
+                try:
+                    from app.utils.pallet_label import prepare_pallet_label_data
+                    from app.services.print_server import get_printer
+
+                    label_data = prepare_pallet_label_data(cursor, paleta_id, linia)
+                    if not label_data:
+                        logger.warning(
+                            'System auto-print skipped: missing label data for paleta_id=%s (plan_id=%s, source=%s)',
+                            paleta_id,
+                            plan_id,
+                            source_instance,
+                        )
+                    else:
+                        printer = get_printer()
+                        printer_row = _select_preferred_printer(cursor)
+                        override_name = None
+                        override_ip = None
+                        if printer_row:
+                            override_name = printer_row[1] if len(printer_row) > 1 else None
+                            override_ip = printer_row[2] if len(printer_row) > 2 else None
+
+                        for copy_num in range(1, 3):
+                            ok, print_msg = printer.print_finished_product_label(
+                                label_data,
+                                override_ip=override_ip,
+                                override_name=override_name,
+                            )
+                            logger.info(
+                                'System auto-print copy %s/2 for paleta=%s (plan_id=%s, source=%s): success=%s, printer=%s, ip=%s, msg=%s',
+                                copy_num,
+                                nr_palety,
+                                plan_id,
+                                source_instance,
+                                ok,
+                                override_name or printer.printer_name,
+                                override_ip or printer.printer_ip,
+                                print_msg,
+                            )
+                            if not ok:
+                                break
+                except Exception as print_err:
+                    logger.error(
+                        'System auto-print failed for paleta=%s (plan_id=%s, source=%s): %s',
+                        nr_palety,
+                        plan_id,
+                        source_instance,
+                        print_err,
+                    )
                 
             audit_log(
                 'System: Automatycznie dodano paletę',

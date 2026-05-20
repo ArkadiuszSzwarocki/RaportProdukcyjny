@@ -34,6 +34,31 @@ def _resolve_pallet_counter_action(last_cnt, current_cnt):
     return 'jump'
 
 
+def _get_auto_pallet_max_catchup():
+    """Return maximum number of pallets to recover after a counter jump."""
+    raw_value = os.getenv('AGRO_AUTO_PALLET_MAX_CATCHUP', '4')
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError):
+        _safe_log_warning(
+            "Invalid AGRO_AUTO_PALLET_MAX_CATCHUP=%r. Falling back to 4.",
+            raw_value,
+        )
+        return 4
+    return max(1, parsed)
+
+
+def _resolve_pallet_counter_registrations(last_cnt, current_cnt, max_catchup):
+    """Return number of pallets to register for current movement."""
+    action = _resolve_pallet_counter_action(last_cnt, current_cnt)
+    if action == 'register_single':
+        return 1
+    if action == 'jump':
+        diff = current_cnt - last_cnt
+        return min(diff, max_catchup)
+    return 0
+
+
 def get_instance_identity():
     """Return runtime identity for diagnosing multi-instance behavior."""
     return {
@@ -648,9 +673,25 @@ def start_daemon_threads(app, cleanup_enabled=False):
                                 plan_counters[plan_id] = current_pallet_cnt
                             elif action in ('register_single', 'jump'):
                                 diff = current_pallet_cnt - last_cnt
+                                max_catchup = _get_auto_pallet_max_catchup()
+                                registrations_to_run = _resolve_pallet_counter_registrations(
+                                    last_cnt,
+                                    current_pallet_cnt,
+                                    max_catchup,
+                                )
 
-                                # Strict mode: auto-register only on a single-step increment.
-                                # Larger jumps can happen after telemetry hiccups/restarts and must not create multiple pallets at once.
+                                if registrations_to_run <= 0:
+                                    _safe_log_warning(
+                                        "Palletizer counter changed from %s to %s (diff=%s) for plan ID=%s but no registrations were resolved. Keeping baseline unchanged for retry (instance=%s).",
+                                        last_cnt,
+                                        current_pallet_cnt,
+                                        diff,
+                                        plan_id,
+                                        _INSTANCE_ID,
+                                    )
+                                    plan_counters[plan_id] = last_cnt
+                                    continue
+
                                 if action == 'register_single':
                                     _safe_log_info(
                                         "Palletizer counter incremented from %s to %s (diff=%s) for plan ID=%s. Triggering single auto-pallet registration (instance=%s).",
@@ -660,35 +701,59 @@ def start_daemon_threads(app, cleanup_enabled=False):
                                         plan_id,
                                         _INSTANCE_ID,
                                     )
+                                else:
+                                    _safe_log_warning(
+                                        "Palletizer counter jump detected from %s to %s (diff=%s) for plan ID=%s. Running catch-up auto-register for %s pallets (limit=%s, instance=%s).",
+                                        last_cnt,
+                                        current_pallet_cnt,
+                                        diff,
+                                        plan_id,
+                                        registrations_to_run,
+                                        max_catchup,
+                                        _INSTANCE_ID,
+                                    )
+
+                                successful_regs = 0
+                                for step_idx in range(1, registrations_to_run + 1):
                                     success = AgroWarehouseService.auto_register_pallet(
                                         plan_id,
                                         linia='AGRO',
                                         source_instance=_INSTANCE_ID,
                                     )
-                                    if success:
-                                        _safe_log_info(
-                                            'Successfully auto-registered pallet for plan ID=%s (instance=%s)',
-                                            plan_id,
-                                            _INSTANCE_ID,
-                                        )
-                                    else:
+                                    if not success:
                                         _safe_log_warning(
-                                            'Failed or skipped auto-registering pallet for plan ID=%s (instance=%s)',
+                                            'Failed or skipped auto-registering pallet for plan ID=%s during step %s/%s (instance=%s)',
                                             plan_id,
+                                            step_idx,
+                                            registrations_to_run,
                                             _INSTANCE_ID,
                                         )
-                                else:
-                                    _safe_log_warning(
-                                        "Palletizer counter jump detected from %s to %s (diff=%s) for plan ID=%s. Skipping auto-register (requires diff=1, instance=%s).",
-                                        last_cnt,
-                                        current_pallet_cnt,
-                                        diff,
+                                        break
+                                    successful_regs += 1
+
+                                if successful_regs > 0:
+                                    _safe_log_info(
+                                        'Auto-registered %s/%s pallet(s) for plan ID=%s (instance=%s)',
+                                        successful_regs,
+                                        registrations_to_run,
                                         plan_id,
                                         _INSTANCE_ID,
                                     )
 
-                                # Always resync tracked counter after handling positive movement.
-                                plan_counters[plan_id] = current_pallet_cnt
+                                # Advance only by successfully inserted pallets.
+                                # This keeps remaining counter increments pending for next loop,
+                                # including jumps bigger than the per-loop catch-up limit.
+                                plan_counters[plan_id] = last_cnt + successful_regs
+
+                                if plan_counters[plan_id] < current_pallet_cnt:
+                                    _safe_log_warning(
+                                        'Counter baseline partially advanced to %s for plan ID=%s (target counter=%s, remaining=%s, instance=%s).',
+                                        plan_counters[plan_id],
+                                        plan_id,
+                                        current_pallet_cnt,
+                                        current_pallet_cnt - plan_counters[plan_id],
+                                        _INSTANCE_ID,
+                                    )
                     else:
                         # No active plan, clear counters map to release memory and allow reset
                         plan_counters.clear()

@@ -1312,20 +1312,53 @@
         }
     };
 
-    window.drukujZPLDirect = function(paletaId, linia) {
+    window.drukujZPLDirect = function(paletaId, linia, planId) {
         if (!paletaId) return;
+
+        var payload = null;
+        var wantsDateChange = window.confirm('Czy chcesz zmienic date produkcji na etykiecie?\n\nJesli wybierzesz TAK, data zostanie zapisana tez na zleceniu Workowanie.');
+        if (wantsDateChange) {
+            var userInput = window.prompt('Podaj nowa date produkcji (RRRR-MM-DD):');
+            if (userInput === null) {
+                return;
+            }
+            var trimmed = String(userInput || '').trim();
+            var dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!dateRegex.test(trimmed)) {
+                if (typeof showToast === 'function') showToast('Nieprawidlowy format daty. Uzyj RRRR-MM-DD.', 'danger');
+                else alert('Nieprawidlowy format daty. Uzyj RRRR-MM-DD.');
+                return;
+            }
+            payload = { data_produkcji: trimmed };
+            if (planId) {
+                payload.plan_id = planId;
+            }
+        }
+
         if (typeof showToast === 'function') showToast('Wysyłanie do drukarki 237...', 'info');
         
         const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
-        fetch(url, { 
+        const fetchOptions = {
             method: 'POST', 
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin'
-        })
+        };
+        if (payload) {
+            fetchOptions.headers['Content-Type'] = 'application/json';
+            fetchOptions.body = JSON.stringify(payload);
+        }
+
+        fetch(url, fetchOptions)
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                if (typeof showToast === 'function') showToast('Wysłano do drukarki 237', 'success');
+                if (typeof showToast === 'function') {
+                    if (data.data_produkcji) {
+                        showToast('Wysłano do drukarki 237 (data produkcji: ' + data.data_produkcji + ')', 'success');
+                    } else {
+                        showToast('Wysłano do drukarki 237', 'success');
+                    }
+                }
             } else {
                 if (typeof showToast === 'function') showToast('Błąd druku: ' + data.message, 'danger');
                 else alert('Błąd druku: ' + data.message);

@@ -54,7 +54,7 @@
                                    data-slide
                                    style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
                                    title="Edytuj wagę palety">EDYTUJ</a>
-                                <button onclick="drukujPaleteZpl(this, {{ pal[2] }}, '{{ linia }}')" 
+                                <button onclick="drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}')" 
                                         class="btn-action btn-purple btn-sm"
                                         style="padding:2px 8px; font-size:0.72em; line-height:1.1; background-color:#8e44ad; color:white; border:none; cursor:pointer;"
                                         title="Drukuj ponownie etykiety ZPL">DRUKUJ (ZPL)</button>
@@ -88,38 +88,3 @@
     </div>
 </div>
 
-<script>
-if (typeof drukujPaleteZpl === 'undefined') {
-    function drukujPaleteZpl(btn, paletaId, linia) {
-        const originalText = btn.textContent;
-        btn.textContent = 'DRUKOWANIE...';
-        btn.disabled = true;
-        btn.style.opacity = '0.6';
-        const liniaParam = encodeURIComponent(linia || 'AGRO');
-        
-        fetch('/drukuj_etykiete_zpl/' + paletaId + '?linia=' + liniaParam, {
-            method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Etykieta została wysłana do drukarki.');
-            } else {
-                alert('Błąd wydruku: ' + data.message);
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Wystąpił błąd komunikacji z serwerem.');
-        })
-        .finally(() => {
-            btn.textContent = originalText;
-            btn.disabled = false;
-            btn.style.opacity = '1';
-        });
-    }
-}
-</script>

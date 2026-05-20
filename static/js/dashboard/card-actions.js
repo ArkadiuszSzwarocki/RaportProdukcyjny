@@ -102,6 +102,39 @@
         return '';
     }
 
+    function getDashboardContext() {
+        var config = document.getElementById('dashboard-config');
+        if (!config) {
+            return { sekcja: '', linia: '' };
+        }
+
+        return {
+            sekcja: String(config.getAttribute('data-sekcja') || '').trim(),
+            linia: String(config.getAttribute('data-linia') || '').trim().toUpperCase(),
+        };
+    }
+
+    function isAgroWorkowanieContext() {
+        var context = getDashboardContext();
+        return context.sekcja === 'Workowanie' && context.linia === 'AGRO';
+    }
+
+    function scrollToProductionSection() {
+        var target = document.getElementById('dashboard-production-section');
+        if (!target) {
+            return;
+        }
+
+        try {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (error) {
+            try {
+                target.scrollIntoView(true);
+            } catch (fallbackError) {
+            }
+        }
+    }
+
     function submitWniosekForm(form, event) {
         event.preventDefault();
 
@@ -258,6 +291,24 @@
                             submitButton.classList.remove('btn-disabled');
                         }
                     });
+                }
+
+                if (isAgroWorkowanieContext() && typeof global.performPartialReload === 'function') {
+                    try {
+                        if (typeof global.closeQuickPopup === 'function') {
+                            global.closeQuickPopup();
+                        }
+                    } catch (popupError) {
+                    }
+
+                    return global.performPartialReload({ force: true, preserveScroll: true, source: 'add-pallet-workowanie-agro' })
+                        .then(function () {
+                            global.setTimeout(scrollToProductionSection, 140);
+                        })
+                        .catch(function (reloadError) {
+                            console.error('Silent partial reload failed after add pallet', reloadError);
+                            global.location.reload();
+                        });
                 }
 
                 if (response.redirected) {
@@ -419,6 +470,76 @@
             });
     }
 
+    function promptProductionDate(defaultValue) {
+        var suggested = String(defaultValue || resolveCurrentPlanDate() || '').trim();
+        var userInput = global.prompt('Podaj date produkcji (RRRR-MM-DD):', suggested);
+        if (userInput === null) {
+            return null;
+        }
+
+        var trimmed = String(userInput || '').trim();
+        if (!trimmed) {
+            global.alert('Data produkcji nie moze byc pusta.');
+            return '';
+        }
+
+        var dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(trimmed)) {
+            global.alert('Nieprawidlowy format daty. Uzyj RRRR-MM-DD.');
+            return '';
+        }
+
+        return trimmed;
+    }
+
+    function editWorkowanieProductionDate(planId) {
+        if (!planId) {
+            return;
+        }
+
+        var selectedDate = promptProductionDate();
+        if (selectedDate === null || selectedDate === '') {
+            return;
+        }
+
+        var config = document.getElementById('dashboard-config');
+        var linia = config ? config.getAttribute('data-linia') : 'PSD';
+
+        fetch('/api/workowanie/update_data_produkcji', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                plan_id: planId,
+                data_produkcji: selectedDate,
+                linia: linia,
+            }),
+        })
+            .then(parseJsonResponse)
+            .then(function (result) {
+                var payload = result.data;
+                if (result.ok && payload && payload.success) {
+                    notify(payload.message || 'Zmieniono date produkcji', 'success');
+
+                    if (isAgroWorkowanieContext() && typeof global.performPartialReload === 'function') {
+                        global.performPartialReload({ force: true, preserveScroll: true, source: 'edit-workowanie-data-produkcji' })
+                            .catch(function () {
+                                global.location.reload();
+                            });
+                        return;
+                    }
+
+                    global.location.reload();
+                    return;
+                }
+
+                global.alert(resolveRequestMessage(result, 'zmiany daty produkcji', 'Nie udalo sie zmienic daty produkcji.'));
+            })
+            .catch(function (error) {
+                global.alert('Blad polaczenia: ' + error.message);
+            });
+    }
+
     function handleSubmit(event) {
         if (event.defaultPrevented) {
             return;
@@ -481,6 +602,16 @@
             if (planId) {
                 dashboardTonazEdit(planId);
             }
+            return;
+        }
+
+        var prodDateButton = event.target.closest('[data-action="edit-workowanie-production-date"]');
+        if (prodDateButton) {
+            event.preventDefault();
+            var orderId = prodDateButton.getAttribute('data-plan-id');
+            if (orderId) {
+                editWorkowanieProductionDate(orderId);
+            }
         }
     }
 
@@ -498,6 +629,7 @@
         init: init,
         deletePlan: deletePlan,
         dashboardTonazEdit: dashboardTonazEdit,
+        editWorkowanieProductionDate: editWorkowanieProductionDate,
         editPalet: editPalet,
         deletePalet: deletePalet,
         resolveCurrentPlanDate: resolveCurrentPlanDate,

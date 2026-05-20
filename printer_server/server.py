@@ -99,6 +99,8 @@ def drukuj_zpl():
         except:
             waga = str(waga_value)
 
+        logger.info(f"- Etykieta: paleta={id_palety}, produkcja={d_prod}, waznosc={d_wazn}, waga={waga}kg")
+
         tytul = 'SUROWIEC' if 'raw' in str(typ).lower() else 'WYRÓB GOTOWY'
         
         # Konstrukcja ZPL dopasowana do etykiety 4x6 cala (101.6mm x 150mm)
@@ -133,8 +135,9 @@ def drukuj_zpl():
             uwagi_clean = str(uwagi).replace('\n', ' ')
             zpl_string += f"^FO60,680^A0N,30,30^FB700,6,0,L^FDNOTATKI LAB: {uwagi_clean}^FS\n"
             
-        # Waga (Bardzo duża na dole)
-        zpl_string += f"^FO60,1050^A0N,100,100^FDWAGA NETTO: {waga} kg^FS\n"
+        # Waga (w 2 liniach: naglowek + wartosc)
+        zpl_string += "^FO60,970^A0N,72,72^FDWAGA NETTO:^FS\n"
+        zpl_string += f"^FO60,1050^A0N,100,100^FD{waga} kg^FS\n"
         zpl_string += "^XZ"
 
     try:

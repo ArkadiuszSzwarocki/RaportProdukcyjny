@@ -18,9 +18,11 @@ auth_bp = Blueprint('auth', __name__)
 
 
 def _printer_server_script_path():
-    return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), '..', '..', '..', 'printer_server', 'server.py')
-    )
+    try:
+        project_root = os.path.abspath(os.path.join(current_app.root_path, '..', '..'))
+    except Exception:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    return os.path.join(project_root, 'printer_server', 'server.py')
 
 
 def _is_printer_server_running():
@@ -48,7 +50,7 @@ def _start_printer_server():
         if os.name == 'nt':
             creation_flags = 0x00000010
 
-        subprocess.Popen(
+        process = subprocess.Popen(
             [sys.executable, server_path],
             cwd=os.path.dirname(server_path),
             creationflags=creation_flags,
@@ -57,7 +59,20 @@ def _start_printer_server():
         time.sleep(1.2)
         if _is_printer_server_running():
             return True, 'Serwer druku uruchomiony.', 200
-        return True, 'Wyslano polecenie startu serwera druku.', 200
+
+        exit_code = process.poll()
+        if exit_code is not None:
+            return (
+                False,
+                f'Serwer druku nie uruchomil sie (kod procesu: {exit_code}). Sprawdz zaleznosci i logi.',
+                500,
+            )
+
+        return (
+            False,
+            'Serwer druku nie odpowiedzial na porcie 3001 po probie startu. Sprawdz firewall/usluge.',
+            500,
+        )
     except Exception as error:
         return False, f'Blad startu serwera druku: {error}', 500
 

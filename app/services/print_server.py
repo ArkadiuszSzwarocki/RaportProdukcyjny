@@ -102,6 +102,9 @@ class PrintServer:
         return self._send_to_bridge(payload)
 
     def _send_to_bridge(self, payload: dict) -> tuple[bool, str]:
+        target_name = payload.get('drukarka') or self.printer_name
+        target_ip = payload.get('ip') or self.printer_ip
+        target_hint = f"drukarka={target_name}, ip={target_ip}"
         try:
             resp = requests.post(
                 f"{self.bridge_url}/drukuj-zpl",
@@ -109,11 +112,18 @@ class PrintServer:
                 verify=False,
                 timeout=(self.bridge_connect_timeout, self.bridge_read_timeout),
             )
-            if resp.status_code == 200 and resp.json().get('success'):
+            try:
+                body = resp.json()
+            except ValueError:
+                body = {}
+
+            if resp.status_code == 200 and body.get('success'):
                 return True, "Wysłano do drukarki przez mostek"
-            return False, resp.json().get('message', 'Błąd mostka')
+
+            bridge_msg = body.get('message') or f'Błąd mostka (HTTP {resp.status_code})'
+            return False, f"{bridge_msg} ({target_hint})"
         except Exception as e:
-            return False, f"Błąd komunikacji z mostkiem: {str(e)}"
+            return False, f"Błąd komunikacji z mostkiem: {str(e)} ({target_hint})"
 
 # Singleton
 _printer = None

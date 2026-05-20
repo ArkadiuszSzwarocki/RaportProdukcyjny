@@ -68,18 +68,89 @@
                 markAll: document.getElementById('notificationsMarkAll')
             };
         }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function closeMenu() {
+            const e = getElements();
+            if (e.menu) {
+                e.menu.style.display = 'none';
+                e.menu.setAttribute('aria-hidden', 'true');
+            }
+            if (e.toggle) {
+                e.toggle.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        function toggleMenu() {
+            const e = getElements();
+            if (!e.menu || !e.toggle) return;
+            const shouldOpen = e.menu.style.display !== 'block';
+            e.menu.style.display = shouldOpen ? 'block' : 'none';
+            e.menu.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+            e.toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
         function render() {
             const e = getElements();
             if (!e.list || !e.badge) return;
+
             const userRole = "{{ session.get('rola')|default('')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim }}";
             if (userRole === 'laborant' || userRole === 'laboratorium') {
                 e.badge.style.display = 'none';
                 return;
             }
-            const badgeCount = state.notifications.length;
+
+            const items = Array.isArray(state.notifications) ? state.notifications : [];
+            const badgeCount = items.length;
             e.badge.style.display = badgeCount > 0 ? 'inline-block' : 'none';
-            e.badge.textContent = badgeCount > 99 ? '99+' : badgeCount;
+            e.badge.textContent = badgeCount > 99 ? '99+' : String(badgeCount);
+
+            if (badgeCount === 0) {
+                e.list.innerHTML = '<div class="notifications-empty">Brak nowych powiadomień.</div>';
+                return;
+            }
+
+            e.list.innerHTML = items.map(function(item) {
+                const title = escapeHtml(item.title || 'Powiadomienie');
+                const message = escapeHtml(item.message || '');
+                const createdAt = escapeHtml(item.created_at || '');
+                const safeLink = escapeHtml(item.link_url || '');
+                return [
+                    '<button type="button" class="notification-item" data-id="', item.id, '" data-link="', safeLink, '">',
+                    '<span class="notification-item-title">', title, '</span>',
+                    '<span class="notification-item-message">', message, '</span>',
+                    '<span class="notification-item-meta">', createdAt, '</span>',
+                    '</button>'
+                ].join('');
+            }).join('');
         }
+
+        async function markRead(notificationId) {
+            const r = await fetch('/api/notifications/' + encodeURIComponent(notificationId) + '/read', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            return r.ok;
+        }
+
+        async function markAllRead() {
+            const r = await fetch('/api/notifications/read-all', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            return r.ok;
+        }
+
         let notifsInterval = null;
         async function fetchNotifs() {
             try {
@@ -95,7 +166,21 @@
                 }
                 if (r.ok) {
                     const d = await r.json();
-                    state.notifications = d.notifications || [];
+                    const notifications = Array.isArray(d.notifications) ? d.notifications : [];
+                    if (state.initialized) {
+                        notifications.forEach(function(item) {
+                            if (!state.shownIds.has(item.id)) {
+                                state.shownIds.add(item.id);
+                                if (typeof showToast === 'function') {
+                                    showToast((item.title || 'Powiadomienie') + ': ' + (item.message || ''), 'info');
+                                }
+                            }
+                        });
+                    } else {
+                        notifications.forEach(function(item) { state.shownIds.add(item.id); });
+                        state.initialized = true;
+                    }
+                    state.notifications = notifications;
                     render();
                 }
             } catch(e) {}
@@ -104,11 +189,66 @@
             fetchNotifs();
             notifsInterval = setInterval(fetchNotifs, 10000);
             const e = getElements();
-            if (e.toggle) e.toggle.addEventListener('click', () => {
-                const open = e.menu.style.display === 'block';
-                e.menu.style.display = open ? 'none' : 'block';
+
+            if (e.toggle) {
+                e.toggle.addEventListener('click', function(ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    toggleMenu();
+                });
+            }
+
+            if (e.markAll) {
+                e.markAll.addEventListener('click', async function() {
+                    const ok = await markAllRead();
+                    if (!ok) {
+                        if (typeof showToast === 'function') {
+                            showToast('Nie udało się oznaczyć powiadomień.', 'warning');
+                        }
+                        return;
+                    }
+                    state.notifications = [];
+                    render();
+                    closeMenu();
+                });
+            }
+
+            if (e.list) {
+                e.list.addEventListener('click', async function(ev) {
+                    const button = ev.target.closest('.notification-item');
+                    if (!button) return;
+                    const notificationId = button.getAttribute('data-id');
+                    const linkUrl = button.getAttribute('data-link');
+
+                    const ok = await markRead(notificationId);
+                    if (!ok) {
+                        if (typeof showToast === 'function') {
+                            showToast('Nie udało się zapisać odczytu powiadomienia.', 'warning');
+                        }
+                        return;
+                    }
+
+                    state.notifications = state.notifications.filter(function(item) {
+                        return String(item.id) !== String(notificationId);
+                    });
+                    render();
+                    closeMenu();
+
+                    if (linkUrl) {
+                        window.location.href = linkUrl;
+                    }
+                });
+            }
+
+            document.addEventListener('click', function(ev) {
+                const wrapper = document.querySelector('.notifications-wrapper');
+                if (wrapper && !wrapper.contains(ev.target)) {
+                    closeMenu();
+                }
             });
         });
+
+        window.closeNotificationsMenu = closeMenu;
     })();
 
     // Bug Report logic

@@ -114,6 +114,11 @@
             {% if p[3] == 'w toku' %}
                 {% if sekcja == 'Workowanie' %}
                     <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
+                    <button type="button"
+                            class="btn-action btn-blue"
+                            data-action="edit-workowanie-production-date"
+                            data-plan-id="{{ p[0] }}"
+                            title="Zmien date produkcji dla zlecenia Workowanie">DATA PROD</button>
                 {% elif sekcja == 'Zasyp' %}
                     {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
                     {% if role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] or role_lc in ['laborant', 'laboratorium'] %}

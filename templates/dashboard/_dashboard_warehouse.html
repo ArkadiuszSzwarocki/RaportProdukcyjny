@@ -87,7 +87,7 @@
                             <span class="material-icons" style="font-size:18px;">print</span>
                         </a>
                         <button type="button" class="btn-icon" style="color: #16a34a;" title="Drukuj ZPL (Drukarka 237)"
-                            onclick="drukujZPLDirect('{{ id }}', '{{ linia }}')">
+                            onclick="drukujZPLDirect('{{ id }}', '{{ linia }}', '{{ plan_id }}')">
                             <span class="material-icons" style="font-size:18px;">precision_manufacturing</span>
                         </button>
                         {% if rola in ['produkcja', 'lider', 'admin', 'masteradmin'] %}

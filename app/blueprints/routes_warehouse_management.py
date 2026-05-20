@@ -47,6 +47,69 @@ def register_warehouse_management_routes(
             current_app.logger.warning('Nie udało się pobrać preferowanej drukarki: %s', printer_err)
             return None, None
 
+    def _parse_data_produkcji_input(raw_value):
+        """Validate optional production date input (YYYY-MM-DD)."""
+        value = str(raw_value or '').strip()
+        if not value:
+            return None
+        try:
+            datetime.strptime(value, '%Y-%m-%d')
+        except ValueError as error:
+            raise ValueError('Nieprawidlowy format daty produkcji (oczekiwano RRRR-MM-DD)') from error
+        return value
+
+    def _resolve_plan_id_for_paleta(cursor, paleta_id, linia, requested_plan_id=None):
+        """Resolve Workowanie plan_id for a pallet id from magazyn/buffer tables safely."""
+        table_pal = get_table_name('palety_workowanie', linia)
+        table_mag = get_table_name('magazyn_palety', linia)
+
+        requested_id = None
+        try:
+            if requested_plan_id not in (None, '', 'None'):
+                requested_id = int(requested_plan_id)
+        except Exception:
+            requested_id = None
+
+        if requested_id:
+            # Validate that requested plan_id really belongs to this pallet.
+            cursor.execute(
+                f"SELECT 1 FROM {table_mag} WHERE (id=%s OR paleta_workowanie_id=%s) AND plan_id=%s LIMIT 1",
+                (paleta_id, paleta_id, requested_id),
+            )
+            if cursor.fetchone():
+                return requested_id
+
+            cursor.execute(
+                f"SELECT 1 FROM {table_pal} WHERE id=%s AND plan_id=%s LIMIT 1",
+                (paleta_id, requested_id),
+            )
+            if cursor.fetchone():
+                return requested_id
+
+        # First check magazyn table by confirmed pallet id/pointer.
+        # This avoids id-collision with palety_workowanie IDs.
+        cursor.execute(
+            f'''
+            SELECT COALESCE(mp.plan_id, pw.plan_id)
+            FROM {table_mag} mp
+            LEFT JOIN {table_pal} pw ON pw.id = mp.paleta_workowanie_id
+            WHERE mp.id = %s OR mp.paleta_workowanie_id = %s
+            ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC
+            LIMIT 1
+            ''',
+            (paleta_id, paleta_id, paleta_id),
+        )
+        row = cursor.fetchone()
+        if row and row[0]:
+            return int(row[0])
+
+        cursor.execute(f"SELECT plan_id FROM {table_pal} WHERE id=%s", (paleta_id,))
+        row = cursor.fetchone()
+        if row and row[0]:
+            return int(row[0])
+
+        return None
+
     @warehouse_bp.route('/dodaj_palete/<int:plan_id>', methods=['POST'])
     @login_required
     def dodaj_palete(plan_id):
@@ -68,14 +131,36 @@ def register_warehouse_management_routes(
         except Exception:
             waga_input = 0
 
-        cursor.execute(f"SELECT sekcja, data_planu, produkt FROM {table_plan} WHERE id=%s", (plan_id,))
+        cursor.execute(f"SELECT sekcja, data_planu, produkt, data_produkcji FROM {table_plan} WHERE id=%s", (plan_id,))
         plan_row = cursor.fetchone()
 
         if not plan_row:
             conn.close()
             return ('Błąd: Plan nie znaleziony', 404)
 
-        plan_sekcja, _plan_data, plan_produkt = plan_row
+        now_ts = datetime.now()
+        plan_sekcja, _plan_data, plan_produkt, plan_data_produkcji = plan_row
+
+        input_data_produkcji = str(request.form.get('data_produkcji') or '').strip()
+        if input_data_produkcji:
+            try:
+                datetime.strptime(input_data_produkcji, '%Y-%m-%d')
+            except ValueError:
+                conn.close()
+                return ('Błąd: Nieprawidłowy format daty produkcji (oczekiwano RRRR-MM-DD)', 400)
+            selected_data_produkcji = input_data_produkcji
+        elif plan_data_produkcji:
+            if hasattr(plan_data_produkcji, 'strftime'):
+                selected_data_produkcji = plan_data_produkcji.strftime('%Y-%m-%d')
+            else:
+                selected_data_produkcji = str(plan_data_produkcji)
+        elif _plan_data:
+            if hasattr(_plan_data, 'strftime'):
+                selected_data_produkcji = _plan_data.strftime('%Y-%m-%d')
+            else:
+                selected_data_produkcji = str(_plan_data)
+        else:
+            selected_data_produkcji = now_ts.strftime('%Y-%m-%d')
 
         if plan_sekcja != 'Workowanie':
             conn.close()
@@ -89,8 +174,6 @@ def register_warehouse_management_routes(
             conn.close()
             return ('Błąd: Waga musi być większa od 0', 400)
 
-        now_ts = datetime.now()
-
         try:
             user_login = session.get('login', 'System')
             nr_palety = generate_pallet_id(linia)
@@ -103,6 +186,12 @@ def register_warehouse_management_routes(
             cursor.execute(
                 f"UPDATE {table_plan} SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id = %s",
                 (waga_input, plan_id),
+            )
+
+            # Manual add should explicitly set production date on the order.
+            cursor.execute(
+                f"UPDATE {table_plan} SET data_produkcji = %s WHERE id = %s",
+                (selected_data_produkcji, plan_id),
             )
 
             conn.commit()
@@ -147,12 +236,16 @@ def register_warehouse_management_routes(
 
             try:
                 current_app.logger.info(
-                    'Dodano paletę: plan_id=%s, waga=%s kg, użytkownik=%s',
+                    'Dodano paletę: plan_id=%s, waga=%s kg, data_produkcji=%s, użytkownik=%s',
                     plan_id,
                     waga_input,
+                    selected_data_produkcji,
                     session.get('login'),
                 )
-                audit_log('Dodał paletę', f'plan_id={plan_id}, produkt={plan_produkt}, waga={waga_input} kg')
+                audit_log(
+                    'Dodał paletę',
+                    f'plan_id={plan_id}, produkt={plan_produkt}, waga={waga_input} kg, data_produkcji={selected_data_produkcji}'
+                )
             except Exception:
                 pass
 
@@ -183,11 +276,18 @@ def register_warehouse_management_routes(
         produkt = None
         sekcja = None
         typ = None
+        data_produkcji = date.today().isoformat()
         try:
-            cursor.execute(f"SELECT produkt, sekcja, typ_produkcji FROM {table_plan} WHERE id=%s", (plan_id,))
+            cursor.execute(f"SELECT produkt, sekcja, typ_produkcji, data_produkcji FROM {table_plan} WHERE id=%s", (plan_id,))
             row = cursor.fetchone()
             if row:
                 produkt, sekcja, typ = row[0], row[1], row[2]
+                plan_data_produkcji = row[3] if len(row) > 3 else None
+                if plan_data_produkcji:
+                    if hasattr(plan_data_produkcji, 'strftime'):
+                        data_produkcji = plan_data_produkcji.strftime('%Y-%m-%d')
+                    else:
+                        data_produkcji = str(plan_data_produkcji)
         except Exception as error:
             current_app.logger.error('Failed to fetch plan %s for dodaj_palete_page: %s', plan_id, error, exc_info=True)
         finally:
@@ -196,7 +296,78 @@ def register_warehouse_management_routes(
                     conn.close()
                 except Exception:
                     pass
-        return render_template('warehouse/popups/add_pallet.html', plan_id=plan_id, produkt=produkt, sekcja=sekcja, typ=typ, linia=linia)
+        return render_template(
+            'warehouse/popups/add_pallet.html',
+            plan_id=plan_id,
+            produkt=produkt,
+            sekcja=sekcja,
+            typ=typ,
+            linia=linia,
+            data_produkcji=data_produkcji,
+        )
+
+    @warehouse_bp.route('/api/workowanie/update_data_produkcji', methods=['POST'])
+    @login_required
+    def update_workowanie_data_produkcji():
+        """Update production date for a Workowanie order (also allowed while in progress)."""
+        data = request.get_json(silent=True) or {}
+        plan_id_raw = data.get('plan_id')
+        linia = str(resolve_payload_linia(data)).upper()
+
+        try:
+            plan_id = int(plan_id_raw)
+        except Exception:
+            return jsonify({'success': False, 'message': 'Nieprawidlowe id zlecenia'}), 400
+
+        try:
+            data_produkcji = _parse_data_produkcji_input(data.get('data_produkcji'))
+        except ValueError as error:
+            return jsonify({'success': False, 'message': str(error)}), 400
+
+        if not data_produkcji:
+            return jsonify({'success': False, 'message': 'Brak daty produkcji'}), 400
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            table_plan = get_table_name('plan_produkcji', linia)
+
+            cursor.execute(f"SELECT sekcja, status FROM {table_plan} WHERE id=%s", (plan_id,))
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
+
+            sekcja = str(row[0] or '')
+            if sekcja.lower() != 'workowanie':
+                return jsonify({'success': False, 'message': 'Zmiana daty jest dostepna tylko dla zlecen Workowanie'}), 400
+
+            cursor.execute(f"UPDATE {table_plan} SET data_produkcji=%s WHERE id=%s", (data_produkcji, plan_id))
+            conn.commit()
+
+            current_app.logger.info(
+                'Zmieniono data_produkcji=%s dla zlecenia Workowanie id=%s (linia=%s, user=%s)',
+                data_produkcji,
+                plan_id,
+                linia,
+                session.get('login'),
+            )
+            audit_log('Zmiana daty produkcji (Workowanie)', f'plan_id={plan_id}, data_produkcji={data_produkcji}, linia={linia}')
+
+            return jsonify({
+                'success': True,
+                'message': f'Ustawiono date produkcji: {data_produkcji}',
+                'data_produkcji': data_produkcji,
+            })
+        except Exception as error:
+            current_app.logger.exception('Failed to update data_produkcji for Workowanie plan %s: %s', plan_id, error)
+            return jsonify({'success': False, 'message': f'Blad: {error}'}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     @warehouse_bp.route('/edytuj_palete_page/<int:paleta_id>', methods=['GET'])
     @login_required
@@ -1028,16 +1199,83 @@ def register_warehouse_management_routes(
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
+            payload = request.get_json(silent=True) or {}
+            raw_requested_date = None
+            if isinstance(payload, dict):
+                raw_requested_date = (
+                    payload.get('data_produkcji')
+                    or payload.get('dataProdukcji')
+                    or payload.get('productionDate')
+                )
+            if not raw_requested_date:
+                raw_requested_date = request.form.get('data_produkcji') or request.args.get('data_produkcji')
+
+            current_app.logger.info(
+                'Manual ZPL request: paleta_id=%s, linia=%s, content_type=%s, requested_data_produkcji=%s, payload_keys=%s',
+                paleta_id,
+                linia,
+                request.content_type,
+                raw_requested_date,
+                sorted(list(payload.keys())) if isinstance(payload, dict) else [],
+            )
+
+            requested_data_produkcji = None
+            try:
+                requested_data_produkcji = _parse_data_produkcji_input(raw_requested_date)
+            except ValueError as error:
+                return jsonify({'success': False, 'message': str(error)}), 400
+
+            if requested_data_produkcji:
+                table_plan = get_table_name('plan_produkcji', linia)
+                plan_id = _resolve_plan_id_for_paleta(
+                    cursor,
+                    paleta_id,
+                    linia,
+                    requested_plan_id=payload.get('plan_id') if isinstance(payload, dict) else None,
+                )
+                if not plan_id:
+                    return jsonify({'success': False, 'message': 'Nie znaleziono powiazanego zlecenia dla palety'}), 404
+
+                cursor.execute(f"SELECT sekcja FROM {table_plan} WHERE id=%s", (plan_id,))
+                row_plan = cursor.fetchone()
+                if not row_plan:
+                    return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia dla palety'}), 404
+
+                sekcja = str(row_plan[0] or '')
+                if sekcja.lower() != 'workowanie':
+                    return jsonify({'success': False, 'message': 'Zmiana daty jest dostepna tylko dla Workowania'}), 400
+
+                cursor.execute(
+                    f"UPDATE {table_plan} SET data_produkcji=%s WHERE id=%s",
+                    (requested_data_produkcji, plan_id),
+                )
+                conn.commit()
+                current_app.logger.info(
+                    'Ręczny wydruk: ustawiono data_produkcji=%s dla plan_id=%s (paleta_id=%s, linia=%s, user=%s)',
+                    requested_data_produkcji,
+                    plan_id,
+                    paleta_id,
+                    linia,
+                    session.get('login'),
+                )
+
             from app.utils.pallet_label import prepare_pallet_label_data
             label_data = prepare_pallet_label_data(cursor, paleta_id, linia)
             
             if not label_data:
                 return jsonify({'success': False, 'message': 'Nie znaleziono palety (ani w buforze, ani w magazynie)'}), 404
+
+            # Always prefer the date explicitly chosen by the operator for this print job.
+            # DB update still persists this value on the linked Workowanie order.
+            if requested_data_produkcji:
+                label_data['data'] = requested_data_produkcji
             
             printer = get_printer()
             override_name, override_ip = _select_preferred_printer(cursor)
+            target_name = override_name or printer.printer_name
+            target_ip = override_ip or printer.printer_ip
             ok = True
-            msg = "Wysłano do drukarki"
+            msg = f"Wysłano do drukarki {target_name} ({target_ip})"
             # Drukujemy 2 kopie etykiety wyrobu gotowego
             for copy_num in range(1, 3):
                 print_ok, print_msg = printer.print_finished_product_label(
@@ -1047,12 +1285,27 @@ def register_warehouse_management_routes(
                 )
                 if not print_ok:
                     ok = False
-                    msg = print_msg
+                    msg = f"{print_msg} (kopia {copy_num}/2)"
+                    current_app.logger.warning(
+                        'Ręczny wydruk paleta_id=%s nieudany na kopii %s/2 (drukarka=%s, ip=%s): %s',
+                        paleta_id,
+                        copy_num,
+                        target_name,
+                        target_ip,
+                        print_msg,
+                    )
+                    break
             
             if ok:
                 audit_log('Wydruk etykiety ZPL (ręczny)', f'paleta_id={paleta_id}, produkt={label_data["nazwa"]}, nr_palety={label_data["nrPalety"]}, kopie=2')
-            
-            return jsonify({'success': ok, 'message': msg})
+
+            response_payload = {'success': ok, 'message': msg}
+            if requested_data_produkcji:
+                response_payload['data_produkcji'] = requested_data_produkcji
+            elif label_data.get('data'):
+                response_payload['data_produkcji'] = str(label_data.get('data'))
+
+            return jsonify(response_payload)
         except Exception as e:
             current_app.logger.exception('ZPL Print failed: %s', e)
             return jsonify({'success': False, 'message': str(e)}), 500
