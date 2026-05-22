@@ -7,6 +7,7 @@ DASHBOARD_TEMPLATE = ROOT / 'templates' / 'dashboard.html'
 ORDER_CARD_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_order_card.html'
 AGRO_ACTIVE_DETAILS_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_agro_active_details.html'
 PRODUCTION_LIST_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_production_list.html'
+INIT_TEMPLATE = ROOT / 'templates' / 'dashboard' / '_dashboard_init.html'
 LAYOUT_TEMPLATE = ROOT / 'templates' / 'layout.html'
 SIDEBAR_AGRO_TEMPLATE = ROOT / 'templates' / 'includes' / 'sidebar' / '_sidebar_agro.html'
 DOSYPKI_LIST_TEMPLATE = ROOT / 'templates' / 'dosypki_list.html'
@@ -129,6 +130,27 @@ def test_dosypki_action_in_order_tile_is_limited_to_production_roles():
     assert "role_lc in ['masteradmin', 'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'laborant', 'laboratorium']" not in content
 
 
+def test_agro_workowanie_card_exposes_checklist_ok_badge_markup():
+    content = ORDER_CARD_TEMPLATE.read_text(encoding='utf-8')
+
+    assert 'checklist-ok-badge' in content
+    assert 'CHECKLISTA OK' in content
+    assert "sekcja == 'Workowanie' and linia == 'AGRO'" in content
+
+
+def test_focus_mode_hides_all_non_active_orders_when_any_order_is_running():
+    content = ORDER_CARD_TEMPLATE.read_text(encoding='utf-8')
+
+    assert "agro_focus_mode and p[3]|lower != 'w toku'" in content
+
+
+def test_focus_mode_is_not_limited_to_agro_line():
+    content = INIT_TEMPLATE.read_text(encoding='utf-8')
+
+    assert "sekcja in ['Zasyp', 'Workowanie'] and ns.is_active" in content
+    assert "linia == 'AGRO'" not in content
+
+
 def test_dashboard_card_actions_skips_prevented_submit_events():
     content = CARD_ACTIONS_JS.read_text(encoding='utf-8')
 
@@ -139,6 +161,12 @@ def test_quick_popup_submit_handler_respects_prevented_event():
     content = GLOBAL_SCRIPTS_JS.read_text(encoding='utf-8')
 
     assert 'if (evt.defaultPrevented) {' in content
+
+
+def test_global_ajax_submit_handler_skips_start_order_forms():
+    content = GLOBAL_SCRIPTS_JS.read_text(encoding='utf-8')
+
+    assert "actionPath.includes('/start_zlecenie/')" in content
 
 
 def test_dosypki_fragment_uses_fragment_role_context_instead_of_removed_legacy_globals():

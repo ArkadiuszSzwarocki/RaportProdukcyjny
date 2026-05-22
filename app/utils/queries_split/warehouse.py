@@ -81,6 +81,7 @@ class WarehouseQueries:
         cursor.execute(
             f"SELECT pw.id, pw.plan_id, p.produkt, pw.data_dodania, "
             f"(SELECT COUNT(1) FROM {table_palety} pw2 WHERE pw2.plan_id = pw.plan_id AND pw2.id <= pw.id) as seq "
+            f", pw.nr_palety "
             f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
             "WHERE DATE(pw.data_dodania) = %s AND p.sekcja = 'Workowanie' "
             "AND pw.waga > 0 AND COALESCE(pw.status,'') NOT IN ('przyjeta', 'zamknieta')",

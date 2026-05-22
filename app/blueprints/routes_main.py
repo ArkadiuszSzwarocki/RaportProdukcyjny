@@ -99,6 +99,7 @@ def index():
             'palety_mapa': main_h_data.get('palety_mapa'),
             'magazyn_palety': main_h_data.get('magazyn_palety'),
             'unconfirmed_palety': main_h_data.get('unconfirmed_palety'),
+            'pending_wg': main_h_data.get('pending_wg', []),
             'suma_plan': main_h_data.get('suma_plan'),
             'suma_wykonanie': main_h_data.get('suma_wykonanie'),
             'rola': role,

@@ -116,6 +116,26 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+.wg-scan-box {
+    border: 1px dashed #bfdbfe;
+    background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 14px;
+}
+
+.wg-scan-title {
+    margin: 0 0 8px;
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #1e3a8a;
+}
+
+.wg-scan-input {
+    width: 100%;
+    text-transform: uppercase;
+}
+
 @media (max-width: 980px) {
     .waiting-open-btn {
         min-width: 140px;
@@ -300,6 +320,18 @@
     <!-- TAB: WG -->
     <div id="tab-wg" class="tab-content" style="display:none;">
         {% if dostawy.wg %}
+        <div class="wg-scan-box">
+            <p class="wg-scan-title">Skaner palety WG</p>
+            <input
+                type="text"
+                id="wgScanInput"
+                class="premium-input wg-scan-input"
+                placeholder="Zeskanuj QR palety i naciśnij Enter"
+                autocomplete="off"
+                spellcheck="false"
+            >
+            <p class="text-xxs text-slate-500 mt-8 mb-0 italic">Skan otworzy od razu okno potwierdzenia przyjęcia.</p>
+        </div>
         <div class="premium-card">
             <table class="premium-table">
                 <thead>
@@ -323,7 +355,13 @@
                         <td class="font-mono">{{ p.nr_palety }}</td>
                         <td class="font-bold">{{ p.waga }} kg</td>
                         <td class="text-right">
-                            <button class="btn-premium btn-xs" onclick="acceptWG({{ p.id }}, '{{ p.nr_palety }}')">PRZYJMIJ</button>
+                            <button
+                                class="btn-premium btn-xs"
+                                data-wg-id="{{ p.id }}"
+                                data-wg-nr="{{ p.nr_palety }}"
+                                data-wg-waga="{{ p.waga or '' }}"
+                                onclick="acceptWG({{ p.id }}, '{{ (p.nr_palety or '')|replace("'", "\\'") }}', {{ (p.waga or 0)|float }})"
+                            >PRZYJMIJ</button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -343,14 +381,22 @@
         <button class="text-slate-400 hover:text-slate-800" onclick="closeModal('modalWG')" style="background:none; border:none; font-size: 24px; cursor:pointer;">&times;</button>
     </div>
     <div class="p-30">
+        <div class="mb-15 bg-amber-50 p-12 rounded-xl border border-amber-100 text-center text-amber-700 text-sm font-semibold">
+            Czy zatwierdzasz przyjęcie tej palety do magazynu?
+        </div>
         <div class="mb-25 bg-blue-50 p-15 rounded-xl border border-blue-100 text-center">
             <div class="text-xxs font-bold text-blue-400 uppercase tracking-widest mb-5">Numer Palety</div>
             <div class="text-2xl font-bold text-blue-700 font-mono" id="wgNrPalety">—</div>
         </div>
+        <div class="mb-20">
+            <label class="form-label-premium">Waga netto (kg)</label>
+            <input type="number" id="wgWaga" class="premium-input w-full" min="0.01" step="0.01" placeholder="np. 845.50" inputmode="decimal" autocomplete="off">
+            <p class="text-xxs text-slate-400 mt-8 italic">Najpierw wpisz lub popraw wagę netto palety.</p>
+        </div>
         <div class="mb-25">
-            <label class="form-label-premium">Docelowa Lokalizacja (Regał)</label>
+            <label class="form-label-premium">Docelowa Lokalizacja (skan = potwierdzenie)</label>
             <input type="text" id="wgLokalizacja" class="premium-input w-full" placeholder="np. R040101" style="text-transform:uppercase;" list="locationSuggestionsList" oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" autocomplete="off">
-            <p class="text-xxs text-slate-400 mt-8 italic">Podaj kod regału, na który odkładasz paletę.</p>
+            <p class="text-xxs text-slate-400 mt-8 italic">Po wpisaniu wagi zeskanuj lokalizację docelową i naciśnij Enter.</p>
         </div>
         <input type="hidden" id="wgId">
         
@@ -473,30 +519,118 @@ function showTab(tabId, btn) {
     if (btn) {
         btn.classList.add('active');
     }
+
+    if (tabId === 'tab-wg') {
+        const scanInput = document.getElementById('wgScanInput');
+        if (scanInput) {
+            setTimeout(() => scanInput.focus(), 40);
+        }
+    }
 }
 
-function acceptWG(id, nrPalety) {
+function normalizeScanCode(value) {
+    return String(value || '').trim().toUpperCase();
+}
+
+function parseWeightValue(value) {
+    const normalized = String(value || '').trim().replace(',', '.');
+    const parsed = parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function findWGByScannedCode(rawCode) {
+    const code = normalizeScanCode(rawCode);
+    if (!code) {
+        return { status: 'empty' };
+    }
+
+    const buttons = Array.from(document.querySelectorAll('button[data-wg-id][data-wg-nr]'));
+    if (!buttons.length) {
+        return { status: 'none' };
+    }
+
+    const rows = buttons.map(btn => ({
+        id: String(btn.dataset.wgId || '').trim(),
+        nr: normalizeScanCode(btn.dataset.wgNr),
+        waga: btn.dataset.wgWaga,
+    }));
+
+    const directMatch = rows.find(item => item.nr === code || item.id === code);
+    if (directMatch) {
+        return { status: 'single', item: directMatch };
+    }
+
+    const containsMatch = rows.filter(item => item.nr && (code.includes(item.nr) || item.nr.includes(code)));
+    if (containsMatch.length === 1) {
+        return { status: 'single', item: containsMatch[0] };
+    }
+    if (containsMatch.length > 1) {
+        return { status: 'many' };
+    }
+
+    return { status: 'none' };
+}
+
+function handleWGScanSubmit() {
+    const scanInput = document.getElementById('wgScanInput');
+    if (!scanInput) {
+        return;
+    }
+
+    const scannedCode = scanInput.value;
+    const match = findWGByScannedCode(scannedCode);
+    scanInput.value = '';
+
+    if (match.status === 'single') {
+        const parsedWaga = parseWeightValue(match.item.waga);
+        acceptWG(match.item.id, match.item.nr, Number.isFinite(parsedWaga) ? parsedWaga : null);
+        return;
+    }
+
+    if (match.status === 'many') {
+        alert('Znaleziono więcej niż jedną pasującą paletę. Użyj pełnego kodu lub kliknij PRZYJMIJ w tabeli.');
+        return;
+    }
+
+    alert('Nie znaleziono palety WG dla zeskanowanego kodu.');
+}
+
+function acceptWG(id, nrPalety, wagaNetto = null) {
     document.getElementById('wgId').value = id;
     document.getElementById('wgNrPalety').innerText = nrPalety;
+    const wagaInput = document.getElementById('wgWaga');
+    if (wagaInput) {
+        if (wagaNetto === null || wagaNetto === undefined || wagaNetto === '' || Number.isNaN(Number(wagaNetto))) {
+            wagaInput.value = '';
+        } else {
+            wagaInput.value = Number(wagaNetto).toFixed(2);
+        }
+    }
     const locInput = document.getElementById('wgLokalizacja');
     if (locInput) {
         locInput.value = '';
     }
     document.getElementById('modalWG').showModal();
-    if (locInput) {
-        locInput.focus();
+
+    if (wagaInput) {
+        wagaInput.focus();
+        wagaInput.select();
     }
 }
 
 function submitAcceptWG() {
     const id = document.getElementById('wgId').value;
+    const wagaValue = parseWeightValue(document.getElementById('wgWaga').value);
     const lok = normalizeLocationCode(document.getElementById('wgLokalizacja').value);
+    if (!Number.isFinite(wagaValue) || wagaValue <= 0) {
+        return alert('Podaj poprawną wagę netto palety (większą od 0).');
+    }
     if (!lok) return alert('Podaj lokalizację');
 
     fetch('/magazyn-dostawy/api/przyjmij-wg', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ id: id, lokalizacja: lok, linia: '{{ linia }}' })
+        body: JSON.stringify({ id: id, lokalizacja: lok, linia: '{{ linia }}', waga: wagaValue })
     }).then(r => r.json()).then(res => {
         if (res.success) {
             location.reload();
@@ -507,7 +641,18 @@ function submitAcceptWG() {
 }
 
 function closeModal(id) {
-    document.getElementById(id).close();
+    const modal = document.getElementById(id);
+    if (!modal || typeof modal.close !== 'function') {
+        return;
+    }
+    modal.close();
+
+    if (id === 'modalWG') {
+        const scanInput = document.getElementById('wgScanInput');
+        if (scanInput) {
+            setTimeout(() => scanInput.focus(), 40);
+        }
+    }
 }
 
 async function cancelTransferOrder(dostawaId, orderRef) {
@@ -554,6 +699,39 @@ if (continueBtn && hasPendingTransferDraft()) {
 
 document.addEventListener('DOMContentLoaded', function () {
     ensureLocationSuggestionsList();
+
+    const wgScanInput = document.getElementById('wgScanInput');
+    if (wgScanInput) {
+        wgScanInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handleWGScanSubmit();
+            }
+        });
+    }
+
+    const wgWaga = document.getElementById('wgWaga');
+    if (wgWaga) {
+        wgWaga.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const locInput = document.getElementById('wgLokalizacja');
+                if (locInput) {
+                    locInput.focus();
+                }
+            }
+        });
+    }
+
+    const wgLokalizacja = document.getElementById('wgLokalizacja');
+    if (wgLokalizacja) {
+        wgLokalizacja.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                submitAcceptWG();
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

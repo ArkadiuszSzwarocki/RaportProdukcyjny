@@ -66,9 +66,10 @@ class WarehouseService:
                 dt = r[3]
                 sdt = dt.strftime('%Y-%m-%d %H:%M:%S') if hasattr(dt, 'strftime') else str(dt)
                 seq = r[4] if len(r) > 4 else None
+                nr_palety = r[5] if len(r) > 5 else None
                 
                 elapsed = WarehouseService.calculate_elapsed_time(dt)
-                out.append((pid, plan_id, produkt, sdt, seq, elapsed))
+                out.append((pid, plan_id, produkt, sdt, seq, elapsed, nr_palety))
             return out
         except Exception:
             return []

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Etykieta WG - {{ nr_palety }}</title>
+    <style>
+        @page {
+            size: 101.6mm 152.4mm;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #e5e7eb;
+            color: #000;
+        }
+
+        .screen {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+        }
+
+        .toolbar {
+            width: 100%;
+            max-width: 560px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            background: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 8px 10px;
+        }
+
+        .toolbar-note {
+            font-size: 12px;
+            color: #334155;
+        }
+
+        .toolbar-btn {
+            border: 1px solid #0f172a;
+            background: #0f172a;
+            color: #fff;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .label {
+            width: 101.6mm;
+            height: 152.4mm;
+            background: #fff;
+            border: 0.7mm solid #000;
+            padding: 5mm 5mm 0 5mm;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .typ {
+            font-size: 5.8mm;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            margin-bottom: 3.5mm;
+        }
+
+        .name {
+            font-size: 8.8mm;
+            line-height: 1.03;
+            font-weight: 700;
+            min-height: 18mm;
+            margin-bottom: 5mm;
+            word-break: break-word;
+        }
+
+        .qr-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2.5mm;
+        }
+
+        .qr-box {
+            width: 38mm;
+            height: 38mm;
+            border: 0.4mm solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .qr-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            image-rendering: pixelated;
+        }
+
+        .qr-fallback {
+            display: none;
+            width: 100%;
+            height: 100%;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px;
+            line-height: 1.2;
+        }
+
+        .pid {
+            text-align: center;
+            font-size: 5.2mm;
+            font-weight: 700;
+            margin-bottom: 4mm;
+            word-break: break-all;
+        }
+
+        .line {
+            font-size: 5.5mm;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-bottom: 2.2mm;
+        }
+
+        .line span {
+            font-weight: 700;
+        }
+
+        .spacer {
+            flex: 1;
+            min-height: 2mm;
+        }
+
+        .waga-title {
+            font-size: 10.2mm;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 1.7mm;
+        }
+
+        .waga-value {
+            font-size: 14mm;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 4.5mm;
+        }
+
+        .band {
+            margin: 0 -5mm;
+            height: 14mm;
+            background: #f6d64a;
+            border-top: 0.5mm solid #111;
+            border-bottom: 0.5mm solid #111;
+        }
+
+        .meta {
+            margin-top: 3px;
+            width: 100%;
+            max-width: 560px;
+            font-size: 11px;
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .screen {
+                padding: 0;
+                gap: 0;
+            }
+
+            .toolbar,
+            .meta {
+                display: none;
+            }
+
+            .label {
+                border-width: 0.5mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="screen">
+        <div class="toolbar">
+            <div class="toolbar-note">Podglad etykiety produkcyjnej (WG). Uklad odwzorowuje auto-druk.</div>
+            <button class="toolbar-btn" onclick="window.print()">Drukuj / PDF</button>
+        </div>
+
+        <div class="label">
+            <div class="typ">WYROB GOTOWY</div>
+
+            <div class="name">{{ product_name }}</div>
+
+            <div class="qr-wrap">
+                <div class="qr-box">
+                    <img
+                        src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={{ nr_palety|urlencode }}"
+                        alt="QR {{ nr_palety }}"
+                        onerror="this.style.display='none';document.getElementById('qrFallback').style.display='flex';"
+                    >
+                    <div class="qr-fallback" id="qrFallback">{{ nr_palety }}</div>
+                </div>
+            </div>
+
+            <div class="pid">{{ nr_palety }}</div>
+
+            <div class="line">PARTIA: <span>{{ nr_partii }}</span></div>
+            <div class="line">PRODUKCJA: <span>{{ data_produkcji }}</span></div>
+            <div class="line">WAZNOSC: <span>{{ data_przydatnosci }}</span></div>
+
+            <div class="spacer"></div>
+
+            <div class="waga-title">WAGA NETTO:</div>
+            <div class="waga-value">{{ qty_display }} kg</div>
+
+            <div class="band"></div>
+        </div>
+
+        <div class="meta">
+            <span>Linia: {{ linia }}</span>
+            <span>Wygenerowano: {{ generated_at }}</span>
+        </div>
+    </div>
+
+    <script>
+        if ({{ 'true' if autoprint else 'false' }}) {
+            window.addEventListener('load', function () {
+                setTimeout(function () { window.print(); }, 260);
+            });
+        }
+    </script>
+</body>
+</html>

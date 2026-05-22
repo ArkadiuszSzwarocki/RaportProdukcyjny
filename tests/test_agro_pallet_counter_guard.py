@@ -1,5 +1,6 @@
 from app.core.daemon import (
     _is_rising_edge,
+    _is_transient_db_connectivity_error,
     _resolve_pallet_counter_action,
     _resolve_pallet_counter_registrations,
 )
@@ -41,3 +42,13 @@ def test_wrap_non_rising_edges_do_not_trigger():
     assert _is_rising_edge(False, False) is False
     assert _is_rising_edge(True, True) is False
     assert _is_rising_edge(True, False) is False
+
+
+def test_transient_db_connectivity_error_detects_unknown_host_dns():
+    err = Exception("2005 (HY000): Unknown MySQL server host 'raportprodukcji.mycloudnas.com' (11001)")
+    assert _is_transient_db_connectivity_error(err) is True
+
+
+def test_transient_db_connectivity_error_ignores_unrelated_errors():
+    err = ValueError('invalid payload')
+    assert _is_transient_db_connectivity_error(err) is False

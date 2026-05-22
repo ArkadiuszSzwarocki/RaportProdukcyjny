@@ -1,14 +1,59 @@
 import glob
 import logging
 import os
-from flask import current_app, flash, jsonify, redirect, render_template, request, send_file, session
+from flask import current_app, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
 from app.decorators import login_required
 from app.services.zasyp_etapy_service import ZasypEtapyService
+from werkzeug.security import check_password_hash
 
 def register_production_order_routes(production_bp, bezpieczny_powrot):
     from app.services.mqtt_service import get_latest_data
+
+    def _is_truthy(value):
+        return str(value or '').strip().lower() in {'1', 'true', 'yes', 'on'}
+
+    def _validate_quality_credentials(cursor, quality_login, quality_password, operator_login):
+        allowed_quality_roles = {
+            'lider',
+            'admin',
+            'masteradmin',
+            'zarzad',
+            'planista',
+        }
+
+        login_norm = str(quality_login or '').strip()
+        password_raw = str(quality_password or '')
+        operator_norm = str(operator_login or '').strip().lower()
+        if not login_norm or not password_raw:
+            return False, 'Podaj login i hasło do potwierdzenia jakości.', None
+        if operator_norm and login_norm.lower() == operator_norm:
+            return False, 'Drugi podpis jakości musi wykonać inny użytkownik.', None
+
+        cursor.execute("SELECT haslo, rola FROM uzytkownicy WHERE login = %s LIMIT 1", (login_norm,))
+        row = cursor.fetchone()
+        if not row:
+            return False, 'Nieprawidłowy login jakości.', None
+
+        stored_hash = str(row[0] or '')
+        role_lc = str(row[1] or '').strip().lower()
+
+        password_ok = False
+        try:
+            password_ok = check_password_hash(stored_hash, password_raw)
+        except Exception:
+            password_ok = False
+
+        if not password_ok and stored_hash == password_raw:
+            password_ok = True
+
+        if not password_ok:
+            return False, 'Nieprawidłowe hasło jakości.', None
+        if role_lc not in allowed_quality_roles:
+            return False, 'Użytkownik nie ma uprawnień do drugiego podpisu. Dozwolone role: lider, admin, masteradmin, zarzad, planista.', None
+
+        return True, None, role_lc
 
     @production_bp.route('/start_zlecenie/<int:id>', methods=['POST'])
     @login_required
@@ -29,13 +74,27 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             linia = str(linia_input).upper()
             table_plan = get_table_name('plan_produkcji', linia)
             cursor = conn.cursor()
-            cursor.execute(f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0) FROM {table_plan} WHERE id=%s", (id,))
+            opakowanie_id = None
+            etykieta_id = None
+            if linia == 'AGRO':
+                cursor.execute(
+                    f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0), opakowanie_id, etykieta_id FROM {table_plan} WHERE id=%s",
+                    (id,),
+                )
+            else:
+                cursor.execute(
+                    f"SELECT produkt, tonaz, sekcja, data_planu, typ_produkcji, status, COALESCE(tonaz_rzeczywisty, 0) FROM {table_plan} WHERE id=%s",
+                    (id,),
+                )
             z = cursor.fetchone()
 
             warning_info = None
 
             if z:
-                produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
+                if linia == 'AGRO':
+                    produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp, opakowanie_id, etykieta_id = z
+                else:
+                    produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
 
                 if sekcja == 'Workowanie':
                     cursor.execute(
@@ -110,6 +169,42 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                             current_app.logger.exception('[KOLEJKA] FIFO check failed: %s', e)
 
                 if status_obecny != 'w toku':
+                    quality_login_used = None
+                    quality_role_used = None
+
+                    if sekcja == 'Workowanie' and linia == 'AGRO':
+                        if not opakowanie_id or not etykieta_id:
+                            flash('❌ Start zablokowany: w planie AGRO musi być ustawiona folia i etykieta.', 'error')
+                            return redirect(bezpieczny_powrot())
+
+                        if not _is_truthy(request.form.get('start_checklist_confirmed')):
+                            flash('❌ Start zablokowany: operator musi potwierdzić checklistę folii i etykiety.', 'error')
+                            return redirect(bezpieczny_powrot())
+
+                        quality_login = (request.form.get('quality_login') or '').strip()
+                        quality_password = request.form.get('quality_password') or ''
+                        quality_ok, quality_error, quality_role = _validate_quality_credentials(
+                            cursor,
+                            quality_login,
+                            quality_password,
+                            session.get('login'),
+                        )
+                        if not quality_ok:
+                            flash(f'❌ Start zablokowany: {quality_error}', 'error')
+                            return redirect(bezpieczny_powrot())
+
+                        quality_login_used = quality_login
+                        quality_role_used = quality_role
+                        current_app.logger.info(
+                            '[START-CHECKLIST] plan_id=%s operator=%s quality=%s quality_role=%s opakowanie_id=%s etykieta_id=%s',
+                            id,
+                            session.get('login'),
+                            quality_login_used,
+                            quality_role_used,
+                            opakowanie_id,
+                            etykieta_id,
+                        )
+
                     # Capture machine counter for AGRO Workowanie
                     start_counter = 0
                     start_pallet_counter = 0
@@ -123,7 +218,29 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
 
                     # Ensure only one active plan per section in this hall
                     cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
-                    cursor.execute(f"UPDATE {table_plan} SET status='w toku', real_start=NOW(), real_stop=NULL, start_machine_counter=%s, start_pallet_counter=%s WHERE id=%s", (start_counter, start_pallet_counter, id))
+                    if sekcja == 'Workowanie' and linia == 'AGRO' and quality_login_used:
+                        operator_login = str(session.get('login') or '').strip()
+                        cursor.execute(
+                            f"""
+                            UPDATE {table_plan}
+                            SET status='w toku',
+                                real_start=NOW(),
+                                real_stop=NULL,
+                                start_machine_counter=%s,
+                                start_pallet_counter=%s,
+                                start_checklist_operator_login=%s,
+                                start_checklist_operator_at=NOW(),
+                                start_checklist_quality_login=%s,
+                                start_checklist_quality_at=NOW()
+                            WHERE id=%s
+                            """,
+                            (start_counter, start_pallet_counter, operator_login, quality_login_used, id),
+                        )
+                    else:
+                        cursor.execute(
+                            f"UPDATE {table_plan} SET status='w toku', real_start=NOW(), real_stop=NULL, start_machine_counter=%s, start_pallet_counter=%s WHERE id=%s",
+                            (start_counter, start_pallet_counter, id),
+                        )
                     
                     # Update custom production date if provided
                     data_prod_post = request.form.get('data_produkcji') or request.args.get('data_produkcji')
@@ -131,8 +248,24 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                         cursor.execute(f"UPDATE {table_plan} SET data_produkcji = %s WHERE id = %s", (data_prod_post.strip(), id))
                         current_app.logger.info('Ustawiono własną datę produkcji %s dla zlecenia ID=%s', data_prod_post.strip(), id)
 
-                    current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
-                    audit_log('Uruchomił zlecenie', f'ID={id}, produkt={produkt}, sekcja={sekcja}')
+                    if quality_login_used:
+                        current_app.logger.info(
+                            'Uruchomiono zlecenie ID=%s, produkt=%s przez %s (drugi podpis jakości: %s)',
+                            id,
+                            produkt,
+                            session.get('login'),
+                            quality_login_used,
+                        )
+                    else:
+                        current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
+
+                    audit_details = f'ID={id}, produkt={produkt}, sekcja={sekcja}'
+                    if quality_login_used:
+                        audit_details += (
+                            f', operator={session.get("login")}, quality={quality_login_used}, '
+                            f'quality_role={quality_role_used}, checklist=OK'
+                        )
+                    audit_log('Uruchomił zlecenie', audit_details)
                     flash(f"✅ Uruchomiono: {produkt}", 'success')
                     try:
                         status_logger = logging.getLogger('status_changes')

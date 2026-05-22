@@ -5,6 +5,7 @@ Opis: Agregator danych dashboardu. Ładuje dane HR, plany produkcji i kontekst d
 from app.db import get_db_connection, get_table_name
 from app.services.dashboard_service import DashboardService
 from app.services.dashboard_context_service import DashboardContextService
+from app.services.magazyn_dostawy_service import MagazynDostawyService
 
 
 def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role):
@@ -43,11 +44,16 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role):
         palety_mapa = {}
         magazyn_palety = []
         unconfirmed_palety = []
+        pending_wg = []
         suma_plan = 0
         suma_wykonanie = 0
 
         if aktywna_sekcja == 'Magazyn':
             magazyn_palety, unconfirmed_palety, suma_wykonanie = DashboardService.get_warehouse_data(dzisiaj, linia=linia, cursor=cursor)
+            try:
+                pending_wg = MagazynDostawyService.get_pending_production_pallets(str(linia).upper())
+            except Exception:
+                pending_wg = []
 
         if aktywna_sekcja != 'Magazyn':
             plan_dnia, palety_mapa, suma_plan, suma_wykonanie = DashboardService.get_production_plans(
@@ -72,6 +78,7 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role):
             'suma_wykonanie': suma_wykonanie,
             'magazyn_palety': magazyn_palety,
             'unconfirmed_palety': unconfirmed_palety,
+            'pending_wg': pending_wg,
             'global_active': global_active,
             'buffer_queue': buffer_queue,
             'work_first_map': work_first_map,

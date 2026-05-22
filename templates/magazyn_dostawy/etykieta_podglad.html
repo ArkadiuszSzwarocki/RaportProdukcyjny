@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Podglad etykiety - {{ nr_palety }}</title>
+    <style>
+        @page {
+            size: 100mm 150mm;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        .layout {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            padding: 16px;
+        }
+
+        .toolbar {
+            width: 100%;
+            max-width: 480px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toolbar-note {
+            font-size: 12px;
+            color: #475569;
+        }
+
+        .toolbar-btn {
+            border: 1px solid #1d4ed8;
+            background: #2563eb;
+            color: #ffffff;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .label {
+            width: 100mm;
+            height: 150mm;
+            background: #ffffff;
+            border: 2px solid #0f172a;
+            padding: 6mm;
+            display: grid;
+            grid-template-rows: auto auto auto 1fr auto;
+            gap: 4mm;
+        }
+
+        .head {
+            border-bottom: 2px solid #334155;
+            padding-bottom: 3mm;
+        }
+
+        .head-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .badge {
+            border: 1px solid #1e293b;
+            padding: 2px 6px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .label-title {
+            margin: 0;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .mono {
+            font-family: "Courier New", monospace;
+        }
+
+        .field {
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 7px;
+        }
+
+        .field-label {
+            margin: 0;
+            font-size: 10px;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .field-value {
+            margin: 4px 0 0;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.2;
+            word-break: break-word;
+        }
+
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3mm;
+        }
+
+        .weight {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .weight-main {
+            font-size: 34px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .weight-unit {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .footer {
+            border-top: 1px solid #94a3b8;
+            padding-top: 2mm;
+            font-size: 10px;
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        @media print {
+            body {
+                background: #ffffff;
+            }
+
+            .layout {
+                padding: 0;
+                gap: 0;
+            }
+
+            .toolbar {
+                display: none;
+            }
+
+            .label {
+                border-width: 1px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="toolbar">
+            <div class="toolbar-note">Tryb testowy: podglad etykiety. Uzyj "Drukuj" i wybierz "Microsoft Print to PDF".</div>
+            <button class="toolbar-btn" onclick="window.print()">Drukuj / PDF</button>
+        </div>
+
+        <div class="label">
+            <div class="head">
+                <div class="head-row">
+                    <h1 class="label-title">{{ typ_label }} - MAGAZYN {{ linia }}</h1>
+                    <span class="badge">TEST</span>
+                </div>
+                <div style="margin-top: 5px; font-size: 11px; color: #334155;">Nr palety: <strong class="mono">{{ nr_palety }}</strong></div>
+            </div>
+
+            <div class="field">
+                <p class="field-label">Produkt</p>
+                <p class="field-value">{{ product_name }}</p>
+            </div>
+
+            <div class="grid2">
+                <div class="field">
+                    <p class="field-label">Partia</p>
+                    <p class="field-value mono">{{ nr_partii }}</p>
+                </div>
+                <div class="field">
+                    <p class="field-label">Waga netto</p>
+                    <div class="weight">
+                        <span class="weight-main">{{ '%.2f'|format(qty) }}</span>
+                        <span class="weight-unit">kg</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid2">
+                <div class="field">
+                    <p class="field-label">Data produkcji</p>
+                    <p class="field-value mono">{{ data_produkcji }}</p>
+                </div>
+                <div class="field">
+                    <p class="field-label">Data przydatnosci</p>
+                    <p class="field-value mono">{{ data_przydatnosci }}</p>
+                </div>
+            </div>
+
+            <div class="footer">
+                <span>Wygenerowano: {{ generated_at }}</span>
+                <span>Raport Produkcyjny</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('autoprint') === '1') {
+            window.addEventListener('load', function () {
+                setTimeout(function () { window.print(); }, 280);
+            });
+        }
+    </script>
+</body>
+</html>

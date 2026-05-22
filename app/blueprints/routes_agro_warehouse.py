@@ -1,9 +1,9 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, current_app
 from app.services.agro_warehouse_service import AgroWarehouseService
 from app.services.dashboard_service import DashboardService
+from app.services.magazyn_dostawy_service import MagazynDostawyService
 from app.decorators import login_required, roles_required, dynamic_role_required
 from datetime import datetime, date
-from app.services.agro_warehouse_service import AgroWarehouseService
 from app.db import get_db_connection, get_table_name
 
 agro_warehouse_bp = Blueprint('agro_warehouse', __name__)
@@ -34,6 +34,11 @@ def index():
     except Exception:
         current_plan_id = None
         current_plan_name = None
+
+    try:
+        pending_wg = MagazynDostawyService.get_pending_production_pallets('AGRO')
+    except Exception:
+        pending_wg = []
     
     # Also include confirmed pallets for this day/line using DashboardService
     magazyn_palety, unconfirmed_palety, suma_wykonanie = DashboardService.get_warehouse_data(dzisiaj, linia=linia)
@@ -48,6 +53,7 @@ def index():
         linia=linia,
         current_plan_id=current_plan_id,
         current_plan_name=current_plan_name,
+        pending_wg=pending_wg,
         magazyn_palety=magazyn_palety,
         unconfirmed_palety=unconfirmed_palety,
         dzisiaj=str(dzisiaj),

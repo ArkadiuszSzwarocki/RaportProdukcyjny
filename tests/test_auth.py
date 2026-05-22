@@ -237,3 +237,29 @@ class TestPublicPrinterServerStart:
             response = client.post('/api/printer-server/start', json={'pin': '0606'})
 
         assert response.status_code == 403
+
+    def test_public_printer_server_start_accepts_trailing_slash(self, client):
+        with patch('app.blueprints.routes_auth._start_printer_server', return_value=(True, 'OK', 200)):
+            response = client.post('/api/printer-server/start/', json={'pin': '0606'})
+
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload['success'] is True
+
+    def test_public_printer_server_status_running(self, client):
+        with patch('app.blueprints.routes_auth._is_printer_server_running', return_value=True):
+            response = client.get('/api/printer-server/status')
+
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload['success'] is True
+        assert payload['running'] is True
+
+    def test_public_printer_server_status_not_running(self, client):
+        with patch('app.blueprints.routes_auth._is_printer_server_running', return_value=False):
+            response = client.get('/api/printer-server/status/')
+
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload['success'] is True
+        assert payload['running'] is False

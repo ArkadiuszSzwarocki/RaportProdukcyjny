@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, session, url_for, redirect
 from app.db import get_db_connection, get_table_name
 from app.services.magazyn_dostawy_service import MagazynDostawyService
+from app.utils.pallet_label import prepare_pallet_label_data
 import json
 from datetime import datetime
 
@@ -59,6 +60,13 @@ def _safe_datetime_str(value):
         return value.strftime('%Y-%m-%d %H:%M:%S')
     except Exception:
         return str(value)
+
+
+def _format_label_weight(value):
+    qty = _safe_float(value)
+    if abs(qty - round(qty)) < 1e-6:
+        return str(int(round(qty)))
+    return f"{qty:.2f}".rstrip('0').rstrip('.')
 
 @magazyn_dostawy_bp.route('/')
 def lista_dostaw():
@@ -130,6 +138,74 @@ def oczekujace():
     return render_template('magazyn_dostawy/oczekujace.html',
                            dostawy=dostawy, linia=linia,
                            lok_grupy=LOKALIZACJE_SZCZEGOLOWE)
+
+
+@magazyn_dostawy_bp.route('/podglad-etykiety')
+def podglad_etykiety():
+    nr_palety = str(request.args.get('nr_palety', '') or '').strip() or '---'
+    product_name = str(request.args.get('product_name', '') or '').strip() or 'Brak nazwy'
+    nr_partii = str(request.args.get('nr_partii', '') or '').strip() or '---'
+    data_produkcji = str(request.args.get('data_produkcji', '') or '').strip() or '---'
+    data_przydatnosci = str(request.args.get('data_przydatnosci', '') or '').strip() or '---'
+    typ_surowca = str(request.args.get('p_type', 'surowiec') or 'surowiec').strip().lower()
+    linia = str(request.args.get('linia', 'PSD') or 'PSD').strip().upper()
+    qty = _safe_float(request.args.get('qty', 0))
+
+    if typ_surowca == 'packaging':
+        typ_label = 'OPAKOWANIE'
+    elif typ_surowca in {'wyrob_gotowy', 'finished', 'gotowy'}:
+        typ_label = 'WYRÓB GOTOWY'
+    else:
+        typ_label = 'SUROWIEC'
+
+    return render_template(
+        'magazyn_dostawy/etykieta_podglad.html',
+        nr_palety=nr_palety,
+        product_name=product_name,
+        nr_partii=nr_partii,
+        data_produkcji=data_produkcji,
+        data_przydatnosci=data_przydatnosci,
+        qty=qty,
+        typ_label=typ_label,
+        linia=linia,
+        generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    )
+
+
+@magazyn_dostawy_bp.route('/podglad-etykiety-system/<int:paleta_id>')
+def podglad_etykiety_system(paleta_id):
+    linia = str(request.args.get('linia', 'PSD') or 'PSD').strip().upper()
+    autoprint = str(request.args.get('autoprint', '') or '').strip().lower() in {'1', 'true', 'yes'}
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        label_data = prepare_pallet_label_data(cursor, paleta_id, linia)
+    finally:
+        conn.close()
+
+    if not label_data:
+        return 'Nie znaleziono danych etykiety dla tej palety.', 404
+
+    nr_palety = str(label_data.get('nrPalety') or label_data.get('nr_palety') or paleta_id).strip() or str(paleta_id)
+    product_name = str(label_data.get('nazwa') or 'Brak nazwy').strip() or 'Brak nazwy'
+    nr_partii = str(label_data.get('partia') or '---').strip() or '---'
+    data_produkcji = str(label_data.get('data') or '---').strip() or '---'
+    data_przydatnosci = str(label_data.get('termin') or '---').strip() or '---'
+    qty_display = _format_label_weight(label_data.get('ilosc'))
+
+    return render_template(
+        'magazyn_dostawy/etykieta_podglad_system.html',
+        nr_palety=nr_palety,
+        product_name=product_name,
+        nr_partii=nr_partii,
+        data_produkcji=data_produkcji,
+        data_przydatnosci=data_przydatnosci,
+        qty_display=qty_display,
+        linia=linia,
+        generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        autoprint=autoprint,
+    )
 
 @magazyn_dostawy_bp.route('/raport')
 def raport():
@@ -550,16 +626,34 @@ def odrzuc_pozycje(dostawa_id):
 
 @magazyn_dostawy_bp.route('/api/przyjmij-wg', methods=['POST'])
 def przyjmij_wg():
-    data = request.json
+    data = request.json or {}
+    pallet_id = data.get('id')
+    lokalizacja = str(data.get('lokalizacja', '')).strip().upper()
+
+    if not pallet_id:
+        return jsonify({"success": False, "error": "Brak ID palety do przyjęcia."}), 400
+
+    if not lokalizacja:
+        return jsonify({"success": False, "error": "Podaj docelową lokalizację palety."}), 400
+
+    waga_raw = data.get('waga')
+    waga = None
+    if waga_raw not in (None, ''):
+        try:
+            waga = float(str(waga_raw).replace(',', '.'))
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "Nieprawidłowa waga palety."}), 400
+        if waga <= 0:
+            return jsonify({"success": False, "error": "Waga palety musi być większa od zera."}), 400
+
     success, msg = MagazynDostawyService.accept_production_pallet(
-        data.get('id'),
-        data.get('lokalizacja', '').strip(),
+        pallet_id,
+        lokalizacja,
         linia=data.get('linia', 'PSD').upper(),
-        login=session.get('login', 'system')
+        login=session.get('login', 'system'),
+        confirmed_weight=waga,
     )
     return jsonify({"success": success, "message": msg if success else None, "error": msg if not success else None})
-
-    return jsonify({"success": True, "occupied": False, "message": "Lokalizacja wolna"})
 
 @magazyn_dostawy_bp.route('/api/anuluj/<dostawa_id>', methods=['POST'])
 def anuluj_dostawe(dostawa_id):

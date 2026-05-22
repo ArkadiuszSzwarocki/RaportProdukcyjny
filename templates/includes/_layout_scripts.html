@@ -235,12 +235,23 @@
     });
     {% endif %}
 
-    /** Prompt operator for a custom production date when starting an order */
-    window.confirmStartOrder = function(form, productName, planId) {
+    function setHiddenFormValue(form, fieldName, value) {
+        var hiddenInput = form.querySelector('input[name="' + fieldName + '"]');
+        if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = fieldName;
+            form.appendChild(hiddenInput);
+        }
+        hiddenInput.value = value;
+    }
+
+    function askForProductionDate(form, productName) {
         var input = prompt("Rozpoczynasz zlecenie: " + productName + "\n\nWpisz datę produkcji (RRRR-MM-DD), jeśli chcesz ją zmienić/ustawić.\nPozostaw puste, aby użyć dotychczasowej daty (bez zmian):");
         if (input === null) {
-            return false; // Operator clicked Cancel
+            return false;
         }
+
         var trimmed = input.trim();
         if (trimmed !== "") {
             var dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -248,17 +259,165 @@
                 alert("❌ Nieprawidłowy format daty! Użyj formatu RRRR-MM-DD (np. 2026-05-19).");
                 return false;
             }
-            // Add hidden input to the form
-            var hiddenInput = form.querySelector('input[name="data_produkcji"]');
-            if (!hiddenInput) {
-                hiddenInput = document.createElement('input');
-                hiddenInput.type = 'hidden';
-                hiddenInput.name = 'data_produkcji';
-                form.appendChild(hiddenInput);
-            }
-            hiddenInput.value = trimmed;
+            setHiddenFormValue(form, 'data_produkcji', trimmed);
         }
         return true;
+    }
+
+    function openAgroWorkowanieChecklist(form, productName) {
+        var requiredFolia = (form.getAttribute('data-required-opakowanie') || '').trim();
+        var requiredEtykieta = (form.getAttribute('data-required-etykieta') || '').trim();
+
+        if (!requiredFolia || !requiredEtykieta) {
+            alert('❌ Start zlecenia zablokowany: w planie brakuje wymaganej folii lub etykiety.');
+            return;
+        }
+
+        var existingOverlay = document.getElementById('start-order-checklist-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        var overlay = document.createElement('div');
+        overlay.id = 'start-order-checklist-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+        var panel = document.createElement('div');
+        panel.style.cssText = 'width:100%;max-width:560px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;';
+
+        var title = document.createElement('h3');
+        title.textContent = 'Checklista START Workowania AGRO';
+        title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;';
+
+        var subtitle = document.createElement('p');
+        subtitle.textContent = 'Zlecenie: ' + productName;
+        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;';
+
+        var checklistBox = document.createElement('div');
+        checklistBox.style.cssText = 'background:#f7fafc;border:1px solid #d9e2ec;border-radius:10px;padding:10px 12px;margin-bottom:12px;';
+
+        function buildChecklistRow(labelText) {
+            var label = document.createElement('label');
+            label.style.cssText = 'display:flex;gap:10px;align-items:flex-start;margin:7px 0;color:#243b53;cursor:pointer;';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.style.marginTop = '2px';
+            var txt = document.createElement('span');
+            txt.textContent = labelText;
+            label.appendChild(cb);
+            label.appendChild(txt);
+            return { row: label, checkbox: cb };
+        }
+
+        var foliaCheck = buildChecklistRow('Potwierdzam przygotowanie folii: ' + requiredFolia);
+        var etykietaCheck = buildChecklistRow('Potwierdzam przygotowanie etykiety: ' + requiredEtykieta);
+        checklistBox.appendChild(foliaCheck.row);
+        checklistBox.appendChild(etykietaCheck.row);
+
+        var dateLabel = document.createElement('label');
+        dateLabel.textContent = 'Data produkcji (opcjonalnie):';
+        dateLabel.style.cssText = 'display:block;margin-top:6px;margin-bottom:4px;color:#102a43;font-weight:600;';
+
+        var dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;';
+
+        var qualityTitle = document.createElement('div');
+        qualityTitle.textContent = 'Potwierdzenie jakości (drugi podpis)';
+        qualityTitle.style.cssText = 'font-weight:700;color:#102a43;margin-bottom:6px;';
+
+        var qualityLogin = document.createElement('input');
+        qualityLogin.type = 'text';
+        qualityLogin.placeholder = 'Login użytkownika jakości';
+        qualityLogin.autocomplete = 'username';
+        qualityLogin.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:8px;';
+
+        var qualityPassword = document.createElement('input');
+        qualityPassword.type = 'password';
+        qualityPassword.placeholder = 'Hasło użytkownika jakości';
+        qualityPassword.autocomplete = 'current-password';
+        qualityPassword.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:10px;';
+
+        var errorBox = document.createElement('div');
+        errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:8px;';
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Anuluj';
+        cancelBtn.style.cssText = 'border:1px solid #9fb3c8;background:#fff;color:#334e68;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;';
+
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Potwierdź i uruchom';
+        confirmBtn.style.cssText = 'border:1px solid #0f609b;background:#127fbf;color:#fff;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;';
+
+        cancelBtn.addEventListener('click', function() {
+            overlay.remove();
+        });
+
+        confirmBtn.addEventListener('click', function() {
+            if (!foliaCheck.checkbox.checked || !etykietaCheck.checkbox.checked) {
+                errorBox.textContent = 'Potwierdź oba punkty checklisty operatora.';
+                return;
+            }
+
+            var qualityLoginValue = (qualityLogin.value || '').trim();
+            var qualityPasswordValue = qualityPassword.value || '';
+            if (!qualityLoginValue || !qualityPasswordValue) {
+                errorBox.textContent = 'Podaj login i hasło do potwierdzenia jakości.';
+                return;
+            }
+
+            var dateValue = (dateInput.value || '').trim();
+            if (dateValue && !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+                errorBox.textContent = 'Data produkcji musi mieć format RRRR-MM-DD.';
+                return;
+            }
+
+            setHiddenFormValue(form, 'start_checklist_confirmed', '1');
+            setHiddenFormValue(form, 'quality_login', qualityLoginValue);
+            setHiddenFormValue(form, 'quality_password', qualityPasswordValue);
+            setHiddenFormValue(form, 'data_produkcji', dateValue);
+
+            overlay.remove();
+            form.submit();
+        });
+
+        overlay.addEventListener('click', function(event) {
+            if (event.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+
+        panel.appendChild(title);
+        panel.appendChild(subtitle);
+        panel.appendChild(checklistBox);
+        panel.appendChild(dateLabel);
+        panel.appendChild(dateInput);
+        panel.appendChild(qualityTitle);
+        panel.appendChild(qualityLogin);
+        panel.appendChild(qualityPassword);
+        panel.appendChild(errorBox);
+        panel.appendChild(actions);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        qualityLogin.focus();
+    }
+
+    window.confirmStartOrder = function(form, productName, planId) {
+        var requiresChecklist = form && form.getAttribute('data-start-checklist') === '1';
+        if (requiresChecklist) {
+            openAgroWorkowanieChecklist(form, productName);
+            return false;
+        }
+        return askForProductionDate(form, productName);
     };
 
     /** Initialize a custom, premium, keyboard-navigable and accent-insensitive searchable select dropdown */

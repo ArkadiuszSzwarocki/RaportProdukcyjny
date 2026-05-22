@@ -12,6 +12,7 @@ _reminded_palety = set()
 
 # Global logger for palety-specific events
 palety_logger = None
+_last_unconfirmed_db_error_log_at = 0.0
 
 _INSTANCE_HOSTNAME = socket.gethostname() or 'unknown-host'
 _INSTANCE_PID = os.getpid()
@@ -293,6 +294,35 @@ def _safe_log_exception(msg, *args, **kwargs):
             pass
 
 
+def _iter_exception_chain(error):
+    current = error
+    seen_ids = set()
+    while current is not None and id(current) not in seen_ids:
+        seen_ids.add(id(current))
+        yield current
+        current = getattr(current, '__cause__', None) or getattr(current, '__context__', None)
+
+
+def _is_transient_db_connectivity_error(error):
+    tokens = (
+        'unknown mysql server host',
+        'can\'t connect to mysql server',
+        'cannot connect to mysql server',
+        'lost connection to mysql server',
+        'name or service not known',
+        'temporary failure in name resolution',
+        'connection refused',
+        '(11001)',
+        '(2005',
+        '(2003',
+    )
+    for chained_error in _iter_exception_chain(error):
+        message = str(chained_error or '').lower()
+        if any(token in message for token in tokens):
+            return True
+    return False
+
+
 def _cleanup_old_files(folder, max_age_hours=24, interval_seconds=3600, pattern="*"):
     """Background thread: removes files in `folder` matching `pattern` older than `max_age_hours`.
     
@@ -330,6 +360,17 @@ def _cleanup_old_files(folder, max_age_hours=24, interval_seconds=3600, pattern=
     except Exception:
         _safe_log_exception('Cleanup thread for %s terminating unexpectedly', folder)
 
+def _ensure_midnight_production_database():
+    """At midnight, force runtime DB back to production if test DB is active."""
+    from app.db import get_active_database_name, set_active_database_name
+
+    active_db = get_active_database_name()
+    if active_db == 'biblioteka_testowa':
+        set_active_database_name('biblioteka', verify_connection=True)
+        _safe_log_warning(
+            'Midnight DB guard: switched active database from %s to biblioteka.',
+            active_db,
+        )
 
 def _midnight_order_closer(interval_seconds=60):
     """Background thread: at 00:00, closes all unclosed orders from previous days with stop time 15:00."""
@@ -346,6 +387,8 @@ def _midnight_order_closer(interval_seconds=60):
             # Check if it's midnight and we haven't run today yet
             if now.hour == 0 and now.minute == 0 and last_run_date != now.date():
                 today_str = now.strftime('%Y-%m-%d')
+
+                _ensure_midnight_production_database()
                 _safe_log_info('Starting midnight order cleanup for date %s', today_str)
                 
                 conn = get_db_connection()
@@ -389,16 +432,33 @@ def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
     from app.db import get_db_connection
     from app.dto.paleta import PaletaDTO
     
+    global _last_unconfirmed_db_error_log_at
+
     try:
         while True:
             try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT pw.id, pw.plan_id, p.produkt, pw.data_dodania FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id WHERE pw.waga = 0 AND COALESCE(pw.status,'') <> 'przyjeta' AND TIMESTAMPDIFF(MINUTE, pw.data_dodania, NOW()) >= %s",
-                    (threshold_minutes,)
-                )
-                raw_rows = cursor.fetchall()
+                conn = None
+                cursor = None
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT pw.id, pw.plan_id, p.produkt, pw.data_dodania FROM palety_workowanie pw JOIN plan_produkcji p ON pw.plan_id = p.id WHERE pw.waga = 0 AND COALESCE(pw.status,'') <> 'przyjeta' AND TIMESTAMPDIFF(MINUTE, pw.data_dodania, NOW()) >= %s",
+                        (threshold_minutes,)
+                    )
+                    raw_rows = cursor.fetchall()
+                finally:
+                    try:
+                        if cursor:
+                            cursor.close()
+                    except Exception:
+                        pass
+                    try:
+                        if conn:
+                            conn.close()
+                    except Exception:
+                        pass
+
                 # Format dates in Python — unpack SELECT results in expected order
                 rows = []
                 for r in raw_rows:
@@ -413,11 +473,6 @@ def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
                     except Exception:
                         sdt = str(dt)
                     rows.append((pid, plan_id, produkt, sdt))
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-
                 for r in rows:
                     try:
                         pid = r[0]
@@ -430,8 +485,14 @@ def _monitor_unconfirmed_palety(threshold_minutes=10, interval_seconds=60):
                         _reminded_palety.add(pid)
                     except Exception:
                         _safe_log_exception('Error processing unconfirmed paleta row')
-            except Exception:
-                _safe_log_exception('Error in unconfirmed palety monitor loop')
+            except Exception as error:
+                if _is_transient_db_connectivity_error(error):
+                    now_ts = time.monotonic()
+                    if (now_ts - _last_unconfirmed_db_error_log_at) >= 300:
+                        _safe_log_warning('Unconfirmed palety monitor: DB chwilowo niedostepna (%s). Kolejna proba za %ss.', error, interval_seconds)
+                        _last_unconfirmed_db_error_log_at = now_ts
+                else:
+                    _safe_log_exception('Error in unconfirmed palety monitor loop')
             time.sleep(interval_seconds)
     except Exception:
         _safe_log_exception('Unconfirmed palety monitor terminating unexpectedly')

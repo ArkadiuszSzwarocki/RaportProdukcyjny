@@ -58,8 +58,8 @@ class ProductionService:
             if len(p) > 14 and p[14]:
                 zasyp_id_original_map[p[0]] = p[14]
             
-            # Ensure we have enough space for extra metadata (indices 15, 16, 17...)
-            while len(p) < 17:
+            # Ensure we have enough space for extra metadata (indices 15+)
+            while len(p) < 27:
                 p.append(None)
             
             src = przeniesione_map.get(p[0], '')
@@ -80,6 +80,7 @@ class ProductionService:
 
         # Batch lookups for Workowanie/Zasyp sync
         ProductionService._sync_sections_weights(dzisiaj, sekcja, linia, plan_dnia, cursor)
+        ProductionService._populate_agro_start_requirements(plan_dnia, linia, cursor)
         
         # Final aggregation
         try:
@@ -156,6 +157,77 @@ class ProductionService:
             for p in plan_dnia: p[11] = (p[11] or 0) + int(uszk.get(p[1], 0))
 
     @staticmethod
+    def _populate_agro_start_requirements(plan_dnia, linia, cursor):
+        if linia != 'AGRO' or not plan_dnia:
+            return
+
+        plan_ids = [p[0] for p in plan_dnia if p and p[0] is not None]
+        if not plan_ids:
+            return
+
+        table_plan = get_table_name('plan_produkcji', linia)
+        fmt_ids = ','.join(['%s'] * len(plan_ids))
+        meta_map = {}
+
+        try:
+            cursor.execute(
+                f"""
+                SELECT p.id,
+                       p.opakowanie_id,
+                       p.etykieta_id,
+                       COALESCE(o.nazwa, ''),
+                       COALESCE(e.nazwa, ''),
+                       COALESCE(p.start_checklist_operator_login, ''),
+                       p.start_checklist_operator_at,
+                       COALESCE(p.start_checklist_quality_login, ''),
+                       p.start_checklist_quality_at
+                FROM {table_plan} p
+                LEFT JOIN magazyn_opakowania o ON p.opakowanie_id = o.id
+                LEFT JOIN slownik_etykiety_agro e ON p.etykieta_id = e.id
+                WHERE p.id IN ({fmt_ids})
+                """,
+                plan_ids,
+            )
+            meta_map = {
+                row[0]: (
+                    row[1],
+                    row[2],
+                    row[3] or '',
+                    row[4] or '',
+                    row[5] or '',
+                    row[6],
+                    row[7] or '',
+                    row[8],
+                )
+                for row in cursor.fetchall()
+            }
+        except Exception as exc:
+            _logger.warning("Unable to load AGRO start requirements metadata: %s", exc)
+
+        for p in plan_dnia:
+            while len(p) < 27:
+                p.append(None)
+            (
+                opak_id,
+                etyk_id,
+                opak_name,
+                etyk_name,
+                checklist_operator_login,
+                checklist_operator_at,
+                checklist_quality_login,
+                checklist_quality_at,
+            ) = meta_map.get(p[0], (None, None, '', '', '', None, '', None))
+            p[18] = opak_id
+            p[19] = etyk_id
+            p[20] = opak_name
+            p[21] = etyk_name
+            p[22] = checklist_operator_login
+            p[23] = checklist_operator_at
+            p[24] = checklist_quality_login
+            p[25] = checklist_quality_at
+            p[26] = bool(checklist_operator_login and checklist_operator_at and checklist_quality_login and checklist_quality_at)
+
+    @staticmethod
     def _aggregate_final_results(dzisiaj, sekcja, linia, plan_dnia, cursor) -> Tuple[List, Dict, int, int]:
         palety_mapa = {}
         suma_plan = 0
@@ -191,7 +263,7 @@ class ProductionService:
             if sekcja == 'Zasyp':
                 p.extend([p[7], (p[2] or 0) - p[7], abs((p[2] or 0) - p[7]) > 10])
             
-            while len(p) <= 17: p.append(None)
+            while len(p) <= 26: p.append(None)
             p[17] = int(counts.get(p[0], 0))
             if not is_q: suma_wykonanie += p[7] or 0
 

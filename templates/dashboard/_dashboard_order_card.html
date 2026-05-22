@@ -4,7 +4,7 @@
      data-order-summary="{{ (p[7]|int if p[7] else 0) }} / {{ p[2]|int }} kg"
      data-palety-count="{{ palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0 }}"
      data-sekcja="{{ sekcja }}"
-     style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower == 'zaplanowane' %}display: none !important;{% endif %}">
+    style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower != 'w toku' %}display: none !important;{% endif %}">
     <div class="card-header">
         <strong class="card-title">
             {{ loop.index if loop is defined else '' }}. {{ p[1] }}
@@ -20,7 +20,12 @@
         </strong>
         <div class="header-actions">
             {% set role_lc = rola|string|trim|lower %}
+            {% set checklist_ok = (sekcja == 'Workowanie' and linia == 'AGRO' and p|length > 26 and p[26]) %}
             <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>
+            {% if checklist_ok %}
+            <span class="checklist-ok-badge"
+                  title="Checklista OK | operator: {{ p[22] if p|length > 22 and p[22] else '-' }} | jakość: {{ p[24] if p|length > 24 and p[24] else '-' }}">CHECKLISTA OK</span>
+            {% endif %}
             {% if p[3] == 'zaplanowane' %}
             {% set can_start_role = role_lc not in ['laborant', 'laboratorium'] %}
             {% set product_active = (active_products is defined and active_products and p[1] in active_products) %}
@@ -31,7 +36,11 @@
             {% set work_start_bypass_role = role_lc in ['admin', 'masteradmin', 'planista', 'zarzad', 'lider', 'magazynier'] %}
             {% if (work_start_bypass_role or allowed) %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
-                style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
+                style="display:inline;"
+                data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' else 0 }}"
+                data-required-opakowanie="{{ (p[20] if p|length > 20 and p[20] else '')|e }}"
+                data-required-etykieta="{{ (p[21] if p|length > 21 and p[21] else '')|e }}"
+                onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% else %}
             <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)">🔒</span>
@@ -92,6 +101,12 @@
             {% endif %}
         {% endif %}
         <div class="card-row"><strong>Typ:</strong> {{ typ_prod_display }}</div>
+        {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
+        {% set req_folia = p[20] if p|length > 20 else '' %}
+        {% set req_etykieta = p[21] if p|length > 21 else '' %}
+        <div class="card-row"><strong>Folia:</strong> {{ req_folia or '- brak w planie -' }}</div>
+        <div class="card-row"><strong>Etykieta:</strong> {{ req_etykieta or '- brak w planie -' }}</div>
+        {% endif %}
         {% if p[4] %}<div class="card-row"><strong>🟢 Start:</strong> {{ p[4] }}</div>{% endif %}
         {% if p[5] %}<div class="card-row"><strong>🔴 Stop:</strong> {{ p[5] }}</div>{% endif %}
         {% if p[3] == 'w toku' and p[4] %}

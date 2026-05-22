@@ -167,6 +167,28 @@ function setPrinterStatus(message, isError) {
     statusEl.style.color = isError ? '#b91c1c' : '#166534';
 }
 
+function refreshPrinterServerStatus() {
+    fetch('/api/printer-server/status', {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+        .then(parseJsonResponse)
+        .then(function(result) {
+            const payload = result.data || {};
+            if (!result.ok || payload.success === false) {
+                setPrinterStatus(payload.message || 'Nie mozna sprawdzic statusu serwera druku.', true);
+                return;
+            }
+
+            setPrinterStatus(payload.message || (payload.running ? 'Serwer druku dziala.' : 'Serwer druku jest wylaczony.'), false);
+        })
+        .catch(function(error) {
+            setPrinterStatus('Blad sprawdzania statusu: ' + error.message, true);
+        });
+}
+
 function startPrinterServerFromLogin() {
     const button = document.getElementById('btn-start-printer-server');
     if (!button) {
@@ -199,6 +221,7 @@ function startPrinterServerFromLogin() {
             const payload = result.data || {};
             if (result.ok && payload.success) {
                 setPrinterStatus(payload.message || 'Serwer druku uruchomiony.', false);
+                setTimeout(refreshPrinterServerStatus, 800);
                 return;
             }
             setPrinterStatus(payload.message || 'Nie udalo sie uruchomic serwera druku.', true);
@@ -228,6 +251,8 @@ window.addEventListener('DOMContentLoaded', function() {
     if (startPrinterServerButton) {
         startPrinterServerButton.addEventListener('click', startPrinterServerFromLogin);
     }
+
+    refreshPrinterServerStatus();
 });
 </script>
 </body>

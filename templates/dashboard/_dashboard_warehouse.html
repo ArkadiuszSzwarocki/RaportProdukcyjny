@@ -17,6 +17,607 @@
 {% endif %}
 
 {% if sekcja == 'Magazyn' %}
+{% if linia|upper == 'AGRO' %}
+<style>
+    .agro-wg-box {
+        border: 1px solid #dbe7ff;
+        background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 72%, #ffffff 100%);
+    }
+
+    .agro-wg-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .agro-wg-title {
+        margin: 0;
+        color: #1e3a8a;
+        font-weight: 800;
+        font-size: 17px;
+    }
+
+    .agro-wg-sub {
+        margin: 4px 0 0;
+        color: #64748b;
+        font-size: 12px;
+    }
+
+    .agro-wg-grid {
+        display: grid;
+        grid-template-columns: 1.4fr 0.8fr 1fr;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .agro-wg-grid input,
+    .agro-wg-grid select {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    .agro-wg-grid input:focus,
+    .agro-wg-grid select:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .agro-wg-table-wrap {
+        border: 1px solid #dbe7ff;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .agro-wg-empty {
+        text-align: center;
+        color: #64748b;
+        padding: 12px;
+        font-size: 13px;
+    }
+
+    .agro-wg-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    .agro-wg-btn-icon {
+        width: 30px;
+        height: 30px;
+        border: 1px solid #dbe4f1;
+        background: #fff;
+        border-radius: 7px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    .agro-wg-btn-icon:hover {
+        background: #f8fafc;
+    }
+
+    .agro-wg-step {
+        display: none;
+    }
+
+    .agro-wg-step.active {
+        display: block;
+    }
+</style>
+
+<div class="section-box mb-10 agro-wg-box">
+    <div class="p-15">
+        <div class="agro-wg-head">
+            <div>
+                <h4 class="agro-wg-title">Przyjęcie palety skanerem (AGRO)</h4>
+                <p class="agro-wg-sub">Skan palety -> waga -> lokalizacja docelowa (np. MS01) -> potwierdzenie.</p>
+            </div>
+            <div class="small text-muted">Oczekujące: <strong id="agroWgVisibleCount">0</strong></div>
+        </div>
+
+        <div class="agro-wg-grid">
+            <input type="text" id="agroWgScanDashboardInput" placeholder="Zeskanuj paletę (auto-open; Enter opcjonalnie)" autocomplete="off" spellcheck="false">
+            <select id="agroWgZoneFilter">
+                <option value="">Wszystkie strefy</option>
+            </select>
+            <input type="text" id="agroWgLocationFilter" placeholder="Filtr po sugerowanej lokalizacji (np. MS01)">
+        </div>
+
+        <div class="agro-wg-table-wrap">
+            <table class="modern-table small" id="agroWgPendingTable">
+                <thead>
+                    <tr>
+                        <th>Nr</th>
+                        <th>Produkt</th>
+                        <th>Waga</th>
+                        <th>Sugerowana lokalizacja</th>
+                        <th>Strefa</th>
+                        <th class="text-right">Akcje</th>
+                    </tr>
+                </thead>
+                <tbody id="agroWgPendingBody">
+                    {% if pending_wg and pending_wg|length > 0 %}
+                        {% for p in pending_wg %}
+                        <tr class="agro-wg-row" data-zone="{{ (p.target_zone or '')|upper }}" data-location="{{ (p.suggested_location or '')|upper }}" data-code="{{ (p.nr_palety or p.id)|string|upper }}" data-id="{{ p.id }}">
+                            <td><strong>{{ p.nr_palety or p.id }}</strong></td>
+                            <td>{{ p.nazwa_produktu or 'Brak nazwy' }}</td>
+                            <td>{{ (p.waga or 0)|float }} kg</td>
+                            <td>{{ p.suggested_location or '—' }}</td>
+                            <td>{{ p.target_zone or '—' }}</td>
+                            <td class="text-right">
+                                <div class="agro-wg-actions">
+                                    <button
+                                        type="button"
+                                        class="agro-wg-btn-icon"
+                                        title="Podgląd etykiety"
+                                        onclick='agroWgOpenPreview({ id: {{ p.id|int }}, nr_palety: {{ (p.nr_palety or "")|tojson }}, nazwa_produktu: {{ (p.nazwa_produktu or "")|tojson }}, numer_zlecenia: {{ (p.numer_zlecenia or "")|tojson }}, waga: {{ (p.waga or 0)|float }} })'>
+                                        <span class="material-icons" style="font-size:16px; color:#0ea5e9;">local_offer</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="agro-wg-btn-icon"
+                                        title="Przyjmij paletę"
+                                        onclick='agroWgOpenModal({ id: {{ p.id|int }}, nr_palety: {{ (p.nr_palety or "")|tojson }}, nazwa_produktu: {{ (p.nazwa_produktu or "")|tojson }}, numer_zlecenia: {{ (p.numer_zlecenia or "")|tojson }}, suggested_location: {{ (p.suggested_location or "")|tojson }}, target_zone: {{ (p.target_zone or "")|tojson }}, waga: {{ (p.waga or 0)|float }} })'>
+                                        <span class="material-icons" style="font-size:16px; color:#16a34a;">check_circle</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% elif unconfirmed_palety and unconfirmed_palety|length > 0 %}
+                        {% for p in unconfirmed_palety %}
+                        {% set fallback_nr = (p[6] if p|length > 6 and p[6] else p[0]) %}
+                        <tr class="agro-wg-row" data-zone="" data-location="" data-code="{{ (fallback_nr)|string|upper }}" data-id="{{ p[0] }}">
+                            <td><strong>{{ fallback_nr }}</strong></td>
+                            <td>{{ p[2] or 'Brak nazwy' }}</td>
+                            <td>0 kg</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td class="text-right">
+                                <div class="agro-wg-actions">
+                                    <button
+                                        type="button"
+                                        class="agro-wg-btn-icon"
+                                        title="Podgląd etykiety"
+                                        onclick='agroWgOpenPreview({ id: {{ p[0]|int }}, nr_palety: {{ (fallback_nr)|string|tojson }}, nazwa_produktu: {{ (p[2] or "")|tojson }}, numer_zlecenia: "", waga: 0 })'>
+                                        <span class="material-icons" style="font-size:16px; color:#0ea5e9;">local_offer</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="agro-wg-btn-icon"
+                                        title="Przyjmij paletę"
+                                        onclick='agroWgOpenModal({ id: {{ p[0]|int }}, nr_palety: {{ (fallback_nr)|string|tojson }}, nazwa_produktu: {{ (p[2] or "")|tojson }}, numer_zlecenia: "", suggested_location: "", target_zone: "", waga: 0 })'>
+                                        <span class="material-icons" style="font-size:16px; color:#16a34a;">check_circle</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr id="agroWgNoRowsTr">
+                            <td colspan="6" class="agro-wg-empty">Brak palet WG oczekujących na przyjęcie.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<dialog id="agroWgQuickAcceptModal" class="modal-premium" style="width:420px; max-width:95vw;">
+    <div class="modal-header">
+        <h4 class="modal-title">Przyjęcie palety AGRO</h4>
+        <button class="modal-close" onclick="agroWgCloseModal()">×</button>
+    </div>
+    <div class="modal-body">
+        <input type="hidden" id="agroWgModalId">
+        <div class="mb-15">
+            <div class="text-muted small uppercase tracking-wider mb-4">Paleta</div>
+            <div class="font-bold text-lg" id="agroWgModalNr">—</div>
+            <div class="text-muted small" id="agroWgModalName">—</div>
+        </div>
+
+        <div id="agroWgStepWeight" class="agro-wg-step active">
+            <label class="form-label">Waga netto (kg)</label>
+            <input type="number" id="agroWgModalWeight" class="form-control" min="0.01" step="0.01" placeholder="np. 845.50" inputmode="decimal" autocomplete="off">
+            <div class="small text-muted mt-8">Krok 1/2</div>
+        </div>
+
+        <div id="agroWgStepLocation" class="agro-wg-step">
+            <label class="form-label">Lokalizacja docelowa</label>
+            <input type="text" id="agroWgModalLocation" class="form-control" placeholder="Zeskanuj lokalizację, np. MS01" list="agroWgDashboardLocationSuggestions" autocomplete="off" style="text-transform:uppercase;">
+            <div class="small text-muted mt-8">Krok 2/2</div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-outline" id="agroWgModalBackBtn" style="display:none;" onclick="agroWgBackStep()">Wstecz</button>
+        <button class="btn btn-outline" onclick="agroWgCloseModal()">Anuluj</button>
+        <button class="btn btn-primary" id="agroWgModalNextBtn" onclick="agroWgNextStep()">Dalej</button>
+        <button class="btn btn-primary" id="agroWgModalConfirmBtn" style="display:none;" onclick="agroWgSubmitConfirm()">Potwierdź</button>
+    </div>
+</dialog>
+
+<datalist id="agroWgDashboardLocationSuggestions"></datalist>
+
+<script>
+    (function () {
+        if (window.__agroWgDashboardInitialized) {
+            return;
+        }
+        window.__agroWgDashboardInitialized = true;
+
+        const PENDING = [
+            {% for p in pending_wg %}
+            {
+                id: {{ p.id|int }},
+                nr_palety: {{ (p.nr_palety or '')|tojson }},
+                nazwa_produktu: {{ (p.nazwa_produktu or '')|tojson }},
+                numer_zlecenia: {{ (p.numer_zlecenia or '')|tojson }},
+                suggested_location: {{ (p.suggested_location or '')|tojson }},
+                target_zone: {{ (p.target_zone or '')|tojson }},
+                waga: {{ (p.waga or 0)|float }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+            {% if (not pending_wg or pending_wg|length == 0) and (unconfirmed_palety and unconfirmed_palety|length > 0) %}
+            {% if pending_wg and pending_wg|length > 0 %},{% endif %}
+            {% for p in unconfirmed_palety %}
+            {
+                id: {{ p[0]|int }},
+                nr_palety: {{ (p[6] if p|length > 6 and p[6] else p[0])|string|tojson }},
+                nazwa_produktu: {{ (p[2] or '')|tojson }},
+                numer_zlecenia: '',
+                suggested_location: '',
+                target_zone: '',
+                waga: 0
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+            {% endif %}
+        ];
+
+        const scanInput = document.getElementById('agroWgScanDashboardInput');
+        const zoneFilter = document.getElementById('agroWgZoneFilter');
+        const locationFilter = document.getElementById('agroWgLocationFilter');
+        const rowElements = Array.from(document.querySelectorAll('.agro-wg-row'));
+        const visibleCountEl = document.getElementById('agroWgVisibleCount');
+        const noRowsTr = document.getElementById('agroWgNoRowsTr');
+
+        let selectedPallet = null;
+        let modalStep = 'weight';
+        let locationSuggestTimer = null;
+        let locationSuggestReqId = 0;
+
+        function normalize(value) {
+            return String(value || '').trim().toUpperCase();
+        }
+
+        function notify(message, level) {
+            if (typeof window.showToast === 'function') {
+                window.showToast(String(message), level || 'warning');
+            } else {
+                alert(String(message));
+            }
+        }
+
+        function updateVisibleCount() {
+            const visible = rowElements.filter(function (row) { return row.style.display !== 'none'; }).length;
+            if (visibleCountEl) visibleCountEl.textContent = String(visible);
+            if (noRowsTr) {
+                noRowsTr.style.display = visible === 0 ? '' : 'none';
+            }
+        }
+
+        function applyFilters() {
+            const zone = normalize(zoneFilter ? zoneFilter.value : '');
+            const location = normalize(locationFilter ? locationFilter.value : '');
+            rowElements.forEach(function (row) {
+                const rowZone = normalize(row.dataset.zone || '');
+                const rowLocation = normalize(row.dataset.location || '');
+                const zoneMatch = !zone || rowZone === zone;
+                const locationMatch = !location || rowLocation.indexOf(location) !== -1;
+                row.style.display = zoneMatch && locationMatch ? '' : 'none';
+            });
+            updateVisibleCount();
+        }
+
+        function fillZoneFilter() {
+            if (!zoneFilter) return;
+            const zones = Array.from(new Set(PENDING.map(function (p) { return normalize(p.target_zone); }).filter(Boolean))).sort();
+            zones.forEach(function (zone) {
+                const opt = document.createElement('option');
+                opt.value = zone;
+                opt.textContent = zone;
+                zoneFilter.appendChild(opt);
+            });
+        }
+
+        function findPalletByScan(code) {
+            const normalized = normalize(code);
+            if (!normalized) return null;
+
+            const exact = PENDING.find(function (p) {
+                return normalize(p.nr_palety) === normalized || String(p.id) === normalized;
+            });
+            if (exact) return exact;
+
+            const matches = PENDING.filter(function (p) {
+                return normalize(p.nr_palety).indexOf(normalized) !== -1 || String(p.id).indexOf(normalized) !== -1;
+            });
+            return matches.length === 1 ? matches[0] : null;
+        }
+
+        function openDialog(id) {
+            const dialog = document.getElementById(id);
+            if (!dialog) return;
+            if (typeof dialog.showModal === 'function') {
+                dialog.showModal();
+                return;
+            }
+            dialog.style.display = 'block';
+        }
+
+        function closeDialog(id) {
+            const dialog = document.getElementById(id);
+            if (!dialog) return;
+            if (typeof dialog.close === 'function') {
+                try { dialog.close(); return; } catch (e) {}
+            }
+            dialog.style.display = 'none';
+        }
+
+        function setModalStep(step) {
+            modalStep = step;
+            const stepWeight = document.getElementById('agroWgStepWeight');
+            const stepLocation = document.getElementById('agroWgStepLocation');
+            const backBtn = document.getElementById('agroWgModalBackBtn');
+            const nextBtn = document.getElementById('agroWgModalNextBtn');
+            const confirmBtn = document.getElementById('agroWgModalConfirmBtn');
+            if (!stepWeight || !stepLocation || !backBtn || !nextBtn || !confirmBtn) return;
+
+            if (step === 'location') {
+                stepWeight.classList.remove('active');
+                stepLocation.classList.add('active');
+                backBtn.style.display = '';
+                nextBtn.style.display = 'none';
+                confirmBtn.style.display = '';
+            } else {
+                stepWeight.classList.add('active');
+                stepLocation.classList.remove('active');
+                backBtn.style.display = 'none';
+                nextBtn.style.display = '';
+                confirmBtn.style.display = 'none';
+            }
+        }
+
+        function parseWeight(raw) {
+            const parsed = parseFloat(String(raw || '').replace(',', '.'));
+            return Number.isFinite(parsed) ? parsed : NaN;
+        }
+
+        function renderLocationSuggestions(items) {
+            const list = document.getElementById('agroWgDashboardLocationSuggestions');
+            if (!list) return;
+            list.innerHTML = '';
+            (items || []).forEach(function (loc) {
+                const opt = document.createElement('option');
+                opt.value = normalize(loc);
+                list.appendChild(opt);
+            });
+        }
+
+        function fetchLocationSuggestions(prefix) {
+            const reqId = ++locationSuggestReqId;
+            const url = '/magazyn-dostawy/api/sugerowane-lokalizacje?linia=AGRO&prefix=' + encodeURIComponent(prefix || '');
+            fetch(url)
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (reqId !== locationSuggestReqId) return;
+                    const suggestions = data && Array.isArray(data.suggestions) ? data.suggestions : [];
+                    renderLocationSuggestions(suggestions);
+                })
+                .catch(function () {
+                    if (reqId !== locationSuggestReqId) return;
+                    renderLocationSuggestions([]);
+                });
+        }
+
+        function handleScannedCode(code) {
+            const found = findPalletByScan(code);
+            if (!found) {
+                notify('Nie znaleziono jednoznacznie palety dla skanu: ' + code);
+                return;
+            }
+            window.agroWgOpenModal(found);
+        }
+
+        window.agroWgOpenModal = function (pallet) {
+            selectedPallet = pallet;
+            if (!selectedPallet || !selectedPallet.id) {
+                notify('Brak danych palety do przyjęcia.');
+                return;
+            }
+
+            const idInput = document.getElementById('agroWgModalId');
+            const nrEl = document.getElementById('agroWgModalNr');
+            const nameEl = document.getElementById('agroWgModalName');
+            const weightInput = document.getElementById('agroWgModalWeight');
+            const locationInput = document.getElementById('agroWgModalLocation');
+
+            if (idInput) idInput.value = String(selectedPallet.id);
+            if (nrEl) nrEl.textContent = '#' + (selectedPallet.nr_palety || selectedPallet.id);
+            if (nameEl) nameEl.textContent = selectedPallet.nazwa_produktu || 'Paleta WG';
+            if (weightInput) weightInput.value = selectedPallet.waga && Number(selectedPallet.waga) > 0 ? selectedPallet.waga : '';
+            if (locationInput) locationInput.value = normalize(selectedPallet.suggested_location || '');
+
+            setModalStep('weight');
+            openDialog('agroWgQuickAcceptModal');
+            setTimeout(function () {
+                if (weightInput) weightInput.focus();
+            }, 60);
+        };
+
+        window.agroWgCloseModal = function () {
+            closeDialog('agroWgQuickAcceptModal');
+            setModalStep('weight');
+            selectedPallet = null;
+        };
+
+        window.agroWgNextStep = function () {
+            const weight = parseWeight(document.getElementById('agroWgModalWeight').value);
+            if (!Number.isFinite(weight) || weight <= 0) {
+                notify('Podaj poprawną wagę większą od zera.');
+                return;
+            }
+            setModalStep('location');
+            fetchLocationSuggestions('');
+            setTimeout(function () {
+                const locationInput = document.getElementById('agroWgModalLocation');
+                if (locationInput) locationInput.focus();
+            }, 50);
+        };
+
+        window.agroWgBackStep = function () {
+            setModalStep('weight');
+            const weightInput = document.getElementById('agroWgModalWeight');
+            if (weightInput) weightInput.focus();
+        };
+
+        window.agroWgSubmitConfirm = async function () {
+            if (!selectedPallet || !selectedPallet.id) {
+                notify('Brak wybranej palety.');
+                return;
+            }
+
+            const weight = parseWeight(document.getElementById('agroWgModalWeight').value);
+            const location = normalize(document.getElementById('agroWgModalLocation').value);
+            if (!Number.isFinite(weight) || weight <= 0) {
+                notify('Podaj poprawną wagę większą od zera.');
+                return;
+            }
+            if (!location) {
+                notify('Podaj lub zeskanuj lokalizację docelową.');
+                return;
+            }
+
+            const confirmBtn = document.getElementById('agroWgModalConfirmBtn');
+            const prevText = confirmBtn ? confirmBtn.textContent : '';
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Zapisywanie...';
+            }
+
+            try {
+                const response = await fetch('/magazyn-dostawy/api/przyjmij-wg', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: selectedPallet.id,
+                        linia: 'AGRO',
+                        waga: weight,
+                        lokalizacja: location
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || !result || !result.success) {
+                    notify((result && result.error) || 'Nie udało się zatwierdzić palety.');
+                    return;
+                }
+                notify('Paleta została przyjęta do magazynu.', 'success');
+                window.location.reload();
+            } catch (err) {
+                notify('Błąd połączenia podczas zapisu.');
+            } finally {
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = prevText || 'Potwierdź';
+                }
+            }
+        };
+
+        window.agroWgOpenPreview = function (pallet) {
+            if (!pallet || !pallet.id) {
+                notify('Brak danych etykiety.');
+                return;
+            }
+            const previewUrl = '/magazyn-dostawy/podglad-etykiety-system/' + encodeURIComponent(String(pallet.id)) + '?linia=AGRO';
+            window.open(previewUrl, '_blank', 'noopener');
+        };
+
+        if (scanInput) {
+            scanInput.addEventListener('input', function () {
+                const current = String(this.value || '');
+                if (current.indexOf('\n') !== -1 || current.indexOf('\r') !== -1) {
+                    const cleaned = normalize(current.replace(/[\r\n]+/g, ''));
+                    this.value = '';
+                    if (cleaned) {
+                        handleScannedCode(cleaned);
+                    }
+                    return;
+                }
+                this.value = normalize(current);
+            });
+
+            scanInput.addEventListener('keydown', function (event) {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                const code = normalize(this.value);
+                if (!code) return;
+                this.value = '';
+                handleScannedCode(code);
+            });
+        }
+
+        if (zoneFilter) {
+            zoneFilter.addEventListener('change', applyFilters);
+        }
+        if (locationFilter) {
+            locationFilter.addEventListener('input', function () {
+                this.value = normalize(this.value);
+                applyFilters();
+            });
+        }
+
+        const modalWeightInput = document.getElementById('agroWgModalWeight');
+        if (modalWeightInput) {
+            modalWeightInput.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    window.agroWgNextStep();
+                }
+            });
+        }
+
+        const modalLocationInput = document.getElementById('agroWgModalLocation');
+        if (modalLocationInput) {
+            modalLocationInput.addEventListener('input', function () {
+                this.value = normalize(this.value);
+                clearTimeout(locationSuggestTimer);
+                const prefix = this.value;
+                locationSuggestTimer = setTimeout(function () {
+                    fetchLocationSuggestions(prefix);
+                }, 160);
+            });
+            modalLocationInput.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    window.agroWgSubmitConfirm();
+                }
+            });
+        }
+
+        fillZoneFilter();
+        applyFilters();
+    })();
+</script>
+{% endif %}
+
 <!-- UNCONFIRMED PALLETS -->
 <div class="section-box mb-10">
     <h4 class="m-0">📦 Palety do Zatwierdzenia</h4>
@@ -41,6 +642,15 @@
                     <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{%
                             else %}-{% endif %}</span></td>
                     <td>
+                        <a
+                            href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=p[0], linia=linia) }}"
+                            target="_blank"
+                            class="btn-icon"
+                            style="color:#0ea5e9; margin-right:8px;"
+                            title="Podgląd etykiety"
+                        >
+                            <span class="material-icons" style="font-size:18px;">local_offer</span>
+                        </a>
                         <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=p[0], linia=linia) }}"
                             class="btn-action btn-success btn-small" data-slide>{{ _('zatwierdz') }}</a>
                     </td>

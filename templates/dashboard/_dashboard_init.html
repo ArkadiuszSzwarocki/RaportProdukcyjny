@@ -9,8 +9,8 @@
     {% endfor %}
 {% endif %}
 
-{# Focus Mode setup for AGRO #}
-{% set agro_focus_mode = (sekcja in ['Zasyp', 'Workowanie'] and linia == 'AGRO' and ns.is_active) %}
+{# Focus Mode setup for production sections (AGRO + PSD) #}
+{% set agro_focus_mode = (sekcja in ['Zasyp', 'Workowanie'] and ns.is_active) %}
 {% set active_work_agro = namespace(id=ns.active_plan_id) %}
 
 {# Defensive: prefer server-provided hr_pracownicy #}

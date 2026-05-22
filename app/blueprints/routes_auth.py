@@ -189,7 +189,16 @@ def login():
         return render_template('login.html')
 
 
-@auth_bp.route('/api/printer-server/start', methods=['POST'])
+@auth_bp.route('/api/printer-server/status', methods=['GET'], strict_slashes=False)
+def printer_server_status_public():
+    """Public status endpoint used by login screen widgets."""
+    running = _is_printer_server_running()
+    if running:
+        return jsonify({'success': True, 'running': True, 'message': 'Serwer druku działa.'})
+    return jsonify({'success': True, 'running': False, 'message': 'Serwer druku jest wyłączony.'})
+
+
+@auth_bp.route('/api/printer-server/start', methods=['POST'], strict_slashes=False)
 def start_printer_server_public():
     """Allow starting print server from login screen using PIN."""
     payload = request.get_json(silent=True) or request.form or {}

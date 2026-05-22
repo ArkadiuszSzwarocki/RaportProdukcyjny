@@ -9,6 +9,27 @@ class MagazynDostawyService:
     OPEN_LOCATIONS_PREFIXES = ['MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'MDM01', 'PSD01']
 
     @staticmethod
+    def _derive_target_zone(location):
+        normalized = MagazynDostawyService._normalize_location_code(location)
+        if not normalized:
+            return ''
+
+        for prefix in sorted(MagazynDostawyService.OPEN_LOCATIONS_PREFIXES, key=len, reverse=True):
+            if normalized.startswith(prefix):
+                return prefix
+
+        if '_' in normalized:
+            return normalized.split('_', 1)[0]
+        if '-' in normalized:
+            return normalized.split('-', 1)[0]
+
+        match = re.match(r'^([A-Z]+\d{2})', normalized)
+        if match:
+            return match.group(1)
+
+        return normalized[:4]
+
+    @staticmethod
     def get_dostawy(linia='PSD'):
         conn = get_db_connection()
         try:
@@ -68,24 +89,57 @@ class MagazynDostawyService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            table_prod = 'palety_workowanie' if linia == 'PSD' else 'palety_agro'
-            table_plan = 'plan_produkcji' if linia == 'PSD' else 'plan_produkcji_agro'
+            normalized_line = str(linia or 'PSD').upper()
+            is_psd = normalized_line == 'PSD'
+            table_prod = 'palety_workowanie' if is_psd else 'palety_agro'
+            table_plan = 'plan_produkcji' if is_psd else 'plan_produkcji_agro'
+            table_wh = 'magazyn_palety' if is_psd else 'magazyn_palety_agro'
+            plan_product_col = 'plan.produkt'
             
             # Check if table exists (safety)
             cursor.execute("SHOW TABLES LIKE %s", (table_prod,))
             if not cursor.fetchone():
                 return []
 
+            cursor.execute("SHOW TABLES LIKE %s", (table_wh,))
+            has_wh_table = bool(cursor.fetchone())
+
+            suggested_location_sql = "''"
+            if has_wh_table:
+                suggested_location_sql = (
+                    f"COALESCE((SELECT w.lokalizacja FROM {table_wh} w "
+                    f"WHERE w.produkt = {plan_product_col} "
+                    "AND w.lokalizacja IS NOT NULL AND w.lokalizacja <> '' "
+                    "ORDER BY COALESCE(w.data_potwierdzenia, w.created_at, w.id) DESC LIMIT 1), '')"
+                )
+
             query = f"""
                 SELECT p.*, plan.produkt as nazwa_produktu, 
-                       plan.nazwa_zlecenia as numer_zlecenia
+                       plan.nazwa_zlecenia as numer_zlecenia,
+                       {suggested_location_sql} AS suggested_location
                 FROM {table_prod} p
                 LEFT JOIN {table_plan} plan ON p.plan_id = plan.id
                 WHERE p.status = 'do_przyjecia'
                 ORDER BY p.data_dodania DESC
             """
+            if is_psd:
+                query = f"""
+                    SELECT p.*, plan.produkt as nazwa_produktu,
+                           plan.nazwa_zlecenia as numer_zlecenia,
+                           {suggested_location_sql} AS suggested_location
+                    FROM {table_prod} p
+                    LEFT JOIN {table_plan} plan ON p.plan_id = plan.id
+                    WHERE p.status = 'do_przyjecia'
+                    ORDER BY p.data_dodania DESC
+                """
+
             cursor.execute(query)
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+            for row in rows:
+                suggested_location = MagazynDostawyService._normalize_location_code(row.get('suggested_location'))
+                row['suggested_location'] = suggested_location
+                row['target_zone'] = MagazynDostawyService._derive_target_zone(suggested_location)
+            return rows
         except Exception as e:
             print(f"Error fetching pending production pallets: {e}")
             return []
@@ -1006,7 +1060,7 @@ class MagazynDostawyService:
             conn.close()
 
     @staticmethod
-    def accept_production_pallet(pallet_id, lokalizacja, linia='PSD', login='system'):
+    def accept_production_pallet(pallet_id, lokalizacja, linia='PSD', login='system', confirmed_weight=None):
         """Moves a production pallet (WG) from 'do_przyjecia' to warehouse inventory."""
         conn = get_db_connection()
         try:
@@ -1034,8 +1088,19 @@ class MagazynDostawyService:
             if not pallet:
                 return False, "Nie znaleziono palety lub jest już przyjęta."
 
+            try:
+                confirmed_netto = float(confirmed_weight) if confirmed_weight is not None else float(pallet.get('waga') or 0)
+            except (TypeError, ValueError):
+                confirmed_netto = float(pallet.get('waga') or 0)
+
+            if confirmed_netto <= 0:
+                return False, "Brak poprawnej wagi netto palety do przyjęcia."
+
             # 2. Update production table status
-            cursor.execute(f"UPDATE {table_prod} SET status = 'w_magazynie', data_potwierdzenia = %s WHERE id = %s", (datetime.now(), pallet_id))
+            cursor.execute(
+                f"UPDATE {table_prod} SET status = 'w_magazynie', data_potwierdzenia = %s, waga_potwierdzona = %s WHERE id = %s",
+                (datetime.now(), confirmed_netto, pallet_id),
+            )
             
             # 3. Insert into warehouse table
             # Check if record already exists (some logic might have inserted it earlier)
@@ -1044,15 +1109,17 @@ class MagazynDostawyService:
             existing = cursor.fetchone()
             
             if existing:
-                cursor.execute(f"UPDATE {table_wh} SET lokalizacja = %s, data_potwierdzenia = %s, user_login = %s WHERE id = %s", 
-                               (lokalizacja, datetime.now(), login, existing['id']))
+                cursor.execute(
+                    f"UPDATE {table_wh} SET lokalizacja = %s, data_potwierdzenia = %s, user_login = %s, waga_netto = %s WHERE id = %s",
+                    (lokalizacja, datetime.now(), login, confirmed_netto, existing['id']),
+                )
             else:
                 cursor.execute(f"""
                     INSERT INTO {table_wh} 
                     ({fk_col}, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, lokalizacja, user_login, nr_palety)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (pallet_id, pallet['plan_id'], pallet['data_planu'], pallet['produkt_nazwa'], 
-                      pallet['waga'], pallet['waga_brutto'], pallet['tara'], lokalizacja, login, pallet['nr_palety']))
+                      confirmed_netto, pallet['waga_brutto'], pallet['tara'], lokalizacja, login, pallet['nr_palety']))
 
             # 4. Log history
             cursor.execute("""

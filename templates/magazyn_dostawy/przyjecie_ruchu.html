@@ -644,6 +644,7 @@
                     <div style="display: flex; flex-direction: column;">
                         <label style="font-size: 0.68rem; font-weight: 800; color: #15803d; text-transform: uppercase; margin-bottom: 3px;">Drukarka do dodruku</label>
                         <select id="reprint_printer_{{ idx }}" class="premium-select" style="margin: 0; height: 34px; font-size: 0.8rem; border-color: #a7f3d0; width: 180px;">
+                            <option value="__PDF_PREVIEW__">Podglad / PDF (test)</option>
                             {% for pr in printers %}
                             <option value="{{ pr.id }}">{{ pr.nazwa }}</option>
                             {% endfor %}
@@ -696,7 +697,7 @@
                     <input id="loc_{{ idx }}" type="text" placeholder="np. R040101" value="{{ item.lokalizacja_przyjecia or '' }}" list="locationSuggestionsList" oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" autocomplete="off">
                 </div>
                 <div class="row-actions-inline">
-                    <button id="btn_{{ idx }}" class="btn-confirm" onclick='acceptItemClick({{ item.get('id')|tojson }}, {{ idx }}, {{ item.productName|tojson }})'>
+                    <button id="btn_{{ idx }}" class="btn-confirm" onclick='acceptItemClick({{ item.get('id')|tojson }}, {{ idx }}, {{ item.productName|tojson }}, {{ qty|float }}, {{ 'packaging' if item.packageForm == 'packaging' else 'surowiec'|tojson }})'>
                         <span class="material-icons" style="font-size: 18px;">check_circle</span>
                         Potwierdź przyjęcie
                     </button>
@@ -727,6 +728,7 @@
                     <label for="modalPrinterSelect" style="color: #1e3a8a; font-weight: 800;">Gdzie wydrukować etykiety?</label>
                     <select id="modalPrinterSelect" class="premium-select">
                         <option value="">-- NIE DRUKUJ --</option>
+                        <option value="__PDF_PREVIEW__">-- PODGLAD / PDF (TEST) --</option>
                         {% for pr in printers %}
                         <option value="{{ pr.id }}" {% if loop.first %}selected{% endif %}>{{ pr.nazwa }} ({{ pr.lokalizacja }})</option>
                         {% endfor %}
@@ -735,7 +737,7 @@
                 
                 <p style="font-size: 0.8rem; color: #64748b; margin-top: 12px; display: flex; align-items: center; gap: 4px;">
                     <span class="material-icons" style="font-size: 16px; color: #3b82f6;">info</span>
-                    Zostaną wydrukowane <strong>2 identyczne etykiety</strong>.
+                    Drukarka: 2 etykiety. Podglad/PDF: otwarcie etykiety w nowej karcie.
                 </p>
             </div>
             <div class="premium-modal-footer">
@@ -752,9 +754,33 @@
 <script>
 const isExternalDelivery = {{ 'true' if is_external else 'false' }};
 const postListUrl = {{ (url_for('magazyn_dostawy.reception_view', linia=linia) if is_external else url_for('magazyn_dostawy.lista_dostaw', linia=linia))|tojson }};
+const labelPreviewBaseUrl = {{ url_for('magazyn_dostawy.podglad_etykiety')|tojson }};
+const reprintEndpointUrl = {{ url_for('magazyn_dostawy.dodruk_etykiet')|tojson }};
+const pdfPreviewPrinterId = '__PDF_PREVIEW__';
 let locationSuggestTimer = null;
 let locationSuggestAbortController = null;
 let locationSuggestLastPrefix = '';
+
+function openLabelPreview(payload) {
+    const url = buildLabelPreviewUrl(payload);
+    window.open(url, '_blank', 'noopener');
+}
+
+function buildLabelPreviewUrl(payload) {
+    const params = new URLSearchParams({
+        nr_palety: String((payload && payload.nr_palety) || '').trim() || '---',
+        product_name: String((payload && payload.product_name) || '').trim() || 'Brak nazwy',
+        nr_partii: String((payload && payload.nr_partii) || '').trim() || '---',
+        data_produkcji: String((payload && payload.data_produkcji) || '').trim() || '---',
+        data_przydatnosci: String((payload && payload.data_przydatnosci) || '').trim() || '---',
+        qty: String(Number((payload && payload.qty) || 0) || 0),
+        p_type: String((payload && payload.p_type) || 'surowiec').trim() || 'surowiec',
+        linia: '{{ linia }}',
+        autoprint: '1'
+    });
+
+    return `${labelPreviewBaseUrl}?${params.toString()}`;
+}
 
 function normalizeLocationCode(value) {
     return String(value || '').trim().toUpperCase();
@@ -936,7 +962,7 @@ async function cancelTransferOrder(dostawaId, orderRef) {
 
 let pendingAcceptItem = null;
 
-function acceptItemClick(itemId, idx, productName) {
+function acceptItemClick(itemId, idx, productName, qty, pType) {
     const locEl = document.getElementById(`loc_${idx}`);
     const sourceEl = document.getElementById(`src_${idx}`);
     const batchEl = document.getElementById(`batch_${idx}`);
@@ -966,6 +992,8 @@ function acceptItemClick(itemId, idx, productName) {
         idx: idx,
         location: location,
         productName: productName,
+        qty: Number(qty || 0),
+        pType: String(pType || 'surowiec'),
         nrPartii: nrPartii,
         dataProdukcji: dataProdukcji,
         dataPrzydatnosci: dataPrzydatnosci
@@ -983,9 +1011,11 @@ function closePrinterModal() {
 async function confirmAcceptWithPrinter() {
     if (!pendingAcceptItem) return;
 
-    const { itemId, idx, location, nrPartii, dataProdukcji, dataPrzydatnosci } = pendingAcceptItem;
+    const { itemId, idx, location, productName, qty, pType, nrPartii, dataProdukcji, dataPrzydatnosci } = pendingAcceptItem;
     const printerSelect = document.getElementById('modalPrinterSelect');
     const printerId = printerSelect ? printerSelect.value : '';
+    const wantsPdfPreview = printerId === pdfPreviewPrinterId;
+    const previewWindow = wantsPdfPreview ? window.open('about:blank', '_blank', 'noopener') : null;
 
     closePrinterModal();
 
@@ -1006,7 +1036,7 @@ async function confirmAcceptWithPrinter() {
                 nr_partii: nrPartii,
                 data_produkcji: dataProdukcji,
                 data_przydatnosci: dataPrzydatnosci,
-                printer_id: printerId || null
+                printer_id: (!printerId || wantsPdfPreview) ? null : printerId
             })
         });
         const data = await res.json();
@@ -1021,6 +1051,26 @@ async function confirmAcceptWithPrinter() {
 
         safeToast('Pozycja przyjęta.', 'success');
         updateProgressIndicators(data);
+
+        if (wantsPdfPreview) {
+            const previewPayload = {
+                nr_palety: data.nr_palety,
+                product_name: productName,
+                nr_partii: nrPartii || '---',
+                data_produkcji: dataProdukcji || '---',
+                data_przydatnosci: dataPrzydatnosci || '---',
+                qty: qty,
+                p_type: pType,
+            };
+            const previewUrl = buildLabelPreviewUrl(previewPayload);
+
+            if (previewWindow && !previewWindow.closed) {
+                previewWindow.location.href = previewUrl;
+            } else {
+                openLabelPreview(previewPayload);
+            }
+            safeToast('Otwarto podglad etykiety. Wybierz drukarke PDF w oknie wydruku.', 'info');
+        }
 
         if (data.all_accepted) {
             safeToast(`Wszystkie pozycje rozliczone. ${isExternalDelivery ? 'Dostawa zakończona.' : 'Ruch zakończony.'}`, 'success');
@@ -1050,13 +1100,27 @@ async function reprintLabel(idx, nrPalety, productName, batch, dateProd, dateExp
         return;
     }
 
+    if (printerId === pdfPreviewPrinterId) {
+        openLabelPreview({
+            nr_palety: nrPalety,
+            product_name: productName,
+            nr_partii: batch || '---',
+            data_produkcji: dateProd || '---',
+            data_przydatnosci: dateExp || '---',
+            qty: qty,
+            p_type: pType || 'surowiec',
+        });
+        safeToast('Otwarto podglad etykiety. Wybierz drukarke PDF w oknie wydruku.', 'info');
+        return;
+    }
+
     const btn = event.currentTarget;
     const oldHtml = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span class="material-icons" style="font-size: 16px;">hourglass_empty</span> Drukowanie...';
 
     try {
-        const resp = await fetch('/api/dodruk-etykiet', {
+        const resp = await fetch(reprintEndpointUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

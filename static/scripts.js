@@ -669,6 +669,16 @@
     // AJAX form interception on production dashboards to prevent full-page reload
     document.addEventListener('submit', function (e) {
         const form = e.target;
+
+        // Start zlecenia uses dedicated confirmation/checklist flow and flash messages.
+        // Skip generic AJAX interception to avoid swallowing backend validation feedback.
+        let actionPath = '';
+        try {
+            actionPath = new URL(form.action || '', window.location.origin).pathname.toLowerCase();
+        } catch (err) {
+            actionPath = String(form.getAttribute('action') || '').toLowerCase();
+        }
+        if (actionPath.includes('/start_zlecenie/')) return;
         
         // Only intercept forms inside #mainContent
         if (!form.closest('#mainContent')) return;
