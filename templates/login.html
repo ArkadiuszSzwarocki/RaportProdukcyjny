@@ -69,6 +69,92 @@
             font-size: 12px;
             color: #475569;
         }
+
+        /* Premium Loading Overlay inside login-card */
+        .login-card {
+            position: relative;
+            overflow: hidden; /* Bounded within the card */
+        }
+
+        .login-loader-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.94);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .login-loader-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Pulsing circle / glowing ring animation */
+        .premium-spinner {
+            width: 70px;
+            height: 70px;
+            border: 4px solid rgba(22, 163, 74, 0.1);
+            border-top: 4px solid #16a34a;
+            border-radius: 50%;
+            animation: spin-premium 1s cubic-bezier(0.55, 0.085, 0.68, 0.53) infinite;
+            box-shadow: 0 0 15px rgba(22, 163, 74, 0.15);
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .premium-loader-logo {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            margin-top: -95px; /* Center inside spinner space */
+            animation: pulse-premium 1.5s ease-in-out infinite;
+        }
+
+        .loader-text {
+            font-size: 17px;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: 0.3px;
+            animation: pulse-text 1.5s ease-in-out infinite;
+            text-align: center;
+            font-family: 'Roboto', sans-serif;
+            margin-top: 10px;
+        }
+
+        .loader-subtext {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 6px;
+            font-weight: 400;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        @keyframes spin-premium {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse-premium {
+            0%, 100% { transform: scale(0.95); opacity: 0.85; }
+            50% { transform: scale(1.1); opacity: 1; }
+        }
+
+        @keyframes pulse-text {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
     </style>
 </head>
 <body class="login-page">
@@ -85,6 +171,14 @@
 
 <div class="login-page-body">
 <div class="login-card">
+    <!-- Premium Loader Overlay -->
+    <div id="login-loader" class="login-loader-overlay">
+        <div class="premium-spinner"></div>
+        <img src="{{ url_for('static', filename='favicon.ico') }}" alt="Loader Logo" class="premium-loader-logo">
+        <div id="loader-message" class="loader-text">Trwa logowanie...</div>
+        <div class="loader-subtext">AgroNetzwerk System</div>
+    </div>
+
     <!-- Use local static logo to avoid external requests and improve availability -->
     <img src="{{ url_for('static', filename='agro_logo.png') }}" alt="AgroNetzwerk" class="login-logo">
 
@@ -234,7 +328,7 @@ function startPrinterServerFromLogin() {
         });
 }
 
-// Ustawiamy selektor na domyślny się wybrany język z cookie
+// Ustawiamy selektor na domyślny się wybrany język z cookie oraz dodajemy animację logowania
 window.addEventListener('DOMContentLoaded', function() {
     const langSelector = document.getElementById('language-selector');
     const startPrinterServerButton = document.getElementById('btn-start-printer-server');
@@ -250,6 +344,34 @@ window.addEventListener('DOMContentLoaded', function() {
 
     if (startPrinterServerButton) {
         startPrinterServerButton.addEventListener('click', startPrinterServerFromLogin);
+    }
+
+    // Obsługa efektownej animacji logowania po kliknięciu "Wejdź"
+    const loginForm = document.querySelector('form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const loader = document.getElementById('login-loader');
+            const messageEl = document.getElementById('loader-message');
+            const currentLang = langSelector ? langSelector.value : 'pl';
+            
+            let messageText = 'Trwa logowanie...';
+            if (currentLang === 'uk') messageText = 'Вхід в систему...';
+            if (currentLang === 'en') messageText = 'Logging in...';
+            
+            if (messageEl) messageEl.textContent = messageText;
+            if (loader) loader.classList.add('active');
+            
+            // Zablokuj przyciski przed podwójnym kliknięciem
+            const submitBtn = loginForm.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+            if (startPrinterServerButton) startPrinterServerButton.disabled = true;
+            
+            // Prześlij formularz po krótkim opóźnieniu (dla pełnego efektu animacji)
+            setTimeout(function() {
+                loginForm.submit();
+            }, 750);
+        });
     }
 
     refreshPrinterServerStatus();

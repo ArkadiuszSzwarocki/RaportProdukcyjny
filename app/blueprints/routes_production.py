@@ -80,21 +80,17 @@ def _parse_float(value: object) -> Optional[float]:
 def _get_allowed_dosypka_materials(cursor, linia: str) -> list[str]:
     """Load allowed raw material names for dosypka from available warehouse tables."""
     linia_upper = str(linia or '').upper()
-    # Dosypki on PSD should use the same material dictionary as AGRO.
-    if linia_upper in {'AGRO', 'PSD'}:
+    
+    # We only want raw materials and additives (no packaging), and no duplicates/locations.
+    if linia_upper == 'AGRO':
         candidate_tables = [
-            'magazyn_agro_slownik_surowce',
-            'magazyn_agro_surowce',
-            'magazyn_agro_ruch',
-            'mom_pozycje',
+            'magazyn_agro_slownik_surowce'
         ]
     else:
         candidate_tables = [
-            'magazyn_slownik_surowce',
-            'magazyn_surowce',
-            'magazyn_ruch',
-            'mom_pozycje',
+            'magazyn_agro_slownik_surowce'
         ]
+        
     candidate_columns = ['nazwa', 'surowiec_nazwa', 'nazwa_surowca', 'surowiec']
 
     values_map = {}
@@ -120,6 +116,7 @@ def _get_allowed_dosypka_materials(cursor, linia: str) -> list[str]:
             continue
 
         try:
+            # For 'magazyn_surowce' and 'magazyn_dodatki' we can just select DISTINCT nazwa
             cursor.execute(
                 f"SELECT DISTINCT {picked_col} FROM {table_name} WHERE {picked_col} IS NOT NULL AND TRIM({picked_col}) <> '' ORDER BY {picked_col} ASC"
             )
@@ -127,6 +124,7 @@ def _get_allowed_dosypka_materials(cursor, linia: str) -> list[str]:
                 raw_val = row[0] if isinstance(row, (list, tuple)) else None
                 name = str(raw_val or '').strip()
                 if name:
+                    # Deduplicate by lowercase name
                     values_map.setdefault(name.lower(), name)
         except Exception:
             current_app.logger.debug('dosypka source read failed: %s.%s', table_name, picked_col, exc_info=True)

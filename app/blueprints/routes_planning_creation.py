@@ -269,6 +269,12 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                         created_by_user_id=session.get('user_id'),
                         linia=linia,
                     )
+                    
+                    try:
+                        from app.blueprints.routes_production import _mark_dosypki_updated
+                        _mark_dosypki_updated(linia)
+                    except Exception as e:
+                        current_app.logger.warning(f"Failed to mark dosypki updated on zasyp creation: {e}")
 
                     cursor.execute(
                         f"SELECT id, tonaz, zasyp_id FROM {table_plan} WHERE zasyp_id=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",

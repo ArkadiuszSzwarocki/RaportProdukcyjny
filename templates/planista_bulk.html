@@ -108,6 +108,10 @@
     border: 1px solid #f0f0f0;
   }
 
+  .bulk-form-card * {
+    box-sizing: border-box;
+  }
+
   @media (max-width: 768px) {
     .bulk-form-card {
       padding: 15px;
@@ -125,14 +129,47 @@
   .form-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 15px;
+    gap: 20px;
     margin-bottom: 20px;
   }
 
   .form-grid-row {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  /* Dedicated form rows for organized layout */
+  .form-row {
+    display: grid;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  .form-row-1 {
+    grid-template-columns: 3fr 1fr;
+  }
+
+  .form-row-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .form-row-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .form-buttons-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
     gap: 15px;
+    margin-top: 20px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 15px;
+  }
+
+  .form-buttons-row button {
+    margin: 0;
   }
 
   @media (max-width: 1024px) {
@@ -144,19 +181,34 @@
   @media (max-width: 768px) {
     .form-grid {
       grid-template-columns: 1fr;
-      gap: 12px;
+      gap: 15px;
     }
 
     .form-grid-row {
       grid-template-columns: 1fr;
-      gap: 12px;
+      gap: 15px;
+    }
+
+    .form-row-1, .form-row-2, .form-row-3 {
+      grid-template-columns: 1fr;
+      gap: 15px;
+    }
+
+    .form-buttons-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+
+    .form-buttons-row button {
+      width: 100%;
     }
   }
 
   .form-field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
 
   .form-field label {
@@ -168,17 +220,35 @@
   }
 
   .form-field input,
-  .form-field select {
-    padding: 11px 14px;
+  .form-field select,
+  .searchable-select-input {
+    width: 100%;
+    height: 42px;
+    padding: 10px 14px;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
-    transition: all 0.2s;
+    font-family: inherit;
     background: white;
+    color: #333;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+  }
+
+  .form-field select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg fill='%23555555' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/><path d='M0 0h24v24H0z' fill='none'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 18px;
+    padding-right: 36px;
   }
 
   .form-field input:focus,
-  .form-field select:focus {
+  .form-field select:focus,
+  .searchable-select-input:focus {
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -625,9 +695,10 @@
     z-index: 1000;
     background: white;
     border-radius: 12px;
-    padding: 20px;
-    width: 500px;
-    max-height: 80vh;
+    padding: 25px;
+    width: 850px;
+    max-width: 95%;
+    max-height: 85vh;
     overflow-y: auto;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   }
@@ -636,16 +707,9 @@
     display: block;
   }
 
-  .manage-modal h3 {
-    margin: 0 0 15px 0;
-    font-size: 18px;
-    color: #333;
-  }
-
   @media (max-width: 768px) {
     .manage-modal {
-      width: 90%;
-      max-width: 450px;
+      width: 95%;
       padding: 15px;
     }
   }
@@ -705,11 +769,205 @@
     box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
   }
 
+  /* Planning Info Banner & Modal styling */
+  .planning-info-banner {
+    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    border-left: 5px solid #0284c7;
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    animation: slideDown 0.4s ease-out;
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .planning-info-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .planning-info-banner-icon {
+    font-size: 24px;
+    animation: float 2s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-4px); }
+    100% { transform: translateY(0px); }
+  }
+
+  .planning-info-banner-text {
+    color: #0369a1;
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  .btn-planning-info-open {
+    background: #0284c7;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(2, 132, 199, 0.2);
+    white-space: nowrap;
+  }
+
+  .btn-planning-info-open:hover {
+    background: #0369a1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(2, 132, 199, 0.3);
+  }
+
+  /* Modal for planning changes details */
+  .info-details-modal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    width: 650px;
+    max-width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0,0,0,0.05);
+  }
+
+  .info-details-modal.active {
+    display: block;
+    animation: modalScaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes modalScaleIn {
+    from { opacity: 0; transform: translate(-50%, -45%) scale(0.95); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+
+  .info-details-modal h3 {
+    margin: 0 0 20px 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 15px;
+  }
+
+  .info-details-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 25px;
+  }
+
+  .info-detail-card {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    gap: 14px;
+    transition: all 0.2s ease;
+  }
+
+  .info-detail-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+  }
+
+  .info-detail-icon {
+    font-size: 20px;
+    background: white;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    flex-shrink: 0;
+  }
+
+  .info-detail-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .info-detail-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: #1e293b;
+  }
+
+  .info-detail-desc {
+    font-size: 13.5px;
+    color: #475569;
+    line-height: 1.5;
+  }
+
+  .info-details-footer {
+    display: flex;
+    justify-content: flex-end;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 20px;
+  }
+
+  .btn-info-dismiss {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+  }
+
+  .btn-info-dismiss:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
+  }
+
 </style>
 
 
 <div class="bulk-page-container">
-  <h2 class="bulk-page-title">📥 {{ _('dodawanie_zlecen') }}</h2>
+  <h2 class="bulk-page-title" id="bulkPageTitle">📥 Dodawanie wielu zleceń dla produkcji {% if domyslna_sekcja == 'Agro' %}AGRO{% else %}PSD{% endif %}</h2>
+
+  <!-- Banner Informacyjny o Ulepszeniach -->
+  <div id="planningInfoBanner" class="planning-info-banner" style="display: none;">
+    <div class="planning-info-banner-content">
+      <div class="planning-info-banner-icon">🚀</div>
+      <div class="planning-info-banner-text">
+        <strong>Aktualizacja systemu planowania!</strong> Zobacz najnowsze ulepszenia i ułatwienia w module planisty.
+      </div>
+    </div>
+    <button type="button" id="btnOpenPlanningInfo" class="btn-planning-info-open">🔍 Zobacz zmiany</button>
+  </div>
 
   <!-- Header Card -->
   <div class="bulk-header-card">
@@ -737,29 +995,29 @@
   <div class="bulk-form-card">
     <h3>➕ Dodaj nowy plan produkcji</h3>
     <form id="bulkForm" method="post" action="#">
-      <div class="form-grid">
+      
+      <!-- LINIA 1: PRODUKT I WAGA -->
+      <div class="form-row form-row-1">
         <div class="form-field produkty-container">
-          <label>Produkt</label>
+          <label>Produkt <span style="color: #ef4444; font-weight: bold;">*</span></label>
           <input type="text" id="selectProdukt" placeholder="Wpisz lub wybierz produkt..." style="width: 100%;">
           <div id="produktyDropdown" class="produkty-dropdown" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; max-height: 200px; overflow-y: auto; z-index: 100;">
           </div>
         </div>
+        <div class="form-field">
+          <label>Waga (kg) <span style="color: #ef4444; font-weight: bold;">*</span></label>
+          <input type="number" id="inpTonaz" placeholder="0">
+        </div>
       </div>
 
-      <div class="form-grid-row">
-
+      <!-- LINIA 2: NR RECEPTURY I TYP PRODUKCJI -->
+      <div class="form-row form-row-2">
         <div class="form-field">
           <label>Nr receptury</label>
           <input type="text" id="inpNr" placeholder="Auto-wypełniane" readonly style="background: #f5f5f5;">
         </div>
-
         <div class="form-field">
-          <label>Waga (kg)</label>
-          <input type="number" id="inpTonaz" placeholder="0">
-        </div>
-
-        <div class="form-field">
-          <label>Typ produkcji</label>
+          <label>Typ produkcji <span style="color: #ef4444; font-weight: bold;">*</span></label>
           <select id="inpTyp" aria-label="Typ produkcji" title="{{ _('typ_produkcji') }}">
             <option value="worki_zgrzewane_25">Worki 25 kg</option>
             <option value="worki_zgrzewane_20">Worki 20 kg</option>
@@ -767,25 +1025,26 @@
             <option value="worki_zszywane_20">Szyte 20 kg</option>
             <option value="bigbag">BigBag</option>
           </select>
+        </div>
       </div>
       
-      <!-- AGRO specyficzne pola (opakowanie i etykieta) -->
+      <!-- LINIA 3: AGRO specyficzne pola (opakowanie i etykieta) -->
       <div id="agroFieldsContainer" style="display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;">
-        <div class="form-grid-row">
+        <div class="form-row form-row-3">
           <div class="form-field">
-            <label style="font-weight: 600; color: #004d40;">Worek (wymagane)</label>
+            <label style="font-weight: 600; color: #004d40;">Worek (wymagane) <span style="color: #ef4444; font-weight: bold;">*</span></label>
             <div class="searchable-select-wrapper" id="wrapper_inpOpakowanie">
               <span class="input-badge-indicator" id="inpOpakowanie_indicator"></span>
-              <input type="text" id="inpOpakowanie_search" class="searchable-select-input" placeholder="Wpisz lub wybierz worek..." autocomplete="off" style="width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px;">
+              <input type="text" id="inpOpakowanie_search" class="searchable-select-input" placeholder="Wpisz lub wybierz worek..." autocomplete="off">
               <input type="hidden" id="inpOpakowanie" name="opakowanie_id">
               <div id="inpOpakowanie_dropdown" class="searchable-select-dropdown" style="display: none;"></div>
             </div>
           </div>
           <div class="form-field">
-            <label style="font-weight: 600; color: #4a148c;">Etykieta (wymagane)</label>
+            <label style="font-weight: 600; color: #4a148c;">Etykieta (wymagane) <span style="color: #ef4444; font-weight: bold;">*</span></label>
             <div class="searchable-select-wrapper" id="wrapper_inpEtykieta">
               <span class="input-badge-indicator" id="inpEtykieta_indicator"></span>
-              <input type="text" id="inpEtykieta_search" class="searchable-select-input" placeholder="Wpisz lub wybierz etykietę..." autocomplete="off" style="width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px;">
+              <input type="text" id="inpEtykieta_search" class="searchable-select-input" placeholder="Wpisz lub wybierz etykietę..." autocomplete="off">
               <input type="hidden" id="inpEtykieta" name="etykieta_id">
               <div id="inpEtykieta_dropdown" class="searchable-select-dropdown" style="display: none;"></div>
             </div>
@@ -793,7 +1052,8 @@
         </div>
       </div>
 
-      <div class="bulk-actions">
+      <!-- LINIA 4: PRZYCISKI PO PRAWEJ STRONIE -->
+      <div class="form-buttons-row">
         <button type="button" id="btnAddNewProduct" class="btn-small-icon" title="Dodaj nowy produkt do listy">
           ➕ Nowy produkt
         </button>
@@ -841,7 +1101,7 @@
 <!-- Modal for adding new product -->
 <div class="modal-backdrop" id="productModalBackdrop"></div>
 <div class="product-modal" id="productModal">
-  <h3>➕ Dodaj nowy produkt</h3>
+  <h3 id="productModalTitle">➕ Dodaj nowy produkt</h3>
   <form id="newProductForm">
     <div class="form-group">
       <label for="newProductName">Nazwa produktu:</label>
@@ -861,18 +1121,91 @@
         <option value="bigbag">BigBag</option>
       </select>
     </div>
+    <div class="form-group">
+      <label for="newProductOpakowanie">Domyślny worek/folia (opcjonalnie):</label>
+      <select id="newProductOpakowanie">
+        <option value="">-- Brak / Nie określono --</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="newProductEtykieta">Domyślna etykieta (opcjonalnie):</label>
+      <select id="newProductEtykieta">
+        <option value="">-- Brak / Nie określono --</option>
+      </select>
+    </div>
     <div class="form-buttons">
-      <button type="button" id="btnCancelModal" class="btn-action">Anuluj</button>
+      <button type="button" id="btnCancelModal" class="btn-action" style="background: #f0f0f0; color: var(--text-dark);">Anuluj</button>
       <button type="button" id="btnSaveProduct" class="btn-action btn-action-success">Dodaj produkt</button>
     </div>
   </form>
 </div>
 
+<!-- Modal for planning changes info -->
+<div class="modal-backdrop" id="infoModalBackdrop"></div>
+<div class="info-details-modal" id="infoModal">
+  <h3>🚀 Ulepszenia w systemie planowania</h3>
+  <div class="info-details-grid">
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">⚡</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Zreorganizowane akcje (PSD & Agro)</div>
+        <div class="info-detail-desc">Przenieśliśmy strzałki zmiany kolejności (góra-dół) na lewą stronę, tuż przed nazwę produktu. Pozostałe akcje zebraliśmy w jednym, czytelnym menu rozwijanym.</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">📋</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Intuicyjny formularz AGRO</div>
+        <div class="info-detail-desc">Zaprojektowaliśmy przejrzysty, wieloliniowy układ pól: Produkt i Waga na samej górze, Nr receptury i Typ pod spodem, a Domyślne opakowanie i Etykieta w trzeciej linii z wyraźnymi czerwonymi gwiazdkami dla pól wymaganych.</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">🔎</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Nowoczesne zarządzanie produktami</div>
+        <div class="info-detail-desc">Całkowicie przeprojektowaliśmy i powiększyliśmy okno zarządzania produktami. Dodaliśmy szybką wyszukiwarkę na żywo wspierającą polskie znaki diakrytyczne.</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">🏷️</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Wizualne kolory etykiet</div>
+        <div class="info-detail-desc">Etykiety w oknie zarządzania produktami oraz na liście planowania posiadają teraz barwne oznaczenia (paski) odpowiadające rzeczywistym kolorom na workach (żółty, fioletowy, brązowy, biały).</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">💾</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Automatyczne wczytywanie opakowań</div>
+        <div class="info-detail-desc">Podczas edycji produktu możesz zapisać domyślny worek oraz etykietę. Przy wyborze tego produktu w formularzu planowania, system automatycznie uzupełni te dane!</div>
+      </div>
+    </div>
+    
+  </div>
+  <div class="info-details-footer">
+    <button type="button" id="btnDismissInfo" class="btn-info-dismiss">Przeczytałem – nie pokazuj więcej</button>
+  </div>
+</div>
+
 <!-- Modal for managing products -->
 <div class="modal-backdrop" id="manageModalBackdrop"></div>
 <div class="manage-modal" id="manageModal">
-  <h3>⚙️ Zarządzaj produktami</h3>
-  <div class="products-list" id="productsList">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
+    <h3 style="margin: 0; font-size: 20px; color: var(--text-dark); font-weight: 600;">⚙️ Zarządzaj produktami</h3>
+    <button type="button" id="btnCloseManageModal" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #94a3b8; transition: color 0.15s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">✕</button>
+  </div>
+  
+  <div style="margin-bottom: 20px; position: relative;">
+    <input type="text" id="manageSearchInput" placeholder="Wyszukaj produkt po nazwie lub numerze receptury..." style="width: 100%; height: 42px; padding: 10px 14px 10px 40px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; transition: all 0.2s;">
+    <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; font-size: 16px;">🔍</span>
+  </div>
+
+  <div class="products-list" id="productsList" style="max-height: 450px; overflow-y: auto;">
     <!-- Products will be loaded here by JavaScript -->
   </div>
 </div>
@@ -889,6 +1222,29 @@
         { id: {{ e.id }}, nazwa: {{ e.nazwa|tojson }} },
       {% endfor %}
     ];
+
+    function getStripeBadgeHtml(name) {
+      if (!name || name === '-' || name === '-- Brak / Nie określono --') return '';
+      let color = '';
+      let border = '1px solid #ccc';
+      const norm = name.toLowerCase();
+      if (norm.includes('fioletow')) {
+        color = '#800080';
+        border = '1px solid #6a006a';
+      } else if (norm.includes('brązow') || norm.includes('brazow')) {
+        color = '#8B4513';
+        border = '1px solid #5c2d0c';
+      } else if (norm.includes('żółt') || norm.includes('zolt')) {
+        color = '#FFD700';
+        border = '1px solid #ccab00';
+      } else if (norm.includes('biał') || norm.includes('bial')) {
+        color = '#ffffff';
+        border = '1px solid #cbd5e1';
+      } else {
+        return '';
+      }
+      return `<span class="stripe-badge" style="background-color: ${color}; border: ${border}; display: inline-block; width: 30px; height: 12px; border-radius: 2px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.15); vertical-align: middle; margin-left: 6px;"></span>`;
+    }
 
     // Initialize searchable selects for packaging & labels
     setTimeout(function() {
@@ -914,16 +1270,36 @@
     const sekcjaSelect = document.getElementById('sekcja_select');
     const agroFieldsContainer = document.getElementById('agroFieldsContainer');
 
+    // Planning info elements
+    const planningInfoBanner = document.getElementById('planningInfoBanner');
+    const btnOpenPlanningInfo = document.getElementById('btnOpenPlanningInfo');
+    const infoModal = document.getElementById('infoModal');
+    const infoModalBackdrop = document.getElementById('infoModalBackdrop');
+    const btnDismissInfo = document.getElementById('btnDismissInfo');
+
+    const currentLogin = "{{ session.get('login') or 'anonymous' }}";
+    const storageKey = `planista_bulk_info_read_${currentLogin}`;
+
+    const checkInfoBanner = () => {
+      if (localStorage.getItem(storageKey) !== 'true') {
+        planningInfoBanner.style.display = 'flex';
+      } else {
+        planningInfoBanner.style.display = 'none';
+      }
+    };
+
     let produktyList = [];
+    let editProductId = null;
 
     // Load produkty from API
-    const loadProdukty = () => {
+    const loadProdukty = (callback = null) => {
       fetch('/api/produkty')
         .then(r => r.json())
         .then(data => {
           if (data.success && data.produkty) {
             produktyList = data.produkty;
             updateProduktySelect();
+            if (callback) callback();
           }
         })
         .catch(e => console.error('Error loading produkty:', e));
@@ -988,6 +1364,19 @@
         if (selectedProduct) {
           document.getElementById('inpNr').value = selectedProduct.nr_receptury || '';
           document.getElementById('inpTyp').value = selectedProduct.typ_produkcji || 'worki_zgrzewane_25';
+
+          // Auto-fill AGRO packaging and label if they exist
+          if (selectedProduct.opakowanie_id && window.setSearchableSelectValue && window.setSearchableSelectValue['inpOpakowanie']) {
+            window.setSearchableSelectValue['inpOpakowanie'](selectedProduct.opakowanie_id);
+          } else if (window.clearSearchableSelects && window.clearSearchableSelects['inpOpakowanie']) {
+            window.clearSearchableSelects['inpOpakowanie']();
+          }
+
+          if (selectedProduct.etykieta_id && window.setSearchableSelectValue && window.setSearchableSelectValue['inpEtykieta']) {
+            window.setSearchableSelectValue['inpEtykieta'](selectedProduct.etykieta_id);
+          } else if (window.clearSearchableSelects && window.clearSearchableSelects['inpEtykieta']) {
+            window.clearSearchableSelects['inpEtykieta']();
+          }
         }
       }
     });
@@ -1011,7 +1400,51 @@
     });
 
     // Modal functions
-    const openProductModal = () => {
+    const openProductModal = (productToEdit = null) => {
+      // Dynamic loading of packaging select options
+      const packagingSelect = document.getElementById('newProductOpakowanie');
+      const etykietaSelect = document.getElementById('newProductEtykieta');
+
+      if (packagingSelect.options.length <= 1) {
+        globalOpakowania.forEach(o => {
+          const opt = document.createElement('option');
+          opt.value = o.id;
+          opt.textContent = o.nazwa;
+          packagingSelect.appendChild(opt);
+        });
+      }
+
+      if (etykietaSelect.options.length <= 1) {
+        globalEtykiety.forEach(e => {
+          const opt = document.createElement('option');
+          opt.value = e.id;
+          opt.textContent = e.nazwa;
+          etykietaSelect.appendChild(opt);
+        });
+      }
+
+      if (productToEdit) {
+        editProductId = productToEdit.id;
+        document.getElementById('productModalTitle').textContent = '✏️ Edytuj produkt';
+        btnSaveProduct.textContent = 'Zapisz zmiany';
+
+        document.getElementById('newProductName').value = productToEdit.nazwa_produktu || '';
+        document.getElementById('newProductNr').value = productToEdit.nr_receptury || '';
+        document.getElementById('newProductTyp').value = productToEdit.typ_produkcji || 'worki_zgrzewane_25';
+        document.getElementById('newProductOpakowanie').value = productToEdit.opakowanie_id || '';
+        document.getElementById('newProductEtykieta').value = productToEdit.etykieta_id || '';
+
+        // Hide manage modal temporarily
+        manageModal.classList.remove('active');
+        manageModalBackdrop.classList.remove('active');
+      } else {
+        editProductId = null;
+        document.getElementById('productModalTitle').textContent = '➕ Dodaj nowy produkt';
+        btnSaveProduct.textContent = 'Dodaj produkt';
+        
+        newProductForm.reset();
+      }
+
       modalBackdrop.classList.add('active');
       productModal.classList.add('active');
       document.getElementById('newProductName').focus();
@@ -1021,39 +1454,64 @@
       modalBackdrop.classList.remove('active');
       productModal.classList.remove('active');
       newProductForm.reset();
+
+      // If we were editing from manage list, return back to manage modal
+      if (editProductId !== null) {
+        const prevId = editProductId;
+        editProductId = null;
+        setTimeout(() => {
+          manageModalBackdrop.classList.add('active');
+          manageModal.classList.add('active');
+          loadProductsForManagement();
+        }, 200);
+      } else {
+        editProductId = null;
+      }
     };
 
-    // Save new product
+    // Save product (Add or Edit)
     btnSaveProduct.addEventListener('click', () => {
       const nazwa = (document.getElementById('newProductName').value || '').trim();
       const nr = (document.getElementById('newProductNr').value || '').trim();
       const typ = document.getElementById('newProductTyp').value;
+      const opakowanie_id = document.getElementById('newProductOpakowanie').value ? parseInt(document.getElementById('newProductOpakowanie').value) : null;
+      const etykieta_id = document.getElementById('newProductEtykieta').value ? parseInt(document.getElementById('newProductEtykieta').value) : null;
 
       if (!nazwa) {
         return safeAlert('Błąd', 'Podaj nazwę produktu');
       }
 
-      fetch('/api/produkty', {
-        method: 'POST',
+      const payload = {
+        nazwa_produktu: nazwa,
+        nr_receptury: nr,
+        typ_produkcji: typ,
+        opakowanie_id: opakowanie_id,
+        etykieta_id: etykieta_id
+      };
+
+      const url = editProductId ? `/api/produkty/${editProductId}` : '/api/produkty';
+      const method = editProductId ? 'PUT' : 'POST';
+
+      fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nazwa_produktu: nazwa,
-          nr_receptury: nr,
-          typ_produkcji: typ
-        })
+        body: JSON.stringify(payload)
       })
         .then(r => r.json())
         .then(data => {
-            if (data.success) {
-            safeAlert('Sukces', '✅ Produkt "' + nazwa + '" dodany do listy!');
-            closeProductModal();
-            loadProdukty();
-            setTimeout(() => {
-              selectProdukt.value = nazwa;
-              selectProdukt.focus();
-              selectProdukt.dispatchEvent(new Event('input'));
-              selectProdukt.dispatchEvent(new Event('change'));
-            }, 100);
+          if (data.success) {
+            safeAlert('Sukces', editProductId ? '✅ Zmiany zostały zapisane!' : '✅ Produkt "' + nazwa + '" dodany do listy!');
+            loadProdukty(() => {
+              closeProductModal();
+            });
+            if (!editProductId) {
+              setTimeout(() => {
+                selectProdukt.value = nazwa;
+                selectProdukt.focus();
+                selectProdukt.dispatchEvent(new Event('input'));
+                selectProdukt.dispatchEvent(new Event('change'));
+              }, 100);
+            }
           } else {
             safeAlert('Błąd', '❌ Błąd: ' + data.message);
           }
@@ -1076,8 +1534,12 @@
     });
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && productModal.classList.contains('active')) {
-        closeProductModal();
+      if (e.key === 'Escape') {
+        if (productModal.classList.contains('active')) {
+          closeProductModal();
+        } else if (infoModal && infoModal.classList.contains('active')) {
+          closeInfoModal();
+        }
       }
     });
 
@@ -1101,9 +1563,26 @@
 
     function toggleAgroFields() {
       const isAgro = sekcjaSelect && sekcjaSelect.value === 'Agro';
+      const pageTitle = document.getElementById('bulkPageTitle');
+      if (pageTitle) {
+        pageTitle.innerHTML = isAgro ? '📥 Dodawanie wielu zleceń dla produkcji AGRO' : '📥 Dodawanie wielu zleceń dla produkcji PSD';
+      }
       if (agroFieldsContainer) {
         if (isAgro) {
           agroFieldsContainer.style.display = 'block';
+          
+          // Re-trigger autofill when section changes to Agro
+          if (selectProdukt.value) {
+            const selectedProduct = produktyList.find(p => p.nazwa_produktu === selectProdukt.value);
+            if (selectedProduct) {
+              if (selectedProduct.opakowanie_id && window.setSearchableSelectValue && window.setSearchableSelectValue['inpOpakowanie']) {
+                window.setSearchableSelectValue['inpOpakowanie'](selectedProduct.opakowanie_id);
+              }
+              if (selectedProduct.etykieta_id && window.setSearchableSelectValue && window.setSearchableSelectValue['inpEtykieta']) {
+                window.setSearchableSelectValue['inpEtykieta'](selectedProduct.etykieta_id);
+              }
+            }
+          }
         } else {
           agroFieldsContainer.style.display = 'none';
           if (window.clearSearchableSelects) {
@@ -1164,12 +1643,13 @@
       }
 
       const tr = document.createElement('tr');
+      const etykietaBadge = isAgro ? getStripeBadgeHtml(etykietaNazwa) : '';
       tr.innerHTML = `<td><strong>${produkt}</strong></td>` +
                      `<td>${nr}</td>` +
                      `<td>${tonaz}</td>` +
                      `<td>${typ}</td>` +
                      `<td class="col-worek" style="${isAgro ? '' : 'display: none;'}">${opakowanieNazwa}</td>` +
-                     `<td class="col-etykieta" style="${isAgro ? '' : 'display: none;'}">${etykietaNazwa}</td>` +
+                     `<td class="col-etykieta" style="${isAgro ? '' : 'display: none;'}"><span style="display: inline-flex; align-items: center; gap: 6px;">${etykietaNazwa} ${etykietaBadge}</span></td>` +
                      `<td><button type="button" class="delete-button">🗑️</button></td>`;
       
       tr.dataset.produkt = produkt;
@@ -1287,23 +1767,86 @@
 
     // Products Management Functions
     const loadProductsForManagement = () => {
-      productsList.innerHTML = '';
-      produktyList.forEach(product => {
-        const row = document.createElement('div');
-        row.className = 'product-row';
-        row.innerHTML = `
-          <div class="product-info">
-            <div class="product-name">${product.nazwa_produktu}</div>
-            <div class="product-details">
-              Nr: ${product.nr_receptury || '-'} | Typ: ${product.typ_produkcji || '-'}
-            </div>
-          </div>
-          <div class="product-actions">
-            <button class="btn-icon-small btn-icon-edit" data-id="${product.id}" onclick="editProduct(${product.id})">✏️ Edit</button>
-            <button class="btn-icon-small btn-icon-delete" data-id="${product.id}" onclick="deleteProduct(${product.id})">🗑️ Delete</button>
-          </div>
+      const searchInp = document.getElementById('manageSearchInput');
+      const filterTerm = searchInp ? (searchInp.value || '').trim().toLowerCase() : '';
+      
+      const filtered = produktyList.filter(product => {
+        const nameMatch = (product.nazwa_produktu || '').toLowerCase().includes(filterTerm);
+        const nrMatch = (product.nr_receptury || '').toLowerCase().includes(filterTerm);
+        return nameMatch || nrMatch;
+      });
+
+      if (filtered.length === 0) {
+        productsList.innerHTML = '<div style="text-align: center; padding: 40px; color: #999; font-size: 15px;">Brak produktów spełniających kryteria</div>';
+        return;
+      }
+
+      let html = `
+        <table class="modern-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+          <thead>
+            <tr style="border-bottom: 2px solid #e2e8f0; font-size: 12px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
+              <th style="padding: 12px 10px; font-weight: 600;">Nazwa produktu</th>
+              <th style="padding: 12px 10px; font-weight: 600; width: 120px;">Nr receptury</th>
+              <th style="padding: 12px 10px; font-weight: 600; width: 150px;">Typ produkcji</th>
+              <th style="padding: 12px 10px; font-weight: 600;">Domyślny worek / etykieta</th>
+              <th style="padding: 12px 10px; font-weight: 600; text-align: right; width: 160px;">Akcje</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      filtered.forEach(product => {
+        const opakowanie = product.opakowanie_id ? (globalOpakowania.find(o => o.id === product.opakowanie_id)?.nazwa || '-') : '-';
+        const etykieta = product.etykieta_id ? (globalEtykiety.find(e => e.id === product.etykieta_id)?.nazwa || '-') : '-';
+        const etykietaBadge = product.etykieta_id ? getStripeBadgeHtml(etykieta) : '';
+        
+        let typDisplay = '';
+        if (product.typ_produkcji === 'worki_zgrzewane_25') typDisplay = 'Worki 25 kg';
+        else if (product.typ_produkcji === 'worki_zgrzewane_20') typDisplay = 'Worki 20 kg';
+        else if (product.typ_produkcji === 'worki_zszywane_25') typDisplay = 'Szyte 25 kg';
+        else if (product.typ_produkcji === 'worki_zszywane_20') typDisplay = 'Szyte 20 kg';
+        else if (product.typ_produkcji === 'bigbag') typDisplay = 'BigBag';
+        else typDisplay = product.typ_produkcji || '-';
+
+        html += `
+          <tr class="product-table-row" style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;">
+            <td style="padding: 12px 10px; font-weight: 600; color: #1e293b;">${product.nazwa_produktu}</td>
+            <td style="padding: 12px 10px; color: #475569;">${product.nr_receptury || '<span style="color: #cbd5e1;">-</span>'}</td>
+            <td style="padding: 12px 10px; color: #475569;">${typDisplay}</td>
+            <td style="padding: 12px 10px; font-size: 13px; color: #475569;">
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="color: #64748b; font-weight: 500;">Worek:</span> 
+                  <span style="color: #334155;">${opakowanie}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="color: #64748b; font-weight: 500;">Etykieta:</span> 
+                  <span style="color: #334155; display: inline-flex; align-items: center; gap: 6px;">${etykieta} ${etykietaBadge}</span>
+                </div>
+              </div>
+            </td>
+            <td style="padding: 12px 10px; text-align: right;">
+              <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                <button class="btn-icon-small btn-icon-edit" data-id="${product.id}" onclick="editProduct(${product.id})" style="padding: 6px 12px; font-size: 12px;">✏️ Edit</button>
+                <button class="btn-icon-small btn-icon-delete" data-id="${product.id}" onclick="deleteProduct(${product.id})" style="padding: 6px 12px; font-size: 12px;">🗑️ Delete</button>
+              </div>
+            </td>
+          </tr>
         `;
-        productsList.appendChild(row);
+      });
+
+      html += `
+          </tbody>
+        </table>
+      `;
+
+      productsList.innerHTML = html;
+
+      // Add hover effect
+      productsList.querySelectorAll('.product-table-row').forEach(row => {
+        row.style.cursor = 'pointer';
+        row.addEventListener('mouseover', () => { row.style.backgroundColor = '#f8fafc'; });
+        row.addEventListener('mouseout', () => { row.style.backgroundColor = 'transparent'; });
       });
     };
 
@@ -1311,35 +1854,7 @@
       const product = produktyList.find(p => p.id === id);
       if (!product) return;
 
-      const newName = prompt('Nazwa produktu:', product.nazwa_produktu);
-      if (!newName) return;
-
-      const newNr = prompt('Nr receptury:', product.nr_receptury || '');
-      const newTyp = prompt('Typ produkcji:', product.typ_produkcji || 'worki_zgrzewane_25');
-
-      fetch(`/api/produkty/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nazwa_produktu: newName,
-          nr_receptury: newNr,
-          typ_produkcji: newTyp
-        })
-      })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-            safeAlert('Sukces', 'Produkt zaktualizowany');
-            loadProdukty();
-            loadProductsForManagement();
-          } else {
-            safeAlert('Błąd', data.message || 'Błąd');
-          }
-        })
-        .catch(e => {
-          console.error(e);
-          safeAlert('Błąd sieci', 'Błąd sieci');
-        });
+      openProductModal(product);
     };
 
     window.deleteProduct = (id) => {
@@ -1352,8 +1867,9 @@
         .then(data => {
           if (data.success) {
                 safeAlert('Sukces', 'Produkt usunięty');
-            loadProdukty();
-            loadProductsForManagement();
+            loadProdukty(() => {
+              loadProductsForManagement();
+            });
           } else {
                 safeAlert('Błąd', data.message || 'Błąd');
           }
@@ -1366,15 +1882,70 @@
 
     // Open/close management modal
     btnManageProducts.addEventListener('click', () => {
+      const searchInp = document.getElementById('manageSearchInput');
+      if (searchInp) {
+        searchInp.value = '';
+      }
       manageModalBackdrop.classList.add('active');
       manageModal.classList.add('active');
       loadProductsForManagement();
     });
 
+    const btnCloseManageModal = document.getElementById('btnCloseManageModal');
+    if (btnCloseManageModal) {
+      btnCloseManageModal.addEventListener('click', () => {
+        manageModalBackdrop.classList.remove('active');
+        manageModal.classList.remove('active');
+      });
+    }
+
+    const manageSearchInput = document.getElementById('manageSearchInput');
+    if (manageSearchInput) {
+      manageSearchInput.addEventListener('input', loadProductsForManagement);
+    }
+
     manageModalBackdrop.addEventListener('click', () => {
       manageModalBackdrop.classList.remove('active');
       manageModal.classList.remove('active');
     });
+
+    // Planning info modal event listeners
+    if (btnOpenPlanningInfo) {
+      btnOpenPlanningInfo.addEventListener('click', () => {
+        if (infoModalBackdrop && infoModal) {
+          infoModalBackdrop.classList.add('active');
+          infoModal.classList.add('active');
+        }
+      });
+    }
+
+    const closeInfoModal = () => {
+      if (infoModalBackdrop && infoModal) {
+        infoModalBackdrop.classList.remove('active');
+        infoModal.classList.remove('active');
+      }
+    };
+
+    if (btnDismissInfo) {
+      btnDismissInfo.addEventListener('click', () => {
+        localStorage.setItem(storageKey, 'true');
+        closeInfoModal();
+        if (planningInfoBanner) {
+          planningInfoBanner.style.transition = 'all 0.3s ease';
+          planningInfoBanner.style.opacity = '0';
+          planningInfoBanner.style.transform = 'translateY(-10px)';
+          setTimeout(() => {
+            planningInfoBanner.style.display = 'none';
+          }, 300);
+        }
+      });
+    }
+
+    if (infoModalBackdrop) {
+      infoModalBackdrop.addEventListener('click', closeInfoModal);
+    }
+
+    checkInfoBanner();
 
     loadProdukty();
 

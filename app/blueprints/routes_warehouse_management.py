@@ -249,6 +249,12 @@ def register_warehouse_management_routes(
             except Exception:
                 pass
 
+            try:
+                from app.blueprints.routes_production import _mark_dosypki_updated
+                _mark_dosypki_updated(linia)
+            except Exception:
+                pass
+
         except Exception as error:
             try:
                 current_app.logger.exception('Failed to add paleta: %s', error)
@@ -732,6 +738,12 @@ def register_warehouse_management_routes(
                         conn.rollback()
                     except Exception:
                         pass
+                        
+            try:
+                from app.blueprints.routes_production import _mark_dosypki_updated
+                _mark_dosypki_updated(linia)
+            except Exception:
+                pass
 
         except Exception as error:
             current_app.logger.error('Failed to potwierdz palete %s: %s', paleta_id, error, exc_info=True)

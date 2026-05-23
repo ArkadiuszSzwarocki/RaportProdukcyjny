@@ -116,6 +116,19 @@ def inject_role_permissions():
                 # Page in config -> check role access
                 page_perms = perms.get(page_key)
                 if page_perms is None:
+                    # Check for dynamic sub-keys (e.g. 'ustawienia.system' when page is 'ustawienia')
+                    sub_keys = [k for k in perms if k.startswith(f"{page_key}.")]
+                    if sub_keys:
+                        has_sub_access = False
+                        for sk in sub_keys:
+                            sk_perms = perms.get(sk, {})
+                            role_cfg = sk_perms.get(r, {})
+                            if bool(role_cfg.get('access', False)):
+                                has_sub_access = True
+                                break
+                        current_app.logger.info(f"role_has_access(parent_page={page}, role={r}) resolved via sub_keys to {has_sub_access}")
+                        return has_sub_access
+                    
                     current_app.logger.warning(f"role_has_access: page_key '{page_key}' not found in perms (original page: '{page}')")
                     return False
                 

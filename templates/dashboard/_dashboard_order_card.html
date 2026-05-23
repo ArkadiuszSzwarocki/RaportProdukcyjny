@@ -1,9 +1,11 @@
+{% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
 <div class="card {% if p[3]|lower == 'zakonczone' %}card-completed{% endif %}" 
      data-id="{{ p[0] }}" 
      data-order-title="{{ p[1] }}"
      data-order-summary="{{ (p[7]|int if p[7] else 0) }} / {{ p[2]|int }} kg"
      data-palety-count="{{ palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0 }}"
      data-sekcja="{{ sekcja }}"
+     data-is-active="{{ 'true' if p[3]|lower == 'w toku' else 'false' }}"
     style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower != 'w toku' %}display: none !important;{% endif %}">
     <div class="card-header">
         <strong class="card-title">
@@ -26,7 +28,7 @@
             <span class="checklist-ok-badge"
                   title="Checklista OK | operator: {{ p[22] if p|length > 22 and p[22] else '-' }} | jakość: {{ p[24] if p|length > 24 and p[24] else '-' }}">CHECKLISTA OK</span>
             {% endif %}
-            {% if p[3] == 'zaplanowane' %}
+            {% if p[3] == 'zaplanowane' and not is_readonly %}
             {% set can_start_role = role_lc not in ['laborant', 'laboratorium'] %}
             {% set product_active = (active_products is defined and active_products and p[1] in active_products) %}
             {% if not can_start_role %}
@@ -48,8 +50,12 @@
             {% elif sekcja == 'Zasyp' %}
             {% set zasyp_blocked = (zasyp_has_active is defined and zasyp_has_active) %}
             {% set can_bypass_zasyp = role_lc in ['admin', 'masteradmin', 'lider', 'planista'] %}
+            {% set allowed_zasyp = (allowed_zasyp_start_ids is defined and (p[0] in allowed_zasyp_start_ids)) %}
+            {% set is_masteradmin = (role_lc == 'masteradmin') %}
             {% if zasyp_blocked and not can_bypass_zasyp %}
             <span class="btn-icon-disabled" title="Zablokowane (Inne zlecenie w toku)">🔒</span>
+            {% elif not allowed_zasyp and not is_masteradmin %}
+            <span class="btn-icon-disabled" title="Zablokowane (Kolejność FIFO)">🔒</span>
             {% else %}
             <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST"
                 style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="linia" value="{{ linia }}"><button
@@ -61,7 +67,7 @@
                     type="submit" class="btn-icon-action" title="Rozpocząć">▶</button></form>
             {% endif %}
             {% elif p[3] == 'w toku' %}
-            {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola in ['lider', 'admin', 'masteradmin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] and (not ns.is_active or p[0] != ns.active_plan_id) %}
+            {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola in ['lider', 'admin', 'masteradmin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] and (not ns.is_active or p[0] != ns.active_plan_id) and not is_readonly %}
             <div class="agro-header-controls">
                 {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik', 'produkcja'] %}
                 <form method="POST" action="{{ url_for('production.zasyp_kolejny_pomiar', plan_id=p[0]) }}" style="margin:0; display:inline-block;"
@@ -74,12 +80,12 @@
             </div>
             {% endif %}
 
-            {% if role_lc not in ['laborant', 'laboratorium'] %}
+            {% if role_lc not in ['laborant', 'laboratorium'] and not is_readonly %}
             <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja, linia=linia) }}"
                 class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
             {% endif %}
             {% elif p[3] == 'zakonczone' %}
-            {% if rola in ['lider', 'admin', 'masteradmin'] %}
+            {% if rola in ['lider', 'admin', 'masteradmin'] and not is_readonly %}
             <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]|int) }}" method="POST"
                 data-confirm="Wznowić {{ p[1] }}?" style="display:inline;"><input type="hidden" name="linia" value="{{ linia }}"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_planu" value="{{ dzisiaj }}"><button
                     type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button></form>
@@ -126,7 +132,7 @@
         {% if sekcja != 'Magazyn' %}
             {% set role_lc = rola|string|trim|lower %}
             {# Production buttons - only for active orders #}
-            {% if p[3] == 'w toku' %}
+            {% if p[3] == 'w toku' and not is_readonly %}
                 {% if sekcja == 'Workowanie' %}
                     <a href="{{ url_for('warehouse.dodaj_palete_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-purple" data-slide>+ PALETA</a>
                     <button type="button"
@@ -137,9 +143,9 @@
                 {% elif sekcja == 'Zasyp' %}
                     {% set pending_dosypki_count = (dosypki_oczekujace_mapa.get(p[0], 0) if dosypki_oczekujace_mapa is defined and dosypki_oczekujace_mapa else 0) %}
                     {% if role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] or role_lc in ['laborant', 'laboratorium'] %}
-                        <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
+                        <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-plan-id="{{ p[0] }}" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
                     {% endif %}
-                    {% if role_lc in ['laborant', 'laboratorium', 'admin', 'masteradmin', 'lider'] %}
+                    {% if role_lc in ['admin', 'masteradmin', 'lider'] %}
                         <a href="{{ url_for('production.dosypka_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-blue" data-slide>+ DOSYPKA</a>
                     {% endif %}
                     {% if role_lc not in ['laborant', 'laboratorium'] %}
@@ -152,12 +158,10 @@
             {% if p[3] in ['w toku', 'zakonczone'] %}
                 {% set palety_count = (palety_mapa.get(p[0], [])|length if palety_mapa is defined and palety_mapa else 0) %}
                 {% if palety_count > 0 %}
-                    {% if not (sekcja == 'Zasyp' and role_lc in ['laborant', 'laboratorium'] and linia == 'AGRO') %}
                     <button type="button" class="btn-action btn-blue" data-toggle-details="{{ p[0] }}" style="display:flex; align-items:center; gap:5px;">
                         <span class="material-icons" style="font-size:16px;">visibility</span>
                         {% if sekcja == 'Zasyp' %}ZASYPY{% else %}PALETY{% endif %} ({{ palety_count }})
                     </button>
-                    {% endif %}
                 {% endif %}
             {% endif %}
         {% endif %}

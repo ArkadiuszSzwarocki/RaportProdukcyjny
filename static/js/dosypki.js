@@ -121,12 +121,12 @@
         const nameHtml = d.nazwa ? escapeHtml(d.nazwa) : '<em>— brak nazwy —</em>';
         return `
             <tr data-plan-id="${escapeHtml(d.plan_id)}">
-                <td class="text-muted">${idx + 1}</td>
-                <td>${escapeHtml(d.plan_id)}</td>
-                <td>${nameHtml}</td>
-                <td>${escapeHtml(d.kg)} kg</td>
-                <td>${escapeHtml(d.data_zlecenia)}</td>
-                <td>${renderActionCell(d, role)}</td>
+                <td class="text-muted" data-label="#">${idx + 1}</td>
+                <td data-label="Plan ID">${escapeHtml(d.plan_id)}</td>
+                <td data-label="Nazwa">${nameHtml}</td>
+                <td data-label="Kg">${escapeHtml(d.kg)} kg</td>
+                <td data-label="Dodana">${escapeHtml(d.data_zlecenia)}</td>
+                <td data-label="Akcja">${renderActionCell(d, role)}</td>
             </tr>
         `;
     }
@@ -235,6 +235,9 @@
                     updateDosypkiBadge(planId, -1);
                 }
                 await fetchDosypki(container);
+                if (typeof window.performPartialReload === 'function') {
+                    window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypki-confirm' });
+                }
             } else {
                 btn.disabled = false;
                 if (originalText) btn.textContent = originalText;
@@ -280,6 +283,14 @@
         const p15 = statusEl && statusEl.closest('.p-15');
         if (statusEl) {
             initContainer(p15 || document);
+        }
+    };
+
+    window.reloadActiveDosypkiList = function () {
+        const statusEl = document.querySelector('#dosypki-status');
+        if (statusEl && statusEl.offsetParent !== null) { // if visible
+            const p15 = statusEl.closest('.p-15') || document;
+            fetchDosypki(p15);
         }
     };
 

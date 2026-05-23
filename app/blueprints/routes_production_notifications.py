@@ -265,7 +265,7 @@ def register_production_notification_routes(
         """Acknowledge dosypka-added event timestamp to prevent replay after page refresh."""
         linia = (request.json.get('linia') if request.is_json else None) or request.form.get('linia') or request.args.get('linia') or 'AGRO'
         linia = str(linia).upper()
-        if linia != 'AGRO':
+        if linia not in ['AGRO', 'PSD']:
             return jsonify({"success": False, "message": "unsupported linia"}), 400
 
         raw_ts = (request.json.get('timestamp') if request.is_json else None)

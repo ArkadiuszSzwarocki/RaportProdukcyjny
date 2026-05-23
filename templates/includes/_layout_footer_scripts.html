@@ -58,7 +58,16 @@
 
     // Notifications logic
     (function() {
-        const state = { initialized: false, shownIds: new Set(), notifications: [] };
+        const savedShown = sessionStorage.getItem('notif_shown_ids');
+        const initialShown = savedShown ? JSON.parse(savedShown) : [];
+        const state = { 
+            initialized: savedShown !== null, 
+            shownIds: new Set(initialShown), 
+            notifications: [] 
+        };
+        function saveShown() {
+            sessionStorage.setItem('notif_shown_ids', JSON.stringify(Array.from(state.shownIds)));
+        }
         function getElements() {
             return {
                 toggle: document.getElementById('notificationsToggle'),
@@ -171,13 +180,22 @@
                         notifications.forEach(function(item) {
                             if (!state.shownIds.has(item.id)) {
                                 state.shownIds.add(item.id);
+                                saveShown();
                                 if (typeof showToast === 'function') {
-                                    showToast((item.title || 'Powiadomienie') + ': ' + (item.message || ''), 'info');
+                                    const userRole = "{{ session.get('rola')|default('')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim }}";
+                                    const isSticky = (userRole === 'laborant' || userRole === 'laboratorium');
+                                    showToast((item.title || 'Powiadomienie') + ': ' + (item.message || ''), 'info', isSticky, function() {
+                                        markRead(item.id).then(() => {
+                                            state.notifications = state.notifications.filter(n => String(n.id) !== String(item.id));
+                                            render();
+                                        });
+                                    });
                                 }
                             }
                         });
                     } else {
                         notifications.forEach(function(item) { state.shownIds.add(item.id); });
+                        saveShown();
                         state.initialized = true;
                     }
                     state.notifications = notifications;
@@ -188,6 +206,14 @@
         document.addEventListener('DOMContentLoaded', () => {
             fetchNotifs();
             notifsInterval = setInterval(fetchNotifs, 10000);
+
+            // Instant notifications fetch upon unlocking the phone or switching to tab (device sleep support)
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') {
+                    fetchNotifs();
+                }
+            });
+
             const e = getElements();
 
             if (e.toggle) {

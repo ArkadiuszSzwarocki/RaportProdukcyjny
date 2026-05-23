@@ -99,7 +99,7 @@
 
 <!-- MASTER ADMIN & DIAGNOSTYKA -->
 {% set master_access = has_master_access or role == 'masteradmin' %}
-{% set show_diag = master_access or role_has_access('logs') or role_has_access('errors') or role_has_access('centrum') or role_has_access('performance') %}
+{% set show_diag = master_access or role_has_access('ustawienia.logs') or role_has_access('ustawienia.errors') or role_has_access('centrum') or role_has_access('raporty.performance') %}
 
 {% if show_diag %}
 <div class="nav-item-group" style="border-top: 1px solid #334155; margin-top: 10px; padding-top: 10px;">

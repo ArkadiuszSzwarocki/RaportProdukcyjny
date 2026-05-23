@@ -151,9 +151,17 @@
         }
 
         .dosypka-row {
-            display: grid;
-            grid-template-columns: minmax(0, 2fr) minmax(110px, 0.9fr);
+            display: flex;
+            flex-wrap: wrap;
             gap: 8px;
+        }
+        
+        .dosypka-input-nazwa {
+            flex: 1 1 200px;
+        }
+        
+        .dosypka-input-kg {
+            flex: 0 0 110px;
         }
 
         .dosypka-input {
@@ -365,10 +373,6 @@
 
             .info-value {
                 font-size: 0.94rem;
-            }
-
-            .dosypka-row {
-                grid-template-columns: 1fr;
             }
 
             .dosypka-existing-item {

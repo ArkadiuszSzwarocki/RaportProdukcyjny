@@ -411,13 +411,122 @@
         qualityLogin.focus();
     }
 
+    function openAgroProductionDateModal(form, productName) {
+        var existingOverlay = document.getElementById('start-order-date-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        var overlay = document.createElement('div');
+        overlay.id = 'start-order-date-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+        var panel = document.createElement('div');
+        panel.style.cssText = 'width:100%;max-width:400px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;';
+
+        var title = document.createElement('h3');
+        title.textContent = 'Rozpoczęcie zlecenia AGRO';
+        title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;';
+
+        var subtitle = document.createElement('p');
+        subtitle.textContent = 'Zlecenie: ' + productName;
+        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;';
+
+        var msg = document.createElement('p');
+        msg.textContent = 'Wpisz datę produkcji, jeśli chcesz ją zmienić/ustawić. Pozostaw domślną, aby użyć dzisiejszej:';
+        msg.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.9rem;';
+
+        var dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        
+        var today = new Date();
+        var yyyy = today.getFullYear();
+        var mm = String(today.getMonth() + 1).padStart(2, '0');
+        var dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = yyyy + '-' + mm + '-' + dd;
+
+        var errorBox = document.createElement('div');
+        errorBox.style.cssText = 'min-height:18px;color:#c81e1e;font-size:0.88rem;margin-bottom:8px;';
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Anuluj';
+        cancelBtn.style.cssText = 'border:1px solid #9fb3c8;background:#fff;color:#334e68;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;';
+
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Uruchom';
+        confirmBtn.style.cssText = 'border:1px solid #0f609b;background:#127fbf;color:#fff;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;';
+
+        cancelBtn.addEventListener('click', function() {
+            overlay.remove();
+        });
+
+        confirmBtn.addEventListener('click', function() {
+            var dateValue = (dateInput.value || '').trim();
+            if (dateValue && !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+                errorBox.textContent = 'Data produkcji musi mieć format RRRR-MM-DD.';
+                return;
+            }
+
+            if (dateValue) {
+                setHiddenFormValue(form, 'data_produkcji', dateValue);
+            }
+
+            overlay.remove();
+            form.submit();
+        });
+
+        overlay.addEventListener('click', function(event) {
+            if (event.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+
+        panel.appendChild(title);
+        panel.appendChild(subtitle);
+        panel.appendChild(msg);
+        panel.appendChild(dateInput);
+        panel.appendChild(errorBox);
+        panel.appendChild(actions);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        setTimeout(function() {
+            try {
+                dateInput.showPicker();
+            } catch(e) {
+                dateInput.focus();
+            }
+        }, 50);
+    }
+
     window.confirmStartOrder = function(form, productName, planId) {
+        var liniaInput = form.querySelector('input[name="linia"]');
+        var linia = liniaInput ? liniaInput.value : '';
+        
+        var sekcjaInput = form.querySelector('input[name="sekcja"]');
+        var sekcja = sekcjaInput ? sekcjaInput.value : '';
+
         var requiresChecklist = form && form.getAttribute('data-start-checklist') === '1';
         if (requiresChecklist) {
             openAgroWorkowanieChecklist(form, productName);
             return false;
         }
-        return askForProductionDate(form, productName);
+        
+        if (sekcja === 'Workowanie' && linia === 'AGRO') {
+            openAgroProductionDateModal(form, productName);
+            return false;
+        } else {
+            return true;
+        }
     };
 
     /** Initialize a custom, premium, keyboard-navigable and accent-insensitive searchable select dropdown */

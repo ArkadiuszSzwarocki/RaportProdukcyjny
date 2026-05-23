@@ -65,13 +65,18 @@ class ProductionQueries:
             cursor = conn.cursor()
         
         table_plan = get_table_name('plan_produkcji', linia)
+        if sekcja.lower() in ('zasyp', 'workowanie'):
+            sekcja_cond = "LOWER(sekcja) IN (LOWER(%s), 'czyszczenie')"
+        else:
+            sekcja_cond = "LOWER(sekcja) = LOWER(%s)"
+
         cursor.execute(
             f"SELECT id, produkt, tonaz, status, real_start, real_stop, "
             "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
             "typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), "
             "data_planu, zasyp_id "
             f"FROM {table_plan} "
-            "WHERE DATE(data_planu) = %s AND LOWER(sekcja) = LOWER(%s) AND status != 'nieoplacone' AND is_deleted = 0 "
+            f"WHERE DATE(data_planu) = %s AND {sekcja_cond} AND status != 'nieoplacone' AND is_deleted = 0 "
             "ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, "
             "kolejnosc ASC, id ASC",
             (data_planu, sekcja)
@@ -128,6 +133,7 @@ class ProductionQueries:
         cursor.execute(
             f"SELECT COUNT(1) FROM {table_plan} "
             "WHERE (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') "
+            "AND LOWER(sekcja) != 'czyszczenie' "
             "AND status != 'zakonczone'"
         )
         result = cursor.fetchone()
@@ -145,7 +151,8 @@ class ProductionQueries:
         table_plan = get_table_name('plan_produkcji', linia)
         cursor.execute(
             f"SELECT COUNT(1) FROM {table_plan} "
-            "WHERE (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone'"
+            "WHERE (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') "
+            "AND LOWER(sekcja) != 'czyszczenie' AND status != 'zakonczone'"
         )
         result = cursor.fetchone()
         

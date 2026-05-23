@@ -9,11 +9,12 @@ from app.decorators import roles_required, login_required, dynamic_role_required
 from app.services.dashboard_service import DashboardService
 from app.blueprints.routes_main_index_data import (
     build_dashboard_halls_context,
-    build_allowed_work_start_ids,
     build_dosypki_maps,
     build_zasyp_etapy_context,
     build_agro_mix_context
 )
+from app.services.workowanie_queue_service import WorkowanieQueueService
+from app.services.zasyp_queue_service import ZasypQueueService
 from app.services.mqtt_service import get_latest_data
 from app.blueprints.routes_main_layout import register_main_layout_routes
 from app.blueprints.routes_main_misc import register_main_misc_routes
@@ -47,10 +48,39 @@ def index():
         aktywna_sekcja = request.args.get('sekcja', 'Dashboard')
         dzisiaj_str = request.args.get('data', str(date.today()))
         
+        app.logger.info(f"[DEBUG INDEX] role={role}, user_grupa={user_grupa}, aktywna_linia={aktywna_linia}, aktywna_sekcja={aktywna_sekcja}, args={request.args}")
+        
         try:
             dzisiaj = date.fromisoformat(dzisiaj_str)
         except:
             dzisiaj = date.today()
+
+        # Enforce dashboard access restriction: only MasterAdmin, Admin, Lider, Planista can view the dashboard
+        if aktywna_sekcja.strip().lower() == 'dashboard':
+            allowed_dashboard_roles = ['masteradmin', 'admin', 'lider', 'planista']
+            if role not in allowed_dashboard_roles:
+                # User cannot access Dashboard! Try to auto-route them to their first allowed production section
+                from app.core.contexts import inject_role_permissions
+                role_checker = inject_role_permissions().get('role_has_access')
+                
+                line_lower = aktywna_linia.lower().strip()
+                sections_to_check = ['Zasyp', 'Workowanie', 'Bufor', 'Magazyn']
+                found_allowed_sec = None
+                for sec in sections_to_check:
+                    page_key = f"{line_lower}.{sec.lower()}"
+                    if role_checker and role_checker(page_key):
+                        found_allowed_sec = sec
+                        break
+                
+                if found_allowed_sec:
+                    return redirect(url_for('main.index', sekcja=found_allowed_sec, linia=aktywna_linia, data=dzisiaj_str))
+                else:
+                    return render_template(
+                        'errors/403.html',
+                        page_url=request.path,
+                        user_role=role,
+                        allowed_roles=allowed_dashboard_roles
+                    ), 403
 
         # Load everything via the central helper to ensure data parity with original system
         role = session.get('rola')
@@ -63,9 +93,12 @@ def index():
         # We take the first hall data as primary (for single-hall views)
         main_h_data = halls_data.get(aktywna_linia, list(halls_data.values())[0] if halls_data else {})
 
-        # Resolve allowed START ids
-        allowed_work_start_ids = build_allowed_work_start_ids(
+        # Resolve allowed START ids for Workowanie and Zasyp
+        allowed_work_start_ids = WorkowanieQueueService.get_allowed_start_ids(
             dzisiaj, aktywna_linia, main_h_data.get('work_first_map', {}), app.logger
+        )
+        allowed_zasyp_start_ids = ZasypQueueService.get_allowed_start_ids(
+            dzisiaj, aktywna_linia, app.logger
         )
 
         # Dosypki
@@ -123,6 +156,8 @@ def index():
             'work_first_map': main_h_data.get('work_first_map'),
             'zasyp_product_order': main_h_data.get('zasyp_product_order'),
             'allowed_work_start_ids': allowed_work_start_ids,
+            'allowed_zasyp_start_ids': allowed_zasyp_start_ids,
+            'agro_mix_mapa': agro_mix_mapa,
             'dosypki_mapa': dosypki_mapa,
             'dosypki_oczekujace_mapa': dosypki_oczekujace_mapa,
             'etapy_mapa': zasyp_etapy_context['etapy_mapa'],
@@ -167,7 +202,7 @@ def index():
 
         # --- BEZPIECZNIK ---
         # Wymuszenie focus mode jeśli w słowniku plan jest cokolwiek 'w toku'
-        if clean_sekcja == 'workowanie' and clean_linia == 'AGRO':
+        if clean_sekcja in ['workowanie', 'zasyp']:
             for p in context.get('plan', []):
                 if len(p) > 3 and str(p[3]).lower() == 'w toku':
                     context['agro_focus_mode'] = True

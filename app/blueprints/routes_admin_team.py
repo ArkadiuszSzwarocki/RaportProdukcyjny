@@ -385,11 +385,18 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         try:
             if haslo:
                 new_haslo = generate_password_hash(haslo, method='pbkdf2:sha256')
-                cursor.execute("UPDATE uzytkownicy SET login=%s, haslo=%s, rola=%s, grupa=%s WHERE id=%s", (login, new_haslo, rola, grupa, user_id))
+                if login:
+                    cursor.execute("UPDATE uzytkownicy SET login=%s, haslo=%s, rola=%s, grupa=%s WHERE id=%s", (login, new_haslo, rola, grupa, user_id))
+                else:
+                    cursor.execute("UPDATE uzytkownicy SET haslo=%s, rola=%s, grupa=%s WHERE id=%s", (new_haslo, rola, grupa, user_id))
             else:
-                cursor.execute("UPDATE uzytkownicy SET login=%s, rola=%s, grupa=%s WHERE id=%s", (login, rola, grupa, user_id))
+                if login:
+                    cursor.execute("UPDATE uzytkownicy SET login=%s, rola=%s, grupa=%s WHERE id=%s", (login, rola, grupa, user_id))
+                else:
+                    cursor.execute("UPDATE uzytkownicy SET rola=%s, grupa=%s WHERE id=%s", (rola, grupa, user_id))
             conn.commit()
-            change_summary = f'login={login}, rola={rola}' + (', zmiana hasła' if haslo else '')
+            login_summary = login if login else "(bez zmian)"
+            change_summary = f'login={login_summary}, rola={rola}' + (', zmiana hasła' if haslo else '')
             audit_log('Edytował konto użytkownika', change_summary)
             current_app.logger.info('Admin %s edytował konto ID=%s: %s', session.get('login'), user_id, change_summary)
             flash('Zaktualizowano.', 'success')

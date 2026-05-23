@@ -1,4 +1,93 @@
 <div class="p-10" {% if sekcja == 'Zasyp' %}data-popup-title="Dodajesz zasyp"{% else %}data-popup-title="Dodajesz paletę"{% endif %}>
+  <style>
+    /* Base input styling for this popup to fill width nicely */
+    .popup-input {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      margin-bottom: 12px !important;
+      height: 44px !important;
+      font-size: 16px !important; /* Prevents iOS auto-zoom on focus */
+    }
+
+    /* Make sure labels look good */
+    .p-10 label {
+      display: block;
+      margin-top: 8px;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: #475569;
+      font-size: 14px;
+    }
+
+    /* Make the title smaller and cleaner on mobile */
+    .popup-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #0f172a;
+    }
+
+    /* Ensure buttons are ALWAYS in one row and equal width */
+    .popup-button-group {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      gap: 10px !important;
+      width: 100% !important;
+      margin-top: 20px !important;
+      box-sizing: border-box !important;
+    }
+
+    .popup-button-group button,
+    .popup-button-group .btn-action {
+      flex: 1 !important;
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+      height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-size: 14px !important;
+      font-weight: 700 !important;
+      white-space: nowrap !important;
+      border-radius: 10px !important;
+      padding: 0 10px !important;
+      box-sizing: border-box !important;
+    }
+
+    .btn-save {
+      background: #3b82f6 !important;
+      color: #fff !important;
+    }
+    .btn-save:hover {
+      background: #2563eb !important;
+    }
+
+    .btn-outline {
+      background: transparent !important;
+      border: 1px solid #cbd5e1 !important;
+      color: #475569 !important;
+    }
+    .btn-outline:hover {
+      background: #f1f5f9 !important;
+    }
+
+    /* Extra mobile adjustment */
+    @media (max-width: 480px) {
+      .p-10 {
+        padding: 5px !important;
+      }
+      .popup-title {
+        font-size: 18px;
+        margin-bottom: 12px;
+      }
+      .popup-button-group button,
+      .popup-button-group .btn-action {
+        font-size: 13px !important;
+      }
+    }
+  </style>
   <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj zasyp{% else %}📦 {{ _('dodaj_palete') }}{% endif %}</h3>
   {% if sekcja == 'Workowanie' %}
   {# Workowanie: użyj dedykowanego endpointu dodaj_palete #}

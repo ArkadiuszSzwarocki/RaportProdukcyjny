@@ -80,7 +80,7 @@ def log_slow_requests(app):
 
 
 def add_cache_headers(app):
-    """Middleware: Add caching headers for static assets and favicon.
+    """Middleware: Add caching headers for static assets and favicon, and disable caching for dynamic routes.
     
     Args:
         app: Flask application instance
@@ -95,6 +95,11 @@ def add_cache_headers(app):
             if p.startswith('/static/') or p == '/favicon.ico' or p.startswith('/.well-known'):
                 # cache for 1 day
                 response.headers['Cache-Control'] = 'public, max-age=86400'
+            else:
+                # Disable browser and intermediate caching for dynamic views to prevent BFCache session leaks
+                response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+                response.headers['Pragma'] = 'no-cache'
+                response.headers['Expires'] = '0'
         except Exception:
             pass
         return response
@@ -118,7 +123,7 @@ def ensure_pracownik_mapping(app):
     def middleware():
         try:
             # If logged but user/pracownik mapping is incomplete in session, attempt to read from DB
-            if session.get('zalogowany') and session.get('login') and (session.get('pracownik_id') is None or session.get('user_id') is None):
+            if session.get('zalogowany') and session.get('login') and ('pracownik_id' not in session or session.get('user_id') is None):
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute("SELECT id, COALESCE(pracownik_id, NULL) FROM uzytkownicy WHERE login=%s", (session.get('login'),))
@@ -127,8 +132,8 @@ def ensure_pracownik_mapping(app):
                     if r:
                         if r[0] is not None:
                             session['user_id'] = int(r[0])
-                        if r[1] is not None:
-                            session['pracownik_id'] = int(r[1])
+                        # Always set the key (even as None) to prevent subsequent DB hits on every request
+                        session['pracownik_id'] = int(r[1]) if r[1] is not None else None
                     else:
                         # Try a best-effort automatic mapping on first login: tokenize login and search pracownicy
                         try:
@@ -203,7 +208,19 @@ def track_active_session(app):
             session['session_tracking_id'] = ensure_session_tracking_id(session.get('session_tracking_id'))
             
             # Check if this session has been deactivated (e.g. from logout on another device)
-            if not is_session_active(session.get('session_tracking_id')):
+            # Rate-limit database active check to at most once every 15 seconds to avoid heavy DB overhead
+            now_ts = time.time()
+            last_active_check = float(session.get('last_session_active_check') or 0)
+            is_active = True
+            
+            if now_ts - last_active_check >= 15:
+                is_active = is_session_active(session.get('session_tracking_id'))
+                session['last_session_active_check'] = now_ts
+                session['session_active_cached'] = is_active
+            else:
+                is_active = session.get('session_active_cached', True)
+
+            if not is_active:
                 try:
                     app.logger.info("Session %s was deactivated in DB. Force logging out user %s.", 
                                     session.get('session_tracking_id'), session.get('login'))

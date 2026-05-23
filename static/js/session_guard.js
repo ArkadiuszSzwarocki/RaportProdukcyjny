@@ -31,40 +31,11 @@
         });
     };
 
-    // ── 2. WYLOGOWANIE PRZY UKRYCIU APLIKACJI (Visibility API) ──────────────────
-    // Używamy localStorage do śledzenia kiedy apka była ukryta
-    var _hiddenAt = null;
-
+    // ── 2. ZARZĄDZANIE WIDOCZNOŚCIĄ APLIKACJI (Visibility API) ──────────────────
     document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'hidden') {
-            _hiddenAt = Date.now();
-            try {
-                localStorage.setItem('session_hidden_at', _hiddenAt.toString());
-            } catch(e) {}
-        } else if (document.visibilityState === 'visible') {
-            // Sprawdź czy upłynął dopuszczalny czas nieaktywności w tle (dostosowany do SESSION_TIMEOUT_MINUTES z serwera, domyślnie 40 minut)
-            try {
-                var hiddenAtStr = localStorage.getItem('session_hidden_at');
-                if (hiddenAtStr) {
-                    var hiddenAt = parseInt(hiddenAtStr, 10);
-                    var timeAway = Date.now() - hiddenAt;
-                    
-                    var configEl = document.getElementById('session-timeout-config');
-                    var timeoutMinutes = 40;
-                    if (configEl) {
-                        timeoutMinutes = parseInt(configEl.getAttribute('data-timeout-minutes') || '40', 10);
-                    }
-                    var maxAwayTime = timeoutMinutes * 60 * 1000; // Dopasowanie do czasu sesji serwerowej
-                    
-                    if (timeAway > maxAwayTime) {
-                        localStorage.removeItem('session_hidden_at');
-                        window.location.replace('/logout');
-                        return;
-                    }
-                }
-            } catch(e) {}
-            
-            // Wróciłem do apki w dozwolonym czasie — sprawdź sesję na serwerze
+        if (document.visibilityState === 'visible') {
+            // Po powrocie do aplikacji (np. odblokowanie telefonu) natychmiast sprawdź
+            // stan sesji na serwerze. Zapobiega to poleganiu na niepewnym zegarze lokalnym.
             _checkSessionAlive();
         }
     });
@@ -147,7 +118,7 @@
         
         var timeoutMinutes = parseInt(configEl.getAttribute('data-timeout-minutes') || '40', 10);
         var maxTime = timeoutMinutes * 60; // w sekundach
-        var timeLeft = maxTime;
+        var lastUserActivityTime = Date.now();
         var lastTouchTime = Date.now();
         
         var wrapper = document.getElementById('sessionTimeoutWrapper');
@@ -168,14 +139,14 @@
         }
         
         // Zaktualizuj licznik wizualnie
-        function updateTimerDisplay() {
-            var minutes = Math.floor(timeLeft / 60);
-            var seconds = timeLeft % 60;
+        function updateTimerDisplay(timeLeftVal) {
+            var minutes = Math.floor(timeLeftVal / 60);
+            var seconds = timeLeftVal % 60;
             var timeStr = (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
             timerEl.textContent = timeStr;
             
             // Kolorystyka i zachowanie
-            if (timeLeft > 300) {
+            if (timeLeftVal > 300) {
                 // Ponad 5 minut - spokojny zielony styl
                 badgeEl.style.background = 'rgba(16, 185, 129, 0.1)';
                 badgeEl.style.borderColor = 'rgba(16, 185, 129, 0.25)';
@@ -183,7 +154,7 @@
                 iconEl.style.color = '#10b981';
                 iconEl.classList.remove('animate-pulse');
                 labelEl.textContent = 'Sesja:';
-            } else if (timeLeft > 60) {
+            } else if (timeLeftVal > 60) {
                 // Pomiędzy 1 a 5 minut - ostrzeżenie żółte/pomarańczowe
                 badgeEl.style.background = 'rgba(245, 158, 11, 0.15)';
                 badgeEl.style.borderColor = 'rgba(245, 158, 11, 0.3)';
@@ -221,8 +192,10 @@
         
         // Funkcja resetująca lokalny licznik przy aktywności użytkownika
         function resetTimer() {
-            timeLeft = maxTime;
-            updateTimerDisplay();
+            lastUserActivityTime = Date.now();
+            var elapsedSeconds = Math.floor((Date.now() - lastUserActivityTime) / 1000);
+            var currentLeft = Math.max(0, maxTime - elapsedSeconds);
+            updateTimerDisplay(currentLeft);
             touchServerSession();
         }
         
@@ -232,12 +205,13 @@
             document.addEventListener(eventName, resetTimer, { passive: true });
         });
         
-        // Odliczanie co sekundę
-        updateTimerDisplay();
+        // Odliczanie co sekundę oparte na rzeczywistym czasie zegarowym
+        updateTimerDisplay(maxTime);
         var timerInterval = setInterval(function() {
-            if (timeLeft > 0) {
-                timeLeft--;
-                updateTimerDisplay();
+            var elapsedSeconds = Math.floor((Date.now() - lastUserActivityTime) / 1000);
+            var currentLeft = maxTime - elapsedSeconds;
+            if (currentLeft > 0) {
+                updateTimerDisplay(currentLeft);
             } else {
                 clearInterval(timerInterval);
                 window.location.replace('/logout');

@@ -1150,6 +1150,55 @@
         loadSoundScript();
     }
 
+    function showLaborantZasypBanner() {
+        try {
+            var existing = document.getElementById('laborant-zasyp-banner');
+            if (existing) {
+                return;
+            }
+
+            var banner = document.createElement('div');
+            banner.id = 'laborant-zasyp-banner';
+            banner.setAttribute('role', 'status');
+            banner.style.position = 'fixed';
+            banner.style.left = '50%';
+            banner.style.transform = 'translateX(-50%)';
+            banner.style.top = '100px';
+            banner.style.zIndex = 99999;
+            banner.style.minWidth = '320px';
+            banner.style.maxWidth = '720px';
+            banner.style.background = '#eff6ff';
+            banner.style.border = '1px solid #3b82f6';
+            banner.style.boxShadow = '0 8px 30px rgba(0,0,0,0.12)';
+            banner.style.padding = '14px 16px';
+            banner.style.borderRadius = '10px';
+            banner.style.fontFamily = 'inherit';
+
+            banner.innerHTML = '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">' +
+                _buildAgroPulseSign('i', '#eff6ff', '#3b82f6', '#1d4ed8') +
+                '<div style="flex:1"><div style="font-weight:700; margin-bottom:6px;">OPERATOR ZATWIERDZIŁ NOWY ZASYP</div><div style="font-size:0.95em;">Możesz teraz dodać składniki dosypki.</div></div>' +
+                '<div style="margin-left:8px"><button id="laborant-zasyp-dismiss" style="background:#f1f2f6;border:none;padding:6px 10px;border-radius:8px;cursor:pointer">OK</button></div>' +
+                '</div>';
+
+            document.body.appendChild(banner);
+            try {
+                document.getElementById('laborant-zasyp-dismiss').addEventListener('click', function () {
+                    try { banner.remove(); } catch (error) {}
+                });
+            } catch (error) {}
+            
+            // Play a standard notification sound
+            try {
+                var audio = new Audio('/static/sounds/doorbell.m4a');
+                audio.play().catch(function(){});
+            } catch (error) {}
+            
+            // Note: INTENTIONALLY NO TIMEOUT so it hangs until dismissed by Laborant
+        } catch (error) {
+            console.error('showLaborantZasypBanner error', error);
+        }
+    }
+
     global.dashboardAgroBanners = {
         init: init,
         stopMedia: _stopAgroBannerMedia,
@@ -1162,6 +1211,7 @@
         showZasypStartBanner: showZasypStartBanner,
         showZasypMieszanieStartBanner: showZasypMieszanieStartBanner,
         showZasypDosypkaAddedBanner: showZasypDosypkaAddedBanner,
+        showLaborantZasypBanner: showLaborantZasypBanner,
     };
 
     ready(init);

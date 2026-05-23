@@ -74,6 +74,7 @@
                 </div>
                 {% else %}
                 <div class="cards">
+                    {% set queue = namespace(first_found=false) %}
                     {% for p in plan if p[3] != 'w toku' %}
                     <div class="card {% if p[3] == 'zakonczone' %}card-completed{% endif %}" data-id="{{ p[0] }}">
                         <div class="card-header">
@@ -108,10 +109,17 @@
 
                         <div class="card-actions">
                             {% if p[3] == 'zaplanowane' and rola in ['admin', 'masteradmin', 'lider', 'produkcja'] %}
-                            <form action="/start_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
-                                <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
-                                <button type="submit" class="btn-start">▶ START</button>
-                            </form>
+                            {% if not queue.first_found %}
+                                {% set queue.first_found = true %}
+                                <form action="/start_zlecenie/{{ p[0] }}" method="POST" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                                    <input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                                    <button type="submit" class="btn-start">▶ START</button>
+                                </form>
+                            {% else %}
+                                <div class="text-muted small p-10 text-center" style="background: #f8f9fa; border-radius: 4px; border: 1px dashed #ccc;">
+                                    <span class="material-icons info-icon" style="font-size: 16px; vertical-align: middle;">lock</span> Oczekuje w kolejce
+                                </div>
+                            {% endif %}
                             {% endif %}
                             {% if p[3] != 'zakonczone' and rola in ['admin', 'masteradmin', 'lider'] %}
                             <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST"

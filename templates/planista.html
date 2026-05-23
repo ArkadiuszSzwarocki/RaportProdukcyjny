@@ -9,26 +9,37 @@
 <div class="planista-viewport">
 
 <div class="section-header">
-    <div class="d-flex align-center">
+    <div class="d-flex align-center flex-wrap gap-15" style="width: 100%;">
         <div>
             <h2 class="header-title">📅 {{ _('panel_panel_planisty') if _('panel_panel_planisty') != 'panel_panel_planisty' else 'Panel Planisty' }}</h2>
-            <p class="text-muted">{{ _('zarzadzanie_produkcja') }}</p>
+            <p class="text-muted" style="margin-bottom: 0;">{{ _('zarzadzanie_produkcja') }}</p>
         </div>
-        <div id="notif-permission-box" style="display:none; margin-left: 20px;">
+        
+        <form action="/planista" method="GET" class="d-flex align-center" style="margin: 0;">
+            <input type="hidden" name="tab" value="{{ aktywna_zakladka }}">
+            <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm planista-date-input"
+                aria-label="Wybierz datę">
+        </form>
+
+        <div id="notif-permission-box" style="display:none; margin-left: auto;">
             <button type="button" class="btn btn-warning btn-sm" onclick="window.initPlannerNotifications()" style="display:flex; align-items:center; gap:6px; border-radius:8px; padding:8px 14px; font-weight:700; border:1px solid #d97706; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.2);">
                 <span class="material-icons" style="font-size:18px;">notifications_active</span> Włącz powiadomienia desktopowe
             </button>
         </div>
     </div>
-    <form action="/planista" method="GET" class="d-flex align-center gap-10">
-        <input type="hidden" name="tab" value="{{ aktywna_zakladka }}">
-        <input type="date" name="data" value="{{ wybrana_data }}" onchange="this.form.submit()" class="input-sm planista-date-input"
-            aria-label="Wybierz datę">
-        <a href="/planista?data={{ wybrana_data }}&tab={{ aktywna_zakladka }}" class="btn btn-primary">{{ _('odswiez')
-            }}</a>
-        <!-- Przycisk 'Sprawdź niezrealizowane' usunięty na życzenie -->
-    </form>
+</div>
+
+    <!-- Banner Informacyjny o Ulepszeniach -->
+    <div id="planningInfoBanner" class="planning-info-banner" style="display: none; margin-bottom: 20px;">
+        <div class="planning-info-banner-content">
+            <div class="planning-info-banner-icon">🚀</div>
+            <div class="planning-info-banner-text">
+                <strong>Aktualizacja systemu planowania!</strong> Zobacz najnowsze ulepszenia i ułatwienia w module planisty.
+            </div>
+        </div>
+        <button type="button" id="btnOpenPlanningInfo" class="btn-planning-info-open">🔍 Zobacz zmiany</button>
     </div>
+
 <!-- Zakładki PSD / AGRO -->
 <div class="plan-tabs" style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--border-color);">
     <a href="/planista?data={{ wybrana_data }}&tab=psd"
@@ -49,20 +60,6 @@
     </a>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var plannerDateInput = document.querySelector('.planista-viewport .planista-date-input');
-    if (!plannerDateInput) return;
-    var tryOpenPicker = function () {
-        if (typeof plannerDateInput.showPicker === 'function') {
-            try { plannerDateInput.showPicker(); } catch (e) { }
-        }
-    };
-    plannerDateInput.addEventListener('pointerdown', tryOpenPicker);
-    plannerDateInput.addEventListener('click', tryOpenPicker);
-    plannerDateInput.addEventListener('pointerup', tryOpenPicker);
-});
-</script>
 
 {% if aktywna_zakladka == 'agro' %}
 {# ===== ZAKŁADKA AGRO ===== #}
@@ -111,6 +108,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <thead>
             <tr>
                 <th>Lp.</th>
+                <th style="width: 50px;"></th>
                 <th>📦 Produkt</th>
                 <th>🏷️ Typ</th>
                 <th>📋 Plan</th>
@@ -125,6 +123,14 @@ document.addEventListener('DOMContentLoaded', function () {
             {% for p in plany_agro %}
             <tr data-plan-id="{{ p.id }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-opakowanie-id="{{ p.opakowanie_id or '' }}" data-etykieta-id="{{ p.etykieta_id or '' }}" data-produkt="{{ p.produkt }}">
                 <td class="text-muted font-bold">{{ loop.index }}</td>
+                <td class="text-center" style="white-space: nowrap; width: 50px; padding: 10px 4px;">
+                    {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
+                    <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
+                        <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon-move" aria-label="Przenieś w górę" title="Przenieś w górę" style="padding: 4px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #475569; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">↑</button>
+                        <button type="button" data-action="move-down" data-plan-id="{{ p.id }}" class="btn-icon-move" aria-label="Przenieś w dół" title="Przenieś w dół" style="padding: 4px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #475569; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">↓</button>
+                    </div>
+                    {% endif %}
+                </td>
                 <td>
                     <strong class="text-primary">{{ p.produkt }}</strong>
                     {% if p.opakowanie_nazwa or p.etykieta_nazwa %}
@@ -167,44 +173,47 @@ document.addEventListener('DOMContentLoaded', function () {
                     {% else %}<span class="status-badge status-zaplanowane">ZAPLANOWANE</span>{% endif %}
                 </td>
                 <td class="text-right">
-                    <div class="d-flex gap-5 align-center justify-end">
-                        {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
-                        <!-- Zaplanowane - można reorderować -->
-                        <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon"
-                            aria-label="Przenieś w górę">⬆</button>
-                        <button type="button" data-action="move-down" data-plan-id="{{ p.id }}" class="btn-icon"
-                            aria-label="Przenieś w dół">⬇</button>
-                        <button type="button" data-action="open-move-modal" data-plan-id="{{ p.id }}"
-                            data-plan-day="{{ p.produkt }}" class="btn-icon text-primary"
-                            aria-label="Przenieś plan">📅</button>
-                        <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p.id }}"
-                            title="Edytuj">✎</button>
-                        {% elif p.status not in ['w toku', 'zakonczone'] %}
-                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola')|e }}) nie posiada uprawnień do modyfikacji planów AGRO. To nie jest błąd, lecz ograniczenie Twojego konta.')" title="Brak uprawnień">🔒</button>
-                        {% endif %}
-
-                        {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
-                        <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST"
-                            class="inline-form" onsubmit="return confirm('Usunąć zlecenie AGRO?');">
-                            <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-                            <input type="hidden" name="linia" value="Agro">
-                            <input type="hidden" name="tab" value="agro">
-                            <button type="submit" class="btn-icon text-danger" title="Usuń">🗑️</button>
-                        </form>
-                        {% else %}
-                        <span class="text-muted" title="Zablokowane (usuwanie)">🔒</span>
-                        {% endif %}
-                        
-                        {% if can_manage_plans %}
-                        <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
-                            data-plan-id="{{ p.id }}" title="Edytuj tonaż">📝</button>
-                        {% endif %}
+                    {% if can_manage_plans %}
+                    <div class="actions-dropdown">
+                        <button type="button" class="actions-dropdown-btn" aria-label="Więcej opcji" title="Więcej opcji">
+                            ⚙️ Akcje <span style="font-size: 10px;">▼</span>
+                        </button>
+                        <div class="actions-dropdown-menu">
+                            {% if p.status not in ['w toku', 'zakonczone'] %}
+                            <button type="button" data-action="open-move-modal" data-plan-id="{{ p.id }}" data-plan-day="{{ p.produkt }}" class="actions-dropdown-item">
+                                📅 Przenieś plan
+                            </button>
+                            <button type="button" class="actions-dropdown-item" data-action="toggle-edit" data-plan-id="{{ p.id }}">
+                                ✎ Edytuj szczegóły
+                            </button>
+                            <div class="actions-dropdown-divider"></div>
+                            {% endif %}
+                            
+                            <button type="button" class="actions-dropdown-item text-info" data-action="toggle-tonaz-edit" data-plan-id="{{ p.id }}">
+                                📝 Edytuj tonaż
+                            </button>
+                            
+                            {% if p.status not in ['w toku', 'zakonczone'] %}
+                            <div class="actions-dropdown-divider"></div>
+                            <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Usunąć zlecenie AGRO?');" style="margin: 0; width: 100%;">
+                                <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
+                                <input type="hidden" name="linia" value="Agro">
+                                <input type="hidden" name="tab" value="agro">
+                                <button type="submit" class="actions-dropdown-item text-danger" style="width: 100%;">
+                                    🗑️ Usuń plan
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
                     </div>
+                    {% else %}
+                    <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola')|e }}) nie posiada uprawnień do modyfikacji planów AGRO.')" title="Brak uprawnień">🔒</button>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="7" class="text-center p-20">Brak planu AGRO na ten dzień.</td>
+                <td colspan="10" class="text-center p-20">Brak planu AGRO na ten dzień.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -307,6 +316,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <thead>
             <tr>
                 <th>Lp.</th>
+                <th style="width: 50px;"></th>
                 <th>📦 {{ _('produkt') }}</th>
                 <th>🏷️ {{ _('typ') }}</th>
                 <th>📋 {{ _('plan') }}</th>
@@ -320,8 +330,16 @@ document.addEventListener('DOMContentLoaded', function () {
         </thead>
         <tbody id="plans-tbody" class="sortable-tbody">
             {% for p in plany %}
-            <tr data-plan-id="{{ p.id }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" {% if p.status in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
+            <tr data-plan-id="{{ p.id }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-produkt="{{ p.produkt }}" {% if p.status in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
                 <td class="text-muted font-bold">{{ loop.index }}</td>
+                <td class="text-center" style="white-space: nowrap; width: 50px; padding: 10px 4px;">
+                    {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
+                    <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
+                        <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon-move" aria-label="Przenieś w górę" title="Przenieś w górę" style="padding: 4px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #475569; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">↑</button>
+                        <button type="button" data-action="move-down" data-plan-id="{{ p.id }}" class="btn-icon-move" aria-label="Przenieś w dół" title="Przenieś w dół" style="padding: 4px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #475569; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">↓</button>
+                    </div>
+                    {% endif %}
+                </td>
                 <td>
                     <strong class="text-primary">{{ p.produkt }}</strong>
                     {% if p.przeniesiony_z %}
@@ -363,52 +381,61 @@ document.addEventListener('DOMContentLoaded', function () {
                     {% elif p.status == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
                     {% else %}<span class="status-badge status-zaplanowane">{{ _('zaplanowane_btn') }}</span>{% endif %}
                 </td>
-                <td>
-                    <div class="d-flex gap-5 align-center">
-                        {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
-                        <!-- Zaplanowane - można reorderować -->
-                        <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon"
-                            aria-label="Przenieś w górę">⬆</button>
-                        <button type="button" data-action="move-down" data-plan-id="{{ p.id }}" class="btn-icon"
-                            aria-label="Przenieś w dół">⬇</button>
-                        <button type="button" data-action="open-move-modal" data-plan-id="{{ p.id }}"
-                            data-plan-day="{{ p.produkt }}" class="btn-icon text-primary"
-                            aria-label="Przenieś plan">📅</button>
-                        <button type="button" class="btn-icon" data-action="toggle-edit" data-plan-id="{{ p.id }}"
-                            title="{{ _('edytuj') }}">✎</button>
-                        {% elif p.status not in ['w toku', 'zakonczone'] %}
-                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola') }}) nie pozwala na modyfikację planów PSD. To nie jest błąd systemu.')" title="Brak uprawnień">🔒</button>
-                        {% endif %}
+                <td class="text-right">
+                    <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
                         {# Compute remaining explicitly to avoid type issues #}
                         {% set plan_kg = (p.tonaz or 0) | float %}
                         {% set wykonanie_kg = (p.tonaz_rzeczywisty or 0) | float %}
                         {% set remaining = plan_kg - wykonanie_kg %}
                         {% if remaining > 0 %}
-                            <span class="badge badge-warning">Niezrealizowane: {{ remaining|round(1) }} kg</span>
-                            {% if can_manage_plans %}
-                            <button type="button" class="btn-icon btn-warning" onclick="moveIncompleteToNextDay({{ p.id }}, '{{ wybrana_data }}', this)"
-                                title="Przenieś niezrealizowane zlecenie na następny dzień">📦➡️</button>
-                            {% endif %}
-                        {% endif %}
-                        {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
-                        <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form"
-                            onsubmit="return confirm('Usunąć zlecenie?');">
-                            <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
-                            <input type="hidden" name="linia" value="PSD">
-                            <input type="hidden" name="tab" value="psd">
-                            <button type="submit" class="btn-icon text-danger" title="{{ _('usun_plan') }}">🗑️</button>
-                        </form>
-                        {% elif p.status not in ['w toku', 'zakonczone'] %}
-                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola') }}) nie pozwala na usuwanie planów.')" title="Brak uprawnień do usuwania">🗑️🔒</button>
-                        {% else %}
-                        <span class="text-muted">-</span>
+                            <span class="badge badge-warning" style="white-space: nowrap;">Niezrealizowane: {{ remaining|round(1) }} kg</span>
                         {% endif %}
 
                         {% if can_manage_plans %}
-                        <button type="button" class="btn-icon text-info" data-action="toggle-tonaz-edit"
-                            data-plan-id="{{ p.id }}" title="Edytuj tonaż">📝</button>
+                        <div class="actions-dropdown">
+                            <button type="button" class="actions-dropdown-btn" aria-label="Więcej opcji" title="Więcej opcji">
+                                ⚙️ Akcje <span style="font-size: 10px;">▼</span>
+                            </button>
+                            <div class="actions-dropdown-menu">
+                                {% if p.status not in ['w toku', 'zakonczone'] %}
+                                <button type="button" data-action="open-move-modal" data-plan-id="{{ p.id }}" data-plan-day="{{ p.produkt }}" class="actions-dropdown-item">
+                                    📅 Przenieś plan
+                                </button>
+                                <button type="button" class="actions-dropdown-item" data-action="toggle-edit" data-plan-id="{{ p.id }}">
+                                    ✎ Edytuj szczegóły
+                                </button>
+                                <div class="actions-dropdown-divider"></div>
+                                {% endif %}
+                                
+                                <button type="button" class="actions-dropdown-item text-info" data-action="toggle-tonaz-edit" data-plan-id="{{ p.id }}">
+                                    📝 Edytuj tonaż
+                                </button>
+                                
+                                {% if remaining > 0 %}
+                                <button type="button" class="actions-dropdown-item text-warning" onclick="moveIncompleteToNextDay({{ p.id }}, '{{ wybrana_data }}', this)" title="Przenieś niezrealizowane zlecenie na następny dzień">
+                                    📦➡️ Przenieś niezrealizowane
+                                </button>
+                                {% endif %}
+                                
+                                {% if p.status not in ['w toku', 'zakonczone'] %}
+                                <div class="actions-dropdown-divider"></div>
+                                <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Usunąć zlecenie?');" style="margin: 0; width: 100%;">
+                                    <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
+                                    <input type="hidden" name="linia" value="PSD">
+                                    <input type="hidden" name="tab" value="psd">
+                                    <button type="submit" class="actions-dropdown-item text-danger" style="width: 100%;">
+                                        🗑️ Usuń plan
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
                         {% else %}
-                        <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola') }}) nie pozwala na edycję tonażu. To nie jest błąd systemu, lecz ograniczenie dostępowe.')" title="Zablokowane">🔒</button>
+                            {% if p.status not in ['w toku', 'zakonczone'] %}
+                            <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola') }}) nie pozwala na modyfikację planów PSD. To nie jest błąd systemu.')" title="Brak uprawnień">🔒</button>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
                         {% endif %}
                     </div>
                 </td>
@@ -416,7 +443,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             {% if palety_mapa[p.id] %}
             <tr id="details-{{ p.id }}" class="details-row">
-                <td colspan="10" class="p-0">
+                <td colspan="11" class="p-0">
                     <div class="p-10">
                         <table class="modern-table small">
                             <thead>
@@ -445,11 +472,13 @@ document.addEventListener('DOMContentLoaded', function () {
             </tr>
             {% endif %}
             {% else %}<tr>
-                <td colspan="10" class="text-center p-20">Brak planu.</td>
+                <td colspan="11" class="text-center p-20">Brak planu.</td>
             </tr>{% endfor %}
         </tbody>
     </table>
 </div>
+
+{% endif %}{# koniec bloku PSD / else AGRO #}
 
 <!-- Rozliczenie sekcja: Zasyp / Plan Workowanie / Spakowane / Bufor / Różnice -->
 <div class="section-box mt-20">
@@ -493,8 +522,6 @@ document.addEventListener('DOMContentLoaded', function () {
         </tbody>
     </table>
 </div>
-
-{% endif %}{# koniec bloku PSD / else AGRO #}
 
 <script>
     // Linia z jakiej wywoływana jest ta strona
@@ -804,10 +831,10 @@ document.addEventListener('DOMContentLoaded', function () {
     function toggleEdit(id) {
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
         if (!tr) return;
-        // Table columns: 0=Lp, 1=Produkt, 2=Typ, 3=Plan
-        var produkt = tr.getAttribute('data-produkt') || (tr.children[1].querySelector('strong') ? tr.children[1].querySelector('strong').innerText.trim() : tr.children[1].innerText.trim());
+        // Table columns: 0=Lp, 1=Arrows, 2=Produkt, 3=Typ, 4=Plan
+        var produkt = tr.getAttribute('data-produkt') || (tr.children[2].querySelector('strong') ? tr.children[2].querySelector('strong').innerText.trim() : tr.children[2].innerText.trim());
         var typ = tr.querySelector('.badge-sekcja') ? tr.querySelector('.badge-sekcja').innerText : '';
-        var tonaz = tr.children[3].innerText.replace(/[^0-9\.\,]/g, '').replace(',', '.') || 0;
+        var tonaz = tr.children[4].innerText.replace(/[^0-9\.\,]/g, '').replace(',', '.') || 0;
         var dataProdukcji = tr.getAttribute('data-data-produkcji') || '';
         var opakowanieId = tr.getAttribute('data-opakowanie-id') || '';
         var etykietaId = tr.getAttribute('data-etykieta-id') || '';
@@ -902,7 +929,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
         var tonaz;
         if (tr) {
-            tonaz = tr.children[3].innerText.replace(/[^0-9\.\,]/g, '').replace(',', '.') || 0;
+            tonaz = tr.children[4].innerText.replace(/[^0-9\.\,]/g, '').replace(',', '.') || 0;
         } else if (btn && btn.getAttribute('data-linked-tonaz') !== null) {
             // Workowanie row not in DOM (ghost Zasyp carry-over) — use stored tonaz from button
             tonaz = btn.getAttribute('data-linked-tonaz') || 0;
@@ -1001,6 +1028,58 @@ document.addEventListener('DOMContentLoaded', function () {
                 break;
         }
     }, false);
+
+    // Toggle actions dropdown with dynamic absolute positioning relative to viewport (fixed) to prevent overflow clipping
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.actions-dropdown-btn');
+        if (btn) {
+            e.stopPropagation();
+            var menu = btn.nextElementSibling;
+            if (menu) {
+                var isShown = menu.classList.contains('show');
+                document.querySelectorAll('.actions-dropdown-menu.show').forEach(function (m) {
+                    if (m !== menu) m.classList.remove('show');
+                });
+                if (!isShown) {
+                    // Position dynamically relative to the viewport
+                    menu.style.display = 'block'; // Ensure we can measure width
+                    var rect = btn.getBoundingClientRect();
+                    var menuWidth = menu.offsetWidth || 190;
+                    var leftPos = rect.right - menuWidth;
+                    if (leftPos < 10) leftPos = 10;
+                    
+                    menu.style.top = (rect.bottom + 6) + 'px';
+                    menu.style.left = leftPos + 'px';
+                    menu.style.display = ''; // Reset display so class show handles visibility
+                    
+                    menu.classList.add('show');
+                } else {
+                    menu.classList.remove('show');
+                }
+            }
+            return;
+        }
+        
+        // Close dropdown when clicking outside or clicking any dropdown item
+        if (!e.target.closest('.actions-dropdown') || e.target.closest('.actions-dropdown-item') || e.target.closest('form')) {
+            document.querySelectorAll('.actions-dropdown-menu.show').forEach(function (m) {
+                m.classList.remove('show');
+            });
+        }
+    });
+
+    // Close dropdown on viewport scroll or resize to prevent floating issues
+    window.addEventListener('scroll', function() {
+        document.querySelectorAll('.actions-dropdown-menu.show').forEach(function (m) {
+            m.classList.remove('show');
+        });
+    }, { capture: true, passive: true });
+
+    window.addEventListener('resize', function() {
+        document.querySelectorAll('.actions-dropdown-menu.show').forEach(function (m) {
+            m.classList.remove('show');
+        });
+    });
 
     // Initialize Sortable for plan reordering via drag-and-drop
     if (typeof Sortable !== 'undefined') {
@@ -1446,6 +1525,119 @@ document.addEventListener('DOMContentLoaded', function () {
         pointer-events: none;
     }
 
+    /* Custom premium actions dropdown */
+    .actions-dropdown {
+        position: relative;
+        display: inline-block;
+    }
+
+    .actions-dropdown-btn {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+    }
+
+    .actions-dropdown-btn:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+        border-color: #cbd5e1;
+    }
+
+    .actions-dropdown-menu {
+        position: fixed;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        border-radius: 10px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        z-index: 99999;
+        display: none;
+        min-width: 190px;
+        padding: 6px;
+        text-align: left;
+    }
+
+    .actions-dropdown-menu.show {
+        display: block;
+        animation: fadeInDropdown 0.15s ease-out;
+    }
+
+    @keyframes fadeInDropdown {
+        from {
+            opacity: 0;
+            transform: translateY(-8px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .actions-dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+        background: none;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+
+    .actions-dropdown-item:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+    }
+
+    .actions-dropdown-item.text-danger {
+        color: #ef4444;
+    }
+
+    .actions-dropdown-item.text-danger:hover {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+    
+    .actions-dropdown-item.text-info {
+        color: #0284c7;
+    }
+
+    .actions-dropdown-item.text-info:hover {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+
+    .actions-dropdown-item.text-warning {
+        color: #ea580c;
+    }
+
+    .actions-dropdown-item.text-warning:hover {
+        background: #ffedd5;
+        color: #c2410c;
+    }
+
+    .actions-dropdown-divider {
+        height: 1px;
+        background-color: #f1f5f9;
+        margin: 4px 6px;
+    }
+
     .sortable-tbody tr:hover {
         background: #f9f9f9;
         transition: background 0.2s;
@@ -1709,6 +1901,116 @@ document.addEventListener('DOMContentLoaded', function(){
             });
         });
     });
+});
+</script>
+
+<!-- Modal for planning changes info -->
+<div class="modal-backdrop" id="infoModalBackdrop"></div>
+<div class="info-details-modal" id="infoModal">
+  <h3>🚀 Ulepszenia w systemie planowania</h3>
+  <div class="info-details-grid">
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">⚡</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Zreorganizowane akcje (PSD & Agro)</div>
+        <div class="info-detail-desc">Przenieśliśmy strzałki zmiany kolejności (góra-dół) na lewą stronę, tuż przed nazwę produktu. Pozostałe akcje zebraliśmy w jednym, czytelnym menu rozwijanym.</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">📋</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Intuicyjny formularz AGRO</div>
+        <div class="info-detail-desc">Zaprojektowaliśmy przejrzysty, wieloliniowy układ pól: Produkt i Waga na samej górze, Nr receptury i Typ pod spodem, a Domyślne opakowanie i Etykieta w trzeciej linii z wyraźnymi czerwonymi gwiazdkami dla pól wymaganych.</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">🔎</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Nowoczesne zarządzanie produktami</div>
+        <div class="info-detail-desc">Całkowicie przeprojektowaliśmy i powiększyliśmy okno zarządzania produktami. Dodaliśmy szybką wyszukiwarkę na żywo wspierającą polskie znaki diakrytyczne.</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">🏷️</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Wizualne kolory etykiet</div>
+        <div class="info-detail-desc">Etykiety w oknie zarządzania produktami oraz na liście planowania posiadają teraz barwne oznaczenia (paski) odpowiadające rzeczywistym kolorom na workach (żółty, fioletowy, brązowy, biały).</div>
+      </div>
+    </div>
+    
+    <div class="info-detail-card">
+      <div class="info-detail-icon">💾</div>
+      <div class="info-detail-body">
+        <div class="info-detail-title">Automatyczne wczytywanie opakowań</div>
+        <div class="info-detail-desc">Podczas edycji produktu możesz zapisać domyślny worek oraz etykietę. Przy wyborze tego produktu w formularzu planowania, system automatycznie uzupełni te dane!</div>
+      </div>
+    </div>
+    
+  </div>
+  <div class="info-details-footer">
+    <button type="button" id="btnDismissInfo" class="btn-info-dismiss">Przeczytałem – nie pokazuj więcej</button>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const banner = document.getElementById('planningInfoBanner');
+    const openBtn = document.getElementById('btnOpenPlanningInfo');
+    const modal = document.getElementById('infoModal');
+    const backdrop = document.getElementById('infoModalBackdrop');
+    const dismissBtn = document.getElementById('btnDismissInfo');
+
+    const currentLogin = "{{ session.get('login') or 'anonymous' }}";
+    const storageKey = `planista_info_read_${currentLogin}`;
+
+    function checkBanner() {
+        if (localStorage.getItem(storageKey) !== 'true') {
+            if (banner) banner.style.display = 'flex';
+        } else {
+            if (banner) banner.style.display = 'none';
+        }
+    }
+
+    if (openBtn) {
+        openBtn.addEventListener('click', function() {
+            if (modal && backdrop) {
+                modal.classList.add('active');
+                backdrop.classList.add('active');
+            }
+        });
+    }
+
+    function closeModal() {
+        if (modal && backdrop) {
+            modal.classList.remove('active');
+            backdrop.classList.remove('active');
+        }
+    }
+
+    if (dismissBtn) {
+        dismissBtn.addEventListener('click', function() {
+            localStorage.setItem(storageKey, 'true');
+            closeModal();
+            if (banner) {
+                banner.style.transition = 'all 0.3s ease';
+                banner.style.opacity = '0';
+                banner.style.transform = 'translateY(-10px)';
+                setTimeout(function() {
+                    banner.style.display = 'none';
+                }, 300);
+            }
+        });
+    }
+
+    if (backdrop) {
+        backdrop.addEventListener('click', closeModal);
+    }
+
+    checkBanner();
 });
 </script>
 

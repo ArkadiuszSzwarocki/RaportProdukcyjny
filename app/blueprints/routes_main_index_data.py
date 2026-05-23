@@ -99,8 +99,6 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role):
     }
 
 
-def build_allowed_work_start_ids(dzisiaj, aktywna_linia, work_first_map, logger):
-    return DashboardContextService.build_allowed_work_start_ids(dzisiaj, aktywna_linia, work_first_map, logger)
 
 
 def build_dosypki_maps(dzisiaj, aktywna_sekcja, aktywna_linia, logger):

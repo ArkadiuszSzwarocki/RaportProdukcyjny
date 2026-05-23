@@ -405,7 +405,7 @@ def build_panel_summary_context(
     t_pp_r = get_table_name('plan_produkcji', cur_tab_line)
 
     for plan in cur_tab_plany:
-        if plan['sekcja'].lower() != 'zasyp':
+        if plan['sekcja'].lower() not in ('zasyp', 'czyszczenie'):
             continue
 
         zasyp_id = plan['id']
@@ -415,7 +415,8 @@ def build_panel_summary_context(
             f"SELECT (COALESCE(SUM(waga), 0) + COALESCE((SELECT SUM(kg) FROM {t_ds_r} WHERE plan_id = %s AND potwierdzone = 1 AND COALESCE(anulowana, 0) = 0), 0)) as total FROM {t_sz_r} WHERE plan_id = %s",
             (zasyp_id, zasyp_id),
         )
-        zasyp_kg = cursor.fetchone()['total'] or 0
+        res = cursor.fetchone()
+        zasyp_kg = res['total'] if (res and res['total']) else plan['tonaz_rzeczywisty'] or 0
         cursor.execute(
             f"SELECT COALESCE(SUM(CASE WHEN waga_potwierdzona > 0 THEN waga_potwierdzona ELSE waga END), 0) as total FROM {t_pa_r} WHERE plan_id IN (SELECT id FROM {t_pp_r} WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s)",
             (wybrana_data, produkt),
@@ -462,7 +463,7 @@ def build_panel_summary_context(
     procent_czasu = (suma_minut_plan / 450 * 100)
 
     cursor.execute(
-        f"SELECT id, produkt, tonaz, sekcja, status FROM {table_plan} WHERE data_planu=%s AND (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND status != 'zakonczone' ORDER BY id DESC",
+        f"SELECT id, produkt, tonaz, sekcja, status FROM {table_plan} WHERE data_planu=%s AND (COALESCE(typ_zlecenia, '') = 'jakosc' OR sekcja = 'Jakosc') AND LOWER(sekcja) != 'czyszczenie' AND status != 'zakonczone' ORDER BY id DESC",
         (wybrana_data,),
     )
     quality_orders = cursor.fetchall()

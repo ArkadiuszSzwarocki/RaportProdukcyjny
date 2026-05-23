@@ -55,28 +55,34 @@
 .active-order-szarze-wrap {
     margin: 0;
     align-self: start;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .active-order-szarze-panel {
-    width: min(420px, calc(100vw - 48px));
-    border: 1px solid #d7e1eb;
-    border-radius: 10px;
-    background: #f7fafc;
-    box-shadow: 0 2px 8px rgba(31, 58, 86, 0.08);
-    padding: 10px 12px;
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(31, 58, 86, 0.06);
+    padding: 14px 16px;
 }
 
 .active-order-szarze-title {
-    font-size: 0.9em;
-    color: #647684;
-    font-weight: 700;
-    margin-bottom: 8px;
+    font-size: 0.95em;
+    color: #1e293b;
+    font-weight: 800;
+    margin-bottom: 12px;
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 8px;
 }
 
 .active-order-szarze-item {
-    border-bottom: 1px solid #dfe7ef;
-    padding: 6px 0;
+    border-bottom: 1px solid #f1f5f9;
+    padding: 10px 4px !important;
     min-width: 0;
+    box-sizing: border-box;
 }
 
 .active-order-szarze-item:last-child {
@@ -84,41 +90,106 @@
 }
 
 .active-order-szarze-line {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
-    gap: 8px;
-    min-width: 0;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important; /* Keep left text and action buttons in one single row */
+    gap: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 2px 4px !important; /* Slight padding from left and right */
 }
 
 .active-order-szarze-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    font-size: 0.92em;
-    min-width: 0;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+    font-size: 0.92em !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    color: #334155 !important;
+    font-weight: 500 !important;
+}
+
+.active-order-szarze-left span {
+    color: #64748b !important;
+}
+
+.active-order-szarze-left strong.text-primary {
+    color: #2563eb !important;
+    font-weight: 700 !important;
 }
 
 .active-order-szarze-actions {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-    flex-wrap: wrap;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    flex-wrap: nowrap !important;
+    width: auto !important;
+    box-sizing: border-box !important;
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+}
+
+#mainContent .active-order-szarze-actions .btn-action {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    height: 32px !important;
+    padding: 0 12px !important;
+    margin: 0 !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    border-radius: 6px !important;
+    box-sizing: border-box !important;
+    transition: all 0.2s ease-in-out !important;
+    line-height: 1 !important;
+}
+
+/* Make note button a premium square and override its secondary style */
+#mainContent .active-order-szarze-actions .btn-action.szarza-note {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    padding: 0 !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #f8fafc !important;
+    color: #475569 !important;
+}
+
+#mainContent .active-order-szarze-actions .btn-action.szarza-note:hover {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    border-color: #94a3b8 !important;
 }
 
 .active-order-szarze-dosypki {
-    margin-top: 4px;
+    margin-top: 8px !important;
     max-width: 100%;
-    font-size: 0.82em;
-    color: #495a69;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    padding: 8px 12px !important;
+    background: #fffbeb !important;
+    border: 1px solid #fef3c7 !important;
+    border-radius: 8px !important;
+    box-sizing: border-box !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
 }
 
 .active-order-szarze-dosypki-item {
-    line-height: 1.35;
+    font-size: 0.85em !important;
+    color: #b45309 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 2px 0 !important;
+    line-height: 1.4 !important;
 }
 
 .szarza-row-main {
@@ -226,11 +297,11 @@
     }
 
     .active-order-szarze-line {
-        grid-template-columns: 1fr;
+        /* Flex takes care of wrapping nicely */
     }
 
     .active-order-szarze-actions {
-        justify-content: flex-start;
+        justify-content: flex-end !important;
     }
 }
 
@@ -363,4 +434,124 @@
         width: 100%;
     }
 }
+
+/* ============================================================
+   FORCE HEADER STATS (Plan / Wykonanie / % Realizacja) 
+   to stay in ONE ROW on all screen sizes.
+   These rules override the aggressive mobile stacking from style.css.
+   ============================================================ */
+
+/* Dashboard stat pills always horizontal */
+#mainContent .header-stats {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+    width: auto !important;
+    overflow-x: auto !important;
+}
+
+/* Each pill compact & auto-sized */
+#mainContent .header-stats .stat-inline {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 140px !important;
+    padding: 6px 10px !important;
+    font-size: inherit !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+}
+
+#mainContent .header-stats .stat-inline .label {
+    font-size: 0.72em !important;
+    white-space: nowrap !important;
+    margin-bottom: 2px !important;
+}
+
+#mainContent .header-stats .stat-inline .value {
+    font-size: 1em !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+}
+
+/* On very small screens keep them smaller but still in one row */
+@media (max-width: 640px) {
+    #mainContent .header-stats {
+        gap: 4px !important;
+    }
+    #mainContent .header-stats .stat-inline {
+        max-width: 110px !important;
+        padding: 5px 7px !important;
+    }
+    #mainContent .header-stats .stat-inline .value {
+        font-size: 0.9em !important;
+    }
+    #mainContent .header-stats .stat-inline .label {
+        font-size: 0.65em !important;
+    }
+}
+
+/* Fix dashboard-top-row layout on medium screens:
+   title on top, stats below — but stats stay horizontal */
+@media (max-width: 880px) {
+    #mainContent .dashboard-top-row {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+        width: 100% !important;
+    }
+    #mainContent .header-title-row {
+        flex-wrap: wrap !important;
+    }
+}
+
+/* ============================================================
+   RESPONSIVE LAYOUT OVERRIDES FOR DETAILS & GRID STRETCHING
+   ============================================================ */
+
+/* Force details-row on the dashboard to span full width of the cards grid */
+#mainContent .cards .details-row {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 8px 0 0 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* Force active-agro-details-direct to span full width in the grid on small/medium screens */
+@media (max-width: 1399px) {
+    #mainContent .cards .active-agro-details-direct {
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+}
+
+/* For PSD or other non-focus grids, active details direct also spans full width on wide screens */
+#mainContent .cards:not(.agro-focus-mode) .active-agro-details-direct {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Style purple buttons beautifully */
+#mainContent .btn-purple {
+    background-color: #8e44ad !important;
+    color: #ffffff !important;
+    border: none !important;
+    cursor: pointer !important;
+}
+
+#mainContent .btn-purple:hover {
+    background-color: #732d91 !important;
+    color: #ffffff !important;
+}
+
+
 

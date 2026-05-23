@@ -141,14 +141,13 @@
                     }
                     state.zasypDosypkaAddedLastSeen = Number(data.timestamp || 0) || state.zasypDosypkaAddedLastSeen;
                     persistLocalStorage('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
-                    // Show banner only for AGRO, not for PSD
-                    if (config.linia !== 'PSD') {
-                        try {
-                            global.showZasypDosypkaAddedBanner(data);
-                            state.lastRenderedZasypDosypkaAddedTs = Number(data.timestamp || 0) || state.lastRenderedZasypDosypkaAddedTs;
-                        } catch (error) {
-                            console.error('showZasypDosypkaAddedBanner err', error);
-                        }
+                    state.zasypDosypkaAddedLastSeen = Number(data.timestamp || 0) || state.zasypDosypkaAddedLastSeen;
+                    persistLocalStorage('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
+                    try {
+                        global.showZasypDosypkaAddedBanner(data);
+                        state.lastRenderedZasypDosypkaAddedTs = Number(data.timestamp || 0) || state.lastRenderedZasypDosypkaAddedTs;
+                    } catch (error) {
+                        console.error('showZasypDosypkaAddedBanner err', error);
                     }
                 })
                 .catch(function (error) {
@@ -177,6 +176,10 @@
                         global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
                     }
 
+                    if (typeof global.reloadActiveDosypkiList === 'function') {
+                        global.reloadActiveDosypkiList();
+                    }
+
                     return fetchJson('/api/zasyp/poll_dosypka_added?linia=' + config.linia + '&last_seen=0')
                         .then(function (eventData) {
                             if (!eventData || !eventData.new_event) {
@@ -184,16 +187,15 @@
                             }
                             state.zasypDosypkaAddedLastSeen = Number(eventData.timestamp || 0) || state.zasypDosypkaAddedLastSeen;
                             persistLocalStorage('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
-                            // Show banner only for AGRO, not for PSD
-                            if (config.linia !== 'PSD') {
-                                try {
-                                    if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZasypDosypkaAddedBanner === 'function') {
-                                        global.dashboardAgroBanners.showZasypDosypkaAddedBanner(eventData);
-                                    }
-                                    state.lastRenderedZasypDosypkaAddedTs = Number(eventData.timestamp || 0) || state.lastRenderedZasypDosypkaAddedTs;
-                                } catch (error) {
-                                    console.error('Emergency showZasypDosypkaAddedBanner err', error);
+                            state.zasypDosypkaAddedLastSeen = Number(eventData.timestamp || 0) || state.zasypDosypkaAddedLastSeen;
+                            persistLocalStorage('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
+                            try {
+                                if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZasypDosypkaAddedBanner === 'function') {
+                                    global.dashboardAgroBanners.showZasypDosypkaAddedBanner(eventData);
                                 }
+                                state.lastRenderedZasypDosypkaAddedTs = Number(eventData.timestamp || 0) || state.lastRenderedZasypDosypkaAddedTs;
+                            } catch (error) {
+                                console.error('Emergency showZasypDosypkaAddedBanner err', error);
                             }
                         })
                         .catch(function (error) {
@@ -219,16 +221,15 @@
 
                     state.zasypDosypkaAddedLastSeen = eventTs || state.zasypDosypkaAddedLastSeen;
                     persistLocalStorage('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
-                    // Show banner only for AGRO, not for PSD
-                    if (config.linia !== 'PSD') {
-                        try {
-                            if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZasypDosypkaAddedBanner === 'function') {
-                                global.dashboardAgroBanners.showZasypDosypkaAddedBanner(eventData);
-                            }
-                            state.lastRenderedZasypDosypkaAddedTs = eventTs || state.lastRenderedZasypDosypkaAddedTs;
-                        } catch (error) {
-                            console.error('Hard fallback showZasypDosypkaAddedBanner err', error);
+                    state.zasypDosypkaAddedLastSeen = eventTs || state.zasypDosypkaAddedLastSeen;
+                    persistLocalStorage('agro_zasyp_dosypka_added_last_seen', state.zasypDosypkaAddedLastSeen);
+                    try {
+                        if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.showZasypDosypkaAddedBanner === 'function') {
+                            global.dashboardAgroBanners.showZasypDosypkaAddedBanner(eventData);
                         }
+                        state.lastRenderedZasypDosypkaAddedTs = eventTs || state.lastRenderedZasypDosypkaAddedTs;
+                    } catch (error) {
+                        console.error('Hard fallback showZasypDosypkaAddedBanner err', error);
                     }
                 })
                 .catch(function (error) {
@@ -256,8 +257,11 @@
                     if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.isBannerLocked === 'function' && global.dashboardAgroBanners.isBannerLocked()) {
                         return;
                     }
+                    if (typeof global.reloadActiveDosypkiList === 'function') {
+                        global.reloadActiveDosypkiList();
+                    }
                     if (typeof global.performPartialReload === 'function') {
-                        global.performPartialReload({ preserveScroll: true, source: 'dosypki-sync' });
+                        global.performPartialReload({ force: true, preserveScroll: true, source: 'dosypki-sync' });
                         return;
                     }
                     global.location.reload();

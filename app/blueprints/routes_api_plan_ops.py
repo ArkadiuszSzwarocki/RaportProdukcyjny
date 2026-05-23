@@ -24,14 +24,15 @@ def register_api_plan_ops_routes(api_bp):
             conn = get_db_connection()
             cursor = conn.cursor()
             table_plan = get_table_name('plan_produkcji', linia)
+            cursor.execute(f"SELECT id FROM {table_plan} WHERE id = %s", (plan_id,))
+            if not cursor.fetchone():
+                conn.close()
+                return jsonify({'success': False, 'message': 'Zlecenie nie zostało znalezione'}), 404
+
             cursor.execute(
                 f'UPDATE {table_plan} SET uszkodzone_worki = %s WHERE id = %s',
                 (uszkodzone_worki, plan_id),
             )
-
-            if cursor.rowcount == 0:
-                conn.close()
-                return jsonify({'success': False, 'message': 'Zlecenie nie zostało znalezione'}), 404
 
             cursor.execute(
                 'INSERT INTO plan_history (plan_id, action, changes, user_login, created_at) VALUES (%s, %s, %s, %s, NOW())',

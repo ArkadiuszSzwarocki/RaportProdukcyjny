@@ -14,7 +14,7 @@ import uuid
 from app.db_tables import resolve_table_name
 
 _DB_CONFIG_LOCK = threading.Lock()
-_RUNTIME_SWITCHABLE_DATABASES = ('biblioteka', 'biblioteka_testowa')
+_RUNTIME_SWITCHABLE_DATABASES = ('biblioteka', 'biblioteka_testowa', 'biblioteka_test')
 
 
 def get_runtime_switchable_databases():
@@ -22,7 +22,17 @@ def get_runtime_switchable_databases():
     return list(_RUNTIME_SWITCHABLE_DATABASES)
 
 
-_DB_PERSISTENCE_FILE = os.path.join(os.getcwd(), 'active_db.txt')
+# Wykryj środowisko lokalne, aby git-owany active_db.txt nie nadpisywał lokalnej konfiguracji .env
+is_local = (
+    os.getenv('LOCAL_ENV', 'false').lower() == 'true' or
+    os.getenv('IS_LOCAL', 'false').lower() == 'true' or
+    os.getenv('FLASK_ENV', 'production').lower() == 'development'
+)
+
+if is_local:
+    _DB_PERSISTENCE_FILE = os.path.join(os.getcwd(), 'active_db_local.txt')
+else:
+    _DB_PERSISTENCE_FILE = os.path.join(os.getcwd(), 'active_db.txt')
 
 def _persist_database_name(name):
     try:
@@ -531,6 +541,8 @@ def _create_tables(cursor):
             nazwa_produktu VARCHAR(100) NOT NULL UNIQUE,
             nr_receptury VARCHAR(64) DEFAULT '',
             typ_produkcji VARCHAR(50) DEFAULT 'worki_zgrzewane_25',
+            opakowanie_id INT NULL DEFAULT NULL,
+            etykieta_id INT NULL DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
@@ -885,6 +897,10 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_checklist_operator_at", "DATETIME NULL", "Dodawanie kolumny 'start_checklist_operator_at' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_checklist_quality_login", "VARCHAR(100) NULL", "Dodawanie kolumny 'start_checklist_quality_login' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_checklist_quality_at", "DATETIME NULL", "Dodawanie kolumny 'start_checklist_quality_at' (AGRO)")
+
+    # Rejestr produktów - domyślny worek/folia i etykieta
+    _add_column_if_missing(cursor, "produkty_receptury", "opakowanie_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'opakowanie_id' do rejestru produktów")
+    _add_column_if_missing(cursor, "produkty_receptury", "etykieta_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'etykieta_id' do rejestru produktów")
 
     try:
         cursor.execute("SHOW INDEX FROM plan_produkcji_agro WHERE Key_name = 'idx_plan_agro_opakowanie'")
@@ -2116,15 +2132,19 @@ def ensure_session_tracking_id(current_session_id=None):
     return uuid.uuid4().hex
 
 
-def touch_active_session(session_id, user_id, login, role, pracownik_id=None, display_name=None, last_path=None, ip_address=None):
+def touch_active_session(session_id, user_id, login, role, pracownik_id=None, display_name=None, last_path=None, ip_address=None, conn=None):
     """Upsert active session heartbeat for online users view."""
     if not session_id or not user_id or not login:
         return False
 
-    conn = None
+    own_conn = False
+    local_conn = conn
+    cursor = None
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        if local_conn is None:
+            local_conn = get_db_connection()
+            own_conn = True
+        cursor = local_conn.cursor()
         cursor.execute(
             """
             INSERT INTO aktywne_sesje (
@@ -2144,19 +2164,22 @@ def touch_active_session(session_id, user_id, login, role, pracownik_id=None, di
             """,
             (session_id, user_id, login, str(role or '').lower(), pracownik_id, display_name, ip_address, last_path)
         )
-        conn.commit()
+        if own_conn:
+            local_conn.commit()
         cursor.close()
-        conn.close()
+        if own_conn:
+            local_conn.close()
         return True
     except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        try:
-            conn.close()
-        except Exception:
-            pass
+        if own_conn and local_conn:
+            try:
+                local_conn.rollback()
+            except Exception:
+                pass
+            try:
+                local_conn.close()
+            except Exception:
+                pass
         return False
 
 

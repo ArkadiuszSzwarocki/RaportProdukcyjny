@@ -1,3 +1,4 @@
+{% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
 <div class="active-order-szarze-wrap">
     <div class="active-order-szarze-panel">
         {% if sekcja == 'Zasyp' %}
@@ -20,63 +21,63 @@
                         {% endif %}
                     </div>
                     <div class="active-order-szarze-actions">
-                        {% if sekcja == 'Zasyp' %}
-                        {% set role_lc = rola|string|trim|lower %}
-                        {% if role_lc not in ['laborant', 'laboratorium'] and not (role_lc == 'pracownik' and (linia|upper == 'PSD' or (session.get('grupa')|default('')|upper == 'PSD'))) %}
-                        <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=szarza_id, zasyp_id=szarza_id, linia=linia) }}"
-                           class="btn-action btn-blue"
-                           data-slide
-                           style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
-                           title="Dodaj dosypkę do tego zasypu">+ DOSYPKA</a>
-                        {% endif %}
-                        {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
-                        <a href="{{ url_for('production.zasyp_notatka_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
-                           class="btn-action btn-outline-secondary szarza-note"
-                           data-slide
-                           data-note="{{ (pal[6] if pal|length>6 else '')|e }}"
-                           style="padding:2px 6px; font-size:0.75em; line-height:1; min-width:30px; text-align:center;"
-                           title="Dodaj/edytuj notatkę do zasypu">
-                            <span class="material-icons" style="font-size:16px; vertical-align:middle;">edit_note</span>
-                        </a>
-                        {% endif %}
-                        {% if pal[2] and pal[2]|int > 0 and rola in ['lider', 'admin', 'masteradmin'] %}
-                        <a href="{{ url_for('warehouse.confirm_delete_zasyp_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
-                           class="btn-action btn-danger"
-                           data-slide
-                           style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
-                           title="Usuń zasyp">Usuń</a>
-                        {% endif %}
-                        {% elif sekcja == 'Workowanie' %}
-                        <div style="display:flex; gap:4px; align-items:center;">
-                            {% if pal|length>2 and pal[2] > 0 %}
-                                <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2], linia=linia) }}"
-                                   class="btn-action btn-sm"
-                                   data-slide
-                                   style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
-                                   title="Edytuj wagę palety">EDYTUJ</a>
-                                <button onclick="drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}')" 
-                                        class="btn-action btn-purple btn-sm"
-                                        style="padding:2px 8px; font-size:0.72em; line-height:1.1; background-color:#8e44ad; color:white; border:none; cursor:pointer;"
-                                        title="Drukuj ponownie etykiety ZPL">DRUKUJ (ZPL)</button>
-                                {% if rola in ['lider', 'admin', 'masteradmin'] %}
-                                <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia) }}"
-                                   class="btn-action btn-danger btn-sm"
-                                   data-slide
-                                   style="padding:2px 8px; font-size:0.72em; line-height:1.1;"
-                                   title="Usuń paletę">USUŃ</a>
+                        {% if not is_readonly %}
+                            {% if sekcja == 'Zasyp' %}
+                            {% set role_lc = rola|string|trim|lower %}
+                            {% if not (role_lc == 'pracownik' and (linia|upper == 'PSD' or (session.get('grupa')|default('')|upper == 'PSD'))) %}
+                            <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=szarza_id, zasyp_id=szarza_id, linia=linia) }}"
+                               class="btn-action btn-blue"
+                               data-slide
+                               title="Dodaj dosypkę do tego zasypu">+ DOSYPKA</a>
+                            {% endif %}
+                            {% if pal[2] and pal[2]|int > 0 and rola in ['laborant', 'laboratorium', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
+                            <a href="{{ url_for('production.zasyp_notatka_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
+                               class="btn-action btn-outline-secondary szarza-note"
+                               data-slide
+                               data-note="{{ (pal[6] if pal|length>6 else '')|e }}"
+                               title="Dodaj/edytuj notatkę do zasypu">
+                                <span class="material-icons" style="font-size:16px; vertical-align:middle;">edit_note</span>
+                            </a>
+                            {% endif %}
+                            {% if pal[2] and pal[2]|int > 0 and rola in ['lider', 'admin', 'masteradmin'] %}
+                            <a href="{{ url_for('warehouse.confirm_delete_zasyp_page', szarza_id=pal[2], zasyp_id=pal[2], linia=linia, sekcja=sekcja, data=dzisiaj) }}"
+                               class="btn-action btn-danger"
+                               data-slide
+                               title="Usuń zasyp">Usuń</a>
+                            {% endif %}
+                            {% elif sekcja == 'Workowanie' %}
+                            <div style="display:flex; gap:4px; align-items:center;">
+                                {% if pal|length>2 and pal[2] > 0 %}
+                                     <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2], linia=linia) }}"
+                                        class="btn-action btn-sm"
+                                        data-slide
+                                        title="Edytuj wagę palety">EDYTUJ</a>
+                                    <button onclick="drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}')" 
+                                            class="btn-action btn-purple btn-sm"
+                                            title="Drukuj ponownie etykiety ZPL">DRUKUJ (ZPL)</button>
+                                    {% if rola in ['lider', 'admin', 'masteradmin'] %}
+                                    <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia) }}"
+                                       class="btn-action btn-danger btn-sm"
+                                       data-slide
+                                       title="Usuń paletę">USUŃ</a>
+                                    {% endif %}
                                 {% endif %}
+                                {% if pal|length>4 and pal[4] %}
+                                <span class="status-badge status-{{ pal[4]|replace(' ', '') }}" style="font-size:0.7em;">{{ pal[4]|upper }}</span>
+                                {% endif %}
+                            </div>
                             {% endif %}
-                            {% if pal|length>4 and pal[4] %}
-                            <span class="status-badge status-{{ pal[4]|replace(' ', '') }}" style="font-size:0.7em;">{{ pal[4]|upper }}</span>
-                            {% endif %}
-                        </div>
                         {% endif %}
                     </div>
                 </div>
                 {% if sekcja == 'Zasyp' and pal[3] and pal[3]|length > 0 %}
                 <div class="active-order-szarze-dosypki">
+                    <div style="font-size:0.85em; font-weight:700; color:#d97706; margin-bottom:4px; border-bottom:1px solid #fcd34d; padding-bottom:2px;">Dodane dosypki:</div>
                     {% for dosypka_item in pal[3] %}
-                    <div class="active-order-szarze-dosypki-item">{{ dosypka_item[0] }}: {{ dosypka_item[1] }} kg</div>
+                    <div class="active-order-szarze-dosypki-item" style="display:flex; justify-content:space-between; margin-bottom:2px;">
+                        <span>{{ dosypka_item[0] }}</span>
+                        <strong>{{ dosypka_item[1] }} kg</strong>
+                    </div>
                     {% endfor %}
                 </div>
                 {% endif %}

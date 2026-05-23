@@ -16,7 +16,7 @@ def register_api_product_routes(api_bp):
 
             cursor.execute(
                 """
-                SELECT id, nazwa_produktu, nr_receptury, typ_produkcji
+                SELECT id, nazwa_produktu, nr_receptury, typ_produkcji, opakowanie_id, etykieta_id
                 FROM produkty_receptury
                 ORDER BY nazwa_produktu ASC
                 """
@@ -40,6 +40,24 @@ def register_api_product_routes(api_bp):
             nazwa = (data.get('nazwa_produktu') or '').strip()
             nr_receptury = (data.get('nr_receptury') or '').strip()
             typ_produkcji = (data.get('typ_produkcji') or 'worki_zgrzewane_25').strip()
+            
+            opakowanie_id = data.get('opakowanie_id')
+            if opakowanie_id == '' or opakowanie_id is None:
+                opakowanie_id = None
+            else:
+                try:
+                    opakowanie_id = int(opakowanie_id)
+                except ValueError:
+                    opakowanie_id = None
+
+            etykieta_id = data.get('etykieta_id')
+            if etykieta_id == '' or etykieta_id is None:
+                etykieta_id = None
+            else:
+                try:
+                    etykieta_id = int(etykieta_id)
+                except ValueError:
+                    etykieta_id = None
 
             if not nazwa:
                 return jsonify({'success': False, 'message': 'Nazwa produktu jest wymagana'}), 400
@@ -50,10 +68,10 @@ def register_api_product_routes(api_bp):
             try:
                 cursor.execute(
                     """
-                    INSERT INTO produkty_receptury (nazwa_produktu, nr_receptury, typ_produkcji)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO produkty_receptury (nazwa_produktu, nr_receptury, typ_produkcji, opakowanie_id, etykieta_id)
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (nazwa, nr_receptury, typ_produkcji),
+                    (nazwa, nr_receptury, typ_produkcji, opakowanie_id, etykieta_id),
                 )
 
                 conn.commit()
@@ -78,6 +96,24 @@ def register_api_product_routes(api_bp):
             nr_receptury = (data.get('nr_receptury') or '').strip()
             typ_produkcji = (data.get('typ_produkcji') or 'worki_zgrzewane_25').strip()
 
+            opakowanie_id = data.get('opakowanie_id')
+            if opakowanie_id == '' or opakowanie_id is None:
+                opakowanie_id = None
+            else:
+                try:
+                    opakowanie_id = int(opakowanie_id)
+                except ValueError:
+                    opakowanie_id = None
+
+            etykieta_id = data.get('etykieta_id')
+            if etykieta_id == '' or etykieta_id is None:
+                etykieta_id = None
+            else:
+                try:
+                    etykieta_id = int(etykieta_id)
+                except ValueError:
+                    etykieta_id = None
+
             if not nazwa:
                 return jsonify({'success': False, 'message': 'Nazwa produktu jest wymagana'}), 400
 
@@ -85,18 +121,19 @@ def register_api_product_routes(api_bp):
             cursor = conn.cursor()
 
             try:
+                cursor.execute("SELECT id FROM produkty_receptury WHERE id = %s", (product_id,))
+                if not cursor.fetchone():
+                    return jsonify({'success': False, 'message': 'Produkt nie znaleziony'}), 404
+
                 cursor.execute(
                     """
                     UPDATE produkty_receptury
-                    SET nazwa_produktu=%s, nr_receptury=%s, typ_produkcji=%s
+                    SET nazwa_produktu=%s, nr_receptury=%s, typ_produkcji=%s, opakowanie_id=%s, etykieta_id=%s
                     WHERE id=%s
                     """,
-                    (nazwa, nr_receptury, typ_produkcji, product_id),
+                    (nazwa, nr_receptury, typ_produkcji, opakowanie_id, etykieta_id, product_id),
                 )
                 conn.commit()
-
-                if cursor.rowcount == 0:
-                    return jsonify({'success': False, 'message': 'Produkt nie znaleziony'}), 404
 
                 return jsonify({'success': True, 'message': f'Produkt "{nazwa}" zaktualizowany'}), 200
             except mysql.connector.errors.IntegrityError:

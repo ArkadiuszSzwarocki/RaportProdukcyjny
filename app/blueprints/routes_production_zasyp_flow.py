@@ -203,6 +203,11 @@ def register_production_zasyp_flow_routes(
                             'AUTO dodał zasyp',
                             f'zlecenie_id={plan_id}, produkt={produkt}, tonaz={auto_kg:g} kg, nr={target_szarza_nr}, linia={linia}, trigger=system:auto_start_etap_1',
                         )
+                        try:
+                            from app.blueprints.routes_production import _mark_dosypki_updated
+                            _mark_dosypki_updated(linia)
+                        except Exception:
+                            pass
                 except Exception as auto_err:
                     try:
                         if auto_conn:
@@ -483,6 +488,11 @@ def register_production_zasyp_flow_routes(
                                                         'AUTO dodał zasyp',
                                                         f'zlecenie_id={plan_id}, produkt={produkt}, tonaz={kg_auto_new:g} kg, nr={new_szarza_nr}, linia={linia}, trigger=system:auto_po_stopie_etapu_5',
                                                     )
+                                                    try:
+                                                        from app.blueprints.routes_production import _mark_dosypki_updated
+                                                        _mark_dosypki_updated(linia)
+                                                    except Exception:
+                                                        pass
                                                 else:
                                                     msg = f"{msg}; zasyp #{new_szarza_nr} już istniał"
                                             else:

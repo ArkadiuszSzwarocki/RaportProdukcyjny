@@ -77,6 +77,59 @@ def _start_printer_server():
         return False, f'Blad startu serwera druku: {error}', 500
 
 
+def get_user_redirect_target(role, group):
+    """Calculate the direct redirect target page based on role and group permissions."""
+    normalized_role = (role or '').lower().strip()
+    # Resolve numeric roles
+    if normalized_role.isdigit():
+        roles_order = ['admin', 'planista', 'pracownik', 'magazynier', 'dur', 'zarzad', 'laborant']
+        try:
+            idx = int(normalized_role)
+            if 0 <= idx < len(roles_order):
+                normalized_role = roles_order[idx]
+        except Exception:
+            pass
+
+    role_aliases = {
+        'master admin': 'masteradmin',
+        'master_admin': 'masteradmin',
+        'master-admin': 'masteradmin',
+        'laboratorium': 'laborant',
+    }
+    normalized_role = role_aliases.get(normalized_role, normalized_role)
+            
+    if normalized_role == 'planista':
+        return '/planista'
+        
+    if normalized_role in ['masteradmin', 'admin', 'lider']:
+        return '/'
+        
+    # For other roles, find their first allowed section
+    from app.core.contexts import inject_role_permissions
+    role_checker = inject_role_permissions().get('role_has_access')
+    
+    user_grupa = (group or 'PSD').upper().strip()
+    aktywna_linia = user_grupa if user_grupa in ['PSD', 'AGRO'] else 'PSD'
+    line_lower = aktywna_linia.lower()
+    sections_to_check = ['Zasyp', 'Workowanie', 'Bufor', 'Magazyn']
+    
+    found_allowed_sec = None
+    for sec in sections_to_check:
+        page_key = f"{line_lower}.{sec.lower()}"
+        if role_checker and role_checker(page_key):
+            found_allowed_sec = sec
+            break
+            
+    if found_allowed_sec:
+        from flask import url_for
+        try:
+            return url_for('main.index', sekcja=found_allowed_sec, linia=aktywna_linia)
+        except Exception:
+            return f"/?sekcja={found_allowed_sec}&linia={aktywna_linia}"
+        
+    return '/'
+
+
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Handle user login with session management."""
@@ -89,12 +142,26 @@ def login():
             flash(str(e), 'danger')
             return redirect('/login')
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        try:
+            conn = get_db_connection(retries=1)
+            cursor = conn.cursor()
+        except Exception as e:
+            from flask import current_app
+            current_app.logger.error("Błąd połączenia z bazą danych podczas logowania: %s", e)
+            flash("Błąd połączenia z bazą danych! Sprawdź plik .env lub sieć.", 'danger')
+            return redirect('/login')
+        
         # Pobierz opcjonalne pole pracownik_id by mapować konto na rekord pracownika
-        cursor.execute("SELECT id, haslo, rola, COALESCE(pracownik_id, NULL), grupa FROM uzytkownicy WHERE login = %s", (login_field,))
-        row = cursor.fetchone()
-        conn.close()
+        try:
+            cursor.execute("SELECT id, haslo, rola, COALESCE(pracownik_id, NULL), grupa FROM uzytkownicy WHERE login = %s", (login_field,))
+            row = cursor.fetchone()
+        except Exception as e:
+            from flask import current_app
+            current_app.logger.error("Błąd zapytania podczas logowania: %s", e)
+            cursor.close()
+            conn.close()
+            flash("Błąd zapytania bazodanowego!", 'danger')
+            return redirect('/login')
         
         if row:
             uid, hashed, rola, pracownik_id, grupa = row[0], row[1], row[2], row[3], row[4]
@@ -140,14 +207,10 @@ def login():
                 imie_nazwisko = None
                 if pracownik_id:
                     try:
-                        conn2 = get_db_connection()
-                        cursor2 = conn2.cursor()
-                        cursor2.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (pracownik_id,))
-                        p_row = cursor2.fetchone()
+                        cursor.execute("SELECT imie_nazwisko FROM pracownicy WHERE id = %s", (pracownik_id,))
+                        p_row = cursor.fetchone()
                         if p_row:
                             imie_nazwisko = p_row[0]
-                        cursor2.close()
-                        conn2.close()
                     except Exception:
                         pass
                 session['imie_nazwisko'] = imie_nazwisko or login_field
@@ -162,23 +225,34 @@ def login():
                     display_name=session.get('imie_nazwisko'),
                     last_path=request.path,
                     ip_address=client_ip,
+                    conn=conn,
                 )
+                try:
+                    conn.commit()
+                except Exception:
+                    pass
                 # record last activity timestamp for server-side inactivity logout
                 try:
                     session['last_activity'] = time.time()
                 except Exception:
                     pass
                 
+                cursor.close()
+                conn.close()
+                
                 # Use standard redirect to ensure session cookies are properly handled by all browsers
-                target = '/planista' if rola == 'planista' else '/'
+                target = get_user_redirect_target(session.get('rola'), session.get('grupa'))
                 return redirect(target)
         
+        cursor.close()
+        conn.close()
         flash("Błędne dane!", 'danger')
         return redirect('/login')
     
     # If already logged in, don't show login form — redirect to app
     if session.get('zalogowany'):
-        return redirect('/')
+        target = get_user_redirect_target(session.get('rola'), session.get('grupa'))
+        return redirect(target)
     
     try:
         resp = make_response(render_template('login.html'))

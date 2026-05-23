@@ -13,11 +13,10 @@
 
     /* On small screens, hide Plan ID and show only essential columns */
     @media (max-width: 640px) {
+        #dosypki-table th:nth-child(1),
+        #dosypki-table td:nth-child(1),
         #dosypki-table th:nth-child(2),
-        #dosypki-table td:nth-child(2) {
-            display: none;
-        }
-        
+        #dosypki-table td:nth-child(2),
         #dosypki-table th:nth-child(5),
         #dosypki-table td:nth-child(5) {
             display: none;
@@ -29,14 +28,15 @@
         
         #dosypki-table th,
         #dosypki-table td {
-            padding: 8px 4px;
-            font-size: 0.85em;
+            padding: 4px 2px;
+            font-size: 0.8em;
+            line-height: 1.1;
         }
         
         #dosypki-table th:nth-child(4),
         #dosypki-table td:nth-child(4) {
             display: table-cell !important;
-            min-width: 50px;
+            min-width: 40px;
         }
         
         #dosypki-table td:nth-child(6) {
@@ -141,12 +141,12 @@
                 {# Render server-side rows as fallback when JS doesn't run #}
                 {% for d in dosypki %}
                 <tr>
-                    <td class="text-muted">{{ loop.index }}</td>
-                    <td>{{ d.plan_id }}</td>
-                    <td>{% if d.nazwa %}{{ d.nazwa }}{% else %}<em>— brak nazwy —</em>{% endif %}</td>
-                    <td>{{ d.kg }} kg</td>
-                    <td>{{ d.data_zlecenia }}</td>
-                    <td>
+                    <td class="text-muted" data-label="#">{{ loop.index }}</td>
+                    <td data-label="Plan ID">{{ d.plan_id }}</td>
+                    <td data-label="Nazwa">{% if d.nazwa %}{{ d.nazwa }}{% else %}<em>— brak nazwy —</em>{% endif %}</td>
+                    <td data-label="Kg">{{ d.kg }} kg</td>
+                    <td data-label="Dodana">{{ d.data_zlecenia }}</td>
+                    <td data-label="Akcja">
                         {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
                         <button class="btn-action btn-save dosypka-confirm-btn" data-id="{{ d.id }}">✓ Potwierdź</button>
                         {% endif %}

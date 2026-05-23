@@ -97,6 +97,7 @@ cookies.txt
 session.sql
 
 # Debug / trace output files (root-level one-offs)
+active_db_local.txt
 diff.txt
 trace.txt
 html_trace.txt

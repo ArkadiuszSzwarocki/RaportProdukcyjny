@@ -43,7 +43,7 @@
       "readonly": false
     },
     "zarzad": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "lider": {
@@ -51,8 +51,8 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
-      "readonly": false
+      "access": true,
+      "readonly": true
     },
     "laborant": {
       "access": false,
@@ -271,7 +271,7 @@
       "readonly": false
     },
     "zarzad": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "lider": {
@@ -279,8 +279,8 @@
       "readonly": false
     },
     "planista": {
-      "access": false,
-      "readonly": false
+      "access": true,
+      "readonly": true
     },
     "laborant": {
       "access": false,
@@ -295,7 +295,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "widz": {

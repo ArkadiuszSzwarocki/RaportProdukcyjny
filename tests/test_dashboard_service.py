@@ -191,8 +191,8 @@ class TestQualityAndLeave:
     
     def test_get_quality_and_leave_for_pracownik(self):
         """Test that regular worker doesn't see leave requests."""
-        with patch('app.services.dashboard_service.QueryHelper') as mock_qh:
-            mock_qh.get_pending_quality_count.return_value = 0
+        with patch('app.services.production_service.ProductionService.get_pending_quality_count') as mock_q:
+            mock_q.return_value = 0
             
             result = DashboardService.get_quality_and_leave_requests('pracownik')
             

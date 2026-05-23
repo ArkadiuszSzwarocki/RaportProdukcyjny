@@ -64,7 +64,7 @@ def register_planista_bulk_routes(planista_bp):
             )
             cursor.execute(
                 insert_sql,
-                (data_planu, 'Czyszczenie', 'Czyszczenie', tonaz_val, 'zaplanowane', kolejnosc_val, 'jakosc'),
+                (data_planu, 'Czyszczenie', 'Czyszczenie', tonaz_val, 'zaplanowane', kolejnosc_val, 'czyszczenie'),
             )
             
             # Renormalize to fix any numbering issues

@@ -857,15 +857,33 @@
 
     /* ================= Additional popups: toast, drawer, bottom-sheet, popover, fullscreen, wizard ================= */
 
-    function showToast(message, type) {
+    function showToast(message, type, sticky = false, onClick = null) {
         try {
             type = type || 'info';
             const container = document.getElementById('toastContainer') || (function () { const c = document.createElement('div'); c.id = 'toastContainer'; document.body.appendChild(c); return c; })();
-            const t = document.createElement('div'); t.className = 'toast toast-' + type; t.innerText = message;
+            const t = document.createElement('div'); t.className = 'toast toast-' + type; 
+            
+            if (sticky) {
+                t.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                    <div style="flex:1;">${message}</div>
+                    <button style="background:rgba(255,255,255,0.2);border:none;color:inherit;cursor:pointer;border-radius:4px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:bold;" aria-label="Zamknij">✕</button>
+                </div>`;
+                t.querySelector('button').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    t.classList.remove('show'); 
+                    setTimeout(() => t.remove(), 300);
+                    if (typeof onClick === 'function') onClick();
+                });
+            } else {
+                t.innerText = message;
+            }
+            
             container.appendChild(t);
-            // auto remove
             setTimeout(() => { t.classList.add('show'); }, 10);
-            setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+            
+            if (!sticky) {
+                setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+            }
         } catch (e) { console.warn('showToast', e); }
     }
 
@@ -935,17 +953,35 @@
     /* ================= Global quick popup helper ================= */
     function createQuickPopup(title, html, opts) {
         opts = opts || {};
+        
+        // Header icon/color based on detected type
+        var comb = (title || '') + ' ' + (String(html || ''));
+        var isErr = /bł[ae]d|error|blad|fail|nie uda|✗/gi.test(comb);
+        var isWarn = (!isErr && /uwaga|warning|ostrzeżenie|⚠️/gi.test(comb));
+        var isSuccess = (!isErr && !isWarn && /sukces|success|zapisano|udana|pomoc|✓|ok/gi.test(comb));
+
+        var iconSvg = '';
+        if (isErr) {
+            iconSvg = '<svg class="qp-header-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;flex-shrink:0;"><circle cx="12" cy="12" r="10" fill="#fee2e2" stroke="#fca5a5" stroke-width="1.5"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+        } else if (isWarn) {
+            iconSvg = '<svg class="qp-header-icon" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" fill="#fef3c7" stroke="#fcd34d" stroke-width="1.5"></path><line x1="12" y1="9" x2="12" y2="13" stroke="#d97706" stroke-width="2.5"></line><line x1="12" y1="17" x2="12.01" y2="17" stroke="#d97706" stroke-width="3" stroke-linecap="round"></line></svg>';
+        } else if (isSuccess) {
+            iconSvg = '<svg class="qp-header-icon" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;flex-shrink:0;"><circle cx="12" cy="12" r="10" fill="#d1fae5" stroke="#a7f3d0" stroke-width="1.5"></circle><polyline points="16 9 11 14 8 11"></polyline></svg>';
+        } else {
+            iconSvg = '<svg class="qp-header-icon" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;flex-shrink:0;"><circle cx="12" cy="12" r="10" fill="#dbeafe" stroke="#bfdbfe" stroke-width="1.5"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8" stroke-width="3"></line></svg>';
+        }
+
         // If plain-text content is passed (no HTML tags), render it using
         // the styled popup templates so messages look consistent.
         try {
             var raw = String(html || '');
             if (!/[<][a-zA-Z]/.test(raw)) {
                 var combined = (title || '') + ' ' + raw;
-                var inferredType = /bł[ae]d|error|blad|fail|nie uda|✗/gi.test(combined) ? 'error' :
-                                   (/uwaga|warning|ostrzeżenie|⚠️/gi.test(combined) ? 'warning' : 'info');
+                var inferredType = isErr ? 'error' : (isWarn ? 'warning' : 'info');
                 html = createPopupContent(inferredType === 'info' ? 'success' : inferredType, raw);
             }
         } catch (e) { /* ignore and use provided html */ }
+
         // Reuse existing global quick popup elements if present to avoid duplicates
         const existingBd = document.getElementById('quickBackdrop') || document.querySelector('.quick-backdrop');
         const existingM = document.getElementById('quickPopup') || document.querySelector('.quick-popup');
@@ -953,6 +989,14 @@
             try {
                 const headerTitle = existingM.querySelector('.header-title') || existingM.querySelector('.qp-header strong');
                 if (headerTitle) headerTitle.textContent = title || '';
+                
+                const iconContainer = existingM.querySelector('.qp-icon-container') || existingM.querySelector('.qp-header-left');
+                if (iconContainer) {
+                    if (iconContainer.classList.contains('qp-icon-container')) {
+                        iconContainer.innerHTML = iconSvg;
+                    }
+                }
+                
                 const body = document.getElementById('quickPopupBody') || existingM.querySelector('.qp-body');
                 if (body) {
                     body.innerHTML = html || '';
@@ -972,6 +1016,15 @@
                 existingM.style.display = 'block';
                 document.body.classList.add('slide-over-open');
                 setTimeout(() => existingM.classList.add('open'), 10);
+                
+                // Set wide class dynamically if containing large elements
+                var hasWideContent = /[<](form|table|grid|iframe)/gi.test(String(html || ''));
+                if (hasWideContent) {
+                    existingM.classList.add('qp-wide');
+                } else {
+                    existingM.classList.remove('qp-wide');
+                }
+
                 // Initialize component initializers after content is updated
                 setTimeout(() => {
                     try {
@@ -986,44 +1039,42 @@
 
         const bd = document.createElement('div'); bd.className = 'quick-backdrop'; bd.id = 'quickBackdrop';
         const m = document.createElement('div'); m.className = 'quick-popup'; m.id = 'quickPopup';
-        // Header icon/color based on detected type
-        var comb = (title || '') + ' ' + (String(html || ''));
-        var isErr = /bł[ae]d|error|blad|fail|nie uda|✗/gi.test(comb);
-        var isWarn = (!isErr && /uwaga|warning|ostrzeżenie|⚠️/gi.test(comb));
         
-        var icon = 'ℹ';
-        var iconColor = '#0d6efd';
-        if (isErr) { icon = '✗'; iconColor = '#d9534f'; }
-        else if (isWarn) { icon = '⚠️'; iconColor = '#ff9800'; }
+        // Set dynamic width class
+        var hasWideContent = /[<](form|table|grid|iframe)/gi.test(String(html || ''));
+        if (hasWideContent) {
+            m.classList.add('qp-wide');
+        }
 
         var headerHtml = '<div class="qp-header" role="dialog" aria-modal="true">'
             + '<div class="qp-header-left" style="display:flex;align-items:center;gap:12px;">'
-            + '<div class="qp-icon" style="font-size:20px;color:' + iconColor + ';">' + icon + '</div>'
+            + '<div class="qp-icon-container" style="display:flex;align-items:center;justify-content:center;">' + iconSvg + '</div>'
             + '<div class="header-title"><strong>' + (title || '') + '</strong></div>'
             + '</div>'
-            + '<button class="qp-close" aria-label="Zamknij" style="background:none;border:none;font-size:18px;line-height:1;padding:6px;cursor:pointer;">✕</button>'
+            + '<button class="qp-close" aria-label="Zamknij">✕</button>'
             + '</div>';
 
         // Inject lightweight, scoped styles to improve visual appearance
         var scopedStyle = '<style>'
-            + '.quick-backdrop{position:fixed;inset:0;background:rgba(15,23,42,0.65);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:30001;opacity:0;transition:opacity .25s ease;pointer-events:none}.quick-backdrop.show{opacity:1;pointer-events:auto}'
-            + '.quick-popup{position:fixed;left:50%;top:12.5%;transform:translateX(-50%) translateY(-20px);z-index:30002;max-width:920px;width:calc(100% - 48px);background:#fff;border-radius:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);overflow:hidden;display:block;opacity:0;transition:all .3s cubic-bezier(0.34, 1.56, 0.64, 1);border: 1px solid rgba(255,255,255,0.1);pointer-events:none}'
-            + '.quick-popup.open{transform:translateX(-50%) translateY(0);opacity:1;pointer-events:auto}'
-            + '.qp-header{display:flex;justify-content:space-between;align-items:center;padding:24px 32px;border-bottom:1px solid #f1f5f9;background:#fff}'
-            + '.qp-header .header-title{font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-0.02em}'
-            + '.qp-header .qp-close{width:36px;height:36px;display:grid;place-items:center;border-radius:10px;color:#94a3b8;transition:all 0.2s;background:#f8fafc}'
+            + '.quick-backdrop{position:fixed;inset:0;background:rgba(15,23,42,0.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:30001;opacity:0;transition:opacity .25s ease;pointer-events:none}.quick-backdrop.show{opacity:1;pointer-events:auto}'
+            + '.quick-popup{position:fixed;left:50%;top:15%;transform:translateX(-50%) scale(0.95);z-index:30002;max-width:600px;width:calc(100% - 48px);background:#fff;border-radius:20px;box-shadow:0 25px 50px -12px rgba(15,23,42,0.25);overflow:hidden;display:block;opacity:0;transition:transform .3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity .3s ease;border:1px solid rgba(15,23,42,0.08);pointer-events:none;font-family:\'Inter\', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif}'
+            + '.quick-popup.qp-wide{max-width:920px}'
+            + '.quick-popup.open{transform:translateX(-50%) scale(1);opacity:1;pointer-events:auto}'
+            + '.qp-header{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid #f1f5f9;background:#fff}'
+            + '.qp-header .header-title{font-size:18px;font-weight:700;color:#0f172a;letter-spacing:-0.02em;font-family:inherit}'
+            + '.qp-header .qp-close{width:32px;height:32px;display:grid;place-items:center;border-radius:8px;color:#94a3b8;transition:all 0.2s ease;background:#f8fafc;border:none;cursor:pointer}'
             + '.qp-header .qp-close:hover{background:#fee2e2;color:#ef4444;transform:rotate(90deg)}'
-            + '.qp-body{padding:0 32px 32px;max-height:75vh;overflow:auto;font-size:15px;line-height:1.6;color:#334155;background:#fff;scrollbar-width:thin;scrollbar-color:#e2e8f0 transparent}'
+            + '.qp-body{padding:24px;max-height:70vh;overflow:auto;font-size:15px;line-height:1.6;color:#334155;background:#fff;font-family:inherit;scrollbar-width:thin;scrollbar-color:#e2e8f0 transparent}'
             + '.qp-body::-webkit-scrollbar{width:6px}.qp-body::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:10px}'
             + '.qp-body .modern-table{width:100%;border-collapse:separate;border-spacing:0;margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid #f1f5f9}'
             + '.qp-body .modern-table th{background:#f8fafc;color:#64748b;padding:12px 16px;border-bottom:2px solid #f1f5f9;text-align:left;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.05em}'
             + '.qp-body .modern-table td{padding:14px 16px;border-bottom:1px solid #f1f5f9;color:#0f172a}'
             + '.qp-body tr:last-child td{border-bottom:none}'
             + '.qp-body .badge{display:inline-flex;align-items:center;padding:5px 12px;border-radius:99px;background:#f1f5f9;color:#475569;font-weight:700;font-size:12px;margin:4px 4px 4px 0;white-space:nowrap}'
-            + '.qp-body input, .qp-body select, .qp-body textarea { color: #0f172a !important; caret-color: #0f172a !important; background: #fff !important; border: 1px solid #e2e8f0 !important; border-radius: 8px !important; padding: 8px 12px !important; }'
-            + '.qp-body input:focus { border-color: #3b82f6 !important; outline: none !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important; }'
+            + '.qp-body input, .qp-body select, .qp-body textarea { color: #0f172a !important; caret-color: #0f172a !important; background: #fff !important; border: 1px solid #e2e8f0 !important; border-radius: 8px !important; padding: 8px 12px !important; font-family: inherit !important; }'
+            + '.qp-body input:focus, .qp-body select:focus, .qp-body textarea:focus { border-color: #3b82f6 !important; outline: none !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important; }'
             + '.qp-actions{display:flex;gap:12px;justify-content:flex-end;margin-top:24px}'
-            + '.btn-action{padding:10px 20px;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s}'
+            + '.btn-action{padding:10px 20px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;border:none;font-family:inherit}'
             + '</style>';
 
         m.innerHTML = scopedStyle + headerHtml + '<div id="quickPopupBody" class="qp-body">' + (html || '') + '</div>';
@@ -1066,19 +1117,10 @@
                 const desktopMaxHeight = '60vh';
                 qpBody.style.maxHeight = qpBody.style.maxHeight || (window.innerWidth <= 768 ? mobileMaxHeight : desktopMaxHeight);
                 qpBody.style.overflow = qpBody.style.overflow || 'auto';
-                console.log('[popup] qpBody dimensions:', {
-                    offsetHeight: qpBody.offsetHeight,
-                    scrollHeight: qpBody.scrollHeight,
-                    maxHeight: getComputedStyle(qpBody).maxHeight,
-                    overflow: getComputedStyle(qpBody).overflow,
-                    display: getComputedStyle(qpBody).display
-                });
             }
             const tables = m.querySelectorAll('table');
-            console.log('[popup] Found', tables.length, 'tables');
             tables.forEach((t, idx) => {
                 const compStyle = getComputedStyle(t);
-                console.log('[popup] Table', idx, '- display:', compStyle.display, 'visibility:', compStyle.visibility, 'height:', t.offsetHeight, 'rows:', t.querySelectorAll('tbody tr').length);
                 if (compStyle.display === 'none') t.style.display = 'table';
             });
         } catch (e) { console.warn('quick-popup style init failed', e); }
@@ -1226,16 +1268,8 @@
 
     function createPopupContent(type, message) {
         var m = escapeHtml(message || '');
-        if (type === 'error') {
-            return '<div class="p-12"><div class="popup-error" style="display:flex;gap:12px;align-items:flex-start;"><div style="font-size:20px;color:#d9534f;">✗</div><div><div style="font-weight:700;margin-bottom:6px;color:#0f172a;">Błąd</div><div style="color:#334155;white-space:pre-wrap;">' + m + '</div></div></div></div>';
-        }
-        if (type === 'warning') {
-            return '<div class="p-12"><div style="display:flex;gap:12px;align-items:center;"><div style="font-size:20px;color:#ff9800;">⚠️</div><div><div style="font-weight:700;color:#0f172a;">Uwaga</div><div style="color:#334155;">' + m + '</div></div></div></div>';
-        }
-        if (type === 'success') {
-            return '<div class="p-12"><div style="display:flex;gap:12px;align-items:center;"><div style="font-size:20px;color:#28a745;">✓</div><div><div style="font-weight:700;color:#0f172a;">Sukces</div><div style="color:#334155;">' + m + '</div></div></div></div>';
-        }
-        return '<div class="p-10">' + m + '</div>';
+        // A clean, premium styled alert box. We don't need duplicate headers inside the body.
+        return '<div style="padding: 12px 0 4px; font-size: 15px; color: #475569; white-space: pre-wrap; line-height: 1.6;">' + m + '</div>';
     }
 
     function safeAlert(title, message) {
