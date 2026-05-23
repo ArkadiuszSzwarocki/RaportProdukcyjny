@@ -19,12 +19,127 @@
 <script src="{{ url_for('static', filename='js/dashboard/machine-stats.js') }}?v={{ static_version }}"></script>
 
 <script>
-    // PWA & Fullscreen
+    // PWA & Fullscreen + Web Push Notification Subscription
+    // -------------------------------------------------------
+    // Konwertuje base64url string do Uint8Array (wymagane przez PushManager)
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    // Wysyła subskrypcję na serwer
+    function sendSubscriptionToServer(subscription) {
+        return fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(subscription.toJSON())
+        }).then(r => r.json()).catch(() => ({ success: false }));
+    }
+
+    // Główna funkcja — rejestruje SW i subskrybuje push
+    async function registerPushSubscription() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            console.warn('[PUSH] Service Worker lub PushManager niedostępny w tej przeglądarce.');
+            return false;
+        }
+
+        try {
+            // Pobierz publiczny klucz VAPID z serwera
+            const keyResp = await fetch('/api/push/vapid-public-key');
+            const keyData = await keyResp.json();
+            if (!keyData.success || !keyData.publicKey) {
+                console.warn('[PUSH] Brak klucza VAPID na serwerze.');
+                return false;
+            }
+            const applicationServerKey = urlBase64ToUint8Array(keyData.publicKey);
+
+            // Poczekaj na rejestrację SW
+            const registration = await navigator.serviceWorker.ready;
+
+            // Sprawdź czy mamy już subskrypcję
+            let subscription = await registration.pushManager.getSubscription();
+
+            if (!subscription) {
+                // Poproś o uprawnienia i utwórz subskrypcję
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: applicationServerKey
+                });
+                console.log('[PUSH] Nowa subskrypcja push zarejestrowana.');
+            } else {
+                console.log('[PUSH] Używam istniejącej subskrypcji push.');
+            }
+
+            // Wyślij subskrypcję na serwer Flask
+            const result = await sendSubscriptionToServer(subscription);
+            if (result.success) {
+                console.log('[PUSH] Subskrypcja zapisana na serwerze.');
+                // Zaktualizuj UI — ukryj przycisk prośby o uprawnienia
+                const navBtn = document.getElementById('navNotifPermissionBtn');
+                if (navBtn) navBtn.style.display = 'none';
+                // Zaktualizuj ikonę dzwonka na aktywną
+                const pushIcon = document.getElementById('pushNotifIcon');
+                if (pushIcon) pushIcon.textContent = 'notifications_active';
+                localStorage.setItem('pushSubscribed', '1');
+            }
+            return result.success;
+        } catch (err) {
+            // Użytkownik zablokował uprawnienia lub inny błąd
+            console.warn('[PUSH] Błąd rejestracji push:', err.message || err);
+            return false;
+        }
+    }
+
+    // Eksponuj funkcję globalnie — przycisk w navbar ją wywołuje
+    window.requestPushPermission = async function() {
+        if (!('Notification' in window)) {
+            alert('Ta przeglądarka nie obsługuje powiadomień.');
+            return;
+        }
+        if (Notification.permission === 'denied') {
+            alert('Powiadomienia zostały zablokowane w ustawieniach przeglądarki. Odblokuj je ręcznie i odśwież stronę.');
+            return;
+        }
+        // Poproś o uprawnienie (wymagany gest użytkownika)
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            await registerPushSubscription();
+        }
+    };
+
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+        window.addEventListener('load', async () => {
+            try {
+                const reg = await navigator.serviceWorker.register('/static/sw.js');
+                console.log('[SW] Registered:', reg.scope);
+
+                // Automatycznie subskrybuj push jeśli uprawnienia już przyznane
+                {% if session.get('zalogowany') %}
+                if (Notification.permission === 'granted') {
+                    // Opóźnienie żeby SW miał czas na aktywację
+                    setTimeout(() => registerPushSubscription(), 2000);
+                } else {
+                    // Pokaż przycisk zachęcający do włączenia push (jeśli nie odrzucono)
+                    if (Notification.permission !== 'denied') {
+                        const navBtn = document.getElementById('navNotifPermissionBtn');
+                        if (navBtn && !localStorage.getItem('pushSubscribed')) {
+                            navBtn.style.display = 'inline-flex';
+                        }
+                    }
+                }
+                {% endif %}
+            } catch (err) {
+                console.warn('[SW] Registration failed:', err);
+            }
         });
     }
+
 
     let deferredPrompt;
     window.addEventListener('beforeinstallprompt', (e) => {

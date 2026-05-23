@@ -102,18 +102,27 @@
         if (Notification.permission === "granted") {
             if (box) box.style.display = 'none';
             if (navBtn) navBtn.style.display = 'none';
+            // Upewnij się że subskrypcja Web Push jest aktywna
+            if (typeof registerPushSubscription === 'function') {
+                registerPushSubscription();
+            }
         } else if (Notification.permission !== "denied") {
             if (box) box.style.display = 'inline-block';
-            if (navBtn) navBtn.style.display = 'inline-block';
+            if (navBtn) navBtn.style.display = 'inline-flex';
             
             if (event && (event.type === 'click')) {
-                Notification.requestPermission().then(permission => {
-                    if (permission === "granted") {
-                        if (box) box.style.display = 'none';
-                        if (navBtn) navBtn.style.display = 'none';
-                        new Notification("System Powiadomień", { body: "Powiadomienia zostały pomyślnie włączone!" });
-                    }
-                });
+                // Deleguj do nowej funkcji push
+                if (typeof window.requestPushPermission === 'function') {
+                    window.requestPushPermission();
+                } else {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === "granted") {
+                            if (box) box.style.display = 'none';
+                            if (navBtn) navBtn.style.display = 'none';
+                            new Notification("System Powiadomień", { body: "Powiadomienia zostały pomyślnie włączone!" });
+                        }
+                    });
+                }
             }
         }
     };

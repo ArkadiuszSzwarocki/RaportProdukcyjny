@@ -46,3 +46,10 @@ SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', 40))
 # Domyślnie: 1 dzień wstecz i 1 dzień do przodu (stałe, można nadpisać w .env)
 BUFOR_LOOKBACK_DAYS = int(os.getenv('BUFOR_LOOKBACK_DAYS', 1))
 BUFOR_LOOKAHEAD_DAYS = int(os.getenv('BUFOR_LOOKAHEAD_DAYS', 1))
+
+# ================ WEB PUSH (VAPID) CONFIGURATION =================
+# Generuj klucze raz: scratch/gen_vapid.py
+# Klucze przechowywane w .env jako VAPID_PRIVATE_KEY i VAPID_PUBLIC_KEY
+VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY', '')
+VAPID_PUBLIC_KEY = os.getenv('VAPID_PUBLIC_KEY', '')
+VAPID_CLAIMS_EMAIL = os.getenv('VAPID_CLAIMS_EMAIL', 'admin@agronetzwerk.pl')

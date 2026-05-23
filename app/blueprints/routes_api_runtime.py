@@ -408,3 +408,71 @@ def register_api_runtime_routes(api_bp):
         except Exception as error:
             current_app.logger.exception('Failed to close session: %s', error)
             return jsonify({'success': False, 'message': 'Nie udało się zamknąć sesji'}), 500
+
+    # ===========================================================
+    # WEB PUSH NOTIFICATION ENDPOINTS
+    # ===========================================================
+
+    @api_bp.route('/push/vapid-public-key', methods=['GET'])
+    def push_vapid_public_key():
+        """Zwraca publiczny klucz VAPID potrzebny przeglądarce do subskrypcji push."""
+        try:
+            from app.config import VAPID_PUBLIC_KEY
+            if not VAPID_PUBLIC_KEY:
+                return jsonify({'success': False, 'message': 'VAPID not configured'}), 503
+            return jsonify({'success': True, 'publicKey': VAPID_PUBLIC_KEY})
+        except Exception as error:
+            current_app.logger.error('[PUSH] Error getting VAPID public key: %s', error)
+            return jsonify({'success': False}), 500
+
+    @api_bp.route('/push/subscribe', methods=['POST'])
+    @login_required
+    def push_subscribe():
+        """Zapisuje subskrypcję Web Push dla zalogowanego użytkownika."""
+        user_id = session.get('user_id')
+        login = session.get('login')
+        rola = (session.get('rola') or '').lower()
+
+        if not user_id or not login:
+            return jsonify({'success': False, 'message': 'Brak danych sesji'}), 400
+
+        try:
+            data = request.get_json() or {}
+            endpoint = data.get('endpoint', '').strip()
+            keys = data.get('keys', {})
+            p256dh = keys.get('p256dh', '').strip()
+            auth = keys.get('auth', '').strip()
+
+            if not endpoint or not p256dh or not auth:
+                return jsonify({'success': False, 'message': 'Niekompletne dane subskrypcji'}), 400
+
+            from app.db import save_push_subscription
+            ok = save_push_subscription(user_id, login, rola, endpoint, p256dh, auth)
+
+            if ok:
+                current_app.logger.info('[PUSH] Subscription saved for user %s (role: %s)', login, rola)
+                return jsonify({'success': True, 'message': 'Subskrypcja push zapisana.'})
+            else:
+                return jsonify({'success': False, 'message': 'Błąd zapisu subskrypcji'}), 500
+        except Exception as error:
+            current_app.logger.exception('[PUSH] Error saving subscription: %s', error)
+            return jsonify({'success': False, 'message': str(error)}), 500
+
+    @api_bp.route('/push/unsubscribe', methods=['POST'])
+    @login_required
+    def push_unsubscribe():
+        """Usuwa subskrypcję Web Push dla zalogowanego użytkownika."""
+        try:
+            data = request.get_json() or {}
+            endpoint = data.get('endpoint', '').strip()
+            if not endpoint:
+                return jsonify({'success': False, 'message': 'Brak endpointu'}), 400
+
+            from app.db import delete_push_subscription
+            ok = delete_push_subscription(endpoint)
+            login = session.get('login', 'unknown')
+            current_app.logger.info('[PUSH] Subscription removed for user %s', login)
+            return jsonify({'success': ok})
+        except Exception as error:
+            current_app.logger.exception('[PUSH] Error removing subscription: %s', error)
+            return jsonify({'success': False, 'message': str(error)}), 500
