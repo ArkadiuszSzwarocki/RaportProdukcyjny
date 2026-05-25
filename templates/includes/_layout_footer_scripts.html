@@ -175,8 +175,10 @@
     (function() {
         const savedShown = sessionStorage.getItem('notif_shown_ids');
         const initialShown = savedShown ? JSON.parse(savedShown) : [];
+        const savedMaxId = sessionStorage.getItem('notif_max_id');
+        let maxNotifId = savedMaxId ? parseInt(savedMaxId, 10) : 0;
         const state = { 
-            initialized: savedShown !== null, 
+            initialized: savedShown !== null && savedMaxId !== null, 
             shownIds: new Set(initialShown), 
             notifications: [] 
         };
@@ -247,9 +249,13 @@
                 const message = escapeHtml(item.message || '');
                 const createdAt = escapeHtml(item.created_at || '');
                 const safeLink = escapeHtml(item.link_url || '');
+                const displayTime = item.created_at ? item.created_at.substring(11, 16) : '';
                 return [
                     '<button type="button" class="notification-item" data-id="', item.id, '" data-link="', safeLink, '">',
-                    '<span class="notification-item-title">', title, '</span>',
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">',
+                    '<span class="notification-item-title" style="margin:0; font-weight:700; font-size:13px; color:#0f172a;">', title, '</span>',
+                    displayTime ? '<span style="font-size:11px; font-weight:600; color:#3b82f6; background:#eff6ff; padding:2px 6px; border-radius:4px; margin-left:8px; white-space:nowrap;">' + displayTime + '</span>' : '',
+                    '</div>',
                     '<span class="notification-item-message">', message, '</span>',
                     '<span class="notification-item-meta">', createdAt, '</span>',
                     '</button>'
@@ -293,13 +299,21 @@
                     const notifications = Array.isArray(d.notifications) ? d.notifications : [];
                     if (state.initialized) {
                         notifications.forEach(function(item) {
-                            if (!state.shownIds.has(item.id)) {
+                            if (item.id > maxNotifId && !state.shownIds.has(item.id)) {
                                 state.shownIds.add(item.id);
                                 saveShown();
+                                
+                                if (item.id > maxNotifId) {
+                                    maxNotifId = item.id;
+                                    sessionStorage.setItem('notif_max_id', maxNotifId);
+                                }
+                                
                                 if (typeof showToast === 'function') {
                                     const userRole = "{{ session.get('rola')|default('')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim }}";
                                     const isSticky = (userRole === 'laborant' || userRole === 'laboratorium');
-                                    showToast((item.title || 'Powiadomienie') + ': ' + (item.message || ''), 'info', isSticky, function() {
+                                    const displayTime = item.created_at ? item.created_at.substring(11, 16) : '';
+                                    const toastMsg = (displayTime ? '[' + displayTime + '] ' : '') + (item.title || 'Powiadomienie') + ': ' + (item.message || '');
+                                    showToast(toastMsg, 'info', isSticky, function() {
                                         markRead(item.id).then(() => {
                                             state.notifications = state.notifications.filter(n => String(n.id) !== String(item.id));
                                             render();
@@ -309,7 +323,17 @@
                             }
                         });
                     } else {
-                        notifications.forEach(function(item) { state.shownIds.add(item.id); });
+                        let maxIdInBatch = 0;
+                        notifications.forEach(function(item) {
+                            state.shownIds.add(item.id);
+                            if (item.id > maxIdInBatch) {
+                                maxIdInBatch = item.id;
+                            }
+                        });
+                        if (maxIdInBatch > maxNotifId) {
+                            maxNotifId = maxIdInBatch;
+                            sessionStorage.setItem('notif_max_id', maxNotifId);
+                        }
                         saveShown();
                         state.initialized = true;
                     }

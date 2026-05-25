@@ -494,19 +494,7 @@
     }
 }
 
-/* Fix dashboard-top-row layout on medium screens:
-   title on top, stats below — but stats stay horizontal */
-@media (max-width: 880px) {
-    #mainContent .dashboard-top-row {
-        flex-direction: column !important;
-        align-items: flex-start !important;
-        gap: 10px !important;
-        width: 100% !important;
-    }
-    #mainContent .header-title-row {
-        flex-wrap: wrap !important;
-    }
-}
+/* Removed layout override for medium screens to preserve style.css single-line horizontal stats row */
 
 /* ============================================================
    RESPONSIVE LAYOUT OVERRIDES FOR DETAILS & GRID STRETCHING
@@ -553,5 +541,55 @@
     color: #ffffff !important;
 }
 
+/* ============================================================
+   LABORATORY RESPONSIVE VIEW OPTIMIZATIONS (ZASYP / WORKOWANIE)
+   ============================================================ */
+@media screen and (max-width: 900px) {
+    /* Hide the active order session/floating stats bar for laborants on Zasyp to maximize space */
+    .d-none-mobile-lab {
+        display: none !important;
+    }
 
+    /* Pull the "Pokaż pełny plan" toggle button maximum up under the title/date selector */
+    .toggle-focus-wrapper {
+        display: flex !important;
+        justify-content: center !important;
+        margin-top: -6px !important;
+        margin-bottom: 8px !important;
+        width: 100% !important;
+        grid-column: 1 / -1 !important;
+    }
 
+    #toggle-focus-plan-btn {
+        width: 100% !important;
+        max-width: 100% !important;
+        justify-content: center !important;
+        font-size: 0.8em !important;
+        padding: 8px 12px !important;
+    }
+
+    /* Force cards and active details direct (completed batches/mixes) to stack vertically */
+    .cards.agro-focus-mode {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        gap: 15px !important;
+    }
+
+    /* Remove caps on card and mixes panel widths so they stretch fully to 100% and stay responsive */
+    .cards.agro-focus-mode .card,
+    .cards.agro-focus-mode .active-order-szarze-wrap,
+    .cards.agro-focus-mode .active-agro-details-direct {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: 1 1 auto !important;
+        box-sizing: border-box !important;
+    }
+    
+    /* Ensure details direct grid does not wrap elements into multiple columns on narrow viewports */
+    .active-agro-details-direct {
+        grid-template-columns: 1fr !important;
+        width: 100% !important;
+    }
+}

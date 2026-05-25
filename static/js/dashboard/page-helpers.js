@@ -48,7 +48,7 @@
         try {
             var config = getConfigState();
             var role = String(config && config.currentRole || '').toLowerCase();
-            var roleDefault = ['operator', 'pracownik', 'produkcja', 'lider'].includes(role) ? 'auto' : 'manual';
+            var roleDefault = ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'master admin', 'master_admin'].includes(role) ? 'auto' : 'manual';
             var mode = (localStorage.getItem('zasyp_auto_szarza_mode') || roleDefault).toLowerCase();
             return mode === 'auto' ? 'auto' : 'manual';
         } catch (error) {

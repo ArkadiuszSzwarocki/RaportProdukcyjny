@@ -3,10 +3,10 @@
     data-linia="{{ linia or 'PSD' }}"
     data-sekcja="{{ sekcja }}">
     
+    {% if sekcja not in ['Zasyp', 'Bufor', 'Workowanie', 'Magazyn'] %}
     <div class="top-submenu" style="padding: 0; box-shadow: none; margin-bottom: 20px;">
         <div class="top-submenu-inner" style="margin-left: 0;">
             <nav class="top-menu">
-                {% if sekcja not in ['Zasyp', 'Bufor', 'Workowanie', 'Magazyn'] %}
                 <a class="top-menu-item {% if request.endpoint in ['production.obsada_page','panels.panel_obsada_page'] or request.args.get('sekcja')=='Workowanie' %}active{% endif %}"
                     href="{{ url_for('production.obsada_page', sekcja='Workowanie', linia=linia) }}" title="{{ _('obsada') }}"
                     data-slide>
@@ -21,10 +21,10 @@
                 <a class="top-menu-item {% if request.endpoint=='panels.panel_obecnosci_page' %}active{% endif %}"
                     href="{{ url_for('panels.panel_obecnosci_page', linia=linia) }}" data-slide> <span
                         class="material-icons">calendar_today</span> {{ _('nieobecnosci') }}</a>
-                {% endif %}
             </nav>
         </div>
     </div>
+    {% endif %}
 
     <div class="dashboard-top-row d-flex justify-between flex-wrap align-center gap-20 w-100 mb-20">
         <div class="header-title-row d-flex align-center gap-10">
@@ -41,7 +41,7 @@
                 <button type="button" class="day-nav left" data-day-offset="-1">◀</button>
                 <div class="day-center">
                     <div class="day-label">{{ _('widok_dla') }}</div>
-                    <div id="current-date-display" class="day-date">{{ dzisiaj }}</div>
+                    <div id="current-date-display" class="day-date">{{ dzisiaj.strftime('%d.%m.%y') if dzisiaj else '' }}</div>
                 </div>
                 <button type="button" class="day-nav right" data-day-offset="1">▶</button>
                 <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') }}">
@@ -53,9 +53,21 @@
                 <div class="stat-inline stat-magazyn"><span class="label">{{ _('palet_liczba') }}</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
                 <div class="stat-inline stat-przyjeto"><span class="label">{{ _('przyjeto') }}</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
             {% else %}
-                <div class="stat-inline stat-plan"><span class="label">{{ _('plan') }}</span><strong class="value">{{ suma_plan|int }} kg</strong></div>
-                <div class="stat-inline stat-wykonanie"><span class="label">{{ _('wykonanie') }}</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
-                <div class="stat-inline stat-realizacja"><span class="label">% Realizacja</span><strong class="value">{{ (suma_wykonanie/suma_plan*100)|int if suma_plan>0 else 0 }}%</strong></div>
+                {% set active_plan = namespace(tonaz=0, wykonanie=0, found=false) %}
+                {% if plan %}
+                    {% for p in plan %}
+                        {% if p[3] == 'w toku' and not active_plan.found %}
+                            {% set active_plan.tonaz = p[2] %}
+                            {% set active_plan.wykonanie = p[7] %}
+                            {% set active_plan.found = true %}
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+                {% set display_plan = active_plan.tonaz if active_plan.found else suma_plan %}
+                {% set display_wykonanie = active_plan.wykonanie if active_plan.found else suma_wykonanie %}
+                <div class="stat-inline stat-plan"><span class="label">{{ _('plan') }}</span><strong class="value">{{ display_plan|int }} kg</strong></div>
+                <div class="stat-inline stat-wykonanie"><span class="label">{{ _('wykonanie') }}</span><strong class="value text-success">{{ display_wykonanie|int }} kg</strong></div>
+                <div class="stat-inline stat-realizacja"><span class="label">% Realizacja</span><strong class="value">{{ (display_wykonanie/display_plan*100)|int if display_plan>0 else 0 }}%</strong></div>
             {% endif %}
         </div>
     </div>

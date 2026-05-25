@@ -40,8 +40,8 @@ def register_production_zasyp_flow_routes(
         etap_raw = request.form.get('etap')
         kg_raw = request.form.get('wielkosc_szarzy_kg')
         szarza_nr_raw = _read_zasyp_nr()
-        role = str(session.get('rola') or '').lower()
-        default_auto_mode = 'auto' if role in ['operator', 'pracownik', 'produkcja', 'lider'] else 'manual'
+        role = str(session.get('rola') or '').lower().strip()
+        default_auto_mode = 'auto' if role in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'master admin', 'master_admin'] else 'manual'
         auto_szarza_mode = str(request.form.get('auto_szarza_mode') or default_auto_mode).strip().lower()
 
         try:
@@ -249,7 +249,7 @@ def register_production_zasyp_flow_routes(
         szarza_nr_raw = _read_zasyp_nr()
         next_action = str(request.form.get('next_action') or '').strip().lower()
         role = str(session.get('rola') or '').lower()
-        default_auto_mode = 'auto' if role in ['operator', 'pracownik', 'produkcja', 'lider'] else 'manual'
+        default_auto_mode = 'auto' if role in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin'] else 'manual'
         auto_szarza_mode = str(request.form.get('auto_szarza_mode') or default_auto_mode).strip().lower()
         auto_szarza_enabled = auto_szarza_mode == 'auto'
 

@@ -19,34 +19,91 @@
         #dosypki-table td:nth-child(2),
         #dosypki-table th:nth-child(5),
         #dosypki-table td:nth-child(5) {
-            display: none;
+            display: none !important;
         }
         
         #dosypki-table {
-            width: 100%;
+            width: 100% !important;
+            display: table !important;
+            border-collapse: collapse !important;
+        }
+
+        #dosypki-table thead {
+            display: table-header-group !important;
+        }
+
+        #dosypki-table tr {
+            display: table-row !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
         }
         
         #dosypki-table th,
         #dosypki-table td {
-            padding: 4px 2px;
-            font-size: 0.8em;
-            line-height: 1.1;
-        }
-        
-        #dosypki-table th:nth-child(4),
-        #dosypki-table td:nth-child(4) {
             display: table-cell !important;
-            min-width: 40px;
+            padding: 8px 6px !important;
+            font-size: 13px !important;
+            line-height: 1.3 !important;
+            border-bottom: 1px solid var(--border-color) !important;
+            text-align: left !important;
+            width: auto !important;
+            min-height: unset !important;
+        }
+
+        #dosypki-table th {
+            font-weight: 700 !important;
+            color: #64748b !important;
+            text-transform: uppercase !important;
+            font-size: 11px !important;
+            letter-spacing: 0.5px !important;
+            background: #f8fafc !important;
+        }
+
+        #dosypki-table td::before {
+            display: none !important;
         }
         
-        #dosypki-table td:nth-child(6) {
-            text-align: center;
+        #dosypki-table td > * {
+            display: inline-block !important;
+            font-size: 13px !important;
+            font-weight: unset !important;
+            color: unset !important;
+            width: auto !important;
+        }
+
+        #dosypki-table td:nth-child(4) { /* Kg */
+            font-weight: 700 !important;
+            color: #1e293b !important;
         }
         
-        .btn-action.btn-save {
-            padding: 4px 6px;
-            font-size: 0.75em;
-            min-width: 50px;
+        #dosypki-table td:nth-child(6) { /* Akcja */
+            text-align: right !important;
+            white-space: nowrap !important;
+        }
+        
+        #dosypki-table.no-mobile-cards .dosypka-confirm-btn {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: auto !important;
+            min-height: 32px !important;
+            padding: 4px 10px !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            background-color: #2563eb !important; /* Premium Blue */
+            color: #ffffff !important;
+            border-radius: 6px !important;
+            border: none !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+            transition: all 0.2s ease !important;
+            margin: 0 !important;
+        }
+
+        #dosypki-table.no-mobile-cards .dosypka-confirm-btn:active {
+            transform: scale(0.96) !important;
+            background-color: #1d4ed8 !important;
         }
     }
 
@@ -124,7 +181,7 @@
             <div id="dosypki-status" class="text-muted" {% if dosypki and dosypki|length>0 %} style="display:none"{%
                 endif %}>Ładowanie...</div>
         </div>
-        <table id="dosypki-table" class="modern-table small" {% if dosypki and dosypki|length>0
+        <table id="dosypki-table" class="modern-table small no-mobile-cards" {% if dosypki and dosypki|length>0
             %}style="display:table"{% else %}style="display:none"{% endif %}>
             <thead>
                 <tr>

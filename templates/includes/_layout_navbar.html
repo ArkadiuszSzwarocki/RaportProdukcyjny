@@ -2,7 +2,6 @@
     <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
         <span class="material-icons">menu</span>
     </button>
-    <span style="font-size: 20px; font-weight: bold; color: var(--text-secondary,#e2e8f0); margin-left: 10px; display: flex; align-items: center; cursor: default;">A</span>
 
     <span id="topBarPageTitle" style="font-size:16px;font-weight:700;color:var(--text-secondary,#e2e8f0);margin-right:auto;padding-left:16px;display:none;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
 
@@ -27,7 +26,7 @@
         <div class="top-user-meta" id="sessionTimeoutWrapper" style="margin-left: 8px; display: none;">
             <span class="user-role" id="sessionTimeoutBadge" style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); color: #10b981; display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 8px; transition: all 0.3s ease;">
                 <span class="material-icons" id="sessionTimeoutIcon" style="font-size: 16px; transition: all 0.3s ease;">timer</span>
-                <span id="sessionTimeoutLabel" style="font-size: 11px; font-weight: 700; white-space: nowrap;">Sesja:</span>
+                <span id="sessionTimeoutLabel" class="d-mobile-none" style="font-size: 11px; font-weight: 700; white-space: nowrap;">Sesja:</span>
                 <strong id="sessionTimeoutTimer" style="font-size: 12px; font-weight: 800; white-space: nowrap;">40:00</strong>
             </span>
         </div>

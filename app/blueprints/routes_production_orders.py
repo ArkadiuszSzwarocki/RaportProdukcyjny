@@ -532,8 +532,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         """Strona dodawania nowego zasypu dla konkretnego planu."""
         linia_input = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         linia = str(linia_input).upper()
-        role = (session.get('rola') or '').lower()
-        is_admin_role = role in ['admin', 'zarzad', 'planista']
+        role = (session.get('rola') or '').lower().strip()
+        is_admin_role = role in ['admin', 'zarzad', 'planista', 'masteradmin', 'master admin', 'master_admin']
         is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
         if not is_admin_role and not is_ops_role:
             flash('Brak uprawnień do dodawania zasypów.', 'warning')

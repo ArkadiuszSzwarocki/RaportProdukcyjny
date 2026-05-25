@@ -683,8 +683,8 @@
         // Only intercept forms inside #mainContent
         if (!form.closest('#mainContent')) return;
         
-        // Don't intercept slide-over or explicitly non-ajax forms
-        if (form.hasAttribute('data-slide') || form.getAttribute('data-ajax') === 'false') return;
+        // Don't intercept slide-over, explicitly non-ajax, or custom dashboard-submit forms
+        if (form.hasAttribute('data-slide') || form.getAttribute('data-ajax') === 'false' || form.hasAttribute('data-dashboard-submit')) return;
         
         // Only POST forms without a blank/new target
         if (form.method && form.method.toLowerCase() !== 'post') return;
@@ -697,8 +697,8 @@
         if (!isSupported) return;
         
         // Handle confirmation dialogs
-        if (form.hasAttribute('data-confirm-msg')) {
-            const msg = form.getAttribute('data-confirm-msg');
+        if (form.hasAttribute('data-confirm-msg') || form.hasAttribute('data-confirm')) {
+            const msg = form.getAttribute('data-confirm-msg') || form.getAttribute('data-confirm');
             if (!confirm(msg)) {
                 e.preventDefault();
                 return;
@@ -1012,6 +1012,7 @@
                         }
                     });
                 }
+                existingBd.style.display = 'block';
                 existingBd.classList.add('show');
                 existingM.style.display = 'block';
                 document.body.classList.add('slide-over-open');
@@ -1034,7 +1035,7 @@
                     } catch (e) { }
                 }, 10);
             } catch (e) { console.warn('reuse quick-popup failed', e); }
-            return { close: function () { try { if (typeof closeQuickPopup === 'function') closeQuickPopup(); else { existingM.classList.remove('open'); existingBd.classList.remove('show'); setTimeout(() => { existingM.style.display = 'none'; document.body.classList.remove('slide-over-open'); }, 260); } } catch (e) { } }, element: existingM };
+            return { close: function () { try { if (typeof closeQuickPopup === 'function') closeQuickPopup(); else { existingM.classList.remove('open'); existingBd.classList.remove('show'); setTimeout(() => { existingM.style.display = 'none'; existingBd.style.display = 'none'; document.body.classList.remove('slide-over-open'); }, 260); } } catch (e) { } }, element: existingM };
         }
 
         const bd = document.createElement('div'); bd.className = 'quick-backdrop'; bd.id = 'quickBackdrop';
@@ -1057,9 +1058,9 @@
         // Inject lightweight, scoped styles to improve visual appearance
         var scopedStyle = '<style>'
             + '.quick-backdrop{position:fixed;inset:0;background:rgba(15,23,42,0.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:30001;opacity:0;transition:opacity .25s ease;pointer-events:none}.quick-backdrop.show{opacity:1;pointer-events:auto}'
-            + '.quick-popup{position:fixed;left:50%;top:15%;transform:translateX(-50%) scale(0.95);z-index:30002;max-width:600px;width:calc(100% - 48px);background:#fff;border-radius:20px;box-shadow:0 25px 50px -12px rgba(15,23,42,0.25);overflow:hidden;display:block;opacity:0;transition:transform .3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity .3s ease;border:1px solid rgba(15,23,42,0.08);pointer-events:none;font-family:\'Inter\', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif}'
+            + '.quick-popup{position:fixed;left:50%;top:50%;transform:translate(-50%, -50%) scale(0.95);z-index:30002;max-width:600px;width:calc(100% - 48px);background:#fff;border-radius:20px;box-shadow:0 25px 50px -12px rgba(15,23,42,0.25);overflow:hidden;display:block;opacity:0;transition:transform .3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity .3s ease;border:1px solid rgba(15,23,42,0.08);pointer-events:none;font-family:\'Inter\', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif}'
             + '.quick-popup.qp-wide{max-width:920px}'
-            + '.quick-popup.open{transform:translateX(-50%) scale(1);opacity:1;pointer-events:auto}'
+            + '.quick-popup.open{transform:translate(-50%, -50%) scale(1);opacity:1;pointer-events:auto}'
             + '.qp-header{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid #f1f5f9;background:#fff}'
             + '.qp-header .header-title{font-size:18px;font-weight:700;color:#0f172a;letter-spacing:-0.02em;font-family:inherit}'
             + '.qp-header .qp-close{width:32px;height:32px;display:grid;place-items:center;border-radius:8px;color:#94a3b8;transition:all 0.2s ease;background:#f8fafc;border:none;cursor:pointer}'

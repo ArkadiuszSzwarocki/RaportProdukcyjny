@@ -244,6 +244,13 @@
             return;
         }
 
+        if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner === 'function') {
+            global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
+            addTask('dosypki-badge-sync-observer', 4000, function () {
+                global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
+            }, false);
+        }
+
         addTask('dosypki-observer-poll', 3000, function () {
             return fetchJson('/api/zasyp/poll_dosypki_update?linia=' + config.linia + '&last_seen=' + state.dosypkiLastSeen)
                 .then(function (data) {
@@ -257,6 +264,22 @@
                     if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.isBannerLocked === 'function' && global.dashboardAgroBanners.isBannerLocked()) {
                         return;
                     }
+
+                    // Instantly sync the badges for laborant / observer when operator updates
+                    if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner === 'function') {
+                        global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
+                    }
+
+                    // Silent live-refresh of the dosypka creation popup history if open
+                    var container = document.querySelector('.dosypka-popup-container');
+                    if (container && typeof global.refreshDosypkaPopup === 'function') {
+                        var planId = container.getAttribute('data-plan-id');
+                        var szarzaId = container.getAttribute('data-szarza-id');
+                        global.refreshDosypkaPopup(planId, szarzaId).catch(function (e) {
+                            console.error('refreshDosypkaPopup err', e);
+                        });
+                    }
+
                     if (typeof global.reloadActiveDosypkiList === 'function') {
                         global.reloadActiveDosypkiList();
                     }

@@ -45,6 +45,7 @@
             body.innerHTML = html || '';
         }
 
+        backdrop.style.display = 'block';
         backdrop.classList.add('show');
         popup.style.display = 'block';
         global.setTimeout(function () {
@@ -68,6 +69,9 @@
 
         global.setTimeout(function () {
             popup.style.display = 'none';
+            if (backdrop) {
+                backdrop.style.display = 'none';
+            }
             var body = document.getElementById('quickPopupBody');
             if (body) {
                 body.innerHTML = '';
@@ -255,7 +259,10 @@
 
                 var newDateStr = toIsoDate(currentDate);
                 dateIso.value = newDateStr;
-                dateDisplay.textContent = currentDate.toLocaleDateString('pl-PL');
+                var day = String(currentDate.getDate()).padStart(2, '0');
+                var month = String(currentDate.getMonth() + 1).padStart(2, '0');
+                var year = String(currentDate.getFullYear()).slice(-2);
+                dateDisplay.textContent = day + '.' + month + '.' + year;
                 updateWpisyForDate(newDateStr);
             });
         });

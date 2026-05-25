@@ -823,7 +823,7 @@ def register_warehouse_management_routes(
 
     @warehouse_bp.route('/usun_szarze/<int:id>', methods=['POST'], endpoint='usun_szarze')
     @warehouse_bp.route('/usun_zasyp/<int:id>', methods=['POST'], endpoint='usun_zasyp')
-    @masteradmin_required
+    @roles_required('masteradmin', 'admin', 'lider')
     def usun_szarze(id):
         """Delete zasyp from Zasyp section (legacy route name)."""
         linia = str(resolve_request_linia()).upper()

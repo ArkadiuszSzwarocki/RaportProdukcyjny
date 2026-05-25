@@ -8,13 +8,16 @@
         {% endif %}
         {% set fb_palety = (palety_mapa.get(p[0]) if palety_mapa and (p[0] in palety_mapa) else []) %}
         {% if fb_palety %}
-            {% for pal in fb_palety %}
+            {% set total_count = fb_palety|length %}
+            {% set items_to_render = fb_palety|reverse if linia|upper == 'PSD' else fb_palety %}
+            {% for pal in items_to_render %}
+            {% set loop_idx = (total_count - loop.index + 1) if linia|upper == 'PSD' else loop.index %}
             {% set szarza_id = (pal[2]|int if pal|length > 2 else 0) %}
-            {% if szarza_id <= 0 %}{% set szarza_id = loop.index %}{% endif %}
+            {% if szarza_id <= 0 %}{% set szarza_id = loop_idx %}{% endif %}
             <div class="active-order-szarze-item">
                 <div class="active-order-szarze-line">
                     <div class="active-order-szarze-left">
-                        <span>#{{ loop.index if loop is defined else '' }} • {{ pal[1] }}</span>
+                        <span>#{{ loop_idx }} • {{ pal[1] }}</span>
                         <strong class="text-primary">{{ pal[0]|int }} kg</strong>
                         {% if pal|length > 5 %}
                         <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-' }}</span>
@@ -24,7 +27,7 @@
                         {% if not is_readonly %}
                             {% if sekcja == 'Zasyp' %}
                             {% set role_lc = rola|string|trim|lower %}
-                            {% if not (role_lc == 'pracownik' and (linia|upper == 'PSD' or (session.get('grupa')|default('')|upper == 'PSD'))) %}
+                            {% if role_lc != 'lider' and not (role_lc == 'pracownik' and (linia|upper == 'PSD' or (session.get('grupa')|default('')|upper == 'PSD'))) %}
                             <a href="{{ url_for('production.dosypka_page', plan_id=p[0], szarza_id=szarza_id, zasyp_id=szarza_id, linia=linia) }}"
                                class="btn-action btn-blue"
                                data-slide

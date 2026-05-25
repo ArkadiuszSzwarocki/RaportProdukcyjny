@@ -1,4 +1,4 @@
-{% if (sekcja == 'Zasyp' or sekcja == 'Workowanie') and linia == 'AGRO' and ns.is_active and rola in ['lider', 'admin', 'masteradmin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] %}
+{% if (sekcja == 'Zasyp' or sekcja == 'Workowanie') and ns.is_active and rola in ['lider', 'admin', 'masteradmin', 'zarzad', 'pracownik', 'magazynier', 'laborant', 'laboratorium'] %}
     {% set fb_pid = ns.active_plan_id %}
     {% set fb_szarza_nr = (etapy_curr_szarza.get(fb_pid, 1) if etapy_curr_szarza is defined and etapy_curr_szarza else 1) %}
     {% set fb_etapy = (etapy_mapa.get(fb_pid, []) if etapy_mapa is defined and etapy_mapa else []) %}
@@ -43,7 +43,7 @@
 
     {% set fb_kstats = kgph_stats_mapa.get(fb_pid) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
     
-    <div class="active-order-floating-bar-wrap">
+    <div class="active-order-floating-bar-wrap {% if rola|string|trim|lower in ['laborant', 'laboratorium'] and sekcja == 'Zasyp' %}d-none-mobile-lab{% endif %}">
         <div class="active-order-floating-bar">
             <div class="active-order-status-inline">
                 {% if fb_running.count > 0 and rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] %}

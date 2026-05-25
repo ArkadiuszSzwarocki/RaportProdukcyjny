@@ -2,8 +2,8 @@
     data-msg-error-loading="{{ _('blad_ladowania') }}"
     data-msg-no-notes="{{ _('brak_notatek') }}"
     data-msg-edit-wpis="{{ _('edytuj_wpis') }}">
-    {% if wpisy %}
-    {% for w in wpisy[:2] %}
+    {%- if wpisy -%}
+    {%- for w in wpisy[:2] -%}
     <div class="alert-warning d-flex justify-between align-center mb-5">
         <div>
             <span>⚠️ <strong>{{ w[3] }}</strong> [{{ w[5] }}]: {{ w[2] }}</span>
@@ -28,6 +28,7 @@
         </div>
         {% endif %}
     </div>
-    {% endfor %}
-    {% endif %}
+    {%- endfor -%}
+    {%- endif -%}
 </div>
+

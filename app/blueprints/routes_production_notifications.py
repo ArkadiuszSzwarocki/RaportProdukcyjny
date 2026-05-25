@@ -297,7 +297,7 @@ def register_production_notification_routes(
     def api_pending_dosypki_badges():
         """Return pending dosypki badge counts per plan_id for Zasyp dashboard (PSD/AGRO)."""
         role = str(session.get('rola') or '').strip().lower()
-        allowed_roles = {'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad'}
+        allowed_roles = {'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'masteradmin', 'laborant', 'laboratorium'}
         if role not in allowed_roles:
             return jsonify({"success": True, "counts": {}, "timestamp": time.time()})
 

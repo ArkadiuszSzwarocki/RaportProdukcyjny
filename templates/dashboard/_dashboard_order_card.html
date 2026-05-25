@@ -145,7 +145,7 @@
                     {% if role_lc in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] or role_lc in ['laborant', 'laboratorium'] %}
                         <a href="{{ url_for('production.dosypki_list', plan_id=p[0], linia=linia) }}" class="btn-action btn-outline-warning btn-with-badge" data-plan-id="{{ p[0] }}" data-slide>Dosypki{% if pending_dosypki_count > 0 %}<span class="action-badge">{{ pending_dosypki_count }}</span>{% endif %}</a>
                     {% endif %}
-                    {% if role_lc in ['admin', 'masteradmin', 'lider'] %}
+                    {% if role_lc in ['admin', 'masteradmin'] %}
                         <a href="{{ url_for('production.dosypka_page', plan_id=p[0], linia=linia) }}" class="btn-action btn-blue" data-slide>+ DOSYPKA</a>
                     {% endif %}
                     {% if role_lc not in ['laborant', 'laboratorium'] %}

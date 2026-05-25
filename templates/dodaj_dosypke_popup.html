@@ -543,110 +543,148 @@ function initDosypkaPopup() {
     const form = document.getElementById('dosypka-form');
     if (form && form.dataset.boundWarehouseValidation !== '1') {
         form.dataset.boundWarehouseValidation = '1';
-        form.addEventListener('submit', function (event) {
+        form.addEventListener('submit', async function (event) {
+            event.preventDefault();
+
             const noDosypki = document.getElementById('brak_dosypki');
-            if (noDosypki && noDosypki.value === '1') return;
+            const isNoDosypki = noDosypki && noDosypki.value === '1';
 
-            const datalist = document.getElementById('surowce-agro-list');
-            const allowed = new Map();
-            if (datalist) {
-                Array.from(datalist.options || []).forEach(function (opt) {
-                    const value = String((opt && opt.value) || '').trim();
-                    if (value) allowed.set(value.toLowerCase(), value);
-                });
-            }
-
-            const fieldGroups = Array.from(form.querySelectorAll('.dosypka-field-group'));
-            let hasAnyValue = false;
-            let validCount = 0;
-            let invalidField = null;
-            let invalidMessage = '';
-
-            fieldGroups.forEach(function (group) {
-                const nameInput = group.querySelector('.dosypka-input-nazwa');
-                const kgInput = group.querySelector('.dosypka-input-kg');
-                const nameValue = String((nameInput && nameInput.value) || '').trim();
-                const kgValueRaw = String((kgInput && kgInput.value) || '').trim();
-                const hasName = nameValue.length > 0;
-                const hasKg = kgValueRaw.length > 0;
-
-                if (hasName || hasKg) {
-                    hasAnyValue = true;
+            if (!isNoDosypki) {
+                const datalist = document.getElementById('surowce-agro-list');
+                const allowed = new Map();
+                if (datalist) {
+                    Array.from(datalist.options || []).forEach(function (opt) {
+                        const value = String((opt && opt.value) || '').trim();
+                        if (value) allowed.set(value.toLowerCase(), value);
+                    });
                 }
 
-                if (!invalidField) {
-                    if (hasName && !hasKg) {
-                        invalidField = kgInput;
-                        invalidMessage = 'Podaj wagę (kg) dla wybranej pozycji.';
-                    } else if (!hasName && hasKg) {
-                        invalidField = nameInput;
-                        invalidMessage = 'Podaj nazwę surowca dla wpisanej wagi.';
-                    } else if (hasName && hasKg) {
-                        const kgParsed = parseFloat(kgValueRaw.replace(',', '.'));
-                        if (!Number.isFinite(kgParsed) || kgParsed <= 0) {
-                            invalidField = kgInput;
-                            invalidMessage = 'Waga musi być większa od 0.';
-                        } else {
-                            validCount += 1;
-                        }
-                    }
-                }
-            });
+                const fieldGroups = Array.from(form.querySelectorAll('.dosypka-field-group'));
+                let hasAnyValue = false;
+                let validCount = 0;
+                let invalidField = null;
+                let invalidMessage = '';
 
-            if (invalidField) {
-                event.preventDefault();
-                alert(invalidMessage || 'Uzupełnij poprawnie pozycję dosypki.');
-                try {
-                    invalidField.focus();
-                    invalidField.select && invalidField.select();
-                } catch (e) {}
-                return;
-            }
-
-            if (!hasAnyValue) {
-                event.preventDefault();
-                alert('Podaj co najmniej jedną pozycję dosypki lub wybierz "Brak dosypki".');
-                return;
-            }
-
-            if (!validCount) {
-                event.preventDefault();
-                alert('Brak poprawnych pozycji dosypki do zapisania.');
-                return;
-            }
-
-            const filled = fieldGroups
-                .map(function (group) {
+                fieldGroups.forEach(function (group) {
                     const nameInput = group.querySelector('.dosypka-input-nazwa');
                     const kgInput = group.querySelector('.dosypka-input-kg');
                     const nameValue = String((nameInput && nameInput.value) || '').trim();
                     const kgValueRaw = String((kgInput && kgInput.value) || '').trim();
-                    const kgParsed = parseFloat(kgValueRaw.replace(',', '.'));
-                    return {
-                        input: nameInput,
-                        value: nameValue,
-                        kg: Number.isFinite(kgParsed) ? kgParsed : null,
-                    };
-                })
-                .filter(function (item) {
-                    return item.value.length > 0 && item.kg !== null && item.kg > 0;
+                    const hasName = nameValue.length > 0;
+                    const hasKg = kgValueRaw.length > 0;
+
+                    if (hasName || hasKg) {
+                        hasAnyValue = true;
+                    }
+
+                    if (!invalidField) {
+                        if (hasName && !hasKg) {
+                            invalidField = kgInput;
+                            invalidMessage = 'Podaj wagę (kg) dla wybranej pozycji.';
+                        } else if (!hasName && hasKg) {
+                            invalidField = nameInput;
+                            invalidMessage = 'Podaj nazwę surowca dla wpisanej wagi.';
+                        } else if (hasName && hasKg) {
+                            const kgParsed = parseFloat(kgValueRaw.replace(',', '.'));
+                            if (!Number.isFinite(kgParsed) || kgParsed <= 0) {
+                                invalidField = kgInput;
+                                invalidMessage = 'Waga musi być większa od 0.';
+                            } else {
+                                validCount += 1;
+                            }
+                        }
+                    }
                 });
-            if (!allowed.size) {
-                event.preventDefault();
-                alert('Brak dostępnego słownika surowców magazynu. Nie można zapisać własnych nazw.');
-                return;
+
+                if (invalidField) {
+                    alert(invalidMessage || 'Uzupełnij poprawnie pozycję dosypki.');
+                    try {
+                        invalidField.focus();
+                        invalidField.select && invalidField.select();
+                    } catch (e) {}
+                    return;
+                }
+
+                if (!hasAnyValue) {
+                    alert('Podaj co najmniej jedną pozycję dosypki lub wybierz "Brak dosypki".');
+                    return;
+                }
+
+                if (!validCount) {
+                    alert('Brak poprawnych pozycji dosypki do zapisania.');
+                    return;
+                }
+
+                const filled = fieldGroups
+                    .map(function (group) {
+                        const nameInput = group.querySelector('.dosypka-input-nazwa');
+                        const kgInput = group.querySelector('.dosypka-input-kg');
+                        const nameValue = String((nameInput && nameInput.value) || '').trim();
+                        const kgValueRaw = String((kgInput && kgInput.value) || '').trim();
+                        const kgParsed = parseFloat(kgValueRaw.replace(',', '.'));
+                        return {
+                            input: nameInput,
+                            value: nameValue,
+                            kg: Number.isFinite(kgParsed) ? kgParsed : null,
+                        };
+                    })
+                    .filter(function (item) {
+                        return item.value.length > 0 && item.kg !== null && item.kg > 0;
+                    });
+                if (!allowed.size) {
+                    alert('Brak dostępnego słownika surowców magazynu. Nie można zapisać własnych nazw.');
+                    return;
+                }
+
+                const invalid = filled.find(function (item) {
+                    return !allowed.has(item.value.toLowerCase());
+                });
+                if (invalid) {
+                    alert('Nazwa "' + invalid.value + '" nie jest dozwolona. Wybierz surowiec z listy magazynu.');
+                    try {
+                        invalid.input.focus();
+                        invalid.input.select();
+                    } catch (e) {}
+                    return;
+                }
             }
 
-            const invalid = filled.find(function (item) {
-                return !allowed.has(item.value.toLowerCase());
-            });
-            if (invalid) {
-                event.preventDefault();
-                alert('Nazwa "' + invalid.value + '" nie jest dozwolona. Wybierz surowiec z listy magazynu.');
-                try {
-                    invalid.input.focus();
-                    invalid.input.select();
-                } catch (e) {}
+            // Validation passed, submit via AJAX fetch
+            const url = form.action || window.location.href;
+            const formData = new FormData(form);
+            const submitBtns = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+            submitBtns.forEach(btn => btn.disabled = true);
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.success !== false) {
+                    if (typeof window.closeQuickPopup === 'function') {
+                        window.closeQuickPopup();
+                    }
+                    if (typeof window.performPartialReload === 'function') {
+                        await window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypka-add' });
+                    } else {
+                        window.location.reload();
+                    }
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Zapisano!', 'success');
+                    }
+                } else {
+                    submitBtns.forEach(btn => btn.disabled = false);
+                    alert((data && data.message) || 'Błąd podczas zapisywania');
+                }
+            } catch (err) {
+                submitBtns.forEach(btn => btn.disabled = false);
+                console.error('AJAX submit failed', err);
+                alert('Błąd sieci podczas zapisywania');
             }
         });
     }
@@ -730,6 +768,7 @@ async function refreshDosypkaPopup(planId, szarzaId) {
         }
     });
 }
+window.refreshDosypkaPopup = refreshDosypkaPopup;
 
 async function refreshPlanDosypkiView(planId) {
     if (!planId) return;

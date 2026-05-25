@@ -82,8 +82,8 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
         except Exception:
             plan_id_provided = 0
 
-        role = (session.get('rola') or '').lower()
-        is_admin_role = role in ['admin', 'planista', 'zarzad']
+        role = (session.get('rola') or '').lower().strip()
+        is_admin_role = role in ['admin', 'planista', 'zarzad', 'masteradmin', 'master admin', 'master_admin']
         is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
         if not is_admin_role and not is_ops_role:
             flash('Brak uprawnień do dodawania planów lub zasypów.', 'warning')

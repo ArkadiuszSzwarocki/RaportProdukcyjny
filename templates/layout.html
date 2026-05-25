@@ -21,6 +21,7 @@
     <script src="{{ url_for('static', filename='js/perf_monitor.js') }}?v={{ static_version }}"></script>
     <!-- SESSION GUARD: intercepts 401, handles visibility-based logout -->
     <script src="{{ url_for('static', filename='js/session_guard.js') }}?v={{ static_version }}"></script>
+    {% block extra_css %}{% endblock %}
 </head>
 
 {% set role = session.get('rola', '').lower().replace(' ', '').replace('_', '').replace('-', '').strip() %}

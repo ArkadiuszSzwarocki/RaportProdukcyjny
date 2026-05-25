@@ -1,8 +1,11 @@
 {% extends "layout.html" %}
 {% import "_macros.html" as macros %}
 
-{% block content %}
+{% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v={{ static_version }}">
+{% endblock %}
+
+{% block content %}
 {% include 'dashboard/_dashboard_banners.html' %}
 {% include 'includes/dashboard_top.html' %}
 {% include 'dashboard/_dashboard_warehouse.html' %}
