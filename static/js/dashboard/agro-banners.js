@@ -1031,6 +1031,9 @@
     }
 
     function showZasypDosypkaAddedBanner(data) {
+        if (!isAgroZasypPage()) {
+            return;
+        }
         try {
             var eventTs = Number((data && data.timestamp) || 0) || 0;
             var eventKey = _buildAgroEventKey('zasyp_dosypka_added', eventTs, data && data.tts_text, data && data.audio_filename);

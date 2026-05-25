@@ -127,13 +127,18 @@ def register_production_dosypki_routes(
     @roles_required('operator', 'pracownik', 'produkcja', 'lider', 'magazynier', 'laborant', 'laboratorium', 'planista', 'admin', 'zarzad')
     def dodaj_dosypke():
         """Handle POST from dosypka form and insert rows into `dosypki` table."""
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         plan_id = request.form.get('plan_id')
         if not plan_id:
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Brak identyfikatora zlecenia'}), 400
             flash('Brak identyfikatora zlecenia', 'error')
             return redirect(bezpieczny_powrot())
         try:
             plan_id = int(plan_id)
         except Exception:
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Nieprawidłowe ID zlecenia'}), 400
             flash('Nieprawidłowe ID zlecenia', 'error')
             return redirect(bezpieczny_powrot())
 
@@ -157,6 +162,8 @@ def register_production_dosypki_routes(
         if brak_dosypki:
             entries = [('Brak dosypki', 0)]
         elif not entries:
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Brak poprawnych pozycji dosypki do zapisania'}), 400
             flash('Brak poprawnych pozycji dosypki do zapisania', 'warning')
             return redirect(bezpieczny_powrot())
 
@@ -172,6 +179,8 @@ def register_production_dosypki_routes(
             )
             r = cursor.fetchone()
             if not r or r[3] != 'w toku':
+                if is_ajax:
+                    return jsonify({'success': False, 'message': 'Dosypki można dodawać tylko do aktywnego zlecenia'}), 400
                 flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
                 return redirect(bezpieczny_powrot())
             produkt = str(r[1] or '').strip() if r else ''
@@ -203,6 +212,8 @@ def register_production_dosypki_routes(
             if not brak_dosypki:
                 allowed_surowce = get_allowed_dosypka_materials(cursor, linia)
                 if not allowed_surowce:
+                    if is_ajax:
+                        return jsonify({'success': False, 'message': 'Brak dostępnego słownika surowców magazynu'}), 400
                     flash('Brak dostępnego słownika surowców magazynu. Nie można zapisać własnych nazw.', 'warning')
                     return redirect(bezpieczny_powrot())
 
@@ -210,6 +221,8 @@ def register_production_dosypki_routes(
                 invalid_entries = [name for name, _ in entries if str(name).strip().lower() not in allowed_map]
                 if invalid_entries:
                     invalid_label = ', '.join(sorted(set(invalid_entries))[:3])
+                    if is_ajax:
+                        return jsonify({'success': False, 'message': f'Niedozwolona nazwa surowca: {invalid_label}. Wybierz pozycję z listy magazynu.'}), 400
                     flash(f'Niedozwolona nazwa surowca: {invalid_label}. Wybierz pozycję z listy magazynu.', 'warning')
                     return redirect(bezpieczny_powrot())
 
@@ -262,8 +275,12 @@ def register_production_dosypki_routes(
                     current_app.logger.exception('Failed to notify operator about dosypka list update')
 
             if brak_dosypki:
+                if is_ajax:
+                    return jsonify({'success': True, 'message': 'Oznaczono brak dosypki.'})
                 flash('Oznaczono, że brak dosypki dla tego zlecenia.', 'success')
             else:
+                if is_ajax:
+                    return jsonify({'success': True, 'message': f'Zapisano {len(entries)} pozycji dosypki.', 'plan_id': plan_id})
                 flash(f'Zapisano {len(entries)} pozycji dosypki.', 'success')
         except Exception as e:
             try:
@@ -271,6 +288,8 @@ def register_production_dosypki_routes(
             except Exception:
                 pass
             current_app.logger.error(f'Failed to insert dosypki: {e}', exc_info=True)
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Błąd zapisu dosypki'}), 500
             flash('Błąd zapisu dosypki', 'error')
         finally:
             try:

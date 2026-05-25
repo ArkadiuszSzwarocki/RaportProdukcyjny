@@ -261,16 +261,14 @@
                     state.dosypkiLastSeen = Number(data.timestamp || 0) || state.dosypkiLastSeen;
                     persistLocalStorage('agro_dosypki_last_seen', state.dosypkiLastSeen);
 
-                    if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.isBannerLocked === 'function' && global.dashboardAgroBanners.isBannerLocked()) {
-                        return;
-                    }
-
-                    // Instantly sync the badges for laborant / observer when operator updates
+                    // Always sync badges immediately – regardless of banner lock state.
+                    // Badge must update even when a notification banner is visible.
                     if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner === 'function') {
                         global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
                     }
 
-                    // Silent live-refresh of the dosypka creation popup history if open
+                    // If the laborant has the dosypka popup open, silently refresh only the popup
+                    // instead of doing a full partial reload (which would close the popup).
                     var container = document.querySelector('.dosypka-popup-container');
                     if (container && typeof global.refreshDosypkaPopup === 'function') {
                         var planId = container.getAttribute('data-plan-id');
@@ -278,6 +276,13 @@
                         global.refreshDosypkaPopup(planId, szarzaId).catch(function (e) {
                             console.error('refreshDosypkaPopup err', e);
                         });
+                        // Badge already synced above; no full reload needed while popup is open.
+                        return;
+                    }
+
+                    // Skip full reload if a non-dismissable banner is currently locked
+                    if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.isBannerLocked === 'function' && global.dashboardAgroBanners.isBannerLocked()) {
+                        return;
                     }
 
                     if (typeof global.reloadActiveDosypkiList === 'function') {

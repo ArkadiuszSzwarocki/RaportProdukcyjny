@@ -339,6 +339,7 @@ def register_production_notification_routes(
                 except Exception:
                     continue
 
+            current_app.logger.info(f'[BADGE-DEBUG] role={role}, linia={linia}, target_day={target_day}, counts={counts}')
             return jsonify({"success": True, "counts": counts, "timestamp": time.time()})
         except Exception:
             current_app.logger.exception('Failed to load pending dosypki badge counts')

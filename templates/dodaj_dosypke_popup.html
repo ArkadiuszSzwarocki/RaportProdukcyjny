@@ -358,6 +358,166 @@
             gap: 10px;
         }
 
+        .dosypka-close-btn {
+            display: none;
+            width: 32px;
+            height: 32px;
+            place-items: center;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 700;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dosypka-close-btn:hover {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(1.08) rotate(90deg);
+        }
+
+        @media (min-width: 992px) {
+            .dosypka-close-btn {
+                display: grid !important;
+            }
+
+            .quick-popup:has(.dosypka-popup-container) .qp-header {
+                display: none !important;
+            }
+
+            .quick-popup:has(.dosypka-popup-container) {
+                max-width: 96vw !important;
+                width: 96vw !important;
+                height: 94vh !important;
+                max-height: 94vh !important;
+                top: 50% !important;
+                left: 50% !important;
+                transform: translate(-50%, -50%) !important;
+                border-radius: 20px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35) !important;
+            }
+
+            .quick-popup:has(.dosypka-popup-container) .qp-body {
+                max-height: none !important;
+                flex: 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                padding: 0 !important;
+            }
+
+            .dosypka-popup-container {
+                height: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                padding: 0 !important;
+            }
+
+            .dosypka-header {
+                flex-shrink: 0 !important;
+                border-radius: 20px 20px 0 0 !important;
+                padding: 24px 35px !important;
+            }
+
+            .dosypka-form {
+                flex: 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                padding: 20px 35px 24px !important;
+                gap: 16px !important;
+            }
+
+            .dosypka-info {
+                flex-shrink: 0 !important;
+                margin-bottom: 12px !important;
+                padding: 16px 20px !important;
+            }
+
+            .dosypka-layout {
+                flex: 1 !important;
+                display: grid !important;
+                grid-template-columns: 1.15fr 0.85fr !important;
+                gap: 24px !important;
+                overflow: hidden !important;
+                min-height: 0 !important;
+                align-items: stretch !important;
+            }
+
+            .dosypka-panel {
+                height: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                border: 1px solid #c8d7e6 !important;
+                background: #ffffff !important;
+            }
+
+            .dosypka-panel-header {
+                flex-shrink: 0 !important;
+            }
+
+            .dosypka-panel-body {
+                flex: 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                padding: 16px !important;
+                min-height: 0 !important;
+            }
+
+            .dosypka-fields {
+                flex: 1 !important;
+                overflow-y: auto !important;
+                min-height: 0 !important;
+                padding: 12px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 12px !important;
+                border: 1px solid #d0dfed !important;
+                background: #f4f8fc !important;
+            }
+
+            .dosypka-add-field {
+                margin-top: 12px !important;
+                flex-shrink: 0 !important;
+            }
+
+            .dosypka-existing {
+                height: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+            }
+
+            .dosypka-existing-list {
+                flex: 1 !important;
+                overflow-y: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 10px !important;
+                padding-right: 6px !important;
+            }
+
+            .dosypka-actions {
+                margin-top: 0 !important;
+                padding-top: 16px !important;
+                border-top: 1px solid #e2eaf0 !important;
+                background: #fff !important;
+                flex-shrink: 0 !important;
+                position: static !important;
+                backdrop-filter: none !important;
+            }
+        }
+
         @media (max-width: 760px) {
             .dosypka-popup-container {
                 padding: 2px 2px 10px;
@@ -396,6 +556,7 @@
 
     <div class="dosypka-header">
         <h4 class="dosypka-title">🧪 Dodaj Dosypkę</h4>
+        <button type="button" class="dosypka-close-btn" data-action="close-popup" aria-label="Zamknij" onclick="if(window.closeQuickPopup) window.closeQuickPopup(); else if(window.createQuickPopup &amp;&amp; window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close(); else this.closest('.quick-popup').style.display='none';">✕</button>
     </div>
 
     <form action="{{ url_for('production.dodaj_dosypke') }}" method="POST" class="dosypka-form" id="dosypka-form">
@@ -880,14 +1041,51 @@ function updateAddFieldButton() {
     }
 }
 
-function submitNoDosypki(event) {
+async function submitNoDosypki(event) {
     event.preventDefault();
-    
+
     // Set flag to indicate "no dosypka"
     document.getElementById('brak_dosypki').value = '1';
-    
-    // Submit the form
-    document.getElementById('dosypka-form').submit();
+
+    // Submit via AJAX to avoid full page reload
+    const form = document.getElementById('dosypka-form');
+    const url = form.action || window.location.href;
+    const formData = new FormData(form);
+    const submitBtns = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+    const noDosypkiBtn = event.currentTarget || event.target;
+    if (noDosypkiBtn) noDosypkiBtn.disabled = true;
+
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success !== false) {
+            if (typeof window.closeQuickPopup === 'function') {
+                window.closeQuickPopup();
+            }
+            if (typeof window.performPartialReload === 'function') {
+                await window.performPartialReload({ force: true, preserveScroll: true, source: 'no-dosypka' });
+            } else {
+                window.location.reload();
+            }
+            if (typeof window.showToast === 'function') {
+                window.showToast('Zapisano!', 'success');
+            }
+        } else {
+            if (noDosypkiBtn) noDosypkiBtn.disabled = false;
+            document.getElementById('brak_dosypki').value = '0';
+            alert((data && data.message) || 'Błąd podczas zapisywania');
+        }
+    } catch (err) {
+        if (noDosypkiBtn) noDosypkiBtn.disabled = false;
+        document.getElementById('brak_dosypki').value = '0';
+        console.error('AJAX no-dosypki submit failed', err);
+        alert('Błąd sieci podczas zapisywania');
+    }
 }
 
 if (document.readyState === 'loading') {
