@@ -10,6 +10,7 @@ from app.decorators import login_required, roles_required, masteradmin_required
 from app.services.planning_service import PlanningService
 from app.utils.validation import require_field
 from app.utils.pallet_id import generate_pallet_id
+import threading
 
 
 def register_warehouse_management_routes(
@@ -176,12 +177,48 @@ def register_warehouse_management_routes(
 
         try:
             user_login = session.get('login', 'System')
-            nr_palety = generate_pallet_id(linia)
+            paleta_id = None
+            nr_palety = None
+
+            # If there are reserved labels for this plan, consume the oldest one first.
             cursor.execute(
-                f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s)",
-                (plan_id, waga_input, now_ts, user_login, nr_palety),
+                f"SELECT id, nr_palety FROM {table_pal} WHERE plan_id = %s AND COALESCE(status, '') = 'rezerwacja' ORDER BY id ASC LIMIT 1",
+                (plan_id,),
             )
-            paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
+            reserved_row = cursor.fetchone()
+
+            if reserved_row:
+                paleta_id = reserved_row[0]
+                nr_palety = reserved_row[1] or generate_pallet_id(linia)
+                cursor.execute(
+                    f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s WHERE id = %s",
+                    (waga_input, now_ts, user_login, nr_palety, paleta_id),
+                )
+            else:
+                nr_palety = generate_pallet_id(linia)
+                cursor.execute(
+                    f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s)",
+                    (plan_id, waga_input, now_ts, user_login, nr_palety),
+                )
+                paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
+
+            # Compute sequential pallet number (nr_palety_lp) for this plan and store it if column exists
+            try:
+                if paleta_id:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
+                    res_lp = cursor.fetchone()
+                    nr_palety_lp = int(res_lp[0]) if res_lp else 1
+                    # check if column exists
+                    try:
+                        cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
+                        col = cursor.fetchone()
+                        if col:
+                            cursor.execute(f"UPDATE {table_pal} SET nr_palety_lp = %s WHERE id = %s", (nr_palety_lp, paleta_id))
+                    except Exception:
+                        # ignore if SHOW COLUMNS or UPDATE fails on older schemas
+                        pass
+            except Exception:
+                pass
 
             cursor.execute(
                 f"UPDATE {table_plan} SET tonaz_rzeczywisty = COALESCE(tonaz_rzeczywisty, 0) + %s WHERE id = %s",
@@ -196,34 +233,63 @@ def register_warehouse_management_routes(
 
             conn.commit()
 
-            # --- AUTOMATYCZNY WYDRUK 2 ETYKIET W TLE ---
+            # --- AUTOMATYCZNY WYDRUK 2 ETYKIET ASYNCHRONICZNIE ---
+            def _async_print_label(paleta_id_local, nr_palety_local):
+                try:
+                    # Open a new DB cursor for label preparation if needed
+                    try:
+                        from app.utils.pallet_label import prepare_pallet_label_data
+                        # prepare_pallet_label_data expects a cursor; create a short-lived connection
+                        conn2 = get_db_connection()
+                        cur2 = conn2.cursor()
+                        label_data_local = prepare_pallet_label_data(cur2, paleta_id_local, linia)
+                    except Exception as prep_err:
+                        current_app.logger.error('Failed to prepare label data for paleta %s: %s', paleta_id_local, prep_err)
+                        try:
+                            if conn2:
+                                conn2.close()
+                        except Exception:
+                            pass
+                        return
+
+                    if not label_data_local:
+                        current_app.logger.error('No label data prepared for paleta %s', paleta_id_local)
+                        try:
+                            conn2.close()
+                        except Exception:
+                            pass
+                        return
+
+                    try:
+                        from app.services.print_server import get_printer
+                        printer_local = get_printer()
+                        override_name, override_ip = _select_preferred_printer(cur2)
+                        for copy_num in range(1, 3):
+                            try:
+                                ok, print_msg = printer_local.print_finished_product_label(
+                                    label_data_local,
+                                    override_ip=override_ip,
+                                    override_name=override_name,
+                                )
+                                current_app.logger.info(
+                                    'Async print copy %s/2 for paleta %s: ok=%s printer=%s ip=%s msg=%s',
+                                    copy_num, nr_palety_local, ok, override_name or getattr(printer_local, 'printer_name', None), override_ip or getattr(printer_local, 'printer_ip', None), print_msg
+                                )
+                            except Exception as single_err:
+                                current_app.logger.error('Print attempt failed for paleta %s copy %s: %s', paleta_id_local, copy_num, single_err)
+                    finally:
+                        try:
+                            conn2.close()
+                        except Exception:
+                            pass
+                except Exception as err:
+                    current_app.logger.error('Unexpected error in async print thread for paleta %s: %s', paleta_id_local, err)
+
             try:
-                from app.utils.pallet_label import prepare_pallet_label_data
-                label_data = prepare_pallet_label_data(cursor, paleta_id, linia)
-                if label_data:
-                    # 4. Wysłanie 2 kopii do serwera druku
-                    from app.services.print_server import get_printer
-                    printer = get_printer()
-                    override_name, override_ip = _select_preferred_printer(cursor)
-                    for copy_num in range(1, 3):
-                        ok, print_msg = printer.print_finished_product_label(
-                            label_data,
-                            override_ip=override_ip,
-                            override_name=override_name,
-                        )
-                        current_app.logger.info(
-                            'Automatyczny wydruk kopii %s/2 dla palety %s: sukces=%s, drukarka=%s, ip=%s, msg=%s',
-                            copy_num,
-                            nr_palety,
-                            ok,
-                            override_name or printer.printer_name,
-                            override_ip or printer.printer_ip,
-                            print_msg
-                        )
-                else:
-                    current_app.logger.error('Nie udało się przygotować danych etykiety do automatycznego wydruku dla paleta_id=%s', paleta_id)
-            except Exception as print_err:
-                current_app.logger.error('Failed to trigger automatic print for paleta %s: %s', nr_palety, print_err)
+                t = threading.Thread(target=_async_print_label, args=(paleta_id, nr_palety), daemon=True)
+                t.start()
+            except Exception as thr_err:
+                current_app.logger.error('Failed to start async print thread for paleta %s: %s', nr_palety, thr_err)
             # ---------------------------------------------
 
             try:
@@ -275,6 +341,11 @@ def register_warehouse_management_routes(
     @login_required
     def dodaj_palete_page(plan_id):
         """Render form for adding paleta."""
+        # This endpoint is intended to be loaded into a modal via AJAX (data-slide).
+        # If accessed directly (full-page navigation), redirect back to a safe page
+        # to avoid exposing the popup as a standalone page.
+        if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+            return redirect(safe_return())
         linia = str(resolve_request_linia()).upper()
         table_plan = get_table_name('plan_produkcji', linia)
         conn = get_db_connection()
@@ -1212,6 +1283,30 @@ def register_warehouse_management_routes(
         cursor = conn.cursor()
         try:
             payload = request.get_json(silent=True) or {}
+            requested_printer_id = None
+            requested_printer_ip = None
+            requested_printer_name = None
+            selected_printer_raw = None
+            if isinstance(payload, dict):
+                selected_printer_raw = payload.get('printer_id') or payload.get('printerId')
+                requested_printer_ip = payload.get('printer_ip') or payload.get('printerIp')
+                requested_printer_name = payload.get('printer_name') or payload.get('printerName')
+            if selected_printer_raw in (None, ''):
+                selected_printer_raw = request.form.get('printer_id') or request.args.get('printer_id')
+            if requested_printer_ip in (None, ''):
+                requested_printer_ip = request.form.get('printer_ip') or request.args.get('printer_ip')
+            if requested_printer_name in (None, ''):
+                requested_printer_name = request.form.get('printer_name') or request.args.get('printer_name')
+
+            requested_printer_ip = str(requested_printer_ip or '').strip() or None
+            requested_printer_name = str(requested_printer_name or '').strip() or None
+
+            if selected_printer_raw not in (None, '', 'auto', 'AUTO', 'default', 'DEFAULT', '0', 0):
+                try:
+                    requested_printer_id = int(selected_printer_raw)
+                except (TypeError, ValueError):
+                    return jsonify({'success': False, 'message': 'Nieprawidlowy printer_id'}), 400
+
             raw_requested_date = None
             if isinstance(payload, dict):
                 raw_requested_date = (
@@ -1283,7 +1378,25 @@ def register_warehouse_management_routes(
                 label_data['data'] = requested_data_produkcji
             
             printer = get_printer()
-            override_name, override_ip = _select_preferred_printer(cursor)
+            override_name = None
+            override_ip = None
+            if requested_printer_id:
+                cursor.execute(
+                    "SELECT nazwa, ip FROM drukarki WHERE id = %s AND aktywna = 1 LIMIT 1",
+                    (requested_printer_id,),
+                )
+                selected_printer = cursor.fetchone()
+                if not selected_printer:
+                    return jsonify({'success': False, 'message': 'Wybrana drukarka nie istnieje lub jest nieaktywna'}), 404
+                override_name, override_ip = selected_printer[0], selected_printer[1]
+            elif requested_printer_ip:
+                if len(requested_printer_ip) > 120:
+                    return jsonify({'success': False, 'message': 'Nieprawidlowy adres drukarki'}), 400
+                override_ip = requested_printer_ip
+                override_name = requested_printer_name or requested_printer_ip
+            else:
+                override_name, override_ip = _select_preferred_printer(cursor)
+
             target_name = override_name or printer.printer_name
             target_ip = override_ip or printer.printer_ip
             ok = True
@@ -1311,7 +1424,14 @@ def register_warehouse_management_routes(
             if ok:
                 audit_log('Wydruk etykiety ZPL (ręczny)', f'paleta_id={paleta_id}, produkt={label_data["nazwa"]}, nr_palety={label_data["nrPalety"]}, kopie=2')
 
-            response_payload = {'success': ok, 'message': msg}
+            response_payload = {
+                'success': ok,
+                'message': msg,
+                'printer_name': target_name,
+                'printer_ip': target_ip,
+            }
+            if requested_printer_id:
+                response_payload['printer_id'] = requested_printer_id
             if requested_data_produkcji:
                 response_payload['data_produkcji'] = requested_data_produkcji
             elif label_data.get('data'):

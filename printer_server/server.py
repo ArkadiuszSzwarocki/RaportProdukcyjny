@@ -51,6 +51,22 @@ def wyslij_do_drukarki(zpl, ip, port=9100, timeout=5.0):
 def status():
     return jsonify({"success": True, "message": "Serwer druku (Python) działa poprawnie."})
 
+
+@app.route('/printers', methods=['GET'])
+def printers():
+    items = []
+    for name, ip in PRINTER_IP_MAP.items():
+        if not ip:
+            continue
+        items.append(
+            {
+                'name': str(name),
+                'ip': str(ip),
+                'lokalizacja': 'Sieć',
+            }
+        )
+    return jsonify({'success': True, 'printers': items})
+
 @app.route('/drukuj-zpl', methods=['POST'])
 def drukuj_zpl():
     data = request.json

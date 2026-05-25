@@ -16,8 +16,13 @@
             <tbody>
                 {% for p in unconfirmed_palety %}
                 <tr id="unconfirmed-row-{{ p[0] }}">
-                    <td class="text-muted font-bold">{{ p[0] }}</td>
-                    <td><strong class="text-primary">{{ p[2] }}</strong></td>
+                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                    <td>
+                        <strong class="text-primary">{{ p[2] }}</strong>
+                        <div class="text-muted" style="font-size:12px; margin-top:2px;">
+                            Paleta: <strong>{{ p[6] if p|length > 6 and p[6] else p[0] }}</strong>
+                        </div>
+                    </td>
                     <td class="time-display">{{ p[3] }}</td>
                     <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</span></td>
                     <td>
@@ -59,7 +64,7 @@
                     <td><span class="badge-info">{{ user_login or '-' }}</span></td>
                     <td><span class="status-badge status-accepted">{{ status }}</span></td>
                     <td class="text-right">
-                        <a href="javascript:void(0)" onclick="openPrintLabelModal('{{ url_for('warehouse.drukuj_etykiete', paleta_id=id, linia=linia) }}')" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę">
+                        <a href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=id, linia=linia) }}" target="_blank" rel="noopener" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę">
                             <span class="material-icons" style="font-size:18px;">print</span>
                         </a>
                         {% if rola in ['produkcja', 'lider', 'admin', 'masteradmin'] %}

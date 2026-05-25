@@ -40,6 +40,40 @@ class PrintServer:
         except Exception as e:
             return False, f"Błąd połączenia z mostkiem: {str(e)}"
 
+    def list_network_printers(self) -> list[dict]:
+        """Pobiera listę drukarek widocznych dla mostka druku (sieć LAN)."""
+        try:
+            resp = requests.get(
+                f"{self.bridge_url}/printers",
+                verify=False,
+                timeout=(self.bridge_connect_timeout, min(self.bridge_read_timeout, 8)),
+            )
+            if resp.status_code != 200:
+                return []
+
+            body = resp.json() if resp.content else {}
+            raw_items = body.get('printers') if isinstance(body, dict) else []
+            if not isinstance(raw_items, list):
+                return []
+
+            printers = []
+            for item in raw_items:
+                if not isinstance(item, dict):
+                    continue
+                ip = str(item.get('ip') or '').strip()
+                if not ip:
+                    continue
+                printers.append(
+                    {
+                        'name': str(item.get('name') or item.get('nazwa') or f'Drukarka {ip}').strip(),
+                        'ip': ip,
+                        'lokalizacja': str(item.get('lokalizacja') or 'Sieć').strip(),
+                    }
+                )
+            return printers
+        except Exception:
+            return []
+
     def print_pallet_label(self, label_data: dict, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
         """Wysyła dane palety do mostka, który wygeneruje ZPL 4x6."""
         nr_palety = (label_data.get('nr_palety') or label_data.get('nrPalety') or '').strip()

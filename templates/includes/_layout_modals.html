@@ -1,6 +1,11 @@
 
 <!-- PWA Installation Prompt Modal -->
-<div id="pwaInstallModal" style="display: none; position: fixed; inset: 0; z-index: 100000; background: rgba(15,23,42,0.8); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px;">
+<style>
+    /* Ensure hidden overlays don't block pointer events */
+    .app-overlay { pointer-events: none; }
+    .app-overlay.overlay-active { pointer-events: auto; }
+</style>
+<div id="pwaInstallModal" class="app-overlay" style="display: none; position: fixed; inset: 0; z-index: 100000; background: rgba(15,23,42,0.8); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px;">
     <div style="background: white; width: 100%; max-width: 400px; border-radius: 24px; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
         <div style="background: #eff6ff; width: 80px; height: 80px; border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
             <span class="material-icons" style="font-size: 40px; color: #3b82f6;">install_mobile</span>

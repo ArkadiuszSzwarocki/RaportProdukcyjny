@@ -750,6 +750,15 @@ body.sidebar-open {
     min-width: 0;
 }
 
+/* Prevent top-bar wrapper boxes from blocking clicks over the page.
+   Allow only their interactive children to receive pointer events. */
+.top-bar .top-user-meta, .p-15.p-15-bg {
+    pointer-events: none;
+}
+.top-bar .top-user-meta * , .p-15.p-15-bg * {
+    pointer-events: auto;
+}
+
 .user-role {
     color: #f8fbff;
     font-size: 0.92rem;

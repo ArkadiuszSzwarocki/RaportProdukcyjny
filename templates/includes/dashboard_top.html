@@ -52,6 +52,13 @@
             {% if sekcja == 'Magazyn' %}
                 <div class="stat-inline stat-magazyn"><span class="label">{{ _('palet_liczba') }}</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
                 <div class="stat-inline stat-przyjeto"><span class="label">{{ _('przyjeto') }}</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
+                {% if linia in ['PSD', 'AGRO'] %}
+                    {% if rola in ['magazynier','lider','admin','masteradmin','zarzad'] %}
+                        <div style="margin-left:12px;">
+                            <button type="button" id="preprint_pallets_btn" class="btn-action" style="background:#0f172a;color:#fff;border-radius:8px;padding:8px 12px;font-weight:800;">Pre-druk etykiet</button>
+                        </div>
+                    {% endif %}
+                {% endif %}
             {% else %}
                 {% set active_plan = namespace(tonaz=0, wykonanie=0, found=false) %}
                 {% if plan %}

@@ -150,14 +150,14 @@
         if (!isStandalone && (!lastDismissed || (Date.now() - lastDismissed > 24 * 60 * 60 * 1000))) {
             setTimeout(() => { 
                 const m = document.getElementById('pwaInstallModal');
-                if (m) m.style.display = 'flex';
+                if (m) { m.style.display = 'flex'; m.classList.add('overlay-active'); }
             }, 3000);
         }
     });
 
     function closePwaModal(isDismiss) {
         const m = document.getElementById('pwaInstallModal');
-        if (m) m.style.display = 'none';
+        if (m) { m.style.display = 'none'; m.classList.remove('overlay-active'); }
         if (isDismiss) localStorage.setItem('pwaPromptDismissed', Date.now());
     }
 

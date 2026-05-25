@@ -111,6 +111,80 @@
     .agro-wg-step.active {
         display: block;
     }
+
+    .agro-wg-clean-modal {
+        width: min(560px, 96vw) !important;
+        border: 1px solid #dbeafe;
+        border-radius: 16px;
+        overflow: hidden;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+
+    .agro-wg-clean-modal .modal-header {
+        background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+        border-bottom: 1px solid #dbeafe;
+    }
+
+    .agro-wg-clean-modal .modal-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .agro-wg-clean-modal .form-control {
+        min-height: 46px;
+        font-size: 17px;
+    }
+
+    .agro-wg-pallet-card {
+        border: 1px solid #dbeafe;
+        background: #f8fbff;
+        border-radius: 12px;
+        padding: 10px 12px;
+    }
+
+    .agro-wg-step-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .agro-wg-clean-modal .modal-footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .agro-wg-clean-modal .modal-footer .btn {
+        min-height: 44px;
+    }
+
+    @media (max-width: 768px) {
+        .agro-wg-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .agro-wg-clean-modal .modal-footer .btn {
+            flex: 1 1 calc(50% - 4px);
+        }
+    }
+
+    @media (max-width: 420px) {
+        .agro-wg-clean-modal .modal-footer .btn {
+            flex: 1 1 100%;
+        }
+    }
 </style>
 
 <div class="section-box mb-10 agro-wg-box">
@@ -125,7 +199,7 @@
 
         <div class="agro-wg-grid">
             <input type="text" id="agroWgScanDashboardInput" placeholder="Zeskanuj paletę (auto-open; Enter opcjonalnie)" autocomplete="off" spellcheck="false">
-            <select id="agroWgZoneFilter">
+            <select id="agroWgZoneFilter" title="Filtr strefy docelowej" aria-label="Filtr strefy docelowej">
                 <option value="">Wszystkie strefy</option>
             </select>
             <input type="text" id="agroWgLocationFilter" placeholder="Filtr po sugerowanej lokalizacji (np. MS01)">
@@ -212,36 +286,38 @@
     </div>
 </div>
 
-<dialog id="agroWgQuickAcceptModal" class="modal-premium" style="width:420px; max-width:95vw;">
+<dialog id="agroWgQuickAcceptModal" class="modal-premium agro-wg-clean-modal">
     <div class="modal-header">
-        <h4 class="modal-title">Przyjęcie palety AGRO</h4>
+        <h4 class="modal-title"><span class="material-icons" style="font-size:20px; color:#1d4ed8;">inventory_2</span> Przyjęcie palety AGRO</h4>
         <button class="modal-close" onclick="agroWgCloseModal()">×</button>
     </div>
     <div class="modal-body">
         <input type="hidden" id="agroWgModalId">
-        <div class="mb-15">
+        <div class="agro-wg-pallet-card mb-15">
             <div class="text-muted small uppercase tracking-wider mb-4">Paleta</div>
             <div class="font-bold text-lg" id="agroWgModalNr">—</div>
             <div class="text-muted small" id="agroWgModalName">—</div>
         </div>
 
         <div id="agroWgStepWeight" class="agro-wg-step active">
+            <div class="agro-wg-step-chip"><span>Krok 1/2</span> Waga</div>
             <label class="form-label">Waga netto (kg)</label>
             <input type="number" id="agroWgModalWeight" class="form-control" min="0.01" step="0.01" placeholder="np. 845.50" inputmode="decimal" autocomplete="off">
-            <div class="small text-muted mt-8">Krok 1/2</div>
+            <div class="small text-muted mt-8">Pole jest puste celowo. Zeskanuj lub wpisz wagę i przejdź dalej.</div>
         </div>
 
         <div id="agroWgStepLocation" class="agro-wg-step">
+            <div class="agro-wg-step-chip"><span>Krok 2/2</span> Lokalizacja</div>
             <label class="form-label">Lokalizacja docelowa</label>
-            <input type="text" id="agroWgModalLocation" class="form-control" placeholder="Zeskanuj lokalizację, np. MS01" list="agroWgDashboardLocationSuggestions" autocomplete="off" style="text-transform:uppercase;">
-            <div class="small text-muted mt-8">Krok 2/2</div>
+            <input type="text" id="agroWgModalLocation" class="form-control" placeholder="Zeskanuj lokalizację, np. MS01" list="agroWgDashboardLocationSuggestions" autocomplete="off" style="text-transform:uppercase;" spellcheck="false">
+            <div class="small text-muted mt-8">Skan lokalizacji zakończony Enter zatwierdzi przyjęcie automatycznie.</div>
         </div>
     </div>
     <div class="modal-footer">
         <button class="btn btn-outline" id="agroWgModalBackBtn" style="display:none;" onclick="agroWgBackStep()">Wstecz</button>
         <button class="btn btn-outline" onclick="agroWgCloseModal()">Anuluj</button>
         <button class="btn btn-primary" id="agroWgModalNextBtn" onclick="agroWgNextStep()">Dalej</button>
-        <button class="btn btn-primary" id="agroWgModalConfirmBtn" style="display:none;" onclick="agroWgSubmitConfirm()">Potwierdź</button>
+        <button class="btn btn-primary" id="agroWgModalConfirmBtn" style="display:none;" onclick="agroWgSubmitConfirm()">Potwierdź ręcznie</button>
     </div>
 </dialog>
 
@@ -293,6 +369,7 @@
         let modalStep = 'weight';
         let locationSuggestTimer = null;
         let locationSuggestReqId = 0;
+        let modalSubmitting = false;
 
         function normalize(value) {
             return String(value || '').trim().toUpperCase();
@@ -453,8 +530,8 @@
             if (idInput) idInput.value = String(selectedPallet.id);
             if (nrEl) nrEl.textContent = '#' + (selectedPallet.nr_palety || selectedPallet.id);
             if (nameEl) nameEl.textContent = selectedPallet.nazwa_produktu || 'Paleta WG';
-            if (weightInput) weightInput.value = selectedPallet.waga && Number(selectedPallet.waga) > 0 ? selectedPallet.waga : '';
-            if (locationInput) locationInput.value = normalize(selectedPallet.suggested_location || '');
+            if (weightInput) weightInput.value = '';
+            if (locationInput) locationInput.value = '';
 
             setModalStep('weight');
             openDialog('agroWgQuickAcceptModal');
@@ -467,6 +544,11 @@
             closeDialog('agroWgQuickAcceptModal');
             setModalStep('weight');
             selectedPallet = null;
+            modalSubmitting = false;
+            const weightInput = document.getElementById('agroWgModalWeight');
+            const locationInput = document.getElementById('agroWgModalLocation');
+            if (weightInput) weightInput.value = '';
+            if (locationInput) locationInput.value = '';
         };
 
         window.agroWgNextStep = function () {
@@ -490,6 +572,9 @@
         };
 
         window.agroWgSubmitConfirm = async function () {
+            if (modalSubmitting) {
+                return;
+            }
             if (!selectedPallet || !selectedPallet.id) {
                 notify('Brak wybranej palety.');
                 return;
@@ -512,6 +597,7 @@
                 confirmBtn.disabled = true;
                 confirmBtn.textContent = 'Zapisywanie...';
             }
+            modalSubmitting = true;
 
             try {
                 const response = await fetch('/magazyn-dostawy/api/przyjmij-wg', {
@@ -534,9 +620,10 @@
             } catch (err) {
                 notify('Błąd połączenia podczas zapisu.');
             } finally {
+                modalSubmitting = false;
                 if (confirmBtn) {
                     confirmBtn.disabled = false;
-                    confirmBtn.textContent = prevText || 'Potwierdź';
+                    confirmBtn.textContent = prevText || 'Potwierdź ręcznie';
                 }
             }
         };
@@ -597,12 +684,20 @@
         const modalLocationInput = document.getElementById('agroWgModalLocation');
         if (modalLocationInput) {
             modalLocationInput.addEventListener('input', function () {
-                this.value = normalize(this.value);
+                const raw = String(this.value || '');
+                const hasScannerTerminator = raw.indexOf('\n') !== -1 || raw.indexOf('\r') !== -1;
+                this.value = normalize(raw.replace(/[\r\n]+/g, ''));
                 clearTimeout(locationSuggestTimer);
                 const prefix = this.value;
                 locationSuggestTimer = setTimeout(function () {
                     fetchLocationSuggestions(prefix);
                 }, 160);
+
+                if (hasScannerTerminator && prefix) {
+                    setTimeout(function () {
+                        window.agroWgSubmitConfirm();
+                    }, 20);
+                }
             });
             modalLocationInput.addEventListener('keydown', function (event) {
                 if (event.key === 'Enter') {
@@ -636,8 +731,13 @@
             <tbody>
                 {% for p in unconfirmed_palety %}
                 <tr id="unconfirmed-row-{{ p[0] }}">
-                    <td class="text-muted font-bold">{{ p[0] }}</td>
-                    <td><strong class="text-primary">{{ p[2] }}</strong></td>
+                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                    <td>
+                        <strong class="text-primary">{{ p[2] }}</strong>
+                        <div class="text-muted" style="font-size:12px; margin-top:2px;">
+                            Paleta: <strong>{{ p[6] if p|length > 6 and p[6] else p[0] }}</strong>
+                        </div>
+                    </td>
                     <td class="time-display">{{ p[3] }}</td>
                     <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{%
                             else %}-{% endif %}</span></td>
@@ -693,7 +793,7 @@
                     <td><span class="badge-info">{{ user_login or '-' }}</span></td>
                     <td><span class="status-badge status-accepted">{{ status }}</span></td>
                     <td class="text-right">
-                        <a href="javascript:void(0)" onclick="openPrintLabelModal('{{ url_for('warehouse.drukuj_etykiete', paleta_id=id, linia=linia) }}')" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę (Podgląd)">
+                        <a href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=id, linia=linia) }}" target="_blank" rel="noopener" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę (Podgląd)">
                             <span class="material-icons" style="font-size:18px;">print</span>
                         </a>
                         <button type="button" class="btn-icon" style="color: #16a34a;" title="Drukuj ZPL (Drukarka 237)"

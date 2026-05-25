@@ -200,14 +200,14 @@
         </div>
     {% endif %}
 
-    <form method="POST">
+    <form method="POST" autocomplete="off">
         <div class="form-group">
             <label for="login" class="form-label">{{ _('login') }}</label>
-            <input type="text" id="login" name="login" class="form-input" placeholder="{{ _('wpisz_login') }}" required aria-label="Login">
+            <input type="text" id="login" name="login" class="form-input" placeholder="{{ _('wpisz_login') }}" required aria-label="Login" autocomplete="off" autocapitalize="off" spellcheck="false">
         </div>
         <div class="form-group">
             <label for="haslo" class="form-label">{{ _('haslo') }}</label>
-            <input type="password" id="haslo" name="haslo" class="form-input" placeholder="{{ _('wpisz_haslo') }}" required aria-label="Hasło">
+            <input type="password" id="haslo" name="haslo" class="form-input" placeholder="{{ _('wpisz_haslo') }}" required aria-label="Hasło" autocomplete="new-password">
         </div>
         <div class="login-actions">
             <button type="submit" class="btn-login">{{ _('wejdz') }}</button>
@@ -332,6 +332,17 @@ function startPrinterServerFromLogin() {
 window.addEventListener('DOMContentLoaded', function() {
     const langSelector = document.getElementById('language-selector');
     const startPrinterServerButton = document.getElementById('btn-start-printer-server');
+    const loginInput = document.getElementById('login');
+    const passwordInput = document.getElementById('haslo');
+
+    function clearLoginFormFields() {
+        if (loginInput) loginInput.value = '';
+        if (passwordInput) passwordInput.value = '';
+    }
+
+    clearLoginFormFields();
+    setTimeout(clearLoginFormFields, 120);
+    window.addEventListener('pageshow', clearLoginFormFields);
     if (langSelector) {
         // Czytaj język z URL lub cookie
         const urlParams = new URLSearchParams(window.location.search);
@@ -349,6 +360,7 @@ window.addEventListener('DOMContentLoaded', function() {
     // Obsługa efektownej animacji logowania po kliknięciu "Wejdź"
     const loginForm = document.querySelector('form');
     if (loginForm) {
+        try { loginForm.reset(); } catch (e) {}
         loginForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const loader = document.getElementById('login-loader');

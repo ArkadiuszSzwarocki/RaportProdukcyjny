@@ -1,5 +1,7 @@
-from flask import Blueprint, render_template, request, jsonify, session, url_for, redirect
+from flask import Blueprint, render_template, request, jsonify, session, url_for, redirect, current_app
+import traceback
 from app.db import get_db_connection, get_table_name
+from app.decorators import login_required
 from app.services.magazyn_dostawy_service import MagazynDostawyService
 from app.utils.pallet_label import prepare_pallet_label_data
 import json
@@ -193,10 +195,17 @@ def podglad_etykiety_system(paleta_id):
     data_produkcji = str(label_data.get('data') or '---').strip() or '---'
     data_przydatnosci = str(label_data.get('termin') or '---').strip() or '---'
     qty_display = _format_label_weight(label_data.get('ilosc'))
+    nr_palety_lp = label_data.get('nr_palety_lp')
+    try:
+        if nr_palety_lp not in (None, ''):
+            nr_palety_lp = int(nr_palety_lp)
+    except Exception:
+        nr_palety_lp = None
 
     return render_template(
         'magazyn_dostawy/etykieta_podglad_system.html',
         nr_palety=nr_palety,
+        nr_palety_lp=nr_palety_lp,
         product_name=product_name,
         nr_partii=nr_partii,
         data_produkcji=data_produkcji,
@@ -206,6 +215,378 @@ def podglad_etykiety_system(paleta_id):
         generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         autoprint=autoprint,
     )
+
+
+@magazyn_dostawy_bp.route('/api/active-printers', methods=['GET'])
+@login_required
+def active_printers_api():
+    """Zwraca listę drukarek sieciowych (bridge), a gdy niedostępne - fallback DB."""
+    printers = []
+
+    try:
+        from app.services.print_server import get_printer
+        network_printers = get_printer().list_network_printers()
+        for p in network_printers:
+            ip = str(p.get('ip') or '').strip()
+            if not ip:
+                continue
+            nazwa = str(p.get('nazwa') or p.get('name') or f'Drukarka {ip}').strip()
+            printers.append({
+                'id': None,
+                'selection_value': f'net:{ip}',
+                'nazwa': nazwa,
+                'ip': ip,
+                'lokalizacja': str(p.get('lokalizacja') or 'Sieć').strip(),
+                'source': 'network',
+            })
+        if printers:
+            return jsonify({'success': True, 'printers': printers, 'source': 'network'})
+    except Exception as network_err:
+        try:
+            current_app.logger.warning('active_printers_api: network printers unavailable, fallback to DB: %s', network_err)
+        except Exception:
+            pass
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1 ORDER BY id ASC")
+        rows = cur.fetchall() or []
+        printers = [
+            {
+                'id': r.get('id'),
+                'selection_value': f"db:{r.get('id')}",
+                'nazwa': r.get('nazwa'),
+                'ip': r.get('ip'),
+                'lokalizacja': r.get('lokalizacja'),
+                'source': 'db',
+            }
+            for r in rows
+        ]
+        return jsonify({'success': True, 'printers': printers, 'source': 'db'})
+    except Exception as e:
+        try:
+            current_app.logger.exception('active_printers_api failed: %s', e)
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+@magazyn_dostawy_bp.route('/preprint', methods=['POST','GET'])
+@magazyn_dostawy_bp.route('/preprint/', methods=['POST','GET'])
+@login_required
+def preprint_labels_view():
+    """Pre-druk etykiet dla magazynu.
+
+    Tryb A (rezerwacja etykiet dla przyszłych palet):
+      {"plan_id": 123, "count": 10, "linia": "PSD"}
+
+    Tryb B (druk istniejących palet bez rezerwacji):
+      {"existing_only": true, "count": 10, "linia": "PSD", "only_pending": true, "date": "YYYY-MM-DD"}
+    """
+
+    def _as_bool(value, default=False):
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {'1', 'true', 'yes', 'y', 'on', 'tak'}
+
+    payload = {}
+    if request.method != 'GET':
+        raw_payload = request.get_json(silent=True)
+        if isinstance(raw_payload, dict):
+            payload = raw_payload
+
+    def _pick(field_name, default=None):
+        value = payload.get(field_name)
+        if value not in (None, ''):
+            return value
+        query_value = request.args.get(field_name)
+        if query_value not in (None, ''):
+            return query_value
+        return default
+
+    linia = str(_pick('linia', 'PSD') or 'PSD').upper()
+    existing_only = _as_bool(_pick('existing_only', False), default=False)
+    only_pending = _as_bool(_pick('only_pending', True), default=True)
+    date_filter = str(_pick('date', '') or '').strip()
+
+    try:
+        count = int(_pick('count', 0) or 0)
+    except (TypeError, ValueError):
+        count = 0
+
+    if count <= 0:
+        return jsonify({'success': False, 'message': 'count musi być >= 1'}), 400
+
+    def _resolve_workowanie_plan_id(conn_obj, linia_value, date_value=''):
+        table_plan_local = get_table_name('plan_produkcji', linia_value)
+        date_sql = 'DATE(data_planu) = CURDATE()'
+        date_params = []
+        if date_value:
+            try:
+                datetime.strptime(date_value, '%Y-%m-%d')
+            except ValueError:
+                raise ValueError('Niepoprawny format date (YYYY-MM-DD)')
+            date_sql = 'DATE(data_planu) = %s'
+            date_params.append(date_value)
+
+        local_cursor = conn_obj.cursor(dictionary=True)
+        try:
+            local_cursor.execute(
+                f'''
+                SELECT id
+                FROM {table_plan_local}
+                WHERE sekcja = 'Workowanie'
+                  AND {date_sql}
+                ORDER BY
+                  CASE
+                    WHEN LOWER(COALESCE(status, '')) = 'w toku' THEN 0
+                    WHEN LOWER(COALESCE(status, '')) = 'zaplanowane' THEN 1
+                    ELSE 2
+                  END,
+                  id ASC
+                LIMIT 1
+                ''',
+                tuple(date_params),
+            )
+            row = local_cursor.fetchone()
+            if row and row.get('id'):
+                return int(row.get('id'))
+            return None
+        finally:
+            try:
+                local_cursor.close()
+            except Exception:
+                pass
+
+    def _fetch_existing(conn_obj, limit_count):
+        table_pal = get_table_name('palety_workowanie', linia)
+        table_plan = get_table_name('plan_produkcji', linia)
+
+        status_filter_sql = "AND COALESCE(pw.status, '') NOT IN ('przyjeta', 'zamknieta')"
+        if not only_pending:
+            status_filter_sql = "AND COALESCE(pw.status, '') != 'zamknieta'"
+
+        date_filter_sql = 'DATE(pw.data_dodania) = CURDATE()'
+        query_params = []
+        if date_filter:
+            try:
+                datetime.strptime(date_filter, '%Y-%m-%d')
+            except ValueError:
+                raise ValueError('Niepoprawny format date (YYYY-MM-DD)')
+            date_filter_sql = 'DATE(pw.data_dodania) = %s'
+            query_params.append(date_filter)
+
+        query_params.append(limit_count)
+
+        local_cur = conn_obj.cursor(dictionary=True)
+        try:
+            local_cur.execute(
+                f'''
+                SELECT
+                    pw.id,
+                    pw.plan_id,
+                    pw.nr_palety,
+                    (SELECT COUNT(1) FROM {table_pal} pw2 WHERE pw2.plan_id = pw.plan_id AND pw2.id <= pw.id) AS nr_palety_lp,
+                    COALESCE(NULLIF(TRIM(p.nazwa_zlecenia), ''), CONCAT('PLAN-', p.id)) AS nazwa_zlecenia
+                FROM {table_pal} pw
+                JOIN {table_plan} p ON p.id = pw.plan_id
+                WHERE {date_filter_sql}
+                  AND p.sekcja = 'Workowanie'
+                  AND pw.waga > 0
+                  {status_filter_sql}
+                ORDER BY pw.id DESC
+                LIMIT %s
+                ''',
+                tuple(query_params),
+            )
+            rows = local_cur.fetchall() or []
+        finally:
+            try:
+                local_cur.close()
+            except Exception:
+                pass
+
+        return [
+            {
+                'id': r.get('id'),
+                'plan_id': r.get('plan_id'),
+                'nr_palety': r.get('nr_palety'),
+                'nr_palety_lp': r.get('nr_palety_lp'),
+                'nazwa_zlecenia': r.get('nazwa_zlecenia'),
+                'source': 'existing',
+            }
+            for r in rows[::-1]
+        ]
+
+    conn_existing = None
+    existing_created = []
+    try:
+        conn_existing = get_db_connection()
+        existing_created = _fetch_existing(conn_existing, count)
+    except ValueError as date_err:
+        return jsonify({'success': False, 'message': str(date_err)}), 400
+    except Exception as e:
+        try:
+            tb = traceback.format_exc()
+            current_app.logger.error('preprint_labels_view existing scan exception: %s\n%s', str(e), tb)
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn_existing:
+            try:
+                conn_existing.close()
+            except Exception:
+                pass
+
+    existing_count = len(existing_created)
+
+    if existing_only:
+        for idx, rec in enumerate(existing_created, start=1):
+            rec['kolejnosc'] = idx
+
+        warning_message = None
+        if existing_count < count:
+            warning_message = f'Znaleziono {existing_count} palet z żądanych {count} (bez rezerwacji nowych).'
+
+        return jsonify({
+            'success': True,
+            'mode': 'existing',
+            'created': existing_created,
+            'only_pending': only_pending,
+            'date': date_filter or datetime.now().strftime('%Y-%m-%d'),
+            'requested_count': count,
+            'existing_count': existing_count,
+            'generated_count': 0,
+            'generation_plan_id': None,
+            'warning': warning_message,
+        })
+
+    reserve_needed = max(count - existing_count, 0)
+    generation_plan_id = None
+    generated_created = []
+
+    if reserve_needed > 0:
+        plan_id = None
+        plan_id_raw = _pick('plan_id')
+        if plan_id_raw not in (None, ''):
+            try:
+                plan_id = int(plan_id_raw)
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'message': 'Niepoprawny plan_id'}), 400
+
+        if not plan_id:
+            resolve_conn = None
+            try:
+                resolve_conn = get_db_connection()
+                plan_id = _resolve_workowanie_plan_id(resolve_conn, linia, date_filter)
+            except ValueError as date_err:
+                return jsonify({'success': False, 'message': str(date_err)}), 400
+            except Exception:
+                plan_id = None
+            finally:
+                if resolve_conn:
+                    try:
+                        resolve_conn.close()
+                    except Exception:
+                        pass
+
+        if not plan_id:
+            return jsonify({'success': False, 'message': 'Brak aktywnego planu Workowanie dla wybranej daty (potrzebny do rezerwacji brakujących etykiet)'}), 400
+
+        generation_plan_id = plan_id
+        try:
+            from app.services.pallet_preprint_service import preprint_labels
+            generated_created = preprint_labels(plan_id, reserve_needed, linia=linia, user_login=session.get('login', 'System')) or []
+            for rec in generated_created:
+                rec['source'] = 'reserve'
+        except Exception as e:
+            try:
+                tb = traceback.format_exc()
+                current_app.logger.error('preprint_labels_view reserve exception: %s\n%s', str(e), tb)
+            except Exception:
+                pass
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor(dictionary=True)
+                table_pal = get_table_name('palety_workowanie', linia)
+                table_plan = get_table_name('plan_produkcji', linia)
+                cur.execute(
+                    f'''
+                    SELECT
+                        pw.id,
+                        pw.plan_id,
+                        pw.nr_palety,
+                        pw.nr_palety_lp,
+                        COALESCE(NULLIF(TRIM(p.nazwa_zlecenia), ''), CONCAT('PLAN-', p.id)) AS nazwa_zlecenia
+                    FROM {table_pal} pw
+                    LEFT JOIN {table_plan} p ON p.id = pw.plan_id
+                    WHERE pw.plan_id = %s
+                      AND pw.status = 'rezerwacja'
+                    ORDER BY pw.id DESC
+                    LIMIT %s
+                    ''',
+                    (plan_id, reserve_needed),
+                )
+                rows = cur.fetchall() or []
+                cur.close(); conn.close()
+                generated_created = [
+                    {
+                        'id': r.get('id'),
+                        'plan_id': r.get('plan_id'),
+                        'nr_palety': r.get('nr_palety'),
+                        'nr_palety_lp': r.get('nr_palety_lp'),
+                        'nazwa_zlecenia': r.get('nazwa_zlecenia'),
+                        'source': 'reserve',
+                    }
+                    for r in rows[::-1]
+                ]
+                if not generated_created:
+                    return jsonify({'success': False, 'message': str(e)}), 500
+            except Exception:
+                return jsonify({'success': False, 'message': str(e)}), 500
+
+    created = [*existing_created, *generated_created]
+    for idx, rec in enumerate(created, start=1):
+        rec['kolejnosc'] = idx
+
+    generated_count = len(generated_created)
+    mode = 'mixed' if (existing_count > 0 and generated_count > 0) else ('reserve' if generated_count > 0 else 'existing')
+
+    warning_message = None
+    if generated_count > 0 and existing_count > 0:
+        warning_message = f'Znaleziono {existing_count} istniejących palet i utworzono {generated_count} rezerwacji.'
+    elif existing_count < count and generated_count == 0:
+        warning_message = f'Znaleziono {existing_count} palet z żądanych {count}.'
+
+    return jsonify({
+        'success': True,
+        'mode': mode,
+        'created': created,
+        'only_pending': only_pending,
+        'date': date_filter or datetime.now().strftime('%Y-%m-%d'),
+        'requested_count': count,
+        'existing_count': existing_count,
+        'generated_count': generated_count,
+        'generation_plan_id': generation_plan_id,
+        'warning': warning_message,
+    })
 
 @magazyn_dostawy_bp.route('/raport')
 def raport():

@@ -767,6 +767,7 @@
             const el = document.getElementById('globalSpinner');
             if (!el) return;
             el.style.display = 'flex';
+            el.classList.add('overlay-active');
             el.setAttribute('aria-hidden', 'false');
             document.body.classList.add('spinner-active');
             _spinnerVisible = true;
@@ -781,6 +782,7 @@
         const el = document.getElementById('globalSpinner');
         if (el) { 
             el.style.display = 'flex'; 
+            el.classList.add('overlay-active');
             el.setAttribute('aria-hidden', 'false'); 
         }
         document.body.classList.add('spinner-active');
@@ -801,7 +803,7 @@
         if (_spinnerVisible) {
             try {
                 const el = document.getElementById('globalSpinner');
-                if (el) { el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); }
+                if (el) { el.style.display = 'none'; el.classList.remove('overlay-active'); el.setAttribute('aria-hidden', 'true'); }
                 document.body.classList.remove('spinner-active');
             } catch (e) { }
             _spinnerVisible = false;
@@ -949,6 +951,464 @@
     window.showPopover = showPopover;
     window.showFullscreenModal = showFullscreenModal;
     window.showWizard = showWizard;
+
+    // --- Preprint UI: add button and modal for reserve/reprint flow ---
+    (function initPreprintUI() {
+        function isPreprintContextAllowed() {
+            const cfg = document.getElementById('dashboard-config');
+            if (!cfg) return false;
+            const section = String(cfg.getAttribute('data-sekcja') || '').trim().toUpperCase();
+            const linia = String(cfg.getAttribute('data-linia') || '').trim().toUpperCase();
+            const role = String(cfg.getAttribute('data-current-role') || '').trim().toLowerCase();
+            const allowedRoles = ['magazynier', 'lider', 'admin', 'masteradmin', 'zarzad'];
+            return section === 'MAGAZYN' && (linia === 'PSD' || linia === 'AGRO') && allowedRoles.includes(role);
+        }
+
+        function bindPreprintButton(btn) {
+            if (!btn || btn.dataset.preprintBound === '1') return;
+            if (!isPreprintContextAllowed()) return;
+            btn.dataset.preprintBound = '1';
+            btn.setAttribute('type', 'button');
+            btn.addEventListener('click', openPreprintModal);
+        }
+
+        function ensureButton() {
+            const existingBtn = document.getElementById('preprint_pallets_btn');
+            if (!isPreprintContextAllowed()) {
+                if (existingBtn) {
+                    existingBtn.remove();
+                }
+                return;
+            }
+
+            if (existingBtn) {
+                bindPreprintButton(existingBtn);
+                return;
+            }
+
+            const main = document.querySelector('.logistyka-container') || document.getElementById('mainContent') || document.querySelector('.magazyn-container') || document.querySelector('.warehouse-page');
+            if (!main) return;
+            const headerRow = main.querySelector('div[style*="display: flex; justify-content: space-between"]') || main.querySelector('.page-header') || main.querySelector('header') || main.querySelector('.page-toolbar') || main.querySelector('.toolbar');
+            if (!headerRow) return;
+
+            const btn = document.createElement('button');
+            btn.id = 'preprint_pallets_btn';
+            btn.className = 'btn-action';
+            btn.style.background = '#0f172a';
+            btn.style.color = '#fff';
+            btn.style.borderRadius = '8px';
+            btn.style.padding = '8px 12px';
+            btn.style.fontWeight = '800';
+            btn.style.marginLeft = '8px';
+            btn.textContent = 'Pre-druk etykiet';
+            headerRow.appendChild(btn);
+            bindPreprintButton(btn);
+        }
+
+        function boot() {
+            try {
+                ensureButton();
+            } catch (e) {
+                console.warn('initPreprintUI failed', e);
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', boot);
+        } else {
+            boot();
+        }
+
+        async function loadPreprintPrinters(selectEl, liniaValue) {
+            if (!selectEl) return;
+
+            const current = (selectEl.value || 'auto').trim();
+            selectEl.innerHTML = '<option value="auto">Automatycznie (domyslna)</option>';
+
+            try {
+                const linia = String(liniaValue || 'PSD').toUpperCase();
+                const resp = await fetch('/magazyn-dostawy/api/active-printers?linia=' + encodeURIComponent(linia), {
+                    credentials: 'same-origin'
+                });
+
+                if (resp.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                let j = null;
+                try { j = await resp.json(); } catch (e) { j = null; }
+                const printers = (j && j.success && Array.isArray(j.printers)) ? j.printers : [];
+
+                for (const p of printers) {
+                    const option = document.createElement('option');
+                    const selectionValue = String(
+                        p.selection_value ||
+                        ((p.id !== null && p.id !== undefined) ? ('db:' + p.id) : (p.ip ? ('net:' + p.ip) : 'auto'))
+                    );
+                    option.value = selectionValue;
+                    if (p.id !== null && p.id !== undefined) {
+                        option.dataset.printerId = String(p.id);
+                    }
+                    if (p.ip) {
+                        option.dataset.printerIp = String(p.ip);
+                    }
+                    if (p.nazwa) {
+                        option.dataset.printerName = String(p.nazwa);
+                    }
+                    const ipTxt = p.ip ? ` (${p.ip})` : '';
+                    const locTxt = p.lokalizacja ? ` - ${p.lokalizacja}` : '';
+                    const sourceTxt = (p.source === 'network') ? ' [siec]' : '';
+                    option.textContent = `${p.nazwa || 'Drukarka'}${ipTxt}${locTxt}${sourceTxt}`;
+                    selectEl.appendChild(option);
+                }
+
+                const hasCurrent = Array.from(selectEl.options || []).some(opt => opt.value === current);
+                if (current && (current === 'auto' || hasCurrent)) {
+                    selectEl.value = current;
+                }
+            } catch (e) {
+                console.warn('loadPreprintPrinters failed', e);
+            }
+        }
+
+        function openPreprintModal() {
+            const html = `
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  <label>Liczba etykiet:</label>
+                  <input id="preprint_count" type="number" min="1" value="1" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;">
+                  <label>Linia:</label>
+                  <select id="preprint_linia" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;"><option value="PSD">PSD</option><option value="AGRO">AGRO</option></select>
+                  <label>Drukarka:</label>
+                  <select id="preprint_printer" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;"><option value="auto">Automatycznie (domyslna)</option></select>
+                  <div style="font-size:12px;color:#475569;line-height:1.35;">Wybierz drukarke sieciowa lub pozostaw automatyczna.</div>
+                  <label style="display:flex;gap:8px;align-items:flex-start;">
+                    <input id="preprint_existing_only" type="checkbox" style="margin-top:2px;">
+                                        <span>Drukuj dla już istniejących palet (bez rezerwacji nowych)</span>
+                  </label>
+                  <label style="display:flex;gap:8px;align-items:flex-start;">
+                    <input id="preprint_only_pending" type="checkbox" checked style="margin-top:2px;">
+                    <span>Tylko palety oczekujące (do zatwierdzenia)</span>
+                  </label>
+                                    <div style="font-size:12px;color:#475569;line-height:1.35;">Gdy opcja powyzej jest odznaczona, system rezerwuje etykiety dla przyszlych palet.</div>
+                  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+                    <button class="btn-action" id="preprint_cancel" style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;">Anuluj</button>
+                    <button class="btn-action" id="preprint_confirm" style="background:#10b981;color:#fff;">Przygotuj etykiety</button>
+                  </div>
+                  <div id="preprint_result" style="margin-top:8px;max-height:40vh;overflow:auto;"></div>
+                </div>`;
+
+            const inst = createQuickPopup('Predruk etykiet', html);
+            setTimeout(() => {
+                const cancel = document.getElementById('preprint_cancel');
+                const confirm = document.getElementById('preprint_confirm');
+                const liniaSelect = document.getElementById('preprint_linia');
+                const printerSelect = document.getElementById('preprint_printer');
+                const existingOnly = document.getElementById('preprint_existing_only');
+                const onlyPending = document.getElementById('preprint_only_pending');
+
+                const refreshModeUI = function() {
+                    const existingMode = !!(existingOnly && existingOnly.checked);
+                    if (confirm) confirm.textContent = existingMode ? 'Pobierz etykiety' : 'Zarezerwuj etykiety';
+                    if (onlyPending) onlyPending.disabled = !existingMode;
+                };
+
+                if (cancel) cancel.addEventListener('click', () => inst.close());
+                if (confirm) confirm.addEventListener('click', () => doPreprint(inst));
+                if (existingOnly) existingOnly.addEventListener('change', refreshModeUI);
+
+                if (liniaSelect && printerSelect) {
+                    const loadForSelectedLine = function() {
+                        loadPreprintPrinters(printerSelect, liniaSelect.value);
+                    };
+                    liniaSelect.addEventListener('change', loadForSelectedLine);
+                    loadForSelectedLine();
+                }
+
+                refreshModeUI();
+            }, 50);
+        }
+
+        async function doPreprint(inst) {
+            let confirmBtn = null;
+            let confirmBtnPrevText = '';
+            let existingModeForBtn = false;
+            try {
+                const countEl = document.getElementById('preprint_count');
+                const liniaEl = document.getElementById('preprint_linia');
+                const printerEl = document.getElementById('preprint_printer');
+                const existingOnlyEl = document.getElementById('preprint_existing_only');
+                const onlyPendingEl = document.getElementById('preprint_only_pending');
+                const resultEl = document.getElementById('preprint_result');
+
+                const count = parseInt((countEl && countEl.value) || '0', 10) || 0;
+                const linia = ((liniaEl && liniaEl.value) || 'PSD').toUpperCase();
+                const selectedPrinterValue = String((printerEl && printerEl.value) || 'auto').trim();
+                const selectedPrinterOption = (printerEl && printerEl.selectedOptions && printerEl.selectedOptions.length)
+                    ? printerEl.selectedOptions[0]
+                    : null;
+                let selectedPrinterId = selectedPrinterOption && selectedPrinterOption.dataset
+                    ? String(selectedPrinterOption.dataset.printerId || '').trim()
+                    : '';
+                let selectedPrinterIp = selectedPrinterOption && selectedPrinterOption.dataset
+                    ? String(selectedPrinterOption.dataset.printerIp || '').trim()
+                    : '';
+                let selectedPrinterName = selectedPrinterOption && selectedPrinterOption.dataset
+                    ? String(selectedPrinterOption.dataset.printerName || '').trim()
+                    : '';
+
+                if (!selectedPrinterId && selectedPrinterValue.startsWith('db:')) {
+                    selectedPrinterId = selectedPrinterValue.slice(3).trim();
+                }
+                if (!selectedPrinterIp && selectedPrinterValue.startsWith('net:')) {
+                    selectedPrinterIp = selectedPrinterValue.slice(4).trim();
+                }
+                const existingOnly = !!(existingOnlyEl && existingOnlyEl.checked);
+                const onlyPending = !!(onlyPendingEl && onlyPendingEl.checked);
+                existingModeForBtn = existingOnly;
+
+                if (count <= 0) {
+                    showToast('Liczba musi być >= 1', 'warning');
+                    return;
+                }
+
+                confirmBtn = document.getElementById('preprint_confirm');
+                if (confirmBtn) {
+                    confirmBtnPrevText = confirmBtn.textContent || '';
+                    confirmBtn.disabled = true;
+                    confirmBtn.textContent = existingOnly ? 'Pobieram palety...' : 'Rezerwuję palety...';
+                }
+
+                resultEl.innerHTML = existingOnly
+                    ? '<div style="padding:10px 12px;border:1px solid #dbeafe;background:#eff6ff;color:#1e3a8a;border-radius:8px;font-size:13px;"><strong>Pobieram istniejące palety...</strong><div style="margin-top:4px;color:#334155;">To może potrwać kilka sekund. Proszę czekać.</div></div>'
+                    : '<div style="padding:10px 12px;border:1px solid #dcfce7;background:#f0fdf4;color:#166534;border-radius:8px;font-size:13px;"><strong>Trwa rezerwacja palet...</strong><div style="margin-top:4px;color:#334155;">Proszę czekać na zakończenie operacji.</div></div>';
+
+                const params = {
+                    plan_id: (window.currentPlanId || ''),
+                    count: count,
+                    linia: linia,
+                    existing_only: existingOnly,
+                    only_pending: onlyPending,
+                };
+
+                const selectedDateEl = document.getElementById('current-date-iso');
+                if (selectedDateEl && selectedDateEl.value) {
+                    params.date = selectedDateEl.value;
+                }
+
+                if (!params.plan_id) {
+                    const u = new URL(window.location.href);
+                    params.plan_id = u.searchParams.get('plan_id') || u.searchParams.get('id') || '';
+                }
+
+                const resp = await fetch('/magazyn-dostawy/preprint', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+
+                if (resp.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                let j = null;
+                try { j = await resp.json(); } catch (e) { j = null; }
+
+                if (resp.status >= 500 || (j && j.success === false && String(j.message || '').toLowerCase().indexOf('method not allowed') !== -1)) {
+                    try {
+                        const qsData = {
+                            count: String(params.count),
+                            linia: params.linia,
+                            existing_only: String(!!params.existing_only),
+                            only_pending: String(!!params.only_pending)
+                        };
+                        if (params.plan_id) qsData.plan_id = String(params.plan_id);
+                        if (params.date) qsData.date = String(params.date);
+                        const qs = new URLSearchParams(qsData);
+                        const g = await fetch('/magazyn-dostawy/preprint?' + qs.toString(), { method: 'GET', credentials: 'same-origin' });
+                        try { j = await g.json(); } catch (e) { j = null; }
+                    } catch (e) {
+                        // keep primary error payload
+                    }
+                }
+
+                if (!j || j.success !== true) {
+                    resultEl.innerHTML = '<div style="color:#c81e1e;">Błąd: ' + (j && j.message ? String(j.message) : 'Nieznany błąd') + '</div>';
+                    return;
+                }
+
+                const modeLabel = (j.mode === 'existing')
+                    ? 'Znalezione palety do wydruku:'
+                    : ((j.mode === 'mixed') ? 'Znalezione palety + nowe rezerwacje:' : 'Utworzone rezerwacje:');
+                if (Array.isArray(j.created) && j.created.length) {
+                    const countersInfo =
+                        (typeof j.requested_count === 'number')
+                            ? `<div style="font-size:12px;color:#475569;margin-bottom:6px;">Zadane: ${j.requested_count}, znalezione: ${j.existing_count || 0}, wygenerowane: ${j.generated_count || 0}</div>`
+                            : '';
+                    const actionBar =
+                        '<div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0 10px 0;">' +
+                        '<button id="preprint_print_all" class="btn-action" style="background:#0b3a2a;color:#fff;border-radius:6px;padding:6px 10px;">Drukuj wszystko (drukarka)</button>' +
+                        '</div>';
+                    const list = j.created.map((it, index) => {
+                        const seq = it.kolejnosc || (index + 1);
+                        const orderNameRaw = String(it.nazwa_zlecenia || it.plan_name || '').trim();
+                        const orderName = orderNameRaw ? escapeHtml(orderNameRaw) : '';
+                        const orderInfo = orderName ? ` <span style="color:#475569;">- zlecenie: ${orderName}</span>` : '';
+                        const sourceInfo = (it.source === 'existing')
+                            ? ' <span style="font-size:11px;color:#065f46;background:#d1fae5;padding:1px 6px;border-radius:999px;">istniejaca</span>'
+                            : ((it.source === 'reserve')
+                                ? ' <span style="font-size:11px;color:#9a3412;background:#ffedd5;padding:1px 6px;border-radius:999px;">rezerwacja</span>'
+                                : '');
+                        const palletLabel = escapeHtml(String(it.nr_palety || it.id || ''));
+                        return `<div id="preprint-row-${it.id}" style="padding:8px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;"><div><strong>${palletLabel}</strong> - nr LP: ${seq}${orderInfo}${sourceInfo}</div><div style="display:flex;align-items:center;gap:8px;"><small id="preprint-status-${it.id}" style="color:#64748b;"></small><button class="btn-action" data-id="${it.id}" style="background:#0f172a;color:#fff;border-radius:6px;padding:6px 8px;">Drukuj</button></div></div>`;
+                    }).join('');
+                    const warningInfo = j.warning ? `<div style="font-size:12px;color:#b45309;margin-bottom:8px;">${String(j.warning)}</div>` : '';
+                    resultEl.innerHTML = '<div style="font-weight:700;margin-bottom:8px;">' + modeLabel + '</div>' + countersInfo + warningInfo + actionBar + list + '<div id="preprint_bulk_status" style="margin-top:10px;font-size:12px;color:#334155;"></div>';
+
+                    async function printDirect(id, printerMeta) {
+                        const endpoint = `/drukuj_etykiete_zpl/${encodeURIComponent(id)}?linia=${encodeURIComponent(linia)}`;
+                        const payload = {};
+                        if (printerMeta && printerMeta.id) {
+                            payload.printer_id = printerMeta.id;
+                        } else if (printerMeta && printerMeta.ip) {
+                            payload.printer_ip = printerMeta.ip;
+                            if (printerMeta.name) {
+                                payload.printer_name = printerMeta.name;
+                            }
+                        }
+                        const r = await fetch(endpoint, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (r.status === 401) {
+                            window.location.href = '/login';
+                            return { ok: false, message: 'Brak autoryzacji' };
+                        }
+                        let pj = null;
+                        try { pj = await r.json(); } catch (e) { pj = null; }
+                        const ok = !!(r.ok && pj && pj.success === true);
+                        return {
+                            ok: ok,
+                            message: (pj && pj.message) ? String(pj.message) : (ok ? 'OK' : 'Błąd druku'),
+                            printerName: (pj && pj.printer_name) ? String(pj.printer_name) : ''
+                        };
+                    }
+
+                    resultEl.querySelectorAll('button[data-id]').forEach(b => b.addEventListener('click', async function (ev) {
+                        const id = ev.currentTarget.getAttribute('data-id');
+                        const st = document.getElementById('preprint-status-' + id);
+                        if (st) {
+                            st.textContent = 'drukowanie...';
+                            st.style.color = '#64748b';
+                        }
+
+                        try {
+                            const res = await printDirect(id, {
+                                id: selectedPrinterId,
+                                ip: selectedPrinterIp,
+                                name: selectedPrinterName,
+                            });
+                            if (res.ok) {
+                                if (st) {
+                                    st.textContent = 'wydrukowano';
+                                    st.style.color = '#047857';
+                                    if (res.message) st.title = res.message;
+                                }
+                            } else {
+                                if (st) {
+                                    st.textContent = 'blad';
+                                    st.style.color = '#b91c1c';
+                                    st.title = res.message || '';
+                                }
+                                showToast('Błąd druku: ' + (res.message || 'Nieznany błąd'), 'danger');
+                            }
+                        } catch (e) {
+                            if (st) {
+                                st.textContent = 'blad';
+                                st.style.color = '#b91c1c';
+                            }
+                            showToast('Błąd drukowania etykiety', 'danger');
+                        }
+                    }));
+
+                    const printAllBtn = document.getElementById('preprint_print_all');
+                    const bulkStatus = document.getElementById('preprint_bulk_status');
+                    if (printAllBtn && bulkStatus) {
+                        printAllBtn.addEventListener('click', async function () {
+                            if (printAllBtn.dataset.busy === '1') return;
+                            printAllBtn.dataset.busy = '1';
+                            printAllBtn.disabled = true;
+
+                            let okCount = 0;
+                            let failCount = 0;
+                            for (const item of j.created) {
+                                const itemId = item && item.id;
+                                if (!itemId) {
+                                    failCount += 1;
+                                    continue;
+                                }
+
+                                const st = document.getElementById('preprint-status-' + itemId);
+                                if (st) {
+                                    st.textContent = 'drukowanie...';
+                                    st.style.color = '#64748b';
+                                }
+
+                                try {
+                                    const res = await printDirect(itemId, {
+                                        id: selectedPrinterId,
+                                        ip: selectedPrinterIp,
+                                        name: selectedPrinterName,
+                                    });
+                                    if (res.ok) {
+                                        okCount += 1;
+                                        if (st) {
+                                            st.textContent = 'wydrukowano';
+                                            st.style.color = '#047857';
+                                            if (res.message) st.title = res.message;
+                                        }
+                                    } else {
+                                        failCount += 1;
+                                        if (st) {
+                                            st.textContent = 'blad';
+                                            st.style.color = '#b91c1c';
+                                            st.title = res.message || '';
+                                        }
+                                    }
+                                } catch (e) {
+                                    failCount += 1;
+                                    if (st) {
+                                        st.textContent = 'blad';
+                                        st.style.color = '#b91c1c';
+                                    }
+                                }
+                            }
+
+                            bulkStatus.textContent = `Druk zakonczony. Sukces: ${okCount}, bledy: ${failCount}.`;
+                            printAllBtn.dataset.busy = '0';
+                            printAllBtn.disabled = false;
+                        });
+                    }
+                } else {
+                    resultEl.innerHTML = (j.mode === 'existing')
+                        ? '<div>Brak palet spełniających kryteria.</div>'
+                        : '<div>Brak utworzonych rezerwacji.</div>';
+                }
+            } catch (e) {
+                console.error('preprint failed', e);
+                showToast('Błąd sieci podczas predruku', 'danger');
+            } finally {
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = confirmBtnPrevText || (existingModeForBtn ? 'Pobierz i drukuj' : 'Zarezerwuj i drukuj');
+                }
+            }
+        }
+    })();
 
     /* ================= Global quick popup helper ================= */
     function createQuickPopup(title, html, opts) {

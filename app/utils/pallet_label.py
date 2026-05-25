@@ -30,14 +30,30 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
     table_pal = get_table_name('palety_workowanie', linia)
     table_mag = get_table_name('magazyn_palety', linia)
     table_zasypy = get_table_name('szarze', linia)
+
+    has_nr_palety_lp = False
+    try:
+        cursor.execute(f"SHOW COLUMNS FROM {table_pal} LIKE 'nr_palety_lp'")
+        has_nr_palety_lp = bool(cursor.fetchone())
+    except Exception:
+        has_nr_palety_lp = False
     
     # 1. First attempt: Find in confirmed warehouse table
     cursor.execute(f"""
-        SELECT mp.produkt, mp.waga_netto, pp.data_planu, pp.id as plan_id, mp.nr_palety, pp.data_produkcji
+        SELECT
+            mp.produkt,
+            mp.waga_netto,
+            COALESCE(pp.data_planu, mp.data_planu) AS data_planu,
+            COALESCE(pp.id, mp.plan_id) AS plan_id,
+            mp.nr_palety,
+            mp.paleta_workowanie_id,
+            pp.data_produkcji
         FROM {table_mag} mp
-        JOIN {table_plan} pp ON mp.plan_id = pp.id
-        WHERE mp.paleta_workowanie_id = %s OR mp.id = %s
-    """, (paleta_id, paleta_id))
+        LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
+        WHERE mp.id = %s OR mp.paleta_workowanie_id = %s
+        ORDER BY CASE WHEN mp.id = %s THEN 0 ELSE 1 END, mp.id DESC
+        LIMIT 1
+    """, (paleta_id, paleta_id, paleta_id))
     row = cursor.fetchone()
     
     if row:
@@ -46,7 +62,8 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
         data_planu = _get_val(row, 'data_planu', 2)
         plan_id = _get_val(row, 'plan_id', 3)
         nr_palety = _get_val(row, 'nr_palety', 4)
-        custom_data_prod = _get_val(row, 'data_produkcji', 5)
+        pw_id_from_mag = _get_val(row, 'paleta_workowanie_id', 5)
+        custom_data_prod = _get_val(row, 'data_produkcji', 6)
         
         # Decide production date
         if custom_data_prod:
@@ -58,10 +75,24 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
         zasyp_nr = '?'
         nr_palety_lp = 1
         try:
-            cursor.execute(f"SELECT id FROM {table_pal} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
-            pw_row = cursor.fetchone()
+            pw_row = None
+            if pw_id_from_mag:
+                if has_nr_palety_lp:
+                    cursor.execute(f"SELECT id, nr_palety_lp FROM {table_pal} WHERE id = %s LIMIT 1", (pw_id_from_mag,))
+                else:
+                    cursor.execute(f"SELECT id, NULL FROM {table_pal} WHERE id = %s LIMIT 1", (pw_id_from_mag,))
+                pw_row = cursor.fetchone()
+
+            if not pw_row and nr_palety:
+                if has_nr_palety_lp:
+                    cursor.execute(f"SELECT id, nr_palety_lp FROM {table_pal} WHERE nr_palety = %s ORDER BY id DESC LIMIT 1", (nr_palety,))
+                else:
+                    cursor.execute(f"SELECT id, NULL FROM {table_pal} WHERE nr_palety = %s ORDER BY id DESC LIMIT 1", (nr_palety,))
+                pw_row = cursor.fetchone()
+
             if pw_row:
                 pw_id = _get_val(pw_row, 'id', 0)
+                stored_nr_palety_lp = _get_val(pw_row, 'nr_palety_lp', 1)
                 
                 cursor.execute(
                     f"SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s AND id <= %s",
@@ -87,23 +118,32 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
                     if cumulative_zasyp >= cumulative_paleta_waga:
                         break
 
-                cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, pw_id))
-                res_lp = cursor.fetchone()
-                nr_palety_lp = _get_val(res_lp, 0, 0) if res_lp else 1
+                if stored_nr_palety_lp not in (None, ''):
+                    try:
+                        nr_palety_lp = int(stored_nr_palety_lp)
+                    except Exception:
+                        nr_palety_lp = 1
+                else:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, pw_id))
+                    res_lp = cursor.fetchone()
+                    nr_palety_lp = _get_val(res_lp, 0, 0) if res_lp else 1
         except Exception:
             pass
             
         return {
-            'nrPalety': nr_palety,
+            'nrPalety': nr_palety or str(paleta_id),
             'nazwa': produkt,
             'ilosc': float(waga),
             'data': data_str,
-            'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}"
+            'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}",
+            'nr_palety_lp': nr_palety_lp
         }
         
     # 2. Second attempt: Find in buffer table (palety_workowanie)
+    lp_select = "pw.nr_palety_lp" if has_nr_palety_lp else "NULL AS nr_palety_lp"
+
     cursor.execute(f"""
-        SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji
+        SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}
         FROM {table_pal} pw
         JOIN {table_plan} pp ON pw.plan_id = pp.id
         WHERE pw.id = %s
@@ -119,6 +159,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
     data_dodania = _get_val(pw_row, 'data_dodania', 3)
     nr_palety = _get_val(pw_row, 'nr_palety', 4)
     custom_data_prod = _get_val(pw_row, 'data_produkcji', 5)
+    stored_nr_palety_lp = _get_val(pw_row, 'nr_palety_lp', 6)
     
     # Decide production date
     if custom_data_prod:
@@ -154,16 +195,23 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
             if cumulative_zasyp >= cumulative_paleta_waga:
                 break
 
-        cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
-        res_lp = cursor.fetchone()
-        nr_palety_lp = _get_val(res_lp, 0, 0) if res_lp else 1
+        if stored_nr_palety_lp not in (None, ''):
+            try:
+                nr_palety_lp = int(stored_nr_palety_lp)
+            except Exception:
+                nr_palety_lp = 1
+        else:
+            cursor.execute(f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND id <= %s", (plan_id, paleta_id))
+            res_lp = cursor.fetchone()
+            nr_palety_lp = _get_val(res_lp, 0, 0) if res_lp else 1
     except Exception:
         pass
         
     return {
-        'nrPalety': nr_palety,
+        'nrPalety': nr_palety or str(paleta_id),
         'nazwa': produkt,
         'ilosc': float(waga),
         'data': data_str,
-        'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})"
+        'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})",
+        'nr_palety_lp': nr_palety_lp
     }

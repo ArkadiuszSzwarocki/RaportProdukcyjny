@@ -2,7 +2,7 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from app.services.inwentaryzacja_service import InwentaryzacjaService
 from app.db import get_db_connection, get_table_name
-from app.decorators import masteradmin_required
+from app.decorators import roles_required
 
 inwentaryzacja_bp = Blueprint('inwentaryzacja', __name__, url_prefix='/magazyn/inwentaryzacja')
 
@@ -185,6 +185,7 @@ def zamknij_sesje():
     return jsonify({"success": success, "message": msg})
 
 @inwentaryzacja_bp.route('/api/zatwierdz-inwentaryzacje', methods=['POST'])
+@roles_required('lider', 'admin', 'masteradmin', 'kierownik', 'zarzad')
 def zatwierdz_inwentaryzacje():
     sesja_id = request.json.get('sesja_id')
     success, msg = InwentaryzacjaService.apply_inventory(sesja_id, session.get('login', 'system'))
@@ -200,7 +201,7 @@ def edytuj_sesje():
     return jsonify({"success": success, "message": msg})
     
 @inwentaryzacja_bp.route('/api/usun-sesje', methods=['POST'])
-@masteradmin_required
+@roles_required('lider', 'admin', 'masteradmin', 'kierownik', 'zarzad')
 def usun_sesje():
     sesja_id = request.json.get('sesja_id')
     success, msg = InwentaryzacjaService.delete_session(sesja_id)
@@ -213,6 +214,7 @@ def wznow_sesje():
     return jsonify({"success": success, "message": msg})
     
 @inwentaryzacja_bp.route('/api/cofnij-zatwierdzenie', methods=['POST'])
+@roles_required('lider', 'admin', 'masteradmin', 'kierownik', 'zarzad')
 def cofnij_zatwierdzenie():
     sesja_id = request.json.get('sesja_id')
     success, msg = InwentaryzacjaService.revert_session(sesja_id)

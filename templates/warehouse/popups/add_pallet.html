@@ -91,7 +91,7 @@
   <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj zasyp{% else %}📦 {{ _('dodaj_palete') }}{% endif %}</h3>
   {% if sekcja == 'Workowanie' %}
   {# Workowanie: użyj dedykowanego endpointu dodaj_palete #}
-  <form action="{{ url_for('warehouse.dodaj_palete', plan_id=plan_id) }}" method="POST">
+  <form id="addPaletaForm" action="{{ url_for('warehouse.dodaj_palete', plan_id=plan_id) }}" method="POST">
     <input id="waga_palety" name="waga_palety" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="{{ _('waga_palety') }}" title="{{ _('waga_palety_kg_info') }}">
     <label for="data_produkcji">Data produkcji:</label>
     <input id="data_produkcji" name="data_produkcji" type="date" required class="input-sm popup-input" value="{{ data_produkcji or '' }}" title="Wybierz datę produkcji dla tego zlecenia">
@@ -100,9 +100,66 @@
     <input type="hidden" name="ui_trigger" value="button:dodaj_palete_popup">
     
     <div class="popup-button-group">
-      <button type="submit" class="btn-action btn-save">{{ _('dodaj_palete') }}</button>
+      <button id="addPaletaSubmit" type="submit" class="btn-action btn-save">{{ _('dodaj_palete') }}</button>
       <button type="button" class="btn-action btn-outline" data-action="close-popup">ANULUJ</button>
     </div>
+  </form>
+
+  <script>
+    (function(){
+      var form = document.getElementById('addPaletaForm');
+      if (!form) return;
+      var submitBtn = document.getElementById('addPaletaSubmit');
+      form.addEventListener('submit', function(ev){
+        ev.preventDefault();
+        if (!submitBtn) return;
+        submitBtn.disabled = true;
+        var originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Zapisuję...';
+        var fd = new FormData(form);
+        fetch(form.getAttribute('action'), {
+          method: 'POST',
+          credentials: 'same-origin',
+          body: fd,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function(resp){
+          return resp.json().catch(function(){ return { success: resp.ok }; });
+        }).then(function(data){
+          try {
+            var ok = data && data.success;
+            if (ok) {
+              if (typeof window.showToast === 'function') window.showToast('Paleta zapisana', 'success');
+              // Attempt multiple strategies to close the modal
+              try {
+                if (window.createQuickPopup && window.createQuickPopup._lastInst) try { window.createQuickPopup._lastInst.close(); } catch(e){}
+                var closeBtn = document.querySelector('[data-action="close-popup"]');
+                if (closeBtn) try { closeBtn.click(); } catch(e){}
+                var qb = document.getElementById('quickBackdrop'); if (qb) { qb.classList.remove('show'); qb.setAttribute('aria-hidden','true'); }
+                var qp = document.getElementById('quickPopup'); if (qp) { qp.classList.remove('open'); qp.setAttribute('aria-hidden','true'); }
+                document.body.classList.remove('modal-open','slide-over-open');
+                // dispatch generic close event
+                try { document.dispatchEvent(new CustomEvent('popup:close')); } catch(e){}
+              } catch (e) { /* ignore */ }
+              // optionally trigger partial reload
+              try { if (typeof performPartialReload === 'function') performPartialReload({force:true}); } catch(e){}
+            } else {
+              var msg = (data && data.message) ? data.message : 'Błąd zapisu palety';
+              if (typeof window.showToast === 'function') window.showToast(msg, 'error');
+              submitBtn.disabled = false;
+              submitBtn.textContent = originalText;
+            }
+          } catch (e) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+          }
+        }).catch(function(err){
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+          if (typeof window.showToast === 'function') window.showToast('Błąd sieci podczas zapisu', 'error');
+        });
+      });
+    })();
+  </script>
   </form>
   {% else %}
   {# Zasyp: użyj dodaj_plan dla zasypu #}

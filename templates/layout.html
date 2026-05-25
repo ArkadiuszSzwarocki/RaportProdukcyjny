@@ -39,6 +39,11 @@
     <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
     <!-- Global spinner overlay (appears if navigation / data load exceeds 1s) -->
+    <style>
+        /* prevent hidden spinner from blocking interactions */
+        #globalSpinner { pointer-events: none; }
+        #globalSpinner.overlay-active { pointer-events: auto; }
+    </style>
     <div id="globalSpinner" aria-hidden="true">
         <div class="spinner" role="status" aria-label="Ładowanie"></div>
     </div>

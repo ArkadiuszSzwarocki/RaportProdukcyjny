@@ -118,6 +118,9 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(scanner_bp)
     app.register_blueprint(magazyn_dostawy_bp)
     app.register_blueprint(inwentaryzacja_bp)
+
+    # Register debug routes if in debug mode
+    register_debug_routes(app)
     
     # Register Jinja2 filters
     app.jinja_env.filters['format_czasu'] = format_godziny
@@ -162,4 +165,22 @@ def create_app(config_secret_key=None, init_db=True):
             app.logger.exception('setup_database() failed or skipped: %s', e)
     
     return app
+
+
+def register_debug_routes(app):
+    """Register temporary debug routes (only enabled when app.debug is True)."""
+    # Intentionally register for local debugging regardless of app.debug so
+    # devs can inspect routing while app.run may toggle debug later.
+
+    @app.route('/__debug/url_map')
+    def debug_url_map():
+        rules = []
+        for r in app.url_map.iter_rules():
+            rules.append({'rule': str(r.rule), 'endpoint': r.endpoint, 'methods': sorted(list(r.methods))})
+        return {'rules': rules}
+
+
+
+    # Temporary debug endpoints can be registered below when running locally.
+
 
