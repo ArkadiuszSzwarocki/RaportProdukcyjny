@@ -4961,12 +4961,23 @@ button[type="submit"]:hover {
         background: #f5f5f5;
         border: 1px solid #ddd;
         border-radius: 4px;
+        margin-top: 24px;
+        padding: 20px;
+        background: #fffcfc;
+        border: 1px solid #f5c6cb;
+        border-radius: 10px;
         display: none;
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.08);
     }
 
     .deleted-orders-section .header-title {
         margin-top: 0;
         margin-bottom: 10px;
+        color: var(--danger-color);
+        font-weight: 700;
+        border-bottom: 2px solid #f5c6cb;
+        padding-bottom: 10px;
+        margin-bottom: 16px;
     }
 
     #deletedOrdersList .plan-item {
@@ -5008,6 +5019,19 @@ button[type="submit"]:hover {
     .realizacja-order-row {
         cursor: pointer;
         background: rgba(0, 0, 0, 0.02);
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        margin-bottom: 14px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.2s ease;
+        overflow: hidden;
+    }
+
+    .realizacja-order-row:hover {
+        box-shadow: 0 6px 16px rgba(52, 152, 219, 0.12);
+        transform: translateY(-2px);
+        border-color: var(--accent-color);
     }
 
     .realizacja-order-header {
@@ -5015,18 +5039,47 @@ button[type="submit"]:hover {
         align-items: center;
         gap: 12px;
         padding: 12px 8px;
+        gap: 14px;
+        padding: 16px;
+        background: linear-gradient(180deg, rgba(0, 0, 0, 0.01), transparent);
+        border-bottom: 1px solid var(--border-color);
     }
 
     .realizacja-order-icon {
         transition: transform 0.2s;
+        color: var(--accent-color);
+        background: rgba(52, 152, 219, 0.1);
+        width: 42px;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-size: 1.2em;
+    }
+
+    .realizacja-order-row:hover .realizacja-order-icon {
+        transform: scale(1.1);
+        background: var(--accent-color);
+        color: white;
     }
 
     .realizacja-order-title {
         font-weight: 600;
+        font-weight: 700;
+        font-size: 1.1em;
+        color: var(--primary-color);
+        flex: 1;
     }
 
     .realizacja-order-stats {
         font-size: 0.9em;
+        color: var(--text-muted);
+        background: rgba(0, 0, 0, 0.04);
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
     }
 
     .details-flex-container {
@@ -5034,6 +5087,8 @@ button[type="submit"]:hover {
         flex-wrap: wrap;
         gap: 12px;
         padding: 12px 8px;
+        gap: 16px;
+        padding: 16px;
     }
 
     .details-flex-item {
@@ -5042,13 +5097,24 @@ button[type="submit"]:hover {
         background: var(--bg-card);
         padding: 12px;
         border-radius: 6px;
+        background: #ffffff;
+        padding: 18px;
+        border-radius: 10px;
         border: 1px solid var(--border-color);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+        transition: all 0.2s ease;
+    }
+
+    .details-flex-item:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+        border-color: #cbd5e1;
     }
 
     .details-flex-content {
         display: flex;
         flex-direction: column;
         gap: 8px;
+        gap: 0;
     }
 
     .detail-cell {
@@ -5056,15 +5122,28 @@ button[type="submit"]:hover {
         align-items: center;
         justify-content: space-between;
         padding: 6px 0;
+        padding: 10px 0;
+        border-bottom: 1px dashed rgba(0, 0, 0, 0.06);
+    }
+
+    .detail-cell:last-child {
+        border-bottom: none;
     }
 
     .detail-label {
         font-weight: 600;
         font-size: 0.95em;
+        font-size: 0.85em;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
 
     .detail-value {
         font-size: 0.95em;
+        font-size: 1em;
+        font-weight: 700;
+        color: var(--text-main);
     }
 
     @media (max-width: 768px) {
