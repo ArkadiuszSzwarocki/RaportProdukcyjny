@@ -185,6 +185,8 @@ def index():
                 import traceback
                 app.logger.error(f"Error fetching agro packaging context: {str(e)}\n{traceback.format_exc()}")
                 workowanie_rozliczenie_ctx = None
+        elif clean_sekcja == 'zasyp' and aktywna_linia == 'AGRO' and main_h_data.get('zasyp_has_active'):
+            agro_focus_mode = True
 
         context['agro_focus_mode'] = agro_focus_mode
         context['workowanie_rozliczenie_ctx'] = workowanie_rozliczenie_ctx
