@@ -270,10 +270,12 @@ def _stop_printer_server():
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         requests.post('https://127.0.0.1:3001/shutdown', timeout=2.0, verify=False)
         return True, 'Serwer druku został wyłączony.', 200
-    except requests.exceptions.ReadTimeout:
-        # Przekroczenie czasu podczas wyłączania to dobry znak, proces został ubity
-        return True, 'Serwer druku został wyłączony.', 200
     except Exception as error:
+        # Jeśli serwer rzeczywiście się wyłączył (nie odpowiada już na status), traktujemy to jako sukces.
+        # Jest to częste, gdy proces zabija się natychmiast i gwałtownie zrywa połączenie TCP (np. błąd 10054).
+        time.sleep(0.5)
+        if not _is_printer_server_running():
+            return True, 'Serwer druku został wyłączony.', 200
         return False, f'Błąd zatrzymywania serwera druku: {error}', 500
 
 
