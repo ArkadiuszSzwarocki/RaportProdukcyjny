@@ -2,7 +2,7 @@ import os
 import sys
 import re
 from datetime import date, datetime
-from flask import Blueprint, render_template, request, session, redirect, url_for, current_app as app
+from flask import Blueprint, render_template, request, session, redirect, url_for, jsonify, current_app as app
 
 from app.db import get_db_connection, get_table_name
 from app.decorators import roles_required, login_required, dynamic_role_required, masteradmin_required
@@ -196,3 +196,13 @@ def index():
         error_msg = f"Error loading dashboard: {str(e)}\n{traceback.format_exc()}"
         app.logger.error(error_msg)
         return f"<pre>{error_msg}</pre>", 500
+
+@main_bp.route('/machine-telemetry')
+@login_required
+def machine_telemetry():
+    from app.services.mqtt_service import get_latest_data
+    return jsonify({
+        'success': True,
+        'data': get_latest_data()
+    })
+

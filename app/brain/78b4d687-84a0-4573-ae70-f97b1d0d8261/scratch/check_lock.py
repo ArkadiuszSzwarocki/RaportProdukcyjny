@@ -1,0 +1,10 @@
+from app.db import get_db_connection
+conn = get_db_connection()
+cursor = conn.cursor()
+cursor.execute("SELECT IS_USED_LOCK('agro_pallet_daemon_leader')")
+print("IS_USED_LOCK:", cursor.fetchone())
+cursor.execute("SELECT IS_FREE_LOCK('agro_pallet_daemon_leader')")
+print("IS_FREE_LOCK:", cursor.fetchone())
+cursor.execute("SELECT * FROM app_instance_heartbeat")
+print("HEARTBEATS:", cursor.fetchall())
+conn.close()

@@ -84,9 +84,9 @@ def index():
                     row['unit'] = 'kg'
                     row['is_blocked'] = row.get('is_blocked', 0)
 
-                    # Przypisz lokalizację MGW01 dla wyrobów gotowych jeśli nie mają
+                    # Przypisz lokalizację MGW01/MGW02 dla wyrobów gotowych jeśli nie mają
                     if not row['location']:
-                        row['location'] = 'MGW01'
+                        row['location'] = 'MGW02' if row.get('linia') == 'AGRO' else 'MGW01'
 
                     items.append(row)
             except Exception as e:
@@ -529,7 +529,10 @@ def print_pallet_label():
         }
         
         printer_service = get_printer()
-        ok, msg = printer_service.print_pallet_label(label_data, override_ip=printer_ip, override_name=printer_name)
+        if pallet_type == 'Wyrób Gotowy':
+            ok, msg = printer_service.print_finished_product_label(label_data, override_ip=printer_ip, override_name=printer_name)
+        else:
+            ok, msg = printer_service.print_pallet_label(label_data, override_ip=printer_ip, override_name=printer_name)
         
         return jsonify({'success': ok, 'message': f'Wysłano do drukarki {printer_name}' if ok else msg})
     except Exception as e:

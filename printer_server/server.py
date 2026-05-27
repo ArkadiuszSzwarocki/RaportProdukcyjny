@@ -159,7 +159,8 @@ def drukuj_zpl():
         # Dane produkcyjne
         zpl_string += f"^FO60,520^A0N,35,35^FDPARTIA: {partia}^FS\n"
         zpl_string += f"^FO60,570^A0N,35,35^FDPRODUKCJA: {d_prod}^FS\n"
-        zpl_string += f"^FO60,620^A0N,35,35^FDWAZNOSC:   {d_wazn}^FS\n"
+        if tytul != 'WYRÓB GOTOWY':
+            zpl_string += f"^FO60,620^A0N,35,35^FDWAZNOSC:   {d_wazn}^FS\n"
         
         if uwagi:
             uwagi_clean = str(uwagi).replace('\n', ' ')
