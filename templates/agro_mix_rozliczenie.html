@@ -167,7 +167,7 @@
                     {{ item.created_at.strftime('%H:%M') }}<br>
                     👤 {{ item.autor_login }}
                 </div>
-                <a href="{{ url_for('production.agro_mix_rozliczenie_print', mix_id=item.id) }}" target="_blank" class="btn-print-sm" title="Drukuj potwierdzenie">
+                <a href="{{ url_for('production.agro_mix_rozliczenie_print', mix_id=item.id) }}" onclick="event.preventDefault(); openInApp(this.href, 'Rozliczenie mieszanki')" class="btn-print-sm" title="Drukuj potwierdzenie">
                     <span class="material-icons" style="font-size: 18px;">print</span>
                 </a>
             </div>

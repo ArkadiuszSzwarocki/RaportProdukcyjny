@@ -342,9 +342,63 @@
         <span class="material-icons">call_split</span> Podziel
       </button>
     </div>
-  </div>
+  </div><!-- /splitSection -->
 
 </div><!-- /scanner-wrap -->
+
+<!-- Premium Finished Goods Acceptance Overlay — MUST be outside scanner-wrap to work with display:none parent -->
+<div id="wgAcceptOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); z-index:20000; align-items:center; justify-content:center; padding:16px; box-sizing:border-box;">
+  <div style="width:100%; max-width:440px; background:#1e293b; border:1px solid #334155; border-radius:16px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); padding:24px; box-sizing:border-box; color:#f8fafc; font-family:'Inter', sans-serif;">
+
+    <!-- Modal Header -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; border-bottom:1px solid #334155; padding-bottom:12px;">
+      <h3 style="margin:0; font-size:1.2rem; font-weight:800; color:#3b82f6; display:flex; align-items:center; gap:8px;">
+        <span class="material-icons" style="font-size:24px;">inventory_2</span>
+        Przyjęcie Wyrobu (AGRO)
+      </h3>
+      <button onclick="closeWgAcceptModal()" style="background:none; border:none; color:#94a3b8; font-size:24px; cursor:pointer; line-height:1; padding:0; margin-left:auto;">&times;</button>
+    </div>
+
+    <!-- Pallet Info Card -->
+    <div style="background:#0f172a; border:1px solid #334155; border-radius:10px; padding:12px; margin-bottom:16px;">
+      <div style="font-size:0.75rem; text-transform:uppercase; color:#64748b; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Zeskanowana Paleta</div>
+      <div id="wgPalletNo" style="font-size:1.15rem; font-weight:800; color:#f8fafc; font-family:monospace; margin-bottom:2px;">—</div>
+      <div id="wgPalletName" style="font-size:0.88rem; color:#94a3b8;">—</div>
+    </div>
+
+    <!-- STEP 1: WEIGHT -->
+    <div id="wgStepWeight" style="display:block;">
+      <div style="display:inline-flex; align-items:center; gap:6px; background:#1e3a8a; color:#93c5fd; padding:3px 8px; border-radius:12px; font-size:0.75rem; font-weight:700; margin-bottom:12px;">
+        <span>Krok 1/2</span> Waga Palety
+      </div>
+      <label style="display:block; font-size:0.88rem; font-weight:600; color:#94a3b8; margin-bottom:6px;">Waga netto (kg):</label>
+      <input type="number" id="wgWeightInput" step="0.1" placeholder="Wpisz wagę..."
+             style="width:100%; padding:12px; font-size:1.2rem; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; transition:border-color 0.2s; box-sizing:border-box;"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();goToWgStep2();}">
+      <p style="font-size:0.75rem; color:#64748b; margin-top:8px; font-style:italic;">Naciśnij Enter lub Dalej, aby przejść do wyboru lokalizacji.</p>
+    </div>
+
+    <!-- STEP 2: LOCATION -->
+    <div id="wgStepLocation" style="display:none;">
+      <div style="display:inline-flex; align-items:center; gap:6px; background:#065f46; color:#a7f3d0; padding:3px 8px; border-radius:12px; font-size:0.75rem; font-weight:700; margin-bottom:12px;">
+        <span>Krok 2/2</span> Lokalizacja Docelowa
+      </div>
+      <label style="display:block; font-size:0.88rem; font-weight:600; color:#94a3b8; margin-bottom:6px;">Zeskanuj regał (np. MGW01):</label>
+      <input type="text" id="wgLocInput" placeholder="Skanuj lokalizację..."
+             style="width:100%; padding:12px; font-size:1.2rem; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; text-transform:uppercase; transition:border-color 0.2s; box-sizing:border-box;">
+      <p style="font-size:0.75rem; color:#64748b; margin-top:8px; font-style:italic;">Zeskanowanie kodu lokalizacji automatycznie zatwierdzi paletę na stan.</p>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px; border-top:1px solid #334155; padding-top:16px;">
+      <button id="wgBackBtn" onclick="backToWgStep1()" style="display:none; padding:10px 16px; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:8px; font-weight:700; cursor:pointer;">Wstecz</button>
+      <button onclick="closeWgAcceptModal()" style="padding:10px 16px; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:8px; font-weight:700; cursor:pointer;">Anuluj</button>
+      <button id="wgNextBtn" onclick="goToWgStep2()" style="padding:10px 20px; border:none; background:#3b82f6; color:#fff; border-radius:8px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(59,130,246,0.3);">Dalej</button>
+      <button id="wgConfirmBtn" onclick="submitWgAccept()" style="display:none; padding:10px 20px; border:none; background:#22c55e; color:#fff; border-radius:8px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(34,197,94,0.3);">Zatwierdź</button>
+    </div>
+
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -426,6 +480,10 @@ function lookupPallet(code) {
 }
 
 function showPallet(p) {
+  if (p.is_unconfirmed_wg) {
+    openWgAcceptModal(p);
+    return;
+  }
   currentPallet = p;
   document.getElementById('palletLoc').textContent  = p.lokalizacja || '—';
   document.getElementById('palletName').textContent = p.nazwa;
@@ -569,9 +627,9 @@ function printLabel(type) {
   if (!currentPallet) return showToast('Brak palety — zeskanuj najpierw', 'warn');
 
   if (type === 'location') {
-    // Etykieta regału — otwórz stronę HTML
+    // Etykieta regału — otwórz w aplikacji
     const url = `/agro/scanner/label/${currentPallet.id}?linia=${LINIA}&type=location`;
-    window.open(url, '_blank');
+    window.openInApp ? openInApp(url, 'Etykieta regału') : window.open(url, '_blank');
     return;
   }
 
@@ -584,22 +642,144 @@ function printLabel(type) {
   .then(r => r.json())
   .then(d => {
     if (d.label_url) {
-      window.open(d.label_url, '_blank');
+      window.openInApp ? openInApp(d.label_url, 'Etykieta palety') : window.open(d.label_url, '_blank');
     }
     if (d.success) {
       showToast('✅ ' + d.message, 'success');
     } else {
-      // TCP failed — HTML opened anyway
-      showToast('📄 Etykieta otwarta w nowej karcie', 'success');
+      showToast('📄 Etykieta otwarta w aplikacji', 'success');
     }
   })
   .catch(() => {
-    // Fallback: direct HTML open
     const url = `/agro/scanner/label/${currentPallet.id}?linia=${LINIA}&autoprint=1`;
-    window.open(url, '_blank');
-    showToast('📄 Etykieta otwarta w nowej karcie', 'success');
+    window.openInApp ? openInApp(url, 'Etykieta palety') : window.open(url, '_blank');
+    showToast('📄 Etykieta otwarta w aplikacji', 'success');
   });
 }
+
+
+/* ─── Finished Goods (WG) Acceptance Flow ───────────────────── */
+let wgPalletObj = null;
+
+function openWgAcceptModal(p) {
+  wgPalletObj = p;
+  document.getElementById('wgPalletNo').textContent = p.nr_palety || 'ID: ' + p.id;
+  document.getElementById('wgPalletName').textContent = p.nazwa;
+  document.getElementById('wgWeightInput').value = parseFloat(p.stan_magazynowy || 0).toFixed(1);
+  document.getElementById('wgLocInput').value = '';
+  
+  backToWgStep1();
+  
+  document.getElementById('wgAcceptOverlay').style.display = 'flex';
+  setTimeout(() => {
+    const wInput = document.getElementById('wgWeightInput');
+    wInput.focus();
+    wInput.select();
+  }, 100);
+}
+
+function closeWgAcceptModal() {
+  document.getElementById('wgAcceptOverlay').style.display = 'none';
+  wgPalletObj = null;
+  scanInput.value = '';
+  scanInput.focus();
+}
+
+function goToWgStep2() {
+  const wVal = parseFloat(document.getElementById('wgWeightInput').value);
+  if (!wVal || wVal <= 0) {
+    showToast('Wprowadź prawidłową wagę', 'warn');
+    return;
+  }
+  document.getElementById('wgStepWeight').style.display = 'none';
+  document.getElementById('wgStepLocation').style.display = 'block';
+  
+  document.getElementById('wgBackBtn').style.display = 'inline-block';
+  document.getElementById('wgNextBtn').style.display = 'none';
+  document.getElementById('wgConfirmBtn').style.display = 'inline-block';
+  
+  setTimeout(() => {
+    const locInp = document.getElementById('wgLocInput');
+    locInp.focus();
+    locInp.select();
+  }, 100);
+}
+
+function backToWgStep1() {
+  document.getElementById('wgStepWeight').style.display = 'block';
+  document.getElementById('wgStepLocation').style.display = 'none';
+  
+  document.getElementById('wgBackBtn').style.display = 'none';
+  document.getElementById('wgNextBtn').style.display = 'inline-block';
+  document.getElementById('wgConfirmBtn').style.display = 'none';
+  
+  setTimeout(() => {
+    const wInp = document.getElementById('wgWeightInput');
+    wInp.focus();
+    wInp.select();
+  }, 100);
+}
+
+function submitWgAccept() {
+  if (!wgPalletObj) return;
+  const wVal = parseFloat(document.getElementById('wgWeightInput').value);
+  const loc = document.getElementById('wgLocInput').value.trim().toUpperCase();
+  
+  if (!wVal || wVal <= 0) {
+    showToast('Wprowadź prawidłową wagę', 'warn');
+    return;
+  }
+  if (!loc) {
+    showToast('Podaj lub zeskanuj lokalizację docelową', 'warn');
+    return;
+  }
+  
+  fetch('/magazyn-dostawy/api/przyjmij-wg', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      id: wgPalletObj.id,
+      lokalizacja: loc,
+      linia: LINIA,
+      waga: wVal
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast('✅ Paleta przyjęta pomyślnie na ' + loc, 'success');
+      closeWgAcceptModal();
+      hidePallet();
+    } else {
+      showToast('❌ ' + (d.error || d.message || 'Błąd zapisu'), 'danger');
+    }
+  })
+  .catch(e => showToast('Błąd: ' + e, 'danger'));
+}
+
+// Hook up automated Enter key listener for location input
+document.addEventListener('DOMContentLoaded', () => {
+  const locInp = document.getElementById('wgLocInput');
+  if (locInp) {
+    locInp.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.keyCode === 13) {
+        e.preventDefault();
+        submitWgAccept();
+      }
+    });
+    // Auto-submit on scan (debounce 600ms) — skanery Zebra często nie wysyłają Enter
+    let locScanTimeout;
+    locInp.addEventListener('input', function() {
+      clearTimeout(locScanTimeout);
+      const val = this.value.trim();
+      if (val.length >= 4) {
+        locScanTimeout = setTimeout(() => {
+          submitWgAccept();
+        }, 600);
+      }
+    });
+  }
+});
 
 
 /* ─── Toast ───────────────────────────────────────────────── */

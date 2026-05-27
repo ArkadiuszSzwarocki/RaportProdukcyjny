@@ -64,7 +64,7 @@
                     <td><span class="badge-info">{{ user_login or '-' }}</span></td>
                     <td><span class="status-badge status-accepted">{{ status }}</span></td>
                     <td class="text-right">
-                        <a href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=id, linia=linia) }}" target="_blank" rel="noopener" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę">
+                        <a href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=id, linia=linia) }}" onclick="event.preventDefault(); openInApp(this.href, 'Etykieta palety — {{ produkt }}')" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę">
                             <span class="material-icons" style="font-size:18px;">print</span>
                         </a>
                         {% if rola in ['produkcja', 'lider', 'admin', 'masteradmin'] %}

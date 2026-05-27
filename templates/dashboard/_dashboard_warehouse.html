@@ -634,7 +634,7 @@
                 return;
             }
             const previewUrl = '/magazyn-dostawy/podglad-etykiety-system/' + encodeURIComponent(String(pallet.id)) + '?linia=AGRO';
-            window.open(previewUrl, '_blank', 'noopener');
+            window.openInApp ? openInApp(previewUrl, 'Etykieta WG — ' + (pallet.produkt || '')) : window.open(previewUrl, '_blank', 'noopener');
         };
 
         if (scanInput) {
@@ -744,7 +744,7 @@
                     <td>
                         <a
                             href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=p[0], linia=linia) }}"
-                            target="_blank"
+                            onclick="event.preventDefault(); openInApp(this.href, 'Etykieta palety')"
                             class="btn-icon"
                             style="color:#0ea5e9; margin-right:8px;"
                             title="Podgląd etykiety"
@@ -793,7 +793,7 @@
                     <td><span class="badge-info">{{ user_login or '-' }}</span></td>
                     <td><span class="status-badge status-accepted">{{ status }}</span></td>
                     <td class="text-right">
-                        <a href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=id, linia=linia) }}" target="_blank" rel="noopener" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę (Podgląd)">
+                        <a href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=id, linia=linia) }}" onclick="event.preventDefault(); openInApp(this.href, 'Etykieta palety — {{ produkt }}')" class="btn-icon" style="color: #3498db;" title="Drukuj Etykietę (Podgląd)">
                             <span class="material-icons" style="font-size:18px;">print</span>
                         </a>
                         <button type="button" class="btn-icon" style="color: #16a34a;" title="Drukuj ZPL (Drukarka 237)"

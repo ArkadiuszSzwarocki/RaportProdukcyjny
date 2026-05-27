@@ -873,7 +873,7 @@
             return;
         }
         const previewUrl = '/magazyn-dostawy/podglad-etykiety-system/' + encodeURIComponent(String(pallet.id)) + '?linia=AGRO';
-        window.open(previewUrl, '_blank', 'noopener');
+        window.openInApp ? openInApp(previewUrl, 'Etykieta WG — ' + (pallet.produkt || '')) : window.open(previewUrl, '_blank', 'noopener');
     };
 
     function toggleItem(id) {

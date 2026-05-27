@@ -1819,12 +1819,14 @@
         })();
     } catch (e) { console.warn('alert sanitization failed', e); }
 
-    window.openPrintLabelModal = function(url) {
+    window.openPrintLabelModal = function(url, title) {
         if (!url) return;
-        const html = '<div style="height: 85vh; display: flex; flex-direction: column; margin: -10px -20px;">'
-                   + '<iframe src="' + url + '" style="flex-grow: 1; width: 100%; border: none; border-radius: 0 0 12px 12px;"></iframe>'
-                   + '</div>';
-        if (typeof showQuickPopup === 'function') {
+        if (typeof window.openInApp === 'function') {
+            openInApp(url, title || 'Etykieta Palety');
+        } else if (typeof showQuickPopup === 'function') {
+            const html = '<div style="height: 85vh; display: flex; flex-direction: column; margin: -10px -20px;">'
+                       + '<iframe src="' + url + '" style="flex-grow: 1; width: 100%; border: none; border-radius: 0 0 12px 12px;"></iframe>'
+                       + '</div>';
             showQuickPopup('Etykieta Palety', html);
         } else {
             window.open(url, '_blank');
@@ -1834,26 +1836,6 @@
     window.drukujZPLDirect = function(paletaId, linia, planId) {
         if (!paletaId) return;
 
-        var payload = null;
-        var wantsDateChange = window.confirm('Czy chcesz zmienic date produkcji na etykiecie?\n\nJesli wybierzesz TAK, data zostanie zapisana tez na zleceniu Workowanie.');
-        if (wantsDateChange) {
-            var userInput = window.prompt('Podaj nowa date produkcji (RRRR-MM-DD):');
-            if (userInput === null) {
-                return;
-            }
-            var trimmed = String(userInput || '').trim();
-            var dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-            if (!dateRegex.test(trimmed)) {
-                if (typeof showToast === 'function') showToast('Nieprawidlowy format daty. Uzyj RRRR-MM-DD.', 'danger');
-                else alert('Nieprawidlowy format daty. Uzyj RRRR-MM-DD.');
-                return;
-            }
-            payload = { data_produkcji: trimmed };
-            if (planId) {
-                payload.plan_id = planId;
-            }
-        }
-
         if (typeof showToast === 'function') showToast('Wysyłanie do drukarki 237...', 'info');
         
         const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
@@ -1862,10 +1844,6 @@
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin'
         };
-        if (payload) {
-            fetchOptions.headers['Content-Type'] = 'application/json';
-            fetchOptions.body = JSON.stringify(payload);
-        }
 
         fetch(url, fetchOptions)
         .then(r => r.json())

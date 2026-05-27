@@ -161,6 +161,9 @@ def print_label():
 
     # Always return label URL so frontend can open it
     label_url = f"/agro/scanner/label/{surowiec_id}?linia={linia}&autoprint=1"
+    return jsonify({'success': ok, 'message': msg, 'label_url': label_url})
+
+
 @scanner_bp.route('/test-print', methods=['POST'])
 def test_print():
     """Wysyła demo etykietę do drukarki przez mostek (backend-to-backend)."""

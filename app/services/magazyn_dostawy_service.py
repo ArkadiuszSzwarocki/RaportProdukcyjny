@@ -1118,8 +1118,15 @@ class MagazynDostawyService:
                     INSERT INTO {table_wh} 
                     ({fk_col}, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, lokalizacja, user_login, nr_palety)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (pallet_id, pallet['plan_id'], pallet['data_planu'], pallet['produkt_nazwa'], 
-                      confirmed_netto, pallet['waga_brutto'], pallet['tara'], lokalizacja, login, pallet['nr_palety']))
+                """, (pallet_id, 
+                      pallet.get('plan_id'), 
+                      pallet.get('data_planu'), 
+                      pallet.get('produkt_nazwa') or pallet.get('produkt') or 'Wyrób Gotowy', 
+                      confirmed_netto, 
+                      float(pallet.get('waga_brutto') or 0), 
+                      float(pallet.get('tara') or 0), 
+                      lokalizacja, login, 
+                      pallet.get('nr_palety')))
 
             # 4. Log history
             cursor.execute("""

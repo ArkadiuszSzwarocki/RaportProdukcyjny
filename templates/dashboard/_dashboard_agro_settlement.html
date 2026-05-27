@@ -1,4 +1,4 @@
-{% if sekcja|string|trim|lower == 'workowanie' and linia|string|trim|upper == 'AGRO' %}
+{% if sekcja|string|trim|lower == 'workowanie' and linia|string|trim|upper == 'AGRO' and agro_focus_mode and workowanie_rozliczenie_ctx and workowanie_rozliczenie_ctx.is_active_plan %}
     {% if workowanie_rozliczenie_ctx %}
         {% set wrctx = workowanie_rozliczenie_ctx %}
         <div class="work-settlement-inline" style="margin-top: 24px;">
@@ -87,7 +87,7 @@
                             <select id="select_warehouse_packaging" class="form-control" style="width: 100%; border-radius: 8px; height: 38px; border: 1px solid #c2ebd0; font-size: 0.9em; background: #fff; padding: 0 10px;">
                                 <option value="">-- Wybierz materiał z magazynu --</option>
                                 {% for item in wrctx.all_warehouse_packaging %}
-                                    <option value="{{ item.id }}">
+                                    <option value="{{ item.id }}" data-nazwa="{{ item.nazwa|e }}" data-stan="{{ item.stan_magazynowy|int }}" data-lokalizacja="{{ item.lokalizacja|e if item.lokalizacja else '' }}">
                                         {{ item.nazwa }} (Stan: {{ item.stan_magazynowy|int }} szt/kg){% if item.lokalizacja %} - {{ item.lokalizacja }}{% endif %}
                                     </option>
                                 {% endfor %}

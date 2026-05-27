@@ -250,6 +250,7 @@ class DashboardService:
         """Fetch packaging usage context specifically for AGRO hall."""
         default_ctx = {
             'active_plan': None,
+            'is_active_plan': False,
             'packaging_items': [],
             'maszyna_opakowania': [],
             'inactive_opakowania': [],
@@ -263,6 +264,7 @@ class DashboardService:
         try:
             from app.services.agro_warehouse_service import AgroWarehouseService
             active_plan = AgroWarehouseService.get_active_workowanie_plan(linia='AGRO', target_date=dzisiaj)
+            is_active_plan = bool(active_plan)
             if not active_plan:
                 # If no active plan, try to fetch the last finished plan of the day
                 # to keep the settlement context visible for reports.
@@ -329,6 +331,7 @@ class DashboardService:
             
             return {
                 'active_plan': active_plan,
+                'is_active_plan': is_active_plan,
                 'packaging_items': packaging_items,
                 'maszyna_opakowania': maszyna_opakowania,
                 'inactive_opakowania': inactive_opakowania,

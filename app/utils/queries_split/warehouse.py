@@ -43,12 +43,12 @@ class WarehouseQueries:
         
         cursor.execute(
             f"SELECT m.id, m.plan_id, m.waga_netto AS waga, m.tara, m.waga_brutto, "
-            "pw.data_dodania AS data_dodania, "
+            "COALESCE(pw.data_dodania, m.data_potwierdzenia) AS data_dodania, "
             "m.produkt, COALESCE(p.typ_produkcji, '') AS typ_produkcji, 'przyjeta' AS status, NULL AS czas_potwierdzenia_s, "
-            "GREATEST(m.data_potwierdzenia, pw.data_dodania), m.user_login "
+            "COALESCE(m.data_potwierdzenia, pw.data_dodania, m.created_at), m.user_login "
             f"FROM {table_magazyn} m LEFT JOIN {table_plan} p ON m.plan_id = p.id "
             f"LEFT JOIN {table_palety} pw ON m.paleta_workowanie_id = pw.id "
-            f"WHERE DATE(GREATEST(m.data_potwierdzenia, pw.data_dodania)) = %s AND m.waga_netto > 0 "
+            f"WHERE DATE(COALESCE(m.data_potwierdzenia, pw.data_dodania, m.created_at)) = %s AND m.waga_netto > 0 "
             "UNION ALL "
             "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, COALESCE(pw.data_potwierdzenia, pw.data_dodania) AS data_dodania, "
             "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s, "
