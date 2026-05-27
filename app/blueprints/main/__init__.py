@@ -170,14 +170,25 @@ def index():
             'agro_mix_dostepne': agro_mix_dostepne,
         }
 
-        # --- AGRO Workowanie: focus mode + rozliczenie context ---
+        # --- focus mode + rozliczenie context ---
         agro_focus_mode = False
         workowanie_rozliczenie_ctx = None
         
         clean_sekcja = aktywna_sekcja.strip().lower()
         
-        if clean_sekcja == 'workowanie' and aktywna_linia == 'AGRO':
+        # Check if there is any active order ('w toku') in the current daily plan
+        has_active_order = False
+        plan_dnia = main_h_data.get('plan_dnia', [])
+        if plan_dnia:
+            for p in plan_dnia:
+                if len(p) > 3 and str(p[3]).strip().lower() == 'w toku':
+                    has_active_order = True
+                    break
+
+        if clean_sekcja in ['zasyp', 'workowanie'] and has_active_order:
             agro_focus_mode = True
+            
+        if clean_sekcja == 'workowanie' and aktywna_linia == 'AGRO':
             try:
                 from app.services.dashboard_service import DashboardService
                 workowanie_rozliczenie_ctx = DashboardService.get_agro_packaging_context(dzisiaj)
@@ -185,8 +196,6 @@ def index():
                 import traceback
                 app.logger.error(f"Error fetching agro packaging context: {str(e)}\n{traceback.format_exc()}")
                 workowanie_rozliczenie_ctx = None
-        elif clean_sekcja == 'zasyp' and aktywna_linia == 'AGRO' and main_h_data.get('zasyp_has_active'):
-            agro_focus_mode = True
 
         context['agro_focus_mode'] = agro_focus_mode
         context['workowanie_rozliczenie_ctx'] = workowanie_rozliczenie_ctx

@@ -105,8 +105,16 @@ def panel_planisty():
         bufor_source_date = bufor_context['bufor_source_date']
         bufor_source_date_fmt = bufor_context['bufor_source_date_fmt']
 
-        cursor.execute("SELECT MIN(id) AS id, nazwa FROM magazyn_opakowania GROUP BY nazwa ORDER BY nazwa")
-        opakowania = cursor.fetchall()
+        cursor.execute("SELECT id, nazwa FROM magazyn_opakowania ORDER BY nazwa")
+        raw_opakowania = cursor.fetchall()
+        seen_names = set()
+        opakowania = []
+        for o in raw_opakowania:
+            name_clean = str(o.get('nazwa') or o.get('NAZWA') or '').strip()
+            name_key = name_clean.lower()
+            if name_key and name_key not in seen_names:
+                seen_names.add(name_key)
+                opakowania.append({'id': o['id'], 'nazwa': name_clean})
         cursor.execute("SELECT id, nazwa FROM slownik_etykiety_agro ORDER BY id")
         etykiety = cursor.fetchall()
 
