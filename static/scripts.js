@@ -345,7 +345,8 @@
             const linia = getCurrentSection() || 'PSD';
             const resp = await fetch(`/api/system_state?linia=${encodeURIComponent(linia)}`, { 
                 credentials: 'same-origin',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                silent: true
             });
             if (resp.status === 401) {
                 console.warn('[SmartPolling] Session expired (401), stopping.');
@@ -579,7 +580,7 @@
                 }
             }
 
-            const resp = await fetch(window.location.href, { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+            const resp = await fetch(window.location.href, { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' }, silent: true });
             if (!resp.ok) return;
             const txt = await resp.text();
             const tmp = document.createElement('div'); tmp.innerHTML = txt;
@@ -813,15 +814,28 @@
     // Override global fetch to show spinner for long requests
     if (window.fetch) {
         const _origFetch = window.fetch.bind(window);
+        // Expose original fetch for explicit background tasks
+        window._origFetch = _origFetch;
+        
         window.fetch = function () {
-            try { startGlobalSpinnerWatcher(); } catch (e) { }
+            const args = Array.prototype.slice.call(arguments);
+            const opts = args[1] || {};
+            const isSilent = opts.silent === true;
+            
+            if (!isSilent) {
+                try { startGlobalSpinnerWatcher(); } catch (e) { }
+            }
+            
             const p = _origFetch.apply(this, arguments);
-            try { 
-                Promise.resolve(p)
-                    .finally(() => endGlobalSpinnerWatcher())
-                    .catch(() => { /* handled by the caller */ }); 
-            } catch (e) { 
-                endGlobalSpinnerWatcher(); 
+            
+            if (!isSilent) {
+                try { 
+                    Promise.resolve(p)
+                        .finally(() => endGlobalSpinnerWatcher())
+                        .catch(() => { /* handled by the caller */ }); 
+                } catch (e) { 
+                    endGlobalSpinnerWatcher(); 
+                }
             }
             return p;
         };

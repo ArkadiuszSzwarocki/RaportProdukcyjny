@@ -252,7 +252,7 @@ body.sidebar-open {
 }
 
 /* Show sidebar when body has sidebar-open class on mobile */
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
     body.sidebar-open .sidebar {
         transform: translateX(0);
     }
@@ -337,7 +337,7 @@ body.sidebar-open {
 .hall-switcher .switcher-btn.active[title*="AGRO"] { background: var(--success-color); }
 .hall-switcher .switcher-btn.active[title*="Wszystkie"] { background: var(--primary-color); }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
     .hamburger-btn {
         display: flex;
         align-items: center;
@@ -520,12 +520,11 @@ body.sidebar-open {
     display: flex;
     align-items: center;
     gap: 12px;
-    /* shift to the right to sit next to sidebar */
     margin-left: 220px;
     transition: margin-left 0.28s ease;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
     .top-submenu-inner {
         margin-left: 0;
         flex-wrap: wrap;
@@ -614,10 +613,11 @@ body.sidebar-open {
     color: white;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
     .top-submenu-inner {
         overflow-x: auto;
         padding: 6px 0;
+        margin-left: 0;
     }
 
     .top-menu-item {
@@ -804,7 +804,7 @@ body.sidebar-open {
     color: #ff4d4f;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
     .mobile-logout-inline {
         display: inline-flex !important;
         visibility: visible;
@@ -2240,7 +2240,7 @@ button[type="submit"]:hover {
 /* ═══════════════════════════════════════════════════════════ */
 .cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 16px;
     padding: 16px;
     box-sizing: border-box;
@@ -2545,6 +2545,17 @@ button[type="submit"]:hover {
     }
 }
 
+/* Responsywność dla tabletów / średnich ekranów */
+@media (max-width: 768px) {
+    .responsive-flex-cols {
+        flex-direction: column !important;
+    }
+    .responsive-flex-cols > * {
+        width: 100% !important;
+        flex: 1 1 auto !important;
+    }
+}
+
 /* Responsywność dla mobile */
 @media (max-width: 640px) {
     .cards {
@@ -2595,18 +2606,18 @@ button[type="submit"]:hover {
 
     .card-actions {
         padding: 8px;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 2px;
+        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+        gap: 6px;
     }
 
     .card-actions .btn-start,
     .card-actions .btn-action {
-        padding: 6px 4px;
-        font-size: 0.72em;
-        min-height: 30px;
-        line-height: 1.1;
+        padding: 6px 8px;
+        font-size: 0.8em;
+        min-height: 36px;
+        line-height: 1.2;
         white-space: nowrap;
-        overflow: visible;
+        overflow: hidden;
         text-overflow: ellipsis;
     }
 
@@ -4656,7 +4667,7 @@ button[type="submit"]:hover {
         display: block;
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 1200px) {
         .grid-2-1 {
             grid-template-columns: 1fr;
         }
@@ -5990,7 +6001,7 @@ body.theme-agro .sidebar .nav-item.active {
 }
 
 /* 🦓 ZEBRA MC330x DENSITY OVERRIDES */
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
     /* Hide industrial scrollbars */
     *::-webkit-scrollbar { display: none !important; }
     * { -ms-overflow-style: none !important; scrollbar-width: none !important; }
@@ -6153,7 +6164,7 @@ body.theme-agro .sidebar .nav-item.active {
 /* ============================================================
    ZEBRA MC330x / MOBILE OPTIMIZATIONS (Aggressive Overrides)
    ============================================================ */
-@media screen and (max-width: 900px) {
+@media screen and (max-width: 1200px) {
     /* Hard-reset top bar for maximum space */
     .top-bar {
         height: 44px !important;
@@ -6294,7 +6305,7 @@ body.theme-agro .sidebar .nav-item.active {
 }
 
 /* Responsive adjustments for top-bar-right on mobile/handheld screens */
-@media screen and (max-width: 900px) {
+@media screen and (max-width: 1200px) {
     .top-bar-right {
         gap: 4px !important; /* Even smaller gap to prevent crowding on small screens */
         padding-right: 8px !important; /* Shifted even further to the left */
@@ -6311,7 +6322,7 @@ body.theme-agro .sidebar .nav-item.active {
 }
 
 /* DESKTOP INDEPENDENT SIDEBAR SCROLL LAYOUT */
-@media (min-width: 901px) {
+@media (min-width: 1201px) {
     .hamburger-btn {
         display: flex !important;
         align-items: center;
@@ -6542,9 +6553,9 @@ body.theme-agro .sidebar .nav-item.active {
 }
 
 /* ============================================================
-   RESPONSIVE LAYOUT UPGRADES FOR SMALL & MEDIUM SCREENS (<= 900px)
+   RESPONSIVE LAYOUT UPGRADES FOR SMALL & MEDIUM SCREENS (<= 1200px)
    ============================================================ */
-@media screen and (max-width: 900px) {
+@media screen and (max-width: 1200px) {
     /* 1. Lift section header and clear excessive spacing */
     .top-bar {
         position: fixed !important;
@@ -6564,6 +6575,7 @@ body.theme-agro .sidebar .nav-item.active {
         display: flex !important;
         flex-direction: column !important;
         align-items: stretch !important;
+        margin-left: 0 !important; /* Zero margin on mobile/tablet viewports */
     }
 
     .sidebar {

@@ -49,7 +49,7 @@
     (function() {
         try {
             // Restore desktop collapsed state immediately to avoid jump
-            if (window.innerWidth > 900 && localStorage.getItem('sidebar_collapsed_desktop') === '1') {
+            if (window.innerWidth > 1200 && localStorage.getItem('sidebar_collapsed_desktop') === '1') {
                 document.body.classList.add('sidebar-collapsed');
             }
             var saved = localStorage.getItem('sidebar_submenus_state');

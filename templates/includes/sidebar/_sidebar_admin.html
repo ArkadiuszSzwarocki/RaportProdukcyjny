@@ -142,7 +142,7 @@
         {% endif %}
         
         {% if master_access or role_has_access('raporty.performance') %}
-        <a href="{{ url_for('main.performance') }}" class="nav-sub-item {% if request.endpoint == 'main.performance' %}active{% endif %}">Wydajność (KPI)</a>
+        <a href="{{ url_for('panels.panel_performance_page') }}" class="nav-sub-item {% if request.endpoint == 'panels.panel_performance_page' %}active{% endif %}">Wydajność (KPI)</a>
         {% endif %}
         
         {% if master_access or role_has_access('baza_danych') %}

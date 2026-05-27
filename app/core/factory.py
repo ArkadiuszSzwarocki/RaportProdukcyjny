@@ -9,31 +9,31 @@ from app.config import SECRET_KEY
 from app.core.contexts import register_contexts
 from app.core.daemon import start_daemon_threads
 from app.core.error_handlers import setup_logging, register_error_handlers
-from app.blueprints.routes_admin import admin_bp
-from app.blueprints.routes_api import api_bp
-from app.blueprints.routes_planista import planista_bp
-from app.blueprints.routes_auth import auth_bp
-from app.blueprints.routes_quality import quality_bp
-from app.blueprints.routes_shifts import shifts_bp
-from app.blueprints.routes_panels import panels_bp
-from app.blueprints.routes_production import production_bp
-from app.blueprints.routes_warehouse import warehouse_bp
-from app.blueprints.routes_planning import planning_bp
-from app.blueprints.routes_journal import journal_bp
-from app.blueprints.routes_leaves import leaves_bp
-from app.blueprints.routes_overtime import overtime_bp
-from app.blueprints.routes_schedule import schedule_bp
-from app.blueprints.routes_recovery import recovery_bp
-from app.blueprints.routes_zarzad import zarzad_bp
-from app.blueprints.routes_compat import compat_bp
-from app.blueprints.routes_main import main_bp
-from app.blueprints.routes_struktura import struktura_bp
-from app.blueprints.routes_agro_warehouse import agro_warehouse_bp
-from app.blueprints.routes_mom import mom_bp
-from app.blueprints.routes_magazyny_nowe import magazyny_nowe_bp
-from app.blueprints.routes_scanner import scanner_bp
-from app.blueprints.routes_magazyn_dostawy import magazyn_dostawy_bp
-from app.blueprints.routes_inwentaryzacja import inwentaryzacja_bp
+from app.blueprints.admin import admin_bp
+from app.blueprints.api import api_bp
+from app.blueprints.planista import planista_bp
+from app.blueprints.auth import auth_bp
+from app.blueprints.quality import quality_bp
+from app.blueprints.shifts import shifts_bp
+from app.blueprints.panels import panels_bp
+from app.blueprints.production import production_bp
+from app.blueprints.warehouse import warehouse_bp
+from app.blueprints.planning import planning_bp
+from app.blueprints.journal import journal_bp
+from app.blueprints.leaves import leaves_bp
+from app.blueprints.overtime import overtime_bp
+from app.blueprints.schedule import schedule_bp
+from app.blueprints.recovery import recovery_bp
+from app.blueprints.zarzad import zarzad_bp
+from app.blueprints.compat import compat_bp
+from app.blueprints.main import main_bp
+from app.blueprints.struktura import struktura_bp
+from app.blueprints.agro_warehouse import agro_warehouse_bp
+from app.blueprints.mom import mom_bp
+from app.blueprints.magazyny_nowe import magazyny_nowe_bp
+from app.blueprints.scanner import scanner_bp
+from app.blueprints.magazyn_dostawy import magazyn_dostawy_bp
+from app.blueprints.inwentaryzacja import inwentaryzacja_bp
 from app import db
 from app.core.middleware import register_middleware
 
@@ -49,9 +49,10 @@ def create_app(config_secret_key=None, init_db=True):
         Configured Flask application instance
     """
     # Create Flask app with explicit template folder path (absolute path from project root)
-    template_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'templates')
-    static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'static')
-    app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    template_folder = os.path.join(project_root, 'templates')
+    static_folder = os.path.join(project_root, 'static')
+    app = Flask(__name__, root_path=project_root, template_folder=template_folder, static_folder=static_folder)
     
     # Log template folder and available templates to help diagnose TemplateNotFound
     app.logger.debug('Flask template_folder=%s', template_folder)

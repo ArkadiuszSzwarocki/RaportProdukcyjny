@@ -936,25 +936,64 @@ class AgroWarehouseService:
             conn.close()
 
     @staticmethod
-    def link_packaging_to_plan(opakowanie_id, plan_id):
-        """Manually link a packaging item to a production plan (confirmed by operator)."""
+    def link_packaging_to_plan(opakowanie_id, plan_id, ilosc_pobrana=None, user_login=None):
+        """Manually link a packaging item to a production plan (confirmed by operator).
+        Jeśli podano ilosc_pobrana mniejszą niż aktualny stan_magazynowy, rekord zostanie podzielony.
+        """
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             # 1. Get current state
-            cursor.execute("SELECT stan_magazynowy FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
+            cursor.execute("SELECT nazwa, stan_magazynowy, lokalizacja FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
             row = cursor.fetchone()
             if not row: return False, "Opakowanie nie istnieje"
-            stan_poczatkowy = row['stan_magazynowy']
+            stan_poczatkowy = float(row['stan_magazynowy'])
+            nazwa = row['nazwa']
+            lokalizacja = row['lokalizacja']
             
-            # 2. Check if already linked and active
-            cursor.execute("SELECT id FROM agro_plan_opakowania WHERE plan_id = %s AND opakowanie_id = %s AND is_active = TRUE", (plan_id, opakowanie_id))
-            if cursor.fetchone(): return True, "Już podpięte"
+            # Oblicz pobraną ilość (jeśli podano ułamek, to traktujemy jako część)
+            ilosc_docelowa = stan_poczatkowy
+            if ilosc_pobrana is not None:
+                try:
+                    ilosc_docelowa = float(ilosc_pobrana)
+                except:
+                    pass
+                    
+            target_opakowanie_id = opakowanie_id
+
+            if 0 < ilosc_docelowa < stan_poczatkowy:
+                # Rozdzielenie partii (utworzenie nowego rekordu dla maszyny, zostawienie reszty na starym)
+                stan_pozostaly = stan_poczatkowy - ilosc_docelowa
+                # Aktualizacja starego rekordu
+                cursor.execute("UPDATE magazyn_opakowania SET stan_magazynowy = %s WHERE id = %s", (stan_pozostaly, opakowanie_id))
+                # Utworzenie nowego rekordu
+                cursor.execute(
+                    "INSERT INTO magazyn_opakowania (nazwa, stan_magazynowy, lokalizacja) VALUES (%s, %s, %s)",
+                    (nazwa, ilosc_docelowa, lokalizacja)
+                )
+                target_opakowanie_id = cursor.lastrowid
+                
+                # Zapis historii o podziale (opcjonalnie, do wglądu)
+                table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+                try:
+                    cursor.execute(
+                        f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
+                        "VALUES (%s, 'WYDANIE_PROD', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                        (opakowanie_id, -ilosc_docelowa, stan_pozostaly, user_login or 'System', f"Podział partii opakowania na plan #{plan_id}")
+                    )
+                except Exception as ex:
+                    print(f"Error logging partial move: {ex}")
+                
+                stan_poczatkowy = ilosc_docelowa
+            else:
+                # Brak podziału - sprawdzamy czy już podpięte (aby uniknąć duplikatów przy pełnym podpięciu)
+                cursor.execute("SELECT id FROM agro_plan_opakowania WHERE plan_id = %s AND opakowanie_id = %s AND is_active = TRUE", (plan_id, target_opakowanie_id))
+                if cursor.fetchone(): return True, "Już podpięte"
             
             # 3. Link
             cursor.execute(
                 "INSERT INTO agro_plan_opakowania (plan_id, opakowanie_id, stan_poczatkowy, is_active) VALUES (%s, %s, %s, TRUE)",
-                (plan_id, opakowanie_id, stan_poczatkowy)
+                (plan_id, target_opakowanie_id, stan_poczatkowy)
             )
             conn.commit()
             return True, None

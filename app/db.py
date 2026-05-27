@@ -1363,6 +1363,7 @@ def _seed_etykiety(cursor):
     default_labels = [
         "Biała",
         "Biała z paskiem brązowym",
+        "Biała z paskiem czerwonym",
         "Biała z paskiem fioletowym",
         "Biała z paskiem żółtym"
     ]

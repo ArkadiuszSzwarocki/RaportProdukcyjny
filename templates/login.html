@@ -41,34 +41,6 @@
             flex-wrap: wrap;
         }
 
-        .printer-server-box {
-            margin-top: 8px;
-            text-align: center;
-        }
-
-        .btn-printer-start {
-            display: inline-block;
-            margin: 0;
-            padding: 8px 16px;
-            border: 1px solid #16a34a;
-            border-radius: 6px;
-            background: #16a34a;
-            color: #fff;
-            font-size: 13px;
-            cursor: pointer;
-        }
-
-        .btn-printer-start:disabled {
-            opacity: 0.65;
-            cursor: not-allowed;
-        }
-
-        .printer-server-status {
-            min-height: 18px;
-            margin-top: 8px;
-            font-size: 12px;
-            color: #475569;
-        }
 
         /* Premium Loading Overlay inside login-card */
         .login-card {
@@ -211,13 +183,8 @@
         </div>
         <div class="login-actions">
             <button type="submit" class="btn-login">{{ _('wejdz') }}</button>
-            <button type="button" id="btn-start-printer-server" class="btn-printer-start">🖨 Wlacz serwer druku</button>
         </div>
     </form>
-
-    <div class="printer-server-box">
-        <div id="printer-server-status" class="printer-server-status"></div>
-    </div>
 
     </div>
     </div>
@@ -234,104 +201,11 @@ function changeLanguage(lang) {
     window.location.href = window.location.pathname + "?lang=" + lang;
 }
 
-function parseJsonResponse(response) {
-    return response.text().then(function(text) {
-        try {
-            return {
-                ok: response.ok,
-                status: response.status,
-                data: text ? JSON.parse(text) : {}
-            };
-        } catch (error) {
-            return {
-                ok: false,
-                status: response.status,
-                data: { success: false, message: 'Nieprawidlowa odpowiedz serwera.' }
-            };
-        }
-    });
-}
-
-function setPrinterStatus(message, isError) {
-    const statusEl = document.getElementById('printer-server-status');
-    if (!statusEl) {
-        return;
-    }
-    statusEl.textContent = message || '';
-    statusEl.style.color = isError ? '#b91c1c' : '#166534';
-}
-
-function refreshPrinterServerStatus() {
-    fetch('/api/printer-server/status', {
-        method: 'GET',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-        .then(parseJsonResponse)
-        .then(function(result) {
-            const payload = result.data || {};
-            if (!result.ok || payload.success === false) {
-                setPrinterStatus(payload.message || 'Nie mozna sprawdzic statusu serwera druku.', true);
-                return;
-            }
-
-            setPrinterStatus(payload.message || (payload.running ? 'Serwer druku dziala.' : 'Serwer druku jest wylaczony.'), false);
-        })
-        .catch(function(error) {
-            setPrinterStatus('Blad sprawdzania statusu: ' + error.message, true);
-        });
-}
-
-function startPrinterServerFromLogin() {
-    const button = document.getElementById('btn-start-printer-server');
-    if (!button) {
-        return;
-    }
-
-    if (typeof window.prompt !== 'function') {
-        setPrinterStatus('Ta przegladarka nie obsluguje okna PIN (prompt).', true);
-        return;
-    }
-
-    const pin = window.prompt('Podaj PIN, aby uruchomic serwer druku:');
-    if (pin === null) {
-        return;
-    }
-
-    button.disabled = true;
-    setPrinterStatus('Uruchamianie serwera druku...', false);
-
-    fetch('/api/printer-server/start', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({ pin: pin.trim() })
-    })
-        .then(parseJsonResponse)
-        .then(function(result) {
-            const payload = result.data || {};
-            if (result.ok && payload.success) {
-                setPrinterStatus(payload.message || 'Serwer druku uruchomiony.', false);
-                setTimeout(refreshPrinterServerStatus, 800);
-                return;
-            }
-            setPrinterStatus(payload.message || 'Nie udalo sie uruchomic serwera druku.', true);
-        })
-        .catch(function(error) {
-            setPrinterStatus('Blad polaczenia: ' + error.message, true);
-        })
-        .finally(function() {
-            button.disabled = false;
-        });
-}
+// Usunięto logikę serwera druku na ekranie logowania
 
 // Ustawiamy selektor na domyślny się wybrany język z cookie oraz dodajemy animację logowania
 window.addEventListener('DOMContentLoaded', function() {
     const langSelector = document.getElementById('language-selector');
-    const startPrinterServerButton = document.getElementById('btn-start-printer-server');
     const loginInput = document.getElementById('login');
     const passwordInput = document.getElementById('haslo');
 
@@ -351,10 +225,6 @@ window.addEventListener('DOMContentLoaded', function() {
         const currentLang = langParam || (langCookie ? langCookie.split('=')[1] : 'pl');
         
         langSelector.value = currentLang;
-    }
-
-    if (startPrinterServerButton) {
-        startPrinterServerButton.addEventListener('click', startPrinterServerFromLogin);
     }
 
     // Obsługa efektownej animacji logowania po kliknięciu "Wejdź"
@@ -377,7 +247,6 @@ window.addEventListener('DOMContentLoaded', function() {
             // Zablokuj przyciski przed podwójnym kliknięciem
             const submitBtn = loginForm.querySelector('button[type="submit"]');
             if (submitBtn) submitBtn.disabled = true;
-            if (startPrinterServerButton) startPrinterServerButton.disabled = true;
             
             // Prześlij formularz po krótkim opóźnieniu (dla pełnego efektu animacji)
             setTimeout(function() {
@@ -385,8 +254,6 @@ window.addEventListener('DOMContentLoaded', function() {
             }, 750);
         });
     }
-
-    refreshPrinterServerStatus();
 });
 </script>
 </body>

@@ -3,7 +3,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.db import get_db_connection
-from app.blueprints.routes_planista_panel_data import load_primary_plan_rows, build_panel_summary_context, load_agro_plan_rows
+from app.blueprints.planista.panel_data import load_primary_plan_rows, build_panel_summary_context, load_agro_plan_rows
 
 def test():
     conn = get_db_connection()

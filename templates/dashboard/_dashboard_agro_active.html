@@ -86,8 +86,8 @@
                     title="Wydajność produkcyjna (kliknij aby zobaczyć wzór i dane)">
                     Wydajność produkcyjna: {{ (fb_kstats.timeline|round(1)) if fb_kstats.timeline else '-' }} kg/h
                 </span>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
     </div>
 {% endif %}

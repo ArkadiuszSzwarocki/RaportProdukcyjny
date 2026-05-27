@@ -16,9 +16,12 @@
             {% if szarza_id <= 0 %}{% set szarza_id = loop_idx %}{% endif %}
             <div class="active-order-szarze-item">
                 <div class="active-order-szarze-line">
-                    <div class="active-order-szarze-left">
+                    <div class="active-order-szarze-left" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
                         <span>#{{ loop_idx }} • {{ pal[1] }}</span>
-                        <strong class="text-primary">{{ pal[0]|int }} kg</strong>
+                        {% if pal|length>4 and pal[4] %}
+                        <span class="status-badge status-{{ pal[4]|replace(' ', '') }}" style="font-size:0.7em; margin-inline:2px;">{{ pal[4]|upper }}</span>
+                        {% endif %}
+                        <strong class="text-primary" style="white-space: nowrap;">{{ pal[0]|int }} kg</strong>
                         {% if pal|length > 5 %}
                         <span class="badge-info" style="font-size:0.75em;" title="Autor">👤 {{ pal[5] or '-' }}</span>
                         {% endif %}
@@ -49,26 +52,23 @@
                                title="Usuń zasyp">Usuń</a>
                             {% endif %}
                             {% elif sekcja == 'Workowanie' %}
-                            <div style="display:flex; gap:4px; align-items:center;">
+                            <div style="display:flex; gap:4px; align-items:center; flex-wrap: wrap;">
                                 {% if pal|length>2 and pal[2] > 0 %}
                                      <a href="{{ url_for('warehouse.edytuj_palete_page', paleta_id=pal[2], linia=linia) }}"
-                                        class="btn-action btn-sm"
+                                         class="btn-action btn-sm"
+                                         data-slide
+                                         title="Edytuj wagę palety" style="font-size: 0.65rem; padding: 0 6px;">EDYTUJ</a>
+                                     <button onclick="drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}')" 
+                                             class="btn-action btn-purple btn-sm"
+                                             title="Drukuj ponownie etykiety ZPL" style="font-size: 0.65rem; padding: 0 6px;">DRUKUJ</button>
+                                     {% if rola in ['lider', 'admin', 'masteradmin'] %}
+                                     <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia) }}"
+                                        class="btn-action btn-danger btn-sm"
                                         data-slide
-                                        title="Edytuj wagę palety">EDYTUJ</a>
-                                    <button onclick="drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}')" 
-                                            class="btn-action btn-purple btn-sm"
-                                            title="Drukuj ponownie etykiety ZPL">DRUKUJ (ZPL)</button>
-                                    {% if rola in ['lider', 'admin', 'masteradmin'] %}
-                                    <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia) }}"
-                                       class="btn-action btn-danger btn-sm"
-                                       data-slide
-                                       title="Usuń paletę">USUŃ</a>
-                                    {% endif %}
-                                {% endif %}
-                                {% if pal|length>4 and pal[4] %}
-                                <span class="status-badge status-{{ pal[4]|replace(' ', '') }}" style="font-size:0.7em;">{{ pal[4]|upper }}</span>
-                                {% endif %}
-                            </div>
+                                        title="Usuń paletę" style="font-size: 0.65rem; padding: 0 6px;">USUŃ</a>
+                                     {% endif %}
+                                 {% endif %}
+                             </div>
                             {% endif %}
                         {% endif %}
                     </div>

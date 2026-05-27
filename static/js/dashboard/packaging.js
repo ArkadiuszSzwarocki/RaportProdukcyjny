@@ -4,11 +4,23 @@
  */
 
 function linkPackaging(opakId, planId) {
+    const qtyInput = prompt('Podaj ilość do pobrania na maszynę (np. 700). Zostaw puste, aby pobrać całą paletę/paczkę:');
+    if (qtyInput === null) return; // User cancelled
+    
+    let iloscPobrana = null;
+    if (qtyInput.trim() !== '') {
+        iloscPobrana = parseFloat(qtyInput.replace(',', '.'));
+        if (isNaN(iloscPobrana) || iloscPobrana <= 0) {
+            alert('Wprowadzono nieprawidłową ilość.');
+            return;
+        }
+    }
+    
     if(!confirm('Czy na pewno podpiąć to opakowanie pod aktualne zlecenie?')) return;
     fetch('/agro/api/opakowania/link', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ opakowanie_id: opakId, plan_id: planId })
+        body: JSON.stringify({ opakowanie_id: opakId, plan_id: planId, ilosc_pobrana: iloscPobrana })
     }).then(r => r.json()).then(res => {
         if(res.success) location.reload();
         else alert('Błąd: ' + (res.error || 'Nieznany'));

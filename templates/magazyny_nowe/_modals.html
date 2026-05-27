@@ -53,14 +53,12 @@
                     <select id="printerSelect" class="form-control" style="flex: 1;">
                         <option value="">-- Wybierz drukarkę --</option>
                         {% for printer in printers %}
-                            <option value="{{ printer.id }}">{{ printer.nazwa }} ({{ printer.lokalizacja or printer.ip }})</option>
+                            <option value="db:{{ printer.id }}">{{ printer.nazwa }} ({{ printer.lokalizacja or printer.ip }})</option>
                         {% endfor %}
                     </select>
                     <button onclick="printCurrentPallet()" class="btn-action btn-green" style="white-space: nowrap;">DRUKUJ</button>
                 </div>
-                {% if not printers %}
-                <div style="font-size: 11px; color: #991b1b; margin-top: 5px;">Brak dodanych drukarek w ustawieniach!</div>
-                {% endif %}
+                <div id="printerSelectionWarning" style="font-size: 11px; color: #991b1b; margin-top: 5px; display: {% if printers %}none{% else %}block{% endif %};">Brak dodanych drukarek w ustawieniach!</div>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 8px;">

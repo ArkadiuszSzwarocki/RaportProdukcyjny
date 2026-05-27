@@ -1,0 +1,13 @@
+from .attendance_admin import register_api_attendance_admin_routes
+from .plan_ops import register_api_plan_ops_routes
+from .plan_validation import register_api_plan_validation_routes
+from .products import register_api_product_routes
+from .runtime import register_api_runtime_routes
+from flask import Blueprint
+
+api_bp = Blueprint('api', __name__)
+register_api_runtime_routes(api_bp)
+register_api_product_routes(api_bp)
+register_api_attendance_admin_routes(api_bp)
+register_api_plan_validation_routes(api_bp)
+register_api_plan_ops_routes(api_bp)

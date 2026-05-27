@@ -51,6 +51,20 @@ def wyslij_do_drukarki(zpl, ip, port=9100, timeout=5.0):
 def status():
     return jsonify({"success": True, "message": "Serwer druku (Python) działa poprawnie."})
 
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    import signal
+    logger.info("Otrzymano polecenie wyłączenia serwera druku.")
+    try:
+        os.kill(os.getpid(), signal.SIGINT)
+    except Exception as e:
+        logger.error(f"Błąd podczas wyłączania: {e}")
+        try:
+            os.kill(os.getpid(), signal.SIGTERM)
+        except Exception:
+            import sys
+            sys.exit(0)
+    return jsonify({"success": True, "message": "Serwer druku wyłączany."})
 
 @app.route('/printers', methods=['GET'])
 def printers():

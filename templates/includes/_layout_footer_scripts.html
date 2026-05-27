@@ -286,7 +286,8 @@
             try {
                 const r = await fetch('/api/notifications?limit=20', {
                     credentials: 'same-origin',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    silent: true
                 });
                 if (r.status === 401) {
                     // Session expired — stop polling and redirect to login immediately
@@ -575,7 +576,8 @@
         function checkSystemState() {
             fetch('/api/system_state?linia=' + linia, {
                 credentials: 'same-origin',
-                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                silent: true
             })
             .then(response => {
                 if (response.status === 401) {
@@ -621,4 +623,219 @@
         // Initial check after a brief delay
         setTimeout(checkSystemState, 1000);
     })();
+
+    // -------------------------------------------------------
+    // PRINTER SERVER TOGGLE LOGIC (with PIN modal)
+    // -------------------------------------------------------
+    let isPrinterServerRunning = false;
+    let isPrinterServerToggling = false;
+
+    function updatePrinterServerIcon(running) {
+        isPrinterServerRunning = running;
+        const iconBtn = document.getElementById('navbarPrinterServerToggle');
+        if (!iconBtn) return;
+        
+        if (running) {
+            iconBtn.style.color = '#16a34a'; // Green
+            iconBtn.title = 'Serwer druku działa (Kliknij, aby wyłączyć)';
+        } else {
+            iconBtn.style.color = '#dc2626'; // Red
+            iconBtn.title = 'Serwer druku wyłączony (Kliknij, aby włączyć)';
+        }
+    }
+
+    function checkPrinterServerStatus() {
+        if (isPrinterServerToggling) return;
+        fetch('/api/printer-server/status', {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            silent: true
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.success !== false) {
+                updatePrinterServerIcon(!!data.running);
+            }
+        })
+        .catch(() => {});
+    }
+
+    // Build & inject the PIN modal once
+    function ensurePrinterPinModal() {
+        if (document.getElementById('printerPinModal')) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'printerPinModal';
+        overlay.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:99999;align-items:center;justify-content:center;';
+
+        overlay.innerHTML = `
+            <div id="printerPinCard" style="background:#fff;border-radius:16px;padding:32px 28px 24px;width:340px;max-width:92vw;box-shadow:0 25px 50px rgba(0,0,0,0.25);position:relative;animation:printerModalIn 0.25s ease-out;">
+                <button type="button" onclick="closePrinterPinModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8;line-height:1;" title="Zamknij">&times;</button>
+                <div style="text-align:center;margin-bottom:20px;">
+                    <span class="material-icons" id="printerModalIcon" style="font-size:48px;color:#64748b;">print</span>
+                    <h3 id="printerModalTitle" style="margin:10px 0 4px;font-size:18px;font-weight:700;color:#0f172a;">Serwer Druku</h3>
+                    <p id="printerModalDesc" style="font-size:13px;color:#64748b;margin:0;">Podaj PIN, aby przełączyć serwer druku</p>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label for="printerPinInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">PIN</label>
+                    <input type="password" id="printerPinInput" maxlength="10" placeholder="••••" autocomplete="off" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:12px 14px;border:2px solid #e2e8f0;border-radius:10px;font-size:18px;text-align:center;letter-spacing:8px;font-weight:700;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                </div>
+                <div id="printerPinError" style="display:none;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#dc2626;font-size:12px;font-weight:600;margin-bottom:12px;text-align:center;"></div>
+                <button type="button" id="printerPinSubmitBtn" onclick="submitPrinterPin()" style="width:100%;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;background:#3b82f6;color:#fff;">
+                    Potwierdź
+                </button>
+                <div id="printerPinStatus" style="text-align:center;margin-top:12px;font-size:12px;color:#64748b;"></div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        // Close on backdrop click
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) closePrinterPinModal();
+        });
+
+        // Add animation keyframes
+        if (!document.getElementById('printerModalStyles')) {
+            const style = document.createElement('style');
+            style.id = 'printerModalStyles';
+            style.textContent = `
+                @keyframes printerModalIn {
+                    from { opacity: 0; transform: scale(0.92) translateY(10px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+
+    window.togglePrinterServerGlobal = function() {
+        ensurePrinterPinModal();
+
+        const modal = document.getElementById('printerPinModal');
+        const icon = document.getElementById('printerModalIcon');
+        const title = document.getElementById('printerModalTitle');
+        const desc = document.getElementById('printerModalDesc');
+        const submitBtn = document.getElementById('printerPinSubmitBtn');
+        const pinInput = document.getElementById('printerPinInput');
+        const errorEl = document.getElementById('printerPinError');
+        const statusEl = document.getElementById('printerPinStatus');
+
+        // Configure modal based on current state
+        if (isPrinterServerRunning) {
+            icon.style.color = '#16a34a';
+            title.textContent = 'Wyłącz Serwer Druku';
+            desc.textContent = 'Serwer druku jest aktywny. Podaj PIN, aby go wyłączyć.';
+            submitBtn.style.background = '#dc2626';
+            submitBtn.textContent = '🔴 Wyłącz serwer druku';
+        } else {
+            icon.style.color = '#dc2626';
+            title.textContent = 'Włącz Serwer Druku';
+            desc.textContent = 'Serwer druku jest wyłączony. Podaj PIN, aby go uruchomić.';
+            submitBtn.style.background = '#16a34a';
+            submitBtn.textContent = '🟢 Włącz serwer druku';
+        }
+
+        // Reset state
+        pinInput.value = '';
+        errorEl.style.display = 'none';
+        statusEl.textContent = '';
+        submitBtn.disabled = false;
+
+        modal.style.display = 'flex';
+        setTimeout(() => pinInput.focus(), 150);
+    };
+
+    window.closePrinterPinModal = function() {
+        const modal = document.getElementById('printerPinModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.submitPrinterPin = function() {
+        const pinInput = document.getElementById('printerPinInput');
+        const errorEl = document.getElementById('printerPinError');
+        const statusEl = document.getElementById('printerPinStatus');
+        const submitBtn = document.getElementById('printerPinSubmitBtn');
+        const iconBtn = document.getElementById('navbarPrinterServerToggle');
+
+        const pin = (pinInput.value || '').trim();
+        if (!pin) {
+            errorEl.textContent = 'Podaj PIN.';
+            errorEl.style.display = 'block';
+            pinInput.focus();
+            return;
+        }
+
+        errorEl.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Trwa przełączanie...';
+        statusEl.textContent = '';
+
+        if (iconBtn) {
+            iconBtn.style.color = '#eab308'; // Yellow
+            iconBtn.title = 'Trwa przełączanie...';
+        }
+
+        isPrinterServerToggling = true;
+        const endpoint = isPrinterServerRunning ? '/api/printer-server/stop' : '/api/printer-server/start';
+
+        fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ pin: pin })
+        })
+        .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+        .then(result => {
+            if (result.ok && result.data && result.data.success) {
+                statusEl.style.color = '#16a34a';
+                statusEl.textContent = result.data.message || 'Gotowe!';
+                if (typeof showToast === 'function') {
+                    showToast(result.data.message, 'success');
+                }
+                setTimeout(() => {
+                    closePrinterPinModal();
+                    checkPrinterServerStatus();
+                }, 1200);
+            } else {
+                const msg = (result.data && result.data.message) || 'Nieprawidłowy PIN lub błąd serwera.';
+                errorEl.textContent = msg;
+                errorEl.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = isPrinterServerRunning ? '🔴 Wyłącz serwer druku' : '🟢 Włącz serwer druku';
+                // Restore icon color
+                if (iconBtn) updatePrinterServerIcon(isPrinterServerRunning);
+                pinInput.value = '';
+                pinInput.focus();
+            }
+        })
+        .catch(err => {
+            errorEl.textContent = 'Błąd komunikacji z serwerem.';
+            errorEl.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.textContent = isPrinterServerRunning ? '🔴 Wyłącz serwer druku' : '🟢 Włącz serwer druku';
+            if (iconBtn) updatePrinterServerIcon(isPrinterServerRunning);
+        })
+        .finally(() => {
+            isPrinterServerToggling = false;
+        });
+    };
+
+    // Allow Enter key to submit PIN
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const modal = document.getElementById('printerPinModal');
+            if (modal && modal.style.display === 'flex') {
+                e.preventDefault();
+                submitPrinterPin();
+            }
+        }
+        if (e.key === 'Escape') {
+            closePrinterPinModal();
+        }
+    });
+
+    // Only start polling if the user is logged in (i.e. if the icon exists)
+    if (document.getElementById('navbarPrinterServerToggle')) {
+        checkPrinterServerStatus();
+        setInterval(checkPrinterServerStatus, 5000);
+    }
 </script>

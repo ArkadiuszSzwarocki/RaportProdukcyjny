@@ -814,6 +814,35 @@ document.addEventListener('DOMContentLoaded', function() {
     if (savedView === 'grid') {
         setViewMode('grid');
     }
+
+    // Dynamic loading of network printers in pallet details modal
+    const whPrinterSelect = document.getElementById('printerSelect');
+    if (whPrinterSelect) {
+        const liniaQuery = (typeof LINIA !== 'undefined' ? LINIA : 'PSD');
+        fetch('/magazyn-dostawy/api/active-printers?linia=' + encodeURIComponent(liniaQuery))
+        .then(r => r.json())
+        .then(res => {
+            if (res && res.success && Array.isArray(res.printers)) {
+                // Keep only placeholder, remove old database static options to prevent duplicates or stale entries
+                whPrinterSelect.innerHTML = '<option value="">-- Wybierz drukarkę --</option>';
+                res.printers.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.selection_value || `db:${p.id}`;
+                    const ipTxt = p.ip ? ` (${p.ip})` : '';
+                    const locTxt = p.lokalizacja ? ` - ${p.lokalizacja}` : '';
+                    const sourceTxt = (p.source === 'network') ? ' [sieć]' : '';
+                    option.textContent = `${p.nazwa || 'Drukarka'}${ipTxt}${locTxt}${sourceTxt}`;
+                    whPrinterSelect.appendChild(option);
+                });
+                
+                const warningEl = document.getElementById('printerSelectionWarning');
+                if (warningEl) {
+                    warningEl.style.display = res.printers.length > 0 ? 'none' : 'block';
+                }
+            }
+        })
+        .catch(e => console.warn("Failed to load active printers dynamically:", e));
+    }
 });
 
 // Updated filterTable to support both list and grid
