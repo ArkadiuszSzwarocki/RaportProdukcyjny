@@ -678,7 +678,7 @@
                 </div>
                 <div style="margin-bottom:16px;">
                     <label for="printerPinInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">PIN</label>
-                    <input type="password" id="printerPinInput" maxlength="10" placeholder="••••" autocomplete="off" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:12px 14px;border:2px solid #e2e8f0;border-radius:10px;font-size:18px;text-align:center;letter-spacing:8px;font-weight:700;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                    <input type="text" id="printerPinInput" maxlength="10" placeholder="••••" autocomplete="new-password" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:12px 14px;border:2px solid #e2e8f0;border-radius:10px;font-size:18px;text-align:center;letter-spacing:8px;font-weight:700;outline:none;transition:border-color 0.2s;-webkit-text-security:disc;text-security:disc;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
                 </div>
                 <div id="printerPinError" style="display:none;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#dc2626;font-size:12px;font-weight:600;margin-bottom:12px;text-align:center;"></div>
                 <button type="button" id="printerPinSubmitBtn" onclick="submitPrinterPin()" style="width:100%;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;background:#3b82f6;color:#fff;">
