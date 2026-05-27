@@ -109,7 +109,7 @@ def register_planista_bulk_routes(planista_bp):
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT id, nazwa FROM magazyn_opakowania ORDER BY nazwa")
+            cursor.execute("SELECT MIN(id) AS id, nazwa FROM magazyn_opakowania GROUP BY nazwa ORDER BY nazwa")
             opakowania = cursor.fetchall()
             cursor.execute("SELECT id, nazwa FROM slownik_etykiety_agro ORDER BY id")
             etykiety = cursor.fetchall()

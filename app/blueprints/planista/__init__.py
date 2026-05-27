@@ -105,7 +105,7 @@ def panel_planisty():
         bufor_source_date = bufor_context['bufor_source_date']
         bufor_source_date_fmt = bufor_context['bufor_source_date_fmt']
 
-        cursor.execute("SELECT id, nazwa FROM magazyn_opakowania ORDER BY nazwa")
+        cursor.execute("SELECT MIN(id) AS id, nazwa FROM magazyn_opakowania GROUP BY nazwa ORDER BY nazwa")
         opakowania = cursor.fetchall()
         cursor.execute("SELECT id, nazwa FROM slownik_etykiety_agro ORDER BY id")
         etykiety = cursor.fetchall()
