@@ -34,6 +34,7 @@ from app.blueprints.magazyny_nowe import magazyny_nowe_bp
 from app.blueprints.scanner import scanner_bp
 from app.blueprints.magazyn_dostawy import magazyn_dostawy_bp
 from app.blueprints.inwentaryzacja import inwentaryzacja_bp
+from app.blueprints.inwentaryzacja_produkcji import inwentaryzacja_produkcji_bp
 from app import db
 from app.core.middleware import register_middleware
 
@@ -119,6 +120,7 @@ def create_app(config_secret_key=None, init_db=True):
     app.register_blueprint(scanner_bp)
     app.register_blueprint(magazyn_dostawy_bp)
     app.register_blueprint(inwentaryzacja_bp)
+    app.register_blueprint(inwentaryzacja_produkcji_bp)
 
     # Register debug routes if in debug mode
     register_debug_routes(app)
