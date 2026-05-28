@@ -11,6 +11,10 @@ let currentPallet = {};
 let scanBuffer = '';
 let scanTimeout = null;
 
+let currentFilteredItems = [];
+let currentRenderedCount = 0;
+const PAGE_SIZE = 100;
+
 // ---- TOAST NOTIFICATIONS ----
 function showToast(message, type = 'success') {
     let container = document.getElementById('toast-container');
@@ -845,7 +849,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Updated filterTable to support both list and grid
+// Updated filterTable to support both list and grid via dynamic JS rendering
 function filterTable() {
     const input = document.getElementById("searchInput");
     const filter = input ? input.value.toUpperCase().trim() : "";
@@ -859,45 +863,161 @@ function filterTable() {
 
     syncStateFromDOM();
 
-    // 1. Filter List View (Table Rows)
+    // 1. Filter JavaScript Array instead of DOM
+    currentFilteredItems = allWarehouseItems.filter(item => {
+        let allText = `${item.displayId} ${item.productName} ${item.amount} ${item.type} ${item.date_prod} ${item.date_exp} ${item.location}`.toUpperCase();
+        return isMatch(allText, item.location || '', filter);
+    });
+
+    // 2. Reset Pagination
+    currentRenderedCount = 0;
+    
     const tbody = container.querySelector(".list-view-wrapper tbody");
-    if (!tbody) return;
-    const rows = tbody.querySelectorAll("tr");
-    let visibleRows = 0;
-    rows.forEach(row => {
-        const locCell = Array.from(row.getElementsByTagName("td")).find(td => td.getAttribute('data-label') === 'Lokalizacja');
-        const locRaw = locCell ? (locCell.dataset.locRaw || locCell.textContent || '') : '';
-        const locText = String(locRaw).toUpperCase().trim();
-        const rowText = row.textContent.toUpperCase();
-        
-        const match = isMatch(rowText, locText, filter);
-        row.style.display = match ? "" : "none";
-        if (match) visibleRows++;
-    });
+    const grid = document.getElementById('palletGridContainer');
+    if (tbody) {
+        tbody.innerHTML = '';
+        tbody.style.opacity = '0';
+    }
+    if (grid) {
+        grid.innerHTML = '';
+        grid.style.opacity = '0';
+    }
 
-    // 2. Filter Grid View (Cards)
-    const cards = container.querySelectorAll(".pallet-card");
-    let visibleCards = 0;
-    cards.forEach(card => {
-        const locEl = card.querySelector(".loc-tag");
-        const locRaw = locEl ? (locEl.dataset.locRaw || locEl.innerText || '') : '';
-        const locText = String(locRaw).toUpperCase().trim();
-        const cardText = card.innerText.toUpperCase();
-        
-        const match = isMatch(cardText, locText, filter);
-        card.style.display = match ? "" : "none";
-        if (match) visibleCards++;
-    });
+    // 3. Render first batch
+    loadMoreItems();
 
-    // 3. Aktualizuj banner statusu filtra
-    _updateFilterBanner(filter, visibleRows, rows.length);
+    // 4. Aktualizuj banner statusu filtra
+    _updateFilterBanner(filter, currentFilteredItems.length, allWarehouseItems.length);
+}
 
-    // 4. Płynne pojawienie się przefiltrowanej listy (eliminuje flash pełnej listy)
+function loadMoreItems() {
+    const tbody = document.querySelector(".list-view-wrapper tbody");
+    const grid = document.getElementById('palletGridContainer');
+    if (!tbody || !grid) return;
+
+    const start = currentRenderedCount;
+    const end = Math.min(start + PAGE_SIZE, currentFilteredItems.length);
+    
+    let tableHtml = '';
+    let gridHtml = '';
+    
+    for (let i = start; i < end; i++) {
+        const item = currentFilteredItems[i];
+        tableHtml += generateTableRow(item, i + 1);
+        gridHtml += generateGridCard(item);
+    }
+    
+    tbody.insertAdjacentHTML('beforeend', tableHtml);
+    grid.insertAdjacentHTML('beforeend', gridHtml);
+    
+    currentRenderedCount = end;
+    
+    const loadMoreContainer = document.getElementById('loadMoreContainer');
+    if (loadMoreContainer) {
+        loadMoreContainer.style.display = (currentRenderedCount < currentFilteredItems.length) ? 'block' : 'none';
+    }
+    
     requestAnimationFrame(() => {
-        if (tbody) tbody.style.opacity = '1';
-        const grid = document.getElementById('palletGridContainer');
-        if (grid) grid.style.opacity = '1';
+        tbody.style.opacity = '1';
+        grid.style.opacity = '1';
     });
+}
+
+function formatLocation(loc) {
+    let loc_code = (loc || '').toUpperCase();
+    if (loc_code.length >= 7 && loc_code.startsWith('R')) {
+        return `<span class="location-code">
+                    <span class="location-part-rack">${loc_code.substring(0,3)}</span>
+                    <span class="location-separator"> </span>
+                    <span class="location-part-place">${loc_code.substring(3,5)}</span>
+                    <span class="location-separator"> </span>
+                    <span class="location-part-row">${loc_code.substring(5,7)}</span>
+                </span>`;
+    }
+    return loc || 'Brak';
+}
+
+function generateTableRow(item, index) {
+    const isBlockedCls = item.is_blocked ? 'is-blocked-row' : '';
+    const icon = item.is_blocked ? '<span class="material-icons" style="color: #be123c; font-size: 16px;">block</span>' : '<span class="material-icons" style="color: #10b981; font-size: 16px;">check_circle</span>';
+    
+    return `<tr class="pallet-row ${isBlockedCls}"
+                style="cursor: pointer;"
+                data-display-id="${item.displayId}"
+                data-product="${item.productName.replace(/"/g, '&quot;')}"
+                data-amount="${item.amount}"
+                data-location="${item.location}"
+                data-type="${item.type}"
+                data-date="${item.date_prod}"
+                data-id="${item.id}"
+                data-linia="${item.linia}"
+                data-blocked="${item.is_blocked}"
+                data-date-added="${item.date_added}">
+        <td style="text-align: center; color: #94a3b8; font-weight: 700; background: #f8fafc; font-size: 11px;">${index}</td>
+        <td class="font-bold">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                ${icon}
+                ${item.displayId}
+            </div>
+        </td>
+        <td data-label="Produkt">
+            <strong class="text-primary">${item.productName}</strong>
+        </td>
+        <td data-label="Ilość"><strong>${item.amount}</strong> <small>${item.unit}</small></td>
+        <td data-label="Lokalizacja" class="location-cell" data-loc-raw="${item.location}">
+            ${formatLocation(item.location)}
+        </td>
+        <td data-label="Typ">
+            <span class="status-badge" style="font-size: 10px; padding: 2px 8px;">${item.type}</span>
+        </td>
+        <td data-label="Produkcja" class="time-display">${item.date_prod}</td>
+        <td data-label="Ważność" class="time-display">${item.date_exp}</td>
+    </tr>`;
+}
+
+function generateGridCard(item) {
+    const isBlockedCls = item.is_blocked ? 'is-blocked-card' : '';
+    const icon = item.is_blocked ? '<span class="material-icons text-danger" style="font-size: 18px;">block</span>' : '';
+    let loc_code = (item.location || '').toUpperCase();
+    let loc_html = item.location || '???';
+    if (loc_code.length >= 7 && loc_code.startsWith('R')) {
+        loc_html = `<span class="location-part-rack">${loc_code.substring(0,3)}</span>
+                    <span class="location-separator"> </span>
+                    <span class="location-part-place">${loc_code.substring(3,5)}</span>
+                    <span class="location-separator"> </span>
+                    <span class="location-part-row">${loc_code.substring(5,7)}</span>`;
+    }
+
+    return `<div class="pallet-card ${isBlockedCls}"
+                 style="cursor: pointer;"
+                 data-display-id="${item.displayId}"
+                 data-product="${item.productName.replace(/"/g, '&quot;')}"
+                 data-amount="${item.amount}"
+                 data-location="${item.location}"
+                 data-type="${item.type}"
+                 data-date="${item.date_prod}"
+                 data-id="${item.id}"
+                 data-linia="${item.linia}"
+                 data-blocked="${item.is_blocked}"
+                 data-date-added="${item.date_added}">
+        <div class="card-header">
+            <span class="loc-tag" data-loc-raw="${item.location}">
+                ${loc_html}
+            </span>
+            <span class="id-tag">#${item.displayId}</span>
+        </div>
+        <div class="card-body">
+            <div class="product-name">${item.productName}</div>
+            <div class="amount-row">
+                <span class="val">${item.amount}</span>
+                <span class="unit">${item.unit}</span>
+            </div>
+        </div>
+        <div class="card-footer">
+            <span class="type-label">${item.type}</span>
+            ${icon}
+        </div>
+    </div>`;
 }
 
 function _updateFilterBanner(filter, visible, total) {
