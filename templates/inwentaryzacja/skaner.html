@@ -733,22 +733,12 @@ function openSlotDetail(locId) {
         const footerDiv = document.createElement('div');
         footerDiv.style.marginTop = '15px';
         footerDiv.style.display = 'grid';
-        
-        const hasSavedQty = realItems.some(i => i.counted && i.waga_faktyczna > 0);
-        if (hasSavedQty) {
-            footerDiv.style.gridTemplateColumns = '1fr';
-            footerDiv.style.gap = '10px';
-            footerDiv.innerHTML = `
-                <button id="btnConfirmEmptyFooter" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700; width: 100%;">WYCZYŚĆ (PUSTE)</button>
-            `;
-        } else {
-            footerDiv.style.gridTemplateColumns = '1fr 1fr';
-            footerDiv.style.gap = '10px';
-            footerDiv.innerHTML = `
-                <button onclick="addNewPallet('${locId}')" style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:10px; color:#64748b; font-size:12px; font-weight:700;">+ DODAJ KOLEJNĄ</button>
-                <button id="btnConfirmEmptyFooter" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700;">WYCZYŚĆ (PUSTE)</button>
-            `;
-        }
+        footerDiv.style.gridTemplateColumns = '1fr 1fr';
+        footerDiv.style.gap = '10px';
+        footerDiv.innerHTML = `
+            <button onclick="addNewPallet('${locId}')" style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:10px; color:#64748b; font-size:12px; font-weight:700;">+ DODAJ KOLEJNĄ</button>
+            <button id="btnConfirmEmptyFooter" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700;">WYCZYŚĆ (PUSTE)</button>
+        `;
         content.appendChild(footerDiv);
         document.getElementById('btnConfirmEmptyFooter').onclick = () => markEmpty(locId);
     }
@@ -848,10 +838,9 @@ function renderPallets(pallets) {
     const realPallets = pallets.filter(p => p.nazwa !== 'PUSTE GNIAZDO');
     currentPallets = realPallets;
     
-    const hasSavedQty = realPallets.some(p => p.counted && p.waga_faktyczna > 0);
     const mainBtn = document.getElementById('btnAddPalletMain');
     if (mainBtn) {
-        mainBtn.style.display = hasSavedQty ? 'none' : 'flex';
+        mainBtn.style.display = 'flex';
     }
     
     // Check if explicitly empty
