@@ -108,13 +108,16 @@
         <span>{% if master_access %}MASTER ADMIN{% else %}SYSTEM & DIAGNOSTYKA{% endif %}</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="master-sub" class="nav-sub {% if '/logs' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path or 'slownik-surowcow' in request.path %}open{% endif %}">
+    <div id="master-sub" class="nav-sub {% if '/logs' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path or 'slownik-surowcow' in request.path or '/admin/master/' in request.path %}open{% endif %}">
         {% if master_access %}
         <a href="/admin/master/permissions" class="nav-sub-item {% if '/admin/master/permissions' in request.path %}active{% endif %}">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">admin_panel_settings</span> Zarządzanie Dostępem
         </a>
         <a href="/admin/master/slownik-surowcow" class="nav-sub-item {% if '/admin/master/slownik-surowcow' in request.path %}active{% endif %}">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">menu_book</span> Słownik Surowców AGRO
+        </a>
+        <a href="/admin/master/mqtt" class="nav-sub-item {% if '/admin/master/mqtt' in request.path %}active{% endif %}">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">sensors</span> Monitor MQTT
         </a>
         <a href="javascript:void(0)" onclick="runIntegrityCheck()" class="nav-sub-item">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span> Test Integralności

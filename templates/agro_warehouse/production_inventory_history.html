@@ -1,0 +1,140 @@
+{% extends 'layout.html' %}
+{% block title %}Historia zbiornika - AGROMES{% endblock %}
+
+{% block content %}
+<style>
+    .prod-hist-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 10px;
+    }
+
+    .prod-hist-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+        padding: 18px;
+        margin-bottom: 16px;
+    }
+
+    .prod-hist-title {
+        margin: 0 0 4px;
+        font-size: 24px;
+        font-weight: 900;
+        color: #0f172a;
+    }
+
+    .prod-hist-sub {
+        color: #64748b;
+        font-size: 13px;
+        margin: 0;
+    }
+
+    .prod-hist-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .prod-hist-badge.prod {
+        background: #ecfeff;
+        color: #0e7490;
+        border: 1px solid #a5f3fc;
+    }
+
+    .prod-hist-badge.return {
+        background: #fff7ed;
+        color: #c2410c;
+        border: 1px solid #fed7aa;
+    }
+
+    .prod-hist-badge.inv {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+
+    .prod-hist-badge.other {
+        background: #f1f5f9;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+    }
+
+    .prod-hist-number {
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+    }
+</style>
+
+<div class="prod-hist-page">
+    <div class="section-header" style="margin-bottom: 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+        <div>
+            <h1 class="prod-hist-title">Historia zbiornika {{ tank_code }}</h1>
+            <p class="prod-hist-sub">Linia: {{ (linia or 'AGRO')|upper }}. Każdy ruch dla tego zbiornika jest pokazany chronologicznie.</p>
+        </div>
+        <a class="btn btn-outline" href="{{ url_for('agro_warehouse.production_inventory_page', linia=linia) }}">
+            Powrót do inwentaryzacji produkcji
+        </a>
+    </div>
+
+    <div class="prod-hist-card">
+        <div class="table-responsive" style="max-height:560px; overflow:auto; border:1px solid #e2e8f0; border-radius:10px;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Typ</th>
+                        <th>Surowiec</th>
+                        <th>Ilość (kg)</th>
+                        <th>Po ruchu (kg)</th>
+                        <th>Plan</th>
+                        <th>Autor</th>
+                        <th>Komentarz</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if history_rows %}
+                        {% for row in history_rows %}
+                        <tr>
+                            <td>{{ row.autor_data or '-' }}</td>
+                            <td>
+                                {% set typ = (row.typ_ruchu or '')|upper %}
+                                {% if typ == 'PRODUKCJA' %}
+                                    <span class="prod-hist-badge prod">PRODUKCJA</span>
+                                {% elif typ == 'ZWROT' %}
+                                    <span class="prod-hist-badge return">ZWROT</span>
+                                {% elif typ == 'INWENTARYZACJA_PROD' %}
+                                    <span class="prod-hist-badge inv">INWENTARYZACJA</span>
+                                {% else %}
+                                    <span class="prod-hist-badge other">{{ typ or '-' }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ row.surowiec_nazwa or '-' }}</td>
+                            <td class="prod-hist-number">{{ '%.3f'|format(row.ilosc or 0) }}</td>
+                            <td class="prod-hist-number">{{ '%.3f'|format(row.ilosc_po or 0) }}</td>
+                            <td>
+                                {% if row.plan_id %}
+                                    #{{ row.plan_id }}{% if row.plan_name %} - {{ row.plan_name }}{% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ row.autor_login or '-' }}</td>
+                            <td>{{ row.komentarz or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">Brak historii dla tego zbiornika.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

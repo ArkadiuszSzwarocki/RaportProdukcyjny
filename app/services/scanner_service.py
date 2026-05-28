@@ -18,7 +18,7 @@ import re
 
 class ScannerService:
     SCAN_TOKEN_PATTERN = re.compile(
-        r'(R\d{6}|[A-Z]{3}\d{18}|SUR-\d+|OPK-\d+|DOD-\d+|PAL-\d+|MS01|MP01|MDM01|MOP01|MGW01|MGW02|OS\d{2}|OSIP|BB\d{2}|MZ\d{2}(?:-\d{2})?|BF_MS01|BF_MP01|KO01|PSD01|PSD|RAMPA|MIX01|W_TRANZYCIE_OSIP)',
+        r'(R\d{6}|[A-Z]{3}\d{18}|SUR-\d+|OPK-\d+|DOD-\d+|PAL-\d+|MS01|MP01|MDM01|MOP01|MGW01|MGW02|OS\d{2}|OSIP|BB\d{2}|MZ\d{2}(?:-\d{2})?|BF_MS01|BF_MP01|KO\d{2}|PSD01|PSD|RAMPA|MIX01|W_TRANZYCIE_OSIP)',
         re.IGNORECASE,
     )
 

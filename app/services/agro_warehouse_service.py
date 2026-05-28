@@ -1,11 +1,46 @@
 import logging
 import os
+import re
 from datetime import datetime
 
 from app.db import get_db_connection, get_table_name
 
 
 logger = logging.getLogger(__name__)
+
+
+BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25)]
+MZ_TANK_CODES = [f"MZ{i:02d}" for i in range(1, 7)] + ["MZ05-01", "MZ06-01"]
+KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 23)]
+PRODUCTION_TANK_CODES = BB_TANK_CODES + MZ_TANK_CODES + KO_TANK_CODES
+
+_DODATEK_NAME_REGEX = re.compile(r"\b(DOD|DODAT|DODATEK|DODATKI)\b", re.IGNORECASE)
+
+
+def _normalize_tank_code(value):
+    normalized = str(value or '').strip().upper()
+    return normalized or None
+
+
+def _classify_tank_zone(tank_code):
+    normalized = _normalize_tank_code(tank_code)
+    if not normalized:
+        return 'BRAK'
+    if normalized.startswith('BB'):
+        return 'BB'
+    if normalized.startswith('MZ'):
+        return 'MZ'
+    if normalized.startswith('KO'):
+        return 'KO'
+    return 'INNE'
+
+
+def _is_additive_material(material_name, material_location=None):
+    name = str(material_name or '').upper()
+    location = str(material_location or '').upper()
+    if location.startswith('DOD'):
+        return True
+    return bool(_DODATEK_NAME_REGEX.search(name))
 
 
 def _get_auto_pallet_cooldown_seconds():
@@ -53,6 +88,22 @@ class AgroWarehouseService:
             return res
         finally:
             conn.close()
+
+    @staticmethod
+    def get_production_tanks():
+        return {
+            'BB': list(BB_TANK_CODES),
+            'MZ': list(MZ_TANK_CODES),
+            'KO': list(KO_TANK_CODES),
+            'ALL': list(PRODUCTION_TANK_CODES),
+        }
+
+    @staticmethod
+    def normalize_production_tank(tank_code):
+        normalized = _normalize_tank_code(tank_code)
+        if not normalized:
+            return None
+        return normalized if normalized in PRODUCTION_TANK_CODES else None
 
     @staticmethod
     def get_packaging_inventory(linia='Agro'):
@@ -375,7 +426,8 @@ class AgroWarehouseService:
             
             # Add movement record
             plan_id_val = int(plan_id) if plan_id not in (None, '', 0, '0') else None
-            zbiornik_val = zbiornik.strip() if zbiornik and str(zbiornik).strip() else None
+            raw_zbiornik = _normalize_tank_code(zbiornik)
+            zbiornik_val = AgroWarehouseService.normalize_production_tank(raw_zbiornik) or raw_zbiornik
             cursor.execute(
                 f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, zbiornik) "
                 "VALUES (%s, 'PRODUKCJA', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s, %s)",
@@ -653,7 +705,8 @@ class AgroWarehouseService:
     def get_production_items_for_return(linia='Agro', limit=200):
         """Zwraca listę ruchów PRODUKCJA z informacją ile jeszcze nie zwrócono.
         
-        Każdy wiersz: ruch_id, surowiec_id, nazwa, lokalizacja, ilosc_pobrana, ilosc_zwrocona, do_zwrotu, plan_id, plan_name, data, zbiornik.
+        Każdy wiersz: ruch_id, surowiec_id, nazwa, lokalizacja, ilosc_pobrana, ilosc_zwrocona,
+        ilosc_korekta, do_zwrotu, plan_id, plan_name, data, zbiornik.
         """
         table_surowce = get_table_name('magazyn_surowce', linia)
         table_ruch = get_table_name('magazyn_ruch', linia)
@@ -672,6 +725,7 @@ class AgroWarehouseService:
                 f"SELECT r.id as ruch_id, r.surowiec_id, COALESCE(s.nazwa, r.surowiec_nazwa) as nazwa, "
                 f"s.lokalizacja, ABS(r.ilosc) as ilosc_pobrana, "
                 f"COALESCE((SELECT SUM(z.ilosc) FROM {table_ruch} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as ilosc_zwrocona, "
+                f"COALESCE((SELECT SUM(k.ilosc) FROM {table_ruch} k WHERE k.ruch_zrodlowy_id = r.id AND k.typ_ruchu = 'INWENTARYZACJA_PROD'), 0) as ilosc_korekta, "
                 f"r.plan_id, r.autor_login, r.autor_data, r.zbiornik{plan_select} "
                 f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id {plan_join} "
                 "WHERE r.typ_ruchu = 'PRODUKCJA' AND r.status = 'POTWIERDZONE' "
@@ -683,7 +737,8 @@ class AgroWarehouseService:
             for r in rows:
                 pobrana = float(r.get('ilosc_pobrana') or 0)
                 zwrocona = float(r.get('ilosc_zwrocona') or 0)
-                do_zwrotu = round(pobrana - zwrocona, 2)
+                korekta = float(r.get('ilosc_korekta') or 0)
+                do_zwrotu = round(pobrana - zwrocona + korekta, 2)
                 if do_zwrotu <= 0:
                     continue  # w pełni zwrócone
                 result.append({
@@ -693,6 +748,7 @@ class AgroWarehouseService:
                     'lokalizacja': r.get('lokalizacja') or '',
                     'ilosc_pobrana': pobrana,
                     'ilosc_zwrocona': zwrocona,
+                    'ilosc_korekta': korekta,
                     'do_zwrotu': do_zwrotu,
                     'plan_id': r.get('plan_id'),
                     'plan_name': r.get('plan_name') or '',
@@ -701,6 +757,258 @@ class AgroWarehouseService:
                     'zbiornik': r.get('zbiornik') or '',
                 })
             return result
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_production_inventory(limit=500, linia='Agro'):
+        """Zwraca bieżące stany surowców pozostających w produkcji (BB/MZ/KO)."""
+        table_surowce = get_table_name('magazyn_surowce', linia)
+        table_ruch = get_table_name('magazyn_ruch', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                table_plan = get_table_name('plan_produkcji', linia)
+                plan_join = f" LEFT JOIN {table_plan} p ON r.plan_id = p.id "
+                plan_select = ", p.produkt as plan_name"
+            except Exception:
+                plan_join = ""
+                plan_select = ", NULL as plan_name"
+
+            q = (
+                f"SELECT r.id as ruch_id, r.surowiec_id, COALESCE(s.nazwa, r.surowiec_nazwa) as nazwa, "
+                f"s.lokalizacja, ABS(r.ilosc) as ilosc_pobrana, "
+                f"COALESCE((SELECT SUM(z.ilosc) FROM {table_ruch} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as ilosc_zwrocona, "
+                f"COALESCE((SELECT SUM(k.ilosc) FROM {table_ruch} k WHERE k.ruch_zrodlowy_id = r.id AND k.typ_ruchu = 'INWENTARYZACJA_PROD'), 0) as ilosc_korekta, "
+                f"r.plan_id, r.autor_login, r.autor_data, r.zbiornik{plan_select} "
+                f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id {plan_join} "
+                "WHERE r.typ_ruchu = 'PRODUKCJA' AND r.status = 'POTWIERDZONE' "
+                "AND COALESCE(NULLIF(TRIM(r.zbiornik), ''), '') <> '' "
+                "ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
+            )
+            cursor.execute(q, (limit,))
+            rows = cursor.fetchall()
+
+            result = []
+            for r in rows:
+                pobrana = float(r.get('ilosc_pobrana') or 0)
+                zwrocona = float(r.get('ilosc_zwrocona') or 0)
+                korekta = float(r.get('ilosc_korekta') or 0)
+                stan_systemowy = round(pobrana - zwrocona + korekta, 2)
+                if stan_systemowy <= 0:
+                    continue
+
+                zbiornik = _normalize_tank_code(r.get('zbiornik'))
+                strefa = _classify_tank_zone(zbiornik)
+                rodzaj = 'DODATKI' if _is_additive_material(r.get('nazwa'), r.get('lokalizacja')) else 'SUROWCE'
+
+                result.append({
+                    'ruch_id': r['ruch_id'],
+                    'surowiec_id': r.get('surowiec_id'),
+                    'nazwa': r.get('nazwa') or '',
+                    'lokalizacja': r.get('lokalizacja') or '',
+                    'zbiornik': zbiornik or '',
+                    'strefa': strefa,
+                    'rodzaj': rodzaj,
+                    'ilosc_pobrana': pobrana,
+                    'ilosc_zwrocona': zwrocona,
+                    'ilosc_korekta': korekta,
+                    'stan_systemowy': stan_systemowy,
+                    'plan_id': r.get('plan_id'),
+                    'plan_name': r.get('plan_name') or '',
+                    'autor_login': r.get('autor_login') or '',
+                    'data': r['autor_data'].strftime('%d.%m.%Y %H:%M') if r.get('autor_data') else '',
+                })
+
+            return result
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_production_inventory_snapshot(limit=4000, linia='Agro', show_empty=False):
+        """Zwraca aktualny snapshot produkcji: maksymalnie 1 surowiec na zbiornik.
+
+        Snapshot wybiera najnowszy aktywny wpis (stan_systemowy > 0) dla każdego zbiornika.
+        Gdy show_empty=True, zwraca również puste zdefiniowane zbiorniki.
+        """
+        rows = AgroWarehouseService.get_production_inventory(limit=limit, linia=linia)
+        by_tank = {}
+
+        for row in rows:
+            tank_code = _normalize_tank_code(row.get('zbiornik'))
+            if not tank_code:
+                continue
+            if tank_code in by_tank:
+                continue
+
+            item = dict(row)
+            item['zbiornik'] = tank_code
+            item['surowiec_nazwa'] = item.get('nazwa') or ''
+            item['plan_nazwa'] = item.get('plan_name') or ''
+            item['is_empty'] = False
+            by_tank[tank_code] = item
+
+        if show_empty:
+            for tank_code in AgroWarehouseService.get_production_tanks().get('ALL', []):
+                if tank_code in by_tank:
+                    continue
+                by_tank[tank_code] = {
+                    'ruch_id': None,
+                    'surowiec_id': None,
+                    'nazwa': '',
+                    'surowiec_nazwa': '',
+                    'lokalizacja': '',
+                    'zbiornik': tank_code,
+                    'strefa': _classify_tank_zone(tank_code),
+                    'rodzaj': '',
+                    'ilosc_pobrana': 0.0,
+                    'ilosc_zwrocona': 0.0,
+                    'ilosc_korekta': 0.0,
+                    'stan_systemowy': 0.0,
+                    'plan_id': None,
+                    'plan_name': '',
+                    'plan_nazwa': '',
+                    'autor_login': '',
+                    'data': '',
+                    'is_empty': True,
+                }
+
+        def _tank_sort_key(item):
+            tank = item.get('zbiornik') or ''
+            zone = _classify_tank_zone(tank)
+            zone_rank = {'BB': 0, 'MZ': 1, 'KO': 2, 'INNE': 3, 'BRAK': 4}.get(zone, 9)
+            return (zone_rank, tank)
+
+        return sorted(by_tank.values(), key=_tank_sort_key)
+
+    @staticmethod
+    def get_production_tank_history(tank_code, limit=300, linia='Agro'):
+        """Zwraca historię ruchów dla wskazanego zbiornika produkcyjnego."""
+        table_surowce = get_table_name('magazyn_surowce', linia)
+        table_ruch = get_table_name('magazyn_ruch', linia)
+        normalized_tank = _normalize_tank_code(tank_code)
+        if not normalized_tank:
+            return []
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                table_plan = get_table_name('plan_produkcji', linia)
+                plan_join = f" LEFT JOIN {table_plan} p ON r.plan_id = p.id "
+                plan_select = ", p.produkt as plan_name"
+            except Exception:
+                plan_join = ""
+                plan_select = ", NULL as plan_name"
+
+            q = (
+                f"SELECT r.id, r.typ_ruchu, r.ilosc, r.ilosc_po, r.status, r.autor_login, r.autor_data, r.komentarz, "
+                f"COALESCE(s.nazwa, r.surowiec_nazwa) as surowiec_nazwa, r.plan_id, r.zbiornik{plan_select} "
+                f"FROM {table_ruch} r "
+                f"LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id "
+                f"{plan_join} "
+                "WHERE UPPER(TRIM(COALESCE(r.zbiornik, ''))) = %s "
+                "AND r.typ_ruchu IN ('PRODUKCJA', 'ZWROT', 'INWENTARYZACJA_PROD') "
+                "ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
+            )
+            cursor.execute(q, (normalized_tank, limit))
+            rows = cursor.fetchall()
+
+            result = []
+            for r in rows:
+                result.append({
+                    'id': r.get('id'),
+                    'typ_ruchu': r.get('typ_ruchu') or '',
+                    'ilosc': float(r.get('ilosc') or 0),
+                    'ilosc_po': float(r.get('ilosc_po') or 0),
+                    'status': r.get('status') or '',
+                    'autor_login': r.get('autor_login') or '',
+                    'autor_data': r['autor_data'].strftime('%d.%m.%Y %H:%M') if r.get('autor_data') else '',
+                    'komentarz': r.get('komentarz') or '',
+                    'surowiec_nazwa': r.get('surowiec_nazwa') or '',
+                    'plan_id': r.get('plan_id'),
+                    'plan_name': r.get('plan_name') or '',
+                    'zbiornik': _normalize_tank_code(r.get('zbiornik')) or normalized_tank,
+                })
+
+            return result
+        finally:
+            conn.close()
+
+    @staticmethod
+    def adjust_production_inventory(ruch_id, actual_qty, worker_login, linia='Agro', komentarz=None):
+        """Korekta stanu surowca będącego w produkcji (BB/MZ/KO) dla wskazanego ruchu PRODUKCJA."""
+        table_ruch = get_table_name('magazyn_ruch', linia)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                f"SELECT id, surowiec_id, COALESCE(surowiec_nazwa, '') as surowiec_nazwa, plan_id, zbiornik "
+                f"FROM {table_ruch} WHERE id = %s AND typ_ruchu = 'PRODUKCJA' AND status = 'POTWIERDZONE'",
+                (ruch_id,)
+            )
+            base_move = cursor.fetchone()
+            if not base_move:
+                return False, 'Nie znaleziono ruchu PRODUKCJA do korekty.'
+
+            cursor.execute(
+                f"SELECT ABS(COALESCE(ilosc, 0)) as ilosc_pobrana FROM {table_ruch} WHERE id = %s",
+                (ruch_id,)
+            )
+            pobrana_row = cursor.fetchone() or {}
+            pobrana = float(pobrana_row.get('ilosc_pobrana') or 0)
+
+            cursor.execute(
+                f"SELECT COALESCE(SUM(ilosc), 0) as ilosc_zwrocona FROM {table_ruch} "
+                "WHERE ruch_zrodlowy_id = %s AND typ_ruchu = 'ZWROT'",
+                (ruch_id,)
+            )
+            zwrot_row = cursor.fetchone() or {}
+            zwrocona = float(zwrot_row.get('ilosc_zwrocona') or 0)
+
+            cursor.execute(
+                f"SELECT COALESCE(SUM(ilosc), 0) as ilosc_korekta FROM {table_ruch} "
+                "WHERE ruch_zrodlowy_id = %s AND typ_ruchu = 'INWENTARYZACJA_PROD'",
+                (ruch_id,)
+            )
+            korekta_row = cursor.fetchone() or {}
+            korekta = float(korekta_row.get('ilosc_korekta') or 0)
+
+            current_qty = round(pobrana - zwrocona + korekta, 3)
+            delta = round(float(actual_qty) - current_qty, 3)
+            if abs(delta) < 0.001:
+                return True, None
+
+            zbiornik_val = _normalize_tank_code(base_move.get('zbiornik'))
+            opis = (komentarz or 'Inwentaryzacja produkcji').strip()
+            if zbiornik_val:
+                opis = f"{opis} ({zbiornik_val})"
+
+            cursor.execute(
+                f"INSERT INTO {table_ruch} "
+                "(surowiec_id, surowiec_nazwa, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, potwierdzil_login, potwierdzil_data, plan_id, komentarz, ruch_zrodlowy_id, zbiornik) "
+                "VALUES (%s, %s, 'INWENTARYZACJA_PROD', %s, %s, 'POTWIERDZONE', %s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    base_move.get('surowiec_id'),
+                    base_move.get('surowiec_nazwa') or None,
+                    delta,
+                    float(actual_qty),
+                    worker_login,
+                    datetime.now(),
+                    worker_login,
+                    datetime.now(),
+                    base_move.get('plan_id'),
+                    opis,
+                    ruch_id,
+                    zbiornik_val,
+                )
+            )
+            conn.commit()
+            return True, None
+        except Exception as e:
+            conn.rollback()
+            return False, str(e)
         finally:
             conn.close()
 
@@ -1188,7 +1496,7 @@ class AgroWarehouseService:
             q = (
                 f"SELECT r.*, COALESCE(s.nazwa, r.surowiec_nazwa) as surowiec_nazwa, s.lokalizacja as obecna_lokalizacja{plan_select} "
                 f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id {plan_join} "
-                "WHERE r.typ_ruchu IN ('PRZYJECIE','PRODUKCJA','WYDANIE_ZEW','WYDANIE_MAG','ZWROT','INWENTARYZACJA','KOREKTA') "
+                "WHERE r.typ_ruchu IN ('PRZYJECIE','PRODUKCJA','WYDANIE_ZEW','WYDANIE_MAG','ZWROT','INWENTARYZACJA','INWENTARYZACJA_PROD','KOREKTA') "
             )
             params = []
             if date_from:
