@@ -1136,6 +1136,36 @@ function generateLocalSSCC(type) {
 }
 
 function addNewPallet(loc) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Wybierz kategorię / typ',
+            html: `
+                <select id="swalTypeSelect" class="swal2-select" style="display: flex; margin: 10px auto; width: 80%;">
+                    <option value="surowiec">Surowiec</option>
+                    <option value="wyrób gotowy">Wyrób Gotowy</option>
+                    <option value="opakowanie">Opakowanie</option>
+                    <option value="dodatek">Dodatek</option>
+                </select>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Dalej',
+            cancelButtonText: 'Anuluj',
+            confirmButtonColor: '#3b82f6',
+            preConfirm: () => {
+                return document.getElementById('swalTypeSelect').value;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                openNewPalletModal(loc, result.value);
+            }
+        });
+    } else {
+        // Fallback w razie braku Swal
+        openNewPalletModal(loc, 'surowiec');
+    }
+}
+
+function openNewPalletModal(loc, selectedType) {
     lookedUpPalletId = null;
     lookedUpSystemWeight = 0;
     
@@ -1146,6 +1176,9 @@ function addNewPallet(loc) {
     }
     
     const typeSelect = document.getElementById('newPalletType');
+    if(selectedType) {
+        typeSelect.value = selectedType;
+    }
     
     document.getElementById('newPalletLoc').value = loc || lastLocation;
     document.getElementById('newPalletSSCC').value = generateLocalSSCC(typeSelect.value);

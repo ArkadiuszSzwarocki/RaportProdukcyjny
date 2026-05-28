@@ -545,9 +545,9 @@ class InwentaryzacjaService:
                             """, (e['nr_palety'], e['nazwa'], e['waga_faktyczna'], e['lokalizacja'], e['nr_partii'], d_prod, d_przyd, e['typ_opakowania']))
                         else: # Wyrób gotowy
                             cursor.execute(f"""
-                                INSERT INTO {table} (produkt, waga_netto, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, user_login) 
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (e['nazwa'], e['waga_faktyczna'], e['lokalizacja'], e['nr_partii'], d_prod, d_przyd, e['typ_opakowania'], user_login))
+                                INSERT INTO {table} (nr_palety, produkt, waga_netto, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, user_login) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (e['nr_palety'], e['nazwa'], e['waga_faktyczna'], e['lokalizacja'], e['nr_partii'], d_prod, d_przyd, e['typ_opakowania'], user_login))
                             
                         # Update the inventory entry with the newly created pallet ID
                         new_pallet_id = cursor.lastrowid
