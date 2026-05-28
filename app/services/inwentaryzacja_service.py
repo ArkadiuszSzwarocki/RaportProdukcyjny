@@ -548,6 +548,11 @@ class InwentaryzacjaService:
                                 INSERT INTO {table} (produkt, waga_netto, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, user_login) 
                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                             """, (e['nazwa'], e['waga_faktyczna'], e['lokalizacja'], e['nr_partii'], d_prod, d_przyd, e['typ_opakowania'], user_login))
+                            
+                        # Update the inventory entry with the newly created pallet ID
+                        new_pallet_id = cursor.lastrowid
+                        cursor.execute("UPDATE magazyn_inwentaryzacja_wpisy SET paleta_id = %s WHERE id = %s", (new_pallet_id, e['id']))
+                        e['paleta_id'] = new_pallet_id
                 
                 # Log in history for both new and updated
                 p_id = e['paleta_id'] or cursor.lastrowid

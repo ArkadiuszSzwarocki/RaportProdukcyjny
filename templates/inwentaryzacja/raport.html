@@ -110,6 +110,7 @@
                     <th style="padding: 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase;">Faktyczny</th>
                     <th style="padding: 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase;">Różnica</th>
                     <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Operator / Czas</th>
+                    <th style="padding: 15px; text-align: center; font-size: 11px; color: #64748b; text-transform: uppercase;">Akcje</th>
                 </tr>
             </thead>
             <tbody>
@@ -143,6 +144,13 @@
                     <td style="padding: 15px;">
                         <div style="font-size: 12px; color: #475569;">{{ e.user_login }}</div>
                         <div style="font-size: 10px; color: #94a3b8;">{{ e.data_wpisu.strftime('%H:%M:%S') if e.data_wpisu and e.data_wpisu.strftime else e.data_wpisu }}</div>
+                    </td>
+                    <td style="padding: 15px; text-align: center;">
+                        {% if sesja.status == 'APPLIED' and e.waga_faktyczna > 0 %}
+                            <a href="{{ url_for('magazyn_dostawy.podglad_etykiety', nr_palety=e.nr_palety or e.paleta_id, product_name=e.nazwa, nr_partii=e.nr_partii, data_produkcji=e.data_produkcji.strftime('%Y-%m-%d') if e.data_produkcji and e.data_produkcji.strftime else e.data_produkcji, data_przydatnosci=e.data_przydatnosci.strftime('%Y-%m-%d') if e.data_przydatnosci and e.data_przydatnosci.strftime else e.data_przydatnosci, p_type='packaging' if e.typ_palety == 'opakowanie' else ('finished' if e.typ_palety == 'wyrób gotowy' else 'surowiec'), qty=e.waga_faktyczna, linia=e.linia) }}" target="_blank" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: #e0f2fe; color: #0284c7; text-decoration: none;" title="Drukuj Etykietę">
+                                <span class="material-icons" style="font-size: 18px;">print</span>
+                            </a>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
