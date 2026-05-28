@@ -427,15 +427,61 @@ class InwentaryzacjaService:
     def close_session(sesja_id):
         conn = get_db_connection()
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Pobierz sesję
+            cursor.execute("SELECT lokalizacja FROM magazyn_inwentaryzacja_sesje WHERE id = %s", (sesja_id,))
+            sesja = cursor.fetchone()
+            if not sesja:
+                return False, "Nie znaleziono sesji"
+                
+            lokalizacja = sesja['lokalizacja']
+            
+            # Pobierz wszystkie palety, które obecnie znajdują się w tej lokalizacji w bazie
+            pallets_at_loc = InwentaryzacjaService.get_pallets_at_location(lokalizacja, sesja_id)
+            
+            # 1. Usuń z wpisów te palety, które zostały przeniesione (nie ma ich w bazie na tej lokacji)
+            cursor.execute("SELECT id, paleta_id, typ_palety FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s", (sesja_id,))
+            current_entries = cursor.fetchall()
+            
+            # Zbuduj set kluczy palet, które faktycznie są na regale
+            actual_db_keys = set()
+            for p in pallets_at_loc:
+                if p.get('id'): # Zwykła systemowa paleta
+                    actual_db_keys.add(f"{str(p['typ_palety']).lower()}_{p['id']}")
+            
+            to_delete = []
+            for entry in current_entries:
+                if entry['paleta_id']: # Tylko systemowe sprawdzamy, nowych nie ruszamy
+                    key = f"{str(entry['typ_palety']).lower()}_{entry['paleta_id']}"
+                    if key not in actual_db_keys:
+                        to_delete.append(entry['id'])
+            
+            if to_delete:
+                format_strings = ','.join(['%s'] * len(to_delete))
+                cursor.execute(f"DELETE FROM magazyn_inwentaryzacja_wpisy WHERE id IN ({format_strings})", tuple(to_delete))
+            
+            # 2. Dodaj do wpisów te palety, które są w bazie, ale nie zostały zeskanowane (waga_faktyczna = 0)
+            missing_pallets = [p for p in pallets_at_loc if not p.get('counted') and p.get('id')]
+            for p in missing_pallets:
+                cursor.execute(
+                    "INSERT INTO magazyn_inwentaryzacja_wpisy (sesja_id, paleta_id, nr_palety, typ_palety, nazwa, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, waga_systemowa, waga_faktyczna, typ_opakowania, user_login, linia, jednostka) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, 'system', %s, %s)",
+                    (sesja_id, p['id'], p['nr_palety'], p['typ_palety'], p['nazwa'], lokalizacja, p['nr_partii'], p['data_produkcji'], p['data_przydatnosci'], p['stan_magazynowy'], p.get('typ_opakowania', 'brak'), p.get('linia', 'PSD'), p.get('jednostka', 'kg'))
+                )
+
+            # Zamknij sesję
             cursor.execute(
                 "UPDATE magazyn_inwentaryzacja_sesje SET status = 'CLOSED', closed_at = NOW() WHERE id = %s",
                 (sesja_id,)
             )
             conn.commit()
             return True, "Sesja zamknięta"
+        except Exception as e:
+            if conn: conn.rollback()
+            print("Error in close_session:", e)
+            return False, f"Błąd: {e}"
         finally:
-            conn.close()
+            if conn: conn.close()
 
     @staticmethod
     def resume_session(sesja_id):
