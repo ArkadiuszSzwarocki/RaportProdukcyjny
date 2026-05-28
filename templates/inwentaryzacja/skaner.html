@@ -604,8 +604,11 @@ function openSlotDetail(locId) {
                         <div style="font-size: 14px; font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="pallet-pname">${p.nazwa}</div>
                         <div style="font-size: 11px; color: #64748b; font-family: monospace;">${p.displayId}</div>
                     </div>
-                    <div style="text-align: right; font-size: 11px; color: #64748b; font-weight: 700; flex-shrink: 0;">
-                        SYS: <span style="font-size: 13px; font-weight: 800; color: #334155;">${systemQty} ${p.jednostka || 'kg'}</span>
+                    <div style="text-align: right; font-size: 11px; color: #64748b; font-weight: 700; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+                        <div>SYS: <span style="font-size: 13px; font-weight: 800; color: #334155;">${systemQty} ${p.jednostka || 'kg'}</span></div>
+                        ${p.id ? `<button class="move-pallet-btn" style="background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 10px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; font-weight: 800;" title="Przenieś paletę w inne miejsce">
+                            <span class="material-icons" style="font-size: 12px; color: #3b82f6;">place</span> Przenieś
+                        </button>` : ''}
                     </div>
                 </div>
                 <div class="slot-change-indicator" style="display:none; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-bottom:8px;"></div>
@@ -672,6 +675,44 @@ function openSlotDetail(locId) {
             
             input.addEventListener('input', updateSlotCardStyle);
             unitSelect.addEventListener('change', updateSlotCardStyle);
+            
+            const moveBtn = card.querySelector('.move-pallet-btn');
+            if(moveBtn) {
+                moveBtn.onclick = (e) => {
+                    e.preventDefault();
+                    let pt = p.typ_palety;
+                    let capitalType = pt.charAt(0).toUpperCase() + pt.slice(1);
+                    if(pt === 'wyrób gotowy') capitalType = 'Wyrób Gotowy';
+                    
+                    const newLoc = prompt(`Przenieś paletę ${p.nazwa} z ${locId} na nową lokalizację (np. R060102):`);
+                    if(newLoc && newLoc.trim() !== '' && newLoc.trim().toUpperCase() !== locId) {
+                        moveBtn.innerHTML = '<span class="material-icons" style="font-size: 12px;">hourglass_top</span>';
+                        fetch('/magazyny-nowe/api/pallet/move', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                id: p.id,
+                                type: capitalType,
+                                location: newLoc.trim().toUpperCase(),
+                                linia: p.linia || 'PSD'
+                            })
+                        }).then(r => r.json()).then(data => {
+                            if(data.success) {
+                                // Pomyślnie przeniesiono
+                                refreshRackData(currentRackPrefix);
+                                closeDetail();
+                            } else {
+                                alert("Błąd przenoszenia: " + (data.error || data.message));
+                                moveBtn.innerHTML = '<span class="material-icons" style="font-size: 12px; color: #3b82f6;">place</span> Przenieś';
+                            }
+                        }).catch(() => {
+                            alert("Błąd połączenia z serwerem.");
+                            moveBtn.innerHTML = '<span class="material-icons" style="font-size: 12px; color: #3b82f6;">place</span> Przenieś';
+                        });
+                    }
+                };
+            }
+            
             if(p.counted) {
                 updateSlotCardStyle();
             }
