@@ -181,42 +181,47 @@ class ScannerService:
                 ('magazyn_dodatki', 'stan_magazynowy', 'Dodatek', 'DOD', False, False, False),
             ]
 
-            # Check unconfirmed finished goods in palety_agro / palety_workowanie first
-            table_prod = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
-            table_plan = 'plan_produkcji' if str(linia).upper() == 'PSD' else 'plan_produkcji_agro'
-            try:
-                numeric_lookup = prefixed_id or numeric_id
-                if numeric_lookup is not None:
-                    # Search by numeric ID or pallet number
-                    cur.execute(
-                        f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa "
-                        f"FROM {table_prod} p "
-                        f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
-                        f"WHERE (p.id = %s OR UPPER(COALESCE(p.nr_palety,'')) = %s) AND p.status = 'do_przyjecia'",
-                        (numeric_lookup, location_code)
-                    )
-                else:
-                    # SSCC or barcode — search only by nr_palety
-                    cur.execute(
-                        f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa "
-                        f"FROM {table_prod} p "
-                        f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
-                        f"WHERE UPPER(COALESCE(p.nr_palety,'')) = %s AND p.status = 'do_przyjecia'",
-                        (location_code,)
-                    )
-                unconf_row = cur.fetchone()
-                if unconf_row:
-                    return {
-                        'id': unconf_row['id'],
-                        'nr_palety': unconf_row['nr_palety'],
-                        'nazwa': unconf_row['nazwa'] or 'Wyrób Gotowy',
-                        'stan_magazynowy': float(unconf_row['waga'] or 0),
-                        'lokalizacja': '',
-                        'inventory_type': 'Wyrób Gotowy',
-                        'is_unconfirmed_wg': True
-                    }
-            except Exception:
-                pass
+            should_check_unconfirmed = (
+                is_sscc
+                or prefixed_type == 'PAL'
+                or (prefixed_type is None and numeric_id is not None)
+            )
+            if should_check_unconfirmed:
+                table_prod = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
+                table_plan = 'plan_produkcji' if str(linia).upper() == 'PSD' else 'plan_produkcji_agro'
+                try:
+                    numeric_lookup = prefixed_id if prefixed_type == 'PAL' else numeric_id
+                    if numeric_lookup is not None and not is_sscc:
+                        # Search by numeric ID or pallet number.
+                        cur.execute(
+                            f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa "
+                            f"FROM {table_prod} p "
+                            f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
+                            f"WHERE (p.id = %s OR UPPER(COALESCE(p.nr_palety,'')) = %s) AND p.status = 'do_przyjecia'",
+                            (numeric_lookup, location_code)
+                        )
+                    else:
+                        # SSCC or barcode — search only by nr_palety.
+                        cur.execute(
+                            f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa "
+                            f"FROM {table_prod} p "
+                            f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
+                            f"WHERE UPPER(COALESCE(p.nr_palety,'')) = %s AND p.status = 'do_przyjecia'",
+                            (location_code,)
+                        )
+                    unconf_row = cur.fetchone()
+                    if unconf_row:
+                        return {
+                            'id': unconf_row['id'],
+                            'nr_palety': unconf_row['nr_palety'],
+                            'nazwa': unconf_row['nazwa'] or 'Wyrób Gotowy',
+                            'stan_magazynowy': float(unconf_row['waga'] or 0),
+                            'lokalizacja': '',
+                            'inventory_type': 'Wyrób Gotowy',
+                            'is_unconfirmed_wg': True
+                        }
+                except Exception:
+                    pass
 
             if prefixed_type:
                 prefixed_row = None
