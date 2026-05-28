@@ -1196,16 +1196,21 @@ function openNewPalletModal(loc, selectedType) {
 }
 
 // Switch unit automatically based on category/type choice and regenerate SSCC
-document.getElementById('newPalletType').addEventListener('change', (e) => {
-    const val = e.target.value;
-    document.getElementById('newPalletUnit').value = (val === 'opakowanie') ? 'szt' : 'kg';
-    
-    const ssccInput = document.getElementById('newPalletSSCC');
-    if (!ssccInput.value || /^(SUR|OPK|DOD|WG)\d+$/.test(ssccInput.value)) {
-        ssccInput.value = generateLocalSSCC(val);
+document.addEventListener('DOMContentLoaded', () => {
+    const typeSelect = document.getElementById('newPalletType');
+    if (typeSelect) {
+        typeSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            document.getElementById('newPalletUnit').value = (val === 'opakowanie') ? 'szt' : 'kg';
+            
+            const ssccInput = document.getElementById('newPalletSSCC');
+            if (!ssccInput.value || /^(SUR|OPK|DOD|WG)\d+$/.test(ssccInput.value)) {
+                ssccInput.value = generateLocalSSCC(val);
+            }
+            
+            fetchProductNames(val);
+        });
     }
-    
-    fetchProductNames(val);
 });
 
 function saveNewPallet() {
