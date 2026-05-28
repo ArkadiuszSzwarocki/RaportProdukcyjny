@@ -7,6 +7,28 @@ from datetime import date
 
 class StaffQueries:
     @staticmethod
+    def _is_linia_column_error(error) -> bool:
+        text = str(error or '').lower()
+        return 'unknown column' in text and 'linia' in text
+
+    @staticmethod
+    def _execute_with_linia_fallback(
+        cursor,
+        *,
+        sql_with_linia,
+        params_with_linia,
+        sql_without_linia,
+        params_without_linia,
+    ):
+        try:
+            cursor.execute(sql_with_linia, params_with_linia)
+        except Exception as exc:
+            if StaffQueries._is_linia_column_error(exc):
+                cursor.execute(sql_without_linia, params_without_linia)
+            else:
+                raise
+
+    @staticmethod
     def get_pracownicy(cursor=None):
         """Fetch all employees ordered by name."""
         conn = None
@@ -30,16 +52,28 @@ class StaffQueries:
             cursor = conn.cursor()
         
         if sekcja:
-            cursor.execute(
-                "SELECT o.id, p.imie_nazwisko FROM obsada_zmiany o "
-                "JOIN pracownicy p ON o.pracownik_id = p.id "
-                "WHERE o.data_wpisu = %s AND o.sekcja = %s AND o.linia = %s",
-                (data_wpisu, sekcja, linia)
+            StaffQueries._execute_with_linia_fallback(
+                cursor,
+                sql_with_linia=(
+                    "SELECT o.id, p.imie_nazwisko FROM obsada_zmiany o "
+                    "JOIN pracownicy p ON o.pracownik_id = p.id "
+                    "WHERE o.data_wpisu = %s AND o.sekcja = %s AND o.linia = %s"
+                ),
+                params_with_linia=(data_wpisu, sekcja, linia),
+                sql_without_linia=(
+                    "SELECT o.id, p.imie_nazwisko FROM obsada_zmiany o "
+                    "JOIN pracownicy p ON o.pracownik_id = p.id "
+                    "WHERE o.data_wpisu = %s AND o.sekcja = %s"
+                ),
+                params_without_linia=(data_wpisu, sekcja),
             )
         else:
-            cursor.execute(
-                "SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND linia = %s",
-                (data_wpisu, linia)
+            StaffQueries._execute_with_linia_fallback(
+                cursor,
+                sql_with_linia="SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND linia = %s",
+                params_with_linia=(data_wpisu, linia),
+                sql_without_linia="SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s",
+                params_without_linia=(data_wpisu,),
             )
         result = cursor.fetchall()
         
@@ -52,11 +86,20 @@ class StaffQueries:
         """Get staff assignment (obsada) for a specific date/line, grouped by sekcja."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT oz.sekcja, p.id, p.imie_nazwisko FROM obsada_zmiany oz "
-            "JOIN pracownicy p ON oz.pracownik_id = p.id "
-            "WHERE oz.data_wpisu = %s AND oz.linia = %s ORDER BY oz.sekcja, p.imie_nazwisko",
-            (data_wpisu, linia)
+        StaffQueries._execute_with_linia_fallback(
+            cursor,
+            sql_with_linia=(
+                "SELECT oz.sekcja, p.id, p.imie_nazwisko FROM obsada_zmiany oz "
+                "JOIN pracownicy p ON oz.pracownik_id = p.id "
+                "WHERE oz.data_wpisu = %s AND oz.linia = %s ORDER BY oz.sekcja, p.imie_nazwisko"
+            ),
+            params_with_linia=(data_wpisu, linia),
+            sql_without_linia=(
+                "SELECT oz.sekcja, p.id, p.imie_nazwisko FROM obsada_zmiany oz "
+                "JOIN pracownicy p ON oz.pracownik_id = p.id "
+                "WHERE oz.data_wpisu = %s ORDER BY oz.sekcja, p.imie_nazwisko"
+            ),
+            params_without_linia=(data_wpisu,),
         )
         rows = cursor.fetchall()
         obsady_map = {}
@@ -71,12 +114,22 @@ class StaffQueries:
         """Get workers not assigned to any sekcja on a specific date/line."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, imie_nazwisko FROM pracownicy "
-            "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s AND linia=%s) "
-            "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad','masteradmin') AND pracownik_id IS NOT NULL) "
-            "ORDER BY imie_nazwisko",
-            (data_wpisu, linia)
+        StaffQueries._execute_with_linia_fallback(
+            cursor,
+            sql_with_linia=(
+                "SELECT id, imie_nazwisko FROM pracownicy "
+                "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s AND linia=%s) "
+                "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad','masteradmin') AND pracownik_id IS NOT NULL) "
+                "ORDER BY imie_nazwisko"
+            ),
+            params_with_linia=(data_wpisu, linia),
+            sql_without_linia=(
+                "SELECT id, imie_nazwisko FROM pracownicy "
+                "WHERE id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s) "
+                "AND id NOT IN (SELECT pracownik_id FROM uzytkownicy WHERE rola IN ('admin','zarzad','masteradmin') AND pracownik_id IS NOT NULL) "
+                "ORDER BY imie_nazwisko"
+            ),
+            params_without_linia=(data_wpisu,),
         )
         result = cursor.fetchall()
         conn.close()
