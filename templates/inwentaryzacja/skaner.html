@@ -442,6 +442,9 @@ function renderRackGrid(prefix) {
     if (prefix === 'R05') {
         maxCols = 4;
         maxRows = 4;
+    } else if (prefix === 'R06') {
+        maxCols = 5;
+        maxRows = 5;
     }
     
     grid.style.gridTemplateColumns = `repeat(${maxCols}, minmax(60px, 1fr))`;

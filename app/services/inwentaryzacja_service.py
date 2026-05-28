@@ -148,6 +148,13 @@ class InwentaryzacjaService:
             )
             add_to_map(cursor.fetchall())
 
+            # 2.5 Dodatki
+            cursor.execute(
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'dodatek' as typ_palety, linia, 'kg' as jednostka FROM magazyn_dodatki WHERE {like_clause} AND stan_magazynowy > 0", 
+                params
+            )
+            add_to_map(cursor.fetchall())
+
             # 3. Wyroby Gotowe
             for hall in hall_contexts:
                 table = get_table_name('magazyn_palety', hall)
@@ -256,6 +263,14 @@ class InwentaryzacjaService:
             table_opk = 'magazyn_opakowania'
             cursor.execute(
                 f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM {table_opk} WHERE {in_clause} AND stan_magazynowy > 0", 
+                loc_variants
+            )
+            for p in cursor.fetchall():
+                all_pallets.append(process_pallet(p))
+
+            # 2.5 Dodatki
+            cursor.execute(
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'dodatek' as typ_palety, linia, 'kg' as jednostka FROM magazyn_dodatki WHERE {in_clause} AND stan_magazynowy > 0", 
                 loc_variants
             )
             for p in cursor.fetchall():
