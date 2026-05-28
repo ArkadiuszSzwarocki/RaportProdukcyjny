@@ -568,18 +568,10 @@
 
         <div class="footer-actions">
             <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=(dostawa.linia or 'PSD')) }}" class="btn">Powrot</a>
-            <button type="button" class="btn primary" onclick="window.print()">Drukuj</button>
+            <!-- Lokalny druk wyłączony: etykiety drukowane tylko przez mostek ZPL po wyborze drukarki -->
         </div>
     </div>
 
-    {% if autoprint %}
-    <script>
-        window.addEventListener('load', function () {
-            setTimeout(function () {
-                window.print();
-            }, 180);
-        });
-    </script>
-    {% endif %}
+    <!-- Autoprint wyłączony - druk ZPL przez serwer mostka -->
 </body>
 </html>

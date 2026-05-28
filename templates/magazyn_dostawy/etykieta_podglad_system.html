@@ -200,10 +200,7 @@
 </head>
 <body>
     <div class="screen">
-        <div class="toolbar">
-            <div class="toolbar-note">Podglad etykiety produkcyjnej (WG). Uklad odwzorowuje auto-druk.</div>
-            <button class="toolbar-btn" onclick="window.print()">Drukuj / PDF</button>
-        </div>
+        <!-- Usunięto przycisk drukowania lokalnego / PDF. Etykiety drukowane tylko przez wybór drukarki ZPL. -->
 
         <div class="label">
             <div class="typ">WYROB GOTOWY</div>
@@ -240,12 +237,6 @@
         </div>
     </div>
 
-    <script>
-        if ({{ 'true' if autoprint else 'false' }}) {
-            window.addEventListener('load', function () {
-                setTimeout(function () { window.print(); }, 260);
-            });
-        }
-    </script>
+    <!-- Autoprint wyłączony - druk tylko przez serwer ZPL po wyborze drukarki -->
 </body>
 </html>

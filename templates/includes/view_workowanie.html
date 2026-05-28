@@ -50,6 +50,7 @@
                                 <tr>
                                     <th>{{ _('nr') }}</th>
                                     <th>🕒 {{ _('czas') }}</th>
+                                    <th>SSCC</th>
                                     <th>⚖️ {{ _('waga') }}</th>
                                 </tr>
                             </thead>
@@ -58,6 +59,7 @@
                                 <tr>
                                     <td class="text-muted font-bold">{{ loop.index if loop is defined else '' }}</td>
                                     <td class="time-display">{{ pal[1] }}</td>
+                                    <td class="mono small">{{ pal[4] if pal|length > 4 else '' }}</td>
                                     <td><strong class="text-success">{{ pal[0] | int }} kg</strong></td>
                                 </tr>
                                 {% endfor %}
@@ -165,6 +167,7 @@
                     <tr>
                         <th>{{ _('nr') }}</th>
                         <th>🕒 {{ _('czas') }}</th>
+                        <th>SSCC</th>
                         <th>👤 Status</th>
                         <th>⚖️ {{ _('waga') }}</th>
                     </tr>
@@ -174,6 +177,7 @@
                     <tr>
                         <td class="text-muted font-bold">{{ loop.index if loop is defined else '' }}</td>
                         <td class="time-display"><span>{{ pal[1] }}</span></td>
+                        <td class="mono small">{{ pal[4] if pal|length > 4 else '' }}</td>
                         <td>
                             {% if pal[7] and pal[7] != '' %}
                                 {% if pal[7] == 'do_przyjecia' %}

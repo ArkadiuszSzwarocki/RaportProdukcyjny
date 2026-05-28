@@ -52,9 +52,12 @@ def _load_persisted_database_name():
             pass
     return None
 
-# Load persisted DB on module import
+# Load persisted DB on module import.
+# In CI/testing, environment variables must win over git-tracked active_db*.txt.
 _persisted_db = _load_persisted_database_name()
-if _persisted_db:
+_is_ci_env = str(os.getenv('CI', '')).lower() == 'true' or str(os.getenv('GITHUB_ACTIONS', '')).lower() == 'true'
+_is_test_env = str(os.getenv('FLASK_ENV', '')).lower() == 'testing' or ('PYTEST_CURRENT_TEST' in os.environ)
+if _persisted_db and not (_is_ci_env or _is_test_env):
     with _DB_CONFIG_LOCK:
         DB_CONFIG['database'] = _persisted_db
 

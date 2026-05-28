@@ -75,15 +75,28 @@
         d.removeAttribute('data-open');
     };
 
+    function ensureInventorySelectOptions(selectId) {
+        const sel = document.getElementById(selectId);
+        if (!sel || sel.options.length) return sel;
+
+        (window._inventory || []).forEach(function(s) {
+            const o = document.createElement('option');
+            o.value = s.id;
+            const labelName = s.parent_nazwa || s.nazwa || 'Surowiec';
+            const labelLoc = s.lokalizacja || 'Brak';
+            const labelQty = (typeof s.stan !== 'undefined' ? s.stan : (s.stan_magazynowy || 0));
+            o.textContent = labelName + ' - ' + labelLoc + ' (' + labelQty + ' kg)';
+            sel.appendChild(o);
+        });
+
+        return sel;
+    }
+
     window.openUsageFor = function(id, nazwa, lok, qty) {
-        const sel = document.getElementById('usage_surowiec_id');
-        if (!sel.options.length) {
-            window._inventory.forEach(function(s) {
-                const o = document.createElement('option');
-                o.value = s.id;
-                o.textContent = s.nazwa + ' - ' + (s.lokalizacja || 'Brak') + ' (' + s.stan + ' kg)';
-                sel.appendChild(o);
-            });
+        const sel = ensureInventorySelectOptions('usage_surowiec_id');
+        if (!sel) {
+            showAlert('Brak listy palet do pobrania.');
+            return;
         }
         sel.value = id;
         document.getElementById('usage_ilosc').value = qty;
@@ -110,8 +123,23 @@
     };
 
     window.openInventoryFor = function(id, nazwa, qty) {
-        document.getElementById('inv_surowiec_id').value = id;
+        const sel = ensureInventorySelectOptions('inv_surowiec_id');
+        if (sel) sel.value = id;
         document.getElementById('inv_qty').value = qty;
+        openModal('modalInventory');
+    };
+
+    window.openStandardInventoryModal = function() {
+        const first = (window._inventory || [])[0];
+        if (first && typeof first.id !== 'undefined') {
+            const qty = (typeof first.stan !== 'undefined') ? first.stan : (first.stan_magazynowy || 0);
+            openInventoryFor(first.id, first.parent_nazwa || first.nazwa || '', qty);
+            return;
+        }
+
+        ensureInventorySelectOptions('inv_surowiec_id');
+        const qtyInput = document.getElementById('inv_qty');
+        if (qtyInput) qtyInput.value = '';
         openModal('modalInventory');
     };
 
@@ -399,20 +427,50 @@
 
     document.addEventListener('DOMContentLoaded', function() {
         const inp = document.getElementById('qrScanInput');
-        if (!inp) return;
-        inp.addEventListener('input', () => {
-            const val = inp.value.trim().toUpperCase();
-            inp.value = val;
-            document.getElementById('qrConfirmBtn').disabled = val.length === 0;
-        });
-        inp.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
+        if (inp) {
+            inp.addEventListener('input', () => {
                 const val = inp.value.trim().toUpperCase();
-                if (val) applyQrResult(val);
-            }
-        });
+                inp.value = val;
+                document.getElementById('qrConfirmBtn').disabled = val.length === 0;
+            });
+            inp.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const val = inp.value.trim().toUpperCase();
+                    if (val) applyQrResult(val);
+                }
+            });
+        }
+
+        openInventoryEntryFromUrl();
     });
+
+    function openInventoryEntryFromUrl() {
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            const mode = String(params.get('inventory') || '').toLowerCase().trim();
+            if (!mode) return;
+
+            if (mode === 'production' || mode === 'prod') {
+                if (typeof window.openBulkInventoryModal === 'function') {
+                    window.openBulkInventoryModal();
+                }
+            } else if (mode === 'standard' || mode === 'regular') {
+                if (typeof window.openStandardInventoryModal === 'function') {
+                    window.openStandardInventoryModal();
+                }
+            }
+
+            params.delete('inventory');
+            const nextQuery = params.toString();
+            const nextUrl = window.location.pathname + (nextQuery ? ('?' + nextQuery) : '') + (window.location.hash || '');
+            if (window.history && typeof window.history.replaceState === 'function') {
+                window.history.replaceState({}, document.title, nextUrl);
+            }
+        } catch (e) {
+            console.warn('Unable to auto-open inventory view from URL', e);
+        }
+    }
 
     function applyQrResult(val) {
         closeQrScanner();
@@ -531,7 +589,7 @@
     };
 
     window.openIssueWarehouseFor = function(id, nazwa) {
-        const sel = document.getElementById('issuew_surowiec_id');
+        const sel = ensureInventorySelectOptions('issuew_surowiec_id');
         if (sel) sel.value = id;
         document.getElementById('issuew_ilosc').value = '';
         document.getElementById('issuew_komentarz').value = '';
@@ -553,14 +611,46 @@
     window.openBulkInventoryModal = function() {
         document.getElementById('bulkInvBody').innerHTML = '<tr><td colspan="5" class="text-center text-muted">Ładowanie...</td></tr>';
         document.getElementById('bulkInvFilter').value = '';
+        const prodBody = document.getElementById('prodInvBody');
+        if (prodBody) {
+            prodBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Ładowanie...</td></tr>';
+        }
+        const prodFilter = document.getElementById('prodInvFilter');
+        if (prodFilter) prodFilter.value = '';
+        const prodZoneFilter = document.getElementById('prodInvZoneFilter');
+        if (prodZoneFilter) prodZoneFilter.value = '';
+        const prodTypeFilter = document.getElementById('prodInvTypeFilter');
+        if (prodTypeFilter) prodTypeFilter.value = '';
+
         openModal('modalBulkInventory');
-        fetch(`/agro/api/locations_inventory?linia=${CONFIG.linia}`)
-            .then(r => r.json())
-            .then(res => {
-                if (!res.success) return showAlert('Błąd: ' + (res.error || 'Nieznany'));
-                window._bulkInvItems = res.items;
-                renderBulkInventory(res.items);
-            }).catch(e => { console.error(e); showAlert('Błąd połączenia'); });
+
+        Promise.all([
+            fetch(`/agro/api/locations_inventory?linia=${CONFIG.linia}`).then(r => r.json()),
+            fetch(`/agro/api/production_inventory?linia=${CONFIG.linia}&limit=1000`).then(r => r.json())
+        ])
+            .then(function(results) {
+                const warehouseRes = results[0] || {};
+                const productionRes = results[1] || {};
+
+                if (!warehouseRes.success) {
+                    showAlert('Błąd odczytu inwentaryzacji regałów: ' + (warehouseRes.error || 'Nieznany'));
+                    return;
+                }
+                if (!productionRes.success) {
+                    showAlert('Błąd odczytu inwentaryzacji produkcji: ' + (productionRes.error || 'Nieznany'));
+                    return;
+                }
+
+                window._bulkInvItems = warehouseRes.items || [];
+                window._prodInvItems = productionRes.items || [];
+                renderBulkInventory(window._bulkInvItems);
+                renderProductionInventory(window._prodInvItems);
+                filterProductionInventory();
+            })
+            .catch(function(e) {
+                console.error(e);
+                showAlert('Błąd połączenia');
+            });
     };
 
     function renderBulkInventory(items) {
@@ -594,27 +684,141 @@
         });
     };
 
-    window.submitBulkInventory = function() {
-        const inputs = document.querySelectorAll('.bulk-inv-qty');
-        const items = [];
-        inputs.forEach(function(inp) {
+    function renderProductionInventory(items) {
+        const body = document.getElementById('prodInvBody');
+        if (!body) return;
+
+        body.innerHTML = '';
+        if (!items || items.length === 0) {
+            body.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Brak pozycji produkcyjnych do inwentaryzacji</td></tr>';
+            return;
+        }
+
+        items.forEach(function(it) {
+            const tr = document.createElement('tr');
+            tr.className = 'prod-inv-row';
+            tr.dataset.nazwa = String(it.nazwa || '').toLowerCase();
+            tr.dataset.zbiornik = String(it.zbiornik || '').toLowerCase();
+            tr.dataset.plan = String(it.plan_name || it.plan_id || '').toLowerCase();
+            tr.dataset.strefa = String(it.strefa || '').toUpperCase();
+            tr.dataset.rodzaj = String(it.rodzaj || '').toUpperCase();
+
+            const planLabel = it.plan_name ? (it.plan_name + (it.plan_id ? ' (#' + it.plan_id + ')' : '')) : (it.plan_id ? ('#' + it.plan_id) : '—');
+            tr.innerHTML = `
+                <td>#${it.ruch_id}</td>
+                <td>${it.zbiornik || '—'}</td>
+                <td>${it.strefa || 'INNE'}</td>
+                <td>${it.rodzaj || 'SUROWCE'}</td>
+                <td>
+                    <div>${it.nazwa || ''}</div>
+                    <div class="text-muted small">Plan: ${planLabel}</div>
+                </td>
+                <td class="font-bold">${it.stan_systemowy}</td>
+                <td><input type="number" class="form-control prod-inv-qty" data-ruch-id="${it.ruch_id}" step="0.1" value="${it.stan_systemowy}" style="width:120px;"></td>
+            `;
+            body.appendChild(tr);
+        });
+    }
+
+    window.filterProductionInventory = function() {
+        const q = (document.getElementById('prodInvFilter') ? document.getElementById('prodInvFilter').value : '').toLowerCase();
+        const zone = ((document.getElementById('prodInvZoneFilter') || {}).value || '').toUpperCase();
+        const type = ((document.getElementById('prodInvTypeFilter') || {}).value || '').toUpperCase();
+
+        document.querySelectorAll('.prod-inv-row').forEach(function(tr) {
+            const textMatch = !q ||
+                (tr.dataset.nazwa || '').indexOf(q) !== -1 ||
+                (tr.dataset.zbiornik || '').indexOf(q) !== -1 ||
+                (tr.dataset.plan || '').indexOf(q) !== -1;
+            const zoneMatch = !zone || (tr.dataset.strefa || '') === zone;
+            const typeMatch = !type || (tr.dataset.rodzaj || '') === type;
+            tr.style.display = (textMatch && zoneMatch && typeMatch) ? '' : 'none';
+        });
+    };
+
+    function _hasQtyChanged(newValue, oldValue) {
+        const newNum = Number(newValue);
+        const oldNum = Number(oldValue);
+        if (!Number.isFinite(newNum) || !Number.isFinite(oldNum)) return false;
+        return Math.abs(newNum - oldNum) > 0.0001;
+    }
+
+    window.submitBulkInventory = async function() {
+        const warehouseInputs = document.querySelectorAll('.bulk-inv-qty');
+        const warehouseItems = [];
+        warehouseInputs.forEach(function(inp) {
             const id = inp.dataset.id;
-            const orig = window._bulkInvItems.find(x => String(x.id) === String(id));
+            const orig = (window._bulkInvItems || []).find(x => String(x.id) === String(id));
             const newVal = parseFloat(inp.value);
-            if (orig && !isNaN(newVal) && newVal !== orig.stan_magazynowy) {
-                items.push({ surowiec_id: id, actual_qty: newVal, komentarz: 'Inwentaryzacja zbiorcza' });
+            if (orig && !isNaN(newVal) && _hasQtyChanged(newVal, orig.stan_magazynowy)) {
+                warehouseItems.push({ surowiec_id: id, actual_qty: newVal, komentarz: 'Inwentaryzacja zbiorcza' });
             }
         });
-        if (items.length === 0) return showAlert('Brak zmian do zapisania.');
-        if (!confirm('Zapisać ' + items.length + ' zmian(y) w inwentaryzacji?')) return;
-        fetch('/agro/api/bulk_inventory', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ items: items, linia: CONFIG.linia })
-        }).then(r => r.json()).then(res => {
-            if (res.success) { showAlert('Zaktualizowano ' + (res.updated || 0) + ' pozycji.'); location.reload(); }
-            else showAlert('Błąd: ' + (res.error || 'Nieznany'));
-        }).catch(e => { console.error(e); showAlert('Błąd połączenia'); });
+
+        const prodInputs = document.querySelectorAll('.prod-inv-qty');
+        const productionItems = [];
+        prodInputs.forEach(function(inp) {
+            const ruchId = inp.dataset.ruchId;
+            const orig = (window._prodInvItems || []).find(x => String(x.ruch_id) === String(ruchId));
+            const newVal = parseFloat(inp.value);
+            if (orig && !isNaN(newVal) && _hasQtyChanged(newVal, orig.stan_systemowy)) {
+                productionItems.push({ ruch_id: ruchId, actual_qty: newVal, komentarz: 'Inwentaryzacja produkcji BB/MZ/KO' });
+            }
+        });
+
+        if (warehouseItems.length === 0 && productionItems.length === 0) {
+            return showAlert('Brak zmian do zapisania.');
+        }
+
+        if (!confirm('Zapisać zmiany? Regały: ' + warehouseItems.length + ', Produkcja: ' + productionItems.length)) {
+            return;
+        }
+
+        try {
+            let updatedWarehouse = 0;
+            let updatedProduction = 0;
+
+            if (warehouseItems.length > 0) {
+                const warehouseResp = await fetch('/agro/api/bulk_inventory', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ items: warehouseItems, linia: CONFIG.linia })
+                });
+                const warehouseRes = await warehouseResp.json();
+                if (!warehouseResp.ok || !warehouseRes.success) {
+                    showAlert('Błąd inwentaryzacji regałów: ' + (warehouseRes.error || 'Nieznany'));
+                    return;
+                }
+                updatedWarehouse = Number(warehouseRes.updated || 0);
+            }
+
+            if (productionItems.length > 0) {
+                const productionResp = await fetch('/agro/api/production_inventory', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ items: productionItems, linia: CONFIG.linia })
+                });
+                const productionRes = await productionResp.json();
+                if (!productionResp.ok || !productionRes.success) {
+                    if (productionRes && Array.isArray(productionRes.errors) && productionRes.errors.length) {
+                        const details = productionRes.errors.slice(0, 3).map(function(err) {
+                            return '#' + (err.ruch_id || '?') + ': ' + (err.error || 'błąd');
+                        }).join('; ');
+                        showAlert('Błąd inwentaryzacji produkcji: ' + details);
+                    } else {
+                        showAlert('Błąd inwentaryzacji produkcji: ' + ((productionRes && productionRes.error) || 'Nieznany'));
+                    }
+                    return;
+                }
+                updatedProduction = Number(productionRes.updated || 0);
+            }
+
+            showAlert('Zapisano zmiany. Regały: ' + updatedWarehouse + ', Produkcja: ' + updatedProduction + '.');
+            location.reload();
+        } catch (e) {
+            console.error(e);
+            showAlert('Błąd połączenia');
+        }
     };
 
     window.submitInventory = function() {
@@ -627,3 +831,5 @@
         if (!data.surowiec_id || data.actual_qty === "") return showAlert("Wypełnij wszystkie pola!");
         apiCall('/agro/api/inventory', data);
     };
+
+})();

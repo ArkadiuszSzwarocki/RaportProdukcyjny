@@ -110,6 +110,7 @@
                     <th style="padding: 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase;">Faktyczny</th>
                     <th style="padding: 15px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase;">Różnica</th>
                     <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Operator / Czas</th>
+                    <th style="padding: 15px; text-align: center; font-size: 11px; color: #64748b; text-transform: uppercase;">Akcje</th>
                 </tr>
             </thead>
             <tbody>
@@ -143,6 +144,13 @@
                     <td style="padding: 15px;">
                         <div style="font-size: 12px; color: #475569;">{{ e.user_login }}</div>
                         <div style="font-size: 10px; color: #94a3b8;">{{ e.data_wpisu.strftime('%H:%M:%S') if e.data_wpisu and e.data_wpisu.strftime else e.data_wpisu }}</div>
+                    </td>
+                    <td style="padding: 15px; text-align: center;">
+                        {% if sesja.status == 'APPLIED' and e.waga_faktyczna > 0 %}
+                            <button onclick="drukujZPLzRaportu(this, '{{ e.nr_palety or e.paleta_id }}', '{{ e.nazwa|replace("'", "\\'") }}', '{{ e.nr_partii|replace("'", "\\'") }}', '{{ e.data_produkcji.strftime('%Y-%m-%d') if e.data_produkcji and e.data_produkcji.strftime else e.data_produkcji }}', '{{ e.data_przydatnosci.strftime('%Y-%m-%d') if e.data_przydatnosci and e.data_przydatnosci.strftime else e.data_przydatnosci }}', '{{ 'packaging' if e.typ_palety == 'opakowanie' else ('finished' if e.typ_palety == 'wyrób gotowy' else 'surowiec') }}', '{{ e.waga_faktyczna }}', '{{ e.linia }}')" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: #e0f2fe; color: #0284c7; text-decoration: none; border: none; cursor: pointer; transition: all 0.2s;" title="Drukuj ZPL">
+                                <span class="material-icons" style="font-size: 18px;">print</span>
+                            </button>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -298,5 +306,103 @@ function filterReportTable() {
         th, td { border: 1px solid #ccc !important; }
         body { background: white !important; }
     }
+</script>
+
+<script>
+async function drukujZPLzRaportu(btn, nrPalety, productName, partia, dataProd, dataPrzyd, pType, qty, linia) {
+    if (btn.dataset.busy === '1') return;
+    
+    btn.dataset.busy = '1';
+    const oldHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="material-icons" style="font-size: 18px; animation: spin 1s linear infinite;">autorenew</span>';
+    
+    try {
+        const resp = await fetch('/magazyn-dostawy/api/active-printers');
+        const j = await resp.json();
+        
+        if (!j.success || !j.printers || j.printers.length === 0) {
+            safeAlert('Błąd', 'Brak aktywnych drukarek w systemie.');
+            btn.dataset.busy = '0';
+            btn.innerHTML = oldHtml;
+            return;
+        }
+        
+        let selectHtml = '<select id="reportPrinterSelect" style="width:100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 15px;">';
+        j.printers.forEach(p => {
+            if(p.id) { 
+                selectHtml += `<option value="${p.id}">${p.nazwa} (${p.ip}) - ${p.lokalizacja || 'Magazyn'}</option>`;
+            }
+        });
+        selectHtml += '</select>';
+        
+        const content = `
+            <div>Wybierz drukarkę docelową:</div>
+            <div style="margin-top: 15px;">${selectHtml}</div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button class="btn-action" style="background:#f1f5f9; color:#0f172a;" onclick="closeQuickPopup()">Anuluj</button>
+                <button class="btn-action" style="background:#10b981; color:#fff;" id="btnConfirmPrint">Drukuj ZPL</button>
+            </div>
+        `;
+        
+        const popup = createQuickPopup('Wydruk ZPL', content);
+        
+        setTimeout(() => {
+            const confirmBtn = document.getElementById('btnConfirmPrint');
+            confirmBtn.addEventListener('click', async () => {
+                confirmBtn.disabled = true;
+                confirmBtn.innerText = 'Wysyłanie...';
+                
+                const printerId = document.getElementById('reportPrinterSelect').value;
+                const payload = {
+                    nr_palety: nrPalety,
+                    printer_id: printerId,
+                    product_name: productName,
+                    nr_partii: partia,
+                    data_produkcji: dataProd,
+                    data_przydatnosci: dataPrzyd,
+                    qty: parseFloat(qty) || 0,
+                    p_type: pType,
+                    linia: linia
+                };
+                
+                try {
+                    const postResp = await fetch('/magazyn-dostawy/api/dodruk-etykiet', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const postJ = await postResp.json();
+                    
+                    if (postJ.success) {
+                        showToast(postJ.message || 'Wysłano do drukarki', 'success');
+                        popup.close();
+                    } else {
+                        showToast(postJ.error || 'Błąd drukowania', 'danger');
+                        confirmBtn.disabled = false;
+                        confirmBtn.innerText = 'Drukuj ZPL';
+                    }
+                } catch(e) {
+                    showToast('Błąd sieci podczas wysyłania', 'danger');
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerText = 'Drukuj ZPL';
+                }
+            });
+        }, 100);
+        
+    } catch(e) {
+        safeAlert('Błąd', 'Nie udało się pobrać listy drukarek.');
+    } finally {
+        btn.dataset.busy = '0';
+        btn.innerHTML = oldHtml;
+    }
+}
+function closeQuickPopup() {
+    const m = document.querySelector('.quick-popup');
+    const b = document.querySelector('.quick-backdrop');
+    if(m) { m.classList.remove('open'); setTimeout(() => { m.style.display='none'; if(b) b.style.display='none'; document.body.classList.remove('slide-over-open'); }, 250); }
+}
+</script>
+<style>
+@keyframes spin { 100% { transform: rotate(360deg); } }
 </style>
 {% endblock %}

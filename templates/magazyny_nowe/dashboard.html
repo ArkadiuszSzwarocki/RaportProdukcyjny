@@ -34,55 +34,7 @@
                 </tr>
             </thead>
             <tbody id="palletTableBody" style="opacity:0; transition: opacity 0.15s ease;">
-                {% for item in items %}
-                <tr class="pallet-row {% if item.is_blocked %}is-blocked-row{% endif %}"
-                    style="cursor: pointer;"
-                    data-display-id="{{ item.displayId }}"
-                    data-product="{{ item.productName }}"
-                    data-amount="{{ item.amount }}"
-                    data-location="{{ item.location or '' }}"
-                    data-type="{{ item.type }}"
-                    data-date="{{ item.date_prod }}"
-                    data-id="{{ item.id }}"
-                    data-linia="{{ item.linia }}"
-                    data-blocked="{{ 1 if item.is_blocked else 0 }}"
-                    data-date-added="{{ item.date_added }}">
-                    <td style="text-align: center; color: #94a3b8; font-weight: 700; background: #f8fafc; font-size: 11px;">{{ loop.index }}</td>
-                    <td class="font-bold">
-                        <div style="display: flex; align-items: center; gap: 6px;">
-                            {% if item.is_blocked %}
-                                <span class="material-icons" style="color: #be123c; font-size: 16px;">block</span>
-                            {% else %}
-                                <span class="material-icons" style="color: #10b981; font-size: 16px;">check_circle</span>
-                            {% endif %}
-                            {{ item.displayId }}
-                        </div>
-                    </td>
-                    <td data-label="Produkt">
-                        <strong class="text-primary">{{ item.productName }}</strong>
-                    </td>
-                    <td data-label="Ilość"><strong>{{ item.amount }}</strong> <small>{{ item.unit }}</small></td>
-                    <td data-label="Lokalizacja" class="location-cell" data-loc-raw="{{ item.location or '' }}">
-                        {% set loc_code = (item.location or '')|upper %}
-                        {% if loc_code and loc_code[:1] == 'R' and loc_code|length >= 7 %}
-                            <span class="location-code">
-                                <span class="location-part-rack">{{ loc_code[0:3] }}</span>
-                                <span class="location-separator"> </span>
-                                <span class="location-part-place">{{ loc_code[3:5] }}</span>
-                                <span class="location-separator"> </span>
-                                <span class="location-part-row">{{ loc_code[5:7] }}</span>
-                            </span>
-                        {% else %}
-                            {{ item.location or 'Brak' }}
-                        {% endif %}
-                    </td>
-                    <td data-label="Typ">
-                        <span class="status-badge" style="font-size: 10px; padding: 2px 8px;">{{ item.type }}</span>
-                    </td>
-                    <td data-label="Produkcja" class="time-display">{{ item.date_prod }}</td>
-                    <td data-label="Ważność" class="time-display">{{ item.date_exp }}</td>
-                </tr>
-                {% endfor %}
+                <!-- Dynamically rendered via JS -->
             </tbody>
         </table>
     </div>
@@ -90,50 +42,15 @@
     <!-- WIDOK KAFELKOWY (Grid) -->
     <div class="grid-view-wrapper" style="display: none;">
         <div class="warehouse-grid" id="palletGridContainer" style="opacity:0; transition: opacity 0.15s ease;">
-            {% for item in items %}
-            <div class="pallet-card {% if item.is_blocked %}is-blocked-card{% endif %}"
-                 style="cursor: pointer;"
-                 data-display-id="{{ item.displayId }}"
-                 data-product="{{ item.productName }}"
-                 data-amount="{{ item.amount }}"
-                 data-location="{{ item.location or '' }}"
-                 data-type="{{ item.type }}"
-                 data-date="{{ item.date_prod }}"
-                 data-id="{{ item.id }}"
-                 data-linia="{{ item.linia }}"
-                 data-blocked="{{ 1 if item.is_blocked else 0 }}"
-                 data-date-added="{{ item.date_added }}">
-                <div class="card-header">
-                    <span class="loc-tag" data-loc-raw="{{ item.location or '' }}">
-                        {% set loc_code = (item.location or '')|upper %}
-                        {% if loc_code and loc_code[:1] == 'R' and loc_code|length >= 7 %}
-                            <span class="location-part-rack">{{ loc_code[0:3] }}</span>
-                            <span class="location-separator"> </span>
-                            <span class="location-part-place">{{ loc_code[3:5] }}</span>
-                            <span class="location-separator"> </span>
-                            <span class="location-part-row">{{ loc_code[5:7] }}</span>
-                        {% else %}
-                            {{ item.location or '???' }}
-                        {% endif %}
-                    </span>
-                    <span class="id-tag">#{{ item.displayId }}</span>
-                </div>
-                <div class="card-body">
-                    <div class="product-name">{{ item.productName }}</div>
-                    <div class="amount-row">
-                        <span class="val">{{ item.amount }}</span>
-                        <span class="unit">{{ item.unit }}</span>
-                    </div>
-                </div>
-                <div class="card-footer">
-                    <span class="type-label">{{ item.type }}</span>
-                    {% if item.is_blocked %}
-                        <span class="material-icons text-danger" style="font-size: 18px;">block</span>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
+            <!-- Dynamically rendered via JS -->
         </div>
+    </div>
+
+    <!-- LOAD MORE BUTTON -->
+    <div id="loadMoreContainer" style="text-align: center; margin: 20px 0; display: none;">
+        <button id="loadMoreBtn" onclick="loadMoreItems()" style="padding: 12px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);">
+            Załaduj więcej palet
+        </button>
     </div>
 </div>
         {% endif %}
@@ -147,10 +64,13 @@ var allWarehouseItems = [
     {% if items %}
         {% for item in items %}
         { 
+            displayId: {{ (item.displayId or '')|tojson }},
+            id: {{ (item.id or '')|tojson }},
+            linia: {{ (item.linia or '')|tojson }},
             productName: {{ item.productName|tojson }}, 
             amount: {{ item.amount|default(0)|float }}, 
             type: {{ item.type|tojson }},
-            location: {{ (item.location or 'BRAK')|tojson }},
+            location: {{ (item.location or '')|tojson }},
             batch: {{ (item.batch or '-')|tojson }},
             date_prod: {{ (item.date_prod or '-')|tojson }},
             date_exp: {{ (item.date_exp or '-')|tojson }},

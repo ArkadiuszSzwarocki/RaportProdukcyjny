@@ -5,6 +5,11 @@
 {% set etapy_sesje = etapy_sesje_mapa.get(p[0]) if etapy_sesje_mapa is defined and etapy_sesje_mapa else [] %}
 {% set param = etapy_parametry.get(p[0]) if etapy_parametry is defined and etapy_parametry else {} %}
 {% for sesja in etapy_sesje %}
+{% set has_real = namespace(val=false) %}
+{% for etap in sesja.etapy %}
+    {% if etap.exists %}{% set has_real.val = true %}{% endif %}
+{% endfor %}
+{% if p[3] == 'w toku' or has_real.val %}
 {% set cur_szarza = sesja.szarza_nr|default(1) %}
 {% set etapy = sesja.etapy|default([]) %}
 {% set sesja_running = namespace(etap=None, label='') %}
@@ -406,6 +411,7 @@
         {% endif %}
     </div>
 </div>
+{% endif %}
 {% endfor %}
 {% endif %}{% endfor %}
 {% endif %}

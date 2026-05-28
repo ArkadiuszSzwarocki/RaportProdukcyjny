@@ -3,6 +3,7 @@
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0} %}
     {% set hall_key = (effective_hall or 'ALL')|upper %}
     {% set pending_for_hall = (pending_map.get('ALL', (pending_map.get('PSD', 0) + pending_map.get('AGRO', 0))) if hall_key == 'ALL' else pending_map.get(hall_key, 0))|int %}
+    {% set can_open_prod_inventory = role_has_access('magazyn.agro_total') and role_has_access('magazyn.inventory') %}
     
     <button type="button" class="nav-item main-cat-btn">
         <span class="text-capitalize nav-main-label">
@@ -13,7 +14,7 @@
         </span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="mag-sub" class="nav-sub {% if request.blueprint in ['magazyny_nowe', 'magazyn_dostawy', 'agro_warehouse', 'scanner', 'inwentaryzacja'] or '/magazyn' in request.path or '/agro/mom' in request.path or '/scanner' in request.path or '/inwentaryzacja' in request.path %}open{% endif %}">
+    <div id="mag-sub" class="nav-sub {% if request.blueprint in ['magazyny_nowe', 'magazyn_dostawy', 'scanner'] or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
         {% if role_has_access('magazyn.view') %}
         <a href="{{ url_for('magazyny_nowe.index', linia=effective_hall) }}" class="nav-sub-item {% if request.blueprint == 'magazyny_nowe' %}active{% endif %}">Wszystkie Magazyny</a>
         {% endif %}
@@ -53,9 +54,24 @@
         {% if role_has_access('magazyn.card') %}
         <a href="{{ url_for('scanner.scanner_ui', linia='AGRO') }}" class="nav-sub-item {% if request.blueprint == 'scanner' %}active{% endif %}">Skaner & Drukarka</a>
         {% endif %}
+    </div>
+</div>
+
+{% if role_has_access('magazyn.inventory') or can_open_prod_inventory %}
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span class="text-capitalize nav-main-label">INWENTARYZACJA</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="inventory-sub" class="nav-sub {% if request.blueprint == 'inwentaryzacja' or request.endpoint in ['agro_warehouse.production_inventory_page', 'agro_warehouse.production_inventory_tank_history'] %}open{% endif %}">
         {% if role_has_access('magazyn.inventory') %}
-        <a href="{{ url_for('inwentaryzacja.index') }}" class="nav-sub-item {% if request.blueprint == 'inwentaryzacja' %}active{% endif %}">Inwentaryzacja</a>
+        <a href="{{ url_for('inwentaryzacja.index') }}" class="nav-sub-item {% if request.blueprint == 'inwentaryzacja' %}active{% endif %}">Inwentaryzacja zwykła</a>
+        {% endif %}
+
+        {% if can_open_prod_inventory %}
+        <a href="/agro/magazyn/inwentaryzacja-produkcji?linia=AGRO" class="nav-sub-item {% if request.endpoint in ['agro_warehouse.production_inventory_page', 'agro_warehouse.production_inventory_tank_history'] %}active{% endif %}">Inwentaryzacja produkcji</a>
         {% endif %}
     </div>
 </div>
+{% endif %}
 {% endif %}

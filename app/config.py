@@ -1,8 +1,9 @@
 import os
 from dotenv import load_dotenv
 
-# Wczytaj zmienne z pliku .env
-load_dotenv(override=True)
+# Wczytaj zmienne z pliku .env, ale nie nadpisuj wartości już ustawionych
+# w środowisku (np. w CI).
+load_dotenv(override=False)
 
 # Klucz do sesji (pobierany z .env, a jeśli brak - używa domyślnego)
 SECRET_KEY = os.getenv('SECRET_KEY', 'tajnyKluczAgronetzwerk')
@@ -52,4 +53,4 @@ BUFOR_LOOKAHEAD_DAYS = int(os.getenv('BUFOR_LOOKAHEAD_DAYS', 1))
 # Klucze przechowywane w .env jako VAPID_PRIVATE_KEY i VAPID_PUBLIC_KEY
 VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY', '')
 VAPID_PUBLIC_KEY = os.getenv('VAPID_PUBLIC_KEY', '')
-VAPID_CLAIMS_EMAIL = os.getenv('VAPID_CLAIMS_EMAIL', 'admin@agronetzwerk.pl')
+VAPID_CLAIMS_EMAIL = os.getenv('VAPID_CLAIMS_EMAIL', 'admin@agronetzwerk.pl')

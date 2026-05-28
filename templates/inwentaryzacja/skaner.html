@@ -115,13 +115,13 @@
             <button onclick="clearSkaner()" style="font-size:11px; font-weight:700; color:#3b82f6; background:none; border:none; cursor:pointer; text-decoration:underline;">← Skanuj inną</button>
         </div>
         
-        <div id="palletsList" style="margin-bottom: 15px;">
-            <!-- Palety będą tutaj renderowane -->
-        </div>
-
         <button id="btnAddPalletMain" onclick="addNewPallet()" style="width: 100%; padding: 15px; border: 2px dashed #3b82f6; border-radius: 12px; background: #f0f9ff; color: #2563eb; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px;">
             <span class="material-icons">add_circle</span> DODAJ PALETĘ (BRAK W SYSTEMIE)
         </button>
+
+        <div id="palletsList" style="margin-bottom: 15px;">
+            <!-- Palety będą tutaj renderowane -->
+        </div>
     </div>
 
     <!-- FLOATING FINISH BUTTON -->
@@ -145,6 +145,11 @@
             <div id="rackGrid" style="display: grid; grid-template-columns: repeat(10, minmax(60px, 1fr)); gap: 8px; min-width: 650px;">
                 <!-- Cells will be generated here -->
             </div>
+        </div>
+
+        <!-- Lista palet na regale pod kafelkami -->
+        <div id="rackListContainer" style="margin-top: 20px;">
+            <!-- Renderowane przez renderRackList() -->
         </div>
 
         <div id="slotDetail" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 16px;">
@@ -335,8 +340,9 @@ window.addEventListener('load', () => {
 
 
 
-function fetchProductNames() {
-    fetch('{{ url_for("inwentaryzacja.podpowiedzi_nazw") }}')
+function fetchProductNames(typ = '') {
+    const url = '{{ url_for("inwentaryzacja.podpowiedzi_nazw") }}' + (typ ? '?typ=' + encodeURIComponent(typ) : '');
+    fetch(url)
     .then(r => r.json())
     .then(data => {
         if(data.success) {
@@ -434,11 +440,23 @@ function renderRackGrid(prefix) {
     const grid = document.getElementById('rackGrid');
     grid.innerHTML = '';
     
-    // Rows: 3, Cols: 10
-    // We assume row 3 is top, row 1 is bottom for display?
-    // User said "3 rzedy po 10 miejsc"
-    for(let r = 3; r >= 1; r--) {
-        for(let c = 1; c <= 10; c++) {
+    let maxCols = 10;
+    let maxRows = 3;
+    
+    // R05 has 4 rows and 4 columns
+    if (prefix === 'R05') {
+        maxCols = 4;
+        maxRows = 4;
+    } else if (prefix === 'R06') {
+        maxCols = 5;
+        maxRows = 5;
+    }
+    
+    grid.style.gridTemplateColumns = `repeat(${maxCols}, minmax(60px, 1fr))`;
+    grid.style.minWidth = maxCols > 6 ? '650px' : '300px';
+
+    for(let r = maxRows; r >= 1; r--) {
+        for(let c = 1; c <= maxCols; c++) {
             const colStr = c.toString().padStart(2, '0');
             const rowStr = r.toString().padStart(2, '0');
             // Format: R010101 (prefix + col + row)
@@ -500,6 +518,62 @@ function renderRackGrid(prefix) {
             grid.appendChild(cell);
         }
     }
+    
+    // Wyrenderuj również listę palet pod regałem
+    renderRackList(prefix);
+}
+
+function renderRackList(prefix) {
+    const listContainer = document.getElementById('rackListContainer');
+    if (!listContainer) return;
+    listContainer.innerHTML = '';
+    
+    let allItemsOnRack = [];
+    for (const [loc, items] of Object.entries(rackData)) {
+        for (const item of items) {
+            if (item.nazwa !== 'PUSTE GNIAZDO') {
+                allItemsOnRack.push({ ...item, location: loc });
+            }
+        }
+    }
+    
+    if (allItemsOnRack.length === 0) {
+        listContainer.innerHTML = '<p style="text-align: center; color: #64748b; font-weight: 600; padding: 20px;">Brak palet na tym regale.</p>';
+        return;
+    }
+    
+    allItemsOnRack.sort((a, b) => {
+        if (a.location < b.location) return -1;
+        if (a.location > b.location) return 1;
+        if (a.nazwa < b.nazwa) return -1;
+        if (a.nazwa > b.nazwa) return 1;
+        return 0;
+    });
+    
+    let html = '<div style="background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">';
+    html += '<table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">';
+    html += '<thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #64748b;">';
+    html += '<tr><th style="padding: 12px 10px;">Lokalizacja</th><th style="padding: 12px 10px;">Produkt</th><th style="padding: 12px 10px; text-align: right;">Ilość Systemowa</th></tr>';
+    html += '</thead><tbody>';
+    
+    allItemsOnRack.forEach(p => {
+        const sysColor = (p.counted) ? '#0f172a' : '#64748b';
+        html += `<tr style="border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;" onclick="highlightAndOpenSlot('${p.location}')" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+            <td style="padding: 12px 10px; font-weight: 800; color: #3b82f6; width: 30%;">${p.location}</td>
+            <td style="padding: 12px 10px;">
+                <div style="font-weight: 800; color: #0f172a; font-size: 13px;">${p.nazwa}</div>
+                <div style="font-size: 10px; color: #94a3b8; font-weight: 700; margin-top: 2px;">
+                    <span style="text-transform: uppercase;">${p.typ_palety}</span> • <span style="font-family: monospace;">${p.displayId}</span>
+                </div>
+            </td>
+            <td style="padding: 12px 10px; text-align: right; font-weight: 800; color: ${sysColor}; width: 25%; font-size: 13px;">
+                ${p.stan_magazynowy || 0} ${p.jednostka || 'kg'}
+            </td>
+        </tr>`;
+    });
+    
+    html += '</tbody></table></div>';
+    listContainer.innerHTML = html;
 }
 
 function highlightAndOpenSlot(locId) {
@@ -591,8 +665,11 @@ function openSlotDetail(locId) {
                         <div style="font-size: 14px; font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="pallet-pname">${p.nazwa}</div>
                         <div style="font-size: 11px; color: #64748b; font-family: monospace;">${p.displayId}</div>
                     </div>
-                    <div style="text-align: right; font-size: 11px; color: #64748b; font-weight: 700; flex-shrink: 0;">
-                        SYS: <span style="font-size: 13px; font-weight: 800; color: #334155;">${systemQty} ${p.jednostka || 'kg'}</span>
+                    <div style="text-align: right; font-size: 11px; color: #64748b; font-weight: 700; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+                        <div>SYS: <span style="font-size: 13px; font-weight: 800; color: #334155;">${systemQty} ${p.jednostka || 'kg'}</span></div>
+                        ${p.id ? `<button class="move-pallet-btn" style="background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 10px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; font-weight: 800;" title="Przenieś paletę w inne miejsce">
+                            <span class="material-icons" style="font-size: 12px; color: #3b82f6;">place</span> Przenieś
+                        </button>` : ''}
                     </div>
                 </div>
                 <div class="slot-change-indicator" style="display:none; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-bottom:8px;"></div>
@@ -659,6 +736,15 @@ function openSlotDetail(locId) {
             
             input.addEventListener('input', updateSlotCardStyle);
             unitSelect.addEventListener('change', updateSlotCardStyle);
+            
+            const moveBtn = card.querySelector('.move-pallet-btn');
+            if(moveBtn) {
+                moveBtn.onclick = (e) => {
+                    e.preventDefault();
+                    promptMoveLocationScanner(p, locId);
+                };
+            }
+            
             if(p.counted) {
                 updateSlotCardStyle();
             }
@@ -732,22 +818,12 @@ function openSlotDetail(locId) {
         const footerDiv = document.createElement('div');
         footerDiv.style.marginTop = '15px';
         footerDiv.style.display = 'grid';
-        
-        const hasSavedQty = realItems.some(i => i.counted && i.waga_faktyczna > 0);
-        if (hasSavedQty) {
-            footerDiv.style.gridTemplateColumns = '1fr';
-            footerDiv.style.gap = '10px';
-            footerDiv.innerHTML = `
-                <button id="btnConfirmEmptyFooter" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700; width: 100%;">WYCZYŚĆ (PUSTE)</button>
-            `;
-        } else {
-            footerDiv.style.gridTemplateColumns = '1fr 1fr';
-            footerDiv.style.gap = '10px';
-            footerDiv.innerHTML = `
-                <button onclick="addNewPallet('${locId}')" style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:10px; color:#64748b; font-size:12px; font-weight:700;">+ DODAJ KOLEJNĄ</button>
-                <button id="btnConfirmEmptyFooter" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700;">WYCZYŚĆ (PUSTE)</button>
-            `;
-        }
+        footerDiv.style.gridTemplateColumns = '1fr 1fr';
+        footerDiv.style.gap = '10px';
+        footerDiv.innerHTML = `
+            <button onclick="addNewPallet('${locId}')" style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:10px; color:#64748b; font-size:12px; font-weight:700;">+ DODAJ KOLEJNĄ</button>
+            <button id="btnConfirmEmptyFooter" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700;">WYCZYŚĆ (PUSTE)</button>
+        `;
         content.appendChild(footerDiv);
         document.getElementById('btnConfirmEmptyFooter').onclick = () => markEmpty(locId);
     }
@@ -844,13 +920,12 @@ function markCellDone(locId, isEmpty) {
 function renderPallets(pallets) {
     const list = document.getElementById('palletsList');
     list.innerHTML = '';
-    const realPallets = pallets.filter(p => p.nazwa !== 'PUSTE GNIAZDO');
+    const realPallets = pallets.filter(p => p.nazwa !== 'PUSTE GNIAZDO').reverse(); // Odwrócenie listy (najnowsze na górze)
     currentPallets = realPallets;
     
-    const hasSavedQty = realPallets.some(p => p.counted && p.waga_faktyczna > 0);
     const mainBtn = document.getElementById('btnAddPalletMain');
     if (mainBtn) {
-        mainBtn.style.display = hasSavedQty ? 'none' : 'flex';
+        mainBtn.style.display = 'flex';
     }
     
     // Check if explicitly empty
@@ -1123,7 +1198,37 @@ function handleSSCCInput() {
     }, 400);
 }
 
+function generateLocalSSCC(type) {
+    let prefix = 'WG';
+    if (type === 'surowiec') prefix = 'SUR';
+    else if (type === 'opakowanie') prefix = 'OPK';
+    else if (type === 'dodatek') prefix = 'DOD';
+    
+    const nowMs = Date.now().toString();
+    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    return `${prefix}${nowMs}${random}`;
+}
+
 function addNewPallet(loc) {
+    const pendingLocInput = document.getElementById('pendingNewPalletLoc');
+    if(pendingLocInput) pendingLocInput.value = loc || '';
+    
+    const catSelect = document.getElementById('modalCategorySelect');
+    if(catSelect) catSelect.value = 'surowiec';
+    
+    const modal = document.getElementById('categorySelectionModal');
+    if(modal) modal.style.display = 'flex';
+    else openNewPalletModal(loc, 'surowiec'); // Fallback if modal not found
+}
+
+function confirmCategorySelection() {
+    const loc = document.getElementById('pendingNewPalletLoc').value;
+    const cat = document.getElementById('modalCategorySelect').value;
+    document.getElementById('categorySelectionModal').style.display = 'none';
+    openNewPalletModal(loc, cat);
+}
+
+function openNewPalletModal(loc, selectedType) {
     lookedUpPalletId = null;
     lookedUpSystemWeight = 0;
     
@@ -1133,22 +1238,42 @@ function addNewPallet(loc) {
         statusDiv.textContent = '';
     }
     
+    const typeSelect = document.getElementById('newPalletType');
+    if(selectedType) {
+        typeSelect.value = selectedType;
+    }
+    
     document.getElementById('newPalletLoc').value = loc || lastLocation;
-    document.getElementById('newPalletSSCC').value = '';
+    document.getElementById('newPalletSSCC').value = generateLocalSSCC(typeSelect.value);
     document.getElementById('newPalletName').value = '';
     document.getElementById('newPalletWeight').value = '0';
-    document.getElementById('newPalletUnit').value = 'kg';
+    document.getElementById('newPalletUnit').value = (typeSelect.value === 'opakowanie') ? 'szt' : 'kg';
     document.getElementById('newPalletBatch').value = '';
     document.getElementById('newPalletDateProd').value = '';
     document.getElementById('newPalletDateExp').value = '';
     document.getElementById('newPalletPackaging').value = 'brak';
     document.getElementById('newPalletModal').style.display = 'flex';
     document.getElementById('newPalletSSCC').focus();
+    
+    fetchProductNames(typeSelect.value);
 }
 
-// Switch unit automatically based on category/type choice
-document.getElementById('newPalletType').addEventListener('change', (e) => {
-    document.getElementById('newPalletUnit').value = (e.target.value === 'opakowanie') ? 'szt' : 'kg';
+// Switch unit automatically based on category/type choice and regenerate SSCC
+document.addEventListener('DOMContentLoaded', () => {
+    const typeSelect = document.getElementById('newPalletType');
+    if (typeSelect) {
+        typeSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            document.getElementById('newPalletUnit').value = (val === 'opakowanie') ? 'szt' : 'kg';
+            
+            const ssccInput = document.getElementById('newPalletSSCC');
+            if (!ssccInput.value || /^(SUR|OPK|DOD|WG)\d+$/.test(ssccInput.value)) {
+                ssccInput.value = generateLocalSSCC(val);
+            }
+            
+            fetchProductNames(val);
+        });
+    }
 });
 
 function saveNewPallet() {
@@ -1212,6 +1337,27 @@ document.getElementById('instructionsModal').addEventListener('click', (e) => {
     }
 });
 </script>
+
+<div id="categorySelectionModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 2500; align-items: center; justify-content: center;">
+    <div style="background: white; width: 95%; max-width: 400px; border-radius: 20px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
+        <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 800;">Wybierz kategorię / typ</h3>
+        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 13px;">Określ rodzaj wprowadzanej palety, aby system mógł poprawnie wygenerować kod SCC.</p>
+        
+        <select id="modalCategorySelect" class="weight-input" style="padding: 12px; margin-bottom: 20px; width: 100%; box-sizing: border-box;">
+            <option value="surowiec">Surowiec</option>
+            <option value="wyrób gotowy">Wyrób Gotowy</option>
+            <option value="opakowanie">Opakowanie</option>
+            <option value="dodatek">Dodatek</option>
+        </select>
+        
+        <input type="hidden" id="pendingNewPalletLoc">
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="confirmCategorySelection()" class="btn-primary" style="flex: 2; padding: 14px; border-radius: 12px; font-weight: 700; border: none; background: #3b82f6; color: white; cursor: pointer;">DALEJ</button>
+            <button onclick="document.getElementById('categorySelectionModal').style.display='none'" style="flex: 1; padding: 14px; border-radius: 12px; font-weight: 700; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer;">ANULUJ</button>
+        </div>
+    </div>
+</div>
 
 <div id="newPalletModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 2000; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 20px 0;">
     <div style="background: white; width: 95%; max-width: 450px; border-radius: 20px; padding: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); margin: auto;">
@@ -1288,6 +1434,142 @@ document.getElementById('instructionsModal').addEventListener('click', (e) => {
         </div>
     </div>
 </div>
+
+<!-- MODAL: Zmiana lokalizacji (Custom Prompt ze splitem) -->
+<div id="moveLocationModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 2500; align-items: center; justify-content: center;">
+    <div style="background: white; width: 95%; max-width: 400px; border-radius: 20px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+        <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 800; color: #0f172a;">
+                <span class="material-icons" style="color: #3b82f6;">place</span> Przenieś paletę
+            </h3>
+            <button onclick="document.getElementById('moveLocationModal').style.display='none'" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b;">&times;</button>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 8px;">Ile przenosisz?</label>
+            <div style="display: flex; align-items: center; border: 2px solid #e2e8f0; border-radius: 10px; padding-right: 12px; background: white;">
+                <input type="number" step="0.1" id="moveAmountInput" class="weight-input" style="flex: 1; border: none; padding: 12px; font-size: 16px; font-weight: 800; text-align: left; background: transparent; outline: none; margin: 0;">
+                <span id="moveAmountUnit" style="font-size: 13px; font-weight: 800; color: #94a3b8;">kg</span>
+            </div>
+            <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">Domyślnie przenosisz całą paletę. Wpisz mniejszą ilość, by podzielić towar na dwie lokalizacje.</p>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 8px;">Nowa lokalizacja</label>
+            <input type="text" id="newLocationInput" class="weight-input" placeholder="Wpisz np. R010101" list="locationSuggestions" autocomplete="off" style="width: 100%; text-transform: uppercase; font-size: 16px; padding: 12px; box-sizing: border-box;">
+            <datalist id="locationSuggestions">
+                <!-- Generowane przez JS -->
+            </datalist>
+            <div id="moveLocationError" style="color: #dc2626; font-size: 12px; margin-top: 8px; display: none; font-weight: 600;"></div>
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="submitMoveLocation()" id="submitMoveBtn" class="btn-primary" style="flex: 2; padding: 14px; border-radius: 12px; font-weight: 700; border: none; background: #3b82f6; color: white; cursor: pointer;">ZAPISZ</button>
+            <button onclick="document.getElementById('moveLocationModal').style.display='none'" style="flex: 1; padding: 14px; border-radius: 12px; font-weight: 700; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer;">ANULUJ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentMovePallet = null;
+let currentMoveOriginalLoc = null;
+
+function promptMoveLocationScanner(p, locId) {
+    currentMovePallet = p;
+    currentMoveOriginalLoc = locId;
+    
+    // Generuj podpowiedzi
+    const datalist = document.getElementById('locationSuggestions');
+    if (datalist && datalist.children.length === 0) {
+        let options = '';
+        for(let r=1; r<=10; r++) {
+            let rStr = r.toString().padStart(2,'0');
+            let maxCols = (r===5) ? 4 : (r===6 ? 5 : 10);
+            let maxRows = (r===5) ? 4 : (r===6 ? 5 : 3);
+            for(let row=1; row<=maxRows; row++) {
+                for(let col=1; col<=maxCols; col++) {
+                    options += `<option value="R${rStr}${col.toString().padStart(2,'0')}${row.toString().padStart(2,'0')}"></option>`;
+                }
+            }
+        }
+        options += '<option value="MP01"></option><option value="MS01"></option><option value="MGW01"></option>';
+        datalist.innerHTML = options;
+    }
+    
+    document.getElementById('newLocationInput').value = '';
+    document.getElementById('moveLocationError').style.display = 'none';
+    
+    const sysAmount = p.stan_magazynowy || 0;
+    document.getElementById('moveAmountInput').value = sysAmount;
+    document.getElementById('moveAmountUnit').textContent = p.jednostka || 'kg';
+    
+    document.getElementById('moveLocationModal').style.display = 'flex';
+}
+
+function submitMoveLocation() {
+    if(!currentMovePallet) return;
+    
+    const inputLoc = document.getElementById('newLocationInput');
+    const inputAmt = document.getElementById('moveAmountInput');
+    const errEl = document.getElementById('moveLocationError');
+    const btn = document.getElementById('submitMoveBtn');
+    
+    let newLoc = inputLoc.value.trim().toUpperCase();
+    let amount = parseFloat(inputAmt.value);
+    
+    if(!newLoc) {
+        errEl.textContent = 'Lokalizacja nie może być pusta!';
+        errEl.style.display = 'block';
+        return;
+    }
+    if(newLoc === currentMoveOriginalLoc) {
+        errEl.textContent = 'Lokalizacja musi być inna niż obecna!';
+        errEl.style.display = 'block';
+        return;
+    }
+    if(isNaN(amount) || amount <= 0) {
+        errEl.textContent = 'Podaj poprawną ilość do przeniesienia!';
+        errEl.style.display = 'block';
+        return;
+    }
+    
+    errEl.style.display = 'none';
+    btn.innerHTML = '<span class="material-icons rotate-anim">sync</span>';
+    btn.disabled = true;
+    
+    let pt = currentMovePallet.typ_palety;
+    let capitalType = pt.charAt(0).toUpperCase() + pt.slice(1);
+    if(pt === 'wyrób gotowy') capitalType = 'Wyrób Gotowy';
+    
+    fetch('/magazyny-nowe/api/pallet/move', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            id: currentMovePallet.id,
+            type: capitalType,
+            location: newLoc,
+            linia: currentMovePallet.linia || 'PSD',
+            amount: amount // Przekazujemy podaną ilość (może być mniejsza od całości = split)
+        })
+    }).then(r => r.json()).then(data => {
+        btn.innerHTML = 'ZAPISZ';
+        btn.disabled = false;
+        if(data.success) {
+            document.getElementById('moveLocationModal').style.display = 'none';
+            refreshRackData(currentRackPrefix);
+            closeDetail();
+        } else {
+            errEl.textContent = "Błąd: " + (data.error || data.message || "Nieznany błąd zapisu");
+            errEl.style.display = 'block';
+        }
+    }).catch(e => {
+        btn.innerHTML = 'ZAPISZ';
+        btn.disabled = false;
+        errEl.textContent = "Błąd połączenia z serwerem.";
+        errEl.style.display = 'block';
+    });
+}
+</script>
 
 <style>
     .btn-primary:active { transform: scale(0.98); }

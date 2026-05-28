@@ -18,7 +18,7 @@ import re
 
 class ScannerService:
     SCAN_TOKEN_PATTERN = re.compile(
-        r'(R\d{6}|[A-Z]{3}\d{18}|SUR-\d+|OPK-\d+|DOD-\d+|PAL-\d+|MS01|MP01|MDM01|MOP01|MGW01|MGW02|OS\d{2}|OSIP|BB\d{2}|MZ\d{2}(?:-\d{2})?|BF_MS01|BF_MP01|KO01|PSD01|PSD|RAMPA|MIX01|W_TRANZYCIE_OSIP)',
+        r'(R\d{6}|[A-Z]{3}\d{18}|SUR-\d+|OPK-\d+|DOD-\d+|PAL-\d+|MS01|MP01|MDM01|MOP01|MGW01|MGW02|OS\d{2}|OSIP|BB\d{2}|MZ\d{2}(?:-\d{2})?|BF_MS01|BF_MP01|KO\d{2}|PSD01|PSD|RAMPA|MIX01|W_TRANZYCIE_OSIP)',
         re.IGNORECASE,
     )
 
@@ -180,6 +180,48 @@ class ScannerService:
                 ('magazyn_opakowania', 'stan_magazynowy', 'Opakowanie', 'OPK', False, False, False),
                 ('magazyn_dodatki', 'stan_magazynowy', 'Dodatek', 'DOD', False, False, False),
             ]
+
+            should_check_unconfirmed = (
+                is_sscc
+                or prefixed_type == 'PAL'
+                or (prefixed_type is None and numeric_id is not None)
+            )
+            if should_check_unconfirmed:
+                table_prod = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
+                table_plan = 'plan_produkcji' if str(linia).upper() == 'PSD' else 'plan_produkcji_agro'
+                try:
+                    numeric_lookup = prefixed_id if prefixed_type == 'PAL' else numeric_id
+                    if numeric_lookup is not None and not is_sscc:
+                        # Search by numeric ID or pallet number.
+                        cur.execute(
+                            f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa "
+                            f"FROM {table_prod} p "
+                            f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
+                            f"WHERE (p.id = %s OR UPPER(COALESCE(p.nr_palety,'')) = %s) AND p.status = 'do_przyjecia'",
+                            (numeric_lookup, location_code)
+                        )
+                    else:
+                        # SSCC or barcode — search only by nr_palety.
+                        cur.execute(
+                            f"SELECT p.id, p.nr_palety, p.waga, plan.produkt as nazwa "
+                            f"FROM {table_prod} p "
+                            f"LEFT JOIN {table_plan} plan ON p.plan_id = plan.id "
+                            f"WHERE UPPER(COALESCE(p.nr_palety,'')) = %s AND p.status = 'do_przyjecia'",
+                            (location_code,)
+                        )
+                    unconf_row = cur.fetchone()
+                    if unconf_row:
+                        return {
+                            'id': unconf_row['id'],
+                            'nr_palety': unconf_row['nr_palety'],
+                            'nazwa': unconf_row['nazwa'] or 'Wyrób Gotowy',
+                            'stan_magazynowy': float(unconf_row['waga'] or 0),
+                            'lokalizacja': '',
+                            'inventory_type': 'Wyrób Gotowy',
+                            'is_unconfirmed_wg': True
+                        }
+                except Exception:
+                    pass
 
             if prefixed_type:
                 prefixed_row = None

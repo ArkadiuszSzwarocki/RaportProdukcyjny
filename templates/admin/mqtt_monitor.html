@@ -1,0 +1,1018 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .mqtt-shell {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: grid;
+        gap: 22px;
+    }
+
+    .mqtt-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-radius: 20px;
+        padding: 28px 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+        flex-wrap: wrap;
+    }
+
+    .mqtt-header-left {}
+
+    .mqtt-eyebrow {
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #38bdf8;
+        margin-bottom: 6px;
+    }
+
+    .mqtt-title {
+        margin: 0;
+        font-size: 1.9rem;
+        font-weight: 800;
+        color: #f1f5f9;
+        letter-spacing: -0.5px;
+    }
+
+    .mqtt-subtitle {
+        margin-top: 6px;
+        color: #94a3b8;
+        font-size: 0.93rem;
+    }
+
+    .mqtt-badge-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .mqtt-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 999px;
+        font-size: 0.83rem;
+        font-weight: 700;
+        border: 1px solid;
+    }
+
+    .mqtt-badge.connected {
+        background: rgba(34, 197, 94, 0.15);
+        border-color: rgba(34, 197, 94, 0.4);
+        color: #4ade80;
+    }
+
+    .mqtt-badge.offline {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.4);
+        color: #f87171;
+    }
+
+    .mqtt-badge .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse-dot 1.4s infinite;
+    }
+
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+
+    .mqtt-refresh-btn {
+        background: rgba(56, 189, 248, 0.15);
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        color: #38bdf8;
+        border-radius: 12px;
+        padding: 10px 18px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .mqtt-refresh-btn:hover {
+        background: rgba(56, 189, 248, 0.3);
+    }
+
+    /* Device sections */
+    .mqtt-device-section {
+        background: #ffffff;
+        border-radius: 18px;
+        border: 1px solid rgba(30, 41, 59, 0.1);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        overflow: hidden;
+    }
+
+    .mqtt-device-header {
+        padding: 18px 24px;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .mqtt-device-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+    }
+
+    .mqtt-device-icon.pakowaczka { background: linear-gradient(135deg, #3b82f6, #6366f1); }
+    .mqtt-device-icon.paletyzator { background: linear-gradient(135deg, #10b981, #059669); }
+    .mqtt-device-icon.owijarka { background: linear-gradient(135deg, #f59e0b, #ef4444); }
+
+    .mqtt-device-name {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .mqtt-device-topic {
+        font-size: 0.78rem;
+        color: #64748b;
+        font-family: monospace;
+        margin-top: 3px;
+        background: #f8fafc;
+        padding: 2px 8px;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+        display: inline-block;
+    }
+
+    /* Field cards */
+    .mqtt-fields-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 0;
+    }
+
+    .mqtt-field-card {
+        padding: 20px 24px;
+        border-right: 1px solid #f1f5f9;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.2s;
+    }
+
+    .mqtt-field-card:hover {
+        background: #f8fafc;
+    }
+
+    .mqtt-field-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+
+    .mqtt-field-label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .mqtt-field-value {
+        font-size: 1.6rem;
+        font-weight: 900;
+        color: #0f172a;
+        line-height: 1;
+        transition: color 0.3s;
+    }
+
+    .mqtt-field-value.status-praca { color: #16a34a; }
+    .mqtt-field-value.status-stop { color: #dc2626; }
+    .mqtt-field-value.bool-true { color: #16a34a; }
+    .mqtt-field-value.bool-false { color: #94a3b8; }
+
+    .mqtt-field-unit {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        font-weight: 600;
+        margin-top: 4px;
+    }
+
+    .mqtt-field-key {
+        font-family: monospace;
+        font-size: 0.75rem;
+        background: #f1f5f9;
+        color: #334155;
+        padding: 3px 8px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        display: inline-block;
+        border: 1px solid #e2e8f0;
+    }
+
+    .mqtt-field-desc {
+        font-size: 0.83rem;
+        color: #64748b;
+        line-height: 1.55;
+        border-top: 1px solid #f1f5f9;
+        padding-top: 10px;
+        margin-top: 8px;
+    }
+
+    /* Last update bar */
+    .mqtt-status-bar {
+        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 14px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .mqtt-status-info {
+        font-size: 0.88rem;
+        color: #475569;
+    }
+
+    .mqtt-status-info strong {
+        color: #0f172a;
+    }
+
+    .mqtt-countdown {
+        font-size: 0.8rem;
+        color: #94a3b8;
+        font-family: monospace;
+    }
+
+    .mqtt-raw-panel {
+        background: #0f172a;
+        border-radius: 14px;
+        padding: 20px 24px;
+        overflow-x: auto;
+    }
+
+    .mqtt-raw-panel pre {
+        margin: 0;
+        font-family: 'Courier New', monospace;
+        font-size: 0.83rem;
+        color: #94a3b8;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .mqtt-raw-panel pre .key { color: #38bdf8; }
+    .mqtt-raw-panel pre .str-val { color: #4ade80; }
+    .mqtt-raw-panel pre .num-val { color: #f59e0b; }
+    .mqtt-raw-panel pre .bool-val { color: #c084fc; }
+
+    .mqtt-section-title {
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #94a3b8;
+        margin-bottom: 12px;
+    }
+
+    .mqtt-topic-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+        gap: 14px;
+    }
+    
+    .mqtt-filter-bar {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr auto;
+        gap: 10px;
+        margin-bottom: 12px;
+        align-items: end;
+    }
+    
+    .mqtt-filter-col {
+        display: grid;
+        gap: 4px;
+    }
+    
+    .mqtt-filter-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+        color: #64748b;
+    }
+    
+    .mqtt-filter-input {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #0f172a;
+        padding: 9px 11px;
+        font-size: 0.86rem;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    
+    .mqtt-filter-input:focus {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+    }
+    
+    .mqtt-filter-clear {
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 0.82rem;
+        font-weight: 700;
+        padding: 9px 12px;
+        cursor: pointer;
+    }
+    
+    .mqtt-filter-clear:hover {
+        background: #eef2ff;
+        border-color: #94a3b8;
+    }
+    
+    .mqtt-filter-stats {
+        margin-top: -2px;
+        margin-bottom: 12px;
+        color: #64748b;
+        font-size: 0.79rem;
+        font-family: monospace;
+    }
+    
+    .mqtt-highlight {
+        background: #fef9c3;
+        color: #713f12;
+        border-radius: 4px;
+        padding: 0 2px;
+    }
+
+    .mqtt-topic-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 3px 12px rgba(15, 23, 42, 0.05);
+    }
+
+    .mqtt-topic-head {
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 12px 14px;
+    }
+
+    .mqtt-topic-device {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .mqtt-topic-name {
+        color: #0f172a;
+        font-size: 0.95rem;
+    }
+
+    .mqtt-topic-last {
+        font-size: 0.72rem;
+        color: #64748b;
+        font-family: monospace;
+    }
+
+    .mqtt-topic-topic {
+        margin-top: 6px;
+        font-family: monospace;
+        font-size: 0.72rem;
+        color: #475569;
+        word-break: break-word;
+        background: #eef2ff;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        padding: 4px 8px;
+    }
+
+    .mqtt-topic-fields {
+        padding: 12px 14px 14px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .mqtt-topic-field {
+        border: 1px solid #f1f5f9;
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: #ffffff;
+    }
+
+    .mqtt-topic-key {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .mqtt-topic-value {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.4;
+        word-break: break-word;
+        white-space: pre-wrap;
+        font-family: monospace;
+    }
+
+    .mqtt-topic-empty {
+        border: 1px dashed #cbd5e1;
+        border-radius: 12px;
+        background: #f8fafc;
+        color: #64748b;
+        font-size: 0.9rem;
+        padding: 16px;
+    }
+
+    .mqtt-msg-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .mqtt-msg-item {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 10px 12px;
+    }
+
+    .mqtt-msg-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .mqtt-msg-topic {
+        font-family: monospace;
+        font-size: 0.76rem;
+        color: #334155;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 3px 8px;
+        word-break: break-word;
+    }
+
+    .mqtt-msg-time {
+        font-size: 0.74rem;
+        color: #64748b;
+        font-family: monospace;
+        white-space: nowrap;
+    }
+
+    .mqtt-msg-payload {
+        margin: 0;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 8px;
+        font-size: 0.75rem;
+        font-family: 'Courier New', monospace;
+        color: #334155;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 220px;
+        overflow-y: auto;
+    }
+    
+    @media (max-width: 980px) {
+        .mqtt-filter-bar {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="section-box">
+<div class="mqtt-shell">
+
+    <!-- Header -->
+    <div class="mqtt-header">
+        <div class="mqtt-header-left">
+            <div class="mqtt-eyebrow">MasterAdmin · Diagnostyka IoT</div>
+            <h1 class="mqtt-title">Monitor MQTT — Maszyny</h1>
+            <p class="mqtt-subtitle">
+                Dane na żywo z urządzeń: Pakowaczka, Paletyzator, Owijarka<br>
+                Broker: <code style="color:#38bdf8; font-size:0.8rem;">HiveMQ Cloud · 176790fd232549269f80005dd8281ccb.s1.eu.hivemq.cloud:8883</code>
+                <br>
+                Subskrypcja: <code style="color:#4ade80; font-size:0.8rem;">{{ (data.get('subscribed_topics') or ['#']) | join(', ') }}</code>
+            </p>
+        </div>
+        <div class="mqtt-badge-row">
+            <div class="mqtt-badge {{ 'connected' if last_update_ts else 'offline' }}" id="connectionBadge">
+                <span class="dot"></span>
+                <span id="connectionText">{{ 'MQTT Online' if last_update_ts else 'Brak danych' }}</span>
+            </div>
+            <button class="mqtt-refresh-btn" onclick="refreshData()">
+                <span class="material-icons" style="font-size:16px;" id="refreshIcon">refresh</span>
+                Odśwież teraz
+            </button>
+        </div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="mqtt-status-bar">
+        <div class="mqtt-status-info">
+            Ostatnia aktualizacja z maszyn: <strong id="lastUpdateText">{{ last_update_str }}</strong>
+            {% if last_update_ts %}
+            <span style="color:#94a3b8; margin-left:8px;">· timestamp: {{ last_update_ts | int }}</span>
+            {% endif %}
+            <span style="color:#94a3b8; margin-left:8px;">· wiadomosci: <strong id="messageCount">{{ data.get('messages_total', 0) }}</strong></span>
+        </div>
+        <div class="mqtt-countdown" id="autoRefreshCountdown">Auto-odświeżanie za: <strong>3s</strong></div>
+    </div>
+
+    {% set devices = [
+        ('Pakowaczka', 'pakowaczka', '🏭', 'iot-2/type/cMT2108X2/id/agroPakowaczka', ['bpm','counter','status','receptura']),
+        ('Paletyzator', 'paletyzator', '📦', 'iot-2/type/cMT2108X2/id/agroPaletyzator', ['pallet_counter']),
+        ('Owijarka', 'owijarka', '🌀', 'iot-2/type/cMT2108X2/id/agroOwijarka', ['is_wrapped']),
+    ] %}
+
+    {% for device_name, device_cls, device_icon, device_topic, device_fields in devices %}
+    <div class="mqtt-device-section">
+        <div class="mqtt-device-header">
+            <div class="mqtt-device-icon {{ device_cls }}">{{ device_icon }}</div>
+            <div>
+                <h2 class="mqtt-device-name">{{ device_name }}</h2>
+                <span class="mqtt-device-topic">{{ device_topic }}</span>
+            </div>
+        </div>
+        <div class="mqtt-fields-grid">
+            {% for field_key in device_fields %}
+            {% set meta = field_meta.get(field_key, {}) %}
+            {% set raw_val = data.get(field_key) %}
+            <div class="mqtt-field-card">
+                <div class="mqtt-field-row">
+                    <div>
+                        <div class="mqtt-field-label">{{ meta.get('label', field_key) }}</div>
+                        {% if meta.get('unit') %}
+                        <div class="mqtt-field-unit">{{ meta.get('unit') }}</div>
+                        {% endif %}
+                    </div>
+                    <div style="text-align:right;">
+                        {% if raw_val is sameas true %}
+                            <div class="mqtt-field-value bool-true" id="val-{{ field_key }}">TAK ✓</div>
+                        {% elif raw_val is sameas false %}
+                            <div class="mqtt-field-value bool-false" id="val-{{ field_key }}">NIE ✗</div>
+                        {% elif raw_val == 'PRACA' %}
+                            <div class="mqtt-field-value status-praca" id="val-{{ field_key }}">{{ raw_val }}</div>
+                        {% elif raw_val == 'STOP' %}
+                            <div class="mqtt-field-value status-stop" id="val-{{ field_key }}">{{ raw_val }}</div>
+                        {% elif raw_val is none or raw_val == 0 and field_key != 'bpm' and field_key != 'counter' %}
+                            <div class="mqtt-field-value" id="val-{{ field_key }}" style="color:#94a3b8;">{{ raw_val if raw_val is not none else '—' }}</div>
+                        {% else %}
+                            <div class="mqtt-field-value" id="val-{{ field_key }}">{{ raw_val }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <span class="mqtt-field-key">mqtt: <strong>{{ meta.get('mqtt_key', field_key) }}</strong></span>
+                <div class="mqtt-field-desc">{{ meta.get('desc', '') }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <div>
+        <div class="mqtt-section-title">Wszystkie pola z MQTT (auto)</div>
+        <div class="mqtt-filter-bar">
+            <div class="mqtt-filter-col">
+                <label class="mqtt-filter-label" for="topicFilterInput">Filtr topicu</label>
+                <input id="topicFilterInput" class="mqtt-filter-input" type="text" placeholder="np. agroPakowaczka albo iot-2/type/...">
+            </div>
+            <div class="mqtt-filter-col">
+                <label class="mqtt-filter-label" for="keyFilterInput">Szukaj po kluczu MQTT</label>
+                <input id="keyFilterInput" class="mqtt-filter-input" type="text" placeholder="np. status, licznikGlobalny, nazwaReceptury">
+            </div>
+            <div class="mqtt-filter-col">
+                <label class="mqtt-filter-label" for="valueFilterInput">Szukaj po wartości</label>
+                <input id="valueFilterInput" class="mqtt-filter-input" type="text" placeholder="np. PRACA, 123, true">
+            </div>
+            <button type="button" class="mqtt-filter-clear" id="clearMqttFiltersBtn">Wyczysc filtry</button>
+        </div>
+        <div class="mqtt-filter-stats" id="topicFilterStats">Widoczne: wszystkie topici i klucze</div>
+        <div class="mqtt-topic-grid" id="topicPayloadGrid">
+            {% set topic_payloads = data.get('topic_payloads', {}) %}
+            {% set topic_last_update = data.get('topic_last_update', {}) %}
+            {% if topic_payloads %}
+                {% for topic, payload in topic_payloads|dictsort %}
+                    {% set topic_lower = topic|lower %}
+                    {% set topic_label = 'Nieznane urzadzenie' %}
+                    {% if 'agropakowaczka' in topic_lower %}
+                        {% set topic_label = 'Pakowaczka' %}
+                    {% elif 'agropaletyzator' in topic_lower %}
+                        {% set topic_label = 'Paletyzator' %}
+                    {% elif 'agroowijarka' in topic_lower %}
+                        {% set topic_label = 'Owijarka' %}
+                    {% endif %}
+                    {% set payload_map = payload if payload is mapping else {'value': payload} %}
+                    <div class="mqtt-topic-card">
+                        <div class="mqtt-topic-head">
+                            <div class="mqtt-topic-device">
+                                <strong class="mqtt-topic-name">{{ topic_label }}</strong>
+                                {% set topic_ts = topic_last_update.get(topic) %}
+                                <span class="mqtt-topic-last">{% if topic_ts %}ts: {{ topic_ts | int }}{% else %}ts: -{% endif %}</span>
+                            </div>
+                            <div class="mqtt-topic-topic">{{ topic }}</div>
+                        </div>
+                        <div class="mqtt-topic-fields">
+                            {% for mqtt_key, mqtt_val in payload_map|dictsort %}
+                            <div class="mqtt-topic-field">
+                                <div class="mqtt-topic-key">{{ mqtt_key }}</div>
+                                {% if mqtt_val is sameas true %}
+                                <div class="mqtt-topic-value" style="color:#16a34a;">TAK</div>
+                                {% elif mqtt_val is sameas false %}
+                                <div class="mqtt-topic-value" style="color:#94a3b8;">NIE</div>
+                                {% elif mqtt_val is mapping or (mqtt_val is sequence and mqtt_val is not string) %}
+                                <div class="mqtt-topic-value">{{ mqtt_val | tojson }}</div>
+                                {% elif mqtt_val is none %}
+                                <div class="mqtt-topic-value" style="color:#94a3b8;">-</div>
+                                {% else %}
+                                <div class="mqtt-topic-value">{{ mqtt_val }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+            <div class="mqtt-topic-empty">Brak odebranych payloadow MQTT.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div>
+        <div class="mqtt-section-title">Ostatnie wiadomosci MQTT</div>
+        <div class="mqtt-msg-list" id="recentMessagesList">
+            {% set recent_messages = data.get('recent_messages', []) %}
+            {% if recent_messages %}
+                {% for msg in recent_messages[-15:] | reverse %}
+                <div class="mqtt-msg-item">
+                    <div class="mqtt-msg-head">
+                        <span class="mqtt-msg-topic">{{ msg.get('topic', '-') }}</span>
+                        <span class="mqtt-msg-time">{{ msg.get('received_at_iso', '-') }}</span>
+                    </div>
+                    <pre class="mqtt-msg-payload">{{ msg.get('payload') | tojson(indent=2) }}</pre>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="mqtt-topic-empty">Brak historii wiadomosci.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Raw JSON panel -->
+    <div>
+        <div class="mqtt-section-title">Surowe dane (raw JSON)</div>
+        <div class="mqtt-raw-panel">
+            <pre id="rawJsonPre">{{ data | tojson(indent=2) | safe }}</pre>
+        </div>
+    </div>
+
+
+</div>
+</div>
+
+<script>
+(function() {
+    let countdown = 3;
+    let countdownInterval = null;
+
+    let activeTopicFilter = '';
+    let activeKeyFilter = '';
+    let activeValueFilter = '';
+
+    let latestTopicPayloads = {{ data.get('topic_payloads', {}) | tojson | safe }} || {};
+    let latestTopicLastUpdate = {{ data.get('topic_last_update', {}) | tojson | safe }} || {};
+    let latestRecentMessages = {{ data.get('recent_messages', []) | tojson | safe }} || [];
+
+    function escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function normalizeText(value) {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'object') {
+            try {
+                return JSON.stringify(value).toLowerCase();
+            } catch (err) {
+                return String(value).toLowerCase();
+            }
+        }
+        return String(value).toLowerCase();
+    }
+
+    function highlightTerm(text, term) {
+        const rawText = String(text === null || text === undefined ? '' : text);
+        const rawTerm = String(term || '').trim();
+        if (!rawTerm) return escapeHtml(rawText);
+
+        const lowerText = rawText.toLowerCase();
+        const lowerTerm = rawTerm.toLowerCase();
+        const idx = lowerText.indexOf(lowerTerm);
+        if (idx < 0) return escapeHtml(rawText);
+
+        const before = escapeHtml(rawText.slice(0, idx));
+        const match = escapeHtml(rawText.slice(idx, idx + rawTerm.length));
+        const after = escapeHtml(rawText.slice(idx + rawTerm.length));
+        return `${before}<span class="mqtt-highlight">${match}</span>${after}`;
+    }
+
+    function updateFilterStats(text) {
+        const el = document.getElementById('topicFilterStats');
+        if (el) el.textContent = text;
+    }
+
+    function topicLabel(topic) {
+        const t = String(topic || '').toLowerCase();
+        if (t.includes('agropakowaczka')) return 'Pakowaczka';
+        if (t.includes('agropaletyzator')) return 'Paletyzator';
+        if (t.includes('agroowijarka')) return 'Owijarka';
+        return 'Nieznane urzadzenie';
+    }
+
+    function topicValueHtml(val, valueFilterTerm) {
+        if (val === null || val === undefined) {
+            return '<div class="mqtt-topic-value" style="color:#94a3b8;">-</div>';
+        }
+
+        const rawText = typeof val === 'object' ? JSON.stringify(val) : String(val);
+        const textHtml = highlightTerm(rawText, valueFilterTerm || '');
+
+        if (val === true) return `<div class="mqtt-topic-value" style="color:#16a34a;">${textHtml}</div>`;
+        if (val === false) return `<div class="mqtt-topic-value" style="color:#94a3b8;">${textHtml}</div>`;
+        return `<div class="mqtt-topic-value">${textHtml}</div>`;
+    }
+
+    function renderTopicPayloadGrid(topicPayloads, topicLastUpdate) {
+        const container = document.getElementById('topicPayloadGrid');
+        if (!container) return;
+
+        const payloadObj = (topicPayloads && typeof topicPayloads === 'object') ? topicPayloads : {};
+        const topics = Object.keys(payloadObj).sort((a, b) => a.localeCompare(b));
+
+        if (!topics.length) {
+            container.innerHTML = '<div class="mqtt-topic-empty">Brak odebranych payloadow MQTT.</div>';
+            updateFilterStats('Widoczne: 0 topicow, 0 kluczy (po filtrze)');
+            return;
+        }
+
+        let visibleTopicCount = 0;
+        let visibleFieldCount = 0;
+
+        const topicCards = topics.map((topic) => {
+            if (activeTopicFilter && !normalizeText(topic).includes(activeTopicFilter)) {
+                return '';
+            }
+
+            const payload = payloadObj[topic];
+            const fields = (payload && typeof payload === 'object' && !Array.isArray(payload))
+                ? payload
+                : { value: payload };
+
+            const mqttKeys = Object.keys(fields).sort((a, b) => a.localeCompare(b));
+            const visibleKeys = mqttKeys.filter((mqttKey) => {
+                const keyMatch = !activeKeyFilter || normalizeText(mqttKey).includes(activeKeyFilter);
+                const valueMatch = !activeValueFilter || normalizeText(fields[mqttKey]).includes(activeValueFilter);
+                return keyMatch && valueMatch;
+            });
+
+            if (!visibleKeys.length) return '';
+
+            visibleTopicCount += 1;
+            visibleFieldCount += visibleKeys.length;
+
+            const fieldsHtml = visibleKeys.map((mqttKey) => {
+                const keyHtml = highlightTerm(mqttKey, activeKeyFilter || '');
+                return `<div class="mqtt-topic-field"><div class="mqtt-topic-key">${keyHtml}</div>${topicValueHtml(fields[mqttKey], activeValueFilter)}</div>`;
+            }).join('');
+
+            const topicTs = topicLastUpdate && Object.prototype.hasOwnProperty.call(topicLastUpdate, topic)
+                ? topicLastUpdate[topic]
+                : null;
+            const tsText = topicTs ? `ts: ${Math.floor(Number(topicTs))}` : 'ts: -';
+
+            return `<div class="mqtt-topic-card"><div class="mqtt-topic-head"><div class="mqtt-topic-device"><strong class="mqtt-topic-name">${highlightTerm(topicLabel(topic), activeTopicFilter || '')}</strong><span class="mqtt-topic-last">${escapeHtml(tsText)}</span></div><div class="mqtt-topic-topic">${highlightTerm(topic, activeTopicFilter || '')}</div></div><div class="mqtt-topic-fields">${fieldsHtml}</div></div>`;
+        }).filter(Boolean);
+
+        if (!topicCards.length) {
+            container.innerHTML = '<div class="mqtt-topic-empty">Brak wynikow dla ustawionych filtrow.</div>';
+            updateFilterStats('Widoczne: 0 topicow, 0 kluczy (po filtrze)');
+            return;
+        }
+
+        container.innerHTML = topicCards.join('');
+        updateFilterStats(`Widoczne: ${visibleTopicCount} topicow, ${visibleFieldCount} kluczy (po filtrze)`);
+    }
+
+    function renderRecentMessages(messages) {
+        const container = document.getElementById('recentMessagesList');
+        if (!container) return;
+
+        const list = Array.isArray(messages) ? messages.slice().reverse() : [];
+        const filtered = list.filter((msg) => {
+            const topic = msg && msg.topic ? msg.topic : '';
+            const payload = msg && Object.prototype.hasOwnProperty.call(msg, 'payload') ? msg.payload : null;
+            const topicMatch = !activeTopicFilter || normalizeText(topic).includes(activeTopicFilter);
+            const keyMatch = !activeKeyFilter || normalizeText(payload).includes(activeKeyFilter);
+            const valueMatch = !activeValueFilter || normalizeText(payload).includes(activeValueFilter);
+            return topicMatch && keyMatch && valueMatch;
+        }).slice(0, 15);
+
+        if (!filtered.length) {
+            container.innerHTML = '<div class="mqtt-topic-empty">Brak historii wiadomosci dla filtrow.</div>';
+            return;
+        }
+
+        container.innerHTML = filtered.map((msg) => {
+            const topic = msg && msg.topic ? msg.topic : '-';
+            const receivedAt = msg && msg.received_at_iso ? msg.received_at_iso : '-';
+            let payloadText = '-';
+            try {
+                payloadText = JSON.stringify(msg && Object.prototype.hasOwnProperty.call(msg, 'payload') ? msg.payload : null, null, 2);
+            } catch (err) {
+                payloadText = String(msg && msg.payload ? msg.payload : '-');
+            }
+
+            const payloadTerm = activeValueFilter || activeKeyFilter || '';
+            return `<div class="mqtt-msg-item"><div class="mqtt-msg-head"><span class="mqtt-msg-topic">${highlightTerm(topic, activeTopicFilter || '')}</span><span class="mqtt-msg-time">${escapeHtml(receivedAt)}</span></div><pre class="mqtt-msg-payload">${highlightTerm(payloadText, payloadTerm)}</pre></div>`;
+        }).join('');
+    }
+
+    function applyMqttFilters() {
+        renderTopicPayloadGrid(latestTopicPayloads, latestTopicLastUpdate);
+        renderRecentMessages(latestRecentMessages);
+    }
+
+    function bindFilterInputs() {
+        const topicInput = document.getElementById('topicFilterInput');
+        const keyInput = document.getElementById('keyFilterInput');
+        const valueInput = document.getElementById('valueFilterInput');
+        const clearBtn = document.getElementById('clearMqttFiltersBtn');
+
+        if (topicInput) {
+            topicInput.addEventListener('input', function() {
+                activeTopicFilter = String(topicInput.value || '').trim().toLowerCase();
+                applyMqttFilters();
+            });
+        }
+        if (keyInput) {
+            keyInput.addEventListener('input', function() {
+                activeKeyFilter = String(keyInput.value || '').trim().toLowerCase();
+                applyMqttFilters();
+            });
+        }
+        if (valueInput) {
+            valueInput.addEventListener('input', function() {
+                activeValueFilter = String(valueInput.value || '').trim().toLowerCase();
+                applyMqttFilters();
+            });
+        }
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                if (topicInput) topicInput.value = '';
+                if (keyInput) keyInput.value = '';
+                if (valueInput) valueInput.value = '';
+                activeTopicFilter = '';
+                activeKeyFilter = '';
+                activeValueFilter = '';
+                applyMqttFilters();
+            });
+        }
+    }
+
+    function formatValue(key, val) {
+        if (val === true) return '<span style="color:#4ade80;font-weight:900;font-size:1.6rem;">TAK ✓</span>';
+        if (val === false) return '<span style="color:#94a3b8;font-weight:900;font-size:1.6rem;">NIE ✗</span>';
+        if (val === 'PRACA') return '<span style="color:#16a34a;font-weight:900;font-size:1.6rem;">PRACA</span>';
+        if (val === 'STOP') return '<span style="color:#dc2626;font-weight:900;font-size:1.6rem;">STOP</span>';
+        if (val === null || val === undefined) return '<span style="color:#94a3b8;font-weight:900;font-size:1.6rem;">—</span>';
+        if (typeof val === 'object') return `<span style="font-weight:700;font-size:0.95rem;word-break:break-word;">${escapeHtml(JSON.stringify(val))}</span>`;
+        return `<span style="font-weight:900;font-size:1.6rem;">${val}</span>`;
+    }
+
+    window.refreshData = function() {
+        const icon = document.getElementById('refreshIcon');
+        if (icon) {
+            icon.style.animation = 'spin 0.6s linear';
+            setTimeout(function() {
+                icon.style.animation = '';
+            }, 700);
+        }
+
+        fetch('{{ url_for("admin.admin_master_mqtt_api") }}')
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) return;
+                const d = res.data || {};
+
+                ['bpm', 'counter', 'status', 'receptura', 'pallet_counter', 'is_wrapped'].forEach(function(key) {
+                    const el = document.getElementById('val-' + key);
+                    if (el && key in d) {
+                        el.innerHTML = formatValue(key, d[key]);
+                    }
+                });
+
+                const pre = document.getElementById('rawJsonPre');
+                if (pre) pre.textContent = JSON.stringify(d, null, 2);
+
+                latestTopicPayloads = d.topic_payloads || {};
+                latestTopicLastUpdate = d.topic_last_update || {};
+                latestRecentMessages = d.recent_messages || [];
+                applyMqttFilters();
+
+                const msgCountEl = document.getElementById('messageCount');
+                if (msgCountEl) {
+                    const total = (typeof d.messages_total === 'number') ? d.messages_total : 0;
+                    msgCountEl.textContent = String(total);
+                }
+
+                const lastEl = document.getElementById('lastUpdateText');
+                if (lastEl) {
+                    const age = res.age_seconds;
+                    lastEl.textContent = age !== null ? age + ' sek. temu' : 'Brak danych';
+                }
+
+                const badge = document.getElementById('connectionBadge');
+                const badgeText = document.getElementById('connectionText');
+                if (badge && badgeText) {
+                    if (res.last_update_ts && res.age_seconds !== null && res.age_seconds < 60) {
+                        badge.className = 'mqtt-badge connected';
+                        badgeText.textContent = 'MQTT Online';
+                    } else {
+                        badge.className = 'mqtt-badge offline';
+                        badgeText.textContent = 'Brak aktualnych danych';
+                    }
+                }
+
+                resetCountdown();
+            })
+            .catch(err => console.warn('MQTT refresh error:', err));
+    };
+
+    function resetCountdown() {
+        countdown = 3;
+        const el = document.getElementById('autoRefreshCountdown');
+        if (el) el.innerHTML = 'Auto-odświeżanie za: <strong>3s</strong>';
+    }
+
+    function startCountdown() {
+        countdownInterval = setInterval(function() {
+            countdown--;
+            const el = document.getElementById('autoRefreshCountdown');
+            if (el) {
+                if (countdown <= 0) {
+                    el.innerHTML = 'Auto-odświeżanie za: <strong>Ładowanie...</strong>';
+                    window.refreshData();
+                    countdown = 3;
+                } else {
+                    el.innerHTML = `Auto-odświeżanie za: <strong>${countdown}s</strong>`;
+                }
+            }
+        }, 1000);
+    }
+
+    bindFilterInputs();
+    applyMqttFilters();
+    startCountdown();
+
+    const style = document.createElement('style');
+    style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+    document.head.appendChild(style);
+})();
+</script>
+{% endblock %}

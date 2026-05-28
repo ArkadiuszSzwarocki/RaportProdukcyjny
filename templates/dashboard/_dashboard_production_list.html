@@ -90,61 +90,30 @@
         {% if agro_focus_mode %}
         <div class="toggle-focus-wrapper" style="grid-column: 1 / -1; margin-bottom: 15px; display: flex; justify-content: flex-end;">
             <button id="toggle-focus-plan-btn" class="btn-action btn-outline-secondary" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.85em; padding: 6px 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);" onclick="window.toggleFocusPlan(this)">
-                <span class="material-icons" style="font-size: 18px;">visibility</span> <span class="btn-text">Pokaż pełny plan</span>
+                <span class="material-icons" style="font-size: 18px;">visibility</span> <span class="btn-text">Pokaż ukryte zlecenia</span>
             </button>
         </div>
         <script>
             window.toggleFocusPlan = function(btn) {
-                var section = document.getElementById('dashboard-production-section');
-                if (!section) return;
-                var isShowingAll = section.classList.contains('show-all-plan');
-                var userRole = "{{ rola|string|trim|lower }}";
-                var currentSekcja = "{{ sekcja }}";
-                
-                if (isShowingAll) {
-                    section.classList.remove('show-all-plan');
-                    btn.querySelector('.btn-text').textContent = 'Pokaż pełny plan';
-                    btn.querySelector('.material-icons').textContent = 'visibility';
-                    
-                    // Ukryj karty
-                    section.querySelectorAll('.card[data-is-active="false"]').forEach(c => {
-                        c.style.setProperty('display', 'none', 'important');
-                    });
-                    
-                    // Ukryj szczegóły innych kart w focus mode
-                    section.querySelectorAll('.details-row').forEach(d => {
-                        d.style.setProperty('display', 'none', 'important');
-                    });
-                    
-                    // Pokaż palety z powrotem pod aktywnym zleceniem w trybie focus
-                    section.querySelectorAll('.active-agro-details-direct').forEach(d => {
-                        d.style.setProperty('display', '', '');
-                    });
-                } else {
-                    section.classList.add('show-all-plan');
-                    btn.querySelector('.btn-text').textContent = 'Ukryj zaplanowane/zakończone';
-                    btn.querySelector('.material-icons').textContent = 'visibility_off';
-                    
-                    // Pokaz karty
-                    section.querySelectorAll('.card[data-is-active="false"]').forEach(c => {
-                        c.style.setProperty('display', 'flex', 'important');
-                    });
-                    
-                    // Pokaż szczegóły innych kart dla laboranta w pełnym planie
-                    if (currentSekcja === 'Zasyp' && (userRole === 'laborant' || userRole === 'laboratorium')) {
-                        section.querySelectorAll('.details-row').forEach(d => {
-                            d.style.setProperty('display', 'block', '');
-                            d.style.removeProperty('display');
-                            d.style.display = 'block';
-                        });
-                    }
-                    
-                    // Ukryj palety pod aktywnym zleceniem w trybie pelnego planu
-                    section.querySelectorAll('.active-agro-details-direct').forEach(d => {
-                        d.style.setProperty('display', 'none', 'important');
-                    });
+                var modal = document.getElementById('plan-preview-modal');
+                if (modal) {
+                    modal.style.display = 'flex';
                 }
             };
+            window.closePlanPreviewModal = function() {
+                var modal = document.getElementById('plan-preview-modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            };
+            
+            // Close modal when clicking outside of it
+            window.addEventListener('click', function(event) {
+                var modal = document.getElementById('plan-preview-modal');
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
         </script>
         {% endif %}
         
@@ -246,5 +215,60 @@
                 {% endif %}
             {% endfor %}
         {% endif %}
+    </div>
+
+    <!-- Modular Modal for Read-Only Plan Preview -->
+    <div id="plan-preview-modal" class="custom-modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+        <div class="custom-modal-content animate__animated animate__zoomIn" style="background: #ffffff; width: 100%; max-width: 850px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05); display: flex; flex-direction: column; overflow: hidden; max-height: 90vh; border: 1px solid #e2e8f0;">
+            <!-- Header -->
+            <div style="padding: 20px 24px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="material-icons" style="color: #4f46e5; font-size: 28px;">event_note</span>
+                    <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #1e293b;">📋 Plan produkcji — {{ sekcja }} {{ linia }}</h3>
+                </div>
+                <button type="button" onclick="window.closePlanPreviewModal()" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 28px; display: flex; align-items: center; justify-content: center; transition: color 0.2s; line-height: 1;">&times;</button>
+            </div>
+            <!-- Body -->
+            <div style="padding: 24px; overflow-y: auto; flex: 1; background: #ffffff;">
+                <table class="plan-modal-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.95em;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #e2e8f0; color: #475569; font-weight: 600;">
+                            <th style="padding: 12px 16px;">Lp.</th>
+                            <th style="padding: 12px 16px;">ID</th>
+                            <th style="padding: 12px 16px;">Produkt</th>
+                            <th style="padding: 12px 16px; text-align: right;">Plan</th>
+                            <th style="padding: 12px 16px; text-align: right;">Wykonano</th>
+                            <th style="padding: 12px 16px; text-align: center;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in plan %}
+                        {% set status_class = 'status-' ~ p[3]|replace(' ', '') %}
+                        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;">
+                            <td style="padding: 14px 16px; color: #64748b; font-weight: 500;">{{ loop.index }}</td>
+                            <td style="padding: 14px 16px; color: #94a3b8; font-family: monospace;">#{{ p[0] }}</td>
+                            <td style="padding: 14px 16px; font-weight: 600; color: #0f172a;">
+                                {{ p[1] }}
+                                {% if p[15] %}
+                                <div style="font-size: 0.75em; color: #856404; background: #fff3cd; display: inline-block; padding: 1px 6px; border-radius: 4px; margin-top: 2px;">📦 przeniesione z {{ p[15] }}</div>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 500; color: #334155;">{{ p[2]|int }} kg</td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 600; color: #10b981;">{{ p[7]|int if p[7] else 0 }} kg</td>
+                            <td style="padding: 14px 16px; text-align: center;">
+                                <span class="status-badge {{ status_class }}" style="display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                                    {{ p[3] }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <!-- Footer -->
+            <div style="padding: 16px 24px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; background: #f8fafc;">
+                <button type="button" onclick="window.closePlanPreviewModal()" class="btn-action btn-outline-secondary" style="padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; border: 1px solid #d1d5db; background: #fff; color: #374151;">Zamknij podgląd</button>
+            </div>
+        </div>
     </div>
 {% endif %}

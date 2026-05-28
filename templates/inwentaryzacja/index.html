@@ -10,9 +10,14 @@
             <p style="margin: 5px 0 0 0; color: #64748b; font-size: 15px;">Zarządzanie sesjami liczenia stanów magazynowych.</p>
         </div>
         
-        <button onclick="document.getElementById('startModal').style.display='flex'" class="btn-primary" style="padding: 12px 24px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
-            <span class="material-icons">add_circle</span> NOWA SESJA
-        </button>
+        <div style="display: flex; gap: 10px;">
+            <a href="{{ url_for('inwentaryzacja.podsumowanie_dnia') }}" class="btn-outline" style="padding: 12px 24px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-decoration: none; border: 2px solid #e2e8f0; color: #475569; background: white;">
+                <span class="material-icons">event_note</span> RAPORT DZIENNY
+            </a>
+            <button onclick="document.getElementById('startModal').style.display='flex'" class="btn-primary" style="padding: 12px 24px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                <span class="material-icons">add_circle</span> NOWA SESJA
+            </button>
+        </div>
     </div>
 
     {% if active_sessions %}

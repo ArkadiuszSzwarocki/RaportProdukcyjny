@@ -39,6 +39,11 @@ def index():
         pending_wg = MagazynDostawyService.get_pending_production_pallets('AGRO')
     except Exception:
         pending_wg = []
+
+    try:
+        production_tanks = AgroWarehouseService.get_production_tanks()
+    except Exception:
+        production_tanks = {'BB': [], 'MZ': [], 'KO': [], 'ALL': []}
     
     # Also include confirmed pallets for this day/line using DashboardService
     magazyn_palety, unconfirmed_palety, suma_wykonanie = DashboardService.get_warehouse_data(dzisiaj, linia=linia)
@@ -53,6 +58,7 @@ def index():
         linia=linia,
         current_plan_id=current_plan_id,
         current_plan_name=current_plan_name,
+        production_tanks=production_tanks,
         pending_wg=pending_wg,
         magazyn_palety=magazyn_palety,
         unconfirmed_palety=unconfirmed_palety,
@@ -72,6 +78,44 @@ def opakowania():
     except Exception:
         items = []
     return render_template('agro_warehouse/opakowania.html', items=items, linia=linia)
+
+
+@agro_warehouse_bp.route('/agro/magazyn/inwentaryzacja-produkcji')
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def production_inventory_page():
+    """Dedicated page for AGRO production inventory (warehouse + BB/MZ/KO)."""
+    linia = request.args.get('linia', 'Agro')
+    return render_template(
+        'agro_warehouse/production_inventory.html',
+        linia=linia,
+        rola=session.get('rola')
+    )
+
+
+@agro_warehouse_bp.route('/agro/magazyn/inwentaryzacja-produkcji/historia/<tank_code>')
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def production_inventory_tank_history(tank_code):
+    linia = request.args.get('linia', 'Agro')
+    normalized_tank = AgroWarehouseService.normalize_production_tank(tank_code)
+    if not normalized_tank:
+        return redirect(url_for('agro_warehouse.production_inventory_page', linia=linia))
+
+    limit = min(int(request.args.get('limit', 300)), 2000)
+    history_rows = AgroWarehouseService.get_production_tank_history(
+        normalized_tank,
+        limit=limit,
+        linia=linia,
+    )
+
+    return render_template(
+        'agro_warehouse/production_inventory_history.html',
+        linia=linia,
+        rola=session.get('rola'),
+        tank_code=normalized_tank,
+        history_rows=history_rows,
+    )
 
 
 @agro_warehouse_bp.route('/agro/api/opakowania', methods=['POST'])
@@ -362,12 +406,17 @@ def use_material():
         komentarz = data.get('komentarz')
         zbiornik = data.get('zbiornik')
         linia = data.get('linia', 'Agro')
+        zbiornik_raw = str(zbiornik or '').strip().upper()
+        zbiornik_norm = AgroWarehouseService.normalize_production_tank(zbiornik_raw)
         
         if not surowiec_id or ilosc <= 0:
             return jsonify({'success': False, 'error': 'Nieprawidłowe dane'}), 400
+
+        if zbiornik_raw and not zbiornik_norm:
+            return jsonify({'success': False, 'error': 'Nieprawidłowy zbiornik. Dozwolone: BB01-BB24, MZ01-MZ06, MZ05-01, MZ06-01, KO01-KO22.'}), 400
             
         worker_login = session.get('login')
-        AgroWarehouseService.use_for_production(surowiec_id, ilosc, worker_login, plan_id=plan_id, linia=linia, komentarz=komentarz, zbiornik=zbiornik)
+        AgroWarehouseService.use_for_production(surowiec_id, ilosc, worker_login, plan_id=plan_id, linia=linia, komentarz=komentarz, zbiornik=zbiornik_norm)
         return jsonify({'success': True})
     except Exception as e:
         current_app.logger.error(f"Error in use_material: {e}")
@@ -720,6 +769,88 @@ def api_locations_inventory():
         return jsonify({'success': True, 'items': items})
     except Exception as e:
         current_app.logger.error(f"Error in api_locations_inventory: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/production_inventory', methods=['GET'])
+@login_required
+def api_production_inventory():
+    try:
+        linia = request.args.get('linia', 'Agro')
+        limit = min(int(request.args.get('limit', 500)), 2000)
+        items = AgroWarehouseService.get_production_inventory(limit=limit, linia=linia)
+        return jsonify({'success': True, 'items': items, 'count': len(items)})
+    except Exception as e:
+        current_app.logger.error(f"Error in api_production_inventory: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/production_inventory_snapshot', methods=['GET'])
+@login_required
+def api_production_inventory_snapshot():
+    try:
+        linia = request.args.get('linia', 'Agro')
+        limit = min(int(request.args.get('limit', 4000)), 8000)
+        show_empty_raw = str(request.args.get('show_empty', '')).strip().lower()
+        show_empty = show_empty_raw in ('1', 'true', 'yes', 'y', 'on')
+        items = AgroWarehouseService.get_production_inventory_snapshot(limit=limit, linia=linia, show_empty=show_empty)
+        return jsonify({'success': True, 'items': items, 'count': len(items)})
+    except Exception as e:
+        current_app.logger.error(f"Error in api_production_inventory_snapshot: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/production_inventory', methods=['POST'])
+@login_required
+@roles_required('lider', 'admin')
+def api_adjust_production_inventory():
+    try:
+        data = request.get_json() or {}
+        items = data.get('items', [])
+        linia = data.get('linia', 'Agro')
+        worker = session.get('login')
+
+        if not isinstance(items, list):
+            return jsonify({'success': False, 'error': 'Pole items musi być listą.'}), 400
+
+        updated = 0
+        errors = []
+        for item in items:
+            ruch_id = item.get('ruch_id')
+            actual_qty = item.get('actual_qty')
+            komentarz = item.get('komentarz', 'Inwentaryzacja produkcji')
+
+            if not ruch_id or actual_qty is None:
+                continue
+
+            try:
+                qty_val = float(actual_qty)
+            except (TypeError, ValueError):
+                errors.append({'ruch_id': ruch_id, 'error': 'Nieprawidłowa ilość'})
+                continue
+
+            if qty_val < 0:
+                errors.append({'ruch_id': ruch_id, 'error': 'Ilość nie może być ujemna'})
+                continue
+
+            ok, err = AgroWarehouseService.adjust_production_inventory(
+                ruch_id,
+                qty_val,
+                worker_login=worker,
+                linia=linia,
+                komentarz=komentarz,
+            )
+            if ok:
+                updated += 1
+            else:
+                errors.append({'ruch_id': ruch_id, 'error': err or 'Błąd zapisu'})
+
+        if errors:
+            return jsonify({'success': False, 'updated': updated, 'errors': errors}), 400
+
+        return jsonify({'success': True, 'updated': updated})
+    except Exception as e:
+        current_app.logger.error(f"Error in api_adjust_production_inventory: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @agro_warehouse_bp.route('/agro/api/issue_warehouse', methods=['POST'])

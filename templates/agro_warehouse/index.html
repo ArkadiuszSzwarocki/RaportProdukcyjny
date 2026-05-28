@@ -216,6 +216,17 @@
         box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
     }
 
+    .action-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .action-toolbar .btn {
+        min-height: 40px;
+    }
+
     .wg-scanner-box {
         background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 70%, #ffffff 100%);
         border: 1px solid #dbe7ff;
@@ -432,6 +443,27 @@
     <div class="section-header" style="margin-bottom: 30px;">
         <h1 style="font-size: 28px; font-weight: 900; color: #0f172a; margin-bottom: 8px;">Suma surowców Agro</h1>
         <p style="color: #64748b; font-size: 15px;">Zestawienie zbiorcze surowców (Suma surowców).</p>
+    </div>
+
+    <div class="action-toolbar">
+        <button class="btn btn-outline" onclick="openModal('modalUsage')">
+            <span class="material-icons" style="font-size:18px; vertical-align:middle;">production_quantity_limits</span>
+            Pobierz na produkcję
+        </button>
+        <button class="btn btn-outline" onclick="openReturnModal()">
+            <span class="material-icons" style="font-size:18px; vertical-align:middle;">assignment_return</span>
+            Zwrot z produkcji
+        </button>
+        {% if rola in ['lider', 'admin'] %}
+        <button class="btn btn-outline" onclick="openModal('modalInventory')">
+            <span class="material-icons" style="font-size:18px; vertical-align:middle;">checklist</span>
+            Korekta palety
+        </button>
+        <button class="btn btn-outline" onclick="openBulkInventoryModal()">
+            <span class="material-icons" style="font-size:18px; vertical-align:middle;">fact_check</span>
+            Inwentaryzacja produkcji BB/MZ/KO
+        </button>
+        {% endif %}
     </div>
 
     <div class="wg-scanner-box">
@@ -873,7 +905,7 @@
             return;
         }
         const previewUrl = '/magazyn-dostawy/podglad-etykiety-system/' + encodeURIComponent(String(pallet.id)) + '?linia=AGRO';
-        window.open(previewUrl, '_blank', 'noopener');
+        window.openInApp ? openInApp(previewUrl, 'Etykieta WG — ' + (pallet.produkt || '')) : window.open(previewUrl, '_blank', 'noopener');
     };
 
     function toggleItem(id) {
