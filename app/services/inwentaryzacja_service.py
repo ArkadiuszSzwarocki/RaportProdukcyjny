@@ -469,7 +469,7 @@ class InwentaryzacjaService:
             for p in missing_pallets:
                 cursor.execute(
                     "INSERT INTO magazyn_inwentaryzacja_wpisy (sesja_id, paleta_id, nr_palety, typ_palety, nazwa, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, waga_systemowa, waga_faktyczna, typ_opakowania, user_login, linia, jednostka) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, 'system', %s, %s)",
-                    (sesja_id, p['id'], p['nr_palety'], p['typ_palety'], p['nazwa'], lokalizacja, p['nr_partii'], p['data_produkcji'], p['data_przydatnosci'], p['stan_magazynowy'], p.get('typ_opakowania', 'brak'), p.get('linia', 'PSD'), p.get('jednostka', 'kg'))
+                    (sesja_id, p['id'], p['nr_palety'], p['typ_palety'], p['nazwa'], p.get('lokalizacja') or lokalizacja, p['nr_partii'], p['data_produkcji'], p['data_przydatnosci'], p['stan_magazynowy'], p.get('typ_opakowania', 'brak'), p.get('linia', 'PSD'), p.get('jednostka', 'kg'))
                 )
 
             # Zamknij sesję
@@ -703,7 +703,10 @@ class InwentaryzacjaService:
                 if typ not in summary:
                     summary[typ] = {}
                     
-                nazwa = e.get('nazwa') or 'Nieznany produkt'
+                nazwa_raw = str(e.get('nazwa') or 'Nieznany produkt')
+                # Normalizacja nazwy - usunięcie białych znaków na końcach i podwójnych spacji
+                import re
+                nazwa = re.sub(r'\s+', ' ', nazwa_raw.strip())
                 
                 if nazwa not in summary[typ]:
                     summary[typ][nazwa] = {
