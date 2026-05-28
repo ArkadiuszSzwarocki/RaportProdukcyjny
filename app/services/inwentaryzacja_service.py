@@ -437,8 +437,11 @@ class InwentaryzacjaService:
                 
             lokalizacja = sesja['lokalizacja']
             
-            # Pobierz wszystkie palety, które obecnie znajdują się w tej lokalizacji w bazie
-            pallets_at_loc = InwentaryzacjaService.get_pallets_at_location(lokalizacja, sesja_id)
+            # Pobierz wszystkie palety z prefixem lokalizacji (używając get_rack_data dla prawidłowego dopasowania regałów np R060101)
+            rack_data_map = InwentaryzacjaService.get_rack_data(lokalizacja, sesja_id)
+            pallets_at_loc = []
+            for items in rack_data_map.values():
+                pallets_at_loc.extend(items)
             
             # 1. Usuń z wpisów te palety, które zostały przeniesione (nie ma ich w bazie na tej lokacji)
             cursor.execute("SELECT id, paleta_id, typ_palety FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s", (sesja_id,))
@@ -662,4 +665,88 @@ class InwentaryzacjaService:
             print(f"Error fetching product names: {e}")
             return []
         finally:
-            conn.close()
+            if 'conn' in locals() and conn:
+                conn.close()
+
+    @staticmethod
+    def get_daily_summary(date_str=None):
+        """Generuje podsumowanie dzienne dla zamkniętych i zatwierdzonych sesji."""
+        if not date_str:
+            date_str = datetime.now().strftime('%Y-%m-%d')
+            
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            # Pobieramy wpisy powiązane z sesjami zamkniętymi danego dnia
+            query = """
+                SELECT 
+                    w.id, w.paleta_id, w.nr_palety, w.typ_palety, w.nazwa, w.lokalizacja, 
+                    w.waga_systemowa, w.waga_faktyczna, w.jednostka, s.status, s.closed_at
+                FROM magazyn_inwentaryzacja_wpisy w
+                JOIN magazyn_inwentaryzacja_sesje s ON w.sesja_id = s.id
+                WHERE DATE(s.closed_at) = %s AND s.status IN ('CLOSED', 'APPLIED')
+            """
+            cursor.execute(query, (date_str,))
+            entries = cursor.fetchall()
+            
+            summary = {
+                'surowiec': {},
+                'opakowanie': {},
+                'dodatek': {},
+                'wyrób gotowy': {}
+            }
+            
+            for e in entries:
+                typ = (e.get('typ_palety') or '').lower()
+                # Jeśli występuje inny typ, domyślnie mapujemy
+                if typ not in summary:
+                    summary[typ] = {}
+                    
+                nazwa = e.get('nazwa') or 'Nieznany produkt'
+                
+                if nazwa not in summary[typ]:
+                    summary[typ][nazwa] = {
+                        'nazwa': nazwa,
+                        'ilosc_palet': 0,
+                        'suma_systemowa': 0.0,
+                        'suma_faktyczna': 0.0,
+                        'jednostka': e.get('jednostka') or 'kg',
+                        'palety': []
+                    }
+                
+                group = summary[typ][nazwa]
+                
+                # Faktyczna ilość palet na regale (te z zerową wagą traktujemy jako braki, chyba że "brak" to paleta usunięta fizycznie? 
+                # Jeśli waga_faktyczna > 0 to była fizycznie. Jeśli == 0, to brak.
+                if e.get('waga_faktyczna', 0) > 0:
+                    group['ilosc_palet'] += 1
+                    
+                group['suma_systemowa'] += float(e.get('waga_systemowa') or 0)
+                group['suma_faktyczna'] += float(e.get('waga_faktyczna') or 0)
+                
+                group['palety'].append({
+                    'nr_palety': e.get('nr_palety'),
+                    'lokalizacja': e.get('lokalizacja'),
+                    'waga_systemowa': float(e.get('waga_systemowa') or 0),
+                    'waga_faktyczna': float(e.get('waga_faktyczna') or 0),
+                    'roznica': float(e.get('waga_faktyczna') or 0) - float(e.get('waga_systemowa') or 0)
+                })
+            
+            # Formattowanie wyniku jako lista (żeby łatwo było w Jinja używać)
+            result = {}
+            for typ, produkty in summary.items():
+                lista_produktow = list(produkty.values())
+                # Sortowanie po nazwie
+                lista_produktow.sort(key=lambda x: x['nazwa'])
+                for prod in lista_produktow:
+                    prod['roznica'] = prod['suma_faktyczna'] - prod['suma_systemowa']
+                result[typ] = lista_produktow
+                
+            return result
+        except Exception as e:
+            print(f"Error fetching daily summary: {e}")
+            return {}
+        finally:
+            if 'conn' in locals() and conn:
+                conn.close()

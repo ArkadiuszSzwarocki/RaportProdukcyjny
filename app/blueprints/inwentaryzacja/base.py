@@ -221,3 +221,23 @@ def cofnij_zatwierdzenie():
     success, msg = InwentaryzacjaService.revert_session(sesja_id)
     return jsonify({"success": success, "message": msg})
 
+@inwentaryzacja_bp.route('/podsumowanie-dnia', methods=['GET'])
+def podsumowanie_dnia():
+    from datetime import datetime
+    
+    date_str = request.args.get('date')
+    if not date_str:
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        
+    summary = InwentaryzacjaService.get_daily_summary(date_str)
+    
+    # Przekazanie typów do pętli w Jinja i ładnych nazw
+    kategorie = {
+        'surowiec': 'Surowce',
+        'opakowanie': 'Opakowania',
+        'dodatek': 'Dodatki',
+        'wyrób gotowy': 'Wyroby Gotowe'
+    }
+    
+    return render_template('inwentaryzacja/podsumowanie_dnia.html', date_str=date_str, summary=summary, kategorie=kategorie)
+
