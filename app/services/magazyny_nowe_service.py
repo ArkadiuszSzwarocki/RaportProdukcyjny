@@ -44,6 +44,8 @@ class MagazynyNoweService:
                 table = get_table_name('magazyn_surowce', linia)
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
             else:
                 table = get_table_name('magazyn_palety', linia)
 
@@ -92,6 +94,8 @@ class MagazynyNoweService:
                 table = get_table_name('magazyn_surowce', linia)
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
             else:
                 table = get_table_name('magazyn_palety', linia)
 
@@ -127,6 +131,9 @@ class MagazynyNoweService:
                 col_qty = 'stan_magazynowy'
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
+                col_qty = 'stan_magazynowy'
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
                 col_qty = 'stan_magazynowy'
             else:
                 table = get_table_name('magazyn_palety', linia)
@@ -177,6 +184,9 @@ class MagazynyNoweService:
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
                 col_qty = 'stan_magazynowy'
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
+                col_qty = 'stan_magazynowy'
             else:
                 table = get_table_name('magazyn_palety', linia)
                 col_qty = 'waga_netto'
@@ -220,6 +230,8 @@ class MagazynyNoweService:
                 table = get_table_name('magazyn_surowce', linia)
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
             else:
                 return False, "Nie można zmienić nazwy wyrobu gotowego."
 
@@ -244,6 +256,9 @@ class MagazynyNoweService:
                 col = 'stan_magazynowy'
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
+                col = 'stan_magazynowy'
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
                 col = 'stan_magazynowy'
             else:
                 table = get_table_name('magazyn_palety', linia)
