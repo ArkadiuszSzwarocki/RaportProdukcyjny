@@ -435,11 +435,20 @@ function renderRackGrid(prefix) {
     const grid = document.getElementById('rackGrid');
     grid.innerHTML = '';
     
-    // Rows: 3, Cols: 10
-    // We assume row 3 is top, row 1 is bottom for display?
-    // User said "3 rzedy po 10 miejsc"
-    for(let r = 3; r >= 1; r--) {
-        for(let c = 1; c <= 10; c++) {
+    let maxCols = 10;
+    let maxRows = 3;
+    
+    // R05 has 4 rows and 4 columns
+    if (prefix === 'R05') {
+        maxCols = 4;
+        maxRows = 4;
+    }
+    
+    grid.style.gridTemplateColumns = `repeat(${maxCols}, minmax(60px, 1fr))`;
+    grid.style.minWidth = maxCols > 6 ? '650px' : '300px';
+
+    for(let r = maxRows; r >= 1; r--) {
+        for(let c = 1; c <= maxCols; c++) {
             const colStr = c.toString().padStart(2, '0');
             const rowStr = r.toString().padStart(2, '0');
             // Format: R010101 (prefix + col + row)
