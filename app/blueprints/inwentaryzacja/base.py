@@ -63,7 +63,8 @@ def szukaj_regalu():
 
 @inwentaryzacja_bp.route('/api/podpowiedzi-nazw', methods=['GET'])
 def podpowiedzi_nazw():
-    names = InwentaryzacjaService.get_all_product_names()
+    typ = request.args.get('typ')
+    names = InwentaryzacjaService.get_all_product_names(typ)
     return jsonify({"success": True, "names": names})
 
 @inwentaryzacja_bp.route('/api/zapisz-wpis', methods=['POST'])

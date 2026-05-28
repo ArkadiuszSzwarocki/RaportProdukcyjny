@@ -569,19 +569,28 @@ class InwentaryzacjaService:
             conn.close()
 
     @staticmethod
-    def get_all_product_names():
-        """Get unique product names from all relevant tables for autocomplete."""
+    def get_all_product_names(typ=None):
+        """Get unique product names from relevant tables for autocomplete."""
         conn = get_db_connection()
         names = set()
         try:
             cursor = conn.cursor()
-            # Surowce
-            cursor.execute("SELECT DISTINCT nazwa FROM magazyn_surowce WHERE nazwa IS NOT NULL AND nazwa != ''")
-            for r in cursor.fetchall(): names.add(r[0])
-            # Opakowania
-            cursor.execute("SELECT DISTINCT nazwa FROM magazyn_opakowania WHERE nazwa IS NOT NULL AND nazwa != ''")
-            for r in cursor.fetchall(): names.add(r[0])
-            
+            if typ == 'surowiec' or not typ:
+                cursor.execute("SELECT DISTINCT nazwa FROM magazyn_surowce WHERE nazwa IS NOT NULL AND nazwa != ''")
+                for r in cursor.fetchall(): names.add(r[0])
+            if typ == 'opakowanie' or not typ:
+                cursor.execute("SELECT DISTINCT nazwa FROM magazyn_opakowania WHERE nazwa IS NOT NULL AND nazwa != ''")
+                for r in cursor.fetchall(): names.add(r[0])
+            if typ == 'wyrób gotowy' or not typ:
+                # Fetch from PSD and AGRO
+                for hall in ['PSD', 'AGRO']:
+                    table = get_table_name('magazyn_palety', hall)
+                    cursor.execute(f"SELECT DISTINCT produkt FROM {table} WHERE produkt IS NOT NULL AND produkt != ''")
+                    for r in cursor.fetchall(): names.add(r[0])
+            if typ == 'dodatek' or not typ:
+                cursor.execute("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE nazwa IS NOT NULL AND nazwa != ''")
+                for r in cursor.fetchall(): names.add(r[0])
+                
             return sorted(list(names))
         except Exception as e:
             print(f"Error fetching product names: {e}")

@@ -335,8 +335,9 @@ window.addEventListener('load', () => {
 
 
 
-function fetchProductNames() {
-    fetch('{{ url_for("inwentaryzacja.podpowiedzi_nazw") }}')
+function fetchProductNames(typ = '') {
+    const url = '{{ url_for("inwentaryzacja.podpowiedzi_nazw") }}' + (typ ? '?typ=' + encodeURIComponent(typ) : '');
+    fetch(url)
     .then(r => r.json())
     .then(data => {
         if(data.success) {
@@ -1123,6 +1124,17 @@ function handleSSCCInput() {
     }, 400);
 }
 
+function generateLocalSSCC(type) {
+    let prefix = 'WG';
+    if (type === 'surowiec') prefix = 'SUR';
+    else if (type === 'opakowanie') prefix = 'OPK';
+    else if (type === 'dodatek') prefix = 'DOD';
+    
+    const nowMs = Date.now().toString();
+    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    return `${prefix}${nowMs}${random}`;
+}
+
 function addNewPallet(loc) {
     lookedUpPalletId = null;
     lookedUpSystemWeight = 0;
@@ -1133,22 +1145,34 @@ function addNewPallet(loc) {
         statusDiv.textContent = '';
     }
     
+    const typeSelect = document.getElementById('newPalletType');
+    
     document.getElementById('newPalletLoc').value = loc || lastLocation;
-    document.getElementById('newPalletSSCC').value = '';
+    document.getElementById('newPalletSSCC').value = generateLocalSSCC(typeSelect.value);
     document.getElementById('newPalletName').value = '';
     document.getElementById('newPalletWeight').value = '0';
-    document.getElementById('newPalletUnit').value = 'kg';
+    document.getElementById('newPalletUnit').value = (typeSelect.value === 'opakowanie') ? 'szt' : 'kg';
     document.getElementById('newPalletBatch').value = '';
     document.getElementById('newPalletDateProd').value = '';
     document.getElementById('newPalletDateExp').value = '';
     document.getElementById('newPalletPackaging').value = 'brak';
     document.getElementById('newPalletModal').style.display = 'flex';
     document.getElementById('newPalletSSCC').focus();
+    
+    fetchProductNames(typeSelect.value);
 }
 
-// Switch unit automatically based on category/type choice
+// Switch unit automatically based on category/type choice and regenerate SSCC
 document.getElementById('newPalletType').addEventListener('change', (e) => {
-    document.getElementById('newPalletUnit').value = (e.target.value === 'opakowanie') ? 'szt' : 'kg';
+    const val = e.target.value;
+    document.getElementById('newPalletUnit').value = (val === 'opakowanie') ? 'szt' : 'kg';
+    
+    const ssccInput = document.getElementById('newPalletSSCC');
+    if (!ssccInput.value || /^(SUR|OPK|DOD|WG)\d+$/.test(ssccInput.value)) {
+        ssccInput.value = generateLocalSSCC(val);
+    }
+    
+    fetchProductNames(val);
 });
 
 function saveNewPallet() {
