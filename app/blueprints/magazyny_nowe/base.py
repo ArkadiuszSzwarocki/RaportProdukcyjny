@@ -293,12 +293,13 @@ def move_pallet():
     pallet_type = data.get('type')
     new_location = data.get('location')
     linia = data.get('linia', 'PSD')
+    amount = data.get('amount')
     worker = session.get('login', 'nieznany')
     
     if not all([pallet_id, pallet_type, new_location]):
         return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
         
-    success, msg = MagazynyNoweService.move_pallet(pallet_id, pallet_type, new_location, worker, linia)
+    success, msg = MagazynyNoweService.move_pallet(pallet_id, pallet_type, new_location, worker, linia, amount_to_move=amount)
     return jsonify({'success': success, 'message': msg})
 
 @magazyny_nowe_bp.route('/api/pallet/archive', methods=['POST'])

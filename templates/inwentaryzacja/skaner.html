@@ -741,36 +741,7 @@ function openSlotDetail(locId) {
             if(moveBtn) {
                 moveBtn.onclick = (e) => {
                     e.preventDefault();
-                    let pt = p.typ_palety;
-                    let capitalType = pt.charAt(0).toUpperCase() + pt.slice(1);
-                    if(pt === 'wyrób gotowy') capitalType = 'Wyrób Gotowy';
-                    
-                    const newLoc = prompt(`Przenieś paletę ${p.nazwa} z ${locId} na nową lokalizację (np. R060102):`);
-                    if(newLoc && newLoc.trim() !== '' && newLoc.trim().toUpperCase() !== locId) {
-                        moveBtn.innerHTML = '<span class="material-icons" style="font-size: 12px;">hourglass_top</span>';
-                        fetch('/magazyny-nowe/api/pallet/move', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                id: p.id,
-                                type: capitalType,
-                                location: newLoc.trim().toUpperCase(),
-                                linia: p.linia || 'PSD'
-                            })
-                        }).then(r => r.json()).then(data => {
-                            if(data.success) {
-                                // Pomyślnie przeniesiono
-                                refreshRackData(currentRackPrefix);
-                                closeDetail();
-                            } else {
-                                alert("Błąd przenoszenia: " + (data.error || data.message));
-                                moveBtn.innerHTML = '<span class="material-icons" style="font-size: 12px; color: #3b82f6;">place</span> Przenieś';
-                            }
-                        }).catch(() => {
-                            alert("Błąd połączenia z serwerem.");
-                            moveBtn.innerHTML = '<span class="material-icons" style="font-size: 12px; color: #3b82f6;">place</span> Przenieś';
-                        });
-                    }
+                    promptMoveLocationScanner(p, locId);
                 };
             }
             
@@ -1463,6 +1434,142 @@ document.getElementById('instructionsModal').addEventListener('click', (e) => {
         </div>
     </div>
 </div>
+
+<!-- MODAL: Zmiana lokalizacji (Custom Prompt ze splitem) -->
+<div id="moveLocationModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 2500; align-items: center; justify-content: center;">
+    <div style="background: white; width: 95%; max-width: 400px; border-radius: 20px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+        <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 800; color: #0f172a;">
+                <span class="material-icons" style="color: #3b82f6;">place</span> Przenieś paletę
+            </h3>
+            <button onclick="document.getElementById('moveLocationModal').style.display='none'" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b;">&times;</button>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 8px;">Ile przenosisz?</label>
+            <div style="display: flex; align-items: center; border: 2px solid #e2e8f0; border-radius: 10px; padding-right: 12px; background: white;">
+                <input type="number" step="0.1" id="moveAmountInput" class="weight-input" style="flex: 1; border: none; padding: 12px; font-size: 16px; font-weight: 800; text-align: left; background: transparent; outline: none; margin: 0;">
+                <span id="moveAmountUnit" style="font-size: 13px; font-weight: 800; color: #94a3b8;">kg</span>
+            </div>
+            <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">Domyślnie przenosisz całą paletę. Wpisz mniejszą ilość, by podzielić towar na dwie lokalizacje.</p>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 8px;">Nowa lokalizacja</label>
+            <input type="text" id="newLocationInput" class="weight-input" placeholder="Wpisz np. R010101" list="locationSuggestions" autocomplete="off" style="width: 100%; text-transform: uppercase; font-size: 16px; padding: 12px; box-sizing: border-box;">
+            <datalist id="locationSuggestions">
+                <!-- Generowane przez JS -->
+            </datalist>
+            <div id="moveLocationError" style="color: #dc2626; font-size: 12px; margin-top: 8px; display: none; font-weight: 600;"></div>
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="submitMoveLocation()" id="submitMoveBtn" class="btn-primary" style="flex: 2; padding: 14px; border-radius: 12px; font-weight: 700; border: none; background: #3b82f6; color: white; cursor: pointer;">ZAPISZ</button>
+            <button onclick="document.getElementById('moveLocationModal').style.display='none'" style="flex: 1; padding: 14px; border-radius: 12px; font-weight: 700; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer;">ANULUJ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentMovePallet = null;
+let currentMoveOriginalLoc = null;
+
+function promptMoveLocationScanner(p, locId) {
+    currentMovePallet = p;
+    currentMoveOriginalLoc = locId;
+    
+    // Generuj podpowiedzi
+    const datalist = document.getElementById('locationSuggestions');
+    if (datalist && datalist.children.length === 0) {
+        let options = '';
+        for(let r=1; r<=10; r++) {
+            let rStr = r.toString().padStart(2,'0');
+            let maxCols = (r===5) ? 4 : (r===6 ? 5 : 10);
+            let maxRows = (r===5) ? 4 : (r===6 ? 5 : 3);
+            for(let row=1; row<=maxRows; row++) {
+                for(let col=1; col<=maxCols; col++) {
+                    options += `<option value="R${rStr}${col.toString().padStart(2,'0')}${row.toString().padStart(2,'0')}"></option>`;
+                }
+            }
+        }
+        options += '<option value="MP01"></option><option value="MS01"></option><option value="MGW01"></option>';
+        datalist.innerHTML = options;
+    }
+    
+    document.getElementById('newLocationInput').value = '';
+    document.getElementById('moveLocationError').style.display = 'none';
+    
+    const sysAmount = p.stan_magazynowy || 0;
+    document.getElementById('moveAmountInput').value = sysAmount;
+    document.getElementById('moveAmountUnit').textContent = p.jednostka || 'kg';
+    
+    document.getElementById('moveLocationModal').style.display = 'flex';
+}
+
+function submitMoveLocation() {
+    if(!currentMovePallet) return;
+    
+    const inputLoc = document.getElementById('newLocationInput');
+    const inputAmt = document.getElementById('moveAmountInput');
+    const errEl = document.getElementById('moveLocationError');
+    const btn = document.getElementById('submitMoveBtn');
+    
+    let newLoc = inputLoc.value.trim().toUpperCase();
+    let amount = parseFloat(inputAmt.value);
+    
+    if(!newLoc) {
+        errEl.textContent = 'Lokalizacja nie może być pusta!';
+        errEl.style.display = 'block';
+        return;
+    }
+    if(newLoc === currentMoveOriginalLoc) {
+        errEl.textContent = 'Lokalizacja musi być inna niż obecna!';
+        errEl.style.display = 'block';
+        return;
+    }
+    if(isNaN(amount) || amount <= 0) {
+        errEl.textContent = 'Podaj poprawną ilość do przeniesienia!';
+        errEl.style.display = 'block';
+        return;
+    }
+    
+    errEl.style.display = 'none';
+    btn.innerHTML = '<span class="material-icons rotate-anim">sync</span>';
+    btn.disabled = true;
+    
+    let pt = currentMovePallet.typ_palety;
+    let capitalType = pt.charAt(0).toUpperCase() + pt.slice(1);
+    if(pt === 'wyrób gotowy') capitalType = 'Wyrób Gotowy';
+    
+    fetch('/magazyny-nowe/api/pallet/move', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            id: currentMovePallet.id,
+            type: capitalType,
+            location: newLoc,
+            linia: currentMovePallet.linia || 'PSD',
+            amount: amount // Przekazujemy podaną ilość (może być mniejsza od całości = split)
+        })
+    }).then(r => r.json()).then(data => {
+        btn.innerHTML = 'ZAPISZ';
+        btn.disabled = false;
+        if(data.success) {
+            document.getElementById('moveLocationModal').style.display = 'none';
+            refreshRackData(currentRackPrefix);
+            closeDetail();
+        } else {
+            errEl.textContent = "Błąd: " + (data.error || data.message || "Nieznany błąd zapisu");
+            errEl.style.display = 'block';
+        }
+    }).catch(e => {
+        btn.innerHTML = 'ZAPISZ';
+        btn.disabled = false;
+        errEl.textContent = "Błąd połączenia z serwerem.";
+        errEl.style.display = 'block';
+    });
+}
+</script>
 
 <style>
     .btn-primary:active { transform: scale(0.98); }
