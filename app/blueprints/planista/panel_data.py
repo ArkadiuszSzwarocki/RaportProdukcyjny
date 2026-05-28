@@ -180,7 +180,7 @@ def build_primary_plan_metrics(cursor, plany_list, wybrana_data, wybrana_linia, 
         suma_minut_plan += dur
 
         cursor.execute(
-            f"SELECT pw.id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania FROM {t_pa_curr} pw JOIN {t_pp_curr} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' ORDER BY pw.id DESC",
+            f"SELECT pw.id, pw.nr_palety, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania FROM {t_pa_curr} pw JOIN {t_pp_curr} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' ORDER BY pw.id DESC",
             (wybrana_data, plan['produkt']),
         )
         palety_rows = cursor.fetchall()
@@ -190,6 +190,7 @@ def build_primary_plan_metrics(cursor, plany_list, wybrana_data, wybrana_linia, 
                 (row['data_dodania'].strftime('%H:%M') if hasattr(row['data_dodania'], 'strftime') else str(row['data_dodania'])),
                 row['tara'],
                 row['waga_brutto'],
+                row.get('nr_palety') or ''
             )
             for row in palety_rows
         ]
