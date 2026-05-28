@@ -646,6 +646,37 @@ def _create_tables(cursor):
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS produkcja_inwentaryzacja_sesje (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            typ VARCHAR(10) NOT NULL DEFAULT 'BB_MZ',
+            status VARCHAR(20) DEFAULT 'OPEN',
+            created_by VARCHAR(100),
+            comment TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            closed_at DATETIME NULL,
+            INDEX idx_prod_inv_status (status),
+            INDEX idx_prod_inv_typ (typ)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS produkcja_inwentaryzacja_wpisy (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            sesja_id INT NOT NULL,
+            zbiornik VARCHAR(20) NOT NULL,
+            nazwa VARCHAR(255) DEFAULT '',
+            nr_partii VARCHAR(100) DEFAULT '',
+            waga DECIMAL(12,2) DEFAULT 0,
+            komentarz TEXT,
+            user_login VARCHAR(100),
+            data_wpisu DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (sesja_id) REFERENCES produkcja_inwentaryzacja_sesje(id) ON DELETE CASCADE,
+            INDEX idx_prod_inv_wpisy_sesja (sesja_id),
+            UNIQUE KEY uq_prod_inv_wpisy_zbiornik (sesja_id, zbiornik)
+        )
+    """)
+
 
 def _add_column_if_missing(cursor, table, column, definition, description=""):
     """Helper to add column if it doesn't exist."""
