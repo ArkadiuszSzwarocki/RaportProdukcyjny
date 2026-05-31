@@ -381,10 +381,22 @@
 .machine-counter-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 700; background: #334155; color: white; border: 1px solid #475569; }
 
 /* Modal Enhancements */
-.quick-popup.open {
+.quick-popup.open:not(.qp-wide):not(.qp-dosypka-full) {
     max-width: min(700px, 95vw);
     max-height: 90vh;
     overflow-y: auto;
+}
+
+.quick-popup.open.qp-wide {
+    max-width: min(920px, 96vw);
+}
+
+.quick-popup.open.qp-dosypka-full {
+    max-width: min(1720px, 98vw);
+    width: min(1720px, 98vw);
+    height: min(95vh, 1000px);
+    max-height: min(95vh, 1000px);
+    overflow: hidden;
 }
 
 .agro-modal-header h2 {

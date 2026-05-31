@@ -1494,10 +1494,16 @@
                 
                 // Set wide class dynamically if containing large elements
                 var hasWideContent = /[<](form|table|grid|iframe)/gi.test(String(html || ''));
+                var isDosypkaPopup = /dosypka-popup-container/i.test(String(html || ''));
                 if (hasWideContent) {
                     existingM.classList.add('qp-wide');
                 } else {
                     existingM.classList.remove('qp-wide');
+                }
+                if (isDosypkaPopup) {
+                    existingM.classList.add('qp-dosypka-full');
+                } else {
+                    existingM.classList.remove('qp-dosypka-full');
                 }
 
                 // Initialize component initializers after content is updated
@@ -1517,8 +1523,12 @@
         
         // Set dynamic width class
         var hasWideContent = /[<](form|table|grid|iframe)/gi.test(String(html || ''));
+        var isDosypkaPopup = /dosypka-popup-container/i.test(String(html || ''));
         if (hasWideContent) {
             m.classList.add('qp-wide');
+        }
+        if (isDosypkaPopup) {
+            m.classList.add('qp-dosypka-full');
         }
 
         var headerHtml = '<div class="qp-header" role="dialog" aria-modal="true">'

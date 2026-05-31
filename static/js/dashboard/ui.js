@@ -45,6 +45,22 @@
             body.innerHTML = html || '';
         }
 
+        var popupHtml = String(html || '');
+        var isDosypkaPopup = popupHtml.indexOf('dosypka-popup-container') !== -1;
+        var hasWideContent = /<(form|table|iframe|section)\b/i.test(popupHtml);
+
+        if (isDosypkaPopup) {
+            popup.classList.add('qp-dosypka-full');
+        } else {
+            popup.classList.remove('qp-dosypka-full');
+        }
+
+        if (hasWideContent || isDosypkaPopup) {
+            popup.classList.add('qp-wide');
+        } else {
+            popup.classList.remove('qp-wide');
+        }
+
         backdrop.style.display = 'block';
         backdrop.classList.add('show');
         popup.style.display = 'block';
@@ -69,6 +85,7 @@
 
         global.setTimeout(function () {
             popup.style.display = 'none';
+            popup.classList.remove('qp-wide', 'qp-dosypka-full');
             if (backdrop) {
                 backdrop.style.display = 'none';
             }
