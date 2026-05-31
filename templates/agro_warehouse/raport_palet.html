@@ -214,8 +214,8 @@
                     <td><strong>{{ pal.waga }}</strong></td>
                     <td>{{ pal.data_dodania.strftime('%H:%M:%S') if pal.data_dodania else '-' }}</td>
                     <td>{{ pal.dodal_login or '---' }}</td>
-                    <td>{{ pal.potwierdzil_login or '---' }}</td>
-                    <td>{{ pal.data_potwierdzenia.strftime('%H:%M:%S') if pal.data_potwierdzenia else '-' }}</td>
+                    <td>{{ pal.potwierdzil_login if pal.status == 'przyjeta' and pal.potwierdzil_login else '---' }}</td>
+                    <td>{{ pal.data_potwierdzenia.strftime('%H:%M:%S') if pal.status == 'przyjeta' and pal.data_potwierdzenia else '-' }}</td>
                     <td>
                         <span class="status-pill status-{{ pal.status }}">
                             {{ pal.status }}
@@ -256,7 +256,6 @@
             </tbody>
         </table>
         {% endif %}
-
         <h3 style="margin-top: 30px; margin-bottom: 10px; font-size: 1.15em; color: var(--primary); padding-left: 5px; border-left: 4px solid #3498db;">Rozliczenie Workowania (Zużycie Opakowań)</h3>
         <table>
             <thead>
@@ -264,8 +263,6 @@
                     <th style="width:50px;">Lp.</th>
                     <th>Opakowanie</th>
                     <th>Stan Przed</th>
-                    <th>Wyprodukowano (Koniec zmiany)</th>
-                    <th>Różnica (Odpad)</th>
                     <th>Zużyte Worki</th>
                     <th>Stan Po</th>
                     <th>Data i Czas</th>
@@ -276,33 +273,84 @@
                 {% set op_lp = namespace(value=0) %}
                 {% for op in item.opakowania %}
                 {% set op_lp.value = op_lp.value + 1 %}
-                <tr style="background-color: #fdfefe;">
+                {% if op.zuzyte_worki == 0 and op.wyprodukowano_szt == 0 and op.stan_przed == op.stan_po %}
+                <tr style="background-color: #f0fdf4; border-left: 3px solid #27ae60;">
                     <td>{{ op_lp.value }}</td>
-                    <td><strong>{{ op.opakowanie_nazwa }}</strong></td>
+                    <td><strong>{{ op.opakowanie_nazwa }}</strong> <span style="font-size: 0.8em; color: #27ae60; margin-left: 5px;">(WSADZENIE)</span></td>
                     <td>{{ '%.0f'|format(op.stan_przed or 0) }} szt.</td>
-                    <td>{{ op.wyprodukowano_szt or 0 }} szt.</td>
-                    <td style="color: #c53030; font-weight: bold;">
-                        {% set wyprod = (op.wyprodukowano_szt or 0)|float %}
-                        {% set zuzyte = (op.zuzyte_worki or 0)|float %}
-                        {{ '%.0f'|format(wyprod - zuzyte) }} szt.
-                    </td>
-                    <td><strong style="color: #c53030;">- {{ '%.0f'|format(op.zuzyte_worki or 0) }} szt.</strong></td>
+                    <td style="color: #27ae60; font-weight: bold;">Pobrano na maszynę</td>
                     <td><strong>{{ '%.0f'|format(op.stan_po or 0) }} szt.</strong></td>
                     <td>{{ op.created_at.strftime('%H:%M:%S') if op.created_at else '-' }}</td>
                     <td>{{ op.autor_login or '---' }}</td>
                 </tr>
                 {% else %}
-                <tr>
-                    <td colspan="9" style="text-align: center; color: #999;">Brak rozliczeń opakowań dla tego zlecenia</td>
+                <tr style="background-color: #fdfefe;">
+                    <td>{{ op_lp.value }}</td>
+                    <td><strong>{{ op.opakowanie_nazwa }}</strong></td>
+                    <td>{{ '%.0f'|format(op.stan_przed or 0) }} szt.</td>
+                    <td><strong style="color: #c53030;">- {{ '%.0f'|format(op.zuzyte_worki or 0) }} szt.</strong></td>
+                    <td><strong>{{ '%.0f'|format(op.stan_po or 0) }} szt.</strong></td>
+                    <td>{{ op.created_at.strftime('%H:%M:%S') if op.created_at else '-' }}</td>
+                    <td>{{ op.autor_login or '---' }}</td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+                {% for aop in item.aktywne_opakowania %}
+                {% set op_lp.value = op_lp.value + 1 %}
+                <tr style="background-color: #f0f8ff; border-left: 3px solid #3498db;">
+                    <td>{{ op_lp.value }}</td>
+                    <td><strong>{{ aop.opakowanie_nazwa }}</strong> <span style="font-size: 0.8em; color: #3498db; margin-left: 5px;">(W TOKU)</span></td>
+                    <td>{{ '%.0f'|format(aop.stan_przed or 0) }} szt.</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>{{ aop.created_at.strftime('%H:%M:%S') if aop.created_at else '-' }}</td>
+                    <td>-</td>
                 </tr>
                 {% endfor %}
+                {% if not item.opakowania and not item.aktywne_opakowania %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: #999;">Brak rozliczeń ani podpiętych opakowań dla tego zlecenia</td>
+                </tr>
+                {% endif %}
             </tbody>
         </table>
 
-        {% set niski_stan = namespace(items=[]) %}
+        {% set bag_kg = item.bag_kg|default(20.0)|float %}
+        {% set teoret_zuzycie = (item.total_pallet_kg / bag_kg)|round(0)|int if bag_kg > 0 else 0 %}
+        {% set faktyczne_zuzycie = namespace(val=0.0) %}
         {% for op in item.opakowania %}
-            {% if (op.stan_po or 0) < 4200 %}
-                {% set _ = niski_stan.items.append(op) %}
+            {% set faktyczne_zuzycie.val = faktyczne_zuzycie.val + (op.zuzyte_worki or 0)|float %}
+        {% endfor %}
+        {% set strata = (faktyczne_zuzycie.val - teoret_zuzycie)|int %}
+
+        <div style="margin-top: 20px; padding: 18px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 6px solid #3498db; border-radius: 8px; font-size: 0.95em;">
+            <strong style="font-size: 1.1em; color: var(--primary);">📊 Podsumowanie Bilansu i Straty Worków:</strong>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 10px;">
+                <div>
+                    <span style="color: #666; font-size: 0.9em;">Wyprodukowany tonaż (palety):</span><br>
+                    <strong style="font-size: 1.1em; color: var(--primary);">{{ '%.2f'|format(item.total_pallet_kg) }} kg</strong>
+                </div>
+                <div>
+                    <span style="color: #666; font-size: 0.9em;">Teoretyczne zużycie worków:</span><br>
+                    <strong style="font-size: 1.1em; color: var(--primary);">{{ teoret_zuzycie }} szt.</strong> <span style="font-size: 0.85em; color: #777;">({{ bag_kg }} kg/worek)</span>
+                </div>
+                <div>
+                    <span style="color: #666; font-size: 0.9em;">Faktyczne zużycie (z rolek):</span><br>
+                    <strong style="font-size: 1.1em; color: #c53030;">{{ '%.0f'|format(faktyczne_zuzycie.val) }} szt.</strong>
+                </div>
+                <div>
+                    <span style="color: #666; font-size: 0.9em;">Różnica / Strata (odpad):</span><br>
+                    <strong style="{% if strata > 0 %}color: #c53030;{% else %}color: #27ae60;{% endif %} font-size: 1.25em;">
+                        {{ strata }} szt.
+                    </strong>
+                </div>
+            </div>
+        </div>
+
+        {% set niski_stan = namespace(items=[]) %}
+        {% for name, stock in item.packaging_stocks.items() %}
+            {% if stock < 4200 %}
+                {% set _ = niski_stan.items.append({'name': name, 'stock': stock}) %}
             {% endif %}
         {% endfor %}
 
@@ -313,8 +361,8 @@
             </strong><br>
             <span style="font-size: 0.95em;">Stan poniżej granicy 4 200 sztuk. Należy złożyć zamówienie na:</span>
             <ul style="margin: 8px 0 0 20px; padding: 0; font-size: 1.05em;">
-                {% for op in niski_stan.items %}
-                <li style="margin-bottom: 4px;"><strong>{{ op.opakowanie_nazwa }}</strong> – aktualny stan po rozliczeniu: <strong style="color: #c53030;">{{ '%.0f'|format(op.stan_po or 0) }} szt.</strong></li>
+                {% for warning in niski_stan.items %}
+                <li style="margin-bottom: 4px;"><strong>{{ warning.name }}</strong> – łączny aktualny stan na magazynie: <strong style="color: #c53030;">{{ '%.0f'|format(warning.stock) }} szt.</strong></li>
                 {% endfor %}
             </ul>
         </div>

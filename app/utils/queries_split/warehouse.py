@@ -43,20 +43,20 @@ class WarehouseQueries:
         
         cursor.execute(
             f"SELECT m.id, m.plan_id, m.waga_netto AS waga, m.tara, m.waga_brutto, "
-            "pw.data_dodania AS data_dodania, "
+            "COALESCE(pw.data_dodania, m.data_potwierdzenia) AS data_dodania, "
             "m.produkt, COALESCE(p.typ_produkcji, '') AS typ_produkcji, 'przyjeta' AS status, NULL AS czas_potwierdzenia_s, "
-            "GREATEST(m.data_potwierdzenia, pw.data_dodania), m.user_login "
+            "COALESCE(m.data_potwierdzenia, pw.data_dodania, m.created_at), m.user_login, m.nr_palety "
             f"FROM {table_magazyn} m LEFT JOIN {table_plan} p ON m.plan_id = p.id "
             f"LEFT JOIN {table_palety} pw ON m.paleta_workowanie_id = pw.id "
-            f"WHERE DATE(GREATEST(m.data_potwierdzenia, pw.data_dodania)) = %s AND m.waga_netto > 0 "
+            f"WHERE DATE(COALESCE(m.data_potwierdzenia, pw.data_dodania, m.created_at)) = %s AND m.waga_netto > 0 "
             "UNION ALL "
             "SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, COALESCE(pw.data_potwierdzenia, pw.data_dodania) AS data_dodania, "
             "p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s, "
             "CASE WHEN pw.data_potwierdzenia IS NOT NULL AND pw.data_potwierdzenia >= pw.data_dodania THEN pw.data_potwierdzenia "
             "WHEN pw.czas_rzeczywistego_potwierdzenia IS NOT NULL THEN CAST(CONCAT(DATE(pw.data_dodania), ' ', pw.czas_rzeczywistego_potwierdzenia) AS DATETIME) "
-            "ELSE pw.data_dodania END, NULL AS user_login "
+            "ELSE pw.data_dodania END, NULL AS user_login, pw.nr_palety "
             f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
-            "WHERE (pw.data_potwierdzenia IS NOT NULL OR COALESCE(pw.status,'') = 'przyjeta') AND pw.waga > 0 "
+            "WHERE (pw.data_potwierdzenia IS NOT NULL OR COALESCE(pw.status,'') IN ('przyjeta', 'w_magazynie')) AND pw.waga > 0 "
             f"AND NOT EXISTS (SELECT 1 FROM {table_magazyn} mp WHERE mp.paleta_workowanie_id = pw.id) "
             "AND DATE(COALESCE(pw.data_potwierdzenia, pw.data_dodania)) = %s "
             "ORDER BY 6 DESC, 1 DESC",
@@ -84,7 +84,7 @@ class WarehouseQueries:
             f", pw.nr_palety "
             f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
             "WHERE DATE(pw.data_dodania) = %s AND p.sekcja = 'Workowanie' "
-            "AND pw.waga > 0 AND COALESCE(pw.status,'') NOT IN ('przyjeta', 'zamknieta')",
+            "AND pw.waga > 0 AND COALESCE(pw.status,'') NOT IN ('przyjeta', 'zamknieta', 'w_magazynie')",
             (data_planu,)
         )
         result = cursor.fetchall()

@@ -18,6 +18,7 @@ _osip = [f'OS{str(i+1).zfill(2)}' for i in range(77)]
 # Stanowiska produkcyjne BB01..BB24, MZ01..MZ06
 _bb = [f'BB{str(i+1).zfill(2)}' for i in range(24)]
 _mz = ['MZ01', 'MZ02', 'MZ03', 'MZ04', 'MZ05', 'MZ06', 'MZ05-01', 'MZ06-01']
+_ko = [f'KO{str(i+1).zfill(2)}' for i in range(22)]
 
 LOKALIZACJE_SZCZEGOLOWE = {
     'Magazyny': LOKALIZACJE_ZRODLO,
@@ -28,10 +29,11 @@ LOKALIZACJE_SZCZEGOLOWE = {
     'OSIP (OS01-OS77)': _osip,
     'Stanowiska BB': _bb,
     'Stanowiska MZ': _mz,
+    'Stanowiska KO': _ko,
 }
 
 # Płaska lista na potrzeby selecta źródło/cel
-LOKALIZACJE = sorted(list(set(LOKALIZACJE_ZRODLO + ['R04', 'R05', 'R06', 'R07', 'PSD01'])))
+LOKALIZACJE = sorted(list(set(LOKALIZACJE_ZRODLO + _ko + ['R04', 'R05', 'R06', 'R07', 'PSD01'])))
 LOKALIZACJE_CEL = ['BF_MS01', 'BF_MP01', 'MS01', 'MP01', 'PSD01']
 BUFORY = ['BF_MS01', 'BF_MP01']
 

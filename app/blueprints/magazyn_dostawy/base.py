@@ -156,6 +156,19 @@ def podglad_etykiety_system(paleta_id):
         linia=linia,
         generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         autoprint=autoprint,
+        zpl_string=f"""^XA
+^CI28
+^PW812^LL1214
+^FO20,20^GB772,1174,4^FS
+^FO40,60^A0N,50,50^FDWYROB GOTOWY - {linia}^FS
+^FO40,150^A0N,65,65^FB720,3,0,C^FD{product_name}^FS
+^FO250,340^BQN,2,10^FDQA,{nr_palety}^FS
+^FO40,650^A0N,55,55^FB720,1,0,C^FD{nr_palety}^FS
+^FO40,750^A0N,50,50^FDNR PALETY: {nr_palety_lp or ''}^FS
+^FO40,850^A0N,50,50^FDPRODUKCJA: {data_produkcji}^FS
+^FO40,1000^A0N,70,70^FDWAGA NETTO:^FS
+^FO40,1100^A0N,100,100^FD{qty_display} kg^FS
+^XZ"""
     )
 
 
@@ -847,7 +860,7 @@ def przyjmij_pozycje(dostawa_id):
             "total": result["total"],
             "report_url": report_url,
             "nr_palety": result.get("nr_palety"),
-            "message": f"Przyjęto pomyślnie."
+            "message": f"Przyjęto pomyślnie. SSCC: {result.get('nr_palety')}" if result.get("nr_palety") else "Przyjęto pomyślnie."
         })
     return jsonify({"success": False, "error": error}), 400
 
@@ -1118,5 +1131,244 @@ def get_available_pallets():
         return jsonify({"success": True, "pallets": filtered_pallets})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()
+
+# ==========================================
+# PODZIAŁ PALETY (WORKOWANIE) W MAGAZYNIE
+# ==========================================
+
+@magazyn_dostawy_bp.route('/podzial-palety')
+@login_required
+def podzial_palety_view():
+    return render_template('magazyn_dostawy/podzial_palety.html')
+
+
+@magazyn_dostawy_bp.route('/api/info-paleta', methods=['GET'])
+@login_required
+def api_info_paleta():
+    sscc = request.args.get('sscc', '').strip()
+    if not sscc:
+        return jsonify({'success': False, 'error': 'Brak kodu SSCC.'})
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        # Szukaj w magazynie (najpierw AGRO, potem PSD)
+        for linia in ['AGRO', 'PSD']:
+            table_mag = get_table_name('magazyn_palety', linia)
+            cursor.execute(f'''
+                SELECT id, nr_palety, waga_netto as waga, produkt, lokalizacja, plan_id, 'magazyn' as source, %s as linia, data_planu
+                FROM {table_mag}
+                WHERE UPPER(nr_palety) = UPPER(%s) AND waga_netto > 0
+                LIMIT 1
+            ''', (linia, sscc))
+            pal = cursor.fetchone()
+            if pal:
+                return jsonify({'success': True, 'pallet': pal})
+
+        # Szukaj w produkcji (jeśli nieprzyjęta do magazynu formalnie)
+        for linia in ['AGRO', 'PSD']:
+            table_pal = get_table_name('palety_workowanie', linia)
+            table_plan = get_table_name('plan_produkcji', linia)
+            cursor.execute(f'''
+                SELECT pw.id, pw.nr_palety, pw.waga, p.produkt, '' as lokalizacja, pw.plan_id, 'produkcja' as source, %s as linia, p.data as data_planu
+                FROM {table_pal} pw
+                JOIN {table_plan} p ON pw.plan_id = p.id
+                WHERE UPPER(pw.nr_palety) = UPPER(%s) AND pw.waga > 0
+                LIMIT 1
+            ''', (linia, sscc))
+            pal = cursor.fetchone()
+            if pal:
+                return jsonify({'success': True, 'pallet': pal})
+
+        # Szukaj w surowcach
+        for linia in ['AGRO', 'PSD']:
+            table_sur = get_table_name('magazyn_surowce', linia)
+            cursor.execute(f'''
+                SELECT id, nr_palety, stan_magazynowy as waga, nazwa as produkt, lokalizacja, NULL as plan_id, 'surowiec' as source, %s as linia, data_produkcji as data_planu
+                FROM {table_sur}
+                WHERE UPPER(nr_palety) = UPPER(%s) AND stan_magazynowy > 0
+                LIMIT 1
+            ''', (linia, sscc))
+            pal = cursor.fetchone()
+            if pal:
+                return jsonify({'success': True, 'pallet': pal})
+
+        # Szukaj w opakowaniach
+        for linia in ['AGRO', 'PSD']:
+            table_opak = get_table_name('magazyn_opakowania', linia)
+            cursor.execute(f'''
+                SELECT id, nr_palety, stan_magazynowy as waga, nazwa as produkt, lokalizacja, NULL as plan_id, 'opakowanie' as source, %s as linia, data_produkcji as data_planu
+                FROM {table_opak}
+                WHERE UPPER(nr_palety) = UPPER(%s) AND stan_magazynowy > 0
+                LIMIT 1
+            ''', (linia, sscc))
+            pal = cursor.fetchone()
+            if pal:
+                return jsonify({'success': True, 'pallet': pal})
+
+        # Szukaj w dodatkach
+        cursor.execute(f'''
+            SELECT id, nr_palety, stan_magazynowy as waga, nazwa as produkt, lokalizacja, NULL as plan_id, 'dodatek' as source, 'PSD' as linia, data_produkcji as data_planu
+            FROM magazyn_dodatki
+            WHERE UPPER(nr_palety) = UPPER(%s) AND stan_magazynowy > 0
+            LIMIT 1
+        ''', (sscc,))
+        pal = cursor.fetchone()
+        if pal:
+            return jsonify({'success': True, 'pallet': pal})
+
+        return jsonify({'success': False, 'error': 'Nie znaleziono palety o podanym kodzie.'})
+    finally:
+        conn.close()
+
+
+@magazyn_dostawy_bp.route('/api/podzial-palety', methods=['POST'])
+@login_required
+def api_podzial_palety():
+    data = request.json or {}
+    mother_id = data.get('mother_id')
+    mother_table = data.get('mother_table', 'magazyn') # 'magazyn' or 'produkcja'
+    weight_to_take = _safe_float(data.get('weight_to_take', 0))
+
+    if not mother_id or weight_to_take <= 0:
+        return jsonify({'success': False, 'error': 'Błędne dane wejściowe.'})
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        # Najpierw musimy namierzyć z jakiej linii pochodzi paleta
+        linia = None
+        pal = None
+        
+        if mother_table == 'surowiec':
+            for test_linia in ['AGRO', 'PSD']:
+                t = get_table_name('magazyn_surowce', test_linia)
+                cursor.execute(f"SELECT * FROM {t} WHERE id = %s", (mother_id,))
+                pal = cursor.fetchone()
+                if pal:
+                    linia = test_linia
+                    break
+        elif mother_table == 'opakowanie':
+            for test_linia in ['AGRO', 'PSD']:
+                t = get_table_name('magazyn_opakowania', test_linia)
+                cursor.execute(f"SELECT * FROM {t} WHERE id = %s", (mother_id,))
+                pal = cursor.fetchone()
+                if pal:
+                    linia = test_linia
+                    break
+        elif mother_table == 'dodatek':
+            t = 'magazyn_dodatki'
+            cursor.execute(f"SELECT * FROM {t} WHERE id = %s", (mother_id,))
+            pal = cursor.fetchone()
+            if pal:
+                linia = 'PSD'
+        else:
+            for test_linia in ['AGRO', 'PSD']:
+                t = get_table_name('magazyn_palety' if mother_table == 'magazyn' else 'palety_workowanie', test_linia)
+                cursor.execute(f"SELECT * FROM {t} WHERE id = %s", (mother_id,))
+                pal = cursor.fetchone()
+                if pal:
+                    linia = test_linia
+                    break
+
+        if not pal:
+            return jsonify({'success': False, 'error': 'Nie znaleziono palety bazowej w bazie danych.'})
+
+        if mother_table in ('surowiec', 'opakowanie', 'dodatek'):
+            waga_obecna = float(pal.get('stan_magazynowy') or 0)
+        else:
+            waga_obecna = float(pal.get('waga_netto') if mother_table == 'magazyn' else pal.get('waga') or 0)
+        
+        if weight_to_take >= waga_obecna:
+            return jsonify({'success': False, 'error': f'Waga do zabrania ({weight_to_take} kg) jest równa lub większa niż stan palety ({waga_obecna} kg).'})
+
+        nowa_waga = round(waga_obecna - weight_to_take, 3)
+
+        if mother_table == 'opakowanie':
+            new_sscc = f"OPA-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        elif mother_table == 'dodatek':
+            new_sscc = f"DOD-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        elif mother_table == 'surowiec':
+            new_sscc = f"SUR-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        else:
+            new_sscc = f"QA-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        login = session.get('login', 'System')
+        now_dt = datetime.now()
+
+        new_pallet_id = None
+        
+        if mother_table in ('surowiec', 'opakowanie', 'dodatek'):
+            if mother_table == 'surowiec':
+                t_sur = get_table_name('magazyn_surowce', linia)
+            elif mother_table == 'opakowanie':
+                t_sur = get_table_name('magazyn_opakowania', linia)
+            else:
+                t_sur = 'magazyn_dodatki'
+                
+            cursor.execute(f"UPDATE {t_sur} SET stan_magazynowy = %s WHERE id = %s", (nowa_waga, mother_id))
+            
+            cursor.execute(f'''
+                INSERT INTO {t_sur} (
+                    nr_palety, nazwa, stan_magazynowy, data_produkcji, termin_przydatnosci,
+                    nr_partii, certyfikat, lokalizacja, uzytkownik_dodajacy, data_dodania
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (
+                new_sscc, pal.get('nazwa'), weight_to_take, pal.get('data_produkcji'), pal.get('termin_przydatnosci'),
+                pal.get('nr_partii'), pal.get('certyfikat'), pal.get('lokalizacja'), login, now_dt
+            ))
+            new_pallet_id = cursor.lastrowid
+        else:
+            # Update mother pallet
+            t_mother = get_table_name('magazyn_palety' if mother_table == 'magazyn' else 'palety_workowanie', linia)
+            waga_col = 'waga_netto' if mother_table == 'magazyn' else 'waga'
+            cursor.execute(f"UPDATE {t_mother} SET {waga_col} = %s WHERE id = %s", (nowa_waga, mother_id))
+
+            plan_id = pal.get('plan_id')
+
+            # Zawsze musi zostać utworzony rekord w produkcji
+            t_prod = get_table_name('palety_workowanie', linia)
+            cursor.execute(f'''
+                INSERT INTO {t_prod} (plan_id, waga, data_dodania, nr_palety, status, data_potwierdzenia, dodal_login, potwierdzil_login)
+                VALUES (%s, %s, %s, %s, 'przyjeta', %s, %s, %s)
+            ''', (
+                plan_id, weight_to_take, now_dt, new_sscc, now_dt, login, login
+            ))
+            new_prod_id = cursor.lastrowid
+            new_pallet_id = new_prod_id
+
+            # Jeśli paleta była w magazynie, nowa też musi wylądować w magazynie
+            if mother_table == 'magazyn':
+                t_mag = get_table_name('magazyn_palety', linia)
+                cursor.execute(f'''
+                    INSERT INTO {t_mag} (
+                        paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, 
+                        nr_palety, lokalizacja, user_login, data_potwierdzenia, created_at, linia
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    new_prod_id, plan_id, pal.get('data_planu'), pal.get('produkt'), weight_to_take,
+                    new_sscc, pal.get('lokalizacja'), login, now_dt, now_dt, linia
+                ))
+
+        conn.commit()
+
+        return jsonify({
+            'success': True, 
+            'label_url': f"/magazyn-dostawy/podglad-etykiety-system/{new_pallet_id}?linia={linia}",
+            'new_pallet': {
+                'id': new_pallet_id,
+                'nr_palety': new_sscc,
+                'waga': weight_to_take,
+                'linia': linia,
+                'plan_id': plan_id
+            }
+        })
+    except Exception as e:
+        conn.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)})
     finally:
         conn.close()

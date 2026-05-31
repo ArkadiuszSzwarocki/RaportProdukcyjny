@@ -50,6 +50,7 @@
                                 <tr>
                                     <th>{{ _('nr') }}</th>
                                     <th>🕒 {{ _('czas') }}</th>
+                                    <th>SSCC</th>
                                     <th>⚖️ {{ _('waga') }}</th>
                                 </tr>
                             </thead>
@@ -58,6 +59,7 @@
                                 <tr>
                                     <td class="text-muted font-bold">{{ loop.index if loop is defined else '' }}</td>
                                     <td class="time-display">{{ pal[1] }}</td>
+                                    <td class="mono small">{{ pal[4] if pal|length > 4 else '' }}</td>
                                     <td><strong class="text-success">{{ pal[0] | int }} kg</strong></td>
                                 </tr>
                                 {% endfor %}
@@ -122,6 +124,20 @@
                 {% elif p[3] == 'zakonczone' %}<span class="status-badge status-koniec">{{ _('zamkniete') }}</span>{% endif %}
                 
                     <span class="font-bold">{{ p[1] }}</span> ({{ p[2]|int }} kg)
+                    
+                    {% if p[3] == 'zaplanowane' %}
+                        <div class="text-muted small mt-5" style="margin-top: 4px; font-size: 0.85em; color: #64748b;">
+                            {% if p|length > 9 and p[9] and p[9] != 'agro' %}
+                                <span style="margin-right: 8px;">⚖️ Worek: {{ p[9] }}</span>
+                            {% endif %}
+                            {% if p|length > 27 and p[27] %}
+                                <span style="margin-right: 8px;">📦 Folia: {{ p[27] }}</span>
+                            {% endif %}
+                            {% if p|length > 28 and p[28] %}
+                                <span>🏷️ Etykieta: {{ p[28] }}</span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
                 {% if p[3] == 'zakonczone' %} - {{ _('wyk') }}: <strong>{{ p[7]|int }} kg</strong>
                     {% if p|length > 15 and p[15] %}
                     <button type="button" onclick="toggleDetails('{{ p[0] }}')" class="btn-toggle ml-5">
@@ -165,6 +181,7 @@
                     <tr>
                         <th>{{ _('nr') }}</th>
                         <th>🕒 {{ _('czas') }}</th>
+                        <th>SSCC</th>
                         <th>👤 Status</th>
                         <th>⚖️ {{ _('waga') }}</th>
                     </tr>
@@ -174,6 +191,7 @@
                     <tr>
                         <td class="text-muted font-bold">{{ loop.index if loop is defined else '' }}</td>
                         <td class="time-display"><span>{{ pal[1] }}</span></td>
+                        <td class="mono small">{{ pal[4] if pal|length > 4 else '' }}</td>
                         <td>
                             {% if pal[7] and pal[7] != '' %}
                                 {% if pal[7] == 'do_przyjecia' %}

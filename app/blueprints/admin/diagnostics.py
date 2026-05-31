@@ -12,7 +12,7 @@ from app.decorators import admin_required, dynamic_role_required, login_required
 
 
 def _project_root():
-    return os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
 def _tail_lines_binary(file_path, count, block_size=1024):
@@ -263,6 +263,96 @@ def register_admin_diagnostics_routes(admin_bp):
                 return jsonify({'success': False, 'message': 'Plik logu nie istnieje.'}), 404
         except Exception as e:
             return jsonify({'success': False, 'message': f'Błąd podczas czyszczenia logu: {str(e)}'}), 500
+
+    @admin_bp.route('/admin/master/mqtt')
+    @masteradmin_required
+    def admin_master_mqtt():
+        """Show live MQTT machine data (Pakowaczka, Paletyzator, Owijarka)."""
+        from app.services.mqtt_service import get_latest_data
+        import time
+        data = get_latest_data()
+        last_update = data.get('last_update', 0)
+        if last_update:
+            age_s = int(time.time() - last_update)
+            last_update_str = f"{age_s} sek. temu"
+        else:
+            last_update_str = "Brak danych"
+
+        # Metadane pól – opis każdego klucza
+        field_meta = {
+            'bpm': {
+                'label': 'Wydajność aktualna (BPM)',
+                'device': 'Pakowaczka',
+                'topic': 'iot-2/type/cMT2108X2/id/agroPakowaczka',
+                'mqtt_key': 'wydajnoscAktualna',
+                'unit': 'worki/min',
+                'desc': 'Bieżąca wydajność maszyny pakującej – liczba worków produkowanych na minutę. Wartość 0 oznacza postój lub brak danych z urządzenia.',
+            },
+            'counter': {
+                'label': 'Licznik globalny (worki)',
+                'device': 'Pakowaczka',
+                'topic': 'iot-2/type/cMT2108X2/id/agroPakowaczka',
+                'mqtt_key': 'licznikGlobalny',
+                'unit': 'szt.',
+                'desc': 'Globalny licznik całkowitej liczby worków wyprodukowanych od ostatniego resetu licznika na panelu operatorskim pakowaczki.',
+            },
+            'status': {
+                'label': 'Status maszyny',
+                'device': 'Pakowaczka',
+                'topic': 'iot-2/type/cMT2108X2/id/agroPakowaczka',
+                'mqtt_key': 'status',
+                'unit': '',
+                'desc': 'Aktualny stan pracy pakowaczki. Wartość "PRACA" = kod 4 (maszyna pracuje), "STOP" = kod 0 (maszyna zatrzymana). Inne wartości numeryczne oznaczają specjalne stany (alarm, tryb serwisowy, itp.).',
+            },
+            'receptura': {
+                'label': 'Aktywna receptura',
+                'device': 'Pakowaczka',
+                'topic': 'iot-2/type/cMT2108X2/id/agroPakowaczka',
+                'mqtt_key': 'nazwaReceptury',
+                'unit': '',
+                'desc': 'Nazwa receptury (programu) aktualnie załadowanej na pakowaczce. Określa parametry workowania: gramaturę, prędkość dozowania, typ opakowania.',
+            },
+            'pallet_counter': {
+                'label': 'Licznik palet (globalny)',
+                'device': 'Paletyzator',
+                'topic': 'iot-2/type/cMT2108X2/id/agroPaletyzator',
+                'mqtt_key': 'licznikPalet_global',
+                'unit': 'palet',
+                'desc': 'Globalny licznik palet sformowanych przez paletyzator od ostatniego resetu. Każda pełna paleta zwiększa ten licznik o 1. Używany do śledzenia wydajności paletyzatora i kontroli rozliczeń palet.',
+            },
+            'is_wrapped': {
+                'label': 'Paleta owinięta (bit)',
+                'device': 'Owijarka',
+                'topic': 'iot-2/type/cMT2108X2/id/agroOwijarka',
+                'mqtt_key': 'wyjazdPaletaOwinieta',
+                'unit': '',
+                'desc': 'Bit sygnalizujący wyjazd gotowej, owiniętej palety z owijarki. Wartość True = paleta właśnie opuściła owiniarkę i jest gotowa do odbioru. Bit jest używany przez system do automatycznego naliczania palet.',
+            },
+        }
+
+        return render_template(
+            'admin/mqtt_monitor.html',
+            data=data,
+            field_meta=field_meta,
+            last_update_str=last_update_str,
+            last_update_ts=last_update,
+        )
+
+    @admin_bp.route('/admin/master/mqtt/api')
+    @masteradmin_required
+    def admin_master_mqtt_api():
+        """JSON endpoint returning current MQTT machine data."""
+        from app.services.mqtt_service import get_latest_data
+        import time
+        data = get_latest_data()
+        last_update = data.get('last_update', 0)
+        age_s = int(time.time() - last_update) if last_update else None
+        return jsonify({
+            'success': True,
+            'data': data,
+            'age_seconds': age_s,
+            'last_update_ts': last_update,
+        })
 
     @admin_bp.route('/admin/master/verify')
     @masteradmin_required

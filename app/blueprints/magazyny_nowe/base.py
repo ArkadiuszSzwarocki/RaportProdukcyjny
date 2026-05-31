@@ -293,12 +293,13 @@ def move_pallet():
     pallet_type = data.get('type')
     new_location = data.get('location')
     linia = data.get('linia', 'PSD')
+    amount = data.get('amount')
     worker = session.get('login', 'nieznany')
     
     if not all([pallet_id, pallet_type, new_location]):
         return jsonify({'success': False, 'error': 'Brak parametrów'}), 400
         
-    success, msg = MagazynyNoweService.move_pallet(pallet_id, pallet_type, new_location, worker, linia)
+    success, msg = MagazynyNoweService.move_pallet(pallet_id, pallet_type, new_location, worker, linia, amount_to_move=amount)
     return jsonify({'success': success, 'message': msg})
 
 @magazyny_nowe_bp.route('/api/pallet/archive', methods=['POST'])
@@ -525,7 +526,8 @@ def print_pallet_label():
             'nazwa': row['productName'],
             'ilosc': row['amount'],
             'data': row['date_prod'].strftime('%Y-%m-%d') if row.get('date_prod') else datetime.now().strftime('%Y-%m-%d'),
-            'partia': row.get('batch') or f"{pallet_type[:3]}-{pallet_id}"
+            'partia': row.get('batch') or f"{pallet_type[:3]}-{pallet_id}",
+            'linia': linia
         }
         
         printer_service = get_printer()

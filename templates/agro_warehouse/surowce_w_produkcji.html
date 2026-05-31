@@ -1,0 +1,176 @@
+{% extends "layout.html" %}
+
+{% block title %}Surowce w Produkcji{% endblock %}
+
+{% block content %}
+<div class="inventory-scanner p-20" data-no-autorefresh="true" style="max-width: 100%; margin: 0 auto; font-family: 'Inter', sans-serif;">
+    
+    <!-- HEADER -->
+    <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <h2 style="font-size: 24px; font-weight: 900; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 10px;">
+            <span class="material-icons" style="color: #3b82f6;">inventory_2</span> Surowce w Produkcji
+        </h2>
+        <a href="{{ url_for('agro_warehouse.production_inventory_page', linia=linia) }}" style="background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; padding: 10px 15px; border-radius: 12px; text-decoration: none; font-weight: 800; display: flex; align-items: center; gap: 5px; transition: all 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+            <span class="material-icons" style="font-size: 18px;">fact_check</span> Inwentaryzacja
+        </a>
+    </div>
+
+    <!-- LISTA ZBIORNIKÓW I SUROWCÓW (POGRUPOWANA) -->
+    <div id="entriesList" style="display: flex; flex-direction: column; gap: 30px; margin-bottom: 30px;">
+        {% if grouped_entries %}
+            {% for group_name, group_entries in grouped_entries.items() %}
+            <div class="tank-group" style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                <h3 style="margin: 0 0 15px 0; font-size: 18px; font-weight: 800; color: #1e293b; padding-bottom: 10px; border-bottom: 2px solid #f1f5f9;">
+                    <span class="material-icons" style="vertical-align: middle; color: #3b82f6; font-size: 20px;">view_module</span> {{ group_name }}
+                </h3>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px;">
+                    {% for tank in group_entries %}
+                    <div class="pallet-card" onclick="openTankHistory('{{ tank.zbiornik }}', '{{ tank.surowiec_nazwa if tank.stan_systemowy > 0 and tank.surowiec_nazwa != 'PUSTE GNIAZDO' else 'PUSTY' }}', '{{ tank.stan_systemowy }} {{ tank.jednostka or 'kg' }}')"
+                         style="background: {% if tank.stan_systemowy > 0 and tank.surowiec_nazwa and tank.surowiec_nazwa != 'PUSTE GNIAZDO' %}#f0fdf4{% else %}#f8fafc{% endif %}; 
+                                border-radius: 12px; border: 1px solid {% if tank.stan_systemowy > 0 and tank.surowiec_nazwa and tank.surowiec_nazwa != 'PUSTE GNIAZDO' %}#10b981{% else %}#e2e8f0{% endif %}; 
+                                padding: 15px; display: flex; flex-direction: column; position: relative; cursor: pointer; min-height: 120px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02);"
+                         onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.05)';" 
+                         onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.02)';">
+                        
+                        <!-- Top left station name -->
+                        <div style="position: absolute; top: 12px; left: 15px; font-size: 14px; font-weight: 900; color: #64748b; background: rgba(255,255,255,0.7); padding: 2px 6px; border-radius: 6px;">
+                            {{ tank.zbiornik }}
+                        </div>
+                        
+                        <!-- Center content -->
+                        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-top: 15px;">
+                            {% if tank.stan_systemowy > 0 and tank.surowiec_nazwa and tank.surowiec_nazwa != 'PUSTE GNIAZDO' %}
+                                <div style="font-size: 16px; font-weight: 900; color: #1e293b; text-align: center; line-height: 1.2; margin-bottom: 8px;">
+                                    {{ tank.surowiec_nazwa }}
+                                </div>
+                                <div style="background: #166534; color: white; padding: 4px 10px; border-radius: 8px; font-size: 18px; font-weight: 900; display: inline-block;">
+                                    {{ tank.stan_systemowy }} {{ tank.jednostka or 'kg' }}
+                                </div>
+                            {% else %}
+                                <div style="font-size: 14px; font-weight: 800; color: #94a3b8; text-align: center;">PUSTY ZBIORNIK</div>
+                            {% endif %}
+                        </div>
+                        
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div style="text-align: center; padding: 40px; background: white; border-radius: 16px; border: 1px dashed #cbd5e1;">
+                <span class="material-icons" style="font-size: 48px; color: #94a3b8; margin-bottom: 10px;">inventory_2</span>
+                <h3 style="color: #475569; margin: 0;">Brak zbiorników</h3>
+                <p style="color: #64748b; font-size: 14px; margin-top: 5px;">Nie znaleziono żadnych zdefiniowanych zbiorników produkcyjnych.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- MODAL: Historia Zbiornika -->
+<div id="tankHistoryModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background: white; width: 100%; max-width: 600px; max-height: 85vh; border-radius: 24px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
+            <div>
+                <div style="font-size: 24px; font-weight: 900; color: #0f172a;" id="thm-tankName">MZ01</div>
+                <div style="font-size: 14px; font-weight: 800; color: #3b82f6; margin-top: 4px;" id="thm-currentMaterial">SUROWIEC (0 kg)</div>
+            </div>
+            <button onclick="closeTankHistoryModal()" style="background: none; border: none; font-size: 24px; color: #94a3b8; cursor: pointer; padding: 5px;">&times;</button>
+        </div>
+        
+        <div style="flex: 1; overflow-y: auto; padding-right: 5px;">
+            <h4 style="margin: 0 0 15px 0; font-size: 14px; font-weight: 800; color: #64748b; text-transform: uppercase;">Historia podłączeń</h4>
+            <div id="thm-historyList" style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="text-align: center; color: #94a3b8; font-size: 14px; padding: 20px;">
+                    Ładowanie historii...
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 20px; pt-15px; border-top: 1px solid #e2e8f0; text-align: right;">
+            <button onclick="closeTankHistoryModal()" style="background: #f1f5f9; color: #475569; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 800; cursor: pointer;">ZAMKNIJ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openTankHistory(tankCode, materialName, weight) {
+    document.getElementById('tankHistoryModal').style.display = 'flex';
+    document.getElementById('thm-tankName').innerText = tankCode;
+    
+    if(materialName === 'PUSTY') {
+        document.getElementById('thm-currentMaterial').innerText = 'OBECNIE PUSTY ZBIORNIK';
+        document.getElementById('thm-currentMaterial').style.color = '#94a3b8';
+    } else {
+        document.getElementById('thm-currentMaterial').innerText = materialName + ' • ' + weight;
+        document.getElementById('thm-currentMaterial').style.color = '#3b82f6';
+    }
+    
+    const listEl = document.getElementById('thm-historyList');
+    listEl.innerHTML = '<div style="text-align: center; color: #94a3b8; font-size: 14px; padding: 20px;"><span class="material-icons" style="animation: spin 1s linear infinite;">refresh</span> Ładowanie...</div>';
+    
+    fetch(`/agro/api/magazyn/surowce-w-produkcji/historia/${encodeURIComponent(tankCode)}?linia={{ linia }}`)
+        .then(r => r.json())
+        .then(data => {
+            if(!data.success || !data.historia || data.historia.length === 0) {
+                listEl.innerHTML = '<div style="text-align: center; color: #64748b; padding: 20px;">Brak historii dla tego zbiornika.</div>';
+                return;
+            }
+            
+            let html = '';
+            data.historia.forEach(row => {
+                let color = '#475569';
+                let bg = '#f8fafc';
+                let icon = 'swap_horiz';
+                let sign = '';
+                
+                if(row.typ_ruchu === 'PRODUKCJA') {
+                    color = '#2563eb'; bg = '#eff6ff'; icon = 'login'; sign = '-';
+                } else if(row.typ_ruchu === 'ZWROT') {
+                    color = '#059669'; bg = '#f0fdf4'; icon = 'logout'; sign = '+';
+                } else if(row.typ_ruchu === 'INWENTARYZACJA_PROD') {
+                    color = '#d97706'; bg = '#fef3c7'; icon = 'fact_check'; sign = (row.ilosc > 0 ? '+' : '');
+                }
+                
+                html += `
+                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; display: flex; gap: 15px; align-items: center;">
+                        <div style="background: ${bg}; color: ${color}; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <span class="material-icons">${icon}</span>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-size: 14px; font-weight: 800; color: #1e293b; margin-bottom: 4px;">
+                                ${row.surowiec_nazwa || 'Brak nazwy'}
+                            </div>
+                            <div style="font-size: 12px; color: #64748b; display: flex; gap: 10px;">
+                                <span>${row.autor_data_str}</span>
+                                <span>•</span>
+                                <span>${row.autor_login}</span>
+                            </div>
+                            ${row.komentarz ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px; font-style: italic;">${row.komentarz}</div>` : ''}
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 15px; font-weight: 900; color: ${color};">${sign}${Math.abs(row.ilosc)} kg</div>
+                            <div style="font-size: 11px; color: #94a3b8; font-weight: 700; margin-top: 2px;">PO: ${row.ilosc_po} kg</div>
+                        </div>
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+        })
+        .catch(err => {
+            listEl.innerHTML = '<div style="color: #ef4444; padding: 20px;">Wystąpił błąd podczas pobierania historii.</div>';
+        });
+}
+
+function closeTankHistoryModal() {
+    document.getElementById('tankHistoryModal').style.display = 'none';
+}
+
+// Spin animation for loading icon
+const style = document.createElement('style');
+style.innerHTML = `
+@keyframes spin { 100% { transform: rotate(360deg); } }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

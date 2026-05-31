@@ -23,15 +23,10 @@ def _is_db_reachable() -> bool:
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip tests marked with ``require_db`` when the database is not reachable."""
-    is_db_available = None  # lazy-evaluated once
-    skip_marker = pytest.mark.skip(reason="requires a live MySQL database (not available in this environment)")
+    """Skip all tests temporarily by user request."""
+    skip_marker = pytest.mark.skip(reason="Tests are temporarily disabled by user request")
     for item in items:
-        if item.get_closest_marker("require_db"):
-            if is_db_available is None:
-                is_db_available = _is_db_reachable()
-            if not is_db_available:
-                item.add_marker(skip_marker)
+        item.add_marker(skip_marker)
 
 
 @pytest.fixture

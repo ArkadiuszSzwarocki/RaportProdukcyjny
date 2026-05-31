@@ -81,3 +81,77 @@ def test_lookup_route_returns_inventory_payload(client):
     data = response.get_json()
     assert data['success'] is True
     assert data['pallet']['inventory_code'] == 'PAL-7'
+
+
+def test_normalize_scanned_code_extracts_gs1_ai00_sscc():
+    raw = 'https://scan.local/label?code=(00)590123412345678901&src=zebra'
+    normalized = ScannerService._normalize_scanned_code(raw)
+    assert normalized == '590123412345678901'
+
+
+def test_lookup_prefixed_opk_uses_prefix_not_first_numeric_match():
+    mock_cursor = MagicMock()
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+
+    def _fake_inventory_lookup(
+        _cur,
+        base_table,
+        _linia,
+        *,
+        qty_col,
+        name_col='nazwa',
+        location_code=None,
+        item_id=None,
+        pallet_no=None,
+    ):
+        if item_id != 12:
+            return None
+        if base_table == 'magazyn_surowce':
+            return {'id': 12, 'nazwa': 'Surowiec 12', 'ilosc': 400, 'lokalizacja': 'MS01'}
+        if base_table == 'magazyn_opakowania':
+            return {'id': 12, 'nazwa': 'Worek 25kg', 'ilosc': 900, 'lokalizacja': 'MOP01'}
+        return None
+
+    with patch('app.services.scanner_service.get_db_connection', return_value=mock_conn), patch(
+        'app.services.scanner_service.ScannerService._lookup_inventory_row', side_effect=_fake_inventory_lookup
+    ), patch(
+        'app.services.scanner_service.ScannerService._lookup_finished_goods', return_value=None
+    ):
+        result = ScannerService.lookup_by_location('OPK-12', linia='AGRO')
+
+    assert result is not None
+    assert result['inventory_type'] == 'Opakowanie'
+    assert result['inventory_code'] == 'OPK-12'
+    assert result['nazwa'] == 'Worek 25kg'
+
+
+def test_lookup_finds_finished_goods_by_non_sscc_pallet_number():
+    mock_cursor = MagicMock()
+    mock_cursor.fetchone.return_value = None
+
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+
+    def _fake_finished_goods_lookup(
+        _cur,
+        _linia,
+        *,
+        item_id=None,
+        location_code=None,
+        pallet_no=None,
+    ):
+        if pallet_no == 'WGX-2026-0001':
+            return {'id': 77, 'nazwa': 'Granulat WG', 'ilosc': 1234.0, 'lokalizacja': 'MGW01'}
+        return None
+
+    with patch('app.services.scanner_service.get_db_connection', return_value=mock_conn), patch(
+        'app.services.scanner_service.ScannerService._lookup_inventory_row', return_value=None
+    ), patch(
+        'app.services.scanner_service.ScannerService._lookup_finished_goods', side_effect=_fake_finished_goods_lookup
+    ):
+        result = ScannerService.lookup_by_location('WGX-2026-0001', linia='AGRO')
+
+    assert result is not None
+    assert result['inventory_type'] == 'Wyrób Gotowy'
+    assert result['inventory_code'] == 'PAL-77'

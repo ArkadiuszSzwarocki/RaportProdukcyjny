@@ -9,7 +9,7 @@
         {% set fb_palety = (palety_mapa.get(p[0]) if palety_mapa and (p[0] in palety_mapa) else []) %}
         {% if fb_palety %}
             {% set total_count = fb_palety|length %}
-            {% set items_to_render = fb_palety|reverse if linia|upper == 'PSD' else fb_palety %}
+            {% set items_to_render = fb_palety|reverse %}
             {% for pal in items_to_render %}
             {% set loop_idx = (total_count - loop.index + 1) if linia|upper == 'PSD' else loop.index %}
             {% set szarza_id = (pal[2]|int if pal|length > 2 else 0) %}
@@ -58,11 +58,11 @@
                                          class="btn-action btn-sm"
                                          data-slide
                                          title="Edytuj wagę palety" style="font-size: 0.65rem; padding: 0 6px;">EDYTUJ</a>
-                                     <button onclick="drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}')" 
+                                     <button onclick="drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}', this)" 
                                              class="btn-action btn-purple btn-sm"
                                              title="Drukuj ponownie etykiety ZPL" style="font-size: 0.65rem; padding: 0 6px;">DRUKUJ</button>
                                      {% if rola in ['lider', 'admin', 'masteradmin'] %}
-                                     <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia) }}"
+                                     <a href="{{ url_for('warehouse.confirm_delete_palete_page', paleta_id=pal[2], linia=linia, source='agro') }}"
                                         class="btn-action btn-danger btn-sm"
                                         data-slide
                                         title="Usuń paletę" style="font-size: 0.65rem; padding: 0 6px;">USUŃ</a>

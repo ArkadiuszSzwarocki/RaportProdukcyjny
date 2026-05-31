@@ -41,6 +41,21 @@ def panel_planisty():
             aktywna_zakladka = 'psd'
 
         table_plan = get_table_name('plan_produkcji', wybrana_linia)
+        
+        # Renormalize sequences BEFORE loading to ensure no duplicates or gaps
+        from app.services.plan_movement_service import PlanMovementService
+        temp_cursor = conn.cursor()
+        try:
+            PlanMovementService.renormalize_sequences(temp_cursor, table_plan, wybrana_data, None if wybrana_linia == 'AGRO' else 'Zasyp')
+            if wybrana_linia != 'AGRO':
+                PlanMovementService.renormalize_sequences(temp_cursor, table_plan, wybrana_data, 'Workowanie')
+            conn.commit()
+        finally:
+            try:
+                temp_cursor.close()
+            except Exception:
+                pass
+
         plany_list = load_primary_plan_rows(cursor, wybrana_data, wybrana_linia)
         plany_list = enrich_primary_plan_carryover(cursor, plany_list, wybrana_data, wybrana_linia)
 
@@ -105,8 +120,16 @@ def panel_planisty():
         bufor_source_date = bufor_context['bufor_source_date']
         bufor_source_date_fmt = bufor_context['bufor_source_date_fmt']
 
-        cursor.execute("SELECT MIN(id) AS id, nazwa FROM magazyn_opakowania GROUP BY nazwa ORDER BY nazwa")
-        opakowania = cursor.fetchall()
+        cursor.execute("SELECT id, nazwa FROM magazyn_opakowania ORDER BY nazwa")
+        raw_opakowania = cursor.fetchall()
+        seen_names = set()
+        opakowania = []
+        for o in raw_opakowania:
+            name_clean = str(o.get('nazwa') or o.get('NAZWA') or '').strip()
+            name_key = name_clean.lower()
+            if name_key and name_key not in seen_names:
+                seen_names.add(name_key)
+                opakowania.append({'id': o['id'], 'nazwa': name_clean})
         cursor.execute("SELECT id, nazwa FROM slownik_etykiety_agro ORDER BY id")
         etykiety = cursor.fetchall()
 

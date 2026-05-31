@@ -38,20 +38,39 @@ from .zasyp_flow import register_production_zasyp_flow_routes
 from .notifications import register_production_notification_routes
 from .dosypki import register_production_dosypki_routes
 from .mix import register_production_mix_routes
+from .reports import register_production_reports_routes
 
 production_bp = Blueprint('production', __name__)
 
 def bezpieczny_powrot():
     """Wraca do Planisty jeśli to on klikał, w przeciwnym razie na Dashboard"""
+    data_val = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data')
+    sekcja = request.args.get('sekcja') or request.form.get('sekcja')
+    linia = request.args.get('linia') or request.form.get('linia')
+
+    if request.referrer:
+        try:
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(request.referrer)
+            qs = parse_qs(parsed.query)
+            if not data_val:
+                if 'data' in qs: data_val = qs['data'][0]
+                elif 'dzisiaj' in qs: data_val = qs['dzisiaj'][0]
+            if not sekcja and 'sekcja' in qs:
+                sekcja = qs['sekcja'][0]
+            if not linia and 'linia' in qs:
+                linia = qs['linia'][0]
+        except Exception:
+            pass
+
+    data_val = data_val or str(date.today())
+    sekcja = sekcja or 'Zasyp'
+    linia = linia or session.get('selected_hall_view') or 'PSD'
+
     if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
-        data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-        return url_for('planista.panel_planisty', data=data)
+        return url_for('planista.panel_planisty', data=data_val)
     
-    # Try to get sekcja from query string first (URL parameters), then from form
-    sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
-    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
-    data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-    return url_for('main.index', sekcja=sekcja, data=data, linia=linia)
+    return url_for('main.index', sekcja=sekcja, data=data_val, linia=linia)
 
 
 def _coerce_date(d: object) -> date:
@@ -218,25 +237,80 @@ def _notify_laboratory_stage_start(
             cur2 = conn2.cursor()
             cur2.execute(
                 "SELECT COALESCE(MAX(szarza_nr), 0) FROM zasyp_etapy WHERE linia=%s AND plan_id=%s",
-                (linia, plan_id)
+                (str(linia or '').upper(), int(plan_id)),
             )
-            resolved_szarza_nr = _coerce_positive_int(cur2.fetchone()[0])
+            row = cur2.fetchone()
+            resolved_szarza_nr = _coerce_positive_int(row[0] if row else None)
+
+            if resolved_szarza_nr is None:
+                table_szarze = get_table_name('szarze', linia)
+                cur2.execute(f"SELECT MAX(nr_szarzy) FROM {table_szarze} WHERE plan_id=%s", (plan_id,))
+                row = cur2.fetchone()
+                resolved_szarza_nr = _coerce_positive_int(row[0] if row else None)
         except Exception:
             resolved_szarza_nr = None
         finally:
-            if conn2:
-                conn2.close()
+            try:
+                if conn2:
+                    conn2.close()
+            except Exception:
+                pass
 
-    if resolved_szarza_nr is None:
-        return
-
-    # Emit event to laboratory via MQTT or in-app notification system
     try:
-        from app.services.mqtt_service import get_latest_data
-        mqtt_data = get_latest_data()
-        # ... MQTT notification logic
+        ts_ms = int(time.time() * 1000)
+        uniq = uuid.uuid4().hex[:8]
+        is_nawazanie = etap_i == 1
+        filename_prefix = 'zasyp_start' if is_nawazanie else 'zasyp_mieszanie_start'
+        filename = f"{filename_prefix}_{plan_id}_{ts_ms}_{uniq}.mp3"
+        text = (
+            build_start_tts_text(produkt, resolved_szarza_nr)
+            if is_nawazanie
+            else build_mieszanie_tts_text(produkt, resolved_szarza_nr, etap_i)
+        )
+
+        try:
+            generate_tts_async(text, filename)
+        except Exception:
+            current_app.logger.exception('Failed to kick off TTS for zasyp stage notification')
+            filename = None
+
+        try:
+            if is_nawazanie:
+                add_start_event(linia, plan_id, produkt, resolved_szarza_nr, filename)
+            else:
+                add_mieszanie_event(linia, plan_id, etap_i, produkt, resolved_szarza_nr, filename)
+        except Exception:
+            current_app.logger.exception('Failed to register zasyp stage notification event')
     except Exception:
-        pass
+        current_app.logger.exception('Unexpected error while preparing zasyp stage notification event')
+
+
+def _proxy_insert_szarza_compatible(*args, **kwargs):
+    return _insert_szarza_compatible(*args, **kwargs)
+
+
+def _proxy_notify_laboratory_stage_start(*args, **kwargs):
+    return _notify_laboratory_stage_start(*args, **kwargs)
+
+
+def _proxy_get_db_connection(*args, **kwargs):
+    return get_db_connection(*args, **kwargs)
+
+
+def _proxy_get_table_name(*args, **kwargs):
+    return get_table_name(*args, **kwargs)
+
+
+def _proxy_audit_log(*args, **kwargs):
+    return audit_log(*args, **kwargs)
+
+
+class _ZasypEtapyServiceProxy:
+    def __getattr__(self, name):
+        return getattr(ZasypEtapyService, name)
+
+
+_zasyp_etapy_service_proxy = _ZasypEtapyServiceProxy()
 
 
 _dosypki_updates_dict = {}
@@ -318,12 +392,12 @@ register_production_zasyp_flow_routes(
     _coerce_date,
     _parse_float,
     _flash_zasyp_result,
-    _insert_szarza_compatible,
-    _notify_laboratory_stage_start,
-    get_db_connection,
-    get_table_name,
-    ZasypEtapyService,
-    audit_log,
+    _proxy_insert_szarza_compatible,
+    _proxy_notify_laboratory_stage_start,
+    _proxy_get_db_connection,
+    _proxy_get_table_name,
+    _zasyp_etapy_service_proxy,
+    _proxy_audit_log,
 )
 register_production_notification_routes(
     production_bp,
@@ -355,3 +429,4 @@ register_production_dosypki_routes(
     _notify_agro_operator_dosypka_added,
 )
 register_production_mix_routes(production_bp, bezpieczny_powrot)
+register_production_reports_routes(production_bp)

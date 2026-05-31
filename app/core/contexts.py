@@ -37,6 +37,7 @@ def inject_static_version():
             os.path.join(current_app.root_path, 'static', 'scripts.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'sidebar.js'),
             os.path.join(current_app.root_path, 'static', 'js', 'magazyny_nowe.js'),
+            os.path.join(current_app.root_path, 'static', 'js', 'agro_warehouse.js'),
         ]
         mtimes = []
         for p in candidates:
@@ -280,6 +281,17 @@ def inject_translations():
             return default_text or key
     
     return dict(_=get_translation, get_translation=get_translation)
+
+
+def inject_globals():
+    """Inject global variables into all Jinja templates."""
+    active_db = getattr(g, 'active_db', get_active_database_name())
+    app_version = get_app_version()
+    
+    # Increase this number to force browser to reload static files (css/js)
+    static_version = 46
+    
+    return dict(static_version=static_version, app_version=app_version, db_name=active_db)
 
 
 def inject_app_into_templates():

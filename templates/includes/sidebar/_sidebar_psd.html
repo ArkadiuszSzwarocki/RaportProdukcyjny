@@ -46,6 +46,11 @@
             Podsumowanie zasypów
         </a>
         {% endif %}
+
+        <a href="{{ url_for('production.raport_zasypy_dosypki', linia='PSD') }}" 
+           class="nav-sub-item {% if request.endpoint == 'production.raport_zasypy_dosypki' and request.args.get('linia') == 'PSD' %}active{% endif %}">
+            Raport Zasypów i Dosypek
+        </a>
     </div>
 </div>
 {% endif %}

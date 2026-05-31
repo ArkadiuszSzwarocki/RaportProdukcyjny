@@ -91,7 +91,31 @@
             </div>
             <div class="col flex-1">
                 <label class="form-label">Zbiornik docelowy</label>
-                <input type="text" id="usage_zbiornik" class="form-control" placeholder="opcjonalnie">
+                <select id="usage_zbiornik" class="form-control">
+                    <option value="">-- opcjonalnie: wybierz zbiornik --</option>
+                    {% if production_tanks and production_tanks.BB %}
+                    <optgroup label="BB">
+                        {% for tank in production_tanks.BB %}
+                        <option value="{{ tank }}">{{ tank }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                    {% if production_tanks and production_tanks.MZ %}
+                    <optgroup label="MZ">
+                        {% for tank in production_tanks.MZ %}
+                        <option value="{{ tank }}">{{ tank }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                    {% if production_tanks and production_tanks.KO %}
+                    <optgroup label="KO (KO01-KO22)">
+                        {% for tank in production_tanks.KO %}
+                        <option value="{{ tank }}">{{ tank }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                </select>
+                <div class="text-muted xxs mt-4">Przeniesienie do KO wykonasz wybierając KO01-KO22.</div>
             </div>
         </div>
 
@@ -338,6 +362,42 @@
                     </tr>
                 </thead>
                 <tbody id="bulkInvBody"></tbody>
+            </table>
+        </div>
+
+        <hr style="margin:18px 0; border:none; border-top:1px solid #e2e8f0;">
+
+        <h5 style="margin:0 0 8px; font-size:15px; font-weight:800; color:#0f172a;">Inwentaryzacja produkcji (BB/MZ/KO + dodatki)</h5>
+        <p class="text-muted small mb-10">System liczy stan w zbiorniku jako: pobrano - zwrócono + korekty inwentaryzacyjne.</p>
+        <div class="form-group mb-10 row items-center gap-8" style="display:flex; flex-wrap:wrap;">
+            <select id="prodInvZoneFilter" class="form-control" style="width:180px;" onchange="filterProductionInventory()">
+                <option value="">Wszystkie strefy</option>
+                <option value="BB">BB</option>
+                <option value="MZ">MZ</option>
+                <option value="KO">KO</option>
+                <option value="INNE">Inne</option>
+            </select>
+            <select id="prodInvTypeFilter" class="form-control" style="width:180px;" onchange="filterProductionInventory()">
+                <option value="">Wszystkie rodzaje</option>
+                <option value="SUROWCE">Surowce</option>
+                <option value="DODATKI">Dodatki</option>
+            </select>
+            <input type="text" id="prodInvFilter" class="form-control" placeholder="Filtruj po surowcu / zbiorniku / planie..." style="flex:1; min-width:260px;" oninput="filterProductionInventory()">
+        </div>
+        <div class="table-responsive" style="max-height:320px; overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
+            <table class="table" id="prodInvTable">
+                <thead>
+                    <tr>
+                        <th>Ruch</th>
+                        <th>Zbiornik</th>
+                        <th>Strefa</th>
+                        <th>Rodzaj</th>
+                        <th>Surowiec</th>
+                        <th>Stan systemowy (kg)</th>
+                        <th>Stan z natury (kg)</th>
+                    </tr>
+                </thead>
+                <tbody id="prodInvBody"></tbody>
             </table>
         </div>
     </div>

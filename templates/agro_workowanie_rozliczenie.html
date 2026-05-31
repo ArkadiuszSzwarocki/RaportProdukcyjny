@@ -236,10 +236,34 @@
         <h4 class="m-0 mb-15" style="color: #6c757d; font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.5px;">Historia rozliczen ({{ data_planu }}):</h4>
         {% for item in history %}
         <div class="history-row">
-            <div class="history-main">{{ item.produkt }} - {{ item.opakowanie_biezace or item.opakowanie_nazwa }}</div>
-            <div class="history-sub">Zuzyte worki: <strong>{{ '%.0f'|format(item.zuzyte_worki or 0) }}</strong> | Stan: {{ '%.0f'|format(item.stan_przed or 0) }} -> {{ '%.0f'|format(item.stan_po or 0) }} szt.</div>
-            <div class="history-sub">Wykonano: {{ item.wyprodukowano_szt or 0 }} szt. | Na palecie: {{ item.szt_na_palecie or 0 }} szt. | {{ item.kg_na_worek or 20 }} kg/worek</div>
-            <div class="history-meta">{{ item.created_at.strftime('%H:%M') if item.created_at else '-' }} | {{ item.autor_login or '-' }}</div>
+            {% if item.zuzyte_worki == 0 and item.wyprodukowano_szt == 0 and item.stan_przed == item.stan_po %}
+                <div class="history-main" style="color: #27ae60;">
+                    <span class="material-icons" style="font-size: 16px; color: #27ae60; vertical-align: middle; margin-right: 4px;">add_circle</span>
+                    Wsadzenie folii: {{ item.produkt }} - {{ item.opakowanie_biezace or item.opakowanie_nazwa }}
+                </div>
+                <div class="history-sub">
+                    Ilość wsadzona: <strong>{{ '%.0f'|format(item.stan_przed or 0) }}</strong> szt.
+                    {% set active_item = namespace(val=None) %}
+                    {% for p_op in packaging_items %}
+                        {% if p_op.opakowanie_id == item.opakowanie_id and p_op.is_active %}
+                            {% set active_item.val = p_op %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if active_item.val %}
+                        {% set live_use = (estimated_bags - (already_logged or 0))|int %}
+                        {% if live_use < 0 %}{% set live_use = 0 %}{% endif %}
+                        <span style="color: #4b5563; font-size: 0.95em; margin-left: 8px;">
+                            (Zużyto na żywo: <strong style="color: #c53030;">{{ live_use }}</strong> szt.)
+                        </span>
+                    {% endif %}
+                </div>
+                <div class="history-meta">{{ item.created_at.strftime('%H:%M') if item.created_at else '-' }} | {{ item.autor_login or '-' }}</div>
+            {% else %}
+                <div class="history-main">{{ item.produkt }} - {{ item.opakowanie_biezace or item.opakowanie_nazwa }}</div>
+                <div class="history-sub">Zuzyte worki: <strong>{{ '%.0f'|format(item.zuzyte_worki or 0) }}</strong> | Stan: {{ '%.0f'|format(item.stan_przed or 0) }} -> {{ '%.0f'|format(item.stan_po or 0) }} szt.</div>
+                <div class="history-sub">Wykonano: {{ item.wyprodukowano_szt or 0 }} szt. | Na palecie: {{ item.szt_na_palecie or 0 }} szt. | {{ item.kg_na_worek or 20 }} kg/worek</div>
+                <div class="history-meta">{{ item.created_at.strftime('%H:%M') if item.created_at else '-' }} | {{ item.autor_login or '-' }}</div>
+            {% endif %}
         </div>
         {% else %}
         <div style="text-align: center; padding: 20px; color: #adb5bd; font-style: italic; font-size: 0.9em;">

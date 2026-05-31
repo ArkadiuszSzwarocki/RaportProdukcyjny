@@ -39,6 +39,11 @@ def index():
         pending_wg = MagazynDostawyService.get_pending_production_pallets('AGRO')
     except Exception:
         pending_wg = []
+
+    try:
+        production_tanks = AgroWarehouseService.get_production_tanks()
+    except Exception:
+        production_tanks = {'BB': [], 'MZ': [], 'KO': [], 'ALL': []}
     
     # Also include confirmed pallets for this day/line using DashboardService
     magazyn_palety, unconfirmed_palety, suma_wykonanie = DashboardService.get_warehouse_data(dzisiaj, linia=linia)
@@ -53,6 +58,7 @@ def index():
         linia=linia,
         current_plan_id=current_plan_id,
         current_plan_name=current_plan_name,
+        production_tanks=production_tanks,
         pending_wg=pending_wg,
         magazyn_palety=magazyn_palety,
         unconfirmed_palety=unconfirmed_palety,
@@ -72,6 +78,348 @@ def opakowania():
     except Exception:
         items = []
     return render_template('agro_warehouse/opakowania.html', items=items, linia=linia)
+
+
+from app.services.production_inventory_service import ProductionInventoryService
+
+@agro_warehouse_bp.route('/agro/magazyn/inwentaryzacja-produkcji')
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def production_inventory_page():
+    linia = request.args.get('linia', 'AGRO').upper()
+    active_sessions = ProductionInventoryService.get_active_sessions(linia=linia)
+    sessions = ProductionInventoryService.get_all_sessions(linia=linia, limit=100)
+    
+    return render_template(
+        'agro_warehouse/production_inventory_sessions.html',
+        linia=linia,
+        rola=session.get('rola'),
+        active_sessions=active_sessions,
+        sessions=sessions
+    )
+
+@agro_warehouse_bp.route('/agro/magazyn/inwentaryzacja-produkcji/start', methods=['POST'])
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def start_production_inventory():
+    linia = request.args.get('linia', 'AGRO').upper()
+    lokalizacja = request.form.get('lokalizacja', '').strip()
+    comment = request.form.get('comment', '').strip()
+    user_login = session.get('login', 'system')
+    
+    if not lokalizacja:
+        flash("Lokalizacja jest wymagana", "error")
+        return redirect(url_for('agro_warehouse.production_inventory_page', linia=linia))
+        
+    success, result = ProductionInventoryService.start_session(linia, user_login, lokalizacja, comment)
+    if success:
+        return redirect(url_for('agro_warehouse.skaner_production_inventory', sesja_id=result, linia=linia))
+    else:
+        flash(f"Błąd przy tworzeniu sesji: {result}", "error")
+        return redirect(url_for('agro_warehouse.production_inventory_page', linia=linia))
+
+@agro_warehouse_bp.route('/agro/magazyn/inwentaryzacja-produkcji/skaner/<int:sesja_id>')
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def skaner_production_inventory(sesja_id):
+    import re
+    linia = request.args.get('linia', 'AGRO').upper()
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM magazyn_inwentaryzacja_produkcji_sesje WHERE id = %s", (sesja_id,))
+        sesj = cursor.fetchone()
+        if not sesj:
+            flash("Nie znaleziono sesji", "error")
+            return redirect(url_for('agro_warehouse.production_inventory_page', linia=linia))
+    finally:
+        conn.close()
+        
+    entries = ProductionInventoryService.get_session_entries(sesja_id)
+    
+    def get_group(tank):
+        m = re.match(r'([A-Z]+)[ -]?(\d+)', tank.upper())
+        if not m: return None
+        prefix = m.group(1)
+        num = int(m.group(2))
+        if prefix == 'BB':
+            if 1 <= num <= 6: return 'Waga01'
+            if 11 <= num <= 14: return 'Waga02'
+            if 15 <= num <= 22: return 'Waga03'
+            return None
+        if prefix == 'MZ':
+            if 7 <= num <= 10: return 'Waga02'
+            if 23 <= num <= 24: return 'Waga03'
+            return None
+        if prefix == 'KO':
+            if 1 <= num <= 12: return 'KO - Rząd 1'
+            if 13 <= num <= 24: return 'KO - Rząd 2'
+            return None
+        return None
+        
+    grouped_entries = {}
+    for entry in entries:
+        g = get_group(entry.get('zbiornik', ''))
+        if g is not None:
+            if g not in grouped_entries:
+                grouped_entries[g] = []
+            grouped_entries[g].append(entry)
+        
+    # Sort groups to show Waga01, Waga02, Waga03 in order, then Rząd 1, Rząd 2, etc.
+    sorted_groups = {}
+    for k in sorted(grouped_entries.keys()):
+        sorted_groups[k] = grouped_entries[k]
+
+    return render_template('agro_warehouse/production_inventory_skaner.html', sesja_id=sesja_id, linia=linia, sesja=sesj, grouped_entries=sorted_groups)
+
+@agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/zapisz', methods=['POST'])
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def save_production_inventory_entries():
+    data = request.json
+    sesja_id = data.get('sesja_id')
+    updates = data.get('updates', [])
+    user_login = session.get('login', 'system')
+    
+    success, msg = ProductionInventoryService.update_entries(sesja_id, updates, user_login)
+    return jsonify({'success': success, 'message': msg})
+
+@agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/zmien-surowiec', methods=['POST'])
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def change_production_inventory_material():
+    data = request.json
+    sesja_id = data.get('sesja_id')
+    entry_id = data.get('entry_id')
+    nowy_surowiec = data.get('nowy_surowiec')
+    paleta_id = data.get('paleta_id')
+    nr_palety = data.get('nr_palety')
+    nr_partii = data.get('nr_partii')
+    data_produkcji = data.get('data_produkcji')
+    data_przydatnosci = data.get('data_przydatnosci')
+    
+    # Handle empty strings as None for date fields to avoid DB errors
+    if data_produkcji == '': data_produkcji = None
+    if data_przydatnosci == '': data_przydatnosci = None
+    
+    user_login = session.get('login', 'system')
+    
+    success, msg = ProductionInventoryService.update_material(
+        sesja_id, entry_id, nowy_surowiec, user_login,
+        paleta_id=paleta_id, nr_palety=nr_palety, nr_partii=nr_partii,
+        data_produkcji=data_produkcji, data_przydatnosci=data_przydatnosci
+    )
+    return jsonify({'success': success, 'message': msg})
+
+@agro_warehouse_bp.route('/agro/magazyn/inwentaryzacja-produkcji/raport/<int:sesja_id>')
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def raport_production_inventory(sesja_id):
+    import re
+    linia = request.args.get('linia', 'AGRO').upper()
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM magazyn_inwentaryzacja_produkcji_sesje WHERE id = %s", (sesja_id,))
+        sesj = cursor.fetchone()
+    finally:
+        conn.close()
+        
+    entries = ProductionInventoryService.get_session_entries(sesja_id)
+    
+    def is_valid_group(tank):
+        m = re.match(r'([A-Z]+)[ -]?(\d+)', tank.upper())
+        if not m: return False
+        prefix = m.group(1)
+        num = int(m.group(2))
+        if prefix == 'BB':
+            if 1 <= num <= 6: return True
+            if 11 <= num <= 14: return True
+            if 15 <= num <= 22: return True
+            return False
+        if prefix == 'MZ':
+            if 7 <= num <= 10: return True
+            if 23 <= num <= 24: return True
+            return False
+        if prefix == 'KO':
+            if 1 <= num <= 12: return True
+            if 13 <= num <= 24: return True
+            return False
+        return False
+
+    filtered_entries = [e for e in entries if is_valid_group(e.get('zbiornik', ''))]
+    
+    return render_template('agro_warehouse/production_inventory_raport.html', sesja_id=sesja_id, linia=linia, sesja=sesj, entries=filtered_entries)
+
+@agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/zamknij', methods=['POST'])
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def close_production_inventory():
+    sesja_id = request.json.get('sesja_id')
+    success, msg = ProductionInventoryService.close_session(sesja_id)
+    return jsonify({'success': success, 'message': msg})
+
+@agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/zatwierdz', methods=['POST'])
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def apply_production_inventory():
+    sesja_id = request.json.get('sesja_id')
+    user_login = session.get('login', 'system')
+    success, msg = ProductionInventoryService.apply_inventory(sesja_id, user_login)
+    return jsonify({'success': success, 'message': msg})
+
+@agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/usun', methods=['POST'])
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def delete_production_inventory():
+    sesja_id = request.json.get('sesja_id')
+    success, msg = ProductionInventoryService.delete_session(sesja_id)
+    return jsonify({'success': success, 'message': msg})
+
+
+@agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/edytuj-sesje', methods=['POST'])
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def edit_production_inventory_session():
+    data = request.json
+    success, msg = ProductionInventoryService.edit_session(data.get('sesja_id'), data.get('lokalizacja'), data.get('comment'))
+    return jsonify({'success': success, 'message': msg})
+
+@agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/wznow-sesje', methods=['POST'])
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def resume_production_inventory_session():
+    sesja_id = request.json.get('sesja_id')
+    success, msg = ProductionInventoryService.resume_session(sesja_id)
+    return jsonify({'success': success, 'message': msg})
+
+@agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/cofnij-zatwierdzenie', methods=['POST'])
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def revert_production_inventory_session():
+    sesja_id = request.json.get('sesja_id')
+    success, msg = ProductionInventoryService.revert_session(sesja_id)
+    return jsonify({'success': success, 'message': msg})
+
+@agro_warehouse_bp.route('/agro/magazyn/inwentaryzacja-produkcji/historia/<tank_code>')
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def history_production_inventory(tank_code):
+    linia = request.args.get('linia', 'AGRO')
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT w.*, s.status, s.lokalizacja, s.comment 
+            FROM magazyn_inwentaryzacja_produkcji_wpisy w
+            JOIN magazyn_inwentaryzacja_produkcji_sesje s ON w.sesja_id = s.id
+            WHERE w.zbiornik = %s AND s.linia = %s
+            ORDER BY w.data_wpisu DESC
+        """, (tank_code, linia))
+        historia = cursor.fetchall()
+        return jsonify({'success': True, 'historia': historia})
+    finally:
+        conn.close()
+
+@agro_warehouse_bp.route('/agro/magazyn/surowce-w-produkcji')
+@login_required
+@dynamic_role_required('agro.magazyn')
+def surowce_w_produkcji():
+    linia = request.args.get('linia', 'AGRO')
+    snapshot = AgroWarehouseService.get_production_inventory_snapshot(linia=linia, show_empty=True)
+    
+    import re
+    def get_group(tank):
+        m = re.match(r'([A-Z]+)[ -]?(\d+)', tank.upper())
+        if not m: return None
+        prefix = m.group(1)
+        num = int(m.group(2))
+        
+        if prefix == 'BB':
+            if 1 <= num <= 6: return 'Waga01 (BB01-BB06)'
+            if 11 <= num <= 14: return 'Waga02 (BB11-BB14)'
+            if 15 <= num <= 22: return 'Waga03 (BB15-BB22)'
+            return None
+        if prefix == 'MZ':
+            if 7 <= num <= 10: return 'Waga02 (MZ07-MZ10)'
+            if 23 <= num <= 24: return 'Waga03 (MZ23-MZ24)'
+            return None
+        if prefix == 'KO':
+            if 1 <= num <= 12: return 'KO - Rząd 1 (KO01-KO12)'
+            if 13 <= num <= 24: return 'KO - Rząd 2 (KO13-KO24)'
+            return None
+        return None
+        
+    grouped_entries = {}
+    for item in snapshot:
+        g = get_group(item.get('zbiornik', ''))
+        if g is not None:
+            if g not in grouped_entries:
+                grouped_entries[g] = []
+            grouped_entries[g].append(item)
+            
+    def natural_sort_key(s):
+        return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s.get('zbiornik', ''))]
+        
+    for g in grouped_entries:
+        grouped_entries[g].sort(key=natural_sort_key)
+
+    order = [
+        'Waga01 (BB01-BB06)', 'Waga02 (BB11-BB14)', 'Waga03 (BB15-BB22)',
+        'Waga02 (MZ07-MZ10)', 'Waga03 (MZ23-MZ24)',
+        'KO - Rząd 1 (KO01-KO12)', 'KO - Rząd 2 (KO13-KO24)'
+    ]
+    sorted_grouped_entries = {k: grouped_entries[k] for k in order if k in grouped_entries}
+
+    return render_template('agro_warehouse/surowce_w_produkcji.html', 
+                          grouped_entries=sorted_grouped_entries, 
+                          linia=linia)
+
+@agro_warehouse_bp.route('/agro/api/magazyn/surowce-w-produkcji/historia/<tank_code>')
+@login_required
+@dynamic_role_required('agro.magazyn')
+def api_surowce_w_produkcji_historia(tank_code):
+    linia = request.args.get('linia', 'AGRO')
+    limit = min(int(request.args.get('limit', 50)), 100)
+    
+    history_rows = AgroWarehouseService.get_production_tank_history(
+        tank_code,
+        limit=limit,
+        linia=linia,
+    )
+    
+    # Format dates to string
+    for row in history_rows:
+        if row.get('autor_data'):
+            row['autor_data_str'] = row['autor_data'].strftime('%d.%m.%Y %H:%M')
+        else:
+            row['autor_data_str'] = ''
+            
+    return jsonify({'success': True, 'historia': history_rows})
+
+@agro_warehouse_bp.route('/agro/magazyn/inwentaryzacja-produkcji/historia-stara/<tank_code>')
+@login_required
+@dynamic_role_required('magazyn.inventory')
+def production_inventory_tank_history(tank_code):
+    linia = request.args.get('linia', 'Agro')
+    normalized_tank = AgroWarehouseService.normalize_production_tank(tank_code)
+    if not normalized_tank:
+        return redirect(url_for('agro_warehouse.production_inventory_page', linia=linia))
+
+    limit = min(int(request.args.get('limit', 300)), 2000)
+    history_rows = AgroWarehouseService.get_production_tank_history(
+        normalized_tank,
+        limit=limit,
+        linia=linia,
+    )
+
+    return render_template(
+        'agro_warehouse/production_inventory_history.html',
+        linia=linia,
+        rola=session.get('rola'),
+        tank_code=normalized_tank,
+        history_rows=history_rows,
+    )
 
 
 @agro_warehouse_bp.route('/agro/api/opakowania', methods=['POST'])
@@ -185,7 +533,8 @@ def return_packaging():
             data.get('opakowanie_id'),
             data.get('stan_po'),
             data.get('lokalizacja'),
-            session.get('login')
+            session.get('login'),
+            is_partial=data.get('is_partial', False)
         )
         return jsonify({'success': success, 'error': error})
     except Exception as e:
@@ -362,12 +711,17 @@ def use_material():
         komentarz = data.get('komentarz')
         zbiornik = data.get('zbiornik')
         linia = data.get('linia', 'Agro')
+        zbiornik_raw = str(zbiornik or '').strip().upper()
+        zbiornik_norm = AgroWarehouseService.normalize_production_tank(zbiornik_raw)
         
         if not surowiec_id or ilosc <= 0:
             return jsonify({'success': False, 'error': 'Nieprawidłowe dane'}), 400
+
+        if zbiornik_raw and not zbiornik_norm:
+            return jsonify({'success': False, 'error': 'Nieprawidłowy zbiornik. Dozwolone: BB01-BB24, MZ01-MZ06, MZ05-01, MZ06-01, KO01-KO22.'}), 400
             
         worker_login = session.get('login')
-        AgroWarehouseService.use_for_production(surowiec_id, ilosc, worker_login, plan_id=plan_id, linia=linia, komentarz=komentarz, zbiornik=zbiornik)
+        AgroWarehouseService.use_for_production(surowiec_id, ilosc, worker_login, plan_id=plan_id, linia=linia, komentarz=komentarz, zbiornik=zbiornik_norm)
         return jsonify({'success': True})
     except Exception as e:
         current_app.logger.error(f"Error in use_material: {e}")
@@ -722,6 +1076,88 @@ def api_locations_inventory():
         current_app.logger.error(f"Error in api_locations_inventory: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@agro_warehouse_bp.route('/agro/api/production_inventory', methods=['GET'])
+@login_required
+def api_production_inventory():
+    try:
+        linia = request.args.get('linia', 'Agro')
+        limit = min(int(request.args.get('limit', 500)), 2000)
+        items = AgroWarehouseService.get_production_inventory(limit=limit, linia=linia)
+        return jsonify({'success': True, 'items': items, 'count': len(items)})
+    except Exception as e:
+        current_app.logger.error(f"Error in api_production_inventory: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/production_inventory_snapshot', methods=['GET'])
+@login_required
+def api_production_inventory_snapshot():
+    try:
+        linia = request.args.get('linia', 'Agro')
+        limit = min(int(request.args.get('limit', 4000)), 8000)
+        show_empty_raw = str(request.args.get('show_empty', '')).strip().lower()
+        show_empty = show_empty_raw in ('1', 'true', 'yes', 'y', 'on')
+        items = AgroWarehouseService.get_production_inventory_snapshot(limit=limit, linia=linia, show_empty=show_empty)
+        return jsonify({'success': True, 'items': items, 'count': len(items)})
+    except Exception as e:
+        current_app.logger.error(f"Error in api_production_inventory_snapshot: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/production_inventory', methods=['POST'])
+@login_required
+@roles_required('lider', 'admin')
+def api_adjust_production_inventory():
+    try:
+        data = request.get_json() or {}
+        items = data.get('items', [])
+        linia = data.get('linia', 'Agro')
+        worker = session.get('login')
+
+        if not isinstance(items, list):
+            return jsonify({'success': False, 'error': 'Pole items musi być listą.'}), 400
+
+        updated = 0
+        errors = []
+        for item in items:
+            ruch_id = item.get('ruch_id')
+            actual_qty = item.get('actual_qty')
+            komentarz = item.get('komentarz', 'Inwentaryzacja produkcji')
+
+            if not ruch_id or actual_qty is None:
+                continue
+
+            try:
+                qty_val = float(actual_qty)
+            except (TypeError, ValueError):
+                errors.append({'ruch_id': ruch_id, 'error': 'Nieprawidłowa ilość'})
+                continue
+
+            if qty_val < 0:
+                errors.append({'ruch_id': ruch_id, 'error': 'Ilość nie może być ujemna'})
+                continue
+
+            ok, err = AgroWarehouseService.adjust_production_inventory(
+                ruch_id,
+                qty_val,
+                worker_login=worker,
+                linia=linia,
+                komentarz=komentarz,
+            )
+            if ok:
+                updated += 1
+            else:
+                errors.append({'ruch_id': ruch_id, 'error': err or 'Błąd zapisu'})
+
+        if errors:
+            return jsonify({'success': False, 'updated': updated, 'errors': errors}), 400
+
+        return jsonify({'success': True, 'updated': updated})
+    except Exception as e:
+        current_app.logger.error(f"Error in api_adjust_production_inventory: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @agro_warehouse_bp.route('/agro/api/issue_warehouse', methods=['POST'])
 @login_required
 def api_issue_warehouse():
@@ -764,7 +1200,7 @@ def raport_palet():
         query = """
             SELECT w.id as work_id, w.produkt, w.tonaz_rzeczywisty as w_kg, 
                    z.id as zasyp_id, z.tonaz_rzeczywisty as z_kg,
-                   w.nazwa_zlecenia
+                   w.nazwa_zlecenia, w.typ_produkcji
             FROM plan_produkcji_agro w
             LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id
             WHERE w.data_planu = %s AND w.sekcja = 'Workowanie' AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
@@ -896,12 +1332,64 @@ def raport_palet():
                 ORDER BY created_at ASC
             """, (p['work_id'],))
             rozliczenia = cursor.fetchall()
+            
+            # 4. Fetch Currently Active Linked Packaging (w toku)
+            cursor.execute("""
+                SELECT ap.id, o.nazwa as opakowanie_nazwa, ap.stan_poczatkowy as stan_przed, ap.created_at
+                FROM agro_plan_opakowania ap
+                JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
+                WHERE ap.plan_id = %s AND ap.is_active = TRUE
+                ORDER BY ap.created_at ASC
+            """, (p['work_id'],))
+            aktywne_opakowania = cursor.fetchall()
+
+            # Determine bag weight dynamically from typ_produkcji
+            import re
+            bag_kg = 25.0
+            typ_prod = p.get('typ_produkcji') or ''
+            kg_match = re.search(r'(\d+)', typ_prod)
+            if kg_match:
+                bag_kg = float(kg_match.group(1))
+            else:
+                # Fallback to the first packaging record if available
+                if rozliczenia and len(rozliczenia) > 0:
+                    cursor.execute("SELECT kg_na_worek FROM agro_workowanie_rozliczenie WHERE plan_id = %s AND kg_na_worek IS NOT NULL LIMIT 1", (p['work_id'],))
+                    rw = cursor.fetchone()
+                    if rw and rw.get('kg_na_worek'):
+                        bag_kg = float(rw['kg_na_worek'])
+                else:
+                    # Fallback based on product name
+                    produkt_nazwa = str(p.get('produkt') or '').lower()
+                    if 'mleko' in produkt_nazwa or '20' in produkt_nazwa:
+                        bag_kg = 20.0
+
+            # Query warehouse stock for each unique packaging name used in this plan
+            packaging_stocks = {}
+            unique_names = set()
+            for op in rozliczenia:
+                if op.get('opakowanie_nazwa'):
+                    unique_names.add(op['opakowanie_nazwa'])
+            for aop in aktywne_opakowania:
+                if aop.get('opakowanie_nazwa'):
+                    unique_names.add(aop['opakowanie_nazwa'])
+            
+            for name in unique_names:
+                cursor.execute("""
+                    SELECT COALESCE(SUM(stan_magazynowy), 0) as total_stock 
+                    FROM magazyn_opakowania 
+                    WHERE nazwa = %s AND (lokalizacja != 'ZUŻYTE' OR lokalizacja IS NULL)
+                """, (name,))
+                stock_row = cursor.fetchone()
+                packaging_stocks[name] = float(stock_row['total_stock']) if stock_row else 0.0
 
             report_data.append({
                 'plan': p,
                 'palety': processed_pallets,
                 'mixes': mixes_summary,
                 'opakowania': rozliczenia,
+                'aktywne_opakowania': aktywne_opakowania,
+                'bag_kg': bag_kg,
+                'packaging_stocks': packaging_stocks,
                 'total_pallet_kg': sum(pal['waga'] or 0 for pal in pallets_raw),
                 'total_mix_kg': sum(m['waga_kg'] or 0 for m in mixes_summary)
             })

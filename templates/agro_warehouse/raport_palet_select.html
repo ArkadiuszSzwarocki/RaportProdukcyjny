@@ -15,8 +15,9 @@
 
         <div class="plans-list">
             {% for p in plans %}
-            <a href="{{ url_for('agro_warehouse.raport_palet', plan_id=p.work_id, data=data_planu) }}" target="_blank" 
-               style="display: block; padding: 20px; border: 1px solid #e1e4e8; border-radius: 8px; margin-bottom: 15px; text-decoration: none; color: inherit; transition: all 0.2s; border-left: 5px solid #3498db;">
+            <a href="{{ url_for('agro_warehouse.raport_palet', plan_id=p.work_id, data=data_planu) }}"
+               onclick="event.preventDefault(); openInApp(this.href, 'Raport Palet — {{ p.produkt_nazwa }}')"
+               style="display: block; background: #fff; padding: 20px; border: 1px solid #e1e4e8; border-radius: 8px; margin-bottom: 15px; text-decoration: none; color: inherit; transition: all 0.2s; border-left: 5px solid #3498db; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <div style="font-weight: bold; font-size: 1.1em; color: #2c3e50;">{{ p.produkt }}</div>

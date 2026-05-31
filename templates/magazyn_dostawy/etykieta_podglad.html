@@ -177,10 +177,7 @@
 </head>
 <body>
     <div class="layout">
-        <div class="toolbar">
-            <div class="toolbar-note">Tryb testowy: podglad etykiety. Uzyj "Drukuj" i wybierz "Microsoft Print to PDF".</div>
-            <button class="toolbar-btn" onclick="window.print()">Drukuj / PDF</button>
-        </div>
+        <!-- Usunięto przycisk drukowania lokalnego / PDF. Etykiety drukowane tylko przez wybór drukarki ZPL. -->
 
         <div class="label">
             <div class="head">
@@ -228,13 +225,6 @@
         </div>
     </div>
 
-    <script>
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('autoprint') === '1') {
-            window.addEventListener('load', function () {
-                setTimeout(function () { window.print(); }, 280);
-            });
-        }
-    </script>
+    <!-- Autoprint wyłączony - druk tylko przez serwer ZPL po wyborze drukarki -->
 </body>
 </html>

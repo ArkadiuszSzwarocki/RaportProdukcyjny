@@ -16,7 +16,7 @@ param(
     [string]$PythonExe = "python",
     [string]$AppFile = "app.py",
     [int]$Retries = 3,
-    [int]$WaitSec = 2
+    [int]$WaitSec = 10
 )
 
 function Write-Info($msg) {

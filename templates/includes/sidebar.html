@@ -10,6 +10,13 @@
     {% include 'includes/sidebar/_sidebar_header.html' %}
 
     <nav class="sidebar-nav">
+        {% if role_has_access('magazyn.card') %}
+        <a href="{{ url_for('scanner.scanner_ui', linia='AGRO') }}" class="nav-item {% if request.blueprint == 'scanner' %}active{% endif %}" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: #1e40af; border-left: 4px solid #3b82f6; font-weight: bold; margin-bottom: 8px;">
+            <span class="material-icons" style="margin-right: 12px; color: #2563eb;">qr_code_scanner</span>
+            <span>Skaner & Drukarka</span>
+        </a>
+        {% endif %}
+
         {% if role == 'planista' %}
             <div class="nav-item-group">
                 <button type="button" class="nav-item main-cat-btn">

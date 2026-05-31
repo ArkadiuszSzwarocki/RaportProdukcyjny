@@ -1,0 +1,95 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="inventory-report p-20" style="max-width: 1000px; margin: 0 auto; font-family: 'Inter', sans-serif;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <div>
+            <h2 style="margin: 0; font-size: 24px; font-weight: 800; color: #0f172a;">Raport z Sesji #{{ sesja_id }}</h2>
+            <p style="margin: 5px 0 0 0; color: #64748b; font-size: 14px;">Obszar: {{ sesja.lokalizacja }} | Status: {{ sesja.status }}</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <a href="{{ url_for('agro_warehouse.production_inventory_page', linia=linia) }}" class="btn-outline" style="padding: 12px 20px; border-radius: 12px; font-weight: 700; border: 2px solid #e2e8f0; color: #475569; background: white; text-decoration: none;">
+                Wróć do listy
+            </a>
+            {% if sesja.status == 'OPEN' %}
+            <a href="{{ url_for('agro_warehouse.skaner_production_inventory', sesja_id=sesja_id, linia=linia) }}" class="btn-primary" style="padding: 12px 20px; border-radius: 12px; font-weight: 700; background: #3b82f6; color: white; text-decoration: none; border: none;">
+                Wróć do Skanera
+            </a>
+            {% endif %}
+            {% if sesja.status == 'CLOSED' %}
+            <button onclick="applyInventory()" class="btn-success" style="padding: 12px 20px; border-radius: 12px; font-weight: 700; background: #10b981; color: white; border: none; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                <span class="material-icons">done_all</span> ZATWIERDŹ RÓŻNICE
+            </button>
+            {% endif %}
+            <button onclick="window.print()" class="btn-outline" style="padding: 12px; border-radius: 12px; font-weight: 700; border: 2px solid #e2e8f0; color: #475569; background: white; cursor: pointer;" title="Drukuj Raport">
+                <span class="material-icons">print</span>
+            </button>
+        </div>
+    </div>
+
+    <div style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead style="background: #f8fafc;">
+                <tr>
+                    <th style="padding: 15px; text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase;">Zbiornik</th>
+                    <th style="padding: 15px; text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase;">Surowiec</th>
+                    <th style="padding: 15px; text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase;">Tracking (SSCC / Partia)</th>
+                    <th style="padding: 15px; text-align: right; font-size: 12px; color: #64748b; text-transform: uppercase;">Stan Systemowy</th>
+                    <th style="padding: 15px; text-align: right; font-size: 12px; color: #64748b; text-transform: uppercase;">Stan Faktyczny</th>
+                    <th style="padding: 15px; text-align: right; font-size: 12px; color: #64748b; text-transform: uppercase;">Różnica</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                {% set diff = entry.waga_faktyczna - entry.waga_systemowa %}
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 15px; font-weight: 800; color: #0f172a;">{{ entry.zbiornik }}</td>
+                    <td style="padding: 15px;">{{ entry.surowiec_nazwa or '-' }}</td>
+                    <td style="padding: 15px; font-size: 12px; color: #475569;">
+                        {% if entry.nr_palety or entry.nr_partii %}
+                            {% if entry.nr_palety %}<div style="font-weight:700;">SSCC: {{ entry.nr_palety }}</div>{% endif %}
+                            {% if entry.nr_partii %}<div>Partia: {{ entry.nr_partii }}</div>{% endif %}
+                        {% else %}
+                            <span style="color: #cbd5e1;">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 15px; text-align: right; font-weight: 600; color: #64748b;">{{ entry.waga_systemowa }} kg</td>
+                    <td style="padding: 15px; text-align: right; font-weight: 800; color: #0f172a;">{{ entry.waga_faktyczna }} kg</td>
+                    <td style="padding: 15px; text-align: right; font-weight: 800; color: {% if diff > 0 %}#10b981{% elif diff < 0 %}#ef4444{% else %}#94a3b8{% endif %};">
+                        {% if diff > 0 %}+{% endif %}{{ diff|round(2) }} kg
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+function applyInventory() {
+    if(!confirm("UWAGA: Zatwierdzenie inwentaryzacji naniesie odpowiednie korekty na stany zbiorników (wykona wirtualne ruchy korygujące). Tej operacji nie można cofnąć! Czy kontynuować?")) return;
+    
+    fetch('/agro/api/inwentaryzacja-produkcji/zatwierdz', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sesja_id: {{ sesja_id }}})
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            window.location.reload();
+        } else {
+            alert("Błąd: " + data.message);
+        }
+    });
+}
+</script>
+<style>
+@media print {
+    body { background: white !important; }
+    .inventory-report { padding: 0 !important; margin: 0 !important; max-width: 100% !important; box-shadow: none !important; }
+    .btn-outline, .btn-primary, .btn-success, button { display: none !important; }
+    table { width: 100% !important; }
+}
+</style>
+{% endblock %}

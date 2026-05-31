@@ -34,31 +34,63 @@ class MagazynyNoweService:
             conn.close()
 
     @staticmethod
-    def move_pallet(pallet_id, pallet_type, new_location, worker_login, linia='PSD'):
-        """Przenosi paletę na nową lokalizację (np. regał, stanowisko Big Bag)."""
+    def move_pallet(pallet_id, pallet_type, new_location, worker_login, linia='PSD', amount_to_move=None):
+        """Przenosi paletę na nową lokalizację. Jeśli amount_to_move < ilość systemowa, dzieli paletę."""
         conn = get_db_connection()
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
             
             if pallet_type == 'Surowiec':
                 table = get_table_name('magazyn_surowce', linia)
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
             else:
                 table = get_table_name('magazyn_palety', linia)
 
-            # Pobierz stare dane do logu
+            # Pobierz stare dane do logu i podziału
             col_qty = 'waga_netto' if pallet_type == 'Wyrób Gotowy' else 'stan_magazynowy'
-            cursor.execute(f"SELECT lokalizacja, {col_qty} FROM {table} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
             row = cursor.fetchone()
             if not row:
                 return False, "Paleta nie znaleziona."
                 
-            old_loc = row[0]
-            qty = row[1]
+            old_loc = row.get('lokalizacja')
+            qty = float(row.get(col_qty) or 0)
             
-            # Zaktualizuj lokalizację
-            cursor.execute(f"UPDATE {table} SET lokalizacja = %s WHERE id = %s", (new_location, pallet_id))
+            amount_to_move = float(amount_to_move) if amount_to_move is not None else qty
+            
+            if amount_to_move <= 0:
+                return False, "Ilość do przeniesienia musi być większa od zera."
+                
+            if amount_to_move >= qty:
+                # Przenosimy całą paletę
+                cursor = conn.cursor()
+                cursor.execute(f"UPDATE {table} SET lokalizacja = %s WHERE id = %s", (new_location, pallet_id))
+                moved_qty = qty
+                new_pallet_id = pallet_id
+            else:
+                # Dzielenie palety (split)
+                new_qty_old = qty - amount_to_move
+                cursor = conn.cursor()
+                cursor.execute(f"UPDATE {table} SET {col_qty} = %s WHERE id = %s", (new_qty_old, pallet_id))
+                
+                # Utwórz nową paletę z odciętą ilością
+                insert_data = dict(row)
+                del insert_data['id'] # Usuń ID, żeby wygenerowało nowe
+                insert_data['lokalizacja'] = new_location
+                insert_data[col_qty] = amount_to_move
+                # Zerujemy nr_palety by wymusić ewentualne wydrukowanie nowej etykiety
+                insert_data['nr_palety'] = None
+                
+                columns = ', '.join([f"`{k}`" for k in insert_data.keys()])
+                placeholders = ', '.join(['%s'] * len(insert_data))
+                values = list(insert_data.values())
+                
+                cursor.execute(f"INSERT INTO {table} ({columns}) VALUES ({placeholders})", values)
+                new_pallet_id = cursor.lastrowid
+                moved_qty = amount_to_move
             
             # Zapisz ruch do historii
             table_ruch = get_table_name('magazyn_ruch', linia)
@@ -67,20 +99,31 @@ class MagazynyNoweService:
                     INSERT INTO {table_ruch} 
                     (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) 
                     VALUES (%s, 'PRZESUNIECIE', 0, %s, 'POTWIERDZONE', %s, %s, %s)
-                """, (pallet_id, qty, worker_login, datetime.now(), f"Z {old_loc or 'Brak'} do {new_location}"))
+                """, (new_pallet_id, moved_qty, worker_login, datetime.now(), f"Z {old_loc or 'Brak'} do {new_location}" + (" (Podział)" if amount_to_move < qty else "")))
 
-                # Log to palety_historia
+                # Log to palety_historia dla palety przenoszonej/nowej
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'PRZESUNIECIE', %s, %s, %s, %s)",
-                    (pallet_id, linia, pallet_type.lower(), old_loc, new_location, f"Przesunięcie palety z {old_loc or 'Brak'} do {new_location}", worker_login)
+                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (new_pallet_id, linia, pallet_type.lower(), 'PRZESUNIECIE_PODZIAL' if amount_to_move < qty else 'PRZESUNIECIE', old_loc, new_location, f"Przesunięcie z {old_loc or 'Brak'} do {new_location}" + (f" (Podział: przeniesiono {amount_to_move})" if amount_to_move < qty else ""), worker_login)
                 )
+                
+                # Dodatkowy log dla starej palety jeśli był podział
+                if amount_to_move < qty:
+                    cursor.execute(
+                        "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'PODZIAL_ODJECIE', %s, %s, %s, %s)",
+                        (pallet_id, linia, pallet_type.lower(), old_loc, old_loc, f"Odjęto {amount_to_move} podczas podziału palety", worker_login)
+                    )
             except Exception as e:
                 print("Błąd zapisu ruchu:", e)
 
             conn.commit()
             return True, "Pomyślnie przeniesiono."
+        except Exception as e:
+            if conn: conn.rollback()
+            print(f"Error in move_pallet: {e}")
+            return False, f"Błąd: {str(e)}"
         finally:
-            conn.close()
+            if conn: conn.close()
             
     @staticmethod
     def toggle_block(pallet_id, pallet_type, worker_login, linia='PSD'):
@@ -92,6 +135,8 @@ class MagazynyNoweService:
                 table = get_table_name('magazyn_surowce', linia)
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
             else:
                 table = get_table_name('magazyn_palety', linia)
 
@@ -127,6 +172,9 @@ class MagazynyNoweService:
                 col_qty = 'stan_magazynowy'
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
+                col_qty = 'stan_magazynowy'
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
                 col_qty = 'stan_magazynowy'
             else:
                 table = get_table_name('magazyn_palety', linia)
@@ -177,6 +225,9 @@ class MagazynyNoweService:
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
                 col_qty = 'stan_magazynowy'
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
+                col_qty = 'stan_magazynowy'
             else:
                 table = get_table_name('magazyn_palety', linia)
                 col_qty = 'waga_netto'
@@ -220,6 +271,8 @@ class MagazynyNoweService:
                 table = get_table_name('magazyn_surowce', linia)
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
             else:
                 return False, "Nie można zmienić nazwy wyrobu gotowego."
 
@@ -244,6 +297,9 @@ class MagazynyNoweService:
                 col = 'stan_magazynowy'
             elif pallet_type == 'Opakowanie':
                 table = get_table_name('magazyn_opakowania', linia)
+                col = 'stan_magazynowy'
+            elif pallet_type == 'Dodatek':
+                table = 'magazyn_dodatki'
                 col = 'stan_magazynowy'
             else:
                 table = get_table_name('magazyn_palety', linia)

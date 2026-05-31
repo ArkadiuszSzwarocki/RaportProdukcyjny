@@ -207,7 +207,7 @@ def test_dosypki_are_rendered_below_batch_not_in_side_column():
 def test_workowanie_manual_zpl_print_passes_linia_to_backend():
     content = AGRO_ACTIVE_DETAILS_TEMPLATE.read_text(encoding='utf-8')
 
-    assert "drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}')" in content
+    assert "drukujZPLDirect('{{ pal[2] }}', '{{ linia }}', '{{ p[0] }}'" in content
 
 
 def test_global_direct_zpl_print_uses_existing_non_api_route():

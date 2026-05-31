@@ -1819,42 +1819,26 @@
         })();
     } catch (e) { console.warn('alert sanitization failed', e); }
 
-    window.openPrintLabelModal = function(url) {
+    window.openPrintLabelModal = function(url, title) {
         if (!url) return;
-        const html = '<div style="height: 85vh; display: flex; flex-direction: column; margin: -10px -20px;">'
-                   + '<iframe src="' + url + '" style="flex-grow: 1; width: 100%; border: none; border-radius: 0 0 12px 12px;"></iframe>'
-                   + '</div>';
-        if (typeof showQuickPopup === 'function') {
+        if (typeof window.openInApp === 'function') {
+            openInApp(url, title || 'Etykieta Palety');
+        } else if (typeof showQuickPopup === 'function') {
+            const html = '<div style="height: 85vh; display: flex; flex-direction: column; margin: -10px -20px;">'
+                       + '<iframe src="' + url + '" style="flex-grow: 1; width: 100%; border: none; border-radius: 0 0 12px 12px;"></iframe>'
+                       + '</div>';
             showQuickPopup('Etykieta Palety', html);
         } else {
             window.open(url, '_blank');
         }
     };
 
-    window.drukujZPLDirect = function(paletaId, linia, planId) {
+    window.drukujZPLDirect = function(paletaId, linia, planId, btn) {
         if (!paletaId) return;
 
-        var payload = null;
-        var wantsDateChange = window.confirm('Czy chcesz zmienic date produkcji na etykiecie?\n\nJesli wybierzesz TAK, data zostanie zapisana tez na zleceniu Workowanie.');
-        if (wantsDateChange) {
-            var userInput = window.prompt('Podaj nowa date produkcji (RRRR-MM-DD):');
-            if (userInput === null) {
-                return;
-            }
-            var trimmed = String(userInput || '').trim();
-            var dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-            if (!dateRegex.test(trimmed)) {
-                if (typeof showToast === 'function') showToast('Nieprawidlowy format daty. Uzyj RRRR-MM-DD.', 'danger');
-                else alert('Nieprawidlowy format daty. Uzyj RRRR-MM-DD.');
-                return;
-            }
-            payload = { data_produkcji: trimmed };
-            if (planId) {
-                payload.plan_id = planId;
-            }
-        }
-
         if (typeof showToast === 'function') showToast('Wysyłanie do drukarki 237...', 'info');
+        
+        const originalHtml = (btn && btn instanceof HTMLElement) ? btn.innerHTML : '';
         
         const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
         const fetchOptions = {
@@ -1862,10 +1846,6 @@
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin'
         };
-        if (payload) {
-            fetchOptions.headers['Content-Type'] = 'application/json';
-            fetchOptions.body = JSON.stringify(payload);
-        }
 
         fetch(url, fetchOptions)
         .then(r => r.json())
@@ -1878,6 +1858,24 @@
                         showToast('Wysłano do drukarki 237', 'success');
                     }
                 }
+                if (btn && btn instanceof HTMLElement) {
+                    if (!btn.classList.contains('print-success-applied')) {
+                        btn.classList.add('print-success-applied');
+                        const isIconBtn = btn.classList.contains('btn-icon');
+                        if (isIconBtn) {
+                            btn.style.color = '#10b981'; // green color
+                            btn.innerHTML = '<span class="material-icons" style="font-size:18px;">print</span>';
+                        } else {
+                            btn.innerHTML = '<span class="material-icons print-success-icon" style="color: #10b981; font-size: 14px; vertical-align: middle; margin-right: 4px;">print</span>' + originalHtml;
+                        }
+                        
+                        try {
+                            const printedPallets = JSON.parse(sessionStorage.getItem('printedPallets') || '{}');
+                            printedPallets[paletaId] = true;
+                            sessionStorage.setItem('printedPallets', JSON.stringify(printedPallets));
+                        } catch(e) {}
+                    }
+                }
             } else {
                 if (typeof showToast === 'function') showToast('Błąd druku: ' + data.message, 'danger');
                 else alert('Błąd druku: ' + data.message);
@@ -1888,5 +1886,30 @@
             if (typeof showToast === 'function') showToast('Błąd połączenia z serwerem druku', 'danger');
         });
     };
+    window.restorePrintIcons = function() {
+        try {
+            const printedPallets = JSON.parse(sessionStorage.getItem('printedPallets') || '{}');
+            const buttons = document.querySelectorAll('button[onclick^="drukujZPLDirect"]');
+            buttons.forEach(btn => {
+                const match = btn.getAttribute('onclick').match(/drukujZPLDirect\('([^']+)'/);
+                if (match && match[1]) {
+                    const paletaId = match[1];
+                    if (printedPallets[paletaId] && !btn.classList.contains('print-success-applied')) {
+                        btn.classList.add('print-success-applied');
+                        const isIconBtn = btn.classList.contains('btn-icon');
+                        if (isIconBtn) {
+                            btn.style.color = '#10b981';
+                            btn.innerHTML = '<span class="material-icons" style="font-size:18px;">print</span>';
+                        } else {
+                            btn.innerHTML = '<span class="material-icons print-success-icon" style="color: #10b981; font-size: 14px; vertical-align: middle; margin-right: 4px;">print</span>' + btn.innerHTML;
+                        }
+                    }
+                }
+            });
+        } catch(e) { console.error(e); }
+    };
+    
+    window.addEventListener('app:partialReload', window.restorePrintIcons);
+    document.addEventListener('DOMContentLoaded', window.restorePrintIcons);
 
 })();

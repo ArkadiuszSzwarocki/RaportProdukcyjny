@@ -43,6 +43,7 @@
 
     {% set fb_kstats = kgph_stats_mapa.get(fb_pid) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
     
+    {% if (fb_running.count > 0 and rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad']) or fb_kstats %}
     <div class="active-order-floating-bar-wrap {% if rola|string|trim|lower in ['laborant', 'laboratorium'] and sekcja == 'Zasyp' %}d-none-mobile-lab{% endif %}">
         <div class="active-order-floating-bar">
             <div class="active-order-status-inline">
@@ -52,20 +53,7 @@
                 {% endif %}
             </div>
             <div class="agro-kgph-inline">
-                <!-- Machine Real-time Stats -->
-                <div id="machine-stats-container" class="agro-machine-stats-inline" style="display: none; margin-right: 12px;">
-                    <span class="agro-kgph-pill machine-stat-speed" title="Prędkość pakowaczki (na żywo)">
-                        <span class="material-icons" style="font-size: 14px; color: #2ecc71;">speed</span>
-                        <span id="machine-speed-value" style="font-weight: 800;">-</span> <small>bpm</small>
-                    </span>
-                    <span class="agro-kgph-pill machine-stat-status" title="Status połączenia z maszyną">
-                        <span id="machine-status-dot" class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #95a5a6; display: inline-block; margin-right: 4px;"></span>
-                        <span id="machine-status-text" style="font-size: 0.9em;">Maszyna: ---</span>
-                    </span>
-                </div>
-
                 {% if fb_kstats %}
-
                 <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
                     data-kind="real" data-plan-id="{{ fb_pid }}"
                     data-value="{{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '' }}"
@@ -90,4 +78,5 @@
             </div>
         </div>
     </div>
+    {% endif %}
 {% endif %}

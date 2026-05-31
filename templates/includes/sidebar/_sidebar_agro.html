@@ -46,12 +46,24 @@
             Raport Czasu Pracy
         </a>
         {% endif %}
+        
+        {% if role_has_access('agro.magazyn') %}
+        <a href="{{ url_for('agro_warehouse.surowce_w_produkcji', linia='AGRO') }}"
+           class="nav-sub-item {% if request.endpoint == 'agro_warehouse.surowce_w_produkcji' %}active{% endif %}">
+            Surowce w produkcji
+        </a>
+        {% endif %}
         {% if role_has_access('agro.zasyp_summary') %}
         <a href="{{ url_for('warehouse.podsumowanie_zasypow', linia='AGRO') }}" 
            class="nav-sub-item {% if request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
             Podsumowanie zasypów
         </a>
         {% endif %}
+
+        <a href="{{ url_for('production.raport_zasypy_dosypki', linia='AGRO') }}" 
+           class="nav-sub-item {% if request.endpoint == 'production.raport_zasypy_dosypki' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
+            Raport Zasypów i Dosypek
+        </a>
 
         {% if role_has_access('agro.pallet_report') %}
         <a href="{{ url_for('agro_warehouse.raport_palet', data=dzisiaj) }}" 

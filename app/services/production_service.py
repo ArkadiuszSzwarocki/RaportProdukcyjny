@@ -58,9 +58,20 @@ class ProductionService:
             if len(p) > 14 and p[14]:
                 zasyp_id_original_map[p[0]] = p[14]
             
+            # Extract opakowanie_nazwa and etykieta_nazwa if present
+            opak_nazwa = p[15] if len(p) > 15 else None
+            etyk_nazwa = p[16] if len(p) > 16 else None
+            
+            # Shrink back to 15 items to not mess up fixed index assignments
+            while len(p) > 15:
+                p.pop()
+
             # Ensure we have enough space for extra metadata (indices 15+)
-            while len(p) < 27:
+            while len(p) < 29:
                 p.append(None)
+                
+            p[27] = opak_nazwa
+            p[28] = etyk_nazwa
             
             src = przeniesione_map.get(p[0], '')
             if not src:

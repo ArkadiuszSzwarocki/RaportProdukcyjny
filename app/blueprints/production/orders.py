@@ -380,17 +380,54 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
 
             if linia == 'AGRO' and sekcja == 'Workowanie':
                 from app.services.agro_warehouse_service import AgroWarehouseService
+                from app.services.mqtt_service import get_latest_data
+                
+                # Fetch stop counter
+                stop_counter = 0
+                try:
+                    latest_d = get_latest_data()
+                    stop_counter = latest_d.get('counter', 0)
+                except:
+                    pass
+                
+                # Save stop_machine_counter
+                cursor.execute(f"UPDATE {table_plan} SET stop_machine_counter=%s WHERE id=%s", (stop_counter, id))
+                
+                # Get start_machine_counter
+                cursor.execute(f"SELECT start_machine_counter FROM {table_plan} WHERE id=%s", (id,))
+                plan_row_agro = cursor.fetchone()
+                start_counter = plan_row_agro[0] if plan_row_agro and plan_row_agro[0] else 0
+                
+                # Calculate total pulled bags
+                total_pulled = max(stop_counter - start_counter, 0)
+                if stop_counter == 0 or start_counter == 0:
+                    total_pulled = 0
+                    
+                # Find total usage already logged by previously closed rolls
+                cursor.execute("SELECT COALESCE(SUM(zuzyte_worki), 0) FROM agro_workowanie_rozliczenie WHERE plan_id=%s", (id,))
+                already_logged_row = cursor.fetchone()
+                already_logged = float(already_logged_row[0]) if already_logged_row else 0.0
+                
+                # Get all currently active rolls
+                cursor.execute("SELECT id, opakowanie_id, stan_poczatkowy FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
+                active_rolls = cursor.fetchall()
+                
                 packaging_results = []
-                for key, value in request.form.items():
-                    if key.startswith('stan_po_'):
-                        parts = key.split('_')
-                        if len(parts) == 4:
-                            try:
-                                packaging_results.append({
-                                    'link_id': int(parts[3]),
-                                    'stan_po': float(value or 0)
-                                })
-                            except: pass
+                remaining_usage = max(total_pulled - already_logged, 0)
+                
+                for roll in active_rolls:
+                    link_id = roll[0]
+                    stan_przed = float(roll[2])
+                    
+                    usage_for_this_roll = min(remaining_usage, stan_przed)
+                    stan_po = stan_przed - usage_for_this_roll
+                    
+                    packaging_results.append({
+                        'link_id': link_id,
+                        'stan_po': stan_po
+                    })
+                    
+                    remaining_usage -= usage_for_this_roll
                 
                 if packaging_results:
                     szt_na_palecie = int(request.form.get('szt_na_palecie', 40))
@@ -445,6 +482,9 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 conn.close()
             except Exception:
                 pass
+
+        if linia == 'AGRO' and sekcja == 'Workowanie':
+            return redirect(url_for('agro_warehouse.raport_palet', plan_id=id))
 
         return redirect(bezpieczny_powrot())
 

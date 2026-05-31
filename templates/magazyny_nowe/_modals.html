@@ -5,6 +5,7 @@
             <h3 class="row items-center gap-10">
                 <span class="material-icons text-primary">inventory_2</span>
                 Paleta: <span id="modalDisplayId"></span>
+                <img id="modalQrCode" src="" alt="QR" width="40" height="40" style="margin-left: 15px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px; background: white; display: none;">
             </h3>
             <button onclick="closePalletModal()" class="modal-premium-close">&times;</button>
         </div>
@@ -86,6 +87,32 @@
                 </button>
             </div>
             {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Zmiana lokalizacji (Custom Prompt) -->
+<div id="moveLocationModal" class="modal-premium-overlay" style="display: none; z-index: 2000;">
+    <div class="modal-premium-content" style="max-width: 400px; padding: 25px;">
+        <div class="modal-premium-header" style="border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 20px;">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 800; color: #0f172a;">
+                <span class="material-icons text-primary">place</span> Przenieś paletę
+            </h3>
+            <button onclick="closeMoveLocationModal()" class="modal-premium-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b;">&times;</button>
+        </div>
+        <div class="modal-premium-body">
+            <div style="margin-bottom: 20px;">
+                <label class="form-label" style="display: block; font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 8px;">Nowa lokalizacja</label>
+                <input type="text" id="newLocationInput" class="form-control" placeholder="Wpisz np. R010101" list="locationSuggestions" autocomplete="off" style="width: 100%; text-transform: uppercase; font-size: 16px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; transition: border-color 0.2s;">
+                <datalist id="locationSuggestions">
+                    <!-- Wygenerowane z JS -->
+                </datalist>
+                <div id="moveLocationError" style="color: #dc2626; font-size: 12px; margin-top: 8px; display: none; font-weight: 600;"></div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button onclick="closeMoveLocationModal()" class="btn-action btn-secondary" style="background: #f1f5f9; color: #475569; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">Anuluj</button>
+                <button onclick="submitMoveLocation()" class="btn-action btn-blue" style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">Zapisz</button>
+            </div>
         </div>
     </div>
 </div>

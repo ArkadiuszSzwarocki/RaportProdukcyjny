@@ -63,7 +63,8 @@ def szukaj_regalu():
 
 @inwentaryzacja_bp.route('/api/podpowiedzi-nazw', methods=['GET'])
 def podpowiedzi_nazw():
-    names = InwentaryzacjaService.get_all_product_names()
+    typ = request.args.get('typ')
+    names = InwentaryzacjaService.get_all_product_names(typ)
     return jsonify({"success": True, "names": names})
 
 @inwentaryzacja_bp.route('/api/zapisz-wpis', methods=['POST'])
@@ -219,4 +220,24 @@ def cofnij_zatwierdzenie():
     sesja_id = request.json.get('sesja_id')
     success, msg = InwentaryzacjaService.revert_session(sesja_id)
     return jsonify({"success": success, "message": msg})
+
+@inwentaryzacja_bp.route('/podsumowanie-dnia', methods=['GET'])
+def podsumowanie_dnia():
+    from datetime import datetime
+    
+    date_str = request.args.get('date')
+    if not date_str:
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        
+    summary = InwentaryzacjaService.get_daily_summary(date_str)
+    
+    # Przekazanie typów do pętli w Jinja i ładnych nazw
+    kategorie = {
+        'surowiec': 'Surowce',
+        'opakowanie': 'Opakowania',
+        'dodatek': 'Dodatki',
+        'wyrób gotowy': 'Wyroby Gotowe'
+    }
+    
+    return render_template('inwentaryzacja/podsumowanie_dnia.html', date_str=date_str, summary=summary, kategorie=kategorie)
 

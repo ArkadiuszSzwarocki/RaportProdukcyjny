@@ -225,9 +225,10 @@ class MagazynDostawyService:
 
         known_source_locations = {
             'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02',
-            'OSIP', 'BF_MS01', 'BF_MP01', 'KO01', 'PSD', 'PSD01',
+            'OSIP', 'BF_MS01', 'BF_MP01', 'PSD', 'PSD01',
             'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP',
         }
+        known_source_locations.update({f'KO{i:02d}' for i in range(1, 23)})
         known_target_locations = {'BF_MS01', 'BF_MP01', 'MS01', 'MP01', 'PSD01'}
 
         def _is_known_source_location(value):
@@ -256,6 +257,11 @@ class MagazynDostawyService:
             if mz_simple:
                 nr = int(mz_simple.group(1))
                 return 1 <= nr <= 6
+
+            ko_match = re.match(r'^KO(\d{2})$', loc)
+            if ko_match:
+                nr = int(ko_match.group(1))
+                return 1 <= nr <= 22
 
             if loc.startswith('MD') or loc.startswith('MDO'):
                 return True
@@ -906,7 +912,7 @@ class MagazynDostawyService:
     def _build_static_location_candidates():
         candidates = {
             'MS01', 'MP01', 'MDM01', 'MOP01', 'MGW01', 'MGW02',
-            'OSIP', 'BF_MS01', 'BF_MP01', 'KO01', 'PSD', 'PSD01',
+            'OSIP', 'BF_MS01', 'BF_MP01', 'PSD', 'PSD01',
             'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP',
             'R01', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07',
             'MDO01', 'MD01',
@@ -927,6 +933,9 @@ class MagazynDostawyService:
 
         for idx in range(1, 7):
             candidates.add(f"MZ{idx:02d}")
+
+        for idx in range(1, 23):
+            candidates.add(f"KO{idx:02d}")
 
         candidates.add('MZ05-01')
         candidates.add('MZ06-01')
@@ -1118,8 +1127,15 @@ class MagazynDostawyService:
                     INSERT INTO {table_wh} 
                     ({fk_col}, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, lokalizacja, user_login, nr_palety)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (pallet_id, pallet['plan_id'], pallet['data_planu'], pallet['produkt_nazwa'], 
-                      confirmed_netto, pallet['waga_brutto'], pallet['tara'], lokalizacja, login, pallet['nr_palety']))
+                """, (pallet_id, 
+                      pallet.get('plan_id'), 
+                      pallet.get('data_planu'), 
+                      pallet.get('produkt_nazwa') or pallet.get('produkt') or 'Wyrób Gotowy', 
+                      confirmed_netto, 
+                      float(pallet.get('waga_brutto') or 0), 
+                      float(pallet.get('tara') or 0), 
+                      lokalizacja, login, 
+                      pallet.get('nr_palety')))
 
             # 4. Log history
             cursor.execute("""

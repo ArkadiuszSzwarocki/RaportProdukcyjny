@@ -148,6 +148,13 @@ class InwentaryzacjaService:
             )
             add_to_map(cursor.fetchall())
 
+            # 2.5 Dodatki
+            cursor.execute(
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'dodatek' as typ_palety, linia, 'kg' as jednostka FROM magazyn_dodatki WHERE {like_clause} AND stan_magazynowy > 0", 
+                params
+            )
+            add_to_map(cursor.fetchall())
+
             # 3. Wyroby Gotowe
             for hall in hall_contexts:
                 table = get_table_name('magazyn_palety', hall)
@@ -256,6 +263,14 @@ class InwentaryzacjaService:
             table_opk = 'magazyn_opakowania'
             cursor.execute(
                 f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM {table_opk} WHERE {in_clause} AND stan_magazynowy > 0", 
+                loc_variants
+            )
+            for p in cursor.fetchall():
+                all_pallets.append(process_pallet(p))
+
+            # 2.5 Dodatki
+            cursor.execute(
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, data_produkcji, data_przydatnosci, 'dodatek' as typ_palety, linia, 'kg' as jednostka FROM magazyn_dodatki WHERE {in_clause} AND stan_magazynowy > 0", 
                 loc_variants
             )
             for p in cursor.fetchall():
@@ -412,15 +427,64 @@ class InwentaryzacjaService:
     def close_session(sesja_id):
         conn = get_db_connection()
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Pobierz sesję
+            cursor.execute("SELECT lokalizacja FROM magazyn_inwentaryzacja_sesje WHERE id = %s", (sesja_id,))
+            sesja = cursor.fetchone()
+            if not sesja:
+                return False, "Nie znaleziono sesji"
+                
+            lokalizacja = sesja['lokalizacja']
+            
+            # Pobierz wszystkie palety z prefixem lokalizacji (używając get_rack_data dla prawidłowego dopasowania regałów np R060101)
+            rack_data_map = InwentaryzacjaService.get_rack_data(lokalizacja, sesja_id)
+            pallets_at_loc = []
+            for items in rack_data_map.values():
+                pallets_at_loc.extend(items)
+            
+            # 1. Usuń z wpisów te palety, które zostały przeniesione (nie ma ich w bazie na tej lokacji)
+            cursor.execute("SELECT id, paleta_id, typ_palety FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s", (sesja_id,))
+            current_entries = cursor.fetchall()
+            
+            # Zbuduj set kluczy palet, które faktycznie są na regale
+            actual_db_keys = set()
+            for p in pallets_at_loc:
+                if p.get('id'): # Zwykła systemowa paleta
+                    actual_db_keys.add(f"{str(p['typ_palety']).lower()}_{p['id']}")
+            
+            to_delete = []
+            for entry in current_entries:
+                if entry['paleta_id']: # Tylko systemowe sprawdzamy, nowych nie ruszamy
+                    key = f"{str(entry['typ_palety']).lower()}_{entry['paleta_id']}"
+                    if key not in actual_db_keys:
+                        to_delete.append(entry['id'])
+            
+            if to_delete:
+                format_strings = ','.join(['%s'] * len(to_delete))
+                cursor.execute(f"DELETE FROM magazyn_inwentaryzacja_wpisy WHERE id IN ({format_strings})", tuple(to_delete))
+            
+            # 2. Dodaj do wpisów te palety, które są w bazie, ale nie zostały zeskanowane (waga_faktyczna = 0)
+            missing_pallets = [p for p in pallets_at_loc if not p.get('counted') and p.get('id')]
+            for p in missing_pallets:
+                cursor.execute(
+                    "INSERT INTO magazyn_inwentaryzacja_wpisy (sesja_id, paleta_id, nr_palety, typ_palety, nazwa, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, waga_systemowa, waga_faktyczna, typ_opakowania, user_login, linia, jednostka) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, 'system', %s, %s)",
+                    (sesja_id, p['id'], p['nr_palety'], p['typ_palety'], p['nazwa'], p.get('lokalizacja') or lokalizacja, p['nr_partii'], p['data_produkcji'], p['data_przydatnosci'], p['stan_magazynowy'], p.get('typ_opakowania', 'brak'), p.get('linia', 'PSD'), p.get('jednostka', 'kg'))
+                )
+
+            # Zamknij sesję
             cursor.execute(
                 "UPDATE magazyn_inwentaryzacja_sesje SET status = 'CLOSED', closed_at = NOW() WHERE id = %s",
                 (sesja_id,)
             )
             conn.commit()
             return True, "Sesja zamknięta"
+        except Exception as e:
+            if conn: conn.rollback()
+            print("Error in close_session:", e)
+            return False, f"Błąd: {e}"
         finally:
-            conn.close()
+            if conn: conn.close()
 
     @staticmethod
     def resume_session(sesja_id):
@@ -545,9 +609,14 @@ class InwentaryzacjaService:
                             """, (e['nr_palety'], e['nazwa'], e['waga_faktyczna'], e['lokalizacja'], e['nr_partii'], d_prod, d_przyd, e['typ_opakowania']))
                         else: # Wyrób gotowy
                             cursor.execute(f"""
-                                INSERT INTO {table} (produkt, waga_netto, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, user_login) 
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (e['nazwa'], e['waga_faktyczna'], e['lokalizacja'], e['nr_partii'], d_prod, d_przyd, e['typ_opakowania'], user_login))
+                                INSERT INTO {table} (nr_palety, produkt, waga_netto, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, user_login) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (e['nr_palety'], e['nazwa'], e['waga_faktyczna'], e['lokalizacja'], e['nr_partii'], d_prod, d_przyd, e['typ_opakowania'], user_login))
+                            
+                        # Update the inventory entry with the newly created pallet ID
+                        new_pallet_id = cursor.lastrowid
+                        cursor.execute("UPDATE magazyn_inwentaryzacja_wpisy SET paleta_id = %s WHERE id = %s", (new_pallet_id, e['id']))
+                        e['paleta_id'] = new_pallet_id
                 
                 # Log in history for both new and updated
                 p_id = e['paleta_id'] or cursor.lastrowid
@@ -569,22 +638,118 @@ class InwentaryzacjaService:
             conn.close()
 
     @staticmethod
-    def get_all_product_names():
-        """Get unique product names from all relevant tables for autocomplete."""
+    def get_all_product_names(typ=None):
+        """Get unique product names from relevant tables for autocomplete."""
         conn = get_db_connection()
         names = set()
         try:
             cursor = conn.cursor()
-            # Surowce
-            cursor.execute("SELECT DISTINCT nazwa FROM magazyn_surowce WHERE nazwa IS NOT NULL AND nazwa != ''")
-            for r in cursor.fetchall(): names.add(r[0])
-            # Opakowania
-            cursor.execute("SELECT DISTINCT nazwa FROM magazyn_opakowania WHERE nazwa IS NOT NULL AND nazwa != ''")
-            for r in cursor.fetchall(): names.add(r[0])
-            
+            if typ == 'surowiec' or not typ:
+                cursor.execute("SELECT DISTINCT nazwa FROM magazyn_surowce WHERE nazwa IS NOT NULL AND nazwa != ''")
+                for r in cursor.fetchall(): names.add(r[0])
+            if typ == 'opakowanie' or not typ:
+                cursor.execute("SELECT DISTINCT nazwa FROM magazyn_opakowania WHERE nazwa IS NOT NULL AND nazwa != ''")
+                for r in cursor.fetchall(): names.add(r[0])
+            if typ == 'wyrób gotowy' or not typ:
+                # Fetch from PSD and AGRO
+                for hall in ['PSD', 'AGRO']:
+                    table = get_table_name('magazyn_palety', hall)
+                    cursor.execute(f"SELECT DISTINCT produkt FROM {table} WHERE produkt IS NOT NULL AND produkt != ''")
+                    for r in cursor.fetchall(): names.add(r[0])
+            if typ == 'dodatek' or not typ:
+                cursor.execute("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE nazwa IS NOT NULL AND nazwa != ''")
+                for r in cursor.fetchall(): names.add(r[0])
+                
             return sorted(list(names))
         except Exception as e:
             print(f"Error fetching product names: {e}")
             return []
         finally:
-            conn.close()
+            if 'conn' in locals() and conn:
+                conn.close()
+
+    @staticmethod
+    def get_daily_summary(date_str=None):
+        """Generuje podsumowanie dzienne dla zamkniętych i zatwierdzonych sesji."""
+        if not date_str:
+            date_str = datetime.now().strftime('%Y-%m-%d')
+            
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            # Pobieramy wpisy powiązane z sesjami zamkniętymi danego dnia
+            query = """
+                SELECT 
+                    w.id, w.paleta_id, w.nr_palety, w.typ_palety, w.nazwa, w.lokalizacja, 
+                    w.waga_systemowa, w.waga_faktyczna, w.jednostka, s.status, s.closed_at
+                FROM magazyn_inwentaryzacja_wpisy w
+                JOIN magazyn_inwentaryzacja_sesje s ON w.sesja_id = s.id
+                WHERE DATE(s.closed_at) = %s AND s.status IN ('CLOSED', 'APPLIED')
+            """
+            cursor.execute(query, (date_str,))
+            entries = cursor.fetchall()
+            
+            summary = {
+                'surowiec': {},
+                'opakowanie': {},
+                'dodatek': {},
+                'wyrób gotowy': {}
+            }
+            
+            for e in entries:
+                typ = (e.get('typ_palety') or '').lower()
+                # Jeśli występuje inny typ, domyślnie mapujemy
+                if typ not in summary:
+                    summary[typ] = {}
+                    
+                nazwa_raw = str(e.get('nazwa') or 'Nieznany produkt')
+                # Normalizacja nazwy - usunięcie białych znaków na końcach i podwójnych spacji
+                import re
+                nazwa = re.sub(r'\s+', ' ', nazwa_raw.strip())
+                
+                if nazwa not in summary[typ]:
+                    summary[typ][nazwa] = {
+                        'nazwa': nazwa,
+                        'ilosc_palet': 0,
+                        'suma_systemowa': 0.0,
+                        'suma_faktyczna': 0.0,
+                        'jednostka': e.get('jednostka') or 'kg',
+                        'palety': []
+                    }
+                
+                group = summary[typ][nazwa]
+                
+                # Faktyczna ilość palet na regale (te z zerową wagą traktujemy jako braki, chyba że "brak" to paleta usunięta fizycznie? 
+                # Jeśli waga_faktyczna > 0 to była fizycznie. Jeśli == 0, to brak.
+                if e.get('waga_faktyczna', 0) > 0:
+                    group['ilosc_palet'] += 1
+                    
+                group['suma_systemowa'] += float(e.get('waga_systemowa') or 0)
+                group['suma_faktyczna'] += float(e.get('waga_faktyczna') or 0)
+                
+                group['palety'].append({
+                    'nr_palety': e.get('nr_palety'),
+                    'lokalizacja': e.get('lokalizacja'),
+                    'waga_systemowa': float(e.get('waga_systemowa') or 0),
+                    'waga_faktyczna': float(e.get('waga_faktyczna') or 0),
+                    'roznica': float(e.get('waga_faktyczna') or 0) - float(e.get('waga_systemowa') or 0)
+                })
+            
+            # Formattowanie wyniku jako lista (żeby łatwo było w Jinja używać)
+            result = {}
+            for typ, produkty in summary.items():
+                lista_produktow = list(produkty.values())
+                # Sortowanie po nazwie
+                lista_produktow.sort(key=lambda x: x['nazwa'])
+                for prod in lista_produktow:
+                    prod['roznica'] = prod['suma_faktyczna'] - prod['suma_systemowa']
+                result[typ] = lista_produktow
+                
+            return result
+        except Exception as e:
+            print(f"Error fetching daily summary: {e}")
+            return {}
+        finally:
+            if 'conn' in locals() and conn:
+                conn.close()

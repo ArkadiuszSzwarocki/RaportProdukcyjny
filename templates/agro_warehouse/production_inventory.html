@@ -1,0 +1,460 @@
+{% extends 'layout.html' %}
+{% block title %}Inwentaryzacja Produkcji - AGROMES{% endblock %}
+
+{% block content %}
+<style>
+    .prod-inv-page {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 10px;
+    }
+
+    .prod-inv-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+        padding: 18px;
+        margin-bottom: 16px;
+    }
+
+    .prod-inv-card h3 {
+        margin: 0 0 6px;
+        font-size: 19px;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .prod-inv-sub {
+        color: #64748b;
+        font-size: 13px;
+        margin-bottom: 12px;
+    }
+
+    .prod-inv-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .prod-inv-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .prod-inv-row-muted {
+        color: #64748b;
+        font-size: 12px;
+    }
+
+    .prod-inv-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+    }
+
+    .prod-inv-session-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+    }
+
+    .prod-inv-session-hint {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .prod-inv-tank {
+        font-weight: 800;
+        letter-spacing: 0.2px;
+    }
+
+    .prod-inv-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+
+    .prod-inv-badge-empty {
+        background: #f8fafc;
+        color: #64748b;
+        border: 1px solid #e2e8f0;
+    }
+</style>
+
+<div class="prod-inv-page">
+    <div class="section-header" style="margin-bottom: 20px;">
+        <h1 style="font-size: 28px; font-weight: 900; color: #0f172a; margin-bottom: 8px;">Inwentaryzacja produkcji</h1>
+        <p style="color: #64748b; font-size: 15px;">Snapshot stanowisk produkcyjnych: jeden aktywny surowiec na zbiornik.</p>
+    </div>
+
+    <div class="tabs-container mb-20">
+        <div class="flex border-b gap-20 items-center justify-between flex-wrap">
+            <div class="flex gap-20">
+                <a href="{{ url_for('agro_warehouse.index', linia=linia) }}" class="tab-btn text-muted pb-10 px-4">Suma surowców</a>
+                <button type="button" class="tab-btn active border-b-2 border-primary pb-10 px-4 font-bold">Inwentaryzacja produkcji</button>
+            </div>
+            <div class="text-muted small" style="margin-bottom:10px;">Linia: {{ (linia or 'AGRO')|upper }}</div>
+        </div>
+    </div>
+
+    <div class="prod-inv-card" style="padding:14px 18px;">
+        <div class="prod-inv-session-bar">
+            <div>
+                <div class="font-bold" style="font-size:14px; color:#0f172a;">Praca na sesji inwentaryzacyjnej</div>
+                <div id="prodInvSessionInfo" class="prod-inv-session-hint">Sesja nieuruchomiona</div>
+            </div>
+            <button id="prodNewSessionBtn" class="btn btn-outline" type="button">
+                <span class="material-icons" style="font-size:18px; vertical-align:middle;">add_circle</span>
+                NOWA SESJA
+            </button>
+        </div>
+        <div class="text-muted small">NOWA SESJA odświeża aktualny stan zbiorników i czyści niezapisane zmiany.</div>
+    </div>
+
+    <div class="prod-inv-card">
+        <h3>Aktualny stan zbiorników</h3>
+        <div class="prod-inv-sub">Widok pokazuje wyłącznie bieżący surowiec na stanowisku. Historia jest osobną stroną dla każdego zbiornika.</div>
+
+        <div class="form-group mb-10 row items-center gap-8" style="display:flex; flex-wrap:wrap;">
+            <select id="prodInvZoneFilter" class="form-control" style="width:180px;">
+                <option value="">Wszystkie strefy</option>
+                <option value="BB">BB</option>
+                <option value="MZ">MZ</option>
+                <option value="KO">KO</option>
+                <option value="INNE">Inne</option>
+            </select>
+            <input type="text" id="prodInvFilter" class="form-control" placeholder="Filtruj po surowcu / zbiorniku / planie..." style="flex:1; min-width:260px;">
+            <label style="display:flex; align-items:center; gap:8px; margin:0; white-space:nowrap; color:#334155; font-size:13px; font-weight:600;">
+                <input id="prodInvShowEmpty" type="checkbox">
+                Pokaż też puste zbiorniki
+            </label>
+        </div>
+
+        <div class="table-responsive" style="max-height:420px; overflow:auto; border:1px solid #e2e8f0; border-radius:10px;">
+            <table class="table" id="prodInvTable">
+                <thead>
+                    <tr>
+                        <th>Zbiornik</th>
+                        <th>Strefa</th>
+                        <th>Surowiec</th>
+                        <th>Plan</th>
+                        <th>Stan systemowy (kg)</th>
+                        <th>Stan z natury (kg)</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody id="prodInvBody">
+                    <tr><td colspan="7" class="text-center text-muted">Ładowanie...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="prod-inv-footer">
+            <div class="text-muted small">Zapisane zostaną wyłącznie pozycje ze zmianą stanu.</div>
+            {% if (rola or '')|lower in ['lider', 'admin', 'masteradmin'] %}
+            <button id="prodSaveBtn" class="btn btn-primary" type="button">Zapisz Inwentaryzację</button>
+            {% else %}
+            <div class="text-muted small">Tryb tylko do podglądu.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    const PROD_LINIA = {{ (linia or 'Agro')|tojson }};
+    const PROD_CAN_EDIT = {{ ((rola or '')|lower in ['lider', 'admin', 'masteradmin'])|tojson }};
+    const PROD_EPS = 0.0001;
+
+    let prodSnapshotItems = [];
+    let prodSessionStartedAt = null;
+
+    function escHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function showProdToast(message, level) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(message, level || 'info');
+            return;
+        }
+        alert(message);
+    }
+
+    function renderProdInventorySessionInfo() {
+        const holder = document.getElementById('prodInvSessionInfo');
+        if (!holder) {
+            return;
+        }
+        if (!prodSessionStartedAt) {
+            holder.textContent = 'Sesja nieuruchomiona';
+            return;
+        }
+        holder.textContent = 'Aktywna sesja od: ' + prodSessionStartedAt.toLocaleString('pl-PL');
+    }
+
+    function hasUnsavedProdInventoryChanges() {
+        const inputs = document.querySelectorAll('.prod-snapshot-qty');
+        for (const inp of inputs) {
+            if (inp.disabled) {
+                continue;
+            }
+            const systemValue = Number(inp.dataset.system || inp.defaultValue || 0);
+            const currentValue = Number(inp.value || 0);
+            if (Number.isFinite(systemValue) && Number.isFinite(currentValue) && Math.abs(systemValue - currentValue) > PROD_EPS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function getShowEmptyEnabled() {
+        const checkbox = document.getElementById('prodInvShowEmpty');
+        return Boolean(checkbox && checkbox.checked);
+    }
+
+    function renderProductionSnapshotTable(items) {
+        const body = document.getElementById('prodInvBody');
+        if (!body) {
+            return;
+        }
+
+        if (!Array.isArray(items) || !items.length) {
+            const emptyMsg = getShowEmptyEnabled()
+                ? 'Brak danych dla zbiorników.'
+                : 'Brak aktywnych surowców na zbiornikach.';
+            body.innerHTML = '<tr><td colspan="7" class="text-center text-muted">' + emptyMsg + '</td></tr>';
+            return;
+        }
+
+        body.innerHTML = items.map(function (row) {
+            const tank = row.zbiornik || '-';
+            const zone = row.strefa || 'INNE';
+            const material = row.surowiec_nazwa || row.nazwa || '-';
+            const planName = row.plan_nazwa || row.plan_name || '';
+            const plan = planName ? ('#' + (row.plan_id || '-') + ' - ' + planName) : (row.plan_id ? ('#' + row.plan_id) : '-');
+            const systemQty = Number(row.stan_systemowy || 0);
+            const isEmptyRow = Boolean(row.is_empty);
+            const ruchIdValue = Number(row.ruch_id);
+            const hasMovement = Number.isFinite(ruchIdValue) && ruchIdValue > 0;
+            const historyUrl = '/agro/magazyn/inwentaryzacja-produkcji/historia/' + encodeURIComponent(tank) + '?linia=' + encodeURIComponent(PROD_LINIA);
+
+            const qtyCell = (PROD_CAN_EDIT && hasMovement)
+                ? '<input type="number" class="form-control prod-snapshot-qty" step="0.001" min="0" data-ruch-id="' + escHtml(ruchIdValue) + '" data-system="' + escHtml(systemQty.toFixed(3)) + '" value="' + escHtml(systemQty.toFixed(3)) + '">'
+                : '<span>' + (isEmptyRow ? '-' : escHtml(systemQty.toFixed(3))) + '</span>';
+
+            const badgeClass = isEmptyRow ? 'prod-inv-badge prod-inv-badge-empty' : 'prod-inv-badge';
+            const movementInfo = hasMovement ? ('Ruch: ' + escHtml(ruchIdValue)) : 'Brak aktywnego surowca';
+            const rowClass = isEmptyRow ? ' class="text-muted"' : '';
+
+            return ''
+                + '<tr' + rowClass + '>'
+                + '  <td><div class="prod-inv-grid"><span class="prod-inv-tank">' + escHtml(tank) + '</span><span class="prod-inv-row-muted">' + movementInfo + '</span></div></td>'
+                + '  <td><span class="' + badgeClass + '">' + escHtml(zone) + '</span></td>'
+                + '  <td>' + escHtml(material) + '</td>'
+                + '  <td>' + escHtml(plan) + '</td>'
+                + '  <td>' + escHtml(systemQty.toFixed(3)) + '</td>'
+                + '  <td>' + qtyCell + '</td>'
+                + '  <td><a class="btn btn-outline" href="' + historyUrl + '">Historia</a></td>'
+                + '</tr>';
+        }).join('');
+    }
+
+    function filterProductionSnapshot() {
+        const zoneFilter = (document.getElementById('prodInvZoneFilter') || {}).value || '';
+        const text = ((document.getElementById('prodInvFilter') || {}).value || '').trim().toUpperCase();
+
+        const filtered = (prodSnapshotItems || []).filter(function (item) {
+            const zoneOk = !zoneFilter || String(item.strefa || '').toUpperCase() === zoneFilter;
+            if (!zoneOk) {
+                return false;
+            }
+            if (!text) {
+                return true;
+            }
+            const hay = [
+                item.zbiornik || '',
+                item.surowiec_nazwa || item.nazwa || '',
+                item.plan_nazwa || item.plan_name || '',
+                item.plan_id || ''
+            ].join(' ').toUpperCase();
+            return hay.includes(text);
+        });
+
+        renderProductionSnapshotTable(filtered);
+    }
+
+    async function loadProductionSnapshot() {
+        const body = document.getElementById('prodInvBody');
+        if (body) {
+            body.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Ładowanie...</td></tr>';
+        }
+
+        const showEmptyParam = getShowEmptyEnabled() ? '1' : '0';
+        const response = await fetch('/agro/api/production_inventory_snapshot?linia=' + encodeURIComponent(PROD_LINIA) + '&show_empty=' + showEmptyParam, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Nie udało się pobrać snapshotu produkcji.');
+        }
+
+        prodSnapshotItems = Array.isArray(data.items) ? data.items : [];
+        filterProductionSnapshot();
+    }
+
+    async function startNewProdInventorySession(manualClick) {
+        if (manualClick && hasUnsavedProdInventoryChanges()) {
+            const ok = confirm('Masz niezapisane zmiany. Rozpocząć nową sesję i odświeżyć dane?');
+            if (!ok) {
+                return;
+            }
+        }
+
+        await loadProductionSnapshot();
+        prodSessionStartedAt = new Date();
+        renderProdInventorySessionInfo();
+
+        if (manualClick) {
+            showProdToast('Uruchomiono nową sesję inwentaryzacji produkcji.', 'success');
+        }
+    }
+
+    async function submitProductionSnapshot() {
+        if (!PROD_CAN_EDIT) {
+            return;
+        }
+
+        const updates = [];
+        const inputs = document.querySelectorAll('.prod-snapshot-qty');
+        for (const inp of inputs) {
+            const ruchId = inp.dataset.ruchId;
+            const systemValue = Number(inp.dataset.system || inp.defaultValue || 0);
+            const actualValue = Number(inp.value || 0);
+            const ruchIdValue = Number(ruchId);
+
+            if (!Number.isFinite(ruchIdValue) || ruchIdValue <= 0 || !Number.isFinite(actualValue)) {
+                continue;
+            }
+            if (actualValue < 0) {
+                showProdToast('Stan z natury nie może być ujemny.', 'error');
+                inp.focus();
+                return;
+            }
+            if (!Number.isFinite(systemValue) || Math.abs(systemValue - actualValue) <= PROD_EPS) {
+                continue;
+            }
+
+            updates.push({
+                ruch_id: ruchIdValue,
+                actual_qty: Number(actualValue.toFixed(3)),
+                komentarz: 'Inwentaryzacja produkcji (snapshot zbiornika)'
+            });
+        }
+
+        if (!updates.length) {
+            showProdToast('Brak zmian do zapisania.', 'info');
+            return;
+        }
+
+        const response = await fetch('/agro/api/production_inventory', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                linia: PROD_LINIA,
+                items: updates
+            })
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            const err = data.error || (Array.isArray(data.errors) && data.errors.length ? data.errors[0].error : null) || 'Nie udało się zapisać inwentaryzacji.';
+            throw new Error(err);
+        }
+
+        showProdToast('Zapisano pozycje: ' + (data.updated || updates.length), 'success');
+        await startNewProdInventorySession(false);
+    }
+
+    function handleShowEmptyToggle() {
+        const checkbox = document.getElementById('prodInvShowEmpty');
+        if (!checkbox) {
+            return;
+        }
+
+        if (hasUnsavedProdInventoryChanges()) {
+            const ok = confirm('Masz niezapisane zmiany. Zmiana widoku odświeży dane. Kontynuować?');
+            if (!ok) {
+                checkbox.checked = !checkbox.checked;
+                return;
+            }
+        }
+
+        startNewProdInventorySession(false).catch(function (err) {
+            showProdToast(err.message || 'Błąd odświeżania snapshotu.', 'error');
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const btnSession = document.getElementById('prodNewSessionBtn');
+        if (btnSession) {
+            btnSession.addEventListener('click', function () {
+                startNewProdInventorySession(true).catch(function (err) {
+                    showProdToast(err.message || 'Błąd uruchamiania sesji.', 'error');
+                });
+            });
+        }
+
+        const btnSave = document.getElementById('prodSaveBtn');
+        if (btnSave) {
+            btnSave.addEventListener('click', function () {
+                submitProductionSnapshot().catch(function (err) {
+                    showProdToast(err.message || 'Błąd zapisu inwentaryzacji.', 'error');
+                });
+            });
+        }
+
+        const zoneFilter = document.getElementById('prodInvZoneFilter');
+        if (zoneFilter) {
+            zoneFilter.addEventListener('change', filterProductionSnapshot);
+        }
+        const textFilter = document.getElementById('prodInvFilter');
+        if (textFilter) {
+            textFilter.addEventListener('input', filterProductionSnapshot);
+        }
+        const showEmptyToggle = document.getElementById('prodInvShowEmpty');
+        if (showEmptyToggle) {
+            showEmptyToggle.addEventListener('change', handleShowEmptyToggle);
+        }
+
+        startNewProdInventorySession(false).catch(function (err) {
+            showProdToast(err.message || 'Błąd ładowania inwentaryzacji produkcji.', 'error');
+        });
+    });
+</script>
+{% endblock %}

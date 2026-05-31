@@ -838,4 +838,154 @@
         checkPrinterServerStatus();
         setInterval(checkPrinterServerStatus, 5000);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // IN-APP VIEWER — otwiera etykiety i raporty w iframie wewnątrz
+    // aplikacji zamiast w nowej zakładce przeglądarki.
+    // Użycie: window.openInApp(url, 'Tytuł okna')
+    // ═══════════════════════════════════════════════════════════════
+    (function() {
+        function buildInAppViewer() {
+            if (document.getElementById('inAppViewerOverlay')) return;
+
+            const style = document.createElement('style');
+            style.textContent = `
+                #inAppViewerOverlay {
+                    display: none;
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(15, 23, 42, 0.82);
+                    backdrop-filter: blur(6px);
+                    -webkit-backdrop-filter: blur(6px);
+                    z-index: 99990;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 12px;
+                    box-sizing: border-box;
+                    animation: inAppFadeIn 0.2s ease;
+                }
+                @keyframes inAppFadeIn {
+                    from { opacity: 0; }
+                    to   { opacity: 1; }
+                }
+                #inAppViewerCard {
+                    width: 100%;
+                    max-width: 900px;
+                    height: 92vh;
+                    background: #fff;
+                    border-radius: 16px;
+                    box-shadow: 0 30px 60px -10px rgba(0,0,0,0.5);
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    animation: inAppSlideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                @keyframes inAppSlideIn {
+                    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+                    to   { opacity: 1; transform: translateY(0)   scale(1); }
+                }
+                #inAppViewerBar {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 12px 16px;
+                    background: #0f172a;
+                    color: #f8fafc;
+                    flex-shrink: 0;
+                }
+                #inAppViewerTitle {
+                    flex: 1;
+                    font-size: 15px;
+                    font-weight: 700;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                #inAppViewerBar button {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 7px 14px;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 13px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    transition: opacity 0.15s;
+                }
+                #inAppViewerBar button:hover { opacity: 0.85; }
+                #inAppPrintBtn  { background: #3b82f6; color: #fff; }
+                #inAppCloseBtn  { background: #334155; color: #e2e8f0; }
+                #inAppViewerFrame {
+                    flex: 1;
+                    width: 100%;
+                    border: none;
+                }
+            `;
+            document.head.appendChild(style);
+
+            const overlay = document.createElement('div');
+            overlay.id = 'inAppViewerOverlay';
+            overlay.innerHTML = `
+                <div id="inAppViewerCard">
+                    <div id="inAppViewerBar">
+                        <span class="material-icons" style="font-size:20px;color:#60a5fa;">description</span>
+                        <span id="inAppViewerTitle">Podgląd</span>
+                        <button id="inAppPrintBtn" onclick="window.inAppPrint()">
+                            <span class="material-icons" style="font-size:16px;">print</span> Drukuj
+                        </button>
+                        <button id="inAppCloseBtn" onclick="window.closeInApp()">
+                            <span class="material-icons" style="font-size:16px;">close</span> Zamknij
+                        </button>
+                    </div>
+                    <iframe id="inAppViewerFrame" src="about:blank" allow="same-origin"></iframe>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            // Zamknij klikając poza kartą
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) window.closeInApp();
+            });
+        }
+
+        window.openInApp = function(url, title) {
+            buildInAppViewer();
+            const overlay = document.getElementById('inAppViewerOverlay');
+            const frame   = document.getElementById('inAppViewerFrame');
+            const titleEl = document.getElementById('inAppViewerTitle');
+            if (!overlay || !frame) return;
+            titleEl.textContent = title || 'Podgląd';
+            frame.src = url;
+            overlay.style.display = 'flex';
+        };
+
+        window.closeInApp = function() {
+            const overlay = document.getElementById('inAppViewerOverlay');
+            const frame   = document.getElementById('inAppViewerFrame');
+            if (overlay) overlay.style.display = 'none';
+            if (frame)   frame.src = 'about:blank';
+        };
+
+        window.inAppPrint = function() {
+            const frame = document.getElementById('inAppViewerFrame');
+            if (frame && frame.contentWindow) {
+                try { frame.contentWindow.print(); } catch(e) {
+                    // fallback — otwórz w nowej karcie żeby wydrukować
+                    window.open(frame.src, '_blank');
+                }
+            }
+        };
+
+        // Escape zamyka viewer
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const overlay = document.getElementById('inAppViewerOverlay');
+                if (overlay && overlay.style.display === 'flex') {
+                    window.closeInApp();
+                }
+            }
+        });
+    })();
+
 </script>

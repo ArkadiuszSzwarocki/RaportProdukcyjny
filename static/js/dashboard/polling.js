@@ -368,6 +368,41 @@
                     console.error('Zwolnienie ack poll err', error);
                 });
         }, false);
+
+        // Odświeżanie etapów u laboranta gdy operator doda nową dosypkę
+        addTask('laborant-dosypki-update-poll', 4000, function () {
+            return fetchJson('/api/zasyp/poll_dosypki_update?linia=' + config.linia + '&last_seen=' + state.dosypkiLastSeen)
+                .then(function (data) {
+                    if (!data.new_update) {
+                        return;
+                    }
+
+                    state.dosypkiLastSeen = Number(data.timestamp || 0) || state.dosypkiLastSeen;
+                    persistLocalStorage('agro_dosypki_last_seen', state.dosypkiLastSeen);
+
+                    // Jeśli laborant ma otwarty popup dosypki — odśwież tylko popup, nie przeładowuj strony
+                    var container = document.querySelector('.dosypka-popup-container');
+                    if (container && typeof global.refreshDosypkaPopup === 'function') {
+                        var planId = container.getAttribute('data-plan-id');
+                        var szarzaId = container.getAttribute('data-szarza-id');
+                        global.refreshDosypkaPopup(planId, szarzaId).catch(function (e) {
+                            console.error('laborant refreshDosypkaPopup err', e);
+                        });
+                        return;
+                    }
+
+                    // Wykonaj częściowe przeładowanie (panel etapów + lista zasypów) bez resetowania scrolla
+                    if (typeof global.performPartialReload === 'function') {
+                        global.performPartialReload({ force: true, preserveScroll: true, source: 'laborant-dosypki-sync' });
+                        return;
+                    }
+                    // Fallback: pełne przeładowanie strony
+                    global.location.reload();
+                })
+                .catch(function (error) {
+                    console.error('Laborant dosypki update poll err', error);
+                });
+        }, false);
     }
 
     var sessionLastPallet = 0;
