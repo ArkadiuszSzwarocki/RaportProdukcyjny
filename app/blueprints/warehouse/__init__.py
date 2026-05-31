@@ -79,14 +79,33 @@ def _update_paleta_magazyn(cursor, paleta_id, nowa_waga, linia='PSD'):
 
 def bezpieczny_powrot():
     """Default return path: planner view or dashboard."""
-    if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
-        data_value = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-        return url_for('planista.panel_planisty', data=data_value)
+    data_val = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data')
+    sekcja = request.args.get('sekcja') or request.form.get('sekcja')
+    
+    if request.referrer:
+        try:
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(request.referrer)
+            qs = parse_qs(parsed.query)
+            if not data_val:
+                if 'data' in qs: data_val = qs['data'][0]
+                elif 'dzisiaj' in qs: data_val = qs['dzisiaj'][0]
+            if not sekcja and 'sekcja' in qs:
+                sekcja = qs['sekcja'][0]
+        except Exception:
+            pass
 
-    sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
-    data_value = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
+    data_val = data_val or str(date.today())
+    sekcja = sekcja or 'Zasyp'
+
+    if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
+        return url_for('planista.panel_planisty', data=data_val)
+        
     linia = _get_request_linia()
-    return url_for('main.index', sekcja=sekcja, data=data_value, linia=linia)
+    if request.form.get('widok_powrotu') == 'agro' or linia == 'AGRO' and request.args.get('source') == 'agro':
+        return url_for('production.agro_workowanie_rozliczenie_page', data=data_val)
+
+    return url_for('main.index', sekcja=sekcja, data=data_val, linia=linia)
 
 
 register_warehouse_management_routes(

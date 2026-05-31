@@ -41,6 +41,21 @@ def panel_planisty():
             aktywna_zakladka = 'psd'
 
         table_plan = get_table_name('plan_produkcji', wybrana_linia)
+        
+        # Renormalize sequences BEFORE loading to ensure no duplicates or gaps
+        from app.services.plan_movement_service import PlanMovementService
+        temp_cursor = conn.cursor()
+        try:
+            PlanMovementService.renormalize_sequences(temp_cursor, table_plan, wybrana_data, None if wybrana_linia == 'AGRO' else 'Zasyp')
+            if wybrana_linia != 'AGRO':
+                PlanMovementService.renormalize_sequences(temp_cursor, table_plan, wybrana_data, 'Workowanie')
+            conn.commit()
+        finally:
+            try:
+                temp_cursor.close()
+            except Exception:
+                pass
+
         plany_list = load_primary_plan_rows(cursor, wybrana_data, wybrana_linia)
         plany_list = enrich_primary_plan_carryover(cursor, plany_list, wybrana_data, wybrana_linia)
 

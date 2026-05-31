@@ -35,6 +35,20 @@ class ScannerService:
         if match:
             return match.group(1).upper()
 
+        # GS1 SSCC często pojawia się jako AI(00) + 18 cyfr lub "00" + 18 cyfr.
+        gs1_ai_match = re.search(r'\(00\)\s*(\d{18})', code)
+        if gs1_ai_match:
+            return gs1_ai_match.group(1)
+
+        gs1_00_match = re.search(r'\b00(\d{18})\b', code)
+        if gs1_00_match:
+            return gs1_00_match.group(1)
+
+        # Fallback dla etykiet zawierających sam 18-cyfrowy SSCC w dłuższym tekście.
+        digits_18_match = re.search(r'\b\d{18}\b', code)
+        if digits_18_match:
+            return digits_18_match.group(0)
+
         return code
 
     @staticmethod
@@ -46,7 +60,8 @@ class ScannerService:
 
     @staticmethod
     def _is_sscc_code(code: str) -> bool:
-        return bool(re.match(r'^[A-Z]{3}\d{18}$', str(code or '').strip().upper()))
+        normalized = str(code or '').strip().upper()
+        return bool(re.match(r'^([A-Z]{3}\d{18}|\d{18}|00\d{18})$', normalized))
 
     @staticmethod
     def _lookup_inventory_row(
@@ -240,6 +255,28 @@ class ScannerService:
                         )
                     return None
 
+                for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
+                    if code_prefix != prefixed_type:
+                        continue
+                    prefixed_row = ScannerService._lookup_inventory_row(
+                        cur,
+                        base_table,
+                        linia,
+                        qty_col=qty_col,
+                        item_id=prefixed_id,
+                    )
+                    if prefixed_row:
+                        return _normalize_lookup_item(
+                            prefixed_row,
+                            inventory_type=inv_type,
+                            inventory_key=code_prefix,
+                            code_prefix=code_prefix,
+                            can_dispatch=can_dispatch,
+                            can_split=can_split,
+                            can_print_label=can_print,
+                        )
+                return None
+
             if is_sscc:
                 for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
                     sscc_row = ScannerService._lookup_inventory_row(
@@ -272,28 +309,6 @@ class ScannerService:
                         can_print_label=False,
                         location_fallback='MGW01',
                     )
-
-                for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
-                    if code_prefix != prefixed_type:
-                        continue
-                    prefixed_row = ScannerService._lookup_inventory_row(
-                        cur,
-                        base_table,
-                        linia,
-                        qty_col=qty_col,
-                        item_id=prefixed_id,
-                    )
-                    if prefixed_row:
-                        return _normalize_lookup_item(
-                            prefixed_row,
-                            inventory_type=inv_type,
-                            inventory_key=code_prefix,
-                            code_prefix=code_prefix,
-                            can_dispatch=can_dispatch,
-                            can_split=can_split,
-                            can_print_label=can_print,
-                        )
-                    return None
 
             # 1) Lookup po lokalizacji w magazynach z kolumną lokalizacja.
             for base_table, qty_col, inv_type, code_prefix, can_dispatch, can_split, can_print in inventory_sources:
@@ -328,6 +343,21 @@ class ScannerService:
                     can_print_label=False,
                     location_fallback=location_code,
                 )
+
+            # 2b) Lookup po numerze palety dla kodów innych niż prefiksy SUR/OPK/DOD/PAL.
+            if prefixed_type is None:
+                row = ScannerService._lookup_finished_goods(cur, linia, pallet_no=location_code)
+                if row:
+                    return _normalize_lookup_item(
+                        row,
+                        inventory_type='Wyrób Gotowy',
+                        inventory_key='WYROB_GOTOWY',
+                        code_prefix='PAL',
+                        can_dispatch=False,
+                        can_split=False,
+                        can_print_label=False,
+                        location_fallback='MGW01',
+                    )
 
             # 3) Lookup po ID liczbowym (kompatybilność wsteczna).
             if numeric_id is not None:
@@ -553,12 +583,13 @@ class ScannerService:
             # 2. Utwórz nowe palety/worki
             for i, bag in enumerate(bags):
                 bag_qty  = float(bag.get('ilosc', 0))
-                bag_loc  = bag.get('lokalizacja', '').strip().upper() or None
+                bag_loc  = bag.get('lokalizacja', '').strip().upper() or source.get('lokalizacja')
                 bag_name = bag.get('nazwa', source['nazwa'])  # można nadać inną nazwę
+                new_sscc = f"SUR-{int(now.timestamp())}{i}"
 
                 cur.execute(
-                    f"INSERT INTO {table_surowce} (nazwa, stan_magazynowy, lokalizacja) VALUES (%s,%s,%s)",
-                    (bag_name, bag_qty, bag_loc)
+                    f"INSERT INTO {table_surowce} (nazwa, stan_magazynowy, lokalizacja, nr_palety) VALUES (%s,%s,%s,%s)",
+                    (bag_name, bag_qty, bag_loc, new_sscc)
                 )
                 new_id = cur.lastrowid
 

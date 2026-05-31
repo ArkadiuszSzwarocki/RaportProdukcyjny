@@ -571,7 +571,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                     max_seq_map_agro['Agro'] = nk_agro
                     cursor.execute(
                         f'INSERT INTO {table_agro} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, nr_receptury, tonaz_rzeczywisty, opakowanie_id, etykieta_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                        (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk_agro, 'agro', nr, 0, opakowanie_id, etykieta_id),
+                        (data_planu, produkt, tonaz, 'zaplanowane', 'Zasyp', nk_agro, typ, nr, 0, opakowanie_id, etykieta_id),
                     )
 
                     nk_work_agro = max_seq_map_agro.get('Workowanie', 0) + 1
@@ -579,7 +579,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                     zasyp_id_agro = cursor.lastrowid
                     cursor.execute(
                         f'INSERT INTO {table_agro} (data_planu, produkt, tonaz, status, sekcja, kolejnosc, typ_produkcji, tonaz_rzeczywisty, zasyp_id, opakowanie_id, etykieta_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                        (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work_agro, 'agro', 0, zasyp_id_agro, opakowanie_id, etykieta_id),
+                        (data_planu, produkt, 0, 'zaplanowane', 'Workowanie', nk_work_agro, typ, 0, zasyp_id_agro, opakowanie_id, etykieta_id),
                     )
                     continue
 

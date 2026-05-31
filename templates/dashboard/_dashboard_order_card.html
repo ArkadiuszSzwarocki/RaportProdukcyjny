@@ -9,7 +9,7 @@
     style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower != 'w toku' %}display: none !important;{% endif %}">
     <div class="card-header">
         <strong class="card-title">
-            {{ loop.index if loop is defined else '' }}. {{ p[1] }}
+            {{ order_index if order_index is defined else (loop.index if loop is defined else '') }}. {{ p[1] }}
             {% if sekcja == 'Zasyp' %}
             <span class="zlecenie-id-badge" title="Nr zlecenia w systemie">#{{ p[0] }}</span>
             {% endif %}
@@ -81,8 +81,8 @@
             {% endif %}
 
             {% if role_lc not in ['laborant', 'laboratorium'] and not is_readonly %}
-            <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja, linia=linia) }}"
-                class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
+                <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja, linia=linia) }}"
+                    class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
             {% endif %}
             {% elif p[3] == 'zakonczone' %}
             {% if rola in ['lider', 'admin', 'masteradmin'] and not is_readonly %}
@@ -162,6 +162,12 @@
                         <span class="material-icons" style="font-size:16px;">visibility</span>
                         {% if sekcja == 'Zasyp' %}ZASYPY{% else %}PALETY{% endif %} ({{ palety_count }})
                     </button>
+                {% endif %}
+                
+                {% if p[3] == 'zakonczone' and sekcja == 'Workowanie' and linia == 'AGRO' %}
+                    <a href="{{ url_for('agro_warehouse.raport_palet', plan_id=p[0]) }}" class="btn-action" style="background:#10b981; color:#fff; display:flex; align-items:center; gap:5px;" title="Wygeneruj raport i rozliczenie">
+                        <span class="material-icons" style="font-size:16px;">assessment</span> RAPORT
+                    </a>
                 {% endif %}
             {% endif %}
         {% endif %}

@@ -17,8 +17,9 @@
         <!-- agro-session-running-hint -->
         {% include 'dashboard/_dashboard_agro_active.html' %}
         {% include 'dashboard/_dashboard_production_list.html' %}
-        {% include 'dashboard/_dashboard_agro_settlement.html' %}
-        {% include 'dashboard/_dashboard_agro_stages.html' %}
+        {% if sekcja != 'Zasyp' %}
+            {% include 'dashboard/_dashboard_agro_stages.html' %}
+        {% endif %}
     </div>
 
     {% include 'dashboard/_dashboard_packaging.html' %}

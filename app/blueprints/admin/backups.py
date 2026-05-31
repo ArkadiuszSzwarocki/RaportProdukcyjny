@@ -9,7 +9,7 @@ from app.decorators import dynamic_role_required
 
 
 def _project_root():
-    return os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
 def _backups_dir():

@@ -131,8 +131,32 @@ def label(surowiec_id):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Print label (ZPL — optional TCP printer)
+# Print label
 # ─────────────────────────────────────────────────────────────────────────────
+
+@scanner_bp.route('/label_location')
+def label_location():
+    loc = request.args.get('loc', 'BRAK')
+    linia = request.args.get('linia', 'AGRO')
+    
+    zpl = f"^XA^CI28^PW812^LL1214^FO20,20^GB772,1174,4^FS"
+    zpl += f"^FO60,100^A0N,100,100^FDREGAŁ: {loc}^FS"
+    zpl += f"^FO60,250^BY4^BQN,2,10^FDMA,{loc}^FS"
+    zpl += "^XZ"
+    
+    return render_template(
+        'magazyn_dostawy/etykieta_podglad_system.html',
+        zpl_string=zpl,
+        print_url=f"/agro/scanner/print_location_direct?loc={loc}&linia={linia}",
+        close_btn=True
+    )
+
+@scanner_bp.route('/print_location_direct', methods=['POST'])
+def print_location_direct():
+    loc = request.args.get('loc', 'BRAK')
+    printer = get_printer()
+    ok, msg = printer.print_location_label({'lokalizacja': loc})
+    return jsonify({'success': ok, 'message': msg})
 
 @scanner_bp.route('/print', methods=['POST'])
 def print_label():

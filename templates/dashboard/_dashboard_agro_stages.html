@@ -1,7 +1,8 @@
 {# === PANEL ETAPÓW ZASYP — widoczny tylko dla Zasyp gdy jest aktywne zlecenie === #}
-{% if sekcja == 'Zasyp' and linia == 'AGRO' %}
+{% if sekcja == 'Zasyp' %}
 {% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
-{% for p in plan %}{% if p[3] in ['w toku', 'zakonczone', 'zamkniete'] %}
+{% set target_plans = [p] if p is defined and p else plan %}
+{% for p in target_plans %}{% if p[3] in ['w toku', 'zakonczone', 'zamkniete'] %}
 {% set etapy_sesje = etapy_sesje_mapa.get(p[0]) if etapy_sesje_mapa is defined and etapy_sesje_mapa else [] %}
 {% set param = etapy_parametry.get(p[0]) if etapy_parametry is defined and etapy_parametry else {} %}
 {% for sesja in etapy_sesje %}
@@ -86,11 +87,12 @@
     <div class="p-10">
         {% set lab_status_view = rola in ['laborant', 'laboratorium'] %}
         {% if lab_status_view %}
-        <div style="display:grid; grid-template-columns: 1fr; gap:8px;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
             {% for e in etapy %}
-                {% set e_str = e.etap|string %}
-                {% set is_main = e.etap in [1, 2, 5, 6] %}
-                {% set is_mixer = e.etap in [3, 4] or (e_str|length > 1 and (e_str[0] == '3' or e_str[0] == '4')) %}
+                {% set e_nr = e.etap %}
+                {% set e_str = e_nr|string %}
+                {% set is_main = e_nr in [1, 2, 5, 6] %}
+                {% set is_mixer = e_nr in [3, 4] or (e_nr > 30 and e_nr < 50) %}
                 
                 {% if is_main or is_mixer %}
                     {% set hide_mixer_etap = is_mixer and not e.is_running and not e.czas_start and not e.czas_stop %}
@@ -112,20 +114,22 @@
                             {% set status_color = '#374151' %}
                         {% endif %}
 
-                        {% set label = 'Etap ' ~ e.etap %}
-                        {% if e.etap == 1 %}{% set label = 'Naważanie' %}
-                        {% elif e.etap == 2 %}{% set label = 'Mieszanie (LAB)' %}
-                        {% elif e.etap == 3 or e_str[0] == '3' %}{% set label = 'Dosypka ' ~ (e_str[1:] if e_str|length > 1 else '') %}
-                        {% elif e.etap == 4 or e_str[0] == '4' %}{% set label = 'Mieszanie II ' ~ (e_str[1:] if e_str|length > 1 else '') %}
-                        {% elif e.etap in [5, 6] %}{% set label = 'Opróżnianie' %}
+                        {% set label = 'Etap ' ~ e_nr %}
+                        {% if e_nr == 1 %}{% set label = 'Naważanie' %}
+                        {% elif e_nr == 2 %}{% set label = 'Mieszanie (LAB)' %}
+                        {% elif e_nr == 3 %}{% set label = 'Dosypka' %}
+                        {% elif 30 < e_nr < 40 %}{% set label = 'Dosypka 3' ~ ('abcdefghi'[ (e_nr % 10 - 1) if (e_nr % 10 - 1) < 9 else 0 ]) %}
+                        {% elif e_nr == 4 %}{% set label = 'Mieszanie II' %}
+                        {% elif 40 < e_nr < 50 %}{% set label = 'Mieszanie 4' ~ ('abcdefghi'[ (e_nr % 10 - 1) if (e_nr % 10 - 1) < 9 else 0 ]) %}
+                        {% elif e_nr in [5, 6] %}{% set label = 'Opróżnianie' %}
                         {% endif %}
 
-                        <div style="border:1px solid {% if e.is_running %}#16a34a{% else %}#dbe3ea{% endif %}; border-radius:8px; padding:10px; background:{% if e.is_running %}#f0faf4{% else %}#f9fbfd{% endif %}; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <div style="grid-column: {% if is_main %}1 / -1{% else %}span 1{% endif %}; border:1px solid {% if e.is_running %}#16a34a{% else %}#dbe3ea{% endif %}; border-radius:8px; padding:10px; background:{% if e.is_running %}#f0faf4{% else %}#f9fbfd{% endif %}; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
                             <div>
                                 <strong style="font-size:0.92em;">{{ label }}</strong>
                                 <div class="small text-muted">Czas etapu: <strong><span class="etap-live-timer" data-seconds="{{ e.duration_s|default(0) }}" data-running="{{ 1 if e.is_running else 0 }}">{{ e.duration_str if e.duration_str else '00:00' }}</span></strong></div>
                             </div>
-                            <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }};">{{ status_icon }} {{ status_label }}</span>
+                            <span style="padding:4px 10px; border-radius:999px; font-size:0.8em; font-weight:700; background:{{ status_bg }}; color:{{ status_color }}; white-space:nowrap;">{{ status_icon }} {{ status_label }}</span>
                         </div>
                     {% endif %}
                 {% endif %}

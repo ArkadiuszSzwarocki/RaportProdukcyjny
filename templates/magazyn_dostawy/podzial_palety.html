@@ -1,0 +1,302 @@
+{% extends "layout.html" %}
+{% block title %}Podział Palety - Magazyn{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="text-slate-800 font-bold m-0" style="font-size: 24px;">
+                <span class="material-icons text-primary align-middle me-2" style="font-size: 28px;">call_split</span>
+                Podział Palety (Workowanie)
+            </h2>
+            <p class="text-muted mt-1">Zeskanuj kod SSCC palety-matki, aby utworzyć z niej nową paletę.</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Sekcja skanera -->
+        <div class="col-md-5 mb-4">
+            <div class="section-box p-4" style="background: linear-gradient(145deg, #ffffff, #f8f9fa); border: 2px solid #e2e8f0;">
+                <label class="form-label font-bold text-slate-700" style="font-size: 18px;">
+                    <span class="material-icons align-middle text-primary">qr_code_scanner</span> Skanuj Kod Palety (SSCC)
+                </label>
+                <div class="input-group">
+                    <input type="text" id="splitScannerInput" class="form-control form-control-lg text-center fw-bold" 
+                           style="font-size: 24px; letter-spacing: 2px; border: 2px solid #3b82f6; border-right: none;" 
+                           placeholder="Zeskanuj kod..." autocomplete="off" autofocus>
+                    <button class="btn btn-primary" type="button" id="splitSearchBtn" style="border: 2px solid #3b82f6; font-weight: bold; font-size: 18px; padding-left: 20px; padding-right: 20px;">Szukaj</button>
+                </div>
+                <div class="form-text text-center mt-2">Kursor musi znajdować się w tym polu podczas skanowania. Możesz też wpisać kod ręcznie i kliknąć Szukaj.</div>
+                
+                <div id="scanLoading" class="text-center mt-4 d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Wczytywanie...</span>
+                    </div>
+                    <p class="text-muted mt-2">Wyszukiwanie palety w systemie...</p>
+                </div>
+                
+                <div id="scanError" class="alert alert-danger mt-4 d-none">
+                    <span class="material-icons align-middle me-1">error_outline</span>
+                    <span id="scanErrorMsg">Nie znaleziono palety.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sekcja szczegółów i podziału (ukryta przed skanem) -->
+        <div class="col-md-7 mb-4 d-none" id="splitDetailsSection">
+            <div class="section-box p-4" style="border-left: 5px solid #10b981;">
+                <h4 class="font-bold text-slate-800 mb-4 border-bottom pb-2">Informacje o Palecie Matce</h4>
+                
+                <div class="row mb-3">
+                    <div class="col-sm-4 text-muted font-bold">Kod SSCC (ID):</div>
+                    <div class="col-sm-8 fw-bold" id="motherSscc">-</div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-sm-4 text-muted font-bold">Produkt:</div>
+                    <div class="col-sm-8 text-primary fw-bold" style="font-size: 18px;" id="motherProduct">-</div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-sm-4 text-muted font-bold">Obecna Lokalizacja:</div>
+                    <div class="col-sm-8 fw-bold"><span class="badge bg-secondary" id="motherLocation" style="font-size: 14px;">-</span></div>
+                </div>
+                <div class="row mb-4">
+                    <div class="col-sm-4 text-muted font-bold">Dostępna Waga:</div>
+                    <div class="col-sm-8 text-success fw-bold" style="font-size: 22px;"><span id="motherWeight">0</span> kg</div>
+                </div>
+                
+                <hr class="mb-4">
+                <h4 class="font-bold text-slate-800 mb-3">Utwórz nową paletę</h4>
+                
+                <div class="row align-items-center mb-4">
+                    <div class="col-sm-6">
+                        <label class="form-label font-bold text-slate-700">Waga do zabrania (kg):</label>
+                        <div class="input-group">
+                            <input type="number" id="splitWeightInput" class="form-control form-control-lg fw-bold" 
+                                   min="1" step="0.1" placeholder="Naciśnij i wpisz..." style="font-size: 22px;">
+                            <span class="input-group-text font-bold">kg</span>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="alert alert-info py-2 px-3 mb-0">
+                            <strong>Uwaga:</strong> Nowa paleta odziedziczy produkt, partię i daty, a stara paleta pozostanie pomniejszona o zabraną wagę.
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="button" id="splitConfirmBtn" class="btn btn-success btn-lg font-bold" style="font-size: 20px;">
+                        <span class="material-icons align-middle me-2">print</span>
+                        Zatwierdź i Drukuj Etykietę
+                    </button>
+                    <button type="button" id="splitCancelBtn" class="btn btn-outline-secondary">
+                        Anuluj i skanuj inną
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal podglądu/druku (opcjonalny fallback) -->
+<div class="modal fade" id="printModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title font-bold"><span class="material-icons align-middle me-2">check_circle</span>Podział Zakończony</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <p class="fs-5 mb-4">Nowa paleta <strong id="newPalletSscc" class="text-primary"></strong> została utworzona pomyślnie!</p>
+                <div class="d-grid gap-3">
+                    <button type="button" id="forcePrintBtn" class="btn btn-primary btn-lg">
+                        <span class="material-icons align-middle me-2">print</span> Ponów Druk Etykiety ZPL
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal" onclick="resetSplitter()">
+                        Skanuj Następną
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_scripts %}
+<script>
+    let currentPallet = null;
+    let isSubmitting = false;
+
+    const scannerInput = document.getElementById('splitScannerInput');
+    const detailsSection = document.getElementById('splitDetailsSection');
+    const scanLoading = document.getElementById('scanLoading');
+    const scanError = document.getElementById('scanError');
+    const scanErrorMsg = document.getElementById('scanErrorMsg');
+    
+    // Ustalanie linii ze zmiennej sesyjnej/globalnej z backendu (lub domyślnie PSD)
+    const currentLinia = "{{ session.get('aktywna_linia', 'AGRO') }}";
+
+    function resetSplitter() {
+        currentPallet = null;
+        scannerInput.value = '';
+        scannerInput.disabled = false;
+        detailsSection.classList.add('d-none');
+        scanError.classList.add('d-none');
+        document.getElementById('splitWeightInput').value = '';
+        scannerInput.focus();
+    }
+
+    function showScanError(msg) {
+        scanLoading.classList.add('d-none');
+        scanError.classList.remove('d-none');
+        scanErrorMsg.textContent = msg;
+        scannerInput.value = '';
+        scannerInput.disabled = false;
+        setTimeout(() => scannerInput.focus(), 100);
+    }
+
+    async function fetchPalletInfo(sscc) {
+        scannerInput.disabled = true;
+        scanLoading.classList.remove('d-none');
+        scanError.classList.add('d-none');
+        detailsSection.classList.add('d-none');
+
+        try {
+            const response = await fetch(`/magazyn-dostawy/api/info-paleta?sscc=${encodeURIComponent(sscc)}`);
+            const data = await response.json();
+            
+            scanLoading.classList.add('d-none');
+
+            if (!response.ok || !data.success) {
+                showScanError(data.error || 'Nie znaleziono palety.');
+                return;
+            }
+
+            currentPallet = data.pallet;
+            
+            document.getElementById('motherSscc').textContent = currentPallet.nr_palety || currentPallet.id;
+            document.getElementById('motherProduct').textContent = currentPallet.produkt;
+            document.getElementById('motherLocation').textContent = currentPallet.lokalizacja || 'Brak / Nieznana';
+            document.getElementById('motherWeight').textContent = currentPallet.waga;
+            
+            // Ustaw sugerowaną wagę (np. domyślnie puste, żeby pracownik musiał wpisać)
+            const weightInput = document.getElementById('splitWeightInput');
+            weightInput.value = '';
+            weightInput.max = currentPallet.waga;
+            
+            detailsSection.classList.remove('d-none');
+            setTimeout(() => weightInput.focus(), 100);
+            
+        } catch (err) {
+            console.error(err);
+            showScanError('Błąd połączenia z serwerem.');
+        }
+    }
+
+    // Event listeners
+    scannerInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
+            e.preventDefault();
+            const sscc = this.value.trim().replace(/[\r\n]+/g, '');
+            if (sscc) fetchPalletInfo(sscc);
+        }
+    });
+    
+    document.getElementById('splitSearchBtn').addEventListener('click', function() {
+        const sscc = scannerInput.value.trim().replace(/[\r\n]+/g, '');
+        if (sscc) fetchPalletInfo(sscc);
+    });
+    
+    document.getElementById('splitCancelBtn').addEventListener('click', resetSplitter);
+    
+    document.getElementById('splitWeightInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
+            e.preventDefault();
+            document.getElementById('splitConfirmBtn').click();
+        }
+    });
+
+    document.getElementById('splitConfirmBtn').addEventListener('click', async function() {
+        if (isSubmitting || !currentPallet) return;
+        
+        const weightInput = document.getElementById('splitWeightInput');
+        const weightToTake = parseFloat(weightInput.value.replace(',', '.'));
+        
+        if (isNaN(weightToTake) || weightToTake <= 0) {
+            alert('Wprowadź prawidłową wagę.');
+            weightInput.focus();
+            return;
+        }
+        if (weightToTake >= currentPallet.waga) {
+            alert(`Waga do zabrania (${weightToTake} kg) musi być MNIEJSZA niż dostępna waga (${currentPallet.waga} kg). Aby przenieść całą paletę użyj opcji "Przesunięcia".`);
+            weightInput.focus();
+            return;
+        }
+
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Zapisywanie...';
+        btn.disabled = true;
+        isSubmitting = true;
+
+        try {
+            const response = await fetch('/magazyn-dostawy/api/podzial-palety', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mother_id: currentPallet.id,
+                    mother_table: currentPallet.table,
+                    weight_to_take: weightToTake
+                })
+            });
+            const result = await response.json();
+            
+            if (!response.ok || !result.success) {
+                alert(result.error || 'Wystąpił błąd podczas podziału palety.');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                isSubmitting = false;
+                return;
+            }
+
+            // Sukces - odpal druk
+            const newPallet = result.new_pallet;
+            document.getElementById('newPalletSscc').textContent = newPallet.nr_palety;
+            
+            // Bezpośredni druk ZPL
+            drukujZPLDirect(newPallet.id, newPallet.linia || currentLinia, newPallet.plan_id);
+
+            // Pokaż modal potwierdzenia
+            const printModal = new bootstrap.Modal(document.getElementById('printModal'));
+            printModal.show();
+            
+            // Ustaw listener na ponowienie druku
+            document.getElementById('forcePrintBtn').onclick = () => {
+                drukujZPLDirect(newPallet.id, newPallet.linia || currentLinia, newPallet.plan_id);
+            };
+
+        } catch (err) {
+            console.error(err);
+            alert('Błąd połączenia z serwerem.');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            isSubmitting = false;
+        }
+    });
+
+    // Używamy globalnej funkcji z layoutu, jeśli istnieje. Jeśli nie, tworzymy własny minimalny klient druku.
+    function drukujZPLDirect(paleta_id, linia, plan_id) {
+        if (!paleta_id) return;
+        const printUrl = `/drukuj-zpl/${paleta_id}?linia=${encodeURIComponent(linia || 'AGRO')}&plan_id=${encodeURIComponent(plan_id || '')}`;
+        fetch(printUrl)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Wysłano do druku:', data);
+                } else {
+                    console.warn('Błąd druku ZPL:', data.error);
+                }
+            })
+            .catch(err => console.error('Błąd wywołania druku ZPL:', err));
+    }
+</script>
+{% endblock %}

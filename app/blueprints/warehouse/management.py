@@ -234,33 +234,35 @@ def register_warehouse_management_routes(
             conn.commit()
 
             # --- AUTOMATYCZNY WYDRUK 2 ETYKIET ASYNCHRONICZNIE ---
-            def _async_print_label(paleta_id_local, nr_palety_local):
-                try:
-                    # Open a new DB cursor for label preparation if needed
+            app_obj = current_app._get_current_object()
+            
+            def _async_print_label(paleta_id_local, nr_palety_local, app):
+                with app.app_context():
                     try:
-                        from app.utils.pallet_label import prepare_pallet_label_data
-                        # prepare_pallet_label_data expects a cursor; create a short-lived connection
-                        conn2 = get_db_connection()
-                        cur2 = conn2.cursor()
-                        label_data_local = prepare_pallet_label_data(cur2, paleta_id_local, linia)
-                    except Exception as prep_err:
-                        current_app.logger.error('Failed to prepare label data for paleta %s: %s', paleta_id_local, prep_err)
+                        conn2 = None
                         try:
+                            from app.utils.pallet_label import prepare_pallet_label_data
+                            conn2 = get_db_connection()
+                            cur2 = conn2.cursor()
+                            label_data_local = prepare_pallet_label_data(cur2, paleta_id_local, linia)
+                        except Exception as prep_err:
+                            app.logger.error('Failed to prepare label data for paleta %s: %s', paleta_id_local, prep_err)
                             if conn2:
-                                conn2.close()
-                        except Exception:
-                            pass
-                        return
+                                try:
+                                    conn2.close()
+                                except Exception:
+                                    pass
+                            return
 
-                    if not label_data_local:
-                        current_app.logger.error('No label data prepared for paleta %s', paleta_id_local)
-                        try:
-                            conn2.close()
-                        except Exception:
-                            pass
-                        return
+                        if not label_data_local:
+                            app.logger.error('No label data prepared for paleta %s', paleta_id_local)
+                            if conn2:
+                                try:
+                                    conn2.close()
+                                except Exception:
+                                    pass
+                            return
 
-                    try:
                         from app.services.print_server import get_printer
                         printer_local = get_printer()
                         override_name, override_ip = _select_preferred_printer(cur2)
@@ -271,22 +273,23 @@ def register_warehouse_management_routes(
                                     override_ip=override_ip,
                                     override_name=override_name,
                                 )
-                                current_app.logger.info(
+                                app.logger.info(
                                     'Async print copy %s/2 for paleta %s: ok=%s printer=%s ip=%s msg=%s',
                                     copy_num, nr_palety_local, ok, override_name or getattr(printer_local, 'printer_name', None), override_ip or getattr(printer_local, 'printer_ip', None), print_msg
                                 )
                             except Exception as single_err:
-                                current_app.logger.error('Print attempt failed for paleta %s copy %s: %s', paleta_id_local, copy_num, single_err)
-                    finally:
-                        try:
-                            conn2.close()
-                        except Exception:
-                            pass
-                except Exception as err:
-                    current_app.logger.error('Unexpected error in async print thread for paleta %s: %s', paleta_id_local, err)
+                                app.logger.error('Print attempt failed for paleta %s copy %s: %s', paleta_id_local, copy_num, single_err)
+                        
+                        if conn2:
+                            try:
+                                conn2.close()
+                            except Exception:
+                                pass
 
+                    except Exception as err:
+                        app.logger.error('Unexpected error in async print thread for paleta %s: %s', paleta_id_local, err)
             try:
-                t = threading.Thread(target=_async_print_label, args=(paleta_id, nr_palety), daemon=True)
+                t = threading.Thread(target=_async_print_label, args=(paleta_id, nr_palety, app_obj), daemon=True)
                 t.start()
             except Exception as thr_err:
                 current_app.logger.error('Failed to start async print thread for paleta %s: %s', nr_palety, thr_err)
@@ -483,7 +486,8 @@ def register_warehouse_management_routes(
     def confirm_delete_palete_page(paleta_id):
         """Render delete confirmation for paleta."""
         linia = resolve_request_linia()
-        return render_template('warehouse/popups/delete_pallet_confirm.html', paleta_id=paleta_id, linia=linia)
+        source = request.args.get('source', '')
+        return render_template('warehouse/popups/delete_pallet_confirm.html', paleta_id=paleta_id, linia=linia, source=source)
 
     @warehouse_bp.route('/confirm_delete_szarze_page/<int:szarza_id>', methods=['GET'], endpoint='confirm_delete_szarze_page')
     @warehouse_bp.route('/confirm_delete_zasyp_page/<int:szarza_id>', methods=['GET'], endpoint='confirm_delete_zasyp_page')
@@ -705,21 +709,23 @@ def register_warehouse_management_routes(
 
             user_login = session.get('login', 'System')
             try:
-                cursor.execute(
-                    f"UPDATE {table_pal} SET status='przyjeta', "
-                    "data_potwierdzenia = DATE_ADD(data_dodania, INTERVAL TIMESTAMPDIFF(SECOND, data_dodania, NOW()) SECOND), "
-                    "czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()), "
-                    "czas_rzeczywistego_potwierdzenia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_dodania, NOW())), "
-                    "potwierdzil_login = %s "
-                    "WHERE id=%s",
-                    (user_login, paleta_id),
-                )
+                if linia == 'AGRO':
+                    cursor.execute(
+                        f"UPDATE {table_pal} SET status='przyjeta', "
+                        "data_potwierdzenia = DATE_ADD(data_dodania, INTERVAL TIMESTAMPDIFF(SECOND, data_dodania, NOW()) SECOND), "
+                        "czas_potwierdzenia_s = TIMESTAMPDIFF(SECOND, data_dodania, NOW()), "
+                        "czas_rzeczywistego_potwierdzenia = SEC_TO_TIME(TIMESTAMPDIFF(SECOND, data_dodania, NOW())) "
+                        f"WHERE id=%s",
+                        (paleta_id,),
+                    )
+                else:
+                    cursor.execute(f"UPDATE {table_pal} SET status='przyjeta' WHERE id=%s", (paleta_id,))
                 conn.commit()
                 status_updated = True
             except Exception as error:
                 current_app.logger.warning('Complex update failed for paleta %s: %s, retrying simple update', paleta_id, error)
                 try:
-                    cursor.execute(f"UPDATE {table_pal} SET status='przyjeta', potwierdzil_login=%s WHERE id=%s", (user_login, paleta_id))
+                    cursor.execute(f"UPDATE {table_pal} SET status='przyjeta' WHERE id=%s", (paleta_id,))
                     conn.commit()
                     status_updated = True
                 except Exception as second_error:

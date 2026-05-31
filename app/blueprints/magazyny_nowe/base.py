@@ -526,7 +526,8 @@ def print_pallet_label():
             'nazwa': row['productName'],
             'ilosc': row['amount'],
             'data': row['date_prod'].strftime('%Y-%m-%d') if row.get('date_prod') else datetime.now().strftime('%Y-%m-%d'),
-            'partia': row.get('batch') or f"{pallet_type[:3]}-{pallet_id}"
+            'partia': row.get('batch') or f"{pallet_type[:3]}-{pallet_id}",
+            'linia': linia
         }
         
         printer_service = get_printer()

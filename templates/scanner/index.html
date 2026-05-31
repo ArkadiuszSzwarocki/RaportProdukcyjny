@@ -249,10 +249,10 @@
                placeholder="R030101 albo SUR-42" autofocus>
       </div>
       <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">
-        <span class="material-icons">search</span>
+        <span class="material-icons">qr_code_scanner</span>
       </button>
     </div>
-    <p class="small text-muted mt-8">Przyłóż skaner — kod zostanie wczytany automatycznie. Wpisz ręcznie i naciśnij Enter.</p>
+    <p class="small text-muted mt-8">Przyłóż skaner i naciśnij fizyczny spust. Przycisk obok pola przy pustym kodzie spróbuje uruchomić skanowanie programowo (jeśli urządzenie to wspiera).</p>
   </div>
 
   <!-- PALLET INFO -->
@@ -329,7 +329,7 @@
           <tr>
             <th>#</th>
             <th>Ilość (kg)*</th>
-            <th>Lokalizacja*</th>
+            <th>Lokalizacja (opcj.)</th>
             <th>Nazwa (opcj.)</th>
             <th></th>
           </tr>
@@ -347,54 +347,54 @@
 </div><!-- /scanner-wrap -->
 
 <!-- Premium Finished Goods Acceptance Overlay — MUST be outside scanner-wrap to work with display:none parent -->
-<div id="wgAcceptOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); z-index:20000; align-items:center; justify-content:center; padding:16px; box-sizing:border-box;">
-  <div style="width:100%; max-width:440px; background:#1e293b; border:1px solid #334155; border-radius:16px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); padding:24px; box-sizing:border-box; color:#f8fafc; font-family:'Inter', sans-serif;">
+<div id="wgAcceptOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); z-index:20000; align-items:center; justify-content:center; padding:8px; box-sizing:border-box;">
+  <div style="width:100%; max-width:440px; background:#1e293b; border:1px solid #334155; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); padding:16px; box-sizing:border-box; color:#f8fafc; font-family:'Inter', sans-serif;">
 
     <!-- Modal Header -->
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; border-bottom:1px solid #334155; padding-bottom:12px;">
-      <h3 style="margin:0; font-size:1.2rem; font-weight:800; color:#3b82f6; display:flex; align-items:center; gap:8px;">
-        <span class="material-icons" style="font-size:24px;">inventory_2</span>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #334155; padding-bottom:8px;">
+      <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#3b82f6; display:flex; align-items:center; gap:6px;">
+        <span class="material-icons" style="font-size:1.3em;">inventory_2</span>
         Przyjęcie Wyrobu (AGRO)
       </h3>
-      <button onclick="closeWgAcceptModal()" style="background:none; border:none; color:#94a3b8; font-size:24px; cursor:pointer; line-height:1; padding:0; margin-left:auto;">&times;</button>
+      <button onclick="closeWgAcceptModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer; line-height:1; padding:0; margin-left:auto;">&times;</button>
     </div>
 
     <!-- Pallet Info Card -->
-    <div style="background:#0f172a; border:1px solid #334155; border-radius:10px; padding:12px; margin-bottom:16px;">
-      <div style="font-size:0.75rem; text-transform:uppercase; color:#64748b; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Zeskanowana Paleta</div>
-      <div id="wgPalletNo" style="font-size:1.15rem; font-weight:800; color:#f8fafc; font-family:monospace; margin-bottom:2px;">—</div>
-      <div id="wgPalletName" style="font-size:0.88rem; color:#94a3b8;">—</div>
+    <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:12px;">
+      <div style="font-size:0.7em; text-transform:uppercase; color:#64748b; font-weight:700; letter-spacing:0.5px; margin-bottom:2px;">Zeskanowana Paleta</div>
+      <div id="wgPalletNo" style="font-size:1.05em; font-weight:800; color:#f8fafc; font-family:monospace; margin-bottom:2px;">—</div>
+      <div id="wgPalletName" style="font-size:0.85em; color:#94a3b8;">—</div>
     </div>
 
     <!-- STEP 1: WEIGHT -->
     <div id="wgStepWeight" style="display:block;">
-      <div style="display:inline-flex; align-items:center; gap:6px; background:#1e3a8a; color:#93c5fd; padding:3px 8px; border-radius:12px; font-size:0.75rem; font-weight:700; margin-bottom:12px;">
+      <div style="display:inline-flex; align-items:center; gap:4px; background:#1e3a8a; color:#93c5fd; padding:3px 8px; border-radius:8px; font-size:0.75em; font-weight:700; margin-bottom:8px;">
         <span>Krok 1/2</span> Waga Palety
       </div>
-      <label style="display:block; font-size:0.88rem; font-weight:600; color:#94a3b8; margin-bottom:6px;">Waga netto (kg):</label>
+      <label style="display:block; font-size:0.85em; font-weight:600; color:#94a3b8; margin-bottom:4px;">Waga netto (kg):</label>
       <input type="number" id="wgWeightInput" step="0.1" placeholder="Wpisz wagę..."
-             style="width:100%; padding:12px; font-size:1.2rem; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; transition:border-color 0.2s; box-sizing:border-box;"
+             style="width:100%; padding:10px; font-size:1.1em; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; transition:border-color 0.2s; box-sizing:border-box;"
              onkeydown="if(event.key==='Enter'){event.preventDefault();goToWgStep2();}">
-      <p style="font-size:0.75rem; color:#64748b; margin-top:8px; font-style:italic;">Naciśnij Enter lub Dalej, aby przejść do wyboru lokalizacji.</p>
+      <p style="font-size:0.75em; color:#64748b; margin-top:6px; font-style:italic;">Naciśnij Enter lub Dalej, aby przejść do wyboru lokalizacji.</p>
     </div>
 
     <!-- STEP 2: LOCATION -->
     <div id="wgStepLocation" style="display:none;">
-      <div style="display:inline-flex; align-items:center; gap:6px; background:#065f46; color:#a7f3d0; padding:3px 8px; border-radius:12px; font-size:0.75rem; font-weight:700; margin-bottom:12px;">
+      <div style="display:inline-flex; align-items:center; gap:4px; background:#065f46; color:#a7f3d0; padding:3px 8px; border-radius:8px; font-size:0.75em; font-weight:700; margin-bottom:8px;">
         <span>Krok 2/2</span> Lokalizacja Docelowa
       </div>
-      <label style="display:block; font-size:0.88rem; font-weight:600; color:#94a3b8; margin-bottom:6px;">Zeskanuj regał (np. MGW01):</label>
+      <label style="display:block; font-size:0.85em; font-weight:600; color:#94a3b8; margin-bottom:4px;">Zeskanuj regał (np. MGW01):</label>
       <input type="text" id="wgLocInput" placeholder="Skanuj lokalizację..."
-             style="width:100%; padding:12px; font-size:1.2rem; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; text-transform:uppercase; transition:border-color 0.2s; box-sizing:border-box;">
-      <p style="font-size:0.75rem; color:#64748b; margin-top:8px; font-style:italic;">Zeskanowanie kodu lokalizacji automatycznie zatwierdzi paletę na stan.</p>
+             style="width:100%; padding:10px; font-size:1.1em; font-weight:800; color:#fff; background:#0f172a; border:2px solid #334155; border-radius:8px; outline:none; text-transform:uppercase; transition:border-color 0.2s; box-sizing:border-box;">
+      <p style="font-size:0.75em; color:#64748b; margin-top:6px; font-style:italic;">Zeskanowanie kodu lokalizacji automatycznie zatwierdzi paletę na stan.</p>
     </div>
 
     <!-- Action Buttons -->
-    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px; border-top:1px solid #334155; padding-top:16px;">
-      <button id="wgBackBtn" onclick="backToWgStep1()" style="display:none; padding:10px 16px; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:8px; font-weight:700; cursor:pointer;">Wstecz</button>
-      <button onclick="closeWgAcceptModal()" style="padding:10px 16px; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:8px; font-weight:700; cursor:pointer;">Anuluj</button>
-      <button id="wgNextBtn" onclick="goToWgStep2()" style="padding:10px 20px; border:none; background:#3b82f6; color:#fff; border-radius:8px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(59,130,246,0.3);">Dalej</button>
-      <button id="wgConfirmBtn" onclick="submitWgAccept()" style="display:none; padding:10px 20px; border:none; background:#22c55e; color:#fff; border-radius:8px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(34,197,94,0.3);">Zatwierdź</button>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; border-top:1px solid #334155; padding-top:12px;">
+      <button id="wgBackBtn" onclick="backToWgStep1()" style="display:none; padding:8px 12px; font-size:0.9em; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:6px; font-weight:700; cursor:pointer;">Wstecz</button>
+      <button onclick="closeWgAcceptModal()" style="padding:8px 12px; font-size:0.9em; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:6px; font-weight:700; cursor:pointer;">Anuluj</button>
+      <button id="wgNextBtn" onclick="goToWgStep2()" style="padding:8px 16px; font-size:0.9em; border:none; background:#3b82f6; color:#fff; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(59,130,246,0.3);">Dalej</button>
+      <button id="wgConfirmBtn" onclick="submitWgAccept()" style="display:none; padding:8px 16px; font-size:0.9em; border:none; background:#22c55e; color:#fff; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(34,197,94,0.3);">Zatwierdź</button>
     </div>
 
   </div>
@@ -430,12 +430,60 @@ setInterval(checkPrinter, 30000);
 
 const scanInput = document.getElementById('scanInput');
 
+function requestHardwareScanTrigger() {
+  scanInput.focus();
+
+  // Native bridge (jeśli strona działa w WebView z wystawionym API).
+  try {
+    if (window.Android && typeof window.Android.startBarcodeScan === 'function') {
+      window.Android.startBarcodeScan();
+      return true;
+    }
+  } catch (_) {}
+
+  // Zebra Enterprise Browser API (jeśli dostępne).
+  try {
+    if (window.EB && window.EB.Barcode && typeof window.EB.Barcode.start === 'function') {
+      window.EB.Barcode.start();
+      return true;
+    }
+  } catch (_) {}
+
+  // Nie próbujemy Android intent na desktopie.
+  const isAndroid = /Android/i.test((navigator && navigator.userAgent) || '');
+  if (!isAndroid) {
+    return false;
+  }
+
+  // Best effort: DataWedge Soft Scan Trigger przez Android intent URI.
+  try {
+    const intentUri = 'intent:#Intent;action=com.symbol.datawedge.api.ACTION;S.com.symbol.datawedge.api.SOFT_SCAN_TRIGGER=START_SCANNING;end';
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = intentUri;
+    document.body.appendChild(iframe);
+    setTimeout(() => {
+      if (iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    }, 250);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function triggerScan() {
   const code = scanInput.value.trim();
   if (code) {
     lookupPallet(code);
   } else {
-    showToast('Wprowadź kod do wyszukania', 'warn');
+    const started = requestHardwareScanTrigger();
+    if (started) {
+      showToast('Aktywuję skaner... zeskanuj kod.', 'success');
+    } else {
+      showToast('Nie mogę uruchomić lasera z przeglądarki. Użyj fizycznego spustu skanera.', 'warn');
+    }
   }
 }
 
@@ -576,17 +624,17 @@ function doSplit() {
   const bags = [];
   let totalQty = 0;
 
-  for (const row of rows) {
-    const ilosc = parseFloat(row.querySelector('.bag-ilosc').value);
-    const loc   = row.querySelector('.bag-loc').value.trim().toUpperCase();
-    const name  = row.querySelector('.bag-name').value.trim() || currentPallet.nazwa;
-
-    if (!ilosc || ilosc <= 0) continue;
-    if (!loc) return showToast(`Podaj lokalizację dla worka`, 'warn');
-
-    bags.push({ilosc, lokalizacja: loc, nazwa: name});
-    totalQty += ilosc;
-  }
+    for (const row of rows) {
+      const ilosc = parseFloat(row.querySelector('.bag-ilosc').value);
+      const loc   = row.querySelector('.bag-loc').value.trim().toUpperCase();
+      const name  = row.querySelector('.bag-name').value.trim() || currentPallet.nazwa;
+  
+      if (!ilosc || ilosc <= 0) continue;
+      // Lokalizacja jest teraz opcjonalna - domyślnie użyje lokalizacji matki na backendzie
+  
+      bags.push({ilosc, lokalizacja: loc, nazwa: name});
+      totalQty += ilosc;
+    }
 
   if (!bags.length) return showToast('Dodaj co najmniej jeden worek z ilością', 'warn');
 
@@ -605,16 +653,21 @@ function doSplit() {
   .then(d => {
     showToast(d.message, d.success ? 'success' : 'danger');
     if (d.success) {
-      // Offer to print labels for new pallets
-      if (d.new_pallets && d.new_pallets.length && confirm('Drukować etykiety dla nowych worków?')) {
-        d.new_pallets.forEach(p => {
+      // Automatyczny wydruk etykiet dla nowych palet/worków
+      if (d.new_pallets && d.new_pallets.length) {
+        d.new_pallets.forEach((p, index) => {
           fetch('/agro/scanner/print', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({surowiec_id: p.id, type: 'pallet', linia: LINIA})
+          }).then(res => res.json()).then(printRes => {
+              // Dla pierwszej nowej palety otwieramy podgląd etykiety
+              if (index === 0 && printRes.label_url) {
+                  window.openInApp ? openInApp(printRes.label_url, 'Etykieta palety') : window.open(printRes.label_url, '_blank');
+              }
           });
         });
-        showToast('Wysłano zlecenia drukowania', 'success');
+        showToast('Automatycznie zlecono wydruk etykiet', 'success');
       }
       hidePallet();
     }
@@ -628,7 +681,8 @@ function printLabel(type) {
 
   if (type === 'location') {
     // Etykieta regału — otwórz w aplikacji
-    const url = `/agro/scanner/label/${currentPallet.id}?linia=${LINIA}&type=location`;
+    const loc = currentPallet.lokalizacja || document.getElementById('barcodeInput').value.trim();
+    const url = `/agro/scanner/label_location?loc=${loc}&linia=${LINIA}`;
     window.openInApp ? openInApp(url, 'Etykieta regału') : window.open(url, '_blank');
     return;
   }

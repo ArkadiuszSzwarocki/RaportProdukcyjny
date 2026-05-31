@@ -65,16 +65,26 @@ class ProductionQueries:
             cursor = conn.cursor()
         
         table_plan = get_table_name('plan_produkcji', linia)
+        opakowanie_table = get_table_name('magazyn_opakowania', linia)
+        
         if sekcja.lower() in ('zasyp', 'workowanie'):
             sekcja_cond = "LOWER(sekcja) IN (LOWER(%s), 'czyszczenie')"
         else:
             sekcja_cond = "LOWER(sekcja) = LOWER(%s)"
 
+        if linia == 'AGRO':
+            extra_cols = f"""
+                , (SELECT nazwa FROM {opakowanie_table} WHERE id={table_plan}.opakowanie_id LIMIT 1) as opakowanie_nazwa
+                , (SELECT nazwa FROM {opakowanie_table} WHERE id={table_plan}.etykieta_id LIMIT 1) as etykieta_nazwa
+            """
+        else:
+            extra_cols = ", NULL as opakowanie_nazwa, NULL as etykieta_nazwa"
+
         cursor.execute(
             f"SELECT id, produkt, tonaz, status, real_start, real_stop, "
             "TIMESTAMPDIFF(MINUTE, real_start, real_stop), tonaz_rzeczywisty, kolejnosc, "
             "typ_produkcji, wyjasnienie_rozbieznosci, COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), "
-            "data_planu, zasyp_id "
+            f"data_planu, zasyp_id {extra_cols} "
             f"FROM {table_plan} "
             f"WHERE DATE(data_planu) = %s AND {sekcja_cond} AND status != 'nieoplacone' AND is_deleted = 0 "
             "ORDER BY CASE status WHEN 'w toku' THEN 1 WHEN 'zaplanowane' THEN 2 ELSE 3 END, "

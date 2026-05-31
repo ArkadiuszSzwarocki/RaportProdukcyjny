@@ -276,8 +276,44 @@ class DashboardService:
                 
             plan_id = int(active_plan['id'])
             packaging_items = AgroWarehouseService.get_all_linked_packaging(plan_id) or []
-            history = AgroWarehouseService.get_history(limit=10, plan_id=plan_id, linia='AGRO') or []
+            
+            history = []
+            conn_hist = get_db_connection()
+            try:
+                cur_hist = conn_hist.cursor(dictionary=True)
+                cur_hist.execute(
+                    "SELECT id, opakowanie_nazwa, zuzyte_worki, stan_przed, stan_po, created_at "
+                    "FROM agro_workowanie_rozliczenie "
+                    "WHERE plan_id = %s ORDER BY created_at DESC LIMIT 15",
+                    (plan_id,)
+                )
+                history = cur_hist.fetchall() or []
+            except Exception as e:
+                print(f"Error fetching workowanie history: {e}")
+            finally:
+                conn_hist.close()
             all_warehouse_packaging = AgroWarehouseService.get_packaging_inventory(linia='AGRO') or []
+            
+            przydzielone_opakowanie_id = active_plan.get('opakowanie_id')
+            if przydzielone_opakowanie_id:
+                conn_filter = get_db_connection()
+                try:
+                    cur_filter = conn_filter.cursor()
+                    cur_filter.execute("SELECT nazwa FROM magazyn_opakowania WHERE id=%s", (przydzielone_opakowanie_id,))
+                    row = cur_filter.fetchone()
+                    if row and row[0]:
+                        przydzielona_nazwa = row[0]
+                        all_warehouse_packaging = [
+                            item for item in all_warehouse_packaging 
+                            if item['nazwa'] == przydzielona_nazwa and item.get('lokalizacja') != 'Maszyna'
+                        ]
+                except Exception as e:
+                    print(f"Error filtering packaging dropdown: {e}")
+                finally:
+                    conn_filter.close()
+            else:
+                # If no specific packaging was assigned, at least filter out items already on the machine
+                all_warehouse_packaging = [item for item in all_warehouse_packaging if item.get('lokalizacja') != 'Maszyna']
 
             table_palety = get_table_name('palety_workowanie', 'AGRO')
             conn = get_db_connection()
@@ -312,22 +348,83 @@ class DashboardService:
             
             estimated_bags = int(round(palety_kg_wykonane / bag_kg)) if bag_kg > 0 else 0
 
+            # --- Live deduction logic ---
+            live_total_pulled = estimated_bags
+            start_machine_counter = int(active_plan.get('start_machine_counter') or 0)
+            
+            try:
+                from app.services.mqtt_service import get_latest_data
+                latest_d = get_latest_data()
+                current_counter = latest_d.get('counter', 0)
+                if current_counter > start_machine_counter and start_machine_counter > 0:
+                    live_total_pulled = current_counter - start_machine_counter
+            except:
+                pass
+            
+            already_logged = 0.0
+            conn_loc = get_db_connection()
+            try:
+                cur_loc = conn_loc.cursor()
+                cur_loc.execute("SELECT COALESCE(SUM(zuzyte_worki), 0) FROM agro_workowanie_rozliczenie WHERE plan_id=%s", (plan_id,))
+                already_logged_row = cur_loc.fetchone()
+                if already_logged_row:
+                    already_logged = float(already_logged_row[0])
+            except Exception:
+                pass
+            # ----------------------------
+
             maszyna_opakowania = []
             inactive_opakowania = []
-            for item in packaging_items:
-                p_item = {
-                    'link_id': item.get('link_id'),
-                    'opakowanie_id': item.get('opakowanie_id'),
-                    'nazwa': item.get('nazwa') or '',
-                    'stan_poczatkowy': float(item.get('stan_poczatkowy') or 0),
-                    'stan_koncowy': float(item.get('stan_koncowy') or 0) if item.get('stan_koncowy') is not None else None,
-                    'is_active': bool(item.get('is_active')),
-                    'stan_magazynowy': float(item.get('current_stan') or 0),
-                }
-                if p_item['is_active']:
-                    maszyna_opakowania.append(p_item)
-                else:
-                    inactive_opakowania.append(p_item)
+            
+            try:
+                for item in packaging_items:
+                    nazwa_itemu = item.get('nazwa') or ''
+                    
+                    suggested_loc = ''
+                    if nazwa_itemu:
+                        opak_id = item.get('opakowanie_id')
+                        if opak_id:
+                            table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+                            cur_loc.execute(
+                                f"SELECT komentarz FROM {table_ruch} WHERE surowiec_id=%s AND komentarz LIKE 'Pobranie z lok:%%' ORDER BY id DESC LIMIT 1",
+                                (opak_id,)
+                            )
+                            ruch_row = cur_loc.fetchone()
+                            if ruch_row and ruch_row[0]:
+                                import re
+                                match = re.search(r'Pobranie z lok:\s*(.+)', ruch_row[0])
+                                if match:
+                                    suggested_loc = match.group(1).strip()
+                        
+                        if not suggested_loc:
+                            cur_loc.execute(
+                                "SELECT lokalizacja FROM magazyn_opakowania WHERE nazwa=%s AND lokalizacja IS NOT NULL AND lokalizacja != 'Maszyna' AND stan_magazynowy > 0 ORDER BY id DESC LIMIT 1",
+                                (nazwa_itemu,)
+                            )
+                            loc_row = cur_loc.fetchone()
+                            if loc_row and loc_row[0]:
+                                suggested_loc = loc_row[0]
+                            
+                    p_item = {
+                        'link_id': item.get('link_id'),
+                        'opakowanie_id': item.get('opakowanie_id'),
+                        'nazwa': nazwa_itemu,
+                        'stan_poczatkowy': float(item.get('stan_poczatkowy') or 0),
+                        'stan_koncowy': float(item.get('stan_koncowy') or 0) if item.get('stan_koncowy') is not None else None,
+                        'is_active': bool(item.get('is_active')),
+                        'stan_magazynowy': float(item.get('current_stan') or 0),
+                        'suggested_loc': suggested_loc,
+                    }
+                    if p_item['is_active']:
+                        live_usage_for_roll = max(live_total_pulled - already_logged, 0)
+                        p_item['stan_magazynowy'] = p_item['stan_poczatkowy'] - live_usage_for_roll
+                        maszyna_opakowania.append(p_item)
+                    else:
+                        inactive_opakowania.append(p_item)
+            except Exception as e:
+                print(f"Error resolving suggested locs: {e}")
+            finally:
+                conn_loc.close()
             
             return {
                 'active_plan': active_plan,
@@ -340,6 +437,7 @@ class DashboardService:
                 'palety_kg_wykonane': palety_kg_wykonane,
                 'palety_count': palety_count,
                 'estimated_bags': estimated_bags,
+                'already_logged': already_logged,
                 'all_warehouse_packaging': all_warehouse_packaging,
             }
         except Exception as error:

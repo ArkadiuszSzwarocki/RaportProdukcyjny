@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25)]
-MZ_TANK_CODES = [f"MZ{i:02d}" for i in range(1, 7)] + ["MZ05-01", "MZ06-01"]
-KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 23)]
+MZ_TANK_CODES = [f"MZ{i:02d}" for i in range(1, 25)] + ["MZ05-01", "MZ06-01"]
+KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 25)]
 PRODUCTION_TANK_CODES = BB_TANK_CODES + MZ_TANK_CODES + KO_TANK_CODES
 
 _DODATEK_NAME_REGEX = re.compile(r"\b(DOD|DODAT|DODATEK|DODATKI)\b", re.IGNORECASE)
@@ -112,7 +112,11 @@ class AgroWarehouseService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute(f"SELECT * FROM {table_opak} ORDER BY nazwa, id")
+            cursor.execute(
+                f"SELECT * FROM {table_opak} "
+                f"WHERE (lokalizacja != 'ZUŻYTE' OR lokalizacja IS NULL) AND stan_magazynowy > 0 "
+                f"ORDER BY nazwa, id"
+            )
             return cursor.fetchall()
         finally:
             conn.close()
@@ -219,7 +223,7 @@ class AgroWarehouseService:
                 name = g['nazwa']
                 total = float(g['total']) if g.get('total') is not None else 0.0
                 # fetch individual pallets for this material
-                q_p = f"SELECT id, nazwa, stan_magazynowy, lokalizacja, typ_opakowania FROM {table_surowce} {where_clause} AND nazwa = %s ORDER BY id ASC"
+                q_p = f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, typ_opakowania, nr_partii, created_at FROM {table_surowce} {where_clause} AND nazwa = %s ORDER BY id ASC"
                 cursor.execute(q_p, tuple(params + [name]))
                 pallets = cursor.fetchall()
                 # normalize pallet rows
@@ -227,10 +231,13 @@ class AgroWarehouseService:
                 for p in pallets:
                     pallets_norm.append({
                         'id': p['id'],
+                        'nr_palety': p.get('nr_palety'),
                         'nazwa': p.get('nazwa'),
                         'stan_magazynowy': float(p.get('stan_magazynowy') or 0),
                         'lokalizacja': p.get('lokalizacja'),
-                        'typ_opakowania': p.get('typ_opakowania')
+                        'typ_opakowania': p.get('typ_opakowania'),
+                        'nr_partii': p.get('nr_partii'),
+                        'created_at': p.get('created_at')
                     })
                 result.append({ 'nazwa': name, 'total': total, 'pallets': pallets_norm })
             return result
@@ -1043,7 +1050,7 @@ class AgroWarehouseService:
             cursor = conn.cursor(dictionary=True)
             table_plan = get_table_name('plan_produkcji', linia)
             
-            query = f"SELECT id, produkt, data_planu, typ_produkcji, start_machine_counter, start_pallet_counter FROM {table_plan} WHERE status='w toku' AND sekcja='Workowanie'"
+            query = f"SELECT id, produkt, data_planu, typ_produkcji, start_machine_counter, start_pallet_counter, opakowanie_id FROM {table_plan} WHERE status='w toku' AND sekcja='Workowanie'"
             params = []
             
             if target_date:
@@ -1066,7 +1073,7 @@ class AgroWarehouseService:
             cursor = conn.cursor(dictionary=True)
             table_plan = get_table_name('plan_produkcji', linia)
             
-            query = f"SELECT id, produkt, data_planu, typ_produkcji FROM {table_plan} WHERE status='zakonczone' AND sekcja='Workowanie'"
+            query = f"SELECT id, produkt, data_planu, typ_produkcji, opakowanie_id FROM {table_plan} WHERE status='zakonczone' AND sekcja='Workowanie'"
             params = []
             
             if target_date:
@@ -1229,7 +1236,13 @@ class AgroWarehouseService:
                 except: pass
             
             # 4. Calculate total waste (damaged bags)
-            uszkodzone = max(total_consumed - expected_bags, 0)
+            cursor.execute("SELECT start_machine_counter, stop_machine_counter FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
+            counters_row = cursor.fetchone()
+            if counters_row and counters_row['start_machine_counter'] > 0 and counters_row['stop_machine_counter'] > 0:
+                total_pulled = max(counters_row['stop_machine_counter'] - counters_row['start_machine_counter'], 0)
+                uszkodzone = max(total_pulled - expected_bags, 0)
+            else:
+                uszkodzone = max(total_consumed - expected_bags, 0)
             
             # 5. Update plan record
             cursor.execute(f"UPDATE {table_plan} SET uszkodzone_worki = %s WHERE id = %s", (int(uszkodzone), plan_id))
@@ -1247,20 +1260,136 @@ class AgroWarehouseService:
     def link_packaging_to_plan(opakowanie_id, plan_id, ilosc_pobrana=None, user_login=None):
         """Manually link a packaging item to a production plan (confirmed by operator).
         Jeśli podano ilosc_pobrana mniejszą niż aktualny stan_magazynowy, rekord zostanie podzielony.
+        Sumuje pozostałe na maszynie opakowania tego samego typu.
         """
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            # 1. Get current state
+            
+            # 1. Get current state of new packaging
             cursor.execute("SELECT nazwa, stan_magazynowy, lokalizacja FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
-            row = cursor.fetchone()
-            if not row: return False, "Opakowanie nie istnieje"
-            stan_poczatkowy = float(row['stan_magazynowy'])
-            nazwa = row['nazwa']
-            lokalizacja = row['lokalizacja']
+            new_row = cursor.fetchone()
+            if not new_row: return False, "Opakowanie nie istnieje"
+            stan_poczatkowy_nowego = float(new_row['stan_magazynowy'])
+            nazwa = new_row['nazwa']
+            lokalizacja = new_row['lokalizacja']
+            
+            # 2. Find any active links for this plan (to close them or carry over)
+            cursor.execute("""
+                SELECT ap.id as link_id, ap.opakowanie_id, ap.stan_poczatkowy, o.nazwa 
+                FROM agro_plan_opakowania ap
+                JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
+                WHERE ap.plan_id = %s AND ap.is_active = TRUE
+            """, (plan_id,))
+            active_links = cursor.fetchall()
+            
+            carryover_qty = 0.0
+            
+            for al in active_links:
+                if al['nazwa'] == nazwa:
+                    # Same material name: calculate remaining qty on the fly and carry it over!
+                    # Fetch plan metadata
+                    cursor.execute("SELECT start_machine_counter, typ_produkcji, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
+                    plan_row = cursor.fetchone()
+                    live_total_pulled = 0
+                    if plan_row:
+                        table_palety = get_table_name('palety_workowanie', 'AGRO')
+                        cursor.execute(f"SELECT COUNT(*) AS cnt, COALESCE(SUM(waga), 0) AS total_kg FROM {table_palety} WHERE plan_id = %s", (plan_id,))
+                        totals_row = cursor.fetchone() or {'cnt': 0, 'total_kg': 0}
+                        palety_count = int(totals_row.get('cnt') or 0)
+                        palety_kg_wykonane = float(totals_row.get('total_kg') or 0.0)
+                        
+                        bag_kg = 25.0
+                        typ_prod = plan_row['typ_produkcji'] or ''
+                        kg_match = re.search(r'(\d+)', typ_prod)
+                        if kg_match:
+                            bag_kg = float(kg_match.group(1))
+                        else:
+                            produkt_nazwa = str(plan_row['produkt'] or '').lower()
+                            if 'mleko' in produkt_nazwa or '20' in produkt_nazwa:
+                                bag_kg = 20.0
+                                
+                        estimated_bags = int(round(palety_kg_wykonane / bag_kg)) if bag_kg > 0 else 0
+                        live_total_pulled = estimated_bags
+                        
+                        start_machine_counter = int(plan_row['start_machine_counter'] or 0)
+                        try:
+                            from app.services.mqtt_service import get_latest_data
+                            latest_d = get_latest_data()
+                            current_counter = latest_d.get('counter', 0)
+                            if current_counter > start_machine_counter and start_machine_counter > 0:
+                                live_total_pulled = current_counter - start_machine_counter
+                        except:
+                            pass
+                            
+                    cursor.execute("SELECT COALESCE(SUM(zuzyte_worki), 0) AS total_zuzyte FROM agro_workowanie_rozliczenie WHERE plan_id = %s", (plan_id,))
+                    already_logged_row = cursor.fetchone()
+                    already_logged = float(already_logged_row.get('total_zuzyte') or 0) if already_logged_row else 0.0
+                    
+                    stan_poczatkowy_al = float(al['stan_poczatkowy'] or 0)
+                    live_usage_for_roll = max(live_total_pulled - already_logged, 0)
+                    remaining = max(stan_poczatkowy_al - live_usage_for_roll, 0)
+                    
+                    carryover_qty += remaining
+                    
+                    # Close the old active link with stan_koncowy = remaining
+                    cursor.execute(
+                        "UPDATE agro_plan_opakowania SET stan_koncowy = %s, is_active = FALSE WHERE id = %s",
+                        (remaining, al['link_id'])
+                    )
+                    
+                    # Log to settlement history (agro_workowanie_rozliczenie)
+                    zuzycie_al = max(stan_poczatkowy_al - remaining, 0)
+                    cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
+                    p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
+                    cursor.execute("""
+                        INSERT INTO agro_workowanie_rozliczenie (
+                            plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
+                            stan_przed, zuzyte_worki, stan_po, autor_login
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        plan_id, p_meta['data_planu'], p_meta['produkt'], al['opakowanie_id'], al['nazwa'],
+                        stan_poczatkowy_al, zuzycie_al, remaining, user_login or 'System'
+                    ))
+                    
+                    # Move to history table and delete from current
+                    cursor.execute(
+                        "INSERT INTO magazyn_opakowania_historia (oryginalny_id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, is_blocked, linia) "
+                        "SELECT id, nr_palety, nazwa, 0, 'ZUŻYTE', nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, is_blocked, linia "
+                        "FROM magazyn_opakowania WHERE id = %s",
+                        (al['opakowanie_id'],)
+                    )
+                    cursor.execute("DELETE FROM magazyn_opakowania WHERE id = %s", (al['opakowanie_id'],))
+                else:
+                    # Different material: close it with 0 left and ZUŻYTE
+                    stan_poczatkowy_al = float(al['stan_poczatkowy'] or 0)
+                    cursor.execute(
+                        "UPDATE agro_plan_opakowania SET stan_koncowy = 0, is_active = FALSE WHERE id = %s",
+                        (al['link_id'],)
+                    )
+                    
+                    cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
+                    p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
+                    cursor.execute("""
+                        INSERT INTO agro_workowanie_rozliczenie (
+                            plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
+                            stan_przed, zuzyte_worki, stan_po, autor_login
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        plan_id, p_meta['data_planu'], p_meta['produkt'], al['opakowanie_id'], al['nazwa'],
+                        stan_poczatkowy_al, stan_poczatkowy_al, 0.0, user_login or 'System'
+                    ))
+                    
+                    cursor.execute(
+                        "INSERT INTO magazyn_opakowania_historia (oryginalny_id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, is_blocked, linia) "
+                        "SELECT id, nr_palety, nazwa, 0, 'ZUŻYTE', nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, is_blocked, linia "
+                        "FROM magazyn_opakowania WHERE id = %s",
+                        (al['opakowanie_id'],)
+                    )
+                    cursor.execute("DELETE FROM magazyn_opakowania WHERE id = %s", (al['opakowanie_id'],))
             
             # Oblicz pobraną ilość (jeśli podano ułamek, to traktujemy jako część)
-            ilosc_docelowa = stan_poczatkowy
+            ilosc_docelowa = stan_poczatkowy_nowego
             if ilosc_pobrana is not None:
                 try:
                     ilosc_docelowa = float(ilosc_pobrana)
@@ -1268,70 +1397,117 @@ class AgroWarehouseService:
                     pass
                     
             target_opakowanie_id = opakowanie_id
-
-            if 0 < ilosc_docelowa < stan_poczatkowy:
+            
+            if 0 < ilosc_docelowa < stan_poczatkowy_nowego:
                 # Rozdzielenie partii (utworzenie nowego rekordu dla maszyny, zostawienie reszty na starym)
-                stan_pozostaly = stan_poczatkowy - ilosc_docelowa
+                stan_pozostaly = stan_poczatkowy_nowego - ilosc_docelowa
                 # Aktualizacja starego rekordu
                 cursor.execute("UPDATE magazyn_opakowania SET stan_magazynowy = %s WHERE id = %s", (stan_pozostaly, opakowanie_id))
-                # Utworzenie nowego rekordu
+                
+                # Utworzenie nowego rekordu (ilość pobrana + carryover)
+                ilosc_na_maszyne = ilosc_docelowa + carryover_qty
                 cursor.execute(
                     "INSERT INTO magazyn_opakowania (nazwa, stan_magazynowy, lokalizacja) VALUES (%s, %s, %s)",
-                    (nazwa, ilosc_docelowa, lokalizacja)
+                    (nazwa, ilosc_na_maszyne, lokalizacja)
                 )
                 target_opakowanie_id = cursor.lastrowid
                 
-                # Zapis historii o podziale (opcjonalnie, do wglądu)
+                # Zapis historii o podziale
                 table_ruch = get_table_name('magazyn_ruch', 'AGRO')
                 try:
                     cursor.execute(
                         f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
                         "VALUES (%s, 'WYDANIE_PROD', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                        (opakowanie_id, -ilosc_docelowa, stan_pozostaly, user_login or 'System', f"Podział partii opakowania na plan #{plan_id}")
+                        (opakowanie_id, -ilosc_docelowa, stan_pozostaly, user_login or 'System', f"Pobranie z lok: {lokalizacja} (Podział)")
+                    )
+                    
+                    komentarz_pobrania = f"Pobranie z lok: {lokalizacja}"
+                    if carryover_qty > 0:
+                        komentarz_pobrania += f" (w tym carryover {int(carryover_qty)} szt. z poprzedniego podpięcia)"
+                        
+                    cursor.execute(
+                        f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
+                        "VALUES (%s, 'POBRANIE_NA_MASZYNE', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                        (target_opakowanie_id, ilosc_na_maszyne, ilosc_na_maszyne, user_login or 'System', komentarz_pobrania)
                     )
                 except Exception as ex:
                     print(f"Error logging partial move: {ex}")
                 
-                stan_poczatkowy = ilosc_docelowa
+                stan_poczatkowy_plan = ilosc_na_maszyne
             else:
-                # Brak podziału - sprawdzamy czy już podpięte (aby uniknąć duplikatów przy pełnym podpięciu)
+                # Brak podziału - sprawdzamy czy już podpięte
                 cursor.execute("SELECT id FROM agro_plan_opakowania WHERE plan_id = %s AND opakowanie_id = %s AND is_active = TRUE", (plan_id, target_opakowanie_id))
                 if cursor.fetchone(): return True, "Już podpięte"
-            
+                
+                ilosc_na_maszyne = stan_poczatkowy_nowego + carryover_qty
+                cursor.execute("UPDATE magazyn_opakowania SET stan_magazynowy = %s WHERE id = %s", (ilosc_na_maszyne, target_opakowanie_id))
+                
+                table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+                try:
+                    komentarz_pobrania = f"Pobranie z lok: {lokalizacja}"
+                    if carryover_qty > 0:
+                        komentarz_pobrania += f" (w tym carryover {int(carryover_qty)} szt. z poprzedniego podpięcia)"
+                        
+                    cursor.execute(
+                        f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
+                        "VALUES (%s, 'POBRANIE_NA_MASZYNE', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                        (target_opakowanie_id, ilosc_na_maszyne, ilosc_na_maszyne, user_login or 'System', komentarz_pobrania)
+                    )
+                except Exception as ex:
+                    print(f"Error logging full pull move: {ex}")
+                
+                stan_poczatkowy_plan = ilosc_na_maszyne
+                
             # 3. Link
             cursor.execute(
                 "INSERT INTO agro_plan_opakowania (plan_id, opakowanie_id, stan_poczatkowy, is_active) VALUES (%s, %s, %s, TRUE)",
-                (plan_id, target_opakowanie_id, stan_poczatkowy)
+                (plan_id, target_opakowanie_id, stan_poczatkowy_plan)
             )
+            
+            # Log the insertion in agro_workowanie_rozliczenie
+            cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
+            p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
+            cursor.execute("""
+                INSERT INTO agro_workowanie_rozliczenie (
+                    plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
+                    stan_przed, wyprodukowano_szt, szt_na_palecie, palety_kg_wykonane, zuzyte_worki, stan_po, autor_login
+                ) VALUES (%s, %s, %s, %s, %s, %s, 0, 0, 0, 0, %s, %s)
+            """, (
+                plan_id, p_meta['data_planu'], p_meta['produkt'], target_opakowanie_id, nazwa,
+                stan_poczatkowy_plan, stan_poczatkowy_plan, user_login or 'System'
+            ))
+            
             conn.commit()
             return True, None
         except Exception as e:
+            conn.rollback()
             return False, str(e)
         finally:
             conn.close()
 
     @staticmethod
-    def return_packaging_from_machine(opakowanie_id, stan_po, lokalizacja, user_login):
-        """Return a roll from machine back to warehouse with manual state & location."""
+    def return_packaging_from_machine(opakowanie_id, stan_po, lokalizacja, user_login, is_partial=False):
+        """Return a roll from machine back to warehouse. If is_partial, stan_po means 'amount returned', otherwise it means 'amount left on roll'."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             
-            # Ensure stan_po is a float
             try:
-                final_stan = float(stan_po) if (stan_po is not None and str(stan_po).strip() != '') else 0.0
+                numeric_val = float(stan_po) if (stan_po is not None and str(stan_po).strip() != '') else 0.0
             except (ValueError, TypeError):
-                final_stan = 0.0
+                numeric_val = 0.0
 
-            final_loc = lokalizacja if (lokalizacja and lokalizacja.strip()) else ('ZUŻYTE' if final_stan <= 0 else 'Maszyna')
+            final_loc = lokalizacja if (lokalizacja and lokalizacja.strip()) else ('ZUŻYTE' if (not is_partial and numeric_val <= 0) else 'Maszyna')
             
-            # 1. Update main warehouse record
-            cursor.execute(
-                "UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = %s, updated_at = NOW() WHERE id = %s",
-                (final_stan, final_loc, opakowanie_id)
-            )
+            # Fetch basic info
+            cursor.execute("SELECT nazwa, stan_magazynowy FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
+            opak_row = cursor.fetchone()
+            if not opak_row:
+                return False, "Opakowanie nie istnieje"
+            opak_nazwa = opak_row['nazwa']
+            aktualny_stan_maszyna = float(opak_row['stan_magazynowy'])
             
-            # 2. If it was linked to an active plan, finalize that link
+            # Fetch active link
             cursor.execute("""
                 SELECT id, plan_id, stan_poczatkowy 
                 FROM agro_plan_opakowania 
@@ -1340,42 +1516,95 @@ class AgroWarehouseService:
             """, (opakowanie_id,))
             link = cursor.fetchone()
             
-            if link:
-                plan_id = link['plan_id']
-                stan_przed = float(link['stan_poczatkowy'])
-                zuzycie = max(stan_przed - float(stan_po), 0)
+            if is_partial:
+                # Partial Return: numeric_val is the amount being RETURNED to the warehouse.
+                ilosc_zwracana = numeric_val
+                if ilosc_zwracana <= 0:
+                    return False, "Ilość zwracana musi być większa od 0"
                 
-                # Update link record
+                # 1. Deduct from current active roll
+                nowy_stan_maszyna = aktualny_stan_maszyna - ilosc_zwracana
+                if nowy_stan_maszyna < 0:
+                    nowy_stan_maszyna = 0
                 cursor.execute(
-                    "UPDATE agro_plan_opakowania SET stan_koncowy = %s, is_active = FALSE WHERE id = %s",
-                    (stan_po, link['id'])
+                    "UPDATE magazyn_opakowania SET stan_magazynowy = %s, updated_at = NOW() WHERE id = %s",
+                    (nowy_stan_maszyna, opakowanie_id)
                 )
                 
-                # Fetch basic info for history
-                cursor.execute("SELECT nazwa FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
-                opak_nazwa = (cursor.fetchone() or {}).get('nazwa', 'Opakowanie')
+                # 2. Update the link's starting state so it reflects what is actually available for consumption
+                if link:
+                    nowy_stan_poczatkowy = float(link['stan_poczatkowy']) - ilosc_zwracana
+                    cursor.execute(
+                        "UPDATE agro_plan_opakowania SET stan_poczatkowy = %s WHERE id = %s",
+                        (nowy_stan_poczatkowy, link['id'])
+                    )
                 
-                cursor.execute(f"SELECT data_planu, produkt FROM {get_table_name('plan_produkcji', 'AGRO')} WHERE id = %s", (plan_id,))
-                p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
+                # 3. Sum with existing foil in the warehouse at target location, or create new row
+                cursor.execute(
+                    "SELECT id, stan_magazynowy FROM magazyn_opakowania WHERE nazwa = %s AND lokalizacja = %s LIMIT 1",
+                    (opak_nazwa, final_loc)
+                )
+                existing = cursor.fetchone()
+                if existing:
+                    cursor.execute(
+                        "UPDATE magazyn_opakowania SET stan_magazynowy = stan_magazynowy + %s, updated_at = NOW() WHERE id = %s",
+                        (ilosc_zwracana, existing['id'])
+                    )
+                else:
+                    cursor.execute(
+                        "INSERT INTO magazyn_opakowania (nazwa, stan_magazynowy, lokalizacja, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())",
+                        (opak_nazwa, ilosc_zwracana, final_loc)
+                    )
+                
+                # 4. Log movement
+                table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+                cursor.execute(
+                    f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
+                    "VALUES (%s, 'CZESCIOWY_ZWROT', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                    (opakowanie_id, ilosc_zwracana, nowy_stan_maszyna, user_login, f"Częściowy zwrot na lok: {final_loc}")
+                )
+                
+            else:
+                # Full Return: numeric_val is the amount LEFT ON THE ROLL.
+                final_stan = numeric_val
+                # 1. Update main warehouse record
+                cursor.execute(
+                    "UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = %s, updated_at = NOW() WHERE id = %s",
+                    (final_stan, final_loc, opakowanie_id)
+                )
+                
+                if link:
+                    plan_id = link['plan_id']
+                    stan_przed = float(link['stan_poczatkowy'])
+                    zuzycie = max(stan_przed - final_stan, 0)
+                    
+                    # Update link record
+                    cursor.execute(
+                        "UPDATE agro_plan_opakowania SET stan_koncowy = %s, is_active = FALSE WHERE id = %s",
+                        (final_stan, link['id'])
+                    )
+                    
+                    cursor.execute(f"SELECT data_planu, produkt FROM {get_table_name('plan_produkcji', 'AGRO')} WHERE id = %s", (plan_id,))
+                    p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
 
-                # Record in settlement history
-                cursor.execute("""
-                    INSERT INTO agro_workowanie_rozliczenie (
-                        plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
-                        stan_przed, zuzyte_worki, stan_po, autor_login
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    plan_id, p_meta['data_planu'], p_meta['produkt'], opakowanie_id, opak_nazwa,
-                    stan_przed, zuzycie, stan_po, user_login
-                ))
-            
-            # 3. Log movement
-            table_ruch = get_table_name('magazyn_ruch', 'AGRO')
-            cursor.execute(
-                f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
-                "VALUES (%s, 'ZWROT_Z_MASZYNY', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                (opakowanie_id, 0, stan_po, user_login, f"Zwrot na lok: {lokalizacja}")
-            )
+                    # Record in settlement history
+                    cursor.execute("""
+                        INSERT INTO agro_workowanie_rozliczenie (
+                            plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
+                            stan_przed, zuzyte_worki, stan_po, autor_login
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        plan_id, p_meta['data_planu'], p_meta['produkt'], opakowanie_id, opak_nazwa,
+                        stan_przed, zuzycie, final_stan, user_login
+                    ))
+                
+                # 3. Log movement
+                table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+                cursor.execute(
+                    f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
+                    "VALUES (%s, 'ZWROT_Z_MASZYNY', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                    (opakowanie_id, 0, final_stan, user_login, f"Pełny zwrot na lok: {final_loc}")
+                )
             
             conn.commit()
             return True, None
@@ -1689,6 +1918,13 @@ class AgroWarehouseService:
                 return False, "Nie znaleziono takiego powiązania"
             
             cursor.execute("DELETE FROM agro_plan_opakowania WHERE id = %s", (link_id,))
+            
+            # Delete corresponding "wsadzenie" (where zuzyte_worki = 0)
+            cursor.execute("""
+                DELETE FROM agro_workowanie_rozliczenie 
+                WHERE plan_id = %s AND opakowanie_id = %s AND zuzyte_worki = 0
+            """, (row['plan_id'], row['opakowanie_id']))
+            
             conn.commit()
             return True, None
         except Exception as e:
@@ -1717,8 +1953,8 @@ class AgroWarehouseService:
             # Restore main warehouse stock
             cursor.execute("UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = 'Maszyna' WHERE id = %s", (stan_poczatkowy, opakowanie_id))
             
-            # Delete corresponding history records from agro_workowanie_rozliczenie
-            cursor.execute("DELETE FROM agro_workowanie_rozliczenie WHERE plan_id = %s AND opakowanie_id = %s", (plan_id, opakowanie_id))
+            # Delete corresponding history records from agro_workowanie_rozliczenie (except the "wsadzenie" row where zuzyte_worki = 0)
+            cursor.execute("DELETE FROM agro_workowanie_rozliczenie WHERE plan_id = %s AND opakowanie_id = %s AND zuzyte_worki > 0", (plan_id, opakowanie_id))
             
             # Delete corresponding history records from magazyn_ruch
             table_ruch = get_table_name('magazyn_ruch', 'AGRO')

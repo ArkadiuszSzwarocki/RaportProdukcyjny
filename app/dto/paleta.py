@@ -16,6 +16,7 @@ class PaletaDTO:
     status: Optional[str] = None
     czas_potwierdzenia_s: Optional[int] = None
     user_login: Optional[str] = None
+    nr_palety: Optional[str] = None
 
     @classmethod
     def from_db_row(cls, row: Any, columns: Optional[Tuple[str, ...]] = None) -> "PaletaDTO":
@@ -41,6 +42,7 @@ class PaletaDTO:
                 data_dodania=row.get('data_dodania'),
                 produkt=row.get('produkt'),
                 typ_produkcji=row.get('typ_produkcji'),
+                nr_palety=row.get('nr_palety'),
             )
 
         # Jeśli otrzymano tuple/list: spróbuj dopasować według columns lub przyjąć znany porządek
@@ -63,6 +65,7 @@ class PaletaDTO:
                 status=row[8] if len(row) > 8 else None,
                 czas_potwierdzenia_s=row[9] if len(row) > 9 else None,
                 user_login=row[11] if len(row) > 11 else None,
+                nr_palety=row[12] if len(row) > 12 else None,
             )
         except Exception:
             return cls()

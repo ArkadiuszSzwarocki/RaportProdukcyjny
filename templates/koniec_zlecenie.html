@@ -42,7 +42,7 @@
 </style>
 
 <div class="p-10" data-popup-title="{{ _('zatrzymaj_produkcje') }}">
-    <form action="{{ url_for('production.koniec_zlecenie', id=id) }}" method="POST">
+    <form action="{{ url_for('production.koniec_zlecenie', id=id) }}" method="POST" data-ajax="false">
         <input type="hidden" name="sekcja" value="{{ sekcja }}">
         <input type="hidden" name="linia" value="{{ request.args.get('linia', 'PSD') }}">
         <input type="hidden" name="final_tonaz" value="{{ tonaz if tonaz is not none else '' }}">
@@ -68,29 +68,18 @@
             
             {% if linked_packaging %}
                 <div style="margin-bottom: 15px;">
-                    <p class="small text-muted mb-5">Wprowadź stan końcowy dla każdej podpiętej rolki/opakowania:</p>
+                    <p class="small text-muted mb-5">Obecnie podpięte opakowania/folie:</p>
                     {% for item in linked_packaging %}
                     <div style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid var(--primary-color);">
-                        <div class="flex justify-between items-center mb-4">
+                        <div class="flex justify-between items-center">
                             <strong style="font-size: 13px;">{{ item.nazwa }}</strong>
                             <span class="badge" style="background: #e9ecef; color: #495057;">Start: {{ item.stan_poczatkowy|int }} szt</span>
                         </div>
-                        <div class="flex items-center gap-10">
-                            <span class="small">Zostało:</span>
-                            <input 
-                                type="number" 
-                                name="stan_po_{{ item.opakowanie_id }}_{{ item.link_id }}" 
-                                min="0" 
-                                max="{{ item.stan_poczatkowy }}"
-                                value="{{ item.stan_poczatkowy|int }}"
-                                class="input-sm"
-                                style="width: 100px; padding: 4px 8px;"
-                                required
-                            >
-                            <span class="small text-muted">szt</span>
-                        </div>
                     </div>
                     {% endfor %}
+                    <div style="background: #e3f2fd; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 13px; color: #0d47a1;">
+                        ℹ️ <strong>Pełna Automatyzacja:</strong> Zużycie podpiętych rolek oraz ilość odpadu zostaną wyliczone automatycznie na podstawie różnicy głównego licznika maszyny pakującej (MQTT). Nie musisz nic wpisywać!
+                    </div>
                 </div>
             {% else %}
                 <input 

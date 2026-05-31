@@ -43,7 +43,7 @@ ROLE_NAME_MAPPING = {
 
 
 def _project_config_path(*parts):
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     return os.path.join(project_root, *parts)
 
 

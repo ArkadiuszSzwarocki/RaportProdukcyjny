@@ -195,11 +195,11 @@ def index():
             except Exception as e:
                 import traceback
                 app.logger.error(f"Error fetching agro packaging context: {str(e)}\n{traceback.format_exc()}")
-                workowanie_rozliczenie_ctx = None
-
         context['agro_focus_mode'] = agro_focus_mode
         context['workowanie_rozliczenie_ctx'] = workowanie_rozliczenie_ctx
 
+        if clean_sekcja == 'dashboard':
+            return render_template('dashboard_global.html', **context)
         return render_template('dashboard.html', **context)
 
     except Exception as e:

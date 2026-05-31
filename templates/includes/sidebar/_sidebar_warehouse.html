@@ -51,9 +51,8 @@
         {% endif %}
         
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
-        {% if role_has_access('magazyn.card') %}
-        <a href="{{ url_for('scanner.scanner_ui', linia='AGRO') }}" class="nav-sub-item {% if request.blueprint == 'scanner' %}active{% endif %}">Skaner & Drukarka</a>
-        {% endif %}
+        
+        <a href="{{ url_for('magazyn_dostawy.podzial_palety_view') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' %}active{% endif %}">Podział Palety</a>
     </div>
 </div>
 

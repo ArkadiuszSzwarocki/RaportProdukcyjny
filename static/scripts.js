@@ -1833,10 +1833,12 @@
         }
     };
 
-    window.drukujZPLDirect = function(paletaId, linia, planId) {
+    window.drukujZPLDirect = function(paletaId, linia, planId, btn) {
         if (!paletaId) return;
 
         if (typeof showToast === 'function') showToast('Wysyłanie do drukarki 237...', 'info');
+        
+        const originalHtml = (btn && btn instanceof HTMLElement) ? btn.innerHTML : '';
         
         const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
         const fetchOptions = {
@@ -1856,6 +1858,24 @@
                         showToast('Wysłano do drukarki 237', 'success');
                     }
                 }
+                if (btn && btn instanceof HTMLElement) {
+                    if (!btn.classList.contains('print-success-applied')) {
+                        btn.classList.add('print-success-applied');
+                        const isIconBtn = btn.classList.contains('btn-icon');
+                        if (isIconBtn) {
+                            btn.style.color = '#10b981'; // green color
+                            btn.innerHTML = '<span class="material-icons" style="font-size:18px;">print</span>';
+                        } else {
+                            btn.innerHTML = '<span class="material-icons print-success-icon" style="color: #10b981; font-size: 14px; vertical-align: middle; margin-right: 4px;">print</span>' + originalHtml;
+                        }
+                        
+                        try {
+                            const printedPallets = JSON.parse(sessionStorage.getItem('printedPallets') || '{}');
+                            printedPallets[paletaId] = true;
+                            sessionStorage.setItem('printedPallets', JSON.stringify(printedPallets));
+                        } catch(e) {}
+                    }
+                }
             } else {
                 if (typeof showToast === 'function') showToast('Błąd druku: ' + data.message, 'danger');
                 else alert('Błąd druku: ' + data.message);
@@ -1866,5 +1886,30 @@
             if (typeof showToast === 'function') showToast('Błąd połączenia z serwerem druku', 'danger');
         });
     };
+    window.restorePrintIcons = function() {
+        try {
+            const printedPallets = JSON.parse(sessionStorage.getItem('printedPallets') || '{}');
+            const buttons = document.querySelectorAll('button[onclick^="drukujZPLDirect"]');
+            buttons.forEach(btn => {
+                const match = btn.getAttribute('onclick').match(/drukujZPLDirect\('([^']+)'/);
+                if (match && match[1]) {
+                    const paletaId = match[1];
+                    if (printedPallets[paletaId] && !btn.classList.contains('print-success-applied')) {
+                        btn.classList.add('print-success-applied');
+                        const isIconBtn = btn.classList.contains('btn-icon');
+                        if (isIconBtn) {
+                            btn.style.color = '#10b981';
+                            btn.innerHTML = '<span class="material-icons" style="font-size:18px;">print</span>';
+                        } else {
+                            btn.innerHTML = '<span class="material-icons print-success-icon" style="color: #10b981; font-size: 14px; vertical-align: middle; margin-right: 4px;">print</span>' + btn.innerHTML;
+                        }
+                    }
+                }
+            });
+        } catch(e) { console.error(e); }
+    };
+    
+    window.addEventListener('app:partialReload', window.restorePrintIcons);
+    document.addEventListener('DOMContentLoaded', window.restorePrintIcons);
 
 })();

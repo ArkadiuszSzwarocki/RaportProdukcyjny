@@ -72,7 +72,12 @@
                             {% for p in data.pallets %}
                             <tr>
                                 <td style="text-align: center; color: #94a3b8; font-weight: 700;">{{ loop.index }}</td>
-                                <td class="font-bold">{{ p.displayId }}</td>
+                                <td class="font-bold">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=60x60&data={{ p.displayId }}" alt="QR" width="40" height="40" style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px; background: white;">
+                                        <span>{{ p.displayId }}</span>
+                                    </div>
+                                </td>
                                 <td style="font-family: monospace; color: #2563eb; font-weight: 700;">{{ p.location or 'Brak' }}</td>
                                 <td style="text-align: right; font-weight: 800;">{{ p.amount }} <small>{{ p.unit }}</small></td>
                                 <td style="color: #64748b; font-size: 12px;">{{ p.nr_partii or '-' }}</td>

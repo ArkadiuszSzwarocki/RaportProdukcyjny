@@ -160,14 +160,53 @@ function linkPackaging(opakId, planId) {
     qtyInput.focus();
 }
 
-function openReturnPackagingModal(id, nazwa, stan) {
+function updateReturnModalUI() {
+    const radios = document.getElementsByName('returnType');
+    let type = 'partial';
+    for(let i=0; i<radios.length; i++){
+        if(radios[i].checked) type = radios[i].value;
+    }
+    
+    const label = document.getElementById('returnOpakQtyLabel');
+    const qtyInput = document.getElementById('returnOpakQty');
+    
+    if (type === 'partial') {
+        label.innerText = 'Ile sztuk odkładasz na magazyn?';
+        qtyInput.value = '';
+    } else {
+        label.innerText = 'Ile sztuk zostało na całej odkładanej rolce?';
+        if (qtyInput.dataset.stan) {
+            qtyInput.value = qtyInput.dataset.stan;
+        }
+    }
+}
+
+function openReturnPackagingModal(id, nazwa, stan, suggestedLoc) {
     const modal = document.getElementById('returnPackagingModal');
     if (!modal) return;
-    
     document.getElementById('returnOpakId').value = id;
     document.getElementById('returnOpakName').innerText = nazwa;
-    document.getElementById('returnOpakQty').value = stan;
-    document.getElementById('returnOpakLoc').value = '';
+    
+    // Store stan globally or in a data attribute
+    const qtyInput = document.getElementById('returnOpakQty');
+    qtyInput.dataset.stan = stan;
+    
+    // Default to partial return
+    const radios = document.getElementsByName('returnType');
+    for (let i = 0; i < radios.length; i++) {
+        if (radios[i].value === 'partial') {
+            radios[i].checked = true;
+        }
+    }
+    updateReturnModalUI();
+    
+    const locInput = document.getElementById('returnOpakLoc');
+    locInput.value = suggestedLoc || '';
+    if (suggestedLoc) {
+        locInput.placeholder = "Sugerowana: " + suggestedLoc;
+    } else {
+        locInput.placeholder = "Wpisz kod, np. MOP01";
+    }
     
     if (typeof modal.showModal === 'function') {
         modal.showModal();
@@ -192,13 +231,16 @@ function submitReturnPackaging() {
     let qty = document.getElementById('returnOpakQty').value;
     const loc = document.getElementById('returnOpakLoc').value.trim();
     
+    const typeNode = document.querySelector('input[name="returnType"]:checked');
+    const isPartial = typeNode && typeNode.value === 'partial';
+    
     if(!qty || qty.trim() === '') qty = "0";
     if(parseFloat(qty) > 0 && !loc) return alert('Podaj lokalizację zwrotu!');
     
     fetch('/agro/api/opakowania/return', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ opakowanie_id: id, stan_po: qty, lokalizacja: loc })
+        body: JSON.stringify({ opakowanie_id: id, stan_po: qty, lokalizacja: loc, is_partial: isPartial })
     }).then(r => r.json()).then(res => {
         if(res.success) location.reload();
         else alert('Błąd: ' + (res.error || 'Nieznany'));

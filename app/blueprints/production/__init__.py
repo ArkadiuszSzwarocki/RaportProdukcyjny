@@ -38,20 +38,39 @@ from .zasyp_flow import register_production_zasyp_flow_routes
 from .notifications import register_production_notification_routes
 from .dosypki import register_production_dosypki_routes
 from .mix import register_production_mix_routes
+from .reports import register_production_reports_routes
 
 production_bp = Blueprint('production', __name__)
 
 def bezpieczny_powrot():
     """Wraca do Planisty jeśli to on klikał, w przeciwnym razie na Dashboard"""
+    data_val = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data')
+    sekcja = request.args.get('sekcja') or request.form.get('sekcja')
+    linia = request.args.get('linia') or request.form.get('linia')
+
+    if request.referrer:
+        try:
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(request.referrer)
+            qs = parse_qs(parsed.query)
+            if not data_val:
+                if 'data' in qs: data_val = qs['data'][0]
+                elif 'dzisiaj' in qs: data_val = qs['dzisiaj'][0]
+            if not sekcja and 'sekcja' in qs:
+                sekcja = qs['sekcja'][0]
+            if not linia and 'linia' in qs:
+                linia = qs['linia'][0]
+        except Exception:
+            pass
+
+    data_val = data_val or str(date.today())
+    sekcja = sekcja or 'Zasyp'
+    linia = linia or session.get('selected_hall_view') or 'PSD'
+
     if session.get('rola') == 'planista' or request.form.get('widok_powrotu') == 'planista':
-        data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-        return url_for('planista.panel_planisty', data=data)
+        return url_for('planista.panel_planisty', data=data_val)
     
-    # Try to get sekcja from query string first (URL parameters), then from form
-    sekcja = request.args.get('sekcja') or request.form.get('sekcja', 'Zasyp')
-    linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
-    data = request.form.get('data_planu') or request.form.get('data_powrotu') or request.args.get('data') or str(date.today())
-    return url_for('main.index', sekcja=sekcja, data=data, linia=linia)
+    return url_for('main.index', sekcja=sekcja, data=data_val, linia=linia)
 
 
 def _coerce_date(d: object) -> date:
@@ -410,3 +429,4 @@ register_production_dosypki_routes(
     _notify_agro_operator_dosypka_added,
 )
 register_production_mix_routes(production_bp, bezpieczny_powrot)
+register_production_reports_routes(production_bp)

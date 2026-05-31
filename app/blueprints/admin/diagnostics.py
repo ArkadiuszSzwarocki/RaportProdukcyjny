@@ -12,7 +12,7 @@ from app.decorators import admin_required, dynamic_role_required, login_required
 
 
 def _project_root():
-    return os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
 def _tail_lines_binary(file_path, count, block_size=1024):

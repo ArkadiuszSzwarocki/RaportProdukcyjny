@@ -105,6 +105,12 @@ function openPalletModal(displayId, productName, amount, location, type, date, r
     setEl('modalDate', date || '-');
     setEl('modalDateAdded', dateAdded || '-');
 
+    const qrImg = document.getElementById('modalQrCode');
+    if (qrImg) {
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(displayId)}`;
+        qrImg.style.display = 'block';
+    }
+
     // Blocking status indicator in modal
     const blockBtn = document.getElementById('toggleBlockBtn');
     if (blockBtn) {
@@ -160,6 +166,12 @@ function closePalletModal() {
 function removePalletFromDOM(palletId, message) {
     closePalletModal();
     
+    // Usuń z globalnej tablicy danych allWarehouseItems, aby uniknąć ponownego wyrenderowania przez filterTable
+    allWarehouseItems = allWarehouseItems.filter(item => String(item.id) !== String(palletId));
+    if (typeof currentFilteredItems !== 'undefined') {
+        currentFilteredItems = currentFilteredItems.filter(item => String(item.id) !== String(palletId));
+    }
+    
     // Znajdź i usuń wiersz tabeli oraz kafelek
     const row = document.querySelector(`tr[data-id="${palletId}"]`);
     const card = document.querySelector(`.pallet-card[data-id="${palletId}"]`);
@@ -174,9 +186,6 @@ function removePalletFromDOM(palletId, message) {
     
     // Pokaż toast zamiast alert
     showToast(message || 'Operacja wykonana pomyślnie.', 'success');
-    
-    // Zaktualizuj banner filtra po chwili
-    setTimeout(filterTable, 400);
 }
 
 // ---- PALLET OPERATIONS ----

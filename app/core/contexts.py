@@ -283,6 +283,17 @@ def inject_translations():
     return dict(_=get_translation, get_translation=get_translation)
 
 
+def inject_globals():
+    """Inject global variables into all Jinja templates."""
+    active_db = getattr(g, 'active_db', get_active_database_name())
+    app_version = get_app_version()
+    
+    # Increase this number to force browser to reload static files (css/js)
+    static_version = 46
+    
+    return dict(static_version=static_version, app_version=app_version, db_name=active_db)
+
+
 def inject_app_into_templates():
     """Inject Flask app instance into templates for backward compatibility."""
     try:

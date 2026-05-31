@@ -1,0 +1,21 @@
+{% if sekcja|string|trim|lower == 'workowanie' and linia|string|trim|upper == 'AGRO' and agro_focus_mode and workowanie_rozliczenie_ctx and workowanie_rozliczenie_ctx.is_active_plan %}
+{% set wrctx = workowanie_rozliczenie_ctx %}
+<div class="agro-active-top-bar" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: stretch; margin-bottom: 10px;">
+    
+    <!-- Left: Pokaż ukryte zlecenia, Rozliczenie MIX and Raport (Uniformly Sized) -->
+    <div style="display: flex; gap: 10px; align-items: stretch; width: 100%;">
+        {% if agro_focus_mode %}
+        <button id="toggle-focus-plan-btn" class="btn-action btn-outline-secondary" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.9em; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); background: #f8fafc; border: 1px solid #cbd5e1; font-weight: 700; cursor: pointer; color: #475569; flex: 1; max-width: 250px; height: 42px; box-sizing: border-box;" onclick="window.toggleFocusPlan(this)">
+            <span class="material-icons" style="font-size: 18px;">visibility</span> <span class="btn-text">Pokaż ukryte zlecenia</span>
+        </button>
+        {% endif %}
+        <a href="{{ url_for('production.agro_mix_rozliczenie_page', data=dzisiaj) }}" class="btn-wrs" style="background: #9b59b6; text-decoration: none; text-align: center; border-radius: 8px; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(155,89,182,0.3); flex: 1; max-width: 250px; height: 42px; box-sizing: border-box;" data-slide>
+            <span class="material-icons" style="font-size: 20px;">blender</span> Rozliczenie MIX
+        </a>
+        <a href="{{ url_for('agro_warehouse.raport_palet', data=dzisiaj, select=1) }}" class="btn-wrs" style="background: #3498db; text-decoration: none; text-align: center; border-radius: 8px; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(52,152,219,0.3); flex: 1; max-width: 250px; height: 42px; box-sizing: border-box;">
+            <span class="material-icons" style="font-size: 20px;">print</span> Raport
+        </a>
+    </div>
+
+</div>
+{% endif %}

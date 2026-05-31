@@ -4,7 +4,7 @@
         <div class="work-settlement-inline" style="margin-top: 24px;">
             <style>
                 .work-settlement-inline .work-form {
-                    background: #fdfefe; padding: 20px; border-radius: 12px;
+                    background: #fdfefe; padding: 10px; border-radius: 12px;
                     border: 2px solid #27ae60; margin-bottom: 20px;
                     box-shadow: 0 4px 16px rgba(39,174,96,0.08);
                 }
@@ -30,74 +30,51 @@
                 }
             </style>
             <div class="work-form">
-                <h3><span class="material-icons">inventory_2</span> Bieżący bilans worków (na żywo)</h3>
+                <h3 style="margin-top: 0;"><span class="material-icons">inventory_2</span> Bieżący bilans worków (na żywo)</h3>
                 <div class="ctx-box">
                     <div class="ctx-row"><span>Wykonano palet:</span><strong>{{ (wrctx.palety_count or 0) }} szt. / {{ (wrctx.palety_kg_wykonane or 0)|round(2) }} kg</strong></div>
                     <div class="ctx-row"><span>Waga worka (typ):</span><strong>{{ (wrctx.bag_kg or 25.0) }} kg</strong></div>
                     <div class="ctx-row"><span>Teoret. zużycie:</span><strong>{{ (wrctx.estimated_bags or 0)|int }} szt.</strong></div>
                 </div>
-
-                <div style="display: flex; gap: 10px; margin-top: 14px;">
-                    <a href="{{ url_for('production.agro_mix_rozliczenie_page', data=dzisiaj) }}" class="btn-wrs" style="background: #9b59b6; text-decoration: none; text-align: center; flex: 1; border-radius: 8px; padding: 10px; color: #fff; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;" data-slide>
-                        <span class="material-icons" style="font-size: 18px;">blender</span> Rozliczenie MIX
-                    </a>
-                    <a href="{{ url_for('agro_warehouse.raport_palet', data=dzisiaj, select=1) }}" class="btn-wrs" style="background: #3498db; text-decoration: none; text-align: center; flex: 1; border-radius: 8px; padding: 10px; color: #fff; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                        <span class="material-icons" style="font-size: 18px;">print</span> Raport
-                    </a>
-                </div>
             </div>
 
-            <!-- Sekcja: Materiały pod bieżącą produkcję (Materiały na maszynie) -->
+            <!-- Sekcja: Materiały pod bieżącą produkcję -->
             <div class="work-form" style="margin-top: 15px; border-color: #2ecc71; box-shadow: 0 4px 16px rgba(46,204,113,0.08);">
                 <h3 style="color: #27ae60;"><span class="material-icons" style="color: #2ecc71; vertical-align: middle;">settings_suggest</span> Materiały pod bieżącą produkcję:</h3>
                 
-                {% if wrctx.maszyna_opakowania %}
+                {% if not wrctx.maszyna_opakowania %}
+                    <p style="color: #7f8c8d; font-size: 0.9em; margin: 10px 0 0 0; font-style: italic;">
+                        Brak podpiętych materiałów na maszynie. Wybierz materiał z listy poniżej i kliknij "PODEPNIJ".
+                    </p>
+                {% else %}
                     <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
                     {% for opakowanie in wrctx.maszyna_opakowania %}
-                        <div style="background: #f4fbf7; border: 1px solid #c2ebd0; border-left: 5px solid #2ecc71; border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="background: #fff; border: 1px solid #e2e8f0; border-left: 5px solid #2ecc71; border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
                             <div>
-                                <strong style="font-size: 1.05em; color: #2c3e50;">{{ opakowanie.nazwa }}</strong>
-                                <div style="font-size: 0.88em; color: #7f8c8d; margin-top: 3px;">
-                                    Pobrano: <strong style="color: #27ae60;">{{ opakowanie.stan_poczatkowy|int }} szt.</strong>
+                                <strong style="font-size: 1.1em; color: #2c3e50;">{{ opakowanie.nazwa }}</strong>
+                                <div style="font-size: 0.9em; color: #64748b; margin-top: 3px;">
+                                    ID: <span style="color: #2c3e50; font-weight: bold;">{{ opakowanie.opakowanie_id }}</span> | 
+                                    Pobrano: <span style="color: #27ae60; font-weight: bold;">{{ opakowanie.stan_poczatkowy|int }} szt.</span> | 
+                                    Zużyto na żywo: <span style="color: #c53030; font-weight: bold;">{{ (opakowanie.stan_poczatkowy - opakowanie.stan_magazynowy)|int }} szt.</span>
                                 </div>
                             </div>
-                            <div style="display: flex; gap: 6px;">
-                                <button class="btn-action btn-outline-secondary btn-sm" style="padding: 4px 8px; font-size: 0.8em; border-color: #dcdde1; color: #7f8c8d;" onclick="undoPackagingLink({{ opakowanie.link_id }})">
-                                    <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 2px;">undo</span> Cofnij
-                                </button>
-                                <button class="btn-action btn-danger btn-sm" style="padding: 4px 10px; font-size: 0.85em; background: #e74c3c;" onclick="openReturnPackagingModal({{ opakowanie.opakowanie_id }}, '{{ opakowanie.nazwa|e }}', {{ opakowanie.stan_poczatkowy|int }})">
-                                    Zdejmij / Zwróć
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                {% if opakowanie.stan_magazynowy <= 0 %}
+                                    <span class="badge" style="background: #fde8e8; color: #e02424; font-size: 0.9em; padding: 6px 10px; border-radius: 6px; border: 1px solid #f8b4b4; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 0 10px rgba(224,86,86,0.15);">
+                                        <span class="material-icons" style="font-size: 16px; color: #e02424; vertical-align: middle;">error</span> BRAK MATERIAŁU: <strong style="font-size: 1.1em;">{{ opakowanie.stan_magazynowy|int }}</strong> szt.
+                                    </span>
+                                {% else %}
+                                    <span class="badge" style="background: #e8f5e9; color: #2e7d32; font-size: 0.9em; padding: 6px 10px; border-radius: 6px; border: 1px solid #c8e6c9;">
+                                        Na maszynie: <strong style="font-size: 1.1em;">{{ opakowanie.stan_magazynowy|int }}</strong> szt.
+                                    </span>
+                                {% endif %}
+                                <button class="btn-action btn-outline-danger" style="padding: 6px 12px; font-weight: bold; border-radius: 6px;" onclick="openReturnPackagingModal({{ opakowanie.opakowanie_id }}, '{{ opakowanie.nazwa|e }}', {{ opakowanie.stan_magazynowy|int }}, '{{ opakowanie.suggested_loc|e }}')">
+                                    <span class="material-icons" style="font-size: 16px; margin-right: 4px; vertical-align: middle;">undo</span> Zdejmij / Zwróć na magazyn
                                 </button>
                             </div>
                         </div>
                     {% endfor %}
                     </div>
-                {% else %}
-                    <p style="color: #7f8c8d; font-size: 0.9em; margin: 10px 0 0 0; font-style: italic;">
-                        Brak podpiętych materiałów na maszynie. Wybierz materiał z listy poniżej i kliknij "PODEPNIJ".
-                    </p>
-                {% endif %}
-
-                <!-- PODPIĘCIE NOWEGO MATERIAŁU/FOLII Z MAGAZYNU -->
-                {% if wrctx.active_plan and wrctx.all_warehouse_packaging %}
-                <div style="margin-top: 15px; border-top: 1px dashed #c2ebd0; padding-top: 15px;">
-                    <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 200px;">
-                            <label style="display: block; font-size: 0.85em; font-weight: bold; color: #27ae60; margin-bottom: 5px;">Podepnij materiał / folię z magazynu:</label>
-                            <select id="select_warehouse_packaging" class="form-control" style="width: 100%; border-radius: 8px; height: 38px; border: 1px solid #c2ebd0; font-size: 0.9em; background: #fff; padding: 0 10px;">
-                                <option value="">-- Wybierz materiał z magazynu --</option>
-                                {% for item in wrctx.all_warehouse_packaging %}
-                                    <option value="{{ item.id }}" data-nazwa="{{ item.nazwa|e }}" data-stan="{{ item.stan_magazynowy|int }}" data-lokalizacja="{{ item.lokalizacja|e if item.lokalizacja else '' }}">
-                                        {{ item.nazwa }} (Stan: {{ item.stan_magazynowy|int }} szt/kg){% if item.lokalizacja %} - {{ item.lokalizacja }}{% endif %}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <button class="btn btn-primary" style="height: 38px; padding: 0 18px; display: inline-flex; align-items: center; gap: 5px; font-weight: bold; font-size: 0.9em; background: #27ae60; border-color: #27ae60; color: #fff; border-radius: 8px; cursor: pointer; border: none;" onclick="var select = document.getElementById('select_warehouse_packaging'); if(!select.value) { alert('Wybierz materiał!'); return; } linkPackaging(select.value, {{ wrctx.active_plan.id }});">
-                            <span class="material-icons" style="font-size: 18px;">add_circle</span> PODEPNIJ MATERIAŁ
-                        </button>
-                    </div>
-                </div>
                 {% endif %}
             </div>
 
@@ -121,9 +98,6 @@
                                 <span class="badge" style="background: #e2e8f0; color: #475569; font-weight: 800; font-size: 0.8em; display: inline-flex; align-items: center; gap: 3px; padding: 4px 8px; border-radius: 6px;">
                                     <span class="material-icons" style="font-size: 14px; color: #10b981;">check_circle</span> Zdjęty
                                 </span>
-                                <button class="btn-action btn-outline-warning btn-sm" style="padding: 4px 8px; font-size: 0.8em; color: #d35400; border-color: #f39c12;" onclick="undoPackagingReturn({{ opakowanie.link_id }})">
-                                    <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 2px;">history</span> Cofnij zwrot
-                                </button>
                             </div>
                         </div>
                     {% endfor %}
@@ -135,16 +109,36 @@
                 {% endif %}
             </div>
 
-            {% if wrctx.history %}
             <div class="whist">
                 <h4 style="margin:12px 0;color:#6c757d;font-size:0.85em;text-transform:uppercase;">Historia rozliczeń:</h4>
-                {% for item in wrctx.history %}
-                <div class="whist-row">
-                    <strong>{{ item.opakowanie_nazwa }}</strong>: {{ '%.0f'|format(item.zuzyte_worki or 0) }} szt.
-                </div>
-                {% endfor %}
+                {% if wrctx.history %}
+                    {% for item in wrctx.history %}
+                    <div class="whist-row">
+                        {% if item.zuzyte_worki == 0 and item.wyprodukowano_szt == 0 and item.stan_przed == item.stan_po %}
+                            <span class="material-icons" style="font-size: 14px; color: #27ae60; vertical-align: middle; margin-right: 4px;">add_circle</span>
+                            Wsadzono <strong>{{ item.opakowanie_nazwa }}</strong>: {{ '%.0f'|format(item.stan_przed or 0) }} szt.
+                            {% set active_roll = namespace(val=None) %}
+                            {% for m_op in wrctx.maszyna_opakowania %}
+                                {% if m_op.opakowanie_id == item.opakowanie_id %}
+                                    {% set active_roll.val = m_op %}
+                                {% endif %}
+                            {% endfor %}
+                            {% if active_roll.val %}
+                                <span style="color: #4b5563; font-size: 0.9em; margin-left: 8px;">
+                                    (Zużyto z tego: <strong style="color: #c53030;">{{ (active_roll.val.stan_poczatkowy - active_roll.val.stan_magazynowy)|int }}</strong> szt.)
+                                </span>
+                            {% endif %}
+                        {% else %}
+                            <strong>{{ item.opakowanie_nazwa }}</strong>: {{ '%.0f'|format(item.zuzyte_worki or 0) }} szt.
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="color: #7f8c8d; font-size: 0.88em; margin: 10px 0 0 0; font-style: italic;">
+                        Brak wpisów w historii dla tego zlecenia.
+                    </p>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
     {% else %}
         <div style="background: #fff3cd; color: #856404; padding: 20px; border-left: 5px solid #ffc107; margin-top: 20px; font-weight: bold; border-radius: 5px;">

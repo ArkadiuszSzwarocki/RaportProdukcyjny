@@ -527,9 +527,7 @@
 
         try {
             var localCandidates = [
-                '/static/sounds/doorbell.ogg',
                 '/static/sounds/doorbell.m4a',
-                '/static/sounds/doorbell.mp3',
                 '/static/sounds/Nagrywanie%20(5).m4a',
                 '/static/sounds/Nagrywanie (5).m4a',
             ];
