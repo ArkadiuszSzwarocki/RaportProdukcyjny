@@ -449,12 +449,12 @@
                     <div id="acc_fields" style="display:none; margin-top:15px; padding:24px; background:#f8fafc; border-radius:20px; border: 2px solid #f1f5f9;">
                         <div class="form-group">
                             <label class="form-label">Login użytkownika</label>
-                            <input name="login" class="input-unified" placeholder="Np. j.kowalski">
+                            <input name="login" autocomplete="off" class="input-unified" placeholder="Np. j.kowalski">
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
                             <div class="form-group">
                                 <label class="form-label">Hasło początkowe</label>
-                                <input name="haslo" type="password" class="input-unified" placeholder="********">
+                                <input name="haslo" type="password" autocomplete="new-password" class="input-unified" placeholder="********">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Rola systemowa</label>
@@ -522,7 +522,7 @@
                     
                     <div class="form-group">
                         <label class="form-label">Zmień Hasło</label>
-                        <input name="haslo" type="password" class="input-unified" placeholder="Wpisz nowe lub zostaw puste">
+                        <input name="haslo" type="password" autocomplete="new-password" class="input-unified" placeholder="Wpisz nowe lub zostaw puste">
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:24px;">
@@ -565,11 +565,11 @@
                     
                     <div class="form-group">
                         <label class="form-label">Login użytkownika</label>
-                        <input name="login" required class="input-unified" placeholder="np. j.kowalski">
+                        <input name="login" required autocomplete="off" class="input-unified" placeholder="np. j.kowalski">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Hasło początkowe</label>
-                        <input name="haslo" required type="password" class="input-unified">
+                        <input name="haslo" required type="password" autocomplete="new-password" class="input-unified">
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">

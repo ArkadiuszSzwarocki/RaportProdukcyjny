@@ -229,7 +229,7 @@ function setEmpty(entryId) {
     if(!confirm("Oznaczyć zbiornik jako pusty? (Waga faktyczna zostanie wyzerowana)")) return;
     
     // Change material to PUSTY ZBIORNIK directly via API
-    changeMaterial(entryId, 'PUSTY ZBIORNIK', null, '', '', '', '');
+    changeMaterial(entryId, 'PUSTY ZBIORNIK', null, '', '', '', '', 0);
 }
 
 function openTankDetailModal(entryId, tank, surowiec, sscc, partia, wSystemowa, wFaktyczna) {
@@ -286,12 +286,14 @@ function saveWeightFromDetail() {
 function openChangeMaterialModalFromDetail() {
     const tankName = document.getElementById('td-tankName').textContent;
     const currentMat = document.getElementById('td-surowiec').textContent;
+    const actualInput = document.getElementById('td-weightInput');
+    const actualWeight = actualInput ? actualInput.value : '';
     
     closeTankDetailModal();
-    openChangeMaterialModal(currentEntryId, currentMat, tankName);
+    openChangeMaterialModal(currentEntryId, currentMat, tankName, actualWeight);
 }
 
-function openChangeMaterialModal(entryId, currentMaterial, tankName) {
+function openChangeMaterialModal(entryId, currentMaterial, tankName, actualWeight) {
     currentEntryId = entryId;
     lookedUpPalletId = null;
     
@@ -302,6 +304,10 @@ function openChangeMaterialModal(entryId, currentMaterial, tankName) {
     document.getElementById('newMaterialDateProd').value = '';
     document.getElementById('newMaterialDateExp').value = '';
     document.getElementById('lookupStatus').style.display = 'none';
+    const actualWeightInput = document.getElementById('newMaterialActualWeight');
+    if (actualWeightInput) {
+        actualWeightInput.value = actualWeight !== null && actualWeight !== undefined ? String(actualWeight) : '';
+    }
     
     document.getElementById('changeMaterialModal').style.display = 'flex';
 }
@@ -317,11 +323,14 @@ function saveNewMaterial() {
     const batch = document.getElementById('newMaterialBatch').value.trim();
     const dProd = document.getElementById('newMaterialDateProd').value;
     const dExp = document.getElementById('newMaterialDateExp').value;
+    const actualWeightRaw = document.getElementById('newMaterialActualWeight').value;
+    const actualWeight = parseFloat(String(actualWeightRaw || '').replace(',', '.'));
     
     if(!newMat) return alert("Wpisz nazwę surowca!");
+    if(!Number.isFinite(actualWeight) || actualWeight < 0) return alert("Podaj poprawny stan faktyczny.");
     
     saveEntriesLocalToDom();
-    changeMaterial(currentEntryId, newMat, lookedUpPalletId, sscc, batch, dProd, dExp);
+    changeMaterial(currentEntryId, newMat, lookedUpPalletId, sscc, batch, dProd, dExp, actualWeight);
 }
 
 function saveEntriesLocalToDom() {
@@ -329,7 +338,7 @@ function saveEntriesLocalToDom() {
     // They are updated directly by saveWeightFromDetail.
 }
 
-function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd, dExp) {
+function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd, dExp, actualWeight) {
     fetch('/agro/api/inwentaryzacja-produkcji/zmien-surowiec', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -341,7 +350,8 @@ function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd,
             nr_palety: nrPalety,
             nr_partii: nrPartii,
             data_produkcji: dProd,
-            data_przydatnosci: dExp
+            data_przydatnosci: dExp,
+            waga_faktyczna: actualWeight
         })
     }).then(r => r.json()).then(data => {
         if(data.success) {
@@ -374,7 +384,7 @@ function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd,
         <div style="margin-bottom: 20px;">
             <div style="display:flex; gap:10px; align-items:center;">
                 <div style="display: flex; flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
-                    <input type="number" step="0.1" id="td-weightInput" placeholder="STAN FAKTYCZNY" autocomplete="off" inputmode="decimal"
+                          <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" id="td-weightInput" placeholder="STAN FAKTYCZNY" autocomplete="off"
                            style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
                     <select disabled style="border: none; background: #f1f5f9; padding: 12px; font-weight: 800; font-size: 13px; color: #475569; outline: none; border-left: 1px solid #e2e8f0; height: 100%; cursor: default; appearance: none;">
                         <option>kg</option>
@@ -411,6 +421,11 @@ function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd,
                 <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Nazwa Surowca</label>
                 <input type="text" id="newMaterialName" list="productList" style="width: 100%; border: 2px solid #3b82f6; border-radius: 12px; padding: 12px 15px; font-size: 16px; font-weight: 800; box-sizing: border-box; outline: none;" placeholder="Wpisz lub wybierz z listy...">
                 <datalist id="productList"></datalist>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Stan faktyczny (kg)</label>
+                <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" id="newMaterialActualWeight" style="width: 100%; border: 2px solid #e2e8f0; border-radius: 12px; padding: 12px 15px; font-size: 16px; font-weight: 800; box-sizing: border-box; outline: none;" placeholder="Wpisz ilość...">
             </div>
 
             <div>

@@ -1635,6 +1635,8 @@ button[type="submit"]:hover {
 
 /* overlays stacking defined above; duplicates removed */
 
+/* Global dosypka overrides removed to allow natural popup sizing */
+
 /* Slight tweak so forms inside quick-popup use primary button styling */
 .quick-popup .btn-action {
     background: var(--accent-color);

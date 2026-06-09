@@ -52,6 +52,16 @@ def _first_or_default(value, default):
 
 
 def _append_error(message):
+    import datetime
+    current_hour = datetime.datetime.now().hour
+    
+    # Ignoruj błędy łączenia (maszyna wyłączona), jeśli jesteśmy poza godzinami pracy (7-15)
+    is_working_hours = (7 <= current_hour < 15)
+    msg_str = str(message).lower()
+    
+    if not is_working_hours and ("reconnect" in msg_str or "connect" in msg_str or "timeout" in msg_str):
+        return
+
     ts = time.time()
     with _data_lock:
         _latest_machine_data["recent_errors"].append(

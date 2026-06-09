@@ -4,6 +4,7 @@ from app.db import get_db_connection, get_table_name
 from app.decorators import login_required
 from app.services.magazyn_dostawy_service import MagazynDostawyService
 from app.utils.pallet_label import prepare_pallet_label_data
+from app.utils.pallet_id import generate_pallet_id
 from .config import (
     LOKALIZACJE_SZCZEGOLOWE, BUFORY, LOKALIZACJE, LOKALIZACJE_CEL,
     _safe_float, _safe_datetime_str, _format_label_weight
@@ -50,9 +51,10 @@ def reception_edit(dostawa_id=None):
         table_sur = get_table_name('magazyn_surowce', linia)
         table_opk = get_table_name('magazyn_opakowania', linia)
         cursor.execute(
-            f"SELECT DISTINCT nazwa FROM {table_sur}"
-            f" UNION SELECT DISTINCT nazwa FROM {table_opk}"
-            f" UNION SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s",
+            f"SELECT DISTINCT nazwa FROM slownik_surowcow "
+            f"UNION SELECT DISTINCT nazwa FROM {table_sur} "
+            f"UNION SELECT DISTINCT nazwa FROM {table_opk} "
+            f"UNION SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s",
             (linia,)
         )
         wszystkie_produkty = [r['nazwa'] for r in cursor.fetchall()]
@@ -79,9 +81,84 @@ def reception_edit(dostawa_id=None):
 def oczekujace():
     linia = request.args.get('linia', 'PSD').upper()
     dostawy = MagazynDostawyService.get_oczekujace(linia)
+    pending_scan_items = []
+
+    def _safe_date(value):
+        if not value:
+            return ''
+        if isinstance(value, str):
+            return value[:10]
+        try:
+            return value.strftime('%Y-%m-%d')
+        except Exception:
+            return ''
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        items_changed = False
+        for d in dostawy.get('dostawy', []) or []:
+            items = d.get('items_parsed') or []
+            delivery_changed = False
+
+            for idx, item in enumerate(items):
+                if not isinstance(item, dict):
+                    item = {}
+                    items[idx] = item
+                    delivery_changed = True
+                if item.get('id') in (None, ''):
+                    item['id'] = f"legacy_{idx}"
+                    delivery_changed = True
+
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                if item.get('accepted') or item.get('rejected'):
+                    continue
+
+                nr_palety = item.get('nr_palety') or item.get('sourcePalletNo')
+                if not nr_palety:
+                    p_type = 'opakowanie' if item.get('packageForm') == 'packaging' else 'surowiec'
+                    item['nr_palety'] = generate_pallet_id(linia, type=p_type)
+                    nr_palety = item.get('nr_palety')
+                    delivery_changed = True
+                if not nr_palety:
+                    continue
+
+                qty_raw = item.get('netWeight') if item.get('netWeight') not in (None, '') else item.get('unitsPerPallet')
+                qty = _safe_float(qty_raw) if qty_raw not in (None, '') else 0
+
+                pending_scan_items.append({
+                    'dostawa_id': d.get('id'),
+                    'order_ref': d.get('order_ref') or '',
+                    'lokalizacja_do': d.get('lokalizacja_do') or '',
+                    'item_id': item.get('id'),
+                    'nr_palety': str(nr_palety).strip().upper(),
+                    'product_name': item.get('productName') or '',
+                    'nr_partii': item.get('nr_partii') or '',
+                    'data_produkcji': _safe_date(item.get('data_produkcji')),
+                    'data_przydatnosci': _safe_date(item.get('data_przydatnosci')),
+                    'qty': qty,
+                    'p_type': 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec',
+                })
+
+            if delivery_changed:
+                cursor.execute(
+                    "UPDATE magazyn_dostawy SET items = %s WHERE id = %s",
+                    (json.dumps(items), d.get('id'))
+                )
+                d['items_parsed'] = items
+                items_changed = True
+
+        if items_changed:
+            conn.commit()
+    finally:
+        conn.close()
+
     return render_template('magazyn_dostawy/oczekujace.html',
                            dostawy=dostawy, linia=linia,
-                           lok_grupy=LOKALIZACJE_SZCZEGOLOWE)
+                           lok_grupy=LOKALIZACJE_SZCZEGOLOWE,
+                           pending_scan_items=pending_scan_items)
 
 
 @magazyn_dostawy_bp.route('/podglad-etykiety')
@@ -702,9 +779,10 @@ def edycja_dostawy(dostawa_id=None):
         table_sur = get_table_name('magazyn_surowce', linia)
         table_opk = get_table_name('magazyn_opakowania', linia)
         cursor.execute(
-            f"SELECT DISTINCT nazwa FROM {table_sur}"
-            f" UNION SELECT DISTINCT nazwa FROM {table_opk}"
-            f" UNION SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s",
+            f"SELECT DISTINCT nazwa FROM slownik_surowcow "
+            f"UNION SELECT DISTINCT nazwa FROM {table_sur} "
+            f"UNION SELECT DISTINCT nazwa FROM {table_opk} "
+            f"UNION SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s",
             (linia,)
         )
         wszystkie_produkty = [r['nazwa'] for r in cursor.fetchall()]
@@ -764,6 +842,19 @@ def przyjecie_ruchu(dostawa_id):
                 item['id'] = f"legacy_{idx}"
                 items_changed = True
 
+        # Pre-assign SSCC for pending items without pallet number.
+        for item in dostawa['items_parsed']:
+            if not isinstance(item, dict):
+                continue
+            if item.get('accepted') or item.get('rejected'):
+                continue
+            if item.get('nr_palety') or item.get('sourcePalletNo'):
+                continue
+
+            p_type = 'opakowanie' if item.get('packageForm') == 'packaging' else 'surowiec'
+            item['nr_palety'] = generate_pallet_id(linia, type=p_type)
+            items_changed = True
+
         if items_changed:
             cursor.execute(
                 "UPDATE magazyn_dostawy SET items = %s WHERE id = %s",
@@ -792,6 +883,44 @@ def przyjecie_ruchu(dostawa_id):
     finally:
         conn.close()
 
+    def _safe_date(value):
+        if not value:
+            return ''
+        if isinstance(value, str):
+            return value[:10]
+        try:
+            return value.strftime('%Y-%m-%d')
+        except Exception:
+            return ''
+
+    pending_print_items = []
+    for item in dostawa.get('items_parsed', []) or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get('accepted') or item.get('rejected'):
+            continue
+
+        raw_qty = item.get('netWeight')
+        if raw_qty in (None, ''):
+            raw_qty = item.get('unitsPerPallet')
+
+        qty = 0
+        if raw_qty not in (None, ''):
+            try:
+                qty = float(str(raw_qty).replace(',', '.'))
+            except (TypeError, ValueError):
+                qty = 0
+
+        pending_print_items.append({
+            'nr_palety': item.get('nr_palety') or item.get('sourcePalletNo'),
+            'product_name': item.get('productName'),
+            'nr_partii': item.get('nr_partii'),
+            'data_produkcji': _safe_date(item.get('data_produkcji')),
+            'data_przydatnosci': _safe_date(item.get('data_przydatnosci')),
+            'qty': qty,
+            'p_type': 'packaging' if item.get('packageForm') == 'packaging' else 'surowiec',
+        })
+
     return render_template(
         'magazyn_dostawy/przyjecie_ruchu.html',
         dostawa=dostawa,
@@ -801,6 +930,7 @@ def przyjecie_ruchu(dostawa_id):
         linia=linia,
         is_external_delivery=is_external_delivery,
         printers=printers,
+        pending_print_items=pending_print_items,
         now_str=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
 

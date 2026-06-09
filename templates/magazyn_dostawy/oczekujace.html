@@ -136,6 +136,18 @@
     text-transform: uppercase;
 }
 
+.transfer-scan-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.transfer-scan-hint {
+    margin: 8px 0 0;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
 @media (max-width: 980px) {
     .waiting-open-btn {
         min-width: 140px;
@@ -146,6 +158,9 @@
     .waiting-cta-btn {
         width: 100%;
         min-width: 0;
+    }
+    .transfer-scan-grid {
+        grid-template-columns: 1fr;
     }
 }
 </style>
@@ -259,6 +274,33 @@
     <!-- TAB: DOSTAWY -->
     <div id="tab-dostawy" class="tab-content">
         {% if dostawy.dostawy %}
+        <div class="wg-scan-box">
+            <p class="wg-scan-title">Skaner palet z przesunięć</p>
+            <div class="transfer-scan-grid">
+                <input
+                    type="text"
+                    id="transferScanPallet"
+                    class="premium-input"
+                    placeholder="Zeskanuj paletę (SSCC) i naciśnij Enter"
+                    autocomplete="off"
+                    spellcheck="false"
+                    {% if not pending_scan_items %}disabled{% endif %}
+                >
+                <input
+                    type="text"
+                    id="transferScanLocation"
+                    class="premium-input"
+                    placeholder="Zeskanuj lokalizację docelową i naciśnij Enter"
+                    autocomplete="off"
+                    spellcheck="false"
+                    list="locationSuggestionsList"
+                    oninput="handleLocationSuggestInput(this)"
+                    onfocus="queueLocationSuggestions(this.value)"
+                    disabled
+                >
+            </div>
+            <p id="transferScanHint" class="transfer-scan-hint">{{ 'Zeskanuj paletę, a potem lokalizację odstawczą.' if pending_scan_items else 'Brak palet do skanowania.' }}</p>
+        </div>
         <div class="waiting-table-wrap">
             <table class="premium-table">
                 <thead>
@@ -411,6 +453,8 @@
 let locationSuggestTimer = null;
 let locationSuggestAbortController = null;
 let locationSuggestLastPrefix = '';
+let pendingTransferItems = {{ pending_scan_items|tojson }};
+let activeTransferItem = null;
 
 function normalizeLocationCode(value) {
     return String(value || '').trim().toUpperCase();
@@ -526,10 +570,180 @@ function showTab(tabId, btn) {
             setTimeout(() => scanInput.focus(), 40);
         }
     }
+    if (tabId === 'tab-dostawy') {
+        const scanInput = document.getElementById('transferScanPallet');
+        if (scanInput) {
+            setTimeout(() => scanInput.focus(), 40);
+        }
+    }
 }
 
 function normalizeScanCode(value) {
     return String(value || '').trim().toUpperCase();
+}
+
+function updateTransferScanHint(message, kind) {
+    const hint = document.getElementById('transferScanHint');
+    if (!hint) {
+        return;
+    }
+    hint.textContent = message;
+    if (kind === 'success') {
+        hint.style.color = '#15803d';
+    } else if (kind === 'error') {
+        hint.style.color = '#b91c1c';
+    } else {
+        hint.style.color = '#64748b';
+    }
+}
+
+function findTransferByScannedCode(rawCode) {
+    const code = normalizeScanCode(rawCode);
+    if (!code) {
+        return { status: 'empty' };
+    }
+    if (!Array.isArray(pendingTransferItems) || pendingTransferItems.length === 0) {
+        return { status: 'none' };
+    }
+
+    const matches = pendingTransferItems.filter(item => {
+        const nr = normalizeScanCode(item.nr_palety);
+        if (!nr) {
+            return false;
+        }
+        return nr === code || code.includes(nr) || nr.includes(code);
+    });
+
+    if (matches.length === 1) {
+        return { status: 'single', item: matches[0] };
+    }
+    if (matches.length > 1) {
+        return { status: 'many' };
+    }
+    return { status: 'none' };
+}
+
+function handleTransferPalletScanSubmit() {
+    const scanInput = document.getElementById('transferScanPallet');
+    const locationInput = document.getElementById('transferScanLocation');
+    if (!scanInput) {
+        return;
+    }
+
+    const match = findTransferByScannedCode(scanInput.value);
+    scanInput.value = '';
+
+    if (match.status === 'single') {
+        activeTransferItem = match.item;
+        if (locationInput) {
+            locationInput.disabled = false;
+            locationInput.value = '';
+            locationInput.focus();
+        }
+        const ref = activeTransferItem.order_ref ? ` (${activeTransferItem.order_ref})` : '';
+        updateTransferScanHint(`Zeskanowano paletę: ${activeTransferItem.nr_palety}${ref}. Teraz zeskanuj lokalizację.`, 'success');
+        return;
+    }
+
+    activeTransferItem = null;
+    if (locationInput) {
+        locationInput.disabled = true;
+        locationInput.value = '';
+    }
+
+    if (match.status === 'many') {
+        updateTransferScanHint('Znaleziono więcej niż jedną paletę. Użyj pełnego kodu.', 'error');
+        if (typeof showToast === 'function') {
+            showToast('Znaleziono więcej niż jedną paletę. Użyj pełnego kodu.', 'warning');
+        }
+        return;
+    }
+
+    updateTransferScanHint('Nie znaleziono palety dla zeskanowanego kodu.', 'error');
+    if (typeof showToast === 'function') {
+        showToast('Nie znaleziono palety dla zeskanowanego kodu.', 'warning');
+    }
+}
+
+async function handleTransferLocationScanSubmit() {
+    const scanInput = document.getElementById('transferScanPallet');
+    const locationInput = document.getElementById('transferScanLocation');
+    if (!locationInput) {
+        return;
+    }
+
+    if (!activeTransferItem) {
+        updateTransferScanHint('Najpierw zeskanuj paletę.', 'error');
+        if (typeof showToast === 'function') {
+            showToast('Najpierw zeskanuj paletę.', 'warning');
+        }
+        locationInput.value = '';
+        return;
+    }
+
+    const lok = normalizeLocationCode(locationInput.value);
+    if (!lok) {
+        updateTransferScanHint('Podaj lokalizację odstawczą.', 'error');
+        if (typeof showToast === 'function') {
+            showToast('Podaj lokalizację odstawczą.', 'warning');
+        }
+        return;
+    }
+
+    if (!activeTransferItem.dostawa_id || !activeTransferItem.item_id) {
+        updateTransferScanHint('Brak danych pozycji do przyjęcia.', 'error');
+        if (typeof showToast === 'function') {
+            showToast('Brak danych pozycji do przyjęcia.', 'warning');
+        }
+        return;
+    }
+
+    locationInput.disabled = true;
+
+    try {
+        const resp = await fetch(`/magazyn-dostawy/api/przyjmij-pozycje/${encodeURIComponent(activeTransferItem.dostawa_id)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                item_id: activeTransferItem.item_id,
+                lokalizacja: lok,
+                nr_partii: activeTransferItem.nr_partii || null,
+                data_produkcji: activeTransferItem.data_produkcji || null,
+                data_przydatnosci: activeTransferItem.data_przydatnosci || null,
+                printer_id: null
+            })
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            if (typeof showToast === 'function') {
+                showToast(data.message || 'Pozycja przyjęta.', 'success');
+            }
+            updateTransferScanHint('Pozycja przyjęta. Skanuj kolejną paletę.', 'success');
+            pendingTransferItems = pendingTransferItems.filter(item => item.item_id !== activeTransferItem.item_id || item.dostawa_id !== activeTransferItem.dostawa_id);
+            activeTransferItem = null;
+            locationInput.value = '';
+            locationInput.disabled = true;
+            if (scanInput) {
+                scanInput.focus();
+            }
+            return;
+        }
+
+        const errorMsg = (data && (data.error || data.message)) || 'Błąd zapisu.';
+        updateTransferScanHint(errorMsg, 'error');
+        if (typeof showToast === 'function') {
+            showToast(errorMsg, 'warning');
+        }
+    } catch (e) {
+        updateTransferScanHint('Błąd połączenia z serwerem.', 'error');
+        if (typeof showToast === 'function') {
+            showToast('Błąd połączenia z serwerem.', 'warning');
+        }
+    } finally {
+        if (activeTransferItem) {
+            locationInput.disabled = false;
+        }
+    }
 }
 
 function parseWeightValue(value) {
@@ -699,6 +913,32 @@ if (continueBtn && hasPendingTransferDraft()) {
 
 document.addEventListener('DOMContentLoaded', function () {
     ensureLocationSuggestionsList();
+
+    const transferScanInput = document.getElementById('transferScanPallet');
+    if (transferScanInput) {
+        if (!Array.isArray(pendingTransferItems) || pendingTransferItems.length === 0) {
+            transferScanInput.disabled = true;
+        }
+        transferScanInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handleTransferPalletScanSubmit();
+            }
+        });
+    }
+
+    const transferLocInput = document.getElementById('transferScanLocation');
+    if (transferLocInput) {
+        if (!Array.isArray(pendingTransferItems) || pendingTransferItems.length === 0) {
+            transferLocInput.disabled = true;
+        }
+        transferLocInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handleTransferLocationScanSubmit();
+            }
+        });
+    }
 
     const wgScanInput = document.getElementById('wgScanInput');
     if (wgScanInput) {

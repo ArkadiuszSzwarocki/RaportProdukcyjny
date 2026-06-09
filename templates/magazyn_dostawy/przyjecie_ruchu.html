@@ -60,6 +60,28 @@
     flex-wrap: wrap;
 }
 
+.bulk-print-bar {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #e6edf8;
+    border-radius: 12px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04);
+}
+
+.bulk-print-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 800;
+    color: #0f766e;
+    font-size: 0.82rem;
+}
+
 .kpi-grid {
     margin-top: 14px;
     display: grid;
@@ -539,6 +561,26 @@
             </div>
         </div>
 
+        {% if pending_count > 0 %}
+        <div class="bulk-print-bar">
+            <div class="bulk-print-label">
+                <span class="material-icons" style="font-size: 18px;">print</span>
+                Druk etykiet całego przesunięcia
+            </div>
+            <select id="bulk_print_printer" class="premium-select" style="margin: 0; height: 36px; font-size: 0.85rem; border-color: #99f6e4; min-width: 220px;">
+                <option value="">-- WYBIERZ DRUKARKĘ --</option>
+                <option value="__PDF_PREVIEW__">Podglad / PDF (test)</option>
+                {% for pr in printers %}
+                <option value="{{ pr.id }}">{{ pr.nazwa }}</option>
+                {% endfor %}
+            </select>
+            <button id="bulkPrintBtn" type="button" class="btn-reprint" style="height: 36px;" onclick="printAllPendingLabels()">
+                <span class="material-icons" style="font-size: 16px;">local_printshop</span>
+                Drukuj wszystkie
+            </button>
+        </div>
+        {% endif %}
+
         <div class="kpi-grid">
             <div class="kpi-card">
                 <div class="k-label">Referencja</div>
@@ -606,6 +648,9 @@
                     <div style="min-width: 0;">
                         <div class="item-title">{{ item.productName or '---' }}</div>
                         <div class="item-meta">ID pozycji: {{ item.id }}</div>
+                        {% if item.get('nr_palety') or item.get('sourcePalletNo') %}
+                        <div class="item-meta">SSCC: {{ item.get('nr_palety') or item.get('sourcePalletNo') }}</div>
+                        {% endif %}
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -650,7 +695,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <button class="btn-reprint" style="height: 34px; margin-top: 14px;" onclick="reprintLabel({{ idx }}, {{ item.nr_palety|tojson }}, {{ item.productName|tojson }}, {{ item.nr_partii|tojson }}, {{ dprod|tojson }}, {{ dexp|tojson }}, {{ qty }}, {{ 'packaging' if item.packageForm == 'packaging' else 'surowiec'|tojson }})">
+                    <button class="btn-reprint" style="height: 34px; margin-top: 14px;" onclick="reprintLabel({{ idx }}, {{ (item.get('nr_palety') or item.get('sourcePalletNo'))|tojson }}, {{ item.productName|tojson }}, {{ item.nr_partii|tojson }}, {{ dprod|tojson }}, {{ dexp|tojson }}, {{ qty }}, {{ 'packaging' if item.packageForm == 'packaging' else 'surowiec'|tojson }})">
                         <span class="material-icons" style="font-size: 16px;">print</span>
                         Dodrukuj etykietę (2 szt)
                     </button>
@@ -697,6 +742,20 @@
                     <input id="loc_{{ idx }}" type="text" placeholder="np. R040101" value="{{ item.lokalizacja_przyjecia or '' }}" list="locationSuggestionsList" oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" autocomplete="off">
                 </div>
                 <div class="row-actions-inline">
+                    <div>
+                        <label style="font-size: 0.68rem; font-weight: 800; color: #0f766e; text-transform: uppercase; margin-bottom: 3px; display: block;">Drukarka do etykiet</label>
+                        <select id="preprint_printer_{{ idx }}" class="premium-select" style="margin: 0; height: 34px; font-size: 0.8rem; border-color: #99f6e4;">
+                            <option value="">-- WYBIERZ --</option>
+                            <option value="__PDF_PREVIEW__">Podglad / PDF (test)</option>
+                            {% for pr in printers %}
+                            <option value="{{ pr.id }}">{{ pr.nazwa }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button class="btn-reprint" style="height: 34px; width: 100%;" onclick="preprintLabel({{ idx }}, {{ (item.get('nr_palety') or item.get('sourcePalletNo'))|tojson }}, {{ item.productName|tojson }}, {{ qty or 0 }}, {{ 'packaging' if item.packageForm == 'packaging' else 'surowiec'|tojson }})">
+                        <span class="material-icons" style="font-size: 16px;">print</span>
+                        Drukuj etykiety (2 szt)
+                    </button>
                     <button id="btn_{{ idx }}" class="btn-confirm" onclick='acceptItemClick({{ item.get('id')|tojson }}, {{ idx }}, {{ item.productName|tojson }}, {{ qty|float }}, {{ 'packaging' if item.packageForm == 'packaging' else 'surowiec'|tojson }})'>
                         <span class="material-icons" style="font-size: 18px;">check_circle</span>
                         Potwierdź przyjęcie
@@ -757,6 +816,7 @@ const postListUrl = {{ (url_for('magazyn_dostawy.reception_view', linia=linia) i
 const labelPreviewBaseUrl = {{ url_for('magazyn_dostawy.podglad_etykiety')|tojson }};
 const reprintEndpointUrl = {{ url_for('magazyn_dostawy.dodruk_etykiet')|tojson }};
 const pdfPreviewPrinterId = '__PDF_PREVIEW__';
+const pendingPrintItems = {{ pending_print_items|tojson }};
 let locationSuggestTimer = null;
 let locationSuggestAbortController = null;
 let locationSuggestLastPrefix = '';
@@ -1132,6 +1192,170 @@ async function reprintLabel(idx, nrPalety, productName, batch, dateProd, dateExp
                 data_przydatnosci: dateExp || '---',
                 qty: qty,
                 p_type: pType
+            })
+        });
+
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            safeToast(data.message || 'Etykiety wysłane do drukarki.', 'success');
+        } else {
+            safeToast('Błąd: ' + (data.error || 'Nieznany błąd'), 'danger');
+        }
+    } catch (e) {
+        safeToast('Błąd komunikacji z serwerem.', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+}
+
+async function printAllPendingLabels() {
+    if (!pendingPrintItems || pendingPrintItems.length === 0) {
+        safeToast('Brak pozycji do wydruku.', 'warning');
+        return;
+    }
+
+    const printerSelect = document.getElementById('bulk_print_printer');
+    const printerId = printerSelect ? printerSelect.value : '';
+    if (!printerId) {
+        safeToast('Wybierz drukarkę przed drukiem.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('bulkPrintBtn');
+    const oldHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-icons" style="font-size: 16px;">hourglass_empty</span> Drukowanie...';
+    }
+
+    const wantsPdfPreview = printerId === pdfPreviewPrinterId;
+    let printed = 0;
+    let skipped = 0;
+
+    for (const item of pendingPrintItems) {
+        const nrPalety = String(item.nr_palety || '').trim();
+        if (!nrPalety || nrPalety === '---') {
+            skipped += 1;
+            continue;
+        }
+
+        const payload = {
+            nr_palety: nrPalety,
+            product_name: String(item.product_name || 'Brak nazwy'),
+            nr_partii: String(item.nr_partii || '---'),
+            data_produkcji: String(item.data_produkcji || '---'),
+            data_przydatnosci: String(item.data_przydatnosci || '---'),
+            qty: Number(item.qty || 0),
+            p_type: item.p_type || 'surowiec',
+        };
+
+        if (wantsPdfPreview) {
+            openLabelPreview(payload);
+            printed += 1;
+            continue;
+        }
+
+        try {
+            const resp = await fetch(reprintEndpointUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nr_palety: payload.nr_palety,
+                    printer_id: printerId,
+                    product_name: payload.product_name,
+                    nr_partii: payload.nr_partii,
+                    data_produkcji: payload.data_produkcji,
+                    data_przydatnosci: payload.data_przydatnosci,
+                    qty: payload.qty,
+                    p_type: payload.p_type
+                })
+            });
+
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                printed += 1;
+            } else {
+                skipped += 1;
+            }
+        } catch (e) {
+            skipped += 1;
+        }
+    }
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+
+    if (wantsPdfPreview) {
+        safeToast(`Otwarto podglad etykiet: ${printed}.`, 'info');
+        return;
+    }
+
+    if (printed > 0) {
+        const skippedMsg = skipped ? ` Pominięto: ${skipped}.` : '';
+        safeToast(`Wysłano ${printed} etykiet do drukarki.${skippedMsg}`, 'success');
+    } else {
+        safeToast('Nie wydrukowano żadnej etykiety.', 'warning');
+    }
+}
+
+async function preprintLabel(idx, nrPalety, productName, qty, pType) {
+    const printerSelect = document.getElementById(`preprint_printer_${idx}`);
+    const printerId = printerSelect ? printerSelect.value : '';
+    if (!printerId) {
+        safeToast('Wybierz drukarkę przed drukiem!', 'warning');
+        return;
+    }
+
+    const nrPaletyValue = String(nrPalety || '').trim();
+    if (!nrPaletyValue || nrPaletyValue === '---') {
+        safeToast('Brak numeru palety (SSCC) do druku.', 'warning');
+        return;
+    }
+
+    const batchEl = document.getElementById(`batch_${idx}`);
+    const prodEl = document.getElementById(`prod_${idx}`);
+    const expEl = document.getElementById(`exp_${idx}`);
+
+    const batch = batchEl ? batchEl.value : '';
+    const dateProd = prodEl ? prodEl.value : '';
+    const dateExp = expEl ? expEl.value : '';
+    const safeName = String(productName || 'Brak nazwy');
+
+    if (printerId === pdfPreviewPrinterId) {
+        openLabelPreview({
+            nr_palety: nrPaletyValue,
+            product_name: safeName,
+            nr_partii: batch || '---',
+            data_produkcji: dateProd || '---',
+            data_przydatnosci: dateExp || '---',
+            qty: Number(qty || 0),
+            p_type: pType || 'surowiec',
+        });
+        safeToast('Otwarto podglad etykiety. Wybierz drukarke PDF w oknie wydruku.', 'info');
+        return;
+    }
+
+    const btn = event.currentTarget;
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="font-size: 16px;">hourglass_empty</span> Drukowanie...';
+
+    try {
+        const resp = await fetch(reprintEndpointUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                nr_palety: nrPaletyValue,
+                printer_id: printerId,
+                product_name: safeName,
+                nr_partii: batch || '---',
+                data_produkcji: dateProd || '---',
+                data_przydatnosci: dateExp || '---',
+                qty: Number(qty || 0),
+                p_type: pType || 'surowiec'
             })
         });
 

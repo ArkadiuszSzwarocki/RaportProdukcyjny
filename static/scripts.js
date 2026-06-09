@@ -323,7 +323,11 @@
         if (hasActiveSearch()) return true;
 
         // Check for any expanded rows in tables (this indicates user is looking at details)
-        if (document.querySelector('.expanded-content.show, .details-row:not(.hidden)')) return true;
+        const visibleDetails = Array.from(document.querySelectorAll('.expanded-content.show, .details-row')).some(el => {
+            if (el.classList.contains('expanded-content')) return true;
+            return el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
+        });
+        if (visibleDetails) return true;
 
         // Wyłącz auto-refresh na stronach z formularzami (data-no-autorefresh)
         try {

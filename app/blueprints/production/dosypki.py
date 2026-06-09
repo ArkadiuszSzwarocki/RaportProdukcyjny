@@ -28,11 +28,15 @@ def register_production_dosypki_routes(
         except (TypeError, ValueError):
             return None
 
-    @production_bp.route('/dosypka_page/<int:plan_id>', methods=['GET'])
+    @production_bp.route('/dosypka_strona/<int:plan_id>', methods=['GET'])
     @roles_required('operator', 'pracownik', 'produkcja', 'lider', 'magazynier', 'laborant', 'laboratorium', 'planista', 'admin', 'zarzad')
-    def dosypka_page(plan_id):
-        """Render form to add up to 4 dosypki for an active Zasyp plan."""
+    def dosypka_strona(plan_id):
+        """Full-page view for adding dosypki to an active Zasyp plan."""
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        if is_ajax and not request.args.get('ajax_reload'):
+            url = url_for('production.dosypka_strona', plan_id=plan_id, **request.args)
+            return f'<script>window.location.href = "{url}";</script>'
+        
         conn = get_db_connection()
         try:
             linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
@@ -42,18 +46,12 @@ def register_production_dosypki_routes(
             cursor.execute(f"SELECT produkt, typ_produkcji, status FROM {table_plan} WHERE id=%s AND sekcja='Zasyp'", (plan_id,))
             plan = cursor.fetchone()
             if not plan:
-                msg = 'Plan nie znaleziony'
-                if is_ajax:
-                    return f'<div class="p-15 text-danger">{msg}</div>', 404
-                flash(msg, 'error')
+                flash('Plan nie znaleziony', 'error')
                 return redirect(bezpieczny_powrot())
 
             produkt, typ_produkcji, status = plan[0], plan[1], plan[2]
             if status != 'w toku':
-                msg = 'Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")'
-                if is_ajax:
-                    return f'<div class="p-15 text-warning">{msg}</div>', 400
-                flash(msg, 'warning')
+                flash('Dosypki można dodawać tylko do aktywnego zlecenia (status "w toku")', 'warning')
                 return redirect(bezpieczny_powrot())
 
             szarza_id_int = _read_zasyp_id()
@@ -97,11 +95,11 @@ def register_production_dosypki_routes(
             try:
                 dostepne_surowce = get_allowed_dosypka_materials(cursor, linia)
             except Exception:
-                current_app.logger.warning('dosypka_page: failed to load raw material suggestions', exc_info=True)
+                current_app.logger.warning('dosypka_strona: failed to load raw material suggestions', exc_info=True)
                 dostepne_surowce = []
 
             return render_template(
-                'dodaj_dosypke_popup.html',
+                'dosypka_strona.html',
                 plan_id=plan_id,
                 produkt=produkt,
                 typ=typ_produkcji,
@@ -111,17 +109,25 @@ def register_production_dosypki_routes(
                 dostepne_surowce=dostepne_surowce,
             )
         except Exception as e:
-            current_app.logger.error(f'Error in dosypka_page: {e}', exc_info=True)
-            msg = 'Błąd pobierania danych planu'
-            if is_ajax:
-                return f'<div class="p-15 text-danger">{msg}</div>', 500
-            flash(msg, 'error')
+            current_app.logger.error(f'Error in dosypka_strona: {e}', exc_info=True)
+            flash('Błąd pobierania danych planu', 'error')
             return redirect(bezpieczny_powrot())
         finally:
             try:
                 conn.close()
             except Exception:
                 pass
+
+    @production_bp.route('/dosypka_page/<int:plan_id>', methods=['GET'])
+    @roles_required('operator', 'pracownik', 'produkcja', 'lider', 'magazynier', 'laborant', 'laboratorium', 'planista', 'admin', 'zarzad')
+    def dosypka_page(plan_id):
+        """Redirect legacy dosypka_page to dosypka_strona."""
+        linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
+        url = url_for('production.dosypka_strona', plan_id=plan_id, linia=linia, **request.args)
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        if is_ajax:
+            return f'<script>window.location.href = "{url}";</script>'
+        return redirect(url)
 
     @production_bp.route('/dodaj_dosypke', methods=['POST'])
     @roles_required('operator', 'pracownik', 'produkcja', 'lider', 'magazynier', 'laborant', 'laboratorium', 'planista', 'admin', 'zarzad')
@@ -374,7 +380,7 @@ def register_production_dosypki_routes(
         return redirect(bezpieczny_powrot())
 
     @production_bp.route('/anuluj_dosypke/<int:dosypka_id>', methods=['POST'])
-    @roles_required('masteradmin', 'laborant', 'laboratorium')
+    @roles_required('operator', 'pracownik', 'produkcja', 'lider', 'magazynier', 'laborant', 'laboratorium', 'planista', 'admin', 'zarzad', 'masteradmin')
     def anuluj_dosypke(dosypka_id):
         """Mark dosypka as anulowana instead of deleting it."""
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'

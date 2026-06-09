@@ -14,6 +14,9 @@
             <a href="{{ url_for('inwentaryzacja.podsumowanie_dnia') }}" class="btn-outline" style="padding: 12px 24px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-decoration: none; border: 2px solid #e2e8f0; color: #475569; background: white;">
                 <span class="material-icons">event_note</span> RAPORT DZIENNY
             </a>
+            <button type="button" onclick="openPrintAllModal()" class="btn-outline" style="padding: 12px 24px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 10px; border: 2px solid #e2e8f0; color: #475569; background: white;">
+                <span class="material-icons">print</span> DRUKUJ INWENTARYZACJE
+            </button>
             <button onclick="document.getElementById('startModal').style.display='flex'" class="btn-primary" style="padding: 12px 24px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
                 <span class="material-icons">add_circle</span> NOWA SESJA
             </button>
@@ -195,6 +198,47 @@
     </div>
 </div>
 
+<!-- MODAL: DRUKUJ INWENTARYZACJE Z OKRESU -->
+<div id="printAllModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.85); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; width: 520px; max-width: 92vw; border-radius: 20px; padding: 28px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+            <div>
+                <h3 style="margin:0 0 4px 0; font-size: 20px; font-weight: 800;">Drukuj inwentaryzacje</h3>
+                <p style="margin:0; color:#64748b; font-size:13px;">Wybierz okres i lokalizacje do wydruku.</p>
+            </div>
+            <button onclick="closePrintAllModal()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:26px;line-height:1;">×</button>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+            <div>
+                <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px; text-transform: uppercase;">Data od</label>
+                <input type="date" id="printAllDateFrom" style="width:100%; border:1px solid #e2e8f0; border-radius:12px; padding:12px; font-size:14px;">
+            </div>
+            <div>
+                <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px; text-transform: uppercase;">Data do</label>
+                <input type="date" id="printAllDateTo" style="width:100%; border:1px solid #e2e8f0; border-radius:12px; padding:12px; font-size:14px;">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 10px; display:flex; align-items:center; justify-content: space-between;">
+            <label style="display:block; font-size:12px; font-weight:700; color:#475569; text-transform: uppercase;">Lokalizacje</label>
+            <div style="display:flex; gap:8px;">
+                <button type="button" onclick="toggleAllLocations(true)" class="btn-outline" style="padding:6px 10px; border-radius:8px; font-size:12px;">Zaznacz</button>
+                <button type="button" onclick="toggleAllLocations(false)" class="btn-outline" style="padding:6px 10px; border-radius:8px; font-size:12px;">Odznacz</button>
+            </div>
+        </div>
+
+        <div id="printAllLocations" style="max-height: 220px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px;">
+            <div style="font-size: 13px; color: #94a3b8;">Ustaw date, aby wczytac lokalizacje.</div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 18px;">
+            <button type="button" onclick="confirmPrintAll()" class="btn-primary" style="flex: 2; padding: 12px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;">DRUKUJ</button>
+            <button type="button" onclick="closePrintAllModal()" style="flex: 1; background: #f1f5f9; border: none; border-radius: 12px; color: #475569; font-weight: 700; cursor: pointer;">ANULUJ</button>
+        </div>
+    </div>
+</div>
+
 <script>
 function updateStartBtn() {
     const val = document.getElementById('inv_start_lok_input').value.trim();
@@ -362,6 +406,132 @@ function saveEdit() {
         else alert("Błąd: " + data.message);
     });
 }
+function openPrintAllModal() {
+    const modal = document.getElementById('printAllModal');
+    if (!modal) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const fromEl = document.getElementById('printAllDateFrom');
+    const toEl = document.getElementById('printAllDateTo');
+    if (fromEl && !fromEl.value) fromEl.value = today;
+    if (toEl && !toEl.value) toEl.value = today;
+
+    modal.style.display = 'flex';
+    fetchPrintLocations();
+}
+function closePrintAllModal() {
+    const modal = document.getElementById('printAllModal');
+    if (modal) modal.style.display = 'none';
+}
+function renderPrintLocations(locations) {
+    const container = document.getElementById('printAllLocations');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!locations || locations.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.fontSize = '13px';
+        empty.style.color = '#94a3b8';
+        empty.textContent = 'Brak lokalizacji do wyboru.';
+        container.appendChild(empty);
+        return;
+    }
+
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = '1fr 1fr';
+    grid.style.gap = '8px';
+
+    locations.forEach(loc => {
+        const label = document.createElement('label');
+        label.style.display = 'flex';
+        label.style.alignItems = 'center';
+        label.style.gap = '8px';
+        label.style.fontSize = '13px';
+        label.style.color = '#1e293b';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'print-loc';
+        checkbox.value = loc;
+        checkbox.checked = true;
+
+        const text = document.createTextNode(loc);
+
+        label.appendChild(checkbox);
+        label.appendChild(text);
+        grid.appendChild(label);
+    });
+
+    container.appendChild(grid);
+}
+function fetchPrintLocations() {
+    const fromEl = document.getElementById('printAllDateFrom');
+    const toEl = document.getElementById('printAllDateTo');
+    const fromVal = fromEl ? fromEl.value : '';
+    const toVal = toEl ? toEl.value : '';
+
+    const container = document.getElementById('printAllLocations');
+    if (!fromVal || !toVal) {
+        if (container) {
+            container.innerHTML = '<div style="font-size: 13px; color: #94a3b8;">Ustaw zakres dat.</div>';
+        }
+        return;
+    }
+
+    if (container) {
+        container.innerHTML = '<div style="font-size: 13px; color: #94a3b8;">Ladowanie...</div>';
+    }
+
+    const params = new URLSearchParams();
+    params.set('from', fromVal);
+    params.set('to', toVal);
+
+    fetch(`/magazyn/inwentaryzacja/api/lokalizacje?${params.toString()}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.success) {
+                renderPrintLocations(data.locations || []);
+            } else {
+                renderPrintLocations([]);
+            }
+        })
+        .catch(() => renderPrintLocations([]));
+}
+function toggleAllLocations(checked) {
+    document.querySelectorAll('.print-loc').forEach(cb => { cb.checked = checked; });
+}
+function confirmPrintAll() {
+    const fromEl = document.getElementById('printAllDateFrom');
+    const toEl = document.getElementById('printAllDateTo');
+    const fromVal = fromEl ? fromEl.value : '';
+    const toVal = toEl ? toEl.value : '';
+
+    if (!fromVal || !toVal) {
+        alert('Wybierz zakres dat.');
+        return;
+    }
+
+    const selected = Array.from(document.querySelectorAll('.print-loc'))
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+
+    if (selected.length === 0) {
+        alert('Zaznacz przynajmniej jedna lokalizacje.');
+        return;
+    }
+
+    const params = new URLSearchParams();
+    params.set('from', fromVal);
+    params.set('to', toVal);
+    selected.forEach(loc => params.append('loc', loc));
+
+    window.open(`/magazyn/inwentaryzacja/drukuj-zbiorczo?${params.toString()}`, '_blank');
+    closePrintAllModal();
+}
+document.getElementById('printAllDateFrom')?.addEventListener('change', fetchPrintLocations);
+document.getElementById('printAllDateTo')?.addEventListener('change', fetchPrintLocations);
 </script>
 
 <style>

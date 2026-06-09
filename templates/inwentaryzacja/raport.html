@@ -3,19 +3,42 @@
 {% block content %}
 <div class="inventory-report p-20" style="max-width: 1200px; margin: 0 auto; font-family: 'Inter', sans-serif;">
     
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap; gap: 15px;">
+    {% set loc = (sesja.lokalizacja or '')|upper %}
+    {% set loc_map = {
+        'MOP01': 'Magazyn opakowań podłoga',
+        'MP01': 'Magazyn Produkcji podłoga',
+        'MDM01': 'Magazyn Dodatków podłoga',
+        'BF_MP01': 'Bufor Magazynu produkcyjnego',
+        'R01': 'Regał magazynowy nr. 1'
+    } %}
+    {% set loc_desc = loc_map.get(loc, '') %}
+
+    <div class="report-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap; gap: 15px;">
         <div>
-            <a href="{{ url_for('inwentaryzacja.index') }}" style="color: #64748b; text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; font-size: 13px; font-weight: 700;">
+            <a href="{{ url_for('inwentaryzacja.index') }}" class="no-print" style="color: #64748b; text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; font-size: 13px; font-weight: 700;">
                 <span class="material-icons" style="font-size: 16px;">arrow_back</span> Powrót do listy
             </a>
-            <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #0f172a;">
-                Raport z Inwentaryzacji #{{ sesja.id }}
-                <span style="display: block; font-size: 14px; color: #64748b; font-weight: 400; margin-top: 4px;">Obszar: <strong>{{ sesja.lokalizacja }}</strong></span>
-            </h1>
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                <div>
+                    <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #0f172a;">Raport z inwentaryzacji obszaru: {{ loc }}</h1>
+                    {% if loc_desc %}
+                    <div style="font-size: 13px; color: #64748b; margin-top: 4px;">{{ loc_desc }}</div>
+                    {% endif %}
+                </div>
+                <div style="margin-left: auto; text-align: right; font-size: 11px; color: #64748b;">
+                    Nr inwentaryzacji
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a;">#{{ sesja.id }}</div>
+                </div>
+            </div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 6px;">
+                Operator: <strong>{{ sesja.created_by or 'system' }}</strong>
+                • Rozpoczęto: {{ sesja.created_at.strftime('%Y-%m-%d %H:%M') if sesja.created_at and sesja.created_at.strftime else sesja.created_at }}
+                • Zakończono: {{ sesja.closed_at.strftime('%Y-%m-%d %H:%M') if sesja.closed_at and sesja.closed_at.strftime else (sesja.closed_at or '-') }}
+            </div>
 
         </div>
         
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <div class="report-actions no-print" style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button onclick="window.print()" class="btn-outline" style="padding: 10px 20px; border-radius: 10px; font-weight: 700; border: 1px solid #e2e8f0; background: white; cursor: pointer; display: flex; align-items: center; gap: 8px;">
                 <span class="material-icons">print</span> DRUKUJ
             </button>
@@ -48,7 +71,9 @@
     {% set roznice = entries | selectattr('alert') | list | length %}
 
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;">
+    {% set grouped = entries | groupby('nazwa') %}
+
+    <div class="summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;">
         <div class="stat-card" style="background: white; padding: 20px; border-radius: 15px; border: 1px solid #e2e8f0; border-top: 4px solid #0f172a; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
             <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 5px;">Palety Systemowe</div>
             <div style="font-size: 26px; font-weight: 800; color: #0f172a;">{{ total_system }}</div>
@@ -81,7 +106,7 @@
     </div>
 
     <!-- SEARCH & FILTER BAR -->
-    <div style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 15px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap;">
+    <div class="no-print" style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 15px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 280px;">
             <span class="material-icons" style="color: #64748b;">search</span>
             <input type="text" id="reportSearchInput" placeholder="Szukaj po produkcie, lokalizacji, kodzie palety, partii..." style="width: 100%; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; outline: none; transition: all 0.2s;" onkeyup="filterReportTable()">
@@ -100,7 +125,7 @@
 
     <!-- MAIN TABLE -->
     <div style="background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
-        <table class="modern-table" style="width: 100%; border-collapse: collapse;">
+        <table class="modern-table no-mobile-cards report-table" style="width: 100%; border-collapse: collapse;">
             <thead style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                 <tr>
                     <th style="padding: 15px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Lokalizacja</th>
@@ -157,10 +182,51 @@
             </tbody>
         </table>
     </div>
+
+    <div class="print-only" style="display: none; margin-top: 20px;">
+        <h2 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 800; color: #0f172a;">Podsumowanie surowców (suma)</h2>
+        <table class="print-summary-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align: left; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">Surowiec</th>
+                    <th style="text-align: right; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">Szt.</th>
+                    <th style="text-align: right; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">System</th>
+                    <th style="text-align: right; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">Faktyczny</th>
+                    <th style="text-align: right; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">Różnica</th>
+                    <th style="text-align: left; padding: 6px 8px; font-size: 11px; text-transform: uppercase;">Jedn.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for group in grouped %}
+                {% set name = group.grouper or 'Brak nazwy' %}
+                {% set ns = namespace(sys=0, act=0, count=0) %}
+                {% for item in group.list %}
+                    {% set ns.sys = ns.sys + (item.waga_systemowa or 0) %}
+                    {% set ns.act = ns.act + (item.waga_faktyczna or 0) %}
+                    {% set ns.count = ns.count + 1 %}
+                {% endfor %}
+                {% set diff_sum = ns.act - ns.sys %}
+                <tr style="border-top: 1px solid #ddd;">
+                    <td style="padding: 6px 8px; font-weight: 700;">{{ name }}</td>
+                    <td style="padding: 6px 8px; text-align: right;">{{ ns.count }}</td>
+                    <td style="padding: 6px 8px; text-align: right;">{{ "%.1f"|format(ns.sys) }}</td>
+                    <td style="padding: 6px 8px; text-align: right;">{{ "%.1f"|format(ns.act) }}</td>
+                    <td style="padding: 6px 8px; text-align: right;">{{ "%.1f"|format(diff_sum) }}</td>
+                    <td style="padding: 6px 8px;">{{ group.list[0].jednostka or 'kg' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="report-footer" style="margin-top: 16px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+        <div>Źródło: moduł Inwentaryzacja (RaportProdukcyjny)</div>
+        <div>Wydruk: <span class="printed-at"></span></div>
+    </div>
 </div>
 
 <!-- MODAL: APPLY INVENTORY -->
-<div id="applyModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+<div id="applyModal" class="modal-overlay no-print" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
     <div style="background: white; width: 450px; border-radius: 24px; padding: 35px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
         <div style="width: 70px; height: 70px; background: #dcfce7; color: #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
             <span class="material-icons" style="font-size: 36px;">update</span>
@@ -176,10 +242,19 @@
         </div>
     </div>
 </div>
+
+<script>
+(function() {
+    var printedAt = new Date().toLocaleString('pl-PL');
+    document.querySelectorAll('.printed-at').forEach(function(el) {
+        el.textContent = printedAt;
+    });
+})();
+</script>
 </div>
 
 <!-- MODAL: REVERT INVENTORY -->
-<div id="revertModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+<div id="revertModal" class="modal-overlay no-print" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
     <div style="background: white; width: 450px; border-radius: 24px; padding: 35px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
         <div style="width: 70px; height: 70px; background: #fef3c7; color: #d97706; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
             <span class="material-icons" style="font-size: 36px;">undo</span>
@@ -299,12 +374,42 @@ function filterReportTable() {
 
 <style>
     @media print {
-        .sidebar, .top-bar, .btn-outline, .btn-primary { display: none !important; }
+        @page { margin: 8mm; }
+        body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; zoom: 0.92; }
+        .sidebar, .top-bar, .no-print, .report-actions, .modal-overlay, .quick-popup, .quick-backdrop { display: none !important; }
         .inventory-report { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
-        .inventory-report div[style*="background: white"] { box-shadow: none !important; border: 1px solid #000 !important; }
+        .report-header { box-shadow: none !important; border: none !important; padding: 0 !important; margin-bottom: 8px !important; }
+        .print-only { display: block !important; }
+        .summary-cards { display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 6px !important; margin-bottom: 8px !important; }
+        .stat-card { padding: 8px !important; border-radius: 10px !important; box-shadow: none !important; }
+        .stat-card div { margin: 0 !important; }
+        .inventory-report div[style*="background: white"] { box-shadow: none !important; }
         table { border: 1px solid #000 !important; }
         th, td { border: 1px solid #ccc !important; }
-        body { background: white !important; }
+        table.modern-table { display: table !important; width: 100% !important; }
+        table.modern-table thead { display: table-header-group !important; }
+        table.modern-table tbody { display: table-row-group !important; }
+        table.modern-table tr { display: table-row !important; margin: 0 !important; border-radius: 0 !important; background: transparent !important; padding: 0 !important; }
+        table.modern-table th,
+        table.modern-table td {
+            display: table-cell !important;
+            width: auto !important;
+            text-align: left !important;
+            border: 1px solid #ccc !important;
+        }
+        table.modern-table td::before { display: none !important; content: none !important; }
+        table.modern-table td > * { display: block !important; width: auto !important; font-size: 9.5px !important; font-weight: 500 !important; color: #1e293b !important; }
+        .modern-table th, .modern-table td { padding: 4px 6px !important; font-size: 9.5px !important; line-height: 1.2 !important; }
+        .report-table td div { font-size: 9px !important; margin-top: 2px !important; }
+        .report-table td span { font-size: 9px !important; }
+        .report-table th:nth-child(8),
+        .report-table td:nth-child(8) { display: none !important; }
+        .print-summary-table th,
+        .print-summary-table td { padding: 4px 6px !important; font-size: 10px !important; }
+        .print-only { margin-bottom: 8px !important; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        tr { page-break-inside: avoid; }
     }
 </script>
 

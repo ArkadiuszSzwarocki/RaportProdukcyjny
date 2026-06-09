@@ -688,6 +688,44 @@ def _create_tables(cursor):
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_inwentaryzacja_produkcji_sesje (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            linia VARCHAR(10) DEFAULT 'AGRO',
+            status VARCHAR(20) DEFAULT 'OPEN',
+            created_by VARCHAR(100),
+            lokalizacja VARCHAR(100) DEFAULT 'WSZYSTKO',
+            comment TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            closed_at DATETIME NULL,
+            INDEX idx_mag_prod_inv_status (status),
+            INDEX idx_mag_prod_inv_linia (linia)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_inwentaryzacja_produkcji_wpisy (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            sesja_id INT NOT NULL,
+            ruch_id INT NULL,
+            old_ruch_id INT NULL,
+            zbiornik VARCHAR(20) NOT NULL,
+            surowiec_nazwa VARCHAR(255) DEFAULT '',
+            waga_systemowa DECIMAL(12,2) DEFAULT 0,
+            waga_faktyczna DECIMAL(12,2) DEFAULT 0,
+            user_login VARCHAR(100),
+            data_wpisu DATETIME DEFAULT CURRENT_TIMESTAMP,
+            paleta_id INT NULL,
+            nr_palety VARCHAR(100) DEFAULT '',
+            nr_partii VARCHAR(100) DEFAULT '',
+            data_produkcji DATE NULL,
+            data_przydatnosci DATE NULL,
+            FOREIGN KEY (sesja_id) REFERENCES magazyn_inwentaryzacja_produkcji_sesje(id) ON DELETE CASCADE,
+            INDEX idx_mag_prod_inv_wpisy_sesja (sesja_id),
+            UNIQUE KEY uq_mag_prod_inv_wpisy_zbiornik (sesja_id, zbiornik)
+        )
+    """)
+
 
 def _add_column_if_missing(cursor, table, column, definition, description=""):
     """Helper to add column if it doesn't exist."""
@@ -953,6 +991,31 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_wpisy", "typ_opakowania", "VARCHAR(50) DEFAULT 'brak'", "Dodawanie kolumny 'typ_opakowania' do wpisów inwentaryzacyjnych")
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_wpisy", "jednostka", "VARCHAR(10) DEFAULT 'kg'", "Dodawanie kolumny 'jednostka' do wpisów inwentaryzacyjnych")
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_sesje", "lokalizacja", "VARCHAR(100) DEFAULT 'Wszystko'", "Dodawanie kolumny 'lokalizacja' do sesji inwentaryzacyjnych")
+
+    # Inwentaryzacja produkcji (AGRO) columns
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_sesje", "linia", "VARCHAR(10) DEFAULT 'AGRO'", "Dodawanie kolumny 'linia' do sesji inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_sesje", "lokalizacja", "VARCHAR(100) DEFAULT 'WSZYSTKO'", "Dodawanie kolumny 'lokalizacja' do sesji inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_sesje", "comment", "TEXT", "Dodawanie kolumny 'comment' do sesji inwentaryzacji produkcji")
+
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "ruch_id", "INT NULL", "Dodawanie kolumny 'ruch_id' do wpisów inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "old_ruch_id", "INT NULL", "Dodawanie kolumny 'old_ruch_id' do wpisów inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "surowiec_nazwa", "VARCHAR(255) DEFAULT ''", "Dodawanie kolumny 'surowiec_nazwa' do wpisów inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "waga_systemowa", "DECIMAL(12,2) DEFAULT 0", "Dodawanie kolumny 'waga_systemowa' do wpisów inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "waga_faktyczna", "DECIMAL(12,2) DEFAULT 0", "Dodawanie kolumny 'waga_faktyczna' do wpisów inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "data_wpisu", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'data_wpisu' do wpisów inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "paleta_id", "INT NULL", "Dodawanie kolumny 'paleta_id' do wpisów inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "nr_palety", "VARCHAR(100) DEFAULT ''", "Dodawanie kolumny 'nr_palety' do wpisów inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "nr_partii", "VARCHAR(100) DEFAULT ''", "Dodawanie kolumny 'nr_partii' do wpisów inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "data_produkcji", "DATE NULL", "Dodawanie kolumny 'data_produkcji' do wpisów inwentaryzacji produkcji")
+    _add_column_if_missing(cursor, "magazyn_inwentaryzacja_produkcji_wpisy", "data_przydatnosci", "DATE NULL", "Dodawanie kolumny 'data_przydatnosci' do wpisów inwentaryzacji produkcji")
+
+    _ensure_unique_index(
+        cursor,
+        "magazyn_inwentaryzacja_produkcji_wpisy",
+        "uq_mag_prod_inv_wpisy_zbiornik",
+        ["sesja_id", "zbiornik"],
+        "Unikalny indeks (sesja_id, zbiornik) dla inwentaryzacji produkcji",
+    )
 
     # Własna data produkcji dla planów
     _add_column_if_missing(cursor, "plan_produkcji", "data_produkcji", "DATE DEFAULT NULL", "Dodawanie kolumny 'data_produkcji' (PSD)")

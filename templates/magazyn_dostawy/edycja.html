@@ -38,7 +38,7 @@
             <div style="flex: 1;">
                 <div style="font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 8px;">Logika formularza krok po kroku</div>
                 <ol style="margin: 0; padding-left: 16px; color: #334155; font-size: 12px; line-height: 1.6;">
-                    <li>Ustaw Liczbę palet i Dokąd.</li>
+                    <li>Ustaw Liczbę palet.</li>
                     <li>Zeskanuj regał/paletę lub dodaj wpis ręcznie.</li>
                     <li>Wypełnij Produkt, Skąd (per paleta), Ilość, Jednostkę, Nr partii, Datę produkcji i Datę przydatności.</li>
                     <li>Ikona kopiowania w wierszu kopiuje dane tylko z palety powyżej do bieżącej.</li>
@@ -93,20 +93,11 @@
             <h6 style="margin: 0; font-size: 12px; font-weight: 700; color: #475569;">Szczegóły Przesunięcia</h6>
         </div>
         <div style="padding: 20px;">
-            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 15px; align-items: end;">
+            <div style="display: grid; grid-template-columns: 120px; gap: 15px; align-items: end;">
                 <div style="display: flex; flex-direction: column;">
                     <label style="font-size: 11px; font-weight: 800; color: #3b82f6; margin-bottom: 6px;">LICZBA PALET</label>
                     <input type="number" id="pallet_count" value="0" min="0" max="50" onchange="generateManualRows(this.value)" {% if is_readonly_issue %}disabled{% endif %}
                            style="height: 42px; width: 100%; background: #eff6ff; border: 2px solid #3b82f6; border-radius: 8px; padding: 0; font-weight: 900; text-align: center; font-size: 20px; color: #1e40af;">
-                </div>
-                <div style="display: flex; flex-direction: column;">
-                    <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">DOKĄD (CEL)</label>
-                    <select id="lokalizacja_do" class="premium-input" {% if is_readonly_issue %}disabled{% endif %} style="height: 42px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: white; font-weight: 700;">
-                        <option value="">-- Wybierz --</option>
-                        <option value="BF_MS01" {% if dostawa and dostawa.lokalizacja_do == 'BF_MS01' %}selected{% endif %}>BF_MS01</option>
-                        <option value="BF_MP01" {% if dostawa and dostawa.lokalizacja_do == 'BF_MP01' %}selected{% endif %}>BF_MP01</option>
-                        <option value="MS01" {% if dostawa and dostawa.lokalizacja_do == 'MS01' %}selected{% endif %}>MS01</option>
-                    </select>
                 </div>
             </div>
         </div>
@@ -730,13 +721,7 @@
         }
 
         const blockers = [];
-        const targetInput = document.getElementById('lokalizacja_do');
-        const targetLoc = targetInput ? targetInput.value : '';
-
-        if (!isFilled(targetLoc)) {
-            blockers.push('Wybierz magazyn docelowy (Dokąd).');
-        }
-
+        
         if (!Array.isArray(items) || items.length === 0) {
             blockers.push('Dodaj przynajmniej jedną paletę.');
             return blockers;
@@ -1544,10 +1529,10 @@
             notifyReadOnly();
             return;
         }
-        const targetLoc = document.getElementById('lokalizacja_do').value;
-        const orderRef = document.getElementById('order_ref').value.trim();
-        
-        if (!targetLoc) return showToast('Wybierz magazyn docelowy!', 'warning');
+        const targetInputElement = document.getElementById('lokalizacja_do');
+        const targetLoc = targetInputElement ? targetInputElement.value : '';
+        const orderRefElem = document.getElementById('order_ref');
+        const orderRef = orderRefElem ? orderRefElem.value.trim() : '';
 
         const conflictingItems = items.filter(item => isRouteConflictLocation(item && item.sourceSpot, targetLoc));
         if (conflictingItems.length > 0) {
@@ -1583,10 +1568,7 @@
         if (data.success) {
             clearDraftState();
             resetTransferFormAfterSave();
-            showToast('Przesuniecie zapisane', 'success');
-            setTimeout(() => {
-                location.href = "{{ url_for('magazyn_dostawy.edycja_dostawy', linia=linia, draft='new') }}";
-            }, 500);
+            showToast('Zapisano pomyślnie!', 'success');
         } else {
             showToast('Błąd: ' + data.error, 'danger');
         }

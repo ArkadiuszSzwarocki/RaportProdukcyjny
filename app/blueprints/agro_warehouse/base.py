@@ -69,7 +69,7 @@ def _resolve_report_bag_kg(cursor, plan_row, rozliczenia, product_typ_cache):
 
 @agro_warehouse_bp.route('/agro/magazyn')
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('magazyn.agro_total')
 def index():
     linia = request.args.get('linia', 'Agro')
     # Parse optional date (useful for viewing pallets by day)
@@ -128,7 +128,7 @@ def index():
 
 @agro_warehouse_bp.route('/agro/magazyn/opakowania')
 @login_required
-@dynamic_role_required('agro_magazyn')
+@dynamic_role_required('magazyn.agro_packaging')
 def opakowania():
     """Simple view for packaging warehouse (magazyn_opakowania) in AGRO."""
     linia = request.args.get('linia', 'Agro')
@@ -256,17 +256,27 @@ def change_production_inventory_material():
     nr_partii = data.get('nr_partii')
     data_produkcji = data.get('data_produkcji')
     data_przydatnosci = data.get('data_przydatnosci')
+    waga_faktyczna = data.get('waga_faktyczna')
     
     # Handle empty strings as None for date fields to avoid DB errors
     if data_produkcji == '': data_produkcji = None
     if data_przydatnosci == '': data_przydatnosci = None
+
+    if waga_faktyczna in (None, ''):
+        waga_faktyczna = None
+    else:
+        try:
+            waga_faktyczna = float(str(waga_faktyczna).replace(',', '.'))
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'message': 'Nieprawidłowy stan faktyczny.'})
     
     user_login = session.get('login', 'system')
     
     success, msg = ProductionInventoryService.update_material(
         sesja_id, entry_id, nowy_surowiec, user_login,
         paleta_id=paleta_id, nr_palety=nr_palety, nr_partii=nr_partii,
-        data_produkcji=data_produkcji, data_przydatnosci=data_przydatnosci
+        data_produkcji=data_produkcji, data_przydatnosci=data_przydatnosci,
+        waga_faktyczna=waga_faktyczna
     )
     return jsonify({'success': success, 'message': msg})
 

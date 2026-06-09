@@ -234,10 +234,18 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
             conn = get_db_connection()
             table_plan = get_table_name('plan_produkcji', linia)
             cursor = conn.cursor()
-            cursor.execute(
-                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, opakowanie_id, etykieta_id FROM {table_plan} WHERE id=%s",
-                (pid,),
-            )
+            
+            if linia.upper() == 'AGRO':
+                cursor.execute(
+                    f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, opakowanie_id, etykieta_id FROM {table_plan} WHERE id=%s",
+                    (pid,),
+                )
+            else:
+                cursor.execute(
+                    f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, NULL as opakowanie_id, NULL as etykieta_id FROM {table_plan} WHERE id=%s",
+                    (pid,),
+                )
+                
             before = cursor.fetchone()
             if not before:
                 return jsonify({'success': False, 'message': 'Nie znaleziono zlecenia'}), 404
@@ -570,7 +578,8 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
         return jsonify({'success': success, 'message': message}), status_code
 
     @planning_bp.route('/usun_plan_ajax/<int:id>', methods=['POST'])
-    @masteradmin_required
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
+    @hall_restricted
     def api_usun_plan(id):
         """Soft delete plan via AJAX."""
         linia = request.args.get('linia') or request.form.get('linia') or request.get_json(silent=True, force=False) and request.get_json(silent=True).get('linia') or 'PSD'

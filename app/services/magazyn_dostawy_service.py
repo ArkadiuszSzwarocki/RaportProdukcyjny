@@ -658,7 +658,7 @@ class MagazynDostawyService:
             table_sur = get_table_name('magazyn_surowce', linia)
             table_opk = get_table_name('magazyn_opakowania', linia)
 
-            open_locations = ['MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'MDM01', 'MD01', 'PSD01']
+            open_locations = ['MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'MDM01', 'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD']
             is_open = any(lokalizacja.upper().startswith(ol) for ol in open_locations)
 
             if not is_open:

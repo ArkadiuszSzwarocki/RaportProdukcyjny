@@ -65,7 +65,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
                 import json
                 qr_data = json.dumps({'login': login, 'pass': password})
             else:
-                qr_data = f"LOGIN:{login}|PASS:{password}"
+                qr_data = f"LOGIN:{login}:{password}"
 
             # Zbuduj ZPL dla małej etykiety QR (1cm x 1cm)
             from app.services.print_server import get_printer

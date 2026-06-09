@@ -91,7 +91,7 @@ class ProductionInventoryService:
             conn.close()
 
     @staticmethod
-    def update_material(sesja_id, entry_id, new_material, user_login, paleta_id=None, nr_palety=None, nr_partii=None, data_produkcji=None, data_przydatnosci=None):
+    def update_material(sesja_id, entry_id, new_material, user_login, paleta_id=None, nr_palety=None, nr_partii=None, data_produkcji=None, data_przydatnosci=None, waga_faktyczna=None):
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
@@ -101,10 +101,10 @@ class ProductionInventoryService:
                 """UPDATE magazyn_inwentaryzacja_produkcji_wpisy 
                    SET old_ruch_id = IFNULL(old_ruch_id, ruch_id),
                        ruch_id = NULL,
-                       surowiec_nazwa = %s, waga_systemowa = 0, user_login = %s, data_wpisu = CURRENT_TIMESTAMP,
+                       surowiec_nazwa = %s, waga_systemowa = 0, waga_faktyczna = COALESCE(%s, waga_faktyczna), user_login = %s, data_wpisu = CURRENT_TIMESTAMP,
                        paleta_id = %s, nr_palety = %s, nr_partii = %s, data_produkcji = %s, data_przydatnosci = %s
                    WHERE id = %s AND sesja_id = %s""",
-                (new_material, user_login, paleta_id, nr_palety, nr_partii, data_produkcji, data_przydatnosci, entry_id, sesja_id)
+                (new_material, waga_faktyczna, user_login, paleta_id, nr_palety, nr_partii, data_produkcji, data_przydatnosci, entry_id, sesja_id)
             )
             conn.commit()
             return True, "Zaktualizowano surowiec."

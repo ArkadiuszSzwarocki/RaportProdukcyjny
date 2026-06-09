@@ -16,8 +16,12 @@ def index():
     cursor.execute("SELECT * FROM magazyn_inwentaryzacja_sesje ORDER BY id DESC LIMIT 500")
     sessions = cursor.fetchall()
     conn.close()
-    
-    return render_template('inwentaryzacja/index.html', active_sessions=active_sessions, sessions=sessions)
+
+    return render_template(
+        'inwentaryzacja/index.html',
+        active_sessions=active_sessions,
+        sessions=sessions,
+    )
 
 @inwentaryzacja_bp.route('/start', methods=['POST'])
 def start():
@@ -66,6 +70,42 @@ def podpowiedzi_nazw():
     typ = request.args.get('typ')
     names = InwentaryzacjaService.get_all_product_names(typ)
     return jsonify({"success": True, "names": names})
+
+@inwentaryzacja_bp.route('/api/lokalizacje', methods=['GET'])
+def get_lokalizacje():
+    from datetime import datetime, timedelta
+
+    date_from = request.args.get('from') or ''
+    date_to = request.args.get('to') or ''
+
+    def _parse_date(val):
+        try:
+            return datetime.strptime(val, '%Y-%m-%d')
+        except Exception:
+            return None
+
+    start_date = _parse_date(date_from) or datetime.now()
+    end_date = _parse_date(date_to) or start_date
+    end_date_exclusive = end_date + timedelta(days=1)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT DISTINCT UPPER(lokalizacja)
+        FROM magazyn_inwentaryzacja_sesje
+        WHERE created_at >= %s
+          AND created_at < %s
+          AND lokalizacja IS NOT NULL
+          AND lokalizacja <> ''
+        ORDER BY UPPER(lokalizacja) ASC
+        """,
+        (start_date.strftime('%Y-%m-%d'), end_date_exclusive.strftime('%Y-%m-%d')),
+    )
+    locations = [row[0] for row in cursor.fetchall() if row and row[0]]
+    conn.close()
+
+    return jsonify({"success": True, "locations": locations})
 
 @inwentaryzacja_bp.route('/api/zapisz-wpis', methods=['POST'])
 def zapisz_wpis():
@@ -240,4 +280,52 @@ def podsumowanie_dnia():
     }
     
     return render_template('inwentaryzacja/podsumowanie_dnia.html', date_str=date_str, summary=summary, kategorie=kategorie)
+
+
+@inwentaryzacja_bp.route('/drukuj-zbiorczo', methods=['GET'])
+def drukuj_zbiorczo():
+    from datetime import datetime, timedelta
+
+    date_from = request.args.get('from') or ''
+    date_to = request.args.get('to') or ''
+    locs = [loc.strip().upper() for loc in request.args.getlist('loc') if loc.strip()]
+
+    def _parse_date(val):
+        try:
+            return datetime.strptime(val, '%Y-%m-%d')
+        except Exception:
+            return None
+
+    start_date = _parse_date(date_from) or datetime.now()
+    end_date = _parse_date(date_to) or start_date
+    end_date_exclusive = end_date + timedelta(days=1)
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    where = ["created_at >= %s", "created_at < %s"]
+    params = [start_date.strftime('%Y-%m-%d'), end_date_exclusive.strftime('%Y-%m-%d')]
+
+    if locs:
+        placeholders = ','.join(['%s'] * len(locs))
+        where.append(f"UPPER(lokalizacja) IN ({placeholders})")
+        params.extend(locs)
+
+    query = "SELECT * FROM magazyn_inwentaryzacja_sesje WHERE " + " AND ".join(where) + " ORDER BY created_at ASC, id ASC"
+    cursor.execute(query, tuple(params))
+    sessions = cursor.fetchall()
+    conn.close()
+
+    report_items = []
+    for sesja in sessions:
+        entries = InwentaryzacjaService.get_report(sesja['id'])
+        report_items.append({'sesja': sesja, 'entries': entries})
+
+    return render_template(
+        'inwentaryzacja/raport_zbiorczy.html',
+        report_items=report_items,
+        date_from=start_date.strftime('%Y-%m-%d'),
+        date_to=end_date.strftime('%Y-%m-%d'),
+        selected_locations=locs,
+    )
 

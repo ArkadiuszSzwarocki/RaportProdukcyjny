@@ -38,7 +38,7 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role):
         work_first_map = DashboardService.get_first_workowanie_map(dzisiaj, linia=linia, cursor=cursor)
         zasyp_product_order = DashboardService.get_zasyp_product_order(dzisiaj, linia=linia, cursor=cursor)
         zasyp_has_active = DashboardService.get_zasyp_active_status(dzisiaj, linia=linia, cursor=cursor)
-        active_products = DashboardService.get_active_products(dzisiaj, linia=linia, cursor=cursor)
+        active_products = DashboardService.get_active_products(dzisiaj, aktywna_sekcja, linia=linia, cursor=cursor)
 
         plan_dnia = []
         palety_mapa = {}

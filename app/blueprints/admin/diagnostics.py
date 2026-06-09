@@ -380,7 +380,7 @@ def register_admin_diagnostics_routes(admin_bp):
             cursor.execute("""
                 SELECT 
                     table_name AS name, 
-                    table_rows AS rows, 
+                    table_rows AS `rows`, 
                     round(((data_length + index_length) / 1024 / 1024), 3) AS size_mb 
                 FROM information_schema.TABLES 
                 WHERE table_schema = DATABASE()

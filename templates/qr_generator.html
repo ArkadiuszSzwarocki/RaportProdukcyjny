@@ -261,7 +261,7 @@
             <div class="radio-group">
                 <label>
                     <input type="radio" name="format" value="simple" checked>
-                    Prosty (LOGIN:xxx|PASS:yyy)
+                    Prosty (LOGIN:login:haslo)
                 </label>
                 <label>
                     <input type="radio" name="format" value="json">
@@ -334,8 +334,8 @@
             });
             formatName = 'JSON';
         } else {
-            qrData = `LOGIN:${login}|PASS:${password}`;
-            formatName = 'Prosty (delimiter |)';
+            qrData = `LOGIN:${login}:${password}`;
+            formatName = 'Prosty (oszukany LOGIN:SzwarArk:1)';
         }
 
         console.log('QR Data:', qrData);

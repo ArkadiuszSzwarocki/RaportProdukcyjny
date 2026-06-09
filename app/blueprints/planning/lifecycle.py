@@ -64,7 +64,8 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
         return redirect(_build_context_return_url(linia, sekcja, data_planu))
 
     @planning_bp.route('/przywroc_usunietego_zlecenia/<int:id>', methods=['POST'])
-    @masteradmin_required
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
+    @hall_restricted
     def przywroc_usunietego_zlecenia(id):
         """Restore a deleted plan."""
         linia = request.args.get('linia') or request.form.get('linia', 'PSD')
@@ -88,7 +89,8 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
         return redirect(return_url_builder())
 
     @planning_bp.route('/usun_plan/<int:id>', methods=['POST'])
-    @masteradmin_required
+    @roles_required('planista', 'admin', 'zarzad', 'lider')
+    @hall_restricted
     def usun_plan(id):
         """Unified route for plan deletion (PSD/AGRO)."""
         linia = request.form.get('linia') or request.args.get('linia') or 'PSD'

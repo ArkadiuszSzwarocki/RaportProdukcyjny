@@ -207,6 +207,10 @@ function promptMoveLocation() {
             }
         }
         options += '<option value="MP01"></option><option value="MS01"></option><option value="MGW01"></option>';
+        options += '<option value="MDM01"></option><option value="MOP01"></option><option value="MGW02"></option>';
+        options += '<option value="OSIP"></option><option value="BF_MS01"></option><option value="BF_MP01"></option>';
+        options += '<option value="KO01"></option><option value="PSD"></option><option value="PSD01"></option>';
+        options += '<option value="RAMPA"></option><option value="MIX01"></option><option value="W_TRANZYCIE_OSIP"></option>';
         datalist.innerHTML = options;
     }
 
