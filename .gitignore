@@ -162,3 +162,6 @@ static/sounds/zasyp_*.mp3
 static/sounds/zwolnienie_*.mp3
 app/core/static/sounds/zasyp_*.mp3
 app/core/static/sounds/zwolnienie_*.mp3
+
+# Scratch workspace
+scratch/
