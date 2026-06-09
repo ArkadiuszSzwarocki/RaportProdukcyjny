@@ -40,7 +40,7 @@ services:
       TZ: ${TZ:-Europe/Warsaw}
       PORT: 8082
       HOST: 0.0.0.0
-      PRINTER_BRIDGE_URL: "${PRINTER_BRIDGE_URL:-https://127.0.0.1:3001}"
+      PRINTER_BRIDGE_URL: "${PRINTER_BRIDGE_URL:-http://127.0.0.1:3001}"
       PRINTER_CLIENT_BRIDGE_URL: "${PRINTER_CLIENT_BRIDGE_URL:-}"
     ports:
       - "${PORT:-8082}:8082"

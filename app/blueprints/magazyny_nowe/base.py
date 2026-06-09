@@ -631,7 +631,7 @@ def print_pallet_label():
             shared_bridge_base = str(os.getenv('PRINTER_BRIDGE_URL', '') or '').strip().rstrip('/')
 
         _append_bridge_endpoints('shared_bridge', shared_bridge_base)
-        _append_bridge_endpoints('localhost_bridge', 'https://127.0.0.1:3001')
+        _append_bridge_endpoints('localhost_bridge', 'http://127.0.0.1:3001')
 
         local_bridge_fallback = None
         if fallback_printers:

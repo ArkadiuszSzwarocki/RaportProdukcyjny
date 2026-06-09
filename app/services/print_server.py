@@ -58,7 +58,7 @@ def _read_int_env(name: str, default_value: int, minimum: int | None = None, max
 class PrintServer:
     def __init__(self):
         # Mostek (bridge) działa zazwyczaj na tej samej maszynie co serwer WWW
-        self.bridge_url = os.getenv('PRINTER_BRIDGE_URL', 'https://127.0.0.1:3001')
+        self.bridge_url = os.getenv('PRINTER_BRIDGE_URL', 'http://127.0.0.1:3001')
         self.bridge_connect_timeout = _read_float_env('PRINTER_BRIDGE_CONNECT_TIMEOUT', 2.0, minimum=0.2)
         configured_bridge_read_timeout = _read_float_env('PRINTER_BRIDGE_READ_TIMEOUT', 12.0, minimum=1.0)
 
@@ -78,7 +78,7 @@ class PrintServer:
     def _normalize_bridge_base(self, raw_base: str | None = None) -> str:
         base_value = str(raw_base or self.bridge_url or '').strip().rstrip('/')
         if not base_value:
-            base_value = 'https://127.0.0.1:3001'
+            base_value = 'http://127.0.0.1:3001'
 
         lowered = base_value.lower()
         if lowered.endswith('/drukuj-zpl'):

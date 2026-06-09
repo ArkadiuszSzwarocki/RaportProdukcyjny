@@ -417,7 +417,7 @@ class MagazynDostawyService:
                                 }
                             }
                             def run_print(p=payload):
-                                url = "https://127.0.0.1:3001/drukuj-zpl"
+                                url = "http://127.0.0.1:3001/drukuj-zpl"
                                 for _ in range(2):
                                     try:
                                         requests.post(url, json=p, verify=False, timeout=3)
@@ -751,7 +751,7 @@ class MagazynDostawyService:
                         }
                     }
                     def run_print():
-                        url = "https://127.0.0.1:3001/drukuj-zpl"
+                        url = "http://127.0.0.1:3001/drukuj-zpl"
                         for _ in range(2):
                             try:
                                 requests.post(url, json=payload, verify=False, timeout=3)

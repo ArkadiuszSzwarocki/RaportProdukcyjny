@@ -43,7 +43,7 @@ def test_print():
         }
     }
 
-    url = "https://127.0.0.1:3001/drukuj-zpl"
+    url = "http://127.0.0.1:3001/drukuj-zpl"
     print(f"Wysylam zadanie druku na adres {url}...")
     
     try:

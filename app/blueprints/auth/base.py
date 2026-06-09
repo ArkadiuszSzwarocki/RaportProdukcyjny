@@ -60,9 +60,9 @@ def _is_port_open(host='127.0.0.1', port=3001, timeout=0.35):
 
 
 def _bridge_base_candidates():
-    base_value = str(os.getenv('PRINTER_BRIDGE_URL', 'https://127.0.0.1:3001') or '').strip().rstrip('/')
+    base_value = str(os.getenv('PRINTER_BRIDGE_URL', 'http://127.0.0.1:3001') or '').strip().rstrip('/')
     if not base_value:
-        base_value = 'https://127.0.0.1:3001'
+        base_value = 'http://127.0.0.1:3001'
 
     lowered = base_value.lower()
     if lowered.endswith('/drukuj-zpl'):

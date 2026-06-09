@@ -351,6 +351,18 @@ def _create_tables(cursor):
                    "INDEX idx_magazyn_opakowania_lokal (lokalizacja)"
                    ")")
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS slownik_surowcow (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(255) NOT NULL UNIQUE,
+            symbol VARCHAR(50) DEFAULT NULL,
+            typ VARCHAR(50) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+    """)
+
+
     # magazyn_agro_surowce and magazyn_agro_opakowania are now unified into the primary tables
     cursor.execute("CREATE TABLE IF NOT EXISTS obsada_zmiany (id INT AUTO_INCREMENT PRIMARY KEY, data_wpisu DATE, sekcja VARCHAR(50), pracownik_id INT, FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE CASCADE)")
     cursor.execute("CREATE TABLE IF NOT EXISTS obsada_liderzy (data_wpisu DATE PRIMARY KEY, lider_psd_id INT NULL, lider_agro_id INT NULL, FOREIGN KEY (lider_psd_id) REFERENCES pracownicy(id) ON DELETE SET NULL, FOREIGN KEY (lider_agro_id) REFERENCES pracownicy(id) ON DELETE SET NULL)")

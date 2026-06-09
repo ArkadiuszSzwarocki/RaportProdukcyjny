@@ -727,6 +727,9 @@
             return blockers;
         }
 
+        const targetInput = document.getElementById('lokalizacja_do');
+        const targetLoc = targetInput ? targetInput.value : '';
+
         const conflictingItems = items.filter(item => isRouteConflictLocation(item && item.sourceSpot, targetLoc));
         if (conflictingItems.length > 0) {
             blockers.push(`Operacja niemożliwa: ${conflictingItems.length} palet ma lokalizację źródłową kolidującą z Dokąd (${normalizeLocation(targetLoc)}).`);

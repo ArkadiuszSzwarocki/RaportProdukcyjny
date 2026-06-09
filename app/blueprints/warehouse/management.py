@@ -1576,7 +1576,7 @@ def register_warehouse_management_routes(
                         shared_bridge_base = str(os.getenv('PRINTER_BRIDGE_URL', '') or '').strip().rstrip('/')
 
                     _append_bridge_endpoints('shared_bridge', shared_bridge_base)
-                    _append_bridge_endpoints('localhost_bridge', 'https://127.0.0.1:3001')
+                    _append_bridge_endpoints('localhost_bridge', 'http://127.0.0.1:3001')
 
                     primary_endpoint = endpoint_entries[0] if endpoint_entries else None
                     local_bridge_fallback = {

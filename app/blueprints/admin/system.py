@@ -364,7 +364,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
 
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-        base_value = str(os.getenv('PRINTER_BRIDGE_URL', 'https://127.0.0.1:3001') or '').strip().rstrip('/')
+        base_value = str(os.getenv('PRINTER_BRIDGE_URL', 'http://127.0.0.1:3001') or '').strip().rstrip('/')
         if base_value.lower().endswith('/drukuj-zpl'):
             base_value = base_value[:-11]
         elif base_value.lower().endswith('/status'):

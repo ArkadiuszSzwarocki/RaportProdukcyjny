@@ -252,9 +252,10 @@ if __name__ == '__main__':
     if os.path.exists(cert_file) and os.path.exists(key_file):
         ssl_context = (cert_file, key_file)
         logger.info("✅ SSL: Certyfikaty aktywne z plików lokalnych.")
+        protocol = "HTTPS"
     else:
-        logger.info("⚠️ SSL: Brak lokalnych certyfikatów. Generuję certyfikaty 'adhoc' (wymaga pyOpenSSL).")
-        ssl_context = 'adhoc'
+        logger.info("⚠️ SSL: Brak lokalnych certyfikatów. Uruchamiam w trybie HTTP.")
+        protocol = "HTTP"
         
-    logger.info(f"\n🚀 MOST DO DRUKAREK AKTYWNY (Python) na porcie {port} (HTTPS)")
+    logger.info(f"\n🚀 MOST DO DRUKAREK AKTYWNY (Python) na porcie {port} ({protocol})")
     app.run(host='0.0.0.0', port=port, ssl_context=ssl_context)

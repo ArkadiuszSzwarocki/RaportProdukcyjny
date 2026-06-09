@@ -1939,8 +1939,8 @@
 
         pushCandidateWithProtocolVariants({
             name: 'localhost_bridge',
-            endpoint: 'https://127.0.0.1:3001/drukuj-zpl',
-            status_endpoint: 'https://127.0.0.1:3001/status'
+            endpoint: 'http://127.0.0.1:3001/drukuj-zpl',
+            status_endpoint: 'http://127.0.0.1:3001/status'
         });
 
         return candidates;
@@ -2081,7 +2081,7 @@
                 return;
             }
 
-            // Awaryjny wydruk lokalny (przeglądarka -> https://127.0.0.1:3001) dla przypadku,
+            // Awaryjny wydruk lokalny (przeglądarka -> http://127.0.0.1:3001) dla przypadku,
             // gdy serwer pod linkiem nie ma trasy sieciowej do drukarki.
             if (data && data.local_bridge_fallback) {
                 if (typeof showToast === 'function') {
