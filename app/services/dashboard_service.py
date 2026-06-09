@@ -3,6 +3,7 @@ Delegates heavy lifting to specialized services while maintaining backward compa
 """
 
 from datetime import date
+import re
 from typing import Dict, List, Tuple, Any, Optional
 from app.db import get_db_connection, get_table_name
 from app.services.staff_service import StaffService
@@ -10,6 +11,66 @@ from app.services.production_service import ProductionService
 from app.services.warehouse_service import WarehouseService
 from app.services.hr_service import HRService
 from app.utils.queries import QueryHelper
+
+
+def _extract_bag_kg(value):
+    """Extract bag weight (kg) from values like 'worki_zgrzewane_20'."""
+    if value is None:
+        return None
+
+    match = re.search(r"(\d+(?:[\.,]\d+)?)", str(value))
+    if not match:
+        return None
+
+    raw = match.group(1).replace(',', '.')
+    try:
+        kg = float(raw)
+    except (TypeError, ValueError):
+        return None
+
+    return kg if kg > 0 else None
+
+
+def _resolve_agro_bag_kg(cursor, active_plan, history, product_typ_cache):
+    """Resolve kg/worek for AGRO context using available plan/history metadata."""
+    for row in history or []:
+        kg = row.get('kg_na_worek')
+        if kg is None:
+            continue
+        try:
+            kg_val = float(kg)
+        except (TypeError, ValueError):
+            continue
+        if kg_val > 0:
+            return kg_val
+
+    for key in ('typ_produkcji', 'zasyp_typ_produkcji'):
+        kg = _extract_bag_kg((active_plan or {}).get(key))
+        if kg:
+            return kg
+
+    produkt = str((active_plan or {}).get('produkt') or '').strip()
+    if produkt:
+        if produkt not in product_typ_cache:
+            cursor.execute(
+                "SELECT typ_produkcji FROM produkty_receptury WHERE nazwa_produktu = %s ORDER BY id DESC LIMIT 1",
+                (produkt,),
+            )
+            product_row = cursor.fetchone()
+            if isinstance(product_row, dict):
+                product_typ_cache[produkt] = product_row.get('typ_produkcji')
+            else:
+                product_typ_cache[produkt] = None
+
+        kg = _extract_bag_kg(product_typ_cache.get(produkt))
+        if kg:
+            return kg
+
+    if '20' in produkt.lower():
+        return 20.0
+
+    return 25.0
+
 
 class DashboardService:
     """Orchestrator for aggregating dashboard data."""
