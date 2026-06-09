@@ -1,0 +1,880 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+/* ─── Scanner UI ─── */
+:root {
+  --scan-bg: #0f172a;
+  --scan-card: #1e293b;
+  --scan-border: #334155;
+  --scan-accent: #3b82f6;
+  --scan-success: #22c55e;
+  --scan-warn: #f59e0b;
+  --scan-danger: #ef4444;
+}
+
+.scanner-wrap { max-width: 900px; margin: 0 auto; padding: 16px; }
+
+.scan-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+}
+
+.scan-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.scan-input-wrap .input-icon {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  color: var(--scan-accent); font-size: 24px;
+}
+#scan-btn {
+  width: auto !important;
+  padding: 0 16px !important;
+  flex-shrink: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+}
+#scanInput {
+  width: 100%;
+  padding: 14px 16px 14px 48px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  outline: none;
+  text-transform: uppercase;
+  transition: border-color .2s;
+  box-sizing: border-box;
+}
+#scanInput:focus { bor
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  margin-bottom: 6px !important;
+}
+
+/* Beautiful custom buttons */
+.btn-primary {
+  background: #d35400 !important; /* AGRO orange */
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 12px rgba(211, 84, 0, 0.2) !important;
+}
+
+.btn-primary:hover {
+  background: #e67e22 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(211, 84, 0, 0.3) !important;
+}
+
+.btn-add-worek {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px dashed #cbd5e1 !important;
+  border-radius: 8px !important;
+  padding: 10px 16px !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease !important;
+  width: 100%;
+}
+
+.btn-add-worek:hover {
+  background: #e2e8f0 !important;
+  color: #1e293b !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Delete button in table rows */
+.btn-delete-row {
+  background: #fee2e2 !important;
+  color: #ef4444 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  width: 38px !important;
+  height: 38px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease !important;
+}
+
+.btn-delete-row:hover {
+  background: #fecaca !important;
+  color: #dc2626 !important;
+  transform: scale(1.05);
+}
+
+.btn-delete-row .material-icons {
+  font-size: 18px !important;
+}
+
+/* Pallet info card */
+.pallet-card {
+  background: #f0fdf4;
+  border: 2px solid #86efac;
+  border-radius: 12px;
+  padding: 16px;
+  display: none;
+}
+.pallet-card.visible { display: block; }
+.pallet-name { font-size: 22px; font-weight: 700; color: #166534; }
+.pallet-loc  { font-size: 13px; color: #16a34a; font-family: monospace; font-weight: 600; }
+.pallet-qty  { font-size: 28px; font-weight: 700; color: #0f172a; margin: 8px 0; }
+
+/* bags table */
+.bags-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 10px;
+}
+.bags-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 12px 10px;
+  border-bottom: 2px solid #e2e8f0;
+  text-align: left;
+}
+.bags-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+/* Status pill */
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+}
+.pill-success { background: #dcfce7; color: #166534; }
+.pill-warn    { background: #fef3c7; color: #92400e; }
+.pill-danger  { background: #fee2e2; color: #991b1b; }
+
+/* Printer status */
+#printerPill { font-size: 13px; padding: 4px 12px; }
+
+/* Toast */
+#toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  background: #0f172a; color: #fff;
+  padding: 12px 20px; border-radius: 10px;
+  font-size: 14px; font-weight: 500;
+  box-shadow: 0 8px 30px rgba(0,0,0,.35);
+  display: none; max-width: 360px;
+}
+</style>
+
+<div class="scanner-wrap">
+
+  <!-- Header -->
+  <div class="row items-center justify-between mb-20 gap-10 wrap">
+    <div>
+      <h1 class="header-title m-0 row items-center gap-8">
+        <span class="material-icons" style="font-size:32px; color:var(--primary-color);">qr_code_scanner</span>
+        Skaner Magazynowy
+      </h1>
+      <p class="text-muted small" style="margin:4px 0 0;">Linia: <strong>{{ linia }}</strong></p>
+    </div>
+    <div class="row items-center gap-8">
+      <span class="pill" id="printerPill">
+        <span class="material-icons" style="font-size:14px;">print</span> Sprawdzam drukarkę…
+      </span>
+    </div>
+  </div>
+
+  <!-- SCAN BOX -->
+  <div class="s
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-box {
+  background: #fff; width: 90%; max-width: 450px;
+  border-radius: 16px; padding: 24px;
+
+               placeholder="R030101 albo SUR-42" autofocus>
+      </div>
+      <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">
+        <span class="material-icons">qr_code_scanner</span>
+      </button>
+    </div>
+    <p class="small text-muted mt-8" id="scanBoxHint">Przyłóż skaner i naciśnij fizyczny spust. Przycisk obok pola przy pustym kodzie spróbuje uruchomić skanowanie programowo (jeśli urządzenie to wspiera).</p>
+  </div>
+
+  <!-- PALLET INFO -->
+  <div class="scan-card">
+    <div class="scan-title">
+      <span class="material-icons" style="color:#16a34a;">inventory_2</span>
+      Znaleziona paleta
+    </div>
+    <div class="pallet-card" id="palletCard">
+      <span class="pill" id="printerPill">
+        <span class="material-icons" style="font-size:14px;">print</span> Sprawdzam drukarkę…
+      </span>
+    </div>
+  </div>
+
+  <!-- SCAN BOX -->
+  <div class="scan-card" id="mainScanBox">
+    <div class="scan-title" id="scanBoxTitle">
+      <span class="material-icons" style="color:var(--primary-color);">barcode_reader</span>
+      Skanuj kod regału lub palety
+    </div>
+    <div class="scan-input-wrap" style="display: flex; gap: 8px;">
+      <div style="position: relative; flex: 1;">
+        <span class="material-icons input-icon" id="scanBoxIcon">qr_code</span>
+        <input type="text" id="scanInput" autocomplete="off" autocorrect="off" spellcheck="false"
+               placeholder="R030101 albo SUR-42" autofocus>
+      </div>
+      <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">
+        <span class="material-icons">qr_code_scanner</span>
+      </button>
+    </div>
+    <p class="small text-muted mt-8" id="scanBoxHint">Przyłóż skaner i naciśnij fizyczny spust. Przycisk obok pola przy pustym kodzie spróbuje uruchomić skanowanie programowo (jeśli urządzenie to wspiera).</p>
+  </div>
+
+  <!-- PALLET INFO -->
+  <div class="scan-card">
+    <div class="scan-title">
+      <span class="material-icons" style="color:#16a34a;">inventory_2</span>
+      Znaleziona paleta
+    </div>
+    <div class="pallet-card" id="palletCard">
+      <div class="row justify-between items-start">
+        <div>
+          <div class="pallet-loc" id="palletLoc">R030101</div>
+          <div class="pallet-name" id="palletName">Mąka Pszenna</div>
+          <div class="pallet-qty"><span id="palletQty">1600.0</span> kg</div>
+          
+          <!-- Szczegóły palety -->
+          <div id="palletDetails" style="margin-top: 10px; font-size: 0.85em; color: var(--text-muted); line-height: 1.6;">
+            <div><strong>Nr/SSCC:</strong> <span id="palletSSCC" style="color:#f8fafc;">—</span></div>
+            <div><strong>Partia:</strong> <span id="palletPartia" style="color:#f8fafc;">—</span></div>
+            <div><strong>Data prod.:</strong> <span id="palletDataProd" style="color:#f8fafc;">—</span></div>
+            <div><strong>Ważność:</strong> <span id="palletDataWaz" style="color:#f8fafc;">—</span></div>
+          </div>
+        </div>
+        <div class="row gap-8 align-start">
+          <button class="btn btn-outline btn-sm row items-center gap-4" onclick="printLabel('pallet')">
+            <span class="material-icons" style="font-size:16px;">print</span> Etykieta
+          </button>
+      </div>
+    </div>
+    <div id="nopalletMsg" class="text-muted small italic" style="display:none;">Zeskanuj kod żeby zobaczyć dane.</div>
+  </div>
+
+  <!-- PRINT ZPL BUTTON -->
+  <div class="scan-card" id="printSection" style="display:none; text-align: center; padding: 20px;">
+    <button class="btn btn-primary row items-center justify-center gap-8" style="width: 100%; font-size: 1.1em; padding: 12px;" onclick
+                 onkeypress="if(event.key === 'Enter') doMove()">
+        </div>
+      </div>
+    </div>
+    <div class="mt-12">
+      <button class="btn btn-primary row items-center gap-8" onclick="doMove()" style="background: #2563eb !important; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2) !important;">
+        <span class="material-icons">moving</span> Przenieś paletę
+      </button>
+    </div>
+<div id="wgAcceptOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); z-index:20000; align-items:center; justify-content:center; padding:8px; box-sizing:border-box;">
+  <div style="width:100%; max-width:440px; background:#1e293b; border:1px solid #334155; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); padding:16px; box-sizing:border-box; color:#f8fafc; font-family:'Inter', sans-serif;">
+
+    <!-- Modal Header -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #334155; padding-bottom:8px;">
+      <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#3b82f6; display:flex; align-items:center; gap:6px;">
+        <span class="material-icons" style="font-size:1.3em;">inventory_2</span>
+        Przyjęcie Wyrobu (AGRO)
+      </h3>
+      <button onclick="closeWgAcceptModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer; line-height:1; padding:0; margin-left:auto;">&times;</button>
+    </div>
+
+    <!-- Pallet Info Card -->
+    <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:12px;">
+      <div style="font-size:0.7em; text-transform:uppercase; color:#64748b; font-weight:700; letter-spacing:0.5px; margin-bottom:2px;">Zeskanowana Paleta</div>
+      <div id="wgPalletNo" style="font-size:1.05em; font-weight:800; color:#f8fafc; font-family:monospace; margin-bottom:2px;">—</div>
+      <div id="wgPalletName" style="font-size:0.85em; color:#94a3b8;">—</div>
+    </div>
+      <p style="font-size:0.75em; color:#64748b; margin-top:6px; font-style:italic;">Zeskanowanie kodu lokalizacji automatycznie zatwierdzi paletę na stan.</p>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; border-top:1px solid #334155; padding-top:12px;">
+      <button id="wgBackBtn" onclick="backToWgStep1()" style="display:none; padding:8px 12px; font-size:0.9em; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:6px; font-weight:700; cursor:pointer;">Wstecz</button>
+      <button onclick="closeWgAcceptModal()" style="padding:8px 12px; font-size:0.9em; border:1px solid #475569; background:transparent; color:#94a3b8; border-radius:6px; font-weight:700; cursor:pointer;">Anuluj</button>
+      <button id="wgNextBtn" onclick="goToWgStep2()" style="padding:8px 16px; font-size:0.9em; border:none; background:#3b82f6; color:#fff; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(59,130,246,0.3);">Dalej</button>
+      <button id="wgConfirmBtn" onclick="submitWgAccept()" style="display:none; padding:8px 16px; font-size:0.9em; border:none; background:#22c55e; color:#fff; border-radius:6px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(34,197,94,0.3);">Zatwierdź</button>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const LINIA = '{{ linia }}';
+let currentPallet = null;
+let bagCount = 0;
+
+/* 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      window.Android.startBarcodeScan();
+      return true;
+    }
+  } catch (_) {}
+
+  // Zebra Enterprise Browser API (jeśli dostępne).
+const LINIA = '{{ linia }}';
+let currentPallet = null;
+let bagCount = 0;
+
+/* ─── Printer status ──────────────────────────────────────── */
+function checkPrinter() {
+  fetch('/agro/scanner/printer/status')
+    .then(r => r.json())
+    .then(d => {
+      const el = document.getElementById('printerPill');
+      if (d.online) {
+        el.className = 'pill pill-success';
+        el.innerHTML = '<span class="material-icons" style="font-size:14px;">print</span> Drukarka online';
+      } else {
+        el.className = 'pill pill-warn';
+        el.innerHTML = '<span class="material-icons" style="font-size:14px;">print_disabled</span> Drukarka offline';
+      }
+    }).catch(() => {
+      document.getElementById('printerPill').className = 'pill pill-danger';
+      document.getElementById('printerPill').textContent = 'Błąd połączenia';
+    });
+}
+checkPrinter();
+setInterval(checkPrinter, 30000);
+
+const scanInput = document.getElementById('scanInput');
+
+function requestHardwareScanTrigger() {
+  scanInput.focus();
+
+  // Native bridge (jeśli strona działa w WebView z wystawionym API).
+  try {
+    if (window.Android && typeof window.Android.startBarcodeScan === 'function') {
+      window.Android.startBarcodeScan();
+      return true;
+    }
+  } catch (_) {}
+
+  // Zebra Enterprise Browser API (jeśli dostępne).
+  try {
+    if (window.EB && window.EB.Barcode && typeof window.EB.Barcode.start === 'function') {
+      window.EB.Barcode.start();
+      return true;
+    }
+  } catch (_) {}
+
+    if (currentPallet) {
+      // Czy to kod nowej palety czy lokalizacja?
+      // Zakładamy, że kody <= 10 znaków to zazwyczaj lokalizacje (np. R010101 ma 7 znaków), 
+      // a kody > 10 znaków to SSCC palet, chyba że zaczynają się od przedrostków palet
+      const isPalletPrefix = code.startsWith('SUR-') || code.startsWith('OPA-') || code.startsWith('DOD-') || code.startsWith('QA-');
+      if (code.length > 10 || isPalletPrefix) {
+        // Zeskanowano inną paletę - przełącz widok na nową
+        lookupPallet(code);
+      } else {
+        // Zeskanowano lokalizację - wykonaj przeniesienie
+        doMoveFromMainInput(code);
+      }
+    } else {
+      lookupPallet(code);
+    }
+  } else {
+    const started = requestHardwareScanTrigger();
+    if (started) {
+      showToast('Aktywuję skaner... zeskanuj kod.', 'success');
+    } else {
+      showToast('Nie mogę uruchomić lasera z przeglądarki. Użyj fizycznego spustu skanera.', 'warn');
+    }
+  }
+}
+
+function doMoveFromMainInput(loc) {
+  // Rozpoznawanie, czy zeskanowano zwykłą lokalizację (R...) czy stację produkcyjną (zgodnie ze standardem: BBxx lub MZxx)
+  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ');
+
+  clearTimeout(scanTimeout);
+  scanTimeout = setTimeout(() => {
+    const code = this.value.trim();
+    if (code && code.length >= 5 && !document.getElementById('palletCard').classList.contains('visible')) {
+      // Wywołaj automatycznie jeśli skaner Zebra po prostu wrzuca tekst
+      triggerScan();
+    }
+  }, 1200);
+});
+
+function lookupPallet(code) {
+  fetch('/agro/scanner/lookup', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({code, linia: LINIA})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+    if (!confirm(`Przenieść paletę [${currentPallet.nazwa}] na lokalizację: ${loc}?`)) {
+      scanInput.value = '';
+      scanInput.focus();
+      return;
+    }
+
+    fetch('/agro/scanner/move', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        surowiec_id: currentPallet.id,
+        lokalizacja: loc,
+        linia: LINIA
+      })
+    })
+    .then(r => r.json())
+    .then(d => {
+      showToast(d.message, d.success ? 'success' : 'danger');
+      if (d.success) {
+        lookupPallet(currentPallet.nr_palety || 'SUR-' + currentPallet.id);
+      } else {
+        scanInput.value = '';
+        scanInput.focus();
+      }
+    })
+    .catch(e => {
+      showToast('Błąd: ' + e, 'danger');
+      scanInput.value = '';
+      scanInput.focus();
+    });
+  }
+}
+
+function doFinalDispatch(loc, qty) {
+  fetch('/agro/scanner/dispatch', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      surowiec_id: currentPallet.id,
+      ilosc: qty,
+      linia: LINIA,
+      zbiornik: loc,
+      plan_id: document.getElementById('dispatchPlanId') ? document.getElementById('dispatchPlanId').value : null
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    showToast(d.message, d.success ? 'success' : 'danger');
+    if (d.success) {
+      hidePallet(); // Ukryj paletę po przesłaniu
+    } else {
+      // Wracamy do wariantu ilości w razie błędu
+      scanInput.focus();
+      scanInput.select();
+    }
+  })
+  .catch(e => {
+    showToast('Błąd: ' + e, 'danger');
+    scanInput.focus();
+  });
+}
+
+// Skanery Zebra (DataWedge) na Androidzie często lepiej reagują na 'keyup'
+scanInput.addEventListener('keyup', function(e) {
+  if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
+    e.preventDefault();
+    triggerScan();
+  }
+});
+
+// Zabezpieczenie (debounce) jeśli skaner tylko "wkleja" tekst bez Entera
+let scanTimeout;
+scanInput.addEventListener('input', function(e) {
+  clearTimeout(scanTimeout);
+  scanTimeout = setTimeout(() => {
+    const code = this.value.trim();
+    if (code && code.length >= 5 && !document.getElementById('palletCard').classList.contains('visible')) {
+      // Wywołaj automatycznie jeśli skaner Zebra po prostu wrzuca tekst
+      triggerScan();
+    }
+  }, 1200);
+});
+
+function lookupPallet(code) {
+  fetch('/agro/scanner/lookup', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({code, linia: LINIA})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showPallet(d.pallet);
+      showToast('✅ Znaleziono: ' + d.pallet.nazwa, 'success');
+    } else {
+      hidePallet();
+      showToast('❌ ' + d.error, 'danger');
+    }
+  })
+  .catch(e => showToast('Błąd sieci: ' + e, 'danger'));
+}
+
+function showPallet(p) {
+  if (p.is_unconfirmed_wg) {
+    openWgAcceptModal(p);
+    return;
+  }
+  currentPallet = p;
+  document.getElementById('palletLoc').textContent  = p.lokalizacja || '—';
+  document.getElementById('palletName').textContent = p.nazwa;
+  document.getElementById('palletQty').textContent  = parseFloat(p.stan_magazynowy).toFixed(1);
+  
+  // Extra details
+  document.getElementById('palletSSCC').textContent = p.nr_palety || p.inventory_code || '—';
+  document.getElementById('palletPartia').textContent = p.nr_partii || '—';
+  document.getElementById('palletDataProd').textContent = p.data_produkcji || '—';
+  document.getElementById('palletDataWaz').textContent = p.data_przydatnosci || '—';
+  
+  document.getElementById('palletCard').classList.add('visible');
+  document.getElementById('nopalletMsg').style.display = 'none';
+
+  // show action sections
+  document.getElementById('printSection').style.display = '';
+
+  // Zmień główny input skanera na tryb lokalizacji
+  document.getElementById('scanBoxTitle').innerHTML = '<span class="material-icons" style="color:#2563eb;">place</span> Zeskanuj lokalizację docelową';
+  document.getElementById('scanBoxHint').innerHTML = 'Skaner oczekuje na lokalizację. Zeskanowanie lokalizacji od razu przeniesie paletę.';
+  scanInput.placeholder = 'np. R040101';
+  scanInput.style.borderColor = '#2563eb';
+  scanInput.style.borderWidth = '2px';
+  document.getElementById('scanBoxIcon').style.color = '#2563eb';
+
+  scanInput.type = 'text';
+  scanInput.value = '';
+  scanInput.focus();
+  pendingProductionLoc = null;
+}
+
+function hidePallet() {
+  currentPallet = null;
+  document.getElementById('palletCard').classList.remove('visible');
+  document.getElementById('nopalletMsg').style.display = '';
+  document.getElementById('printSection').style.display = 'none';
+
+  // Przywróć główny input skanera do trybu palety
+  document.getElementById('scanBoxTitle').innerHTML = '<span class="material-icons" style="color:var(--primary-color);">barcode_reader</span> Skanuj kod regału lub palety';
+/* ─── Print ───────────────────────────────────────────────── */
+function printLabel(type) {
+  if (!currentPallet) return showToast('Brak palety — zeskanuj najpierw', 'warn');
+
+  if (type === 'location') {
+    // Etykieta regału — otwórz w aplikacji
+    const loc = currentPallet.lokalizacja || document.getElementById('barcodeInput').value.trim();
+    const url = `/agro/scanner/label_location?loc=${loc}&linia=${LINIA}`;
+    window.openInApp ? openInApp(url, 'Etykieta regału') : window.open(url, '_blank');
+    return;
+  }
+
+  // Etykieta palety — wysyłka prosto na drukarkę ZPL (TCP)
+  fetch('/agro/scanner/print', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({surowiec_id: currentPallet.id, type, linia: LINIA})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast('✅ Zlecono wydruk etykiety na drukarce ZPL', 'success');
+    } else {
+      showToast('❌ Błąd druku: ' + d.error, 'danger');
+    }
+  })
+  .catch((e) => {
+    showToast('❌ Błąd komunikacji z drukarką ZPL', 'danger');
+  });
+}
+
+
+/* ─── Finished Goods (WG) Acceptance Flow ───────────────────── */
+let wgPalletObj = null;
+
+
+
+/* ─── Print ───────────────────────────────────────────────── */
+function printLabel(type) {
+  if (!currentPallet) return showToast('Bra
+        {% for s in inventory %}
+        {
+            nazwa: {{ s.nazwa|tojson }},
+            total: {{ s.total }},
+            pallets: [
+                {% for p in s.pallets %}
+                { id: {{ p.id }}, nr_palety: {{ (p.nr_palety or '')|tojson }}, lokalizacja: {{ (p.lokalizacja or '')|tojson }}, stan: {{ p.stan_magazynowy or p.stan or 0 }} }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ]
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    window._inventory = [];
+    window._inventory_groups.forEach(function(g){
+        g.pallets.forEach(function(p){
+            const copy = Object.assign({}, p);
+            copy.parent_nazwa = g.nazwa;
+            window._inventory.push(copy);
+    } else {
+      if (d.label_url) {
+        window.openInApp ? openInApp(d.label_url, 'Etykieta palety') : window.open(d.label_url, '_blank');
+      }
+      showToast('📄 Etykieta otwarta w przeglądarce', 'success');
+    }
+  })
+  .catch(() => {
+    const url = `/agro/scanner/label/${currentPallet.id}?linia=${LINIA}&autoprint=1`;
+    window.openInApp ? openInApp(url, 'Etykieta palety') : window.open(url, '_blank');
+    showToast('📄 Etykieta otwarta w aplikacji', 'success');
+  });
+}
+
+
+/* ─── Finished Goods (WG) Acceptance Flow ───────────────────── */
+let wgPalletObj = null;
+
+function openWgAcceptModal(p) {
+  wgPalletObj = p;
+  document.getElementById('wgPalletNo').textContent = p.nr_palety || 'ID: ' + p.id;
+  document.getElementById('wgPalletName').textContent = p.nazwa;
+  document.getElementById('wgWeightInput').value = parseFloat(p.stan_magazynowy || 0).toFixed(1);
+  document.getElementById('wgLocInput').value = '';
+  
+  backToWgStep1();
+  
+  document.getElementById('wgAcceptOverlay').style.display = 'flex';
+  setTimeout(() => {
+    const wInput = document.getElementById('wgWeightInput');
+    wInput.focus();
+    wInput.select();
+  }, 100);
+}
+
+function closeWgAcceptModal() {
+  document.getElementById('wgAcceptOverlay').style.display = 'none';
+  wgPalletObj = null;
+  scanInput.value = '';
+  scanInput.focus();
+}
+
+function goToWgStep2() {
+  const wVal = parseFloat(document.getElementById('wgWeightInput').value);
+  if (!wVal || wVal <= 0) {
+    showToast('Podaj lub zeskanuj lokalizację docelową', 'warn');
+    return;
+  }
+  
+  fetch('/magazyn-dostawy/api/przyjmij-wg', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      id: wgPalletObj.id,
+      lokalizacja: loc,
+      linia: LINIA,
+      waga: wVal
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      showToast('✅ Paleta przyjęta pomyślnie na ' + loc, 'success');
+      closeWgAcceptModal();
+      hidePallet();
+    } else {
+      showToast('❌ ' + (d.error || d.message || 'Błąd zapisu'), 'danger');
+    }
+  })
+  .catch(e => showToast('Błąd: ' + e, 'danger'));
+}
+
+// Hook up automated Enter key listener for location input
+document.addEventListener('DOMContentLoaded', () => {
+  const locInp = document.getElementById('wgLocInput');
+  if (locInp) {
+    locInp.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.keyCode === 13) {
+        e.preventDefault();
+        submitWgAccept();
+      }
+    });
+    // Auto-submit on scan (debounce 600ms) — skanery Zebra często nie wysyłają Enter
+    let locScanTimeout;
+    locInp.addEventListener('input', function() {
+      clearTimeout(locScanTimeout);
+      const val = this.value.trim();
+      if (val.length >= 4) {
+        locScanTimeout = setTimeout(() => {
+          submitWgAccept();
+        }, 600);
+      }
+    });
+  }
+});
+
+
+/* ─── Toast ───────────────────────────────────────────────── */
+let toastTimer;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  const colors = {success:'#166534', warn:'#92400e', danger:'#991b1b'};
+  el.style.background = colors[type] || '#0f172a';
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.style.display = 'none', 4000);
+}
+</script>
+{% endblock %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      }
+    });
+    // Auto-submit on scan (debounce 600ms) — skanery Zebra często nie wysyłają Enter
+    let locScanTimeout;
+    locInp.addEventListener('input', function() {
+      clearTimeout(locScanTimeout);
+      const val = this.value.trim();
+      if (val.length >= 4) {
+        locScanTimeout = setTimeout(() => {
+          submitWgAccept();
+        }, 600);
+      }
+    });
+  }
+});
+
+
+/* ─── Toast ───────────────────────────────────────────────── */
+let toastTimer;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  const colors = {success:'#166534', warn:'#92400e', danger:'#991b1b'};
+  el.style.background = colors[type] || '#0f172a';
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.style.display = 'none', 4000);  }
+});
+</script>
+
+<!-- PRINTER MODAL -->
+<div class="modal-overlay" id="printerOverlay" style="display:none; z-index:9000;">
+  <div class="modal-box" style="max-width: 400px;">
+    <h2 class="m-0 row items-center gap-8 mb-10">
+      <span class="material-icons text-primary">print</span>
+      Wybierz drukarkę ZPL
+    </h2>
+    <div id="printerList" style="max-height: 300px; overflow-y: auto; margin-top: 16px;">
+      <!-- Printer options loaded here -->
+    </div>
+    <div class="row justify-end mt-20">
+      <button class="btn btn-outline" onclick="closePrinterModal()">Anuluj</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

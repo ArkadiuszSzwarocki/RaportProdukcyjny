@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Magazyn - Ustawienia Lokalizacji{% endblock %}
+
+{% block content %}
+<div class="row items-center justify-between mb-24">
+    <h1 class="header-title row items-center gap-12 m-0">
+        <span class="material-icons" style="font-size:32px; color:var(--primary-color);">settings_applications</span>
+        Ustawienia: Dozwolone Lokalizacje ({{ linia }})
+    </h1>
+</div>
+
+<div class="card p-24" style="max-width: 800px; margin: 0 auto;">
+    <div class="row items-center justify-between mb-16">
+        <div>
+            <h3 class="m-0 text-gray-800">Słownik Prefiksów Lokalizacji</h3>
+            <p class="text-muted small mt-4">Tylko te lokalizacje (lub zaczynające się od tych znaków) będą honorowane na skanerze.</p>
+        </div>
+    </div>
+
+    <form id="addLocForm" class="row gap-12 items-end mb-24" style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
+        <div style="flex:1;">
+            <label class="form-label small mb-4">Nazwa / Prefiks (np. R08, K051)</label>
+            <input type="text" id="newNazwa" class="form-control" style="text-transform: uppercase;" required>
+        </div>
+        <div style="flex:2;">
+            <label class="form-label small mb-4">Opis (opcjonalnie)</label>
+            <input type="text" id="newOpis" class="form-control" placeholder="np. Nowa hala">
+        </div>
+        <div>
+            <button type="submit" class="btn btn-primary row items-center gap-8">
+                <span class="material-icons">add</span> Dodaj
+            </button>
+        </div>
+    </form>
+
+    <div style="max-height: 60vh; overflow-y: auto;">
+        <table class="table-modern" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th>L.p.</th>
+                    <th>Nazwa / Prefiks</th>
+                    <th>Opis</th>
+                    <th style="width:80px; text-align:right;">Akcja</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for loc in lokalizacje %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td><strong class="text-primary">{{ loc.nazwa }}</strong></td>
+                    <td class="text-muted">{{ loc.opis }}</td>
+                    <td style="text-align:right;">
+                        <button class="btn btn-icon btn-outline-danger" onclick="deleteLoc({{ loc.id }}, '{{ loc.nazwa }}')" title="Usuń">
+                            <span class="material-icons">delete</span>
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-24">Brak zdefiniowanych lokalizacji.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+.table-modern { width:100%; border-collapse:collapse; }
+.table-modern th { background:#f1f5f9; padding:12px; text-align:left; font-size:13px; color:#475569; border-bottom:2px solid #cbd5e1; }
+.table-modern td { padding:12px; border-bottom:1px solid #e2e8f0; vertical-align:middle; font-size:14px; }
+.btn-icon { width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:4px; }
+.btn-outline-danger { border:1px solid #fecaca; color:#ef4444; background:transparent; cursor:pointer; }
+.btn-outline-danger:hover { background:#fee2e2; border-color:#fca5a5; }
+</style>
+
+<script>
+document.getElementById('addLocForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const nazwa = document.getElementById('newNazwa').value;
+    const opis = document.getElementById('newOpis').value;
+    
+    fetch('{{ url_for("magazyn_dostawy.api_add_lokalizacja") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({nazwa, opis})
+    }).then(r => r.json()).then(d => {
+        if(d.success) {
+            window.location.reload();
+        } else {
+            alert('Błąd: ' + d.error);
+        }
+    }).catch(e => alert('Błąd sieci'));
+});
+
+function deleteLoc(id, nazwa) {
+    if(!confirm('Czy na pewno chcesz usunąć lokalizację/prefiks: ' + nazwa + '?')) return;
+    
+    fetch('{{ url_for("magazyn_dostawy.api_delete_lokalizacja", loc_id=0) }}'.replace('0', id), {
+        method: 'DELETE'
+    }).then(r => r.json()).then(d => {
+        if(d.success) {
+            window.location.reload();
+        } else {
+            alert('Błąd: ' + d.error);
+        }
+    }).catch(e => alert('Błąd sieci'));
+}
+</script>
+{% endblock %}

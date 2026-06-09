@@ -50,14 +50,16 @@ def reception_edit(dostawa_id=None):
 
         table_sur = get_table_name('magazyn_surowce', linia)
         table_opk = get_table_name('magazyn_opakowania', linia)
-        cursor.execute(
-            f"SELECT DISTINCT nazwa FROM slownik_surowcow "
-            f"UNION SELECT DISTINCT nazwa FROM {table_sur} "
-            f"UNION SELECT DISTINCT nazwa FROM {table_opk} "
-            f"UNION SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s",
-            (linia,)
-        )
-        wszystkie_produkty = [r['nazwa'] for r in cursor.fetchall()]
+        wszystkie_produkty = set()
+        for query, p in [
+            ("SELECT DISTINCT nazwa FROM slownik_surowcow", ()),
+            (f"SELECT DISTINCT nazwa FROM {table_sur}", ()),
+            (f"SELECT DISTINCT nazwa FROM {table_opk}", ()),
+            ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s", (linia,))
+        ]:
+            cursor.execute(query, p)
+            wszystkie_produkty.update([r['nazwa'] for r in cursor.fetchall() if r and r.get('nazwa')])
+        wszystkie_produkty = sorted(list(wszystkie_produkty))
 
         try:
             cursor.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1")
@@ -778,14 +780,16 @@ def edycja_dostawy(dostawa_id=None):
 
         table_sur = get_table_name('magazyn_surowce', linia)
         table_opk = get_table_name('magazyn_opakowania', linia)
-        cursor.execute(
-            f"SELECT DISTINCT nazwa FROM slownik_surowcow "
-            f"UNION SELECT DISTINCT nazwa FROM {table_sur} "
-            f"UNION SELECT DISTINCT nazwa FROM {table_opk} "
-            f"UNION SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s",
-            (linia,)
-        )
-        wszystkie_produkty = [r['nazwa'] for r in cursor.fetchall()]
+        wszystkie_produkty = set()
+        for query, p in [
+            ("SELECT DISTINCT nazwa FROM slownik_surowcow", ()),
+            (f"SELECT DISTINCT nazwa FROM {table_sur}", ()),
+            (f"SELECT DISTINCT nazwa FROM {table_opk}", ()),
+            ("SELECT DISTINCT nazwa FROM magazyn_dodatki WHERE linia = %s", (linia,))
+        ]:
+            cursor.execute(query, p)
+            wszystkie_produkty.update([r['nazwa'] for r in cursor.fetchall() if r and r.get('nazwa')])
+        wszystkie_produkty = sorted(list(wszystkie_produkty))
 
     finally:
         conn.close()
@@ -1192,24 +1196,32 @@ def get_available_pallets():
             like_any = f"%{prefix}%"
             params = [like_prefix, like_any, like_any, like_any, prefix]
 
-        q = f"""
+        pallets = []
+        q1 = f"""
             SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, 'surowiec' as type
             FROM {table_sur} 
             WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause}
-            UNION ALL
+        """
+        cursor.execute(q1, params if params else [])
+        pallets.extend(cursor.fetchall())
+
+        q2 = f"""
             SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, 'opakowanie' as type
             FROM {table_opk}
             WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause}
-            UNION ALL
+        """
+        cursor.execute(q2, params if params else [])
+        pallets.extend(cursor.fetchall())
+
+        q3 = f"""
             SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, 'dodatek' as type
             FROM magazyn_dodatki
             WHERE {'1=1' if skip_warehouse_lookup else 'stan_magazynowy > 0'} AND {where_clause} AND linia = %s
-            ORDER BY lokalizacja, nazwa, id
         """
-        # We need to repeat params 3 times because of 3 parts in UNION, and add 'linia' at the end
-        all_params = (params * 3 if params else []) + [linia]
-        cursor.execute(q, all_params)
-        pallets = cursor.fetchall()
+        cursor.execute(q3, (params if params else []) + [linia])
+        pallets.extend(cursor.fetchall())
+
+        pallets.sort(key=lambda x: (str(x.get('lokalizacja') or ''), str(x.get('nazwa') or ''), x.get('id') or 0))
 
         # Reservation guard: exclude pallets already used in other pending transfers.
         cursor.execute(
@@ -1500,5 +1512,65 @@ def api_podzial_palety():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)})
+    finally:
+        conn.close()
+
+# ==========================================
+# USTAWIENIA LOKALIZACJI
+# ==========================================
+
+@magazyn_dostawy_bp.route('/ustawienia_lokalizacji')
+@login_required
+def ustawienia_lokalizacji():
+    linia = request.args.get('linia', 'PSD').upper()
+    if linia not in ['PSD', 'AGRO']:
+        linia = 'PSD'
+        
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT * FROM magazyn_dozwolone_lokalizacje ORDER BY nazwa ASC")
+        lokalizacje = cur.fetchall()
+    finally:
+        conn.close()
+        
+    return render_template('magazyn_dostawy/ustawienia_lokalizacji.html', linia=linia, lokalizacje=lokalizacje)
+
+@magazyn_dostawy_bp.route('/api/ustawienia_lokalizacji', methods=['POST'])
+@login_required
+def api_add_lokalizacja():
+    data = request.json
+    nazwa = data.get('nazwa', '').strip().upper()
+    opis = data.get('opis', '').strip()
+    
+    if not nazwa:
+        return jsonify({'success': False, 'error': 'Nazwa lokalizacji jest wymagana.'}), 400
+        
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO magazyn_dozwolone_lokalizacje (nazwa, opis) VALUES (%s, %s)", (nazwa, opis))
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Lokalizacja dodana pomyślnie.'})
+    except Exception as e:
+        conn.rollback()
+        if 'Duplicate entry' in str(e):
+            return jsonify({'success': False, 'error': 'Taka lokalizacja już istnieje.'}), 400
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@magazyn_dostawy_bp.route('/api/ustawienia_lokalizacji/<int:loc_id>', methods=['DELETE'])
+@login_required
+def api_delete_lokalizacja(loc_id):
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM magazyn_dozwolone_lokalizacje WHERE id = %s", (loc_id,))
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         conn.close()

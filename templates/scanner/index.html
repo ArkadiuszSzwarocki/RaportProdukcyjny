@@ -216,25 +216,36 @@
   box-shadow: 0 8px 30px rgba(0,0,0,.35);
   display: none; max-width: 360px;
 }
+
+/* Printer Modal */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-box {
+  background: #fff; width: 90%; max-width: 450px;
+  border-radius: 16px; padding: 24px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
+.printer-option {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0;
+  border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+}
+.printer-option:hover {
+  background: #eff6ff; border-color: #bfdbfe;
+}
+.printer-option .material-icons { color: #3b82f6; }
+.printer-option-title { font-weight: 700; color: #1e293b; font-size: 14px; }
+.printer-option-ip { font-size: 12px; color: #64748b; }
+
 </style>
 
 <div class="scanner-wrap">
 
-  <!-- Header -->
-  <div class="row items-center justify-between mb-20 gap-10 wrap">
-    <div>
-      <h1 class="header-title m-0 row items-center gap-8">
-        <span class="material-icons" style="font-size:32px; color:var(--primary-color);">qr_code_scanner</span>
-        Skaner Magazynowy
-      </h1>
-      <p class="text-muted small" style="margin:4px 0 0;">Linia: <strong>{{ linia }}</strong></p>
-    </div>
-    <div class="row items-center gap-8">
-      <span class="pill" id="printerPill">
-        <span class="material-icons" style="font-size:14px;">print</span> Sprawdzam drukarkę…
-      </span>
-    </div>
-  </div>
+  
 
   <!-- SCAN BOX -->
   <div class="scan-card">
@@ -252,7 +263,7 @@
         <span class="material-icons">qr_code_scanner</span>
       </button>
     </div>
-    <p class="small text-muted mt-8">Przyłóż skaner i naciśnij fizyczny spust. Przycisk obok pola przy pustym kodzie spróbuje uruchomić skanowanie programowo (jeśli urządzenie to wspiera).</p>
+    
   </div>
 
   <!-- PALLET INFO -->
@@ -267,83 +278,25 @@
           <div class="pallet-loc" id="palletLoc">R030101</div>
           <div class="pallet-name" id="palletName">Mąka Pszenna</div>
           <div class="pallet-qty"><span id="palletQty">1600.0</span> kg</div>
+          <!-- Szczegóły palety -->
+          <div id="palletDetails" style="margin-top: 10px; font-size: 0.85em; color: #1e293b; font-weight: 500; line-height: 1.6;">
+            <div><strong>Nr/SSCC:</strong> <span id="palletSSCC">—</span></div>
+            <div><strong>Partia:</strong> <span id="palletPartia">—</span></div>
+            <div><strong>Data prod.:</strong> <span id="palletDataProd">—</span></div>
+            <div><strong>Ważność:</strong> <span id="palletDataWaz">—</span></div>
+          </div>
         </div>
-        <div class="row gap-8">
-          <button class="btn btn-outline btn-sm row items-center gap-4" onclick="printLabel('pallet')">
-            <span class="material-icons" style="font-size:16px;">print</span> Etykieta
-          </button>
-          <button class="btn btn-outline btn-sm row items-center gap-4" onclick="printLabel('location')">
-            <span class="material-icons" style="font-size:16px;">place</span> Etykieta regału
-          </button>
-        </div>
+      </div>
+      <div style="margin-top: 16px; width: 100%;">
+        <button class="btn btn-outline btn-sm row items-center justify-center gap-4" onclick="printLabel('pallet')" style="background:#1e293b; color:#fff; padding:12px 16px; border-radius:8px; width: 100%; font-size: 15px;">
+          <span class="material-icons" style="font-size:22px;">print</span> Drukuj etykietę ZPL
+        </button>
       </div>
     </div>
     <div id="nopalletMsg" class="text-muted small italic" style="display:none;">Zeskanuj kod żeby zobaczyć dane.</div>
   </div>
 
-  <!-- DISPATCH -->
-  <div class="scan-card" id="dispatchSection" style="display:none;">
-    <div class="scan-title">
-      <span class="material-icons" style="color:#d97706;">local_shipping</span>
-      Przekaż na produkcję
-    </div>
-    <div class="row gap-12 wrap items-end">
-      <div style="flex:1; min-width:160px;">
-        <label class="form-label small mb-4">Ilość (kg)</label>
-        <input type="number" id="dispatchQty" class="form-control" step="0.1" placeholder="0.0">
-      </div>
-      <div style="flex:2; min-width:200px;">
-        <label class="form-label small mb-4">Zbiornik / Miejsce załadunku</label>
-        <input type="text" id="dispatchZbiornik" class="form-control" placeholder="ZB-01, Linia A…">
-      </div>
-      <div style="flex:2; min-width:140px;">
-        <label class="form-label small mb-4">Nr zlecenia</label>
-        <input type="number" id="dispatchPlanId" class="form-control" placeholder="ID planu">
-      </div>
-    </div>
-    <div class="mt-12">
-      <button class="btn btn-primary row items-center gap-8" onclick="doDispatch()">
-        <span class="material-icons">arrow_forward</span> Przekaż na produkcję
-      </button>
-    </div>
-  </div>
-
-  <!-- SPLIT -->
-  <div class="scan-card" id="splitSection" style="display:none;">
-    <div class="row items-center justify-between mb-12">
-      <div class="scan-title" style="margin:0;">
-        <span class="material-icons" style="color:#7c3aed;">call_split</span>
-        Podziel paletę na worki
-      </div>
-      <button class="btn btn-add-worek row items-center gap-4" onclick="addBagRow()">
-        <span class="material-icons" style="font-size:16px;">add</span> Dodaj worek
-      </button>
-    </div>
-    <p class="text-muted small mb-10">
-      Dostępne: <strong id="splitAvail">0.0</strong> kg.
-      Reszta zostaje na tej samej lokalizacji.
-    </p>
-    <div style="overflow-x:auto;">
-      <table class="bags-table" id="bagsTable">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Ilość (kg)*</th>
-            <th>Lokalizacja (opcj.)</th>
-            <th>Nazwa (opcj.)</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="bagsBody"></tbody>
-      </table>
-    </div>
-    <div class="mt-12">
-      <button class="btn btn-primary row items-center gap-8" onclick="doSplit()">
-        <span class="material-icons">call_split</span> Podziel
-      </button>
-    </div>
-  </div><!-- /splitSection -->
-
+  
 </div><!-- /scanner-wrap -->
 
 <!-- Premium Finished Goods Acceptance Overlay — MUST be outside scanner-wrap to work with display:none parent -->
@@ -426,7 +379,7 @@ function checkPrinter() {
     });
 }
 checkPrinter();
-setInterval(checkPrinter, 30000);
+
 
 const scanInput = document.getElementById('scanInput');
 
@@ -476,7 +429,16 @@ function requestHardwareScanTrigger() {
 function triggerScan() {
   const code = scanInput.value.trim();
   if (code) {
-    lookupPallet(code);
+    if (currentPallet) {
+      const isPalletPrefix = code.startsWith('SUR-') || code.startsWith('OPA-') || code.startsWith('DOD-') || code.startsWith('QA-');
+      if (code.length > 10 || isPalletPrefix) {
+        lookupPallet(code);
+      } else {
+        doMoveFromMainInput(code);
+      }
+    } else {
+      lookupPallet(code);
+    }
   } else {
     const started = requestHardwareScanTrigger();
     if (started) {
@@ -485,6 +447,84 @@ function triggerScan() {
       showToast('Nie mogę uruchomić lasera z przeglądarki. Użyj fizycznego spustu skanera.', 'warn');
     }
   }
+}
+
+let pendingProductionLoc = null;
+
+function doMoveFromMainInput(loc) {
+  loc = loc.toUpperCase();
+  const isProduction = loc.startsWith('BB') || loc.startsWith('MZ') || loc.startsWith('LINIA') || loc.startsWith('Z');
+  
+  if (isProduction) {
+    pendingProductionLoc = loc;
+    document.getElementById('dispatchModalLoc').textContent = loc;
+    document.getElementById('dispatchModalQty').value = currentPallet.stan_magazynowy;
+    document.getElementById('dispatchOverlay').style.display = 'flex';
+  } else {
+    if (!confirm(`Przenieść paletę [${currentPallet.nazwa}] na lokalizację: ${loc}?`)) {
+      scanInput.value = '';
+      scanInput.focus();
+      return;
+    }
+
+    fetch('/agro/scanner/move', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        surowiec_id: currentPallet.id,
+        lokalizacja: loc,
+        linia: LINIA
+      })
+    })
+    .then(r => r.json())
+    .then(d => {
+      showToast(d.message, d.success ? 'success' : 'danger');
+      if (d.success) {
+        lookupPallet(currentPallet.nr_palety || 'SUR-' + currentPallet.id);
+      } else {
+        scanInput.value = '';
+        scanInput.focus();
+      }
+    })
+    .catch(e => {
+      showToast('Błąd: ' + e, 'danger');
+      scanInput.value = '';
+      scanInput.focus();
+    });
+  }
+}
+
+function doFinalDispatch() {
+  const qty = parseFloat(document.getElementById('dispatchModalQty').value);
+  if (!qty || qty <= 0) return showToast('Podaj prawidłową ilość', 'warn');
+
+  fetch('/agro/scanner/dispatch', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      surowiec_id: currentPallet.id,
+      ilosc: qty,
+      linia: LINIA,
+      zbiornik: pendingProductionLoc,
+      plan_id: document.getElementById('dispatchModalPlanId').value || null
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    showToast(d.message, d.success ? 'success' : 'danger');
+    if (d.success) {
+      closeDispatchModal();
+      hidePallet();
+    }
+  })
+  .catch(e => showToast('Błąd: ' + e, 'danger'));
+}
+
+function closeDispatchModal() {
+  document.getElementById('dispatchOverlay').style.display = 'none';
+  pendingProductionLoc = null;
+  scanInput.value = '';
+  scanInput.focus();
 }
 
 // Skanery Zebra (DataWedge) na Androidzie często lepiej reagują na 'keyup'
@@ -536,19 +576,28 @@ function showPallet(p) {
   document.getElementById('palletLoc').textContent  = p.lokalizacja || '—';
   document.getElementById('palletName').textContent = p.nazwa;
   document.getElementById('palletQty').textContent  = parseFloat(p.stan_magazynowy).toFixed(1);
+  
+  // Extra details
+  document.getElementById('palletSSCC').textContent = p.nr_palety || p.inventory_code || '—';
+  document.getElementById('palletPartia').textContent = p.nr_partii || '—';
+  document.getElementById('palletDataProd').textContent = p.data_produkcji || '—';
+  document.getElementById('palletDataWaz').textContent = p.data_przydatnosci || '—';
+
   document.getElementById('palletCard').classList.add('visible');
   document.getElementById('nopalletMsg').style.display = 'none';
 
-  // show action sections
-  document.getElementById('dispatchSection').style.display = '';
-  document.getElementById('dispatchQty').value = parseFloat(p.stan_magazynowy).toFixed(1);
-  document.getElementById('splitSection').style.display = '';
-  document.getElementById('splitAvail').textContent = parseFloat(p.stan_magazynowy).toFixed(1);
+  // Zmień główny input skanera na tryb lokalizacji
+  const titleEl = document.querySelector('.scan-title');
+  if(titleEl) titleEl.innerHTML = '<span class="material-icons" style="color:#2563eb;">place</span> Zeskanuj lokalizację docelową';
+  scanInput.placeholder = 'np. R040101 lub BB01';
+  scanInput.style.borderColor = '#2563eb';
+  scanInput.style.borderWidth = '2px';
+  const iconEl = document.querySelector('.input-icon');
+  if(iconEl) iconEl.style.color = '#2563eb';
 
-  // clear bags
-  document.getElementById('bagsBody').innerHTML = '';
-  bagCount = 0;
-  addBagRow();
+  scanInput.value = '';
+  scanInput.focus();
+  pendingProductionLoc = null;
 
   scanInput.value = '';
   scanInput.focus();
@@ -558,156 +607,96 @@ function hidePallet() {
   currentPallet = null;
   document.getElementById('palletCard').classList.remove('visible');
   document.getElementById('nopalletMsg').style.display = '';
-  document.getElementById('dispatchSection').style.display = 'none';
-  document.getElementById('splitSection').style.display   = 'none';
+
+  const titleEl = document.querySelector('.scan-title');
+  if(titleEl) titleEl.innerHTML = '<span class="material-icons" style="color:var(--primary-color);">barcode_reader</span> Skanuj kod regału lub palety';
+  scanInput.placeholder = 'R030101 albo SUR-42';
+  scanInput.style.borderColor = '';
+  scanInput.style.borderWidth = '';
+  const iconEl = document.querySelector('.input-icon');
+  if(iconEl) iconEl.style.color = '';
 }
 hidePallet();
 
-/* ─── Dispatch ────────────────────────────────────────────── */
-function doDispatch() {
-  if (!currentPallet) return showToast('Najpierw zeskanuj paletę', 'warn');
-  const ilosc = parseFloat(document.getElementById('dispatchQty').value);
-  if (!ilosc || ilosc <= 0) return showToast('Podaj ilość > 0', 'warn');
-
-  if (!confirm(`Przekazać ${ilosc.toFixed(1)} kg [${currentPallet.nazwa}] na produkcję?`)) return;
-
-  fetch('/agro/scanner/dispatch', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      surowiec_id: currentPallet.id,
-      ilosc,
-      linia: LINIA,
-      plan_id: document.getElementById('dispatchPlanId').value || null,
-      zbiornik: document.getElementById('dispatchZbiornik').value || null,
-    })
-  })
-  .then(r => r.json())
-  .then(d => {
-    showToast(d.message, d.success ? 'success' : 'danger');
-    if (d.success) {
-      // refresh pallet data
-      lookupPallet('SUR-' + currentPallet.id);
-    }
-  })
-  .catch(e => showToast('Błąd: ' + e, 'danger'));
-}
-
-/* ─── Split ───────────────────────────────────────────────── */
-function addBagRow() {
-  bagCount++;
-  const tbody = document.getElementById('bagsBody');
-  const tr = document.createElement('tr');
-  tr.dataset.bag = bagCount;
-  tr.innerHTML = `
-    <td style="text-align:center; font-weight:700; color:#64748b;">${bagCount}</td>
-    <td><input type="number" step="0.1" placeholder="0.0" class="bag-ilosc"></td>
-    <td><input type="text" placeholder="np. R030201" style="text-transform:uppercase;" class="bag-loc"></td>
-    <td><input type="text" placeholder="${currentPallet ? currentPallet.nazwa : ''}" class="bag-name"></td>
-    <td style="text-align:center;">
-      <button class="btn btn-delete-row" onclick="removeBagRow(this)" title="Usuń">
-        <span class="material-icons" style="font-size:16px;">delete</span>
-      </button>
-    </td>
-  `;
-  tbody.appendChild(tr);
-}
-
-function removeBagRow(btn) {
-  btn.closest('tr').remove();
-}
-
-function doSplit() {
-  if (!currentPallet) return showToast('Najpierw zeskanuj paletę', 'warn');
-
-  const rows = document.querySelectorAll('#bagsBody tr');
-  const bags = [];
-  let totalQty = 0;
-
-    for (const row of rows) {
-      const ilosc = parseFloat(row.querySelector('.bag-ilosc').value);
-      const loc   = row.querySelector('.bag-loc').value.trim().toUpperCase();
-      const name  = row.querySelector('.bag-name').value.trim() || currentPallet.nazwa;
-  
-      if (!ilosc || ilosc <= 0) continue;
-      // Lokalizacja jest teraz opcjonalna - domyślnie użyje lokalizacji matki na backendzie
-  
-      bags.push({ilosc, lokalizacja: loc, nazwa: name});
-      totalQty += ilosc;
-    }
-
-  if (!bags.length) return showToast('Dodaj co najmniej jeden worek z ilością', 'warn');
-
-  const avail = parseFloat(currentPallet.stan_magazynowy);
-  if (totalQty > avail + 0.01)
-    return showToast(`Suma worków (${totalQty.toFixed(1)} kg) > dostępne (${avail.toFixed(1)} kg)`, 'warn');
-
-  if (!confirm(`Podzielić paletę ${currentPallet.nazwa} na ${bags.length} worków?`)) return;
-
-  fetch('/agro/scanner/split', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({surowiec_id: currentPallet.id, bags, linia: LINIA})
-  })
-  .then(r => r.json())
-  .then(d => {
-    showToast(d.message, d.success ? 'success' : 'danger');
-    if (d.success) {
-      // Automatyczny wydruk etykiet dla nowych palet/worków
-      if (d.new_pallets && d.new_pallets.length) {
-        d.new_pallets.forEach((p, index) => {
-          fetch('/agro/scanner/print', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({surowiec_id: p.id, type: 'pallet', linia: LINIA})
-          }).then(res => res.json()).then(printRes => {
-              // Dla pierwszej nowej palety otwieramy podgląd etykiety
-              if (index === 0 && printRes.label_url) {
-                  window.openInApp ? openInApp(printRes.label_url, 'Etykieta palety') : window.open(printRes.label_url, '_blank');
-              }
-          });
-        });
-        showToast('Automatycznie zlecono wydruk etykiet', 'success');
-      }
-      hidePallet();
-    }
-  })
-  .catch(e => showToast('Błąd: ' + e, 'danger'));
-}
-
 /* ─── Print ───────────────────────────────────────────────── */
+let currentPrintType = 'pallet';
+
 function printLabel(type) {
   if (!currentPallet) return showToast('Brak palety — zeskanuj najpierw', 'warn');
-
+  
   if (type === 'location') {
-    // Etykieta regału — otwórz w aplikacji
-    const loc = currentPallet.lokalizacja || document.getElementById('barcodeInput').value.trim();
+    const loc = currentPallet.lokalizacja || '';
+    if (!loc) return showToast('Brak lokalizacji', 'warn');
     const url = `/agro/scanner/label_location?loc=${loc}&linia=${LINIA}`;
     window.openInApp ? openInApp(url, 'Etykieta regału') : window.open(url, '_blank');
     return;
   }
 
-  // Etykieta palety — najpierw spróbuj TCP, zawsze otwórz HTML
+  currentPrintType = type;
+  
+  fetch('/agro/scanner/printers')
+    .then(r => r.json())
+    .then(printers => {
+      if (!printers || printers.length === 0) {
+        return sendPrintRequest();
+      }
+      if (printers.length === 1) {
+        return sendPrintRequest(printers[0].ip, printers[0].nazwa);
+      }
+      
+      const list = document.getElementById('printerList');
+      list.innerHTML = '';
+      printers.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'printer-option';
+        div.onclick = () => {
+          closePrinterModal();
+          sendPrintRequest(p.ip, p.nazwa);
+        };
+        div.innerHTML = `
+          <span class="material-icons">print</span>
+          <div>
+            <div class="printer-option-title">${p.nazwa}</div>
+            <div class="printer-option-ip">${p.ip} ${p.lokalizacja ? ' | ' + p.lokalizacja : ''}</div>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+      document.getElementById('printerOverlay').style.display = 'flex';
+    })
+    .catch(() => {
+      sendPrintRequest();
+    });
+}
+
+function closePrinterModal() {
+  document.getElementById('printerOverlay').style.display = 'none';
+}
+
+function sendPrintRequest(overrideIp = null, overrideName = null) {
+  const payload = {
+    surowiec_id: currentPallet.id,
+    type: currentPrintType,
+    linia: LINIA
+  };
+  if (overrideIp) payload.override_ip = overrideIp;
+  if (overrideName) payload.override_name = overrideName;
+
   fetch('/agro/scanner/print', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({surowiec_id: currentPallet.id, type, linia: LINIA})
+    body: JSON.stringify(payload)
   })
   .then(r => r.json())
   .then(d => {
-    if (d.label_url) {
-      window.openInApp ? openInApp(d.label_url, 'Etykieta palety') : window.open(d.label_url, '_blank');
-    }
     if (d.success) {
-      showToast('✅ ' + d.message, 'success');
+      showToast('✅ Zlecono wydruk ' + (overrideName ? 'na ' + overrideName : ''), 'success');
     } else {
-      showToast('📄 Etykieta otwarta w aplikacji', 'success');
+      showToast('❌ Błąd druku: ' + (d.error || 'nieznany'), 'danger');
     }
   })
-  .catch(() => {
-    const url = `/agro/scanner/label/${currentPallet.id}?linia=${LINIA}&autoprint=1`;
-    window.openInApp ? openInApp(url, 'Etykieta palety') : window.open(url, '_blank');
-    showToast('📄 Etykieta otwarta w aplikacji', 'success');
+  .catch((e) => {
+    showToast('❌ Błąd połączenia przy druku', 'danger');
   });
 }
 
@@ -848,4 +837,45 @@ function showToast(msg, type) {
   toastTimer = setTimeout(() => el.style.display = 'none', 4000);
 }
 </script>
+
+<!-- PRINTER MODAL -->
+<div class="modal-overlay" id="printerOverlay" style="display:none; z-index:9000;">
+  <div class="modal-box" style="max-width: 400px;">
+    <h2 class="m-0 row items-center gap-8 mb-10" style="color: #1e293b; font-size: 18px; margin-bottom: 16px;">
+      <span class="material-icons text-primary">print</span>
+      Wybierz drukarkę ZPL
+    </h2>
+    <div id="printerList" style="max-height: 300px; overflow-y: auto; margin-top: 16px;">
+      <!-- Printer options loaded here -->
+    </div>
+    <div class="row justify-end mt-20" style="margin-top: 16px; text-align: right;">
+      <button class="btn btn-outline" onclick="closePrinterModal()" style="padding: 8px 16px;">Anuluj</button>
+    </div>
+  </div>
+</div>
+
+<!-- DISPATCH MODAL -->
+<div class="modal-overlay" id="dispatchOverlay" style="display:none; z-index:9000;">
+  <div class="modal-box" style="max-width: 400px;">
+    <h2 class="m-0 row items-center gap-8 mb-10" style="color: #d97706; font-size: 18px; margin-bottom: 16px;">
+      <span class="material-icons text-primary">local_shipping</span>
+      Przekaż na produkcję
+    </h2>
+    <div style="margin-bottom: 16px; font-size: 14px; color: #475569;">
+      Lokalizacja docelowa: <strong id="dispatchModalLoc" style="color: #1e293b; font-size: 16px;"></strong>
+    </div>
+    
+    <label class="form-label small mb-4">Ilość do przesunięcia (kg)</label>
+    <input type="number" id="dispatchModalQty" class="form-control" step="0.1" placeholder="0.0" style="margin-bottom: 12px; font-size: 16px; font-weight: bold; width: 100%;">
+    
+    <label class="form-label small mb-4">Nr zlecenia (opcjonalnie)</label>
+    <input type="number" id="dispatchModalPlanId" class="form-control" placeholder="ID planu" style="margin-bottom: 20px; width: 100%;">
+    
+    <div class="row justify-between mt-20" style="margin-top: 16px;">
+      <button class="btn btn-outline" onclick="closeDispatchModal()" style="padding: 8px 16px;">Anuluj</button>
+      <button class="btn btn-primary" onclick="doFinalDispatch()" style="padding: 8px 16px; background: #d97706 !important;">Zatwierdź</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
+

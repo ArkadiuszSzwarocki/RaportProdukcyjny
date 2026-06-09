@@ -81,28 +81,26 @@ def dispatch():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Split pallet
+# Move pallet
 # ─────────────────────────────────────────────────────────────────────────────
 
-@scanner_bp.route('/split', methods=['POST'])
-def split():
+@scanner_bp.route('/move', methods=['POST'])
+def move():
     data = request.get_json(silent=True) or {}
     surowiec_id = data.get('surowiec_id')
-    bags        = data.get('bags', [])          # [{ilosc, lokalizacja, nazwa?}, ...]
-    linia       = data.get('linia', 'AGRO')
+    nowa_lokalizacja = data.get('lokalizacja')
+    linia = data.get('linia', 'AGRO')
 
-    if not surowiec_id:
-        return jsonify({'success': False, 'error': 'Brak surowiec_id'}), 400
-    if not bags:
-        return jsonify({'success': False, 'error': 'Brak listy worków (bags)'}), 400
+    if not surowiec_id or not nowa_lokalizacja:
+        return jsonify({'success': False, 'error': 'Brak parametrów: surowiec_id, lokalizacja'}), 400
 
-    ok, msg, new_pallets = ScannerService.split_pallet(
+    ok, msg = ScannerService.move_pallet(
         surowiec_id=int(surowiec_id),
-        bags=bags,
+        nowa_lokalizacja=nowa_lokalizacja,
         worker_login=_worker(),
         linia=linia,
     )
-    return jsonify({'success': ok, 'message': msg, 'new_pallets': new_pallets})
+    return jsonify({'success': ok, 'message': msg})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -111,22 +109,26 @@ def split():
 
 @scanner_bp.route('/label/<int:surowiec_id>')
 def label(surowiec_id):
-    """Renderuje etykietę HTML dla surowca (do druku przez przeglądarkę)."""
+    """Renderuje etykietę ZPL dla surowca (podgląd i druk przez przeglądarkę)."""
     linia = request.args.get('linia', 'AGRO')
+    autoprint = request.args.get('autoprint', '0') == '1'
     label_data = ScannerService.get_label_data(surowiec_id, linia=linia)
     if not label_data:
         return f"Paleta #{surowiec_id} nie istnieje lub stan=0", 404
 
+    from app.services.print_server import get_printer
     from datetime import datetime
+
+    printer = get_printer()
+    zpl_string = printer.build_pallet_label_zpl(label_data)
+
     return render_template(
-        'agro_surowiec_etykieta.html',
-        id=label_data['id'],
-        nr_palety=label_data.get('nr_palety') or '',
-        nazwa=label_data['nazwa'],
-        ilosc=label_data['ilosc'],
-        lokalizacja=label_data['lokalizacja'],
-        data=datetime.now().strftime('%d.%m.%Y %H:%M'),
-        termin=None,
+        'magazyn_dostawy/etykieta_podglad_system.html',
+        zpl_string=zpl_string,
+        nr_palety=label_data.get('nr_palety') or f"SUR-{surowiec_id}",
+        linia=linia,
+        generated_at=datetime.now().strftime('%d.%m.%Y %H:%M'),
+        autoprint=autoprint
     )
 
 
@@ -164,6 +166,8 @@ def print_label():
     surowiec_id  = data.get('surowiec_id')
     label_type   = data.get('type', 'pallet')   # 'pallet' | 'location'
     linia        = data.get('linia', 'AGRO')
+    printer_ip   = data.get('printer_ip')
+    printer_name = data.get('printer_name')
 
     if not surowiec_id:
         return jsonify({'success': False, 'error': 'Brak surowiec_id'}), 400
@@ -179,7 +183,11 @@ def print_label():
         if label_type == 'location':
             ok, msg = printer.print_location_label(label_data)
         else:
-            ok, msg = printer.print_pallet_label(label_data)
+            ok, msg = printer.print_pallet_label(
+                label_data, 
+                override_ip=printer_ip, 
+                override_name=printer_name
+            )
     except Exception as e:
         ok, msg = False, str(e)
 
@@ -215,6 +223,19 @@ def test_print():
 def printer_status():
     ok, msg = get_printer().test_connection()
     return jsonify({'online': ok, 'message': msg})
+
+@scanner_bp.route('/printers', methods=['GET'])
+def get_printers():
+    from app.db import get_db_connection
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1")
+        return jsonify(cur.fetchall())
+    except Exception as e:
+        return jsonify([])
+    finally:
+        conn.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

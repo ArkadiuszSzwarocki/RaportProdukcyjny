@@ -39,6 +39,7 @@ from .notifications import register_production_notification_routes
 from .dosypki import register_production_dosypki_routes
 from .mix import register_production_mix_routes
 from .reports import register_production_reports_routes
+from .folio import register_production_folio_routes
 
 production_bp = Blueprint('production', __name__)
 
@@ -430,3 +431,4 @@ register_production_dosypki_routes(
 )
 register_production_mix_routes(production_bp, bezpieczny_powrot)
 register_production_reports_routes(production_bp)
+register_production_folio_routes(production_bp, bezpieczny_powrot)

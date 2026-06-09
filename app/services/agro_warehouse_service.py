@@ -1437,33 +1437,40 @@ class AgroWarehouseService:
                     
             target_opakowanie_id = opakowanie_id
             
+            # Odczytaj aktualny licznik MQTT przy wsadzeniu rolki
+            mqtt_licznik_start = 0
+            try:
+                from app.services.mqtt_service import get_latest_data
+                mqtt_licznik_start = int(get_latest_data().get('counter', 0) or 0)
+            except Exception:
+                pass
+
             if 0 < ilosc_docelowa < stan_poczatkowy_nowego:
                 # Rozdzielenie partii (utworzenie nowego rekordu dla maszyny, zostawienie reszty na starym)
                 stan_pozostaly = stan_poczatkowy_nowego - ilosc_docelowa
-                # Aktualizacja starego rekordu
+                # Aktualizacja starego rekordu — odejmij pobraną ilość ze stanu magazynowego
                 cursor.execute("UPDATE magazyn_opakowania SET stan_magazynowy = %s WHERE id = %s", (stan_pozostaly, opakowanie_id))
-                
-                # Utworzenie nowego rekordu (ilość pobrana + carryover)
+
+                # Utworzenie nowego rekordu (ilość pobrana + carryover) — nowy wpis reprezentuje rolkę na maszynie
                 ilosc_na_maszyne = ilosc_docelowa + carryover_qty
                 cursor.execute(
                     "INSERT INTO magazyn_opakowania (nazwa, stan_magazynowy, lokalizacja) VALUES (%s, %s, %s)",
-                    (nazwa, ilosc_na_maszyne, lokalizacja)
+                    (nazwa, ilosc_na_maszyne, 'Maszyna')
                 )
                 target_opakowanie_id = cursor.lastrowid
-                
-                # Zapis historii o podziale
+
+                # FIX: Zapis ruchu POBRANIE_DO_PRODUKCJI (odejmuje ze stanu magazynowego)
                 table_ruch = get_table_name('magazyn_ruch', 'AGRO')
                 try:
                     cursor.execute(
                         f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
-                        "VALUES (%s, 'WYDANIE_PROD', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                        (opakowanie_id, -ilosc_docelowa, stan_pozostaly, user_login or 'System', f"Pobranie z lok: {lokalizacja} (Podział)")
+                        "VALUES (%s, 'POBRANIE_DO_PRODUKCJI', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                        (opakowanie_id, -ilosc_docelowa, stan_pozostaly, user_login or 'System',
+                         f"Pobranie folii na produkcję AGRO (podział z lok: {lokalizacja}) plan #{plan_id}")
                     )
-                    
-                    komentarz_pobrania = f"Pobranie z lok: {lokalizacja}"
+                    komentarz_pobrania = f"Wsadzenie rolki z lok: {lokalizacja}"
                     if carryover_qty > 0:
-                        komentarz_pobrania += f" (w tym carryover {int(carryover_qty)} szt. z poprzedniego podpięcia)"
-                        
+                        komentarz_pobrania += f" (w tym carryover {int(carryover_qty)} szt. z poprzedniej rolki)"
                     cursor.execute(
                         f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
                         "VALUES (%s, 'POBRANIE_NA_MASZYNE', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
@@ -1471,22 +1478,34 @@ class AgroWarehouseService:
                     )
                 except Exception as ex:
                     print(f"Error logging partial move: {ex}")
-                
+
                 stan_poczatkowy_plan = ilosc_na_maszyne
             else:
-                # Brak podziału - sprawdzamy czy już podpięte
+                # Brak podziału — sprawdzamy czy już podpięte
                 cursor.execute("SELECT id FROM agro_plan_opakowania WHERE plan_id = %s AND opakowanie_id = %s AND is_active = TRUE", (plan_id, target_opakowanie_id))
                 if cursor.fetchone(): return True, "Już podpięte"
-                
+
+                stan_w_magazynie_przed = stan_poczatkowy_nowego
                 ilosc_na_maszyne = stan_poczatkowy_nowego + carryover_qty
-                cursor.execute("UPDATE magazyn_opakowania SET stan_magazynowy = %s WHERE id = %s", (ilosc_na_maszyne, target_opakowanie_id))
-                
+
+                # FIX: Odejmij całą rolkę ze stanu magazynowego (stan = 0, lokal = Maszyna)
+                cursor.execute(
+                    "UPDATE magazyn_opakowania SET stan_magazynowy = 0, lokalizacja = 'Maszyna' WHERE id = %s",
+                    (target_opakowanie_id,)
+                )
+
                 table_ruch = get_table_name('magazyn_ruch', 'AGRO')
                 try:
-                    komentarz_pobrania = f"Pobranie z lok: {lokalizacja}"
+                    # FIX: Ruch POBRANIE_DO_PRODUKCJI — poprawnie zmniejsza stan magazynowy
+                    cursor.execute(
+                        f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
+                        "VALUES (%s, 'POBRANIE_DO_PRODUKCJI', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                        (target_opakowanie_id, -stan_w_magazynie_przed, 0, user_login or 'System',
+                         f"Pobranie folii na produkcję AGRO (lok: {lokalizacja}) plan #{plan_id}")
+                    )
+                    komentarz_pobrania = f"Wsadzenie rolki z lok: {lokalizacja}"
                     if carryover_qty > 0:
-                        komentarz_pobrania += f" (w tym carryover {int(carryover_qty)} szt. z poprzedniego podpięcia)"
-                        
+                        komentarz_pobrania += f" (w tym carryover {int(carryover_qty)} szt. z poprzedniej rolki)"
                     cursor.execute(
                         f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
                         "VALUES (%s, 'POBRANIE_NA_MASZYNE', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
@@ -1494,26 +1513,29 @@ class AgroWarehouseService:
                     )
                 except Exception as ex:
                     print(f"Error logging full pull move: {ex}")
-                
+
                 stan_poczatkowy_plan = ilosc_na_maszyne
                 
-            # 3. Link
+            # 3. Link — zapisz licznik MQTT przy wsadzeniu
             cursor.execute(
-                "INSERT INTO agro_plan_opakowania (plan_id, opakowanie_id, stan_poczatkowy, is_active) VALUES (%s, %s, %s, TRUE)",
-                (plan_id, target_opakowanie_id, stan_poczatkowy_plan)
+                "INSERT INTO agro_plan_opakowania (plan_id, opakowanie_id, stan_poczatkowy, is_active, licznik_start) VALUES (%s, %s, %s, TRUE, %s)",
+                (plan_id, target_opakowanie_id, stan_poczatkowy_plan, mqtt_licznik_start)
             )
-            
-            # Log the insertion in agro_workowanie_rozliczenie
+            new_link_id = cursor.lastrowid
+
+            # Log wsadzenia rolki w agro_workowanie_rozliczenie
             cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
             p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
             cursor.execute("""
                 INSERT INTO agro_workowanie_rozliczenie (
                     plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
-                    stan_przed, wyprodukowano_szt, szt_na_palecie, palety_kg_wykonane, zuzyte_worki, stan_po, autor_login
-                ) VALUES (%s, %s, %s, %s, %s, %s, 0, 0, 0, 0, %s, %s)
+                    stan_przed, zuzyte_worki, stan_po, autor_login,
+                    typ_zdarzenia, licznik_start, link_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, 0, %s, %s, 'WSADZENIE', %s, %s)
             """, (
                 plan_id, p_meta['data_planu'], p_meta['produkt'], target_opakowanie_id, nazwa,
-                stan_poczatkowy_plan, stan_poczatkowy_plan, user_login or 'System'
+                stan_poczatkowy_plan, stan_poczatkowy_plan, user_login or 'System',
+                mqtt_licznik_start, new_link_id
             ))
             
             conn.commit()

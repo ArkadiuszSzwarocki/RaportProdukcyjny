@@ -37,7 +37,13 @@
             <tbody>
                 {% for p in unconfirmed_palety %}
                 <tr id="unconfirmed-row-{{ p[0] }}">
-                    <td class="text-muted font-bold font-mono">{{ p[6] if p|length > 6 and p[6] else p[0] }}</td>
+                    <td class="text-muted font-bold font-mono">
+                        {{ p[6] if p|length > 6 and p[6] else p[0] }}
+                        <button type="button" class="btn-icon" style="color: #94a3b8; padding: 0; margin-left: 6px; border: none; background: transparent; cursor: pointer;" title="Kopiuj SSCC"
+                            onclick="navigator.clipboard.writeText('{{ p[6] if p|length > 6 and p[6] else p[0] }}'); if(typeof showToast === 'function') showToast('Skopiowano SSCC: {{ p[6] if p|length > 6 and p[6] else p[0] }}', 'success');">
+                            <span class="material-icons" style="font-size:16px;">content_copy</span>
+                        </button>
+                    </td>
                     <td>
                         <strong class="text-primary">{{ p[2] }}</strong>
                         <div class="text-muted" style="font-size:12px; margin-top:2px;">
@@ -93,7 +99,13 @@
                 in
                 magazyn_palety %}
                 <tr>
-                    <td class="text-muted font-bold font-mono">{{ nr_palety or id }}</td>
+                    <td class="text-muted font-bold font-mono">
+                        {{ nr_palety or id }}
+                        <button type="button" class="btn-icon" style="color: #94a3b8; padding: 0; margin-left: 6px; border: none; background: transparent; cursor: pointer;" title="Kopiuj SSCC"
+                            onclick="navigator.clipboard.writeText('{{ nr_palety or id }}'); if(typeof showToast === 'function') showToast('Skopiowano SSCC: {{ nr_palety or id }}', 'success');">
+                            <span class="material-icons" style="font-size:16px;">content_copy</span>
+                        </button>
+                    </td>
                     <td class="text-muted">{{ nr_plomby or '-' }}</td>
                     <td>
                         <strong class="text-primary">{{ produkt }}</strong>

@@ -147,89 +147,22 @@
     </style>
 
     <div class="work-form">
-        <h3><span class="material-icons">inventory_2</span> Rozliczenie Workowania AGRO</h3>
+        <h3><span class="material-icons">inventory_2</span> Rozliczenie Folii AGRO</h3>
 
-        <div class="context-box">
-            <div class="context-row">
-                <span>Aktywne zlecenie:</span>
-                <strong>#{{ active_plan.id }} - {{ active_plan.produkt }}</strong>
-            </div>
-            <div class="context-row">
-                <span>Data planu:</span>
-                <strong>{{ active_plan.data_planu }}</strong>
-            </div>
-            <div class="context-row">
-                <span>Kg na worek (typ):</span>
-                <strong>{{ bag_kg|round(2) }} kg</strong>
-            </div>
-            <div class="context-row">
-                <span>Palety wykonane:</span>
-                <strong>{{ palety_count }} szt. / {{ palety_kg_wykonane|round(2) }} kg</strong>
-            </div>
+        <div class="hint-box" style="background: #fff3cd; border-color: #ffe08a; color: #856404;">
+            ℹ️ Rozliczenie rolek folii zostało przeniesione na dedykowaną stronę.
         </div>
 
-        {% if not packaging_items %}
-        <div class="hint-box">
-            Brak opakowan na stanie. Dodaj opakowanie w magazynie AGRO, aby zapisac rozliczenie.
-        </div>
-        {% endif %}
-
-        <form action="{{ url_for('production.agro_workowanie_rozliczenie_add') }}" method="POST" id="work-settlement-form">
-            <input type="hidden" name="data_planu" value="{{ data_planu }}">
-            <input type="hidden" name="plan_id" value="{{ active_plan.id }}">
-
-            <div class="work-form-grid">
-                <div class="work-form-group">
-                    <label for="opakowanie_id">Opakowanie</label>
-                    <select id="opakowanie_id" name="opakowanie_id" required>
-                        <option value="">-- wybierz opakowanie --</option>
-                        {% for item in packaging_items %}
-                        <option
-                            value="{{ item.id }}"
-                            data-stock="{{ item.stan_magazynowy or 0 }}"
-                            data-location="{{ item.lokalizacja or '' }}"
-                        >
-                            {{ item.nazwa }}{% if item.lokalizacja %} ({{ item.lokalizacja }}){% endif %} - stan: {{ '%.0f'|format(item.stan_magazynowy or 0) }} szt.
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="work-form-group">
-                    <label for="stan_przed_display">Stan magazynowy (szt.)</label>
-                    <input type="text" id="stan_przed_display" readonly value="-">
-                </div>
-
-                <div class="work-form-group">
-                    <label for="wyprodukowano_szt">Ilosc szt. wyprodukowana na koniec zmiany</label>
-                    <input type="number" id="wyprodukowano_szt" name="wyprodukowano_szt" min="0" step="1" required placeholder="0">
-                </div>
-
-                <div class="work-form-group">
-                    <label for="szt_na_palecie">Ilosc szt. na palecie</label>
-                    <input type="number" id="szt_na_palecie" name="szt_na_palecie" min="1" step="1" required placeholder="np. 40">
-                </div>
-            </div>
-
-            <div class="calc-row">
-                <div class="calc-card">
-                    Zuzyte worki (auto, z palet wykonanych)
-                    <strong id="zuzyte-worki-display">{{ estimated_bags }}</strong>
-                </div>
-                <div class="calc-card">
-                    Stan po rozliczeniu
-                    <strong id="stan-po-display">-</strong>
-                </div>
-                <div class="calc-card">
-                    Waga z palet wykonanych
-                    <strong>{{ palety_kg_wykonane|round(2) }} kg</strong>
-                </div>
-            </div>
-
-            <button type="submit" class="btn-work-save" {% if not packaging_items %}disabled{% endif %}>
-                Zapisz rozliczenie
-            </button>
-        </form>
+        <a href="{{ url_for('production.agro_folio_rozliczenie', data=data_planu) }}"
+           style="display: flex; align-items: center; justify-content: center; gap: 8px;
+                  background: #e67e22; color: #fff; text-decoration: none; font-weight: 700;
+                  border-radius: 8px; padding: 12px 16px; font-size: 0.98em; margin-top: 4px;
+                  box-shadow: 0 2px 6px rgba(230,126,34,0.3); transition: background 0.2s;"
+           onmouseover="this.style.background='#cf6d17'"
+           onmouseout="this.style.background='#e67e22'">
+            <span class="material-icons" style="font-size: 20px;">wrap_text</span>
+            Przejdź do Rozliczenia Folii
+        </a>
     </div>
 
     <div class="work-history">

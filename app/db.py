@@ -609,6 +609,30 @@ def _create_tables(cursor):
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_dozwolone_lokalizacje (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(100) NOT NULL UNIQUE,
+            opis VARCHAR(255) DEFAULT '',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Inicjalizacja domyślnych lokalizacji
+    cursor.execute("SELECT COUNT(*) as count FROM magazyn_dozwolone_lokalizacje")
+    if cursor.fetchone()[0] == 0:
+        default_locs = [
+            'R01', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07',
+            'MP01', 'MS01', 'BF_MS01', 'BF_MP01', 
+            'MGW01', 'MGW02', 'MOP01', 'MDO01'
+        ]
+        # Dodajemy K001 do K050
+        for i in range(1, 51):
+            default_locs.append(f"K{i:03d}")
+            
+        for loc in default_locs:
+            cursor.execute("INSERT INTO magazyn_dozwolone_lokalizacje (nazwa) VALUES (%s)", (loc,))
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS mom_pozycje (
             id INT AUTO_INCREMENT PRIMARY KEY,
             mom_id INT NOT NULL,
@@ -957,6 +981,18 @@ def _migrate_columns(cursor):
     
     # agro_mix_rozliczenie columns
     _add_column_if_missing(cursor, "agro_mix_rozliczenie", "zuzyte_kiedy", "DATETIME NULL", "Dodawanie kolumny 'zuzyte_kiedy' do agro_mix_rozliczenie")
+
+    # agro_workowanie_rozliczenie — rozszerzenie o straty, liczniki MQTT i typ zdarzenia (Folio flow)
+    _add_column_if_missing(cursor, "agro_workowanie_rozliczenie", "straty_worki", "FLOAT DEFAULT 0", "Dodawanie kolumny 'straty_worki' do agro_workowanie_rozliczenie")
+    _add_column_if_missing(cursor, "agro_workowanie_rozliczenie", "licznik_start", "INT DEFAULT 0", "Dodawanie kolumny 'licznik_start' do agro_workowanie_rozliczenie")
+    _add_column_if_missing(cursor, "agro_workowanie_rozliczenie", "licznik_stop", "INT DEFAULT 0", "Dodawanie kolumny 'licznik_stop' do agro_workowanie_rozliczenie")
+    _add_column_if_missing(cursor, "agro_workowanie_rozliczenie", "pozostalo_na_rolce", "FLOAT DEFAULT 0", "Dodawanie kolumny 'pozostalo_na_rolce' do agro_workowanie_rozliczenie")
+    _add_column_if_missing(cursor, "agro_workowanie_rozliczenie", "lokalizacja_zwrotu", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'lokalizacja_zwrotu' do agro_workowanie_rozliczenie")
+    _add_column_if_missing(cursor, "agro_workowanie_rozliczenie", "typ_zdarzenia", "VARCHAR(30) DEFAULT 'ROZLICZENIE'", "Dodawanie kolumny 'typ_zdarzenia' do agro_workowanie_rozliczenie")
+    _add_column_if_missing(cursor, "agro_workowanie_rozliczenie", "link_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'link_id' (FK do agro_plan_opakowania) do agro_workowanie_rozliczenie")
+
+    # agro_plan_opakowania — licznik MQTT przy wsadzeniu rolki
+    _add_column_if_missing(cursor, "agro_plan_opakowania", "licznik_start", "INT DEFAULT 0", "Dodawanie kolumny 'licznik_start' (MQTT) do agro_plan_opakowania")
     
     # raporty_koncowe columns
     _add_column_if_missing(cursor, "raporty_koncowe", "sekcja", "VARCHAR(50)", "Dodawanie kolumny 'sekcja' do raporty_koncowe")
