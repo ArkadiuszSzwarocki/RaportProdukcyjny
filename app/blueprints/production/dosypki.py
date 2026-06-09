@@ -1,6 +1,6 @@
 from datetime import date
 
-from flask import current_app, flash, jsonify, redirect, render_template, request, session
+from flask import current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name, list_unconfirmed_dosypki, sync_dosypka_notifications
@@ -123,7 +123,9 @@ def register_production_dosypki_routes(
     def dosypka_page(plan_id):
         """Redirect legacy dosypka_page to dosypka_strona."""
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
-        url = url_for('production.dosypka_strona', plan_id=plan_id, linia=linia, **request.args)
+        # Build extra args excluding 'linia' to avoid passing it twice
+        extra = {k: v for k, v in request.args.items() if k != 'linia'}
+        url = url_for('production.dosypka_strona', plan_id=plan_id, linia=linia, **extra)
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         if is_ajax:
             return f'<script>window.location.href = "{url}";</script>'

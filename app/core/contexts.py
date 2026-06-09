@@ -393,6 +393,27 @@ def inject_database_info():
         return dict(db_name='Unknown', is_test_db=False)
 
 
+def inject_system_errors_count():
+    """Inject unread system errors count for templates (based on error.log)."""
+    try:
+        if not session.get('zalogowany'):
+            return dict(system_errors_count=0)
+        role = str(session.get('rola', '')).lower()
+        if role not in ['masteradmin', 'admin']:
+            return dict(system_errors_count=0)
+        import os
+        from flask import current_app
+        error_log_path = os.path.join(current_app.root_path, '..', 'logs', 'error.log')
+        if not os.path.exists(error_log_path):
+            return dict(system_errors_count=0)
+        with open(error_log_path, 'r', encoding='utf-8', errors='ignore') as f:
+            text = f.read()
+        count = text.count('[TRAP_HEADER]') + text.count(' ERROR: ')
+        return dict(system_errors_count=count)
+    except Exception:
+        return dict(system_errors_count=0)
+
+
 def register_contexts(app):
     """Register all context processors with Flask app."""
     app.context_processor(inject_static_version)
@@ -404,3 +425,5 @@ def register_contexts(app):
     app.context_processor(inject_delivery_counters)
     app.context_processor(inject_database_info)
     app.context_processor(inject_today_date)
+    app.context_processor(inject_system_errors_count)
+
