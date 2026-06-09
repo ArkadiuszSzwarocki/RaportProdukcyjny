@@ -2,9 +2,13 @@ import os
 import json
 import socket
 import logging
+import time
 from datetime import datetime
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+try:
+    from flask_cors import CORS
+except ModuleNotFoundError:
+    CORS = None
 
 # Konfiguracja logowania
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -13,15 +17,21 @@ logger = logging.getLogger('PrinterServer')
 app = Flask(__name__)
 
 # Pełna konfiguracja CORS - niezbędne dla żądań z sieci prywatnej (Private-Network)
-CORS(app, resources={r"/*": {
-    "origins": "*",
-    "methods": ["GET", "POST", "OPTIONS"],
-    "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-    "expose_headers": ["Access-Control-Allow-Private-Network"]
-}})
+if CORS is not None:
+    CORS(app, resources={r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+        "expose_headers": ["Access-Control-Allow-Private-Network"]
+    }})
+else:
+    logger.warning("flask-cors is not installed; using fallback CORS headers.")
 
 @app.after_request
 def after_request(response):
+    response.headers.setdefault('Access-Control-Allow-Origin', '*')
+    response.headers.setdefault('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    response.headers.setdefault('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
     response.headers.add('Access-Control-Allow-Private-Network', 'true')
     return response
 
@@ -33,19 +43,70 @@ PRINTER_IP_MAP = {
     'OSIP': '192.168.1.160',
 }
 
-def wyslij_do_drukarki(zpl, ip, port=9100, timeout=5.0):
+def _read_float_env(name, default_value, minimum=None):
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        value = float(default_value)
+    else:
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            value = float(default_value)
+    if minimum is not None:
+        value = max(float(minimum), value)
+    return value
+
+
+def _read_int_env(name, default_value, minimum=None, maximum=None):
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        value = int(default_value)
+    else:
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError):
+            value = int(default_value)
+    if minimum is not None:
+        value = max(int(minimum), value)
+    if maximum is not None:
+        value = min(int(maximum), value)
+    return value
+
+
+DEFAULT_PRINTER_TCP_TIMEOUT = _read_float_env('PRINTER_TCP_TIMEOUT', 5.0, minimum=0.5)
+DEFAULT_PRINTER_TCP_RETRIES = _read_int_env('PRINTER_TCP_RETRIES', 3, minimum=1, maximum=5)
+DEFAULT_PRINTER_TCP_RETRY_DELAY = _read_float_env('PRINTER_TCP_RETRY_DELAY', 0.6, minimum=0.0)
+
+
+def wyslij_do_drukarki(zpl, ip, port=9100, timeout=None, retries=None, retry_delay=None):
     """Wysyła surowy ciąg ZPL na podany adres IP i port drukarki za pomocą gniazda TCP."""
-    try:
-        logger.info(f"[TCP] Wysyłanie danych do {ip}:{port}...")
-        with socket.create_connection((ip, port), timeout=timeout) as s:
-            s.sendall(zpl.encode('utf-8'))
-        return True
-    except socket.timeout:
-        logger.error(f"[TCP] Błąd: Timeout połączenia z drukarką {ip}:{port}")
-        raise Exception('Timeout połączenia z drukarką')
-    except Exception as e:
-        logger.error(f"[TCP] Błąd: Nie udało się połączyć z {ip}:{port} - {str(e)}")
-        raise Exception(f'Błąd połączenia: {str(e)}')
+    tcp_timeout = DEFAULT_PRINTER_TCP_TIMEOUT if timeout is None else max(0.5, float(timeout))
+    attempts = DEFAULT_PRINTER_TCP_RETRIES if retries is None else max(1, int(retries))
+    pause_s = DEFAULT_PRINTER_TCP_RETRY_DELAY if retry_delay is None else max(0.0, float(retry_delay))
+
+    last_error_message = 'Błąd połączenia z drukarką'
+
+    for attempt in range(1, attempts + 1):
+        try:
+            logger.info(f"[TCP] Wysyłanie danych do {ip}:{port} (próba {attempt}/{attempts})...")
+            with socket.create_connection((ip, port), timeout=tcp_timeout) as tcp_socket:
+                tcp_socket.sendall(zpl.encode('utf-8'))
+
+            if attempt > 1:
+                logger.info(f"[TCP] Sukces po ponowieniu dla {ip}:{port} (próba {attempt}/{attempts})")
+            return True
+        except socket.timeout:
+            last_error_message = 'Timeout połączenia z drukarką'
+            logger.warning(f"[TCP] Timeout dla {ip}:{port} (próba {attempt}/{attempts})")
+        except Exception as e:
+            last_error_message = f'Błąd połączenia: {str(e)}'
+            logger.warning(f"[TCP] Błąd połączenia z {ip}:{port} (próba {attempt}/{attempts}) - {str(e)}")
+
+        if attempt < attempts and pause_s > 0:
+            time.sleep(pause_s)
+
+    logger.error(f"[TCP] Błąd końcowy dla {ip}:{port} po {attempts} próbach: {last_error_message}")
+    raise Exception(f'{last_error_message} (po {attempts} próbach)')
 
 @app.route('/status', methods=['GET'])
 def status():

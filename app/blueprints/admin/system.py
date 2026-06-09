@@ -41,6 +41,58 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     def admin_ustawienia():
         return render_template('ustawienia_index.html')
 
+    @admin_bp.route('/admin/ustawienia/qr-generator')
+    @dynamic_role_required('ustawienia')
+    def admin_qr_generator():
+        """Generator kodów QR dla loginów i haseł."""
+        return render_template('qr_generator.html')
+
+    @admin_bp.route('/admin/ustawienia/qr-generator/drukuj', methods=['POST'])
+    @dynamic_role_required('ustawienia')
+    def admin_qr_generator_drukuj():
+        """Wydrukuj małą etykietę QR z loginem i hasłem na drukarce Zebra ZPL."""
+        try:
+            data = request.get_json(silent=True) or {}
+            login = str(data.get('login', '')).strip()
+            password = str(data.get('password', '')).strip()
+            format_type = str(data.get('format', 'simple')).strip()
+
+            if not login or not password:
+                return jsonify({'success': False, 'message': 'Brak loginu lub hasła'}), 400
+
+            # Przygotuj dane QR
+            if format_type == 'json':
+                import json
+                qr_data = json.dumps({'login': login, 'pass': password})
+            else:
+                qr_data = f"LOGIN:{login}|PASS:{password}"
+
+            # Zbuduj ZPL dla małej etykiety QR (1cm x 1cm)
+            from app.services.print_server import get_printer
+            printer = get_printer()
+            zpl = printer.build_login_qr_label_zpl(qr_data, login)
+
+            # Wyślij do drukarki
+            ok, msg = printer.print_zpl_label(zpl)
+
+            if ok:
+                return jsonify({
+                    'success': True,
+                    'message': 'Etykieta wysłana do drukarki Zebra',
+                    'printer_name': printer.printer_name,
+                    'printer_ip': printer.printer_ip
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': f'Błąd druku: {msg}'
+                }), 500
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': f'Wyjątek: {str(e)}'
+            }), 500
+
     @admin_bp.route('/admin/sekretna-baza')
     @dynamic_role_required('baza_danych')
     def admin_secret_db():
@@ -305,15 +357,46 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @admin_bp.route('/admin/api/printer-server/status')
     @dynamic_role_required('ustawienia')
     def admin_printer_server_status():
+        import os
         import requests
         import urllib3
+        from urllib.parse import urlparse
+
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        try:
-            resp = requests.get('https://127.0.0.1:3001/status', timeout=1.5, verify=False)
-            if resp.status_code == 200:
-                return jsonify({'success': True, 'running': True, 'message': 'Serwer druku działa.'})
-        except Exception:
-            pass
+
+        base_value = str(os.getenv('PRINTER_BRIDGE_URL', 'https://127.0.0.1:3001') or '').strip().rstrip('/')
+        if base_value.lower().endswith('/drukuj-zpl'):
+            base_value = base_value[:-11]
+        elif base_value.lower().endswith('/status'):
+            base_value = base_value[:-7]
+        if '://' not in base_value:
+            base_value = f'https://{base_value}'
+
+        candidates = []
+
+        def _append(candidate):
+            value = str(candidate or '').strip().rstrip('/')
+            if not value:
+                return
+            if value.lower() in {item.lower() for item in candidates}:
+                return
+            candidates.append(value)
+
+        _append(base_value)
+        parsed = urlparse(base_value)
+        scheme = (parsed.scheme or '').lower()
+        if scheme in ('http', 'https'):
+            alt_scheme = 'http' if scheme == 'https' else 'https'
+            _append(f"{alt_scheme}://{parsed.netloc}{parsed.path or ''}")
+
+        for bridge_base in candidates:
+            try:
+                resp = requests.get(f'{bridge_base}/status', timeout=1.5, verify=False)
+                if resp.status_code == 200:
+                    return jsonify({'success': True, 'running': True, 'message': 'Serwer druku działa.'})
+            except Exception:
+                continue
+
         return jsonify({'success': True, 'running': False, 'message': 'Serwer druku jest wyłączony.'})
 
     @admin_bp.route('/admin/api/printer-server/start', methods=['POST'])
@@ -333,10 +416,21 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
 
         try:
             creation_flags = 0
-            if os.name == 'nt':
+            show_console = str(os.getenv('PRINTER_SERVER_SHOW_CONSOLE', 'false')).strip().lower() in ('1', 'true', 'yes')
+            if os.name == 'nt' and show_console:
                 creation_flags = 0x00000010
 
-            subprocess.Popen([sys.executable, server_path], cwd=os.path.dirname(server_path), creationflags=creation_flags, start_new_session=True)
+            env = os.environ.copy()
+            env.pop('WERKZEUG_SERVER_FD', None)
+            env.pop('WERKZEUG_RUN_MAIN', None)
+
+            subprocess.Popen(
+                [sys.executable, server_path],
+                cwd=os.path.dirname(server_path),
+                creationflags=creation_flags,
+                start_new_session=True,
+                env=env,
+            )
             time.sleep(1.5)
             return jsonify({'success': True, 'message': 'Wysłano polecenie startu serwera druku.'})
         except Exception as e:

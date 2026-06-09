@@ -12,6 +12,8 @@
         <div class="form-column">
             <label class="form-label">{{ _('waga_produktu') }}</label>
             <input name="waga_palety" type="number" min="1" required class="form-input" placeholder="{{ _('np_1000') }}">
+            <label for="nr_plomby">Nr plomby (opcjonalnie):</label>
+            <input type="text" id="nr_plomby" name="nr_plomby" maxlength="100" placeholder="Wpisz nr plomby (jesli jest)" autocomplete="off">
         </div>
         <div class="btn-row">
             <button type="submit" class="btn-action btn-save">{{ _('dodaj') }}</button>

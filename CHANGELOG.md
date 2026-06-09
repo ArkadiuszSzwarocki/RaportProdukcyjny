@@ -4,6 +4,43 @@ Wszystkie istotne zmiany w projekcie będą dokumentowane w tym pliku.
 
 Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/).
 
+## [2.2.0] - 2026-06-02
+
+### ✨ Dodane funkcjonalności - Skaner QR z kamerą
+
+#### Funkcjonalności użytkownika
+- **Logowanie przez QR**: Użytkownicy mogą teraz logować się poprzez zeskanowanie kodu QR zawierającego dane logowania
+- **Skanowanie etykiet palet**: Obsługa skanowania kodów QR z etykiet palet aparatem telefonu/tabletu
+- **Skanowanie lokalizacji**: Szybkie wprowadzanie kodów lokalizacji magazynowych przez skanowanie QR
+- **Modal z podglądem kamery**: Responsywny modal z podglądem kamery i opcją ręcznego wprowadzania
+
+#### Zmiany techniczne
+- Dodano bibliotekę `html5-qrcode` (v2.3.8) dla obsługi skanowania QR
+- Nowy plik `static/js/qr_scanner.js` z klasą `QRScanner` i obsługą różnych trybów
+- Nowy template `templates/includes/qr_scanner_modal.html` dla modala skanera
+- Zaktualizowano `templates/login.html` - dodano przycisk "📱 Skanuj QR"
+- Zaktualizowano `templates/agro_warehouse/index.html` - integracja ze skanerem
+- Zaktualizowano `templates/agro_warehouse/includes/modals.html` - dodano modal QR
+
+#### Narzędzia developerskie
+- Nowy skrypt `tools/generate_login_qr.py` do generowania kodów QR:
+  - Tryb pojedynczy: `python tools/generate_login_qr.py user pass`
+  - Tryb masowy: `python tools/generate_login_qr.py --bulk users.txt qr_codes/`
+- Pełna dokumentacja w `docs/QR_SCANNER_DOCUMENTATION.md`
+
+#### Tryby skanowania
+- `login` - Logowanie (format: `LOGIN:user:pass` lub JSON `{"login":"user","haslo":"pass"}`)
+- `pallet` - Etykiety palet (automatyczne uppercase)
+- `location` - Kody lokalizacji (wyszukiwanie w dropdown)
+- `generic` - Ogólne (bezpośrednie wypełnienie pola)
+
+#### Kompatybilność
+- Chrome/Edge 53+, Firefox 36+, Safari 11+, Opera 40+
+- Wymaga HTTPS w produkcji (localhost działa bez HTTPS)
+- Wymaga uprawnień do kamery
+
+---
+
 ## [1.0.4] - 2026-03-23
 
 ### 🔧 Naprawa CI/CD i konfiguracji Docker

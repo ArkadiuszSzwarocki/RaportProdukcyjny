@@ -1494,10 +1494,16 @@
                 
                 // Set wide class dynamically if containing large elements
                 var hasWideContent = /[<](form|table|grid|iframe)/gi.test(String(html || ''));
+                var isDosypkaPopup = /dosypka-popup-container/i.test(String(html || ''));
                 if (hasWideContent) {
                     existingM.classList.add('qp-wide');
                 } else {
                     existingM.classList.remove('qp-wide');
+                }
+                if (isDosypkaPopup) {
+                    existingM.classList.add('qp-dosypka-full');
+                } else {
+                    existingM.classList.remove('qp-dosypka-full');
                 }
 
                 // Initialize component initializers after content is updated
@@ -1517,8 +1523,12 @@
         
         // Set dynamic width class
         var hasWideContent = /[<](form|table|grid|iframe)/gi.test(String(html || ''));
+        var isDosypkaPopup = /dosypka-popup-container/i.test(String(html || ''));
         if (hasWideContent) {
             m.classList.add('qp-wide');
+        }
+        if (isDosypkaPopup) {
+            m.classList.add('qp-dosypka-full');
         }
 
         var headerHtml = '<div class="qp-header" role="dialog" aria-modal="true">'
@@ -1833,53 +1843,269 @@
         }
     };
 
+    function applyPrintSuccessState(btn, originalHtml, paletaId) {
+        if (btn && btn instanceof HTMLElement) {
+            if (!btn.classList.contains('print-success-applied')) {
+                btn.classList.add('print-success-applied');
+                const isIconBtn = btn.classList.contains('btn-icon');
+                if (isIconBtn) {
+                    btn.style.color = '#10b981';
+                    btn.innerHTML = '<span class="material-icons" style="font-size:18px;">print</span>';
+                } else {
+                    btn.innerHTML = '<span class="material-icons print-success-icon" style="color: #10b981; font-size: 14px; vertical-align: middle; margin-right: 4px;">print</span>' + originalHtml;
+                }
+            }
+        }
+
+        try {
+            const printedPallets = JSON.parse(sessionStorage.getItem('printedPallets') || '{}');
+            printedPallets[paletaId] = true;
+            sessionStorage.setItem('printedPallets', JSON.stringify(printedPallets));
+        } catch (e) {}
+    }
+
+    function normalizeBridgeCandidate(entry) {
+        if (!entry || typeof entry !== 'object') return null;
+
+        const endpointRaw = String(entry.endpoint || '').trim();
+        const statusRaw = String(entry.status_endpoint || '').trim();
+        if (!endpointRaw) return null;
+
+        return {
+            name: String(entry.name || 'bridge').trim() || 'bridge',
+            endpoint: endpointRaw,
+            statusEndpoint: statusRaw || endpointRaw.replace(/\/drukuj-zpl\/?$/i, '/status')
+        };
+    }
+
+    function getFallbackBridgeCandidates(fallbackData) {
+        const candidates = [];
+        const seen = new Set();
+
+        function pushCandidate(raw) {
+            const normalized = normalizeBridgeCandidate(raw);
+            if (!normalized) return;
+            const key = (normalized.name + '|' + normalized.endpoint).toLowerCase();
+            if (seen.has(key)) return;
+            seen.add(key);
+            candidates.push(normalized);
+        }
+
+        function pushCandidateWithProtocolVariants(raw) {
+            const normalized = normalizeBridgeCandidate(raw);
+            if (!normalized) return;
+
+            pushCandidate({
+                name: normalized.name,
+                endpoint: normalized.endpoint,
+                status_endpoint: normalized.statusEndpoint
+            });
+
+            const endpoint = String(normalized.endpoint || '').trim();
+            const statusEndpoint = String(normalized.statusEndpoint || '').trim();
+
+            if (/^https:\/\//i.test(endpoint)) {
+                pushCandidate({
+                    name: normalized.name + '_http',
+                    endpoint: 'http://' + endpoint.slice(8),
+                    status_endpoint: /^https:\/\//i.test(statusEndpoint)
+                        ? ('http://' + statusEndpoint.slice(8))
+                        : statusEndpoint
+                });
+            } else if (/^http:\/\//i.test(endpoint)) {
+                pushCandidate({
+                    name: normalized.name + '_https',
+                    endpoint: 'https://' + endpoint.slice(7),
+                    status_endpoint: /^http:\/\//i.test(statusEndpoint)
+                        ? ('https://' + statusEndpoint.slice(7))
+                        : statusEndpoint
+                });
+            }
+        }
+
+        if (fallbackData && Array.isArray(fallbackData.endpoints)) {
+            fallbackData.endpoints.forEach(pushCandidateWithProtocolVariants);
+        }
+
+        pushCandidateWithProtocolVariants({
+            name: 'legacy_bridge',
+            endpoint: fallbackData && fallbackData.endpoint,
+            status_endpoint: fallbackData && fallbackData.status_endpoint
+        });
+
+        pushCandidateWithProtocolVariants({
+            name: 'localhost_bridge',
+            endpoint: 'https://127.0.0.1:3001/drukuj-zpl',
+            status_endpoint: 'https://127.0.0.1:3001/status'
+        });
+
+        return candidates;
+    }
+
+    async function isBridgeReachable(statusEndpoint, timeoutMs) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(function () {
+            controller.abort();
+        }, timeoutMs);
+
+        try {
+            const resp = await fetch(statusEndpoint, {
+                method: 'GET',
+                signal: controller.signal
+            });
+            return resp.ok;
+        } catch (e) {
+            return false;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    async function tryLocalBridgeFallback(fallbackData) {
+        if (!fallbackData || typeof fallbackData !== 'object') {
+            return { ok: false, message: 'Brak danych fallbacku lokalnego.' };
+        }
+
+        const zpl = String(fallbackData.zpl || '');
+        const copies = Math.max(1, Number(fallbackData.copies || 1));
+        const printers = Array.isArray(fallbackData.printers) ? fallbackData.printers : [];
+        const bridgeCandidates = getFallbackBridgeCandidates(fallbackData);
+
+        if (!zpl || !printers.length) {
+            return { ok: false, message: 'Fallback lokalny nie zawiera danych ZPL lub drukarek.' };
+        }
+        if (!bridgeCandidates.length) {
+            return { ok: false, message: 'Brak dostępnego endpointu mostka dla fallbacku lokalnego.' };
+        }
+
+        let lastMessage = 'Nieudany wydruk przez fallback mostka.';
+
+        for (const bridgeCandidate of bridgeCandidates) {
+            const bridgeOnline = await isBridgeReachable(bridgeCandidate.statusEndpoint, 1500);
+            if (!bridgeOnline) {
+                lastMessage = 'Mostek niedostępny: ' + bridgeCandidate.statusEndpoint;
+                continue;
+            }
+
+            for (const printer of printers) {
+                const printerName = String((printer && printer.name) || 'Drukarka lokalna').trim();
+                const printerIp = String((printer && printer.ip) || '').trim();
+                if (!printerIp) continue;
+
+                let printerOk = true;
+                for (let copyNum = 1; copyNum <= copies; copyNum++) {
+                    try {
+                        const resp = await fetch(bridgeCandidate.endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                drukarka: printerName,
+                                ip: printerIp,
+                                dane: zpl
+                            })
+                        });
+
+                        let body = {};
+                        try { body = await resp.json(); } catch (e) { body = {}; }
+
+                        if (!(resp.ok && body && body.success === true)) {
+                            printerOk = false;
+                            lastMessage = (body && body.message)
+                                ? String(body.message)
+                                : ('Błąd mostka (HTTP ' + resp.status + ') dla ' + bridgeCandidate.endpoint);
+                            break;
+                        }
+                    } catch (error) {
+                        printerOk = false;
+                        lastMessage = (error && error.message)
+                            ? String(error.message)
+                            : ('Błąd połączenia z mostkiem ' + bridgeCandidate.endpoint);
+                        break;
+                    }
+                }
+
+                if (printerOk) {
+                    return {
+                        ok: true,
+                        printerName: printerName,
+                        printerIp: printerIp,
+                        bridgeName: bridgeCandidate.name,
+                        bridgeEndpoint: bridgeCandidate.endpoint,
+                        message: 'Wydrukowano przez fallback mostka.'
+                    };
+                }
+            }
+        }
+
+        return {
+            ok: false,
+            message: lastMessage
+        };
+    }
+
+    window.tryLocalBridgeFallback = tryLocalBridgeFallback;
+
     window.drukujZPLDirect = function(paletaId, linia, planId, btn) {
         if (!paletaId) return;
 
-        if (typeof showToast === 'function') showToast('Wysyłanie do drukarki 237...', 'info');
-        
+        if (typeof showToast === 'function') showToast('Wysyłanie etykiety...', 'info');
+
         const originalHtml = (btn && btn instanceof HTMLElement) ? btn.innerHTML : '';
-        
+
         const url = '/drukuj_etykiete_zpl/' + paletaId + '?linia=' + encodeURIComponent(linia || 'PSD');
         const fetchOptions = {
-            method: 'POST', 
+            method: 'POST',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin'
         };
 
         fetch(url, fetchOptions)
         .then(r => r.json())
-        .then(data => {
+        .then(async (data) => {
             if (data.success) {
                 if (typeof showToast === 'function') {
+                    const printerLabel = (data.printer_name || data.printer_ip)
+                        ? (' do: ' + (data.printer_name || data.printer_ip))
+                        : '';
                     if (data.data_produkcji) {
-                        showToast('Wysłano do drukarki 237 (data produkcji: ' + data.data_produkcji + ')', 'success');
+                        showToast('Wysłano etykietę' + printerLabel + ' (data produkcji: ' + data.data_produkcji + ')', 'success');
                     } else {
-                        showToast('Wysłano do drukarki 237', 'success');
+                        showToast('Wysłano etykietę' + printerLabel, 'success');
                     }
                 }
-                if (btn && btn instanceof HTMLElement) {
-                    if (!btn.classList.contains('print-success-applied')) {
-                        btn.classList.add('print-success-applied');
-                        const isIconBtn = btn.classList.contains('btn-icon');
-                        if (isIconBtn) {
-                            btn.style.color = '#10b981'; // green color
-                            btn.innerHTML = '<span class="material-icons" style="font-size:18px;">print</span>';
-                        } else {
-                            btn.innerHTML = '<span class="material-icons print-success-icon" style="color: #10b981; font-size: 14px; vertical-align: middle; margin-right: 4px;">print</span>' + originalHtml;
-                        }
-                        
-                        try {
-                            const printedPallets = JSON.parse(sessionStorage.getItem('printedPallets') || '{}');
-                            printedPallets[paletaId] = true;
-                            sessionStorage.setItem('printedPallets', JSON.stringify(printedPallets));
-                        } catch(e) {}
-                    }
-                }
-            } else {
-                if (typeof showToast === 'function') showToast('Błąd druku: ' + data.message, 'danger');
-                else alert('Błąd druku: ' + data.message);
+                applyPrintSuccessState(btn, originalHtml, paletaId);
+                return;
             }
+
+            // Awaryjny wydruk lokalny (przeglądarka -> https://127.0.0.1:3001) dla przypadku,
+            // gdy serwer pod linkiem nie ma trasy sieciowej do drukarki.
+            if (data && data.local_bridge_fallback) {
+                if (typeof showToast === 'function') {
+                    showToast('Serwer nie doszedł do drukarki, próba wydruku lokalnego...', 'warning');
+                }
+
+                const localResult = await tryLocalBridgeFallback(data.local_bridge_fallback);
+                if (localResult.ok) {
+                    if (typeof showToast === 'function') {
+                        showToast(
+                            'Wydruk fallback OK: ' + (localResult.printerName || '') + ' (' + (localResult.printerIp || '') + ') [' + (localResult.bridgeName || 'bridge') + ']',
+                            'success'
+                        );
+                    }
+                    applyPrintSuccessState(btn, originalHtml, paletaId);
+                    return;
+                }
+
+                if (typeof showToast === 'function') {
+                    showToast('Błąd fallbacku lokalnego: ' + localResult.message, 'danger');
+                } else {
+                    alert('Błąd fallbacku lokalnego: ' + localResult.message);
+                }
+                return;
+            }
+
+            if (typeof showToast === 'function') showToast('Błąd druku: ' + data.message, 'danger');
+            else alert('Błąd druku: ' + data.message);
         })
         .catch(err => {
             console.error('ZPL Print error:', err);

@@ -207,6 +207,11 @@ function openReturnPackagingModal(id, nazwa, stan, suggestedLoc) {
     } else {
         locInput.placeholder = "Wpisz kod, np. MOP01";
     }
+
+    const printCheckbox = document.getElementById('returnOpakPrintLabel');
+    if (printCheckbox) {
+        printCheckbox.checked = true;
+    }
     
     if (typeof modal.showModal === 'function') {
         modal.showModal();
@@ -230,6 +235,8 @@ function submitReturnPackaging() {
     const id = document.getElementById('returnOpakId').value;
     let qty = document.getElementById('returnOpakQty').value;
     const loc = document.getElementById('returnOpakLoc').value.trim();
+    const printCheckbox = document.getElementById('returnOpakPrintLabel');
+    const shouldPrintLabel = !printCheckbox || !!printCheckbox.checked;
     
     const typeNode = document.querySelector('input[name="returnType"]:checked');
     const isPartial = typeNode && typeNode.value === 'partial';
@@ -240,11 +247,75 @@ function submitReturnPackaging() {
     fetch('/agro/api/opakowania/return', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ opakowanie_id: id, stan_po: qty, lokalizacja: loc, is_partial: isPartial })
+        body: JSON.stringify({
+            opakowanie_id: id,
+            stan_po: qty,
+            lokalizacja: loc,
+            is_partial: isPartial,
+            print_label: shouldPrintLabel,
+        })
     }).then(r => r.json()).then(res => {
-        if(res.success) location.reload();
-        else alert('Błąd: ' + (res.error || 'Nieznany'));
+        if (!res.success) {
+            alert('Błąd: ' + (res.error || 'Nieznany'));
+            return;
+        }
+
+        const printResult = res.print_result || null;
+        if (printResult && printResult.requested) {
+            if (printResult.success) {
+                if (typeof showToast === 'function') {
+                    showToast('Zwrot zapisany. Etykieta informacyjna wydrukowana.', 'success');
+                }
+            } else {
+                const warnMsg = 'Zwrot zapisany, ale wydruk etykiety nie powiódł się: ' + (printResult.message || 'Nieznany błąd');
+                if (typeof showToast === 'function') {
+                    showToast(warnMsg, 'warning');
+                } else {
+                    alert(warnMsg);
+                }
+            }
+        } else if (typeof showToast === 'function') {
+            showToast('Zwrot zapisany.', 'success');
+        }
+
+        setTimeout(() => location.reload(), 450);
     }).catch(err => alert('Błąd połączenia: ' + err));
+}
+
+function reprintLastReturnPackagingLabel(btn) {
+    const triggerBtn = btn && btn.tagName ? btn : null;
+    const originalText = triggerBtn ? triggerBtn.innerText : '';
+
+    if (triggerBtn) {
+        triggerBtn.disabled = true;
+        triggerBtn.innerText = 'DRUKOWANIE...';
+    }
+
+    fetch('/agro/api/opakowania/reprint_last_return_label', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+    }).then(r => r.json()).then(res => {
+        if (res.success) {
+            if (typeof showToast === 'function') {
+                showToast('Ponowiono wydruk etykiety ostatniego zwrotu.', 'success');
+            }
+            return;
+        }
+
+        const msg = res.error || res.message || 'Nie udało się ponowić wydruku.';
+        if (typeof showToast === 'function') {
+            showToast(msg, 'warning');
+        } else {
+            alert(msg);
+        }
+    }).catch(err => {
+        alert('Błąd połączenia: ' + err);
+    }).finally(() => {
+        if (triggerBtn) {
+            triggerBtn.disabled = false;
+            triggerBtn.innerText = originalText;
+        }
+    });
 }
 
 function undoPackagingLink(linkId) {

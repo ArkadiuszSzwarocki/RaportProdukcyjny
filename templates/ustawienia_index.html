@@ -389,6 +389,18 @@
                 </div>
             </article>
 
+            <article class="settings-card settings-card-shared">
+                <div class="settings-card-icon" style="background: rgba(102, 126, 234, 0.12); color: #667eea;">🔐</div>
+                <div class="settings-card-body">
+                    <h3>Generator Kodów QR</h3>
+                    <p>Twórz małe kody QR (1cm×1cm) zawierające login i hasło do druku na Zebra.</p>
+                    <div class="settings-card-meta">Szybkie generowanie kodów QR dla kart dostępu lub identyfikatorów pracowników</div>
+                </div>
+                <div class="settings-card-actions">
+                    <a href="{{ url_for('admin.admin_qr_generator') }}" class="btn btn-primary">Otwórz Generator</a>
+                </div>
+            </article>
+
             {% if has_master_section_access %}
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon" style="background: rgba(255, 193, 7, 0.12); color: #d97706;">⚡</div>

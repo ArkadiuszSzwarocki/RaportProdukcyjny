@@ -6,7 +6,7 @@
         <table class="modern-table small">
             <thead>
                 <tr>
-                    <th>{{ _('nr') }}</th>
+                    <th>Nr palety</th>
                     <th>📋 Produkt</th>
                     <th>🕒 Dodana</th>
                     <th>⏱️ Czas</th>
@@ -16,7 +16,7 @@
             <tbody>
                 {% for p in unconfirmed_palety %}
                 <tr id="unconfirmed-row-{{ p[0] }}">
-                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                    <td class="text-muted font-bold font-mono">{{ p[6] if p|length > 6 and p[6] else p[0] }}</td>
                     <td>
                         <strong class="text-primary">{{ p[2] }}</strong>
                         <div class="text-muted" style="font-size:12px; margin-top:2px;">
@@ -45,7 +45,8 @@
         <table class="modern-table">
             <thead>
                 <tr>
-                    <th>#</th>
+                    <th>Nr palety</th>
+                    <th>Nr plomby</th>
                     <th>📦 Produkt</th>
                     <th> Czas Potwierdzenia</th>
                     <th>⚖️ Waga (kg)</th>
@@ -55,9 +56,19 @@
                 </tr>
             </thead>
             <tbody>
-                {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_rzeczywistego_potwierdzenia, user_login in magazyn_palety %}
+                {% for pal in magazyn_palety %}
+                {% set produkt = pal[0] %}
+                {% set waga = pal[1] %}
+                {% set id = pal[3] %}
+                {% set plan_id = pal[4] %}
+                {% set status = pal[5] %}
+                {% set czas_rzeczywistego_potwierdzenia = pal[6] %}
+                {% set user_login = pal[7] if pal|length > 7 else '' %}
+                {% set nr_palety = pal[8] if pal|length > 8 else '' %}
+                {% set nr_plomby = pal[9] if pal|length > 9 else '' %}
                 <tr>
-                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                    <td class="text-muted font-bold font-mono">{{ nr_palety or id }}</td>
+                    <td class="text-muted">{{ nr_plomby or '-' }}</td>
                     <td><strong class="text-primary">{{ produkt }}</strong></td>
                     <td class="time-display"><strong>{{ czas_rzeczywistego_potwierdzenia }}</strong></td>
                     <td><strong class="text-success">{{ waga|int }} kg</strong></td>
@@ -78,7 +89,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="7" class="text-center p-30">Brak potwierdzonych palet.</td></tr>
+                <tr><td colspan="8" class="text-center p-30">Brak potwierdzonych palet.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

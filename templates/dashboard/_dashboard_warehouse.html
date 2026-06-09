@@ -27,7 +27,7 @@
         <table class="modern-table small">
             <thead>
                 <tr>
-                    <th>{{ _('nr') }}</th>
+                    <th>Nr palety</th>
                     <th>📋 Produkt</th>
                     <th>🕒 Dodana</th>
                     <th>⏱️ Czas</th>
@@ -37,7 +37,7 @@
             <tbody>
                 {% for p in unconfirmed_palety %}
                 <tr id="unconfirmed-row-{{ p[0] }}">
-                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                    <td class="text-muted font-bold font-mono">{{ p[6] if p|length > 6 and p[6] else p[0] }}</td>
                     <td>
                         <strong class="text-primary">{{ p[2] }}</strong>
                         <div class="text-muted" style="font-size:12px; margin-top:2px;">
@@ -77,7 +77,8 @@
         <table class="modern-table">
             <thead>
                 <tr>
-                    <th>#</th>
+                    <th>Nr palety</th>
+                    <th>Nr plomby</th>
                     <th>📦 Produkt</th>
                     <th> Czas Potwierdzenia</th>
                     <th>⚖️ Waga (kg)</th>
@@ -88,11 +89,12 @@
             </thead>
             <tbody>
                 {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_rzeczywistego_potwierdzenia,
-                user_login, nr_palety
+                user_login, nr_palety, nr_plomby
                 in
                 magazyn_palety %}
                 <tr>
-                    <td class="text-muted font-bold">{{ loop.index }}</td>
+                    <td class="text-muted font-bold font-mono">{{ nr_palety or id }}</td>
+                    <td class="text-muted">{{ nr_plomby or '-' }}</td>
                     <td>
                         <strong class="text-primary">{{ produkt }}</strong>
                         <div class="text-muted" style="font-size:12px; margin-top:2px;">
@@ -125,7 +127,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="7" class="text-center p-30">Brak potwierdzone palet.</td>
+                    <td colspan="8" class="text-center p-30">Brak potwierdzone palet.</td>
                 </tr>
                 {% endfor %}
             </tbody>

@@ -41,6 +41,87 @@
             flex-wrap: wrap;
         }
 
+        .keyboard-controls {
+            margin-top: 12px;
+            text-align: center;
+        }
+
+        .btn-keyboard-toggle {
+            background: #0f766e !important;
+            color: #fff !important;
+            border: 1px solid #0f766e !important;
+        }
+
+        .btn-keyboard-toggle.enabled {
+            background: #0369a1 !important;
+            border-color: #0369a1 !important;
+        }
+
+        .keyboard-hint {
+            margin: 8px 0 0;
+            color: #475569;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .anti-autofill-trap {
+            position: absolute;
+            left: -10000px;
+            top: auto;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .password-field-wrap {
+            position: relative;
+        }
+
+        .password-field-wrap .form-input {
+            padding-right: 46px;
+        }
+
+        .password-visibility-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            color: #334155;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .password-visibility-toggle:hover {
+            color: #0f172a;
+        }
+
+        .password-visibility-toggle:focus-visible {
+            outline: 2px solid #0ea5e9;
+            outline-offset: 2px;
+            border-radius: 6px;
+        }
+
+        .password-eye-closed {
+            display: none;
+        }
+
+        .password-visibility-toggle.visible .password-eye-open {
+            display: none;
+        }
+
+        .password-visibility-toggle.visible .password-eye-closed {
+            display: inline-flex;
+        }
+
 
         /* Premium Loading Overlay inside login-card */
         .login-card {
@@ -62,8 +143,8 @@
             z-index: 1000;
             opacity: 0;
             pointer-events: none;
-            backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
             transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -172,18 +253,45 @@
         </div>
     {% endif %}
 
-    <form method="POST" autocomplete="off">
+    <form method="POST" autocomplete="off" data-lpignore="true">
+        <div class="anti-autofill-trap" aria-hidden="true">
+            <input type="text" name="username" autocomplete="username" tabindex="-1">
+            <input type="password" name="password" autocomplete="current-password" tabindex="-1">
+        </div>
         <div class="form-group">
             <label for="login" class="form-label">{{ _('login') }}</label>
-            <input type="text" id="login" name="login" class="form-input" placeholder="{{ _('wpisz_login') }}" required aria-label="Login" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="login" name="login" class="form-input" placeholder="{{ _('wpisz_login') }}" required aria-label="Login" autocomplete="off" autocapitalize="off" autocorrect="off" inputmode="none" spellcheck="false" data-lpignore="true">
         </div>
         <div class="form-group">
             <label for="haslo" class="form-label">{{ _('haslo') }}</label>
-            <input type="password" id="haslo" name="haslo" class="form-input" placeholder="{{ _('wpisz_haslo') }}" required aria-label="Hasło" autocomplete="new-password">
+            <div class="password-field-wrap">
+                <input type="password" id="haslo" name="haslo" class="form-input" placeholder="{{ _('wpisz_haslo') }}" required aria-label="Hasło" autocomplete="new-password" autocorrect="off" inputmode="none" data-lpignore="true">
+                <button type="button" id="toggle-password-visibility" class="password-visibility-toggle" aria-label="Pokaż hasło" aria-pressed="false">
+                    <span class="password-eye-open" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 12C3.9 8.2 7.7 6 12 6C16.3 6 20.1 8.2 22 12C20.1 15.8 16.3 18 12 18C7.7 18 3.9 15.8 2 12Z" stroke="currentColor" stroke-width="1.8"/>
+                            <circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                    </span>
+                    <span class="password-eye-closed" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 12C3.9 8.2 7.7 6 12 6C14.1 6 16.1 6.5 17.9 7.5" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M22 12C20.1 15.8 16.3 18 12 18C9.9 18 7.9 17.5 6.1 16.5" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M3 3L21 21" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                    </span>
+                </button>
+            </div>
+        </div>
+        <div class="keyboard-controls">
+            <button type="button" id="toggle-soft-keyboard" class="btn-login btn-keyboard-toggle" aria-pressed="false">Włącz klawiaturę ekranową</button>
+            <p id="keyboard-hint" class="keyboard-hint">Tryb skanera: klawiatura ekranowa jest wyłączona. Włącz tylko przy ręcznym wpisywaniu.</p>
         </div>
         <div class="login-actions">
             <button type="submit" class="btn-login">{{ _('wejdz') }}</button>
-            <button type="button" class="btn-login btn-start-printer-server">Wlacz serwer druku</button>
+            <button type="button" class="btn-login" onclick="openLoginQrScanner()" style="background:#059669; border-color:#059669;">
+                📱 Skanuj QR
+            </button>
         </div>
     </form>
 
@@ -209,6 +317,77 @@ window.addEventListener('DOMContentLoaded', function() {
     const langSelector = document.getElementById('language-selector');
     const loginInput = document.getElementById('login');
     const passwordInput = document.getElementById('haslo');
+    const passwordVisibilityToggleBtn = document.getElementById('toggle-password-visibility');
+    const softKeyboardToggleBtn = document.getElementById('toggle-soft-keyboard');
+    const keyboardHintEl = document.getElementById('keyboard-hint');
+    const keyboardManagedInputs = [loginInput, passwordInput].filter(Boolean);
+
+    function setPasswordVisible(isVisible) {
+        if (!passwordInput || !passwordVisibilityToggleBtn) return;
+        passwordInput.type = isVisible ? 'text' : 'password';
+        passwordVisibilityToggleBtn.classList.toggle('visible', isVisible);
+        passwordVisibilityToggleBtn.setAttribute('aria-pressed', isVisible ? 'true' : 'false');
+        passwordVisibilityToggleBtn.setAttribute('aria-label', isVisible ? 'Ukryj hasło' : 'Pokaż hasło');
+    }
+
+    function getKeyboardCopy(language, enabled) {
+        const i18n = {
+            pl: {
+                buttonOn: 'Wylacz klawiature ekranowa',
+                buttonOff: 'Wlacz klawiature ekranowa',
+                hintOn: 'Tryb reczny: klawiatura ekranowa jest wlaczona.',
+                hintOff: 'Tryb skanera: klawiatura ekranowa jest wylaczona. Wlacz tylko przy recznym wpisywaniu.'
+            },
+            uk: {
+                buttonOn: 'Вимкнути екранну клавіатуру',
+                buttonOff: 'Увімкнути екранну клавіатуру',
+                hintOn: 'Ручний режим: екранна клавіатура увімкнена.',
+                hintOff: 'Режим сканера: екранна клавіатура вимкнена. Увімкніть її лише для ручного введення.'
+            },
+            en: {
+                buttonOn: 'Disable on-screen keyboard',
+                buttonOff: 'Enable on-screen keyboard',
+                hintOn: 'Manual mode: on-screen keyboard is enabled.',
+                hintOff: 'Scanner mode: on-screen keyboard is disabled. Enable it only for manual typing.'
+            }
+        };
+
+        const copy = i18n[language] || i18n.pl;
+        return {
+            button: enabled ? copy.buttonOn : copy.buttonOff,
+            hint: enabled ? copy.hintOn : copy.hintOff
+        };
+    }
+
+    function setSoftKeyboardState(enabled, shouldFocusLogin) {
+        keyboardManagedInputs.forEach(function(input) {
+            if (!input) return;
+            if (enabled) {
+                input.setAttribute('inputmode', 'text');
+            } else {
+                input.setAttribute('inputmode', 'none');
+            }
+        });
+
+        if (softKeyboardToggleBtn) {
+            const selectedLang = langSelector ? langSelector.value : 'pl';
+            const copy = getKeyboardCopy(selectedLang, enabled);
+            softKeyboardToggleBtn.textContent = copy.button;
+            softKeyboardToggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+            softKeyboardToggleBtn.classList.toggle('enabled', enabled);
+            if (keyboardHintEl) keyboardHintEl.textContent = copy.hint;
+        }
+
+        if (shouldFocusLogin && loginInput) {
+            setTimeout(function() {
+                try {
+                    loginInput.focus({ preventScroll: true });
+                } catch (e) {
+                    loginInput.focus();
+                }
+            }, 0);
+        }
+    }
 
     function clearLoginFormFields() {
         if (loginInput) loginInput.value = '';
@@ -217,7 +396,15 @@ window.addEventListener('DOMContentLoaded', function() {
 
     clearLoginFormFields();
     setTimeout(clearLoginFormFields, 120);
-    window.addEventListener('pageshow', clearLoginFormFields);
+    window.addEventListener('pageshow', function() {
+        clearLoginFormFields();
+        setPasswordVisible(false);
+    });
+
+    setPasswordVisible(false);
+
+    setSoftKeyboardState(false, false);
+
     if (langSelector) {
         // Czytaj język z URL lub cookie
         const urlParams = new URLSearchParams(window.location.search);
@@ -226,6 +413,38 @@ window.addEventListener('DOMContentLoaded', function() {
         const currentLang = langParam || (langCookie ? langCookie.split('=')[1] : 'pl');
         
         langSelector.value = currentLang;
+        setSoftKeyboardState(false, false);
+    }
+
+    if (softKeyboardToggleBtn) {
+        softKeyboardToggleBtn.addEventListener('click', function() {
+            const isEnabled = softKeyboardToggleBtn.getAttribute('aria-pressed') === 'true';
+            setSoftKeyboardState(!isEnabled, true);
+        });
+    }
+
+    if (passwordVisibilityToggleBtn) {
+        passwordVisibilityToggleBtn.addEventListener('click', function() {
+            const isVisible = passwordVisibilityToggleBtn.getAttribute('aria-pressed') === 'true';
+            setPasswordVisible(!isVisible);
+            if (passwordInput) {
+                passwordInput.focus();
+                try {
+                    const len = String(passwordInput.value || '').length;
+                    passwordInput.setSelectionRange(len, len);
+                } catch (e) {}
+            }
+        });
+    }
+
+    if (loginInput) {
+        setTimeout(function() {
+            try {
+                loginInput.focus({ preventScroll: true });
+            } catch (e) {
+                loginInput.focus();
+            }
+        }, 30);
     }
 
     // Obsługa efektownej animacji logowania po kliknięciu "Wejdź"
@@ -248,6 +467,8 @@ window.addEventListener('DOMContentLoaded', function() {
             // Zablokuj przyciski przed podwójnym kliknięciem
             const submitBtn = loginForm.querySelector('button[type="submit"]');
             if (submitBtn) submitBtn.disabled = true;
+
+            setPasswordVisible(false);
             
             // Prześlij formularz po krótkim opóźnieniu (dla pełnego efektu animacji)
             setTimeout(function() {
@@ -256,6 +477,23 @@ window.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// QR Login Scanner
+function openLoginQrScanner() {
+    if (typeof openQrScannerModal === 'function') {
+        openQrScannerModal('login', 'login');
+    } else {
+        alert('Funkcja skanowania QR nie jest dostępna. Sprawdź czy skrypt został załadowany.');
+    }
+}
 </script>
+
+<!-- QR Scanner Modal -->
+{% include 'includes/qr_scanner_modal.html' %}
+
+<!-- QR Scanner Library & Script -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='js/qr_scanner.js') }}"></script>
+
 </body>
 </html>

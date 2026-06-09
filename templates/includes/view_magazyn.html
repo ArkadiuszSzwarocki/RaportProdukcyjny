@@ -8,6 +8,7 @@
             <thead>
                 <tr>
                     <th>Nr</th>
+                    <th>Nr plomby</th>
                     <th>Produkt</th>
                     <th>🕒 Czas</th>
                     <th>⚖️ Waga (kg)</th>
@@ -17,10 +18,11 @@
                 </tr>
             </thead>
             <tbody>
-                {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_potwierdzenia_s, user_login in
+                {% for produkt, waga, czas_potwierdzenia, id, plan_id, status, czas_potwierdzenia_s, user_login, nr_palety, nr_plomby in
                 magazyn_palety %}
                 <tr>
                     <td class="text-muted font-bold">{{ loop.index }}</td>
+                    <td class="text-muted">{{ nr_plomby or '-' }}</td>
                     <td>{{ produkt }}</td>
                     <td class="time-display">{{ czas_potwierdzenia_s }}</td>
                     <td><strong class="text-success">{{ waga | int }} kg</strong></td>

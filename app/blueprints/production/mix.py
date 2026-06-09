@@ -21,6 +21,107 @@ def _safe_int(value, default=0):
         return default
 
 
+def _load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=None):
+    """Load context for AGRO Workowanie settlement.
+    
+    Args:
+        cursor: Database cursor
+        data_planu: Date string (YYYY-MM-DD)
+        preferred_plan_id: Optional plan ID to prioritize
+    
+    Returns:
+        dict with keys: active_plan, packaging_items, bag_kg, palety_kg_wykonane, palety_count, estimated_bags
+    """
+    table_plan = get_table_name('plan_produkcji', 'AGRO')
+    table_opak = get_table_name('magazyn_opakowania', 'AGRO')
+    
+    # 1. Find active Workowanie plan (in progress)
+    if preferred_plan_id:
+        cursor.execute(
+            f"""
+            SELECT id, produkt, data_planu, status, tonaz, tonaz_rzeczywisty
+            FROM {table_plan}
+            WHERE id = %s AND sekcja='Workowanie' AND status='w toku'
+            LIMIT 1
+            """,
+            (preferred_plan_id,),
+        )
+    else:
+        cursor.execute(
+            f"""
+            SELECT id, produkt, data_planu, status, tonaz, tonaz_rzeczywisty
+            FROM {table_plan}
+            WHERE data_planu = %s AND sekcja='Workowanie' AND status='w toku'
+            ORDER BY kolejnosc ASC
+            LIMIT 1
+            """,
+            (data_planu,),
+        )
+    active_plan = cursor.fetchone()
+    
+    # 2. Get packaging items (opakowania)
+    cursor.execute(
+        f"""
+        SELECT id, nazwa, COALESCE(stan_magazynowy, 0) AS stan_magazynowy, gramatura
+        FROM {table_opak}
+        WHERE linia = 'AGRO'
+        ORDER BY nazwa ASC
+        """
+    )
+    packaging_items = cursor.fetchall() or []
+    
+    # 3. Calculate produced pallets weight
+    palety_kg_wykonane = 0
+    palety_count = 0
+    bag_kg = 20  # default
+    
+    if active_plan:
+        plan_id = active_plan['id']
+        
+        # Get pallets for this plan
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(waga_netto), 0) AS total_kg, COUNT(*) AS cnt
+            FROM palety_agro
+            WHERE plan_id = %s AND (is_deleted = 0 OR is_deleted IS NULL)
+            """,
+            (plan_id,),
+        )
+        pallet_stats = cursor.fetchone()
+        if pallet_stats:
+            palety_kg_wykonane = float(pallet_stats.get('total_kg') or 0)
+            palety_count = int(pallet_stats.get('cnt') or 0)
+        
+        # Get bag weight from plan's opakowanie
+        cursor.execute(
+            f"""
+            SELECT o.gramatura
+            FROM {table_plan} p
+            LEFT JOIN {table_opak} o ON o.id = p.opakowanie_id
+            WHERE p.id = %s
+            LIMIT 1
+            """,
+            (plan_id,),
+        )
+        opak_row = cursor.fetchone()
+        if opak_row and opak_row.get('gramatura'):
+            bag_kg = float(opak_row['gramatura']) / 1000.0  # convert grams to kg
+    
+    # 4. Calculate estimated bags used
+    estimated_bags = 0
+    if bag_kg > 0 and palety_kg_wykonane > 0:
+        estimated_bags = math.ceil(palety_kg_wykonane / bag_kg)
+    
+    return {
+        'active_plan': active_plan,
+        'packaging_items': packaging_items,
+        'bag_kg': bag_kg,
+        'palety_kg_wykonane': palety_kg_wykonane,
+        'palety_count': palety_count,
+        'estimated_bags': estimated_bags,
+    }
+
+
 def register_production_mix_routes(production_bp, bezpieczny_powrot):
 
     @production_bp.route('/agro/mix_rozliczenie', methods=['GET'])
@@ -180,8 +281,7 @@ def register_production_mix_routes(production_bp, bezpieczny_powrot):
         cursor = conn.cursor(dictionary=True)
 
         try:
-            from app.services.dashboard_service import DashboardService
-            ctx = DashboardService._load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=selected_plan_id)
+            ctx = _load_workowanie_rozliczenie_context(cursor, data_planu, preferred_plan_id=selected_plan_id)
             active_plan = ctx['active_plan']
             if not active_plan or str(active_plan.get('status') or '').lower() != 'w toku':
                 return render_template(

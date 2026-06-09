@@ -45,7 +45,7 @@ class WarehouseService:
             
             magazyn_palety.append((
                 dto.produkt, dto.waga, czas_rzeczywisty, dto.id, dto.plan_id,
-                dto.status, sdt, dto.user_login, dto.nr_palety
+                dto.status, sdt, dto.user_login, dto.nr_palety, dto.nr_plomby
             ))
             suma_wykonanie += dto.waga or 0
         

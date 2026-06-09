@@ -7,8 +7,10 @@ from datetime import datetime
 import time
 from werkzeug.security import check_password_hash
 import os
+import socket
 import subprocess
 import sys
+from urllib.parse import urlparse
 
 from app.decorators import login_required
 from app.db import get_db_connection, ensure_session_tracking_id, touch_active_session, deactivate_active_session
@@ -17,19 +19,119 @@ from app.utils.validation import require_field
 auth_bp = Blueprint('auth', __name__)
 
 
-def _printer_server_script_path():
+def _project_root_path():
     # os.path.dirname(__file__) is app/blueprints/auth
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
+
+def _printer_server_script_path():
+    project_root = _project_root_path()
     return os.path.join(project_root, 'printer_server', 'server.py')
+
+
+def _printer_server_start_log_path():
+    return os.path.join(_project_root_path(), 'logs', 'printer_server_start.log')
+
+
+def _printer_server_subprocess_env():
+    # Flask dev reloader injects socket-related env vars used only by the main app.
+    # If inherited by the print bridge subprocess on Windows, Werkzeug can crash with WinError 10038.
+    env = os.environ.copy()
+    env.pop('WERKZEUG_SERVER_FD', None)
+    env.pop('WERKZEUG_RUN_MAIN', None)
+    return env
+
+
+def _tail_text_file(path, max_lines=8):
+    try:
+        with open(path, 'r', encoding='utf-8', errors='replace') as handle:
+            lines = handle.readlines()
+        return ''.join(lines[-max_lines:]).strip()
+    except Exception:
+        return ''
+
+
+def _is_port_open(host='127.0.0.1', port=3001, timeout=0.35):
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _bridge_base_candidates():
+    base_value = str(os.getenv('PRINTER_BRIDGE_URL', 'https://127.0.0.1:3001') or '').strip().rstrip('/')
+    if not base_value:
+        base_value = 'https://127.0.0.1:3001'
+
+    lowered = base_value.lower()
+    if lowered.endswith('/drukuj-zpl'):
+        base_value = base_value[:-11]
+    elif lowered.endswith('/status'):
+        base_value = base_value[:-7]
+
+    if '://' not in base_value:
+        base_value = f'https://{base_value}'
+
+    candidates = []
+
+    def _append(candidate):
+        value = str(candidate or '').strip().rstrip('/')
+        if not value:
+            return
+        if value.lower() in {item.lower() for item in candidates}:
+            return
+        candidates.append(value)
+
+    _append(base_value)
+
+    parsed = urlparse(base_value)
+    scheme = (parsed.scheme or '').lower()
+    if scheme in ('http', 'https'):
+        alt_scheme = 'http' if scheme == 'https' else 'https'
+        _append(f"{alt_scheme}://{parsed.netloc}{parsed.path or ''}")
+
+    return candidates
+
+
+def _bridge_target_is_localhost():
+    candidates = _bridge_base_candidates()
+    if not candidates:
+        return False
+    parsed = urlparse(candidates[0])
+    host = (parsed.hostname or '').strip().lower()
+    return host in ('127.0.0.1', 'localhost', '::1')
+
+
+def _request_bridge(method, path, timeout):
+    import requests
+    import urllib3
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    normalized_path = '/' + str(path or '').lstrip('/')
+    last_error = None
+    for bridge_base in _bridge_base_candidates():
+        try:
+            response = requests.request(
+                method,
+                f"{bridge_base}{normalized_path}",
+                timeout=timeout,
+                verify=False,
+            )
+            return response
+        except Exception as error:
+            last_error = error
+            continue
+
+    if last_error:
+        raise last_error
+    raise RuntimeError('Brak skonfigurowanego endpointu mostka druku.')
 
 
 def _is_printer_server_running():
     try:
-        import requests
-        import urllib3
-
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        response = requests.get('https://127.0.0.1:3001/status', timeout=1.5, verify=False)
+        response = _request_bridge('GET', '/status', timeout=(0.5, 1.2))
         return response.status_code == 200
     except Exception:
         return False
@@ -40,35 +142,81 @@ def _start_printer_server():
     if not os.path.exists(server_path):
         return False, f'Nie znaleziono pliku serwera: {server_path}', 404
 
+    if not _bridge_target_is_localhost():
+        return (
+            False,
+            'Start lokalny pominięty: PRINTER_BRIDGE_URL wskazuje zdalny mostek druku.',
+            400,
+        )
+
     if _is_printer_server_running():
         return True, 'Serwer druku juz dziala.', 200
 
+    if _is_port_open('127.0.0.1', 3001):
+        return (
+            False,
+            'Port 3001 jest już zajęty przez inny proces. Zwolnij port i uruchom serwer druku ponownie.',
+            500,
+        )
+
     try:
         creation_flags = 0
-        if os.name == 'nt':
+        show_console = str(os.getenv('PRINTER_SERVER_SHOW_CONSOLE', 'false')).strip().lower() in ('1', 'true', 'yes')
+        if os.name == 'nt' and show_console:
             creation_flags = 0x00000010
 
-        process = subprocess.Popen(
-            [sys.executable, server_path],
-            cwd=os.path.dirname(server_path),
-            creationflags=creation_flags,
-            start_new_session=True,
-        )
-        time.sleep(1.2)
-        if _is_printer_server_running():
-            return True, 'Serwer druku uruchomiony.', 200
+        log_path = _printer_server_start_log_path()
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
-        exit_code = process.poll()
-        if exit_code is not None:
+        with open(log_path, 'a', encoding='utf-8', errors='replace') as startup_log:
+            startup_log.write(
+                f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] START request pid={os.getpid()} exe={sys.executable}\n"
+            )
+            startup_log.flush()
+
+            process = subprocess.Popen(
+                [sys.executable, server_path],
+                cwd=os.path.dirname(server_path),
+                creationflags=creation_flags,
+                start_new_session=True,
+                env=_printer_server_subprocess_env(),
+                stdout=startup_log,
+                stderr=subprocess.STDOUT,
+            )
+
+        deadline = time.time() + 6.0
+        while time.time() < deadline:
+            if _is_printer_server_running():
+                return True, 'Serwer druku uruchomiony.', 200
+
+            exit_code = process.poll()
+            if exit_code is not None:
+                startup_tail = _tail_text_file(log_path, max_lines=10)
+                if startup_tail:
+                    startup_tail = startup_tail.replace('\r', ' ').replace('\n', ' | ')
+                    return (
+                        False,
+                        f'Serwer druku nie uruchomil sie (kod procesu: {exit_code}). Log: {startup_tail}',
+                        500,
+                    )
+                return (
+                    False,
+                    f'Serwer druku nie uruchomil sie (kod procesu: {exit_code}). Sprawdz log: {log_path}',
+                    500,
+                )
+
+            time.sleep(0.35)
+
+        if _is_port_open('127.0.0.1', 3001):
             return (
                 False,
-                f'Serwer druku nie uruchomil sie (kod procesu: {exit_code}). Sprawdz zaleznosci i logi.',
+                'Port 3001 odpowiada, ale endpoint /status (HTTP/HTTPS) nie jest dostępny. Możliwy konflikt usługi na porcie 3001.',
                 500,
             )
 
         return (
             False,
-            'Serwer druku nie odpowiedzial na porcie 3001 po probie startu. Sprawdz firewall/usluge.',
+            f'Serwer druku nie odpowiedzial na porcie 3001 po probie startu. Sprawdz log: {log_path}',
             500,
         )
     except Exception as error:
@@ -264,11 +412,12 @@ def login():
 def _stop_printer_server():
     if not _is_printer_server_running():
         return True, 'Serwer druku już jest wyłączony.', 200
+
+    if not _bridge_target_is_localhost():
+        return False, 'Zatrzymywanie zdalnego mostka jest zablokowane z poziomu tego panelu.', 400
+
     try:
-        import requests
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        requests.post('https://127.0.0.1:3001/shutdown', timeout=2.0, verify=False)
+        _request_bridge('POST', '/shutdown', timeout=2.0)
         return True, 'Serwer druku został wyłączony.', 200
     except Exception as error:
         # Jeśli serwer rzeczywiście się wyłączył (nie odpowiada już na status), traktujemy to jako sukces.
@@ -300,7 +449,13 @@ def start_printer_server_public():
 
     success, message, status_code = _start_printer_server()
     try:
-        current_app.logger.info('[PRINTER-START-PUBLIC] success=%s, status=%s, ip=%s', success, status_code, request.remote_addr)
+        current_app.logger.info(
+            '[PRINTER-START-PUBLIC] success=%s, status=%s, ip=%s, message=%s',
+            success,
+            status_code,
+            request.remote_addr,
+            message,
+        )
     except Exception:
         pass
 
@@ -319,7 +474,13 @@ def stop_printer_server_public():
 
     success, message, status_code = _stop_printer_server()
     try:
-        current_app.logger.info('[PRINTER-STOP-PUBLIC] success=%s, status=%s, ip=%s', success, status_code, request.remote_addr)
+        current_app.logger.info(
+            '[PRINTER-STOP-PUBLIC] success=%s, status=%s, ip=%s, message=%s',
+            success,
+            status_code,
+            request.remote_addr,
+            message,
+        )
     except Exception:
         pass
 

@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 
 from flask import Blueprint, jsonify, render_template, request, session
 from app.db import get_db_connection, get_table_name
@@ -503,7 +504,7 @@ def print_pallet_label():
         # Determine correct table
         if pallet_type == 'Wyrób Gotowy':
             table_mag = 'magazyn_palety' if linia == 'PSD' else 'magazyn_palety_agro'
-            cursor.execute(f"SELECT produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table_mag} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT produkt as productName, waga_netto as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety, nr_plomby FROM {table_mag} WHERE id = %s", (pallet_id,))
         elif pallet_type == 'Surowiec':
             table = 'magazyn_surowce' if linia == 'PSD' else 'magazyn_surowce_agro'
             cursor.execute(f"SELECT nazwa as productName, stan_magazynowy as amount, nr_partii as batch, data_produkcji as date_prod, nr_palety FROM {table} WHERE id = %s", (pallet_id,))
@@ -527,19 +528,167 @@ def print_pallet_label():
             'ilosc': row['amount'],
             'data': row['date_prod'].strftime('%Y-%m-%d') if row.get('date_prod') else datetime.now().strftime('%Y-%m-%d'),
             'partia': row.get('batch') or f"{pallet_type[:3]}-{pallet_id}",
-            'linia': linia
+            'linia': linia,
+            'nr_plomby': row.get('nr_plomby') if pallet_type == 'Wyrób Gotowy' else None
         }
-        
+
         printer_service = get_printer()
+
+        candidate_printers = []
+        seen_printers = set()
+
+        def _append_candidate(name, ip):
+            key = (str(name or '').strip().lower(), str(ip or '').strip().lower())
+            if key in seen_printers:
+                return
+            seen_printers.add(key)
+            candidate_printers.append({'name': name, 'ip': ip})
+
+        _append_candidate(printer_name, printer_ip)
+
+        try:
+            cursor.execute(
+                """
+                SELECT nazwa, ip
+                FROM drukarki
+                WHERE aktywna = 1
+                ORDER BY
+                    CASE
+                        WHEN LOWER(COALESCE(nazwa, '')) LIKE '%zebra produkcja%' THEN 0
+                        WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%produk%' THEN 1
+                        ELSE 2
+                    END,
+                    id ASC
+                """
+            )
+            for row_printer in cursor.fetchall() or []:
+                _append_candidate(row_printer.get('nazwa'), row_printer.get('ip'))
+        except Exception as printer_list_err:
+            print(f"Warning: could not list active printers for fallback: {printer_list_err}")
+
+        _append_candidate(getattr(printer_service, 'printer_name', None), getattr(printer_service, 'printer_ip', None))
+
         if pallet_type == 'Wyrób Gotowy':
-            ok, msg = printer_service.print_finished_product_label(label_data, override_ip=printer_ip, override_name=printer_name)
+            zpl_payload = printer_service.build_finished_product_label_zpl(label_data)
         else:
-            ok, msg = printer_service.print_pallet_label(label_data, override_ip=printer_ip, override_name=printer_name)
-        
-        return jsonify({'success': ok, 'message': f'Wysłano do drukarki {printer_name}' if ok else msg})
+            zpl_payload = printer_service.build_pallet_label_zpl(label_data)
+
+        fallback_printers = []
+        fallback_seen = set()
+        for candidate in candidate_printers:
+            final_name = str(candidate.get('name') or getattr(printer_service, 'printer_name', '') or '').strip() or 'Drukarka'
+            final_ip = str(candidate.get('ip') or getattr(printer_service, 'printer_ip', '') or '').strip()
+            if not final_ip:
+                continue
+            fallback_key = (final_name.lower(), final_ip.lower())
+            if fallback_key in fallback_seen:
+                continue
+            fallback_seen.add(fallback_key)
+            fallback_printers.append({'name': final_name, 'ip': final_ip})
+
+        endpoint_entries = []
+        endpoint_seen = set()
+
+        def _append_bridge_endpoints(base_name, raw_base):
+            base_value = str(raw_base or '').strip().rstrip('/')
+            if not base_value:
+                return
+
+            lowered = base_value.lower()
+            if lowered.endswith('/drukuj-zpl'):
+                base_value = base_value[:-11]
+            elif lowered.endswith('/status'):
+                base_value = base_value[:-7]
+
+            if '://' not in base_value:
+                base_value = f'https://{base_value}'
+
+            variants = [base_value]
+            if base_value.lower().startswith('https://'):
+                variants.append('http://' + base_value[8:])
+            elif base_value.lower().startswith('http://'):
+                variants.append('https://' + base_value[7:])
+
+            for variant_index, variant_base in enumerate(variants, start=1):
+                normalized_variant = variant_base.strip().rstrip('/')
+                if not normalized_variant:
+                    continue
+                dedupe_key = normalized_variant.lower()
+                if dedupe_key in endpoint_seen:
+                    continue
+                endpoint_seen.add(dedupe_key)
+                suffix = '' if variant_index == 1 else '_alt'
+                endpoint_entries.append(
+                    {
+                        'name': f'{base_name}{suffix}',
+                        'endpoint': normalized_variant + '/drukuj-zpl',
+                        'status_endpoint': normalized_variant + '/status',
+                    }
+                )
+
+        shared_bridge_base = str(os.getenv('PRINTER_CLIENT_BRIDGE_URL', '') or '').strip().rstrip('/')
+        if not shared_bridge_base:
+            shared_bridge_base = str(os.getenv('PRINTER_BRIDGE_URL', '') or '').strip().rstrip('/')
+
+        _append_bridge_endpoints('shared_bridge', shared_bridge_base)
+        _append_bridge_endpoints('localhost_bridge', 'https://127.0.0.1:3001')
+
+        local_bridge_fallback = None
+        if fallback_printers:
+            local_bridge_fallback = {
+                'endpoint': endpoint_entries[0]['endpoint'],
+                'status_endpoint': endpoint_entries[0]['status_endpoint'],
+                'endpoints': endpoint_entries,
+                'copies': 1,
+                'zpl': zpl_payload,
+                'printers': fallback_printers,
+                'reason': 'server_printer_timeout',
+            }
+
+        ok = False
+        msg = 'Błąd druku'
+        used_name = printer_name
+        used_ip = printer_ip
+
+        for candidate_idx, candidate in enumerate(candidate_printers, start=1):
+            candidate_name = candidate.get('name')
+            candidate_ip = candidate.get('ip')
+            if pallet_type == 'Wyrób Gotowy':
+                print_ok, print_msg = printer_service.print_finished_product_label(
+                    label_data,
+                    override_ip=candidate_ip,
+                    override_name=candidate_name,
+                )
+            else:
+                print_ok, print_msg = printer_service.print_pallet_label(
+                    label_data,
+                    override_ip=candidate_ip,
+                    override_name=candidate_name,
+                )
+
+            if print_ok:
+                ok = True
+                used_name = candidate_name or getattr(printer_service, 'printer_name', printer_name)
+                used_ip = candidate_ip or getattr(printer_service, 'printer_ip', printer_ip)
+                if candidate_idx > 1:
+                    msg = f'Wysłano do drukarki {used_name} ({used_ip}) po fallbacku'
+                else:
+                    msg = f'Wysłano do drukarki {used_name} ({used_ip})'
+                break
+
+            msg = print_msg
+
+        if ok:
+            return jsonify({'success': True, 'message': msg, 'printer_name': used_name, 'printer_ip': used_ip})
+
+        response_payload = {'success': False, 'message': msg, 'error': msg}
+        if local_bridge_fallback:
+            response_payload['local_bridge_fallback'] = local_bridge_fallback
+
+        return jsonify(response_payload), 500
     except Exception as e:
         print(f"Error printing label: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'message': str(e), 'error': str(e)}), 500
     finally:
         conn.close()
 
@@ -593,6 +742,16 @@ def delete_pallet():
             print(f"Archive warning (non-fatal): {ae}")
 
         cursor.execute(f"DELETE FROM {table} WHERE id = %s", (pallet_id,))
+        
+        # Log to palety_historia - trwałe usunięcie
+        try:
+            cursor.execute(
+                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, %s, 'USUNIECIE_TRWALE', %s, %s, %s)",
+                (pallet_id, linia, pallet_type.lower(), row.get('lokalizacja'), f"Trwałe usunięcie palety: {row.get('nr_palety', pallet_id)}, powód: duplikat/testowa", flask_session.get('login', 'admin'))
+            )
+        except Exception as hist_err:
+            print(f"History log warning: {hist_err}")
+        
         conn.commit()
         return jsonify({'success': True, 'message': f'Paleta {row.get("nr_palety", pallet_id)} usunięta trwale.'})
     except Exception as e:

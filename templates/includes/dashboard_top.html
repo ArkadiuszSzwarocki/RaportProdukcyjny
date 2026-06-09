@@ -30,6 +30,11 @@
         <div class="header-title-row d-flex align-center gap-10">
             <h2 class="header-title m-0 d-flex align-center gap-8">
                 <strong>{{ _(sekcja.lower()) if sekcja != 'Zasyp' else 'Zasyp ' ~ linia }}</strong>
+                {% if linia == 'AGRO' and sekcja == 'Zasyp' and rola in ['laborant', 'laboratorium', 'planista', 'admin', 'zarzad', 'lider'] %}
+                    <button class="btn-action" data-action="send-zwolnienie-mieszalnika" style="margin-left: 10px; background: #e67e22; color: #fff; border: none; font-weight: bold; border-radius: 6px; padding: 5px 10px; font-size: 0.85em; cursor: pointer; display:flex; align-items:center; gap:5px;" title="Wyślij ogromny komunikat do zasypu AGRO, że można wznawiać pracę">
+                        <span class="material-icons" style="font-size:16px;">lock_open</span> Zwalniam mieszalnik
+                    </button>
+                {% endif %}
                 {% if linia == 'AGRO' and sekcja == 'Workowanie' and rola in ['lider', 'admin', 'masteradmin', 'zarzad'] %}
                     <a href="{{ url_for('production.agro_mix_rozliczenie_page', data=dzisiaj) }}" class="btn-icon-action" style="background: #9b59b6; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; text-decoration: none;" data-slide title="Rozliczenie MIX">
                         <span class="material-icons" style="font-size: 18px;">blender</span>

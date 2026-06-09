@@ -28,17 +28,20 @@ def _update_paleta_workowanie(cursor, paleta_id, waga, linia='PSD'):
     """Helper: update palety_workowanie weight or confirmed weight."""
     table_pal = get_table_name('palety_workowanie', linia)
     table_plan = get_table_name('plan_produkcji', linia)
-    cursor.execute(f"SELECT COALESCE(status,''), plan_id FROM {table_pal} WHERE id=%s", (paleta_id,))
+    cursor.execute(f"SELECT COALESCE(status,''), plan_id, waga, waga_potwierdzona FROM {table_pal} WHERE id=%s", (paleta_id,))
     row = cursor.fetchone()
     if not row:
         return {'found': False}
 
     status = row[0] if row[0] else ''
     plan_id = row[1]
+    old_waga = row[2] if len(row) > 2 else 0
+    old_waga_potwierdzona = row[3] if len(row) > 3 else 0
 
     if status == 'przyjeta':
         cursor.execute(f"UPDATE {table_pal} SET waga_potwierdzona=%s WHERE id=%s", (waga, paleta_id))
         action = 'waga_potwierdzona'
+        old_waga_val = old_waga_potwierdzona
     else:
         cursor.execute(f"UPDATE {table_pal} SET waga=%s WHERE id=%s", (waga, paleta_id))
         cursor.execute(
@@ -46,8 +49,9 @@ def _update_paleta_workowanie(cursor, paleta_id, waga, linia='PSD'):
             (plan_id, plan_id),
         )
         action = 'waga'
+        old_waga_val = old_waga
 
-    return {'found': True, 'action': action, 'plan_id': plan_id, 'status': status}
+    return {'found': True, 'action': action, 'plan_id': plan_id, 'status': status, 'old_waga': old_waga_val}
 
 
 def _update_paleta_magazyn(cursor, paleta_id, nowa_waga, linia='PSD'):

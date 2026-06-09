@@ -110,8 +110,11 @@
             padding-top: 20px;
         }
         @media print {
-            body { padding: 0; }
-            .no-print { display: none; }
+            body { padding: 10px 20px; }
+            .no-print { display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
+            .header { margin-bottom: 15px; padding-bottom: 10px; }
+            .header-title h1 { font-size: 22px; margin-bottom: 5px; }
+            .header-title p { margin: 5px 0; font-size: 0.9em; }
             @page { margin: 1cm; }
         }
         .report-actions {
@@ -196,7 +199,9 @@
             <thead>
                 <tr>
                     <th style="width:50px;">Lp.</th>
+                    <th>Nr palety SSCC</th>
                     <th>Waga (kg)</th>
+                    <th>Nr plomby</th>
                     <th>Data Dodania</th>
                     <th>Operator (Dodał)</th>
                     <th>Magazynier (Przyjął)</th>
@@ -207,15 +212,19 @@
             </thead>
             <tbody>
                 {% set lp = namespace(value=0) %}
-                <!-- MIX items removed from Pallet table -->                {% for pal in item.palety %}
+                <!-- MIX items removed from Pallet table -->
+                {% for pal in item.palety %}
                 {% set lp.value = lp.value + 1 %}
+                {% set has_confirm_meta = pal.potwierdzil_login or pal.data_potwierdzenia %}
                 <tr>
                     <td>{{ lp.value }}</td>
+                    <td style="font-family: monospace; font-size: 0.85em;">{{ pal.nr_palety if pal.nr_palety else '-' }}</td>
                     <td><strong>{{ pal.waga }}</strong></td>
+                    <td>{{ pal.nr_plomby if pal.nr_plomby else '' }}</td>
                     <td>{{ pal.data_dodania.strftime('%H:%M:%S') if pal.data_dodania else '-' }}</td>
                     <td>{{ pal.dodal_login or '---' }}</td>
-                    <td>{{ pal.potwierdzil_login if pal.status == 'przyjeta' and pal.potwierdzil_login else '---' }}</td>
-                    <td>{{ pal.data_potwierdzenia.strftime('%H:%M:%S') if pal.status == 'przyjeta' and pal.data_potwierdzenia else '-' }}</td>
+                    <td>{{ pal.potwierdzil_login if has_confirm_meta and pal.potwierdzil_login else '---' }}</td>
+                    <td>{{ pal.data_potwierdzenia.strftime('%H:%M:%S') if has_confirm_meta and pal.data_potwierdzenia else '-' }}</td>
                     <td>
                         <span class="status-pill status-{{ pal.status }}">
                             {{ pal.status }}
@@ -225,7 +234,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="8" style="text-align: center; color: #999;">Brak palet dla tego zlecenia</td>
+                    <td colspan="10" style="text-align: center; color: #999;">Brak palet dla tego zlecenia</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -263,7 +272,7 @@
                     <th style="width:50px;">Lp.</th>
                     <th>Opakowanie</th>
                     <th>Stan Przed</th>
-                    <th>Zużyte Worki</th>
+                    <th>Zużyte {{ 'Big Bagi' if is_bigbag else 'Worki' }}</th>
                     <th>Stan Po</th>
                     <th>Data i Czas</th>
                     <th>Rozliczający</th>
@@ -316,7 +325,13 @@
         </table>
 
         {% set bag_kg = item.bag_kg|default(20.0)|float %}
-        {% set teoret_zuzycie = (item.total_pallet_kg / bag_kg)|round(0)|int if bag_kg > 0 else 0 %}
+        {% set typ_opak = (item.plan.typ_opakowania or 'worki')|lower|trim %}
+        {% set is_bigbag = (typ_opak == 'bigbag') %}
+        {% if is_bigbag %}
+            {% set teoret_zuzycie = item.palety|length %}
+        {% else %}
+            {% set teoret_zuzycie = (item.total_pallet_kg / bag_kg)|round(0)|int if bag_kg > 0 else 0 %}
+        {% endif %}
         {% set faktyczne_zuzycie = namespace(val=0.0) %}
         {% for op in item.opakowania %}
             {% set faktyczne_zuzycie.val = faktyczne_zuzycie.val + (op.zuzyte_worki or 0)|float %}
@@ -324,15 +339,15 @@
         {% set strata = (faktyczne_zuzycie.val - teoret_zuzycie)|int %}
 
         <div style="margin-top: 20px; padding: 18px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 6px solid #3498db; border-radius: 8px; font-size: 0.95em;">
-            <strong style="font-size: 1.1em; color: var(--primary);">📊 Podsumowanie Bilansu i Straty Worków:</strong>
+            <strong style="font-size: 1.1em; color: var(--primary);">📊 Podsumowanie Bilansu i Straty {{ 'Big Bagów' if is_bigbag else 'Worków' }}:</strong>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 10px;">
                 <div>
                     <span style="color: #666; font-size: 0.9em;">Wyprodukowany tonaż (palety):</span><br>
                     <strong style="font-size: 1.1em; color: var(--primary);">{{ '%.2f'|format(item.total_pallet_kg) }} kg</strong>
                 </div>
                 <div>
-                    <span style="color: #666; font-size: 0.9em;">Teoretyczne zużycie worków:</span><br>
-                    <strong style="font-size: 1.1em; color: var(--primary);">{{ teoret_zuzycie }} szt.</strong> <span style="font-size: 0.85em; color: #777;">({{ bag_kg }} kg/worek)</span>
+                    <span style="color: #666; font-size: 0.9em;">Teoretyczne zużycie {{ 'big bagów' if is_bigbag else 'worków' }}:</span><br>
+                    <strong style="font-size: 1.1em; color: var(--primary);">{{ teoret_zuzycie }} szt.</strong> {% if not is_bigbag %}<span style="font-size: 0.85em; color: #777;">({{ bag_kg }} kg/worek)</span>{% else %}<span style="font-size: 0.85em; color: #777;">(1 paleta = 1 big bag)</span>{% endif %}
                 </div>
                 <div>
                     <span style="color: #666; font-size: 0.9em;">Faktyczne zużycie (z rolek):</span><br>

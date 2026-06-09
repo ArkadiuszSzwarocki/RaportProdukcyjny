@@ -8,10 +8,12 @@ zdarzeń w zakładzie produkcyjnym.
 ### Dla Wszystkich Użytkowników
 
 - ✅ Logowanie z różnymi poziomami uprawnień (Admin, Lider, Planista, Pracownik)
+- � **NOWOŚĆ: Logowanie przez QR** - skanowanie kodów QR aparatem telefonu/tabletu
 - 📊 Podgląd planu produkcji z podziałem na sekcje (Zasyp, Workowanie, Magazyn)
 - 📅 Nawigacja po datach — przeglądanie historii i planowanie przyszłych zdarzeń
 - 🚨 Zgłaszanie problemów produkcyjnych (awarie, postoje, mikro-zatrzymania, usterki)
 - 👷 Zarządzanie obsadą zmianową
+- 📷 **Skanowanie kodów QR** - etykiet palet, lokalizacji magazynowych aparatem
 
 ### Dla Planisty
 
@@ -448,14 +450,41 @@ ALTER DATABASE biblioteka CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 Ten projekt jest własnością Agronetzwerk.
 
+## � Skaner QR
+
+System obsługuje skanowanie kodów QR za pomocą aparatu w telefonach i tabletach.
+
+### Możliwości:
+- 🔐 Logowanie przez QR - szybkie logowanie bez wpisywania hasła
+- 📦 Skanowanie etykiet palet - odczyt numerów palet
+- 📍 Skanowanie lokalizacji - szybkie wprowadzanie kodów regałów
+
+### Wymagania:
+- Nowoczesna przeglądarka (Chrome, Firefox, Safari, Edge)
+- Dostęp do kamery (użytkownik musi zaakceptować uprawnienia)
+- HTTPS (w produkcji)
+
+### Generowanie kodów QR dla logowania:
+
+```bash
+# Generuj pojedynczy kod QR
+python tools/generate_login_qr.py pracownik1 haslo123
+
+# Generuj kody QR dla wielu użytkowników
+python tools/generate_login_qr.py --bulk users.txt qr_codes/
+```
+
+### Dokumentacja:
+Pełna dokumentacja: [docs/QR_SCANNER_DOCUMENTATION.md](docs/QR_SCANNER_DOCUMENTATION.md)
+
 ## 👨‍💻 Kontakt
 
 Dla wsparcia technicznego skontaktuj się z administratorem systemu.
 
 ---
 
-**Wersja**: 2.1 — Centralized Test Suite & Background Maintenance
+**Wersja**: 2.2 — QR Scanner Integration
 
-**Data ostatniej aktualizacji**: 2026-05-12
+**Data ostatniej aktualizacji**: 2026-06-02
 
 **Status**: ✅ Testy jednostkowe i integracyjne przechodzące

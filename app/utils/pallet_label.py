@@ -47,7 +47,8 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
             COALESCE(pp.id, mp.plan_id) AS plan_id,
             mp.nr_palety,
             mp.paleta_workowanie_id,
-            pp.data_produkcji
+            pp.data_produkcji,
+            mp.nr_plomby
         FROM {table_mag} mp
         LEFT JOIN {table_plan} pp ON mp.plan_id = pp.id
         WHERE mp.id = %s OR mp.paleta_workowanie_id = %s
@@ -64,6 +65,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
         nr_palety = _get_val(row, 'nr_palety', 4)
         pw_id_from_mag = _get_val(row, 'paleta_workowanie_id', 5)
         custom_data_prod = _get_val(row, 'data_produkcji', 6)
+        nr_plomby = _get_val(row, 'nr_plomby', 7)
         
         # Decide production date
         if custom_data_prod:
@@ -136,14 +138,15 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
             'ilosc': float(waga),
             'data': data_str,
             'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})" if zasyp_nr != '?' else f"ZLE-{plan_id}",
-            'nr_palety_lp': nr_palety_lp
+            'nr_palety_lp': nr_palety_lp,
+            'nr_plomby': nr_plomby
         }
         
     # 2. Second attempt: Find in buffer table (palety_workowanie)
     lp_select = "pw.nr_palety_lp" if has_nr_palety_lp else "NULL AS nr_palety_lp"
 
     cursor.execute(f"""
-        SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}
+        SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby
         FROM {table_pal} pw
         JOIN {table_plan} pp ON pw.plan_id = pp.id
         WHERE pw.id = %s
@@ -160,6 +163,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
     nr_palety = _get_val(pw_row, 'nr_palety', 4)
     custom_data_prod = _get_val(pw_row, 'data_produkcji', 5)
     stored_nr_palety_lp = _get_val(pw_row, 'nr_palety_lp', 6)
+    nr_plomby = _get_val(pw_row, 'nr_plomby', 7)
     
     # Decide production date
     if custom_data_prod:
@@ -213,5 +217,6 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD'):
         'ilosc': float(waga),
         'data': data_str,
         'partia': f"ZASYP NR {zasyp_nr} (PALETA {nr_palety_lp})",
-        'nr_palety_lp': nr_palety_lp
+        'nr_palety_lp': nr_palety_lp,
+        'nr_plomby': nr_plomby
     }

@@ -329,7 +329,7 @@
         _setFormSubmitButtonsLoading(form, true);
         modal.classList.remove('open');
         try {
-            form.submit();
+            HTMLFormElement.prototype.submit.call(form);
         } catch (error) {
             console.error('Form submit failed', error);
         }
@@ -538,7 +538,7 @@
         hidden.value = action;
         pendingStopForm = null;
         try {
-            form.submit();
+            HTMLFormElement.prototype.submit.call(form);
         } catch (error) {
             console.error('submit failed', error);
         }

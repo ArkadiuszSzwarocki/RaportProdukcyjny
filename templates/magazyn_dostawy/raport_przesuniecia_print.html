@@ -279,6 +279,17 @@
             .meta-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+
+            .footer-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .btn {
+                text-align: center;
+                padding: 12px 16px;
+                font-size: 15px;
+            }
         }
 
         @media print {
@@ -567,6 +578,7 @@
         </div>
 
         <div class="footer-actions">
+            <button onclick="window.print()" class="btn primary">🖨️ Drukuj</button>
             <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=(dostawa.linia or 'PSD')) }}" class="btn">Powrot</a>
             <!-- Lokalny druk wyłączony: etykiety drukowane tylko przez mostek ZPL po wyborze drukarki -->
         </div>

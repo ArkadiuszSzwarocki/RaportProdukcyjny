@@ -438,32 +438,108 @@ function togglePalletBlock() {
     });
 }
 
-function printCurrentPallet() {
-    if(!currentPallet.id) return;
-    const printerId = document.getElementById('printerSelect').value;
-    if(!printerId) {
-        alert("Wybierz drukarkę z listy przed wydrukiem.");
-        return;
-    }
-    
-    fetch('/magazyny-nowe/api/pallet/print', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
+function printCurrentPallet(triggerBtn) {
+    try {
+        if (!currentPallet || !currentPallet.id) {
+            alert('Brak aktywnej palety do wydruku.');
+            return;
+        }
+
+        const printerSelect = document.getElementById('printerSelect');
+        if (!printerSelect) {
+            alert('Błąd UI: nie znaleziono listy drukarek. Odśwież stronę (Ctrl+F5).');
+            return;
+        }
+
+        const printerId = printerSelect.value;
+        if (!printerId) {
+            alert('Wybierz drukarkę z listy przed wydrukiem.');
+            return;
+        }
+
+        if (typeof showToast === 'function') {
+            showToast('Rozpoczynam druk etykiety...', 'info');
+        }
+
+        const requestBody = {
             id: currentPallet.id,
             type: currentPallet.type,
             linia: currentPallet.linia,
             printer_id: printerId
-        })
-    }).then(r => r.json()).then(data => {
-        if(data.success) {
-            alert("Etykieta została pomyślnie wysłana do drukarki: " + data.message);
-        } else {
-            alert("Błąd podczas drukowania: " + data.error);
+        };
+
+        const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timeoutMs = 25000;
+        let timeoutId = null;
+        if (controller) {
+            timeoutId = setTimeout(function () {
+                try { controller.abort(); } catch (e) {}
+            }, timeoutMs);
         }
-    }).catch(e => {
-        alert("Błąd połączenia: " + e);
-    });
+
+        const fetchOptions = {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(requestBody)
+        };
+        if (controller) {
+            fetchOptions.signal = controller.signal;
+        }
+
+        if (triggerBtn && triggerBtn instanceof HTMLElement) {
+            triggerBtn.disabled = true;
+        }
+
+        fetch('/magazyny-nowe/api/pallet/print', fetchOptions)
+        .then(r => r.json())
+        .then(async data => {
+            if(data.success) {
+                alert('Etykieta została pomyślnie wysłana do drukarki: ' + data.message);
+                return;
+            }
+
+            if (data && data.local_bridge_fallback && typeof window.tryLocalBridgeFallback === 'function') {
+                if (typeof showToast === 'function') {
+                    showToast('Serwer nie doszedł do drukarki. Próbuję fallback mostka...', 'warning');
+                }
+
+                const localResult = await window.tryLocalBridgeFallback(data.local_bridge_fallback);
+                if (localResult && localResult.ok) {
+                    alert('Etykieta wydrukowana przez fallback: ' + (localResult.printerName || '') + ' (' + (localResult.printerIp || '') + ')');
+                    return;
+                }
+
+                const fallbackMessage = (localResult && localResult.message)
+                    ? String(localResult.message)
+                    : 'Nie udało się wykonać fallbacku lokalnego.';
+
+                const baseError = (data && (data.error || data.message)) ? (data.error || data.message) : 'Nieznany błąd';
+                alert('Błąd podczas drukowania: ' + baseError + '\nFallback: ' + fallbackMessage);
+                return;
+            }
+
+            const errorMsg = (data && (data.error || data.message)) ? (data.error || data.message) : 'Nieznany błąd';
+            alert('Błąd podczas drukowania: ' + errorMsg);
+        })
+        .catch(e => {
+            if (e && e.name === 'AbortError') {
+                alert('Brak odpowiedzi z serwera druku (timeout). Sprawdź połączenie i spróbuj ponownie.');
+                return;
+            }
+            alert('Błąd połączenia: ' + e);
+        })
+        .finally(() => {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+            if (triggerBtn && triggerBtn instanceof HTMLElement) {
+                triggerBtn.disabled = false;
+            }
+        });
+    } catch (e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        alert('Błąd klienta podczas drukowania: ' + msg);
+    }
 }
 
 // ---- WAREHOUSE FILTERING & TABS ----

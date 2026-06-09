@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 
 from app.db import get_db_connection, get_table_name
+from app.utils.location_validator import validate_warehouse_location, is_production_tank_code
 
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,27 @@ def _select_preferred_printer(cursor):
         """
     )
     return cursor.fetchone()
+
+
+def _sanitize_zpl_text(value, max_length=64):
+    text = str(value or '')
+    text = text.replace('^', ' ').replace('~', ' ')
+    text = text.replace('\r', ' ').replace('\n', ' ')
+    text = re.sub(r'\s+', ' ', text).strip()
+    if max_length and len(text) > max_length:
+        return text[:max_length]
+    return text
+
+
+def _format_quantity_label(value):
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return '0'
+
+    if abs(numeric - round(numeric)) < 1e-6:
+        return str(int(round(numeric)))
+    return f"{numeric:.2f}".rstrip('0').rstrip('.')
 
 class AgroWarehouseService:
     @staticmethod
@@ -381,6 +403,13 @@ class AgroWarehouseService:
             
             # PALLET TRACKING: We ALWAYS create a NEW row for each confirmed pallet
             # Each row is a unique (material, location) pair.
+            
+            # Walidacja: lokalizacja NIE może być kodem zbiornika produkcyjnego
+            if lokalizacja:
+                is_valid, error_msg = validate_warehouse_location(lokalizacja, allow_empty=False)
+                if not is_valid:
+                    logger.warning(f"Attempted to use production tank code as warehouse location: {lokalizacja}")
+                    return False  # Blocked: production tank code
             
             # Check if spot is occupied
             if lokalizacja:
@@ -1049,18 +1078,28 @@ class AgroWarehouseService:
         try:
             cursor = conn.cursor(dictionary=True)
             table_plan = get_table_name('plan_produkcji', linia)
-            
-            query = f"SELECT id, produkt, data_planu, typ_produkcji, start_machine_counter, start_pallet_counter, opakowanie_id FROM {table_plan} WHERE status='w toku' AND sekcja='Workowanie'"
-            params = []
-            
+
+            base_query = (
+                f"SELECT id, produkt, data_planu, typ_produkcji, start_machine_counter, "
+                f"start_pallet_counter, opakowanie_id "
+                f"FROM {table_plan} WHERE status='w toku' AND sekcja='Workowanie'"
+            )
+
             if target_date:
-                query += " AND DATE(data_planu) = %s"
-                params.append(target_date)
-            else:
-                query += " AND DATE(data_planu) = CURDATE()"
-                
-            query += " ORDER BY real_start DESC LIMIT 1"
-            cursor.execute(query, params)
+                query = f"{base_query} AND DATE(data_planu) = %s ORDER BY real_start DESC LIMIT 1"
+                cursor.execute(query, (target_date,))
+                return cursor.fetchone()
+
+            # Prefer today's active plan, but allow rollover plans that started earlier
+            # and are still running (e.g. long shifts crossing midnight).
+            todays_query = f"{base_query} AND DATE(data_planu) = CURDATE() ORDER BY real_start DESC LIMIT 1"
+            cursor.execute(todays_query)
+            plan = cursor.fetchone()
+            if plan:
+                return plan
+
+            fallback_query = f"{base_query} ORDER BY real_start DESC LIMIT 1"
+            cursor.execute(fallback_query)
             return cursor.fetchone()
         finally:
             conn.close()
@@ -1486,133 +1525,267 @@ class AgroWarehouseService:
             conn.close()
 
     @staticmethod
-    def return_packaging_from_machine(opakowanie_id, stan_po, lokalizacja, user_login, is_partial=False):
-        """Return a roll from machine back to warehouse. If is_partial, stan_po means 'amount returned', otherwise it means 'amount left on roll'."""
+    def return_packaging_from_machine(opakowanie_id, stan_po, lokalizacja, user_login, is_partial=False, print_label=False):
+        """Return a roll from machine back to warehouse.
+
+        If `is_partial` is True, `stan_po` means quantity returned to warehouse.
+        Otherwise `stan_po` means quantity left on the returned roll.
+        """
+        print_result = {'requested': bool(print_label), 'success': False, 'message': None}
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            
+
             try:
                 numeric_val = float(stan_po) if (stan_po is not None and str(stan_po).strip() != '') else 0.0
             except (ValueError, TypeError):
                 numeric_val = 0.0
 
             final_loc = lokalizacja if (lokalizacja and lokalizacja.strip()) else ('ZUŻYTE' if (not is_partial and numeric_val <= 0) else 'Maszyna')
-            
-            # Fetch basic info
+
             cursor.execute("SELECT nazwa, stan_magazynowy FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
             opak_row = cursor.fetchone()
             if not opak_row:
-                return False, "Opakowanie nie istnieje"
+                return False, "Opakowanie nie istnieje", {'print_result': print_result}
             opak_nazwa = opak_row['nazwa']
             aktualny_stan_maszyna = float(opak_row['stan_magazynowy'])
-            
-            # Fetch active link
-            cursor.execute("""
-                SELECT id, plan_id, stan_poczatkowy 
-                FROM agro_plan_opakowania 
-                WHERE opakowanie_id = %s AND is_active = TRUE 
+
+            cursor.execute(
+                """
+                SELECT id, plan_id, stan_poczatkowy
+                FROM agro_plan_opakowania
+                WHERE opakowanie_id = %s AND is_active = TRUE
                 ORDER BY created_at DESC LIMIT 1
-            """, (opakowanie_id,))
+                """,
+                (opakowanie_id,),
+            )
             link = cursor.fetchone()
-            
+
             if is_partial:
-                # Partial Return: numeric_val is the amount being RETURNED to the warehouse.
                 ilosc_zwracana = numeric_val
                 if ilosc_zwracana <= 0:
-                    return False, "Ilość zwracana musi być większa od 0"
-                
-                # 1. Deduct from current active roll
+                    return False, "Ilość zwracana musi być większa od 0", {'print_result': print_result}
+
                 nowy_stan_maszyna = aktualny_stan_maszyna - ilosc_zwracana
                 if nowy_stan_maszyna < 0:
                     nowy_stan_maszyna = 0
                 cursor.execute(
                     "UPDATE magazyn_opakowania SET stan_magazynowy = %s, updated_at = NOW() WHERE id = %s",
-                    (nowy_stan_maszyna, opakowanie_id)
+                    (nowy_stan_maszyna, opakowanie_id),
                 )
-                
-                # 2. Update the link's starting state so it reflects what is actually available for consumption
+
                 if link:
                     nowy_stan_poczatkowy = float(link['stan_poczatkowy']) - ilosc_zwracana
                     cursor.execute(
                         "UPDATE agro_plan_opakowania SET stan_poczatkowy = %s WHERE id = %s",
-                        (nowy_stan_poczatkowy, link['id'])
+                        (nowy_stan_poczatkowy, link['id']),
                     )
-                
-                # 3. Sum with existing foil in the warehouse at target location, or create new row
+
                 cursor.execute(
                     "SELECT id, stan_magazynowy FROM magazyn_opakowania WHERE nazwa = %s AND lokalizacja = %s LIMIT 1",
-                    (opak_nazwa, final_loc)
+                    (opak_nazwa, final_loc),
                 )
                 existing = cursor.fetchone()
                 if existing:
                     cursor.execute(
                         "UPDATE magazyn_opakowania SET stan_magazynowy = stan_magazynowy + %s, updated_at = NOW() WHERE id = %s",
-                        (ilosc_zwracana, existing['id'])
+                        (ilosc_zwracana, existing['id']),
                     )
                 else:
                     cursor.execute(
                         "INSERT INTO magazyn_opakowania (nazwa, stan_magazynowy, lokalizacja, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())",
-                        (opak_nazwa, ilosc_zwracana, final_loc)
+                        (opak_nazwa, ilosc_zwracana, final_loc),
                     )
-                
-                # 4. Log movement
+
                 table_ruch = get_table_name('magazyn_ruch', 'AGRO')
                 cursor.execute(
                     f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
                     "VALUES (%s, 'CZESCIOWY_ZWROT', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                    (opakowanie_id, ilosc_zwracana, nowy_stan_maszyna, user_login, f"Częściowy zwrot na lok: {final_loc}")
+                    (opakowanie_id, ilosc_zwracana, nowy_stan_maszyna, user_login, f"Częściowy zwrot na lok: {final_loc}"),
                 )
-                
+
+                ilosc_przy_zwrocie = ilosc_zwracana
+                pozostalo_na_rolce = nowy_stan_maszyna
             else:
-                # Full Return: numeric_val is the amount LEFT ON THE ROLL.
                 final_stan = numeric_val
-                # 1. Update main warehouse record
                 cursor.execute(
                     "UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = %s, updated_at = NOW() WHERE id = %s",
-                    (final_stan, final_loc, opakowanie_id)
+                    (final_stan, final_loc, opakowanie_id),
                 )
-                
+
                 if link:
                     plan_id = link['plan_id']
                     stan_przed = float(link['stan_poczatkowy'])
                     zuzycie = max(stan_przed - final_stan, 0)
-                    
-                    # Update link record
+
                     cursor.execute(
                         "UPDATE agro_plan_opakowania SET stan_koncowy = %s, is_active = FALSE WHERE id = %s",
-                        (final_stan, link['id'])
+                        (final_stan, link['id']),
                     )
-                    
+
                     cursor.execute(f"SELECT data_planu, produkt FROM {get_table_name('plan_produkcji', 'AGRO')} WHERE id = %s", (plan_id,))
                     p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
 
-                    # Record in settlement history
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO agro_workowanie_rozliczenie (
                             plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
                             stan_przed, zuzyte_worki, stan_po, autor_login
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        plan_id, p_meta['data_planu'], p_meta['produkt'], opakowanie_id, opak_nazwa,
-                        stan_przed, zuzycie, final_stan, user_login
-                    ))
-                
-                # 3. Log movement
+                        """,
+                        (
+                            plan_id,
+                            p_meta['data_planu'],
+                            p_meta['produkt'],
+                            opakowanie_id,
+                            opak_nazwa,
+                            stan_przed,
+                            zuzycie,
+                            final_stan,
+                            user_login,
+                        ),
+                    )
+
                 table_ruch = get_table_name('magazyn_ruch', 'AGRO')
                 cursor.execute(
                     f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
                     "VALUES (%s, 'ZWROT_Z_MASZYNY', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                    (opakowanie_id, 0, final_stan, user_login, f"Pełny zwrot na lok: {final_loc}")
+                    (opakowanie_id, 0, final_stan, user_login, f"Pełny zwrot na lok: {final_loc}"),
                 )
-            
+
+                ilosc_przy_zwrocie = final_stan
+                pozostalo_na_rolce = final_stan
+
             conn.commit()
-            return True, None
         except Exception as e:
             conn.rollback()
-            return False, str(e)
+            return False, str(e), {'print_result': print_result}
         finally:
             conn.close()
+
+        return_label = {
+            'opakowanie_id': opakowanie_id,
+            'opakowanie_nazwa': opak_nazwa,
+            'ilosc_przy_zwrocie': ilosc_przy_zwrocie,
+            'pozostalo_na_rolce': pozostalo_na_rolce,
+            'lokalizacja': final_loc,
+            'data_odlozenia': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'odlozyl': user_login or 'System',
+            'tryb_zwrotu': 'CZESCIOWY' if is_partial else 'CALKOWITY',
+        }
+
+        if print_result['requested']:
+            try:
+                ok, msg = AgroWarehouseService.print_packaging_return_label(return_label)
+                print_result['success'] = bool(ok)
+                print_result['message'] = msg
+            except Exception as print_err:
+                print_result['success'] = False
+                print_result['message'] = str(print_err)
+                logger.exception('Packaging return label print failed for opakowanie_id=%s: %s', opakowanie_id, print_err)
+
+        return True, None, {'return_label': return_label, 'print_result': print_result}
+
+    @staticmethod
+    def build_packaging_return_label_zpl(label_data):
+        """Build informational ZPL label for packaging returns."""
+        opakowanie_nazwa = _sanitize_zpl_text(label_data.get('opakowanie_nazwa'), 58) or 'BRAK NAZWY'
+        ilosc_przy_zwrocie = _format_quantity_label(label_data.get('ilosc_przy_zwrocie'))
+        pozostalo_na_rolce = _format_quantity_label(label_data.get('pozostalo_na_rolce'))
+        lokalizacja = _sanitize_zpl_text(label_data.get('lokalizacja'), 48) or 'BRAK'
+        data_odlozenia = _sanitize_zpl_text(label_data.get('data_odlozenia'), 32) or datetime.now().strftime('%Y-%m-%d %H:%M')
+        operator = _sanitize_zpl_text(label_data.get('odlozyl'), 36) or 'SYSTEM'
+        tryb_zwrotu = _sanitize_zpl_text(label_data.get('tryb_zwrotu'), 16) or 'ZWROT'
+
+        qr_payload = _sanitize_zpl_text(
+            f"{opakowanie_nazwa}|{ilosc_przy_zwrocie}|{pozostalo_na_rolce}|{lokalizacja}|{data_odlozenia}|{operator}",
+            160,
+        )
+
+        return f"""^XA
+^CI28
+^PW812^LL1214
+^FO20,20^GB772,1174,4^FS
+^FO40,55^A0N,52,52^FDZWROT OPAKOWANIA^FS
+^FO40,130^A0N,32,32^FDTRYB: {tryb_zwrotu}^FS
+^FO40,185^A0N,44,44^FB720,2,0,L^FD{opakowanie_nazwa}^FS
+^FO40,330^A0N,34,34^FDILOSC PRZY ZWROCIE: {ilosc_przy_zwrocie} szt^FS
+^FO40,390^A0N,34,34^FDPOZOSTALO NA ROLCE: {pozostalo_na_rolce} szt^FS
+^FO40,450^A0N,34,34^FDLOKALIZACJA: {lokalizacja}^FS
+^FO40,510^A0N,34,34^FDDATA ODLOZENIA: {data_odlozenia}^FS
+^FO40,570^A0N,34,34^FDODLOZYL: {operator}^FS
+^FO470,690^BY3^BQN,2,7^FDLA,{qr_payload}^FS
+^XZ"""
+
+    @staticmethod
+    def print_packaging_return_label(label_data):
+        """Print informational packaging-return label via print bridge."""
+        from app.services.print_server import get_printer
+
+        candidate_printers = []
+        seen_targets = set()
+
+        def _append_candidate(name, ip):
+            key = ((name or '').strip().lower(), (ip or '').strip().lower())
+            if key in seen_targets:
+                return
+            seen_targets.add(key)
+            candidate_printers.append((name, ip))
+
+        try:
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute(
+                    """
+                    SELECT id, nazwa, ip
+                    FROM drukarki
+                    WHERE aktywna = 1
+                    ORDER BY
+                        CASE
+                            WHEN LOWER(COALESCE(nazwa, '')) LIKE '%zebra produkcja%' THEN 0
+                            WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%produk%' THEN 1
+                            ELSE 2
+                        END,
+                        id ASC
+                    """
+                )
+                for row in cursor.fetchall() or []:
+                    _append_candidate(row.get('nazwa'), row.get('ip'))
+            finally:
+                conn.close()
+        except Exception as printer_cfg_err:
+            logger.warning('Could not resolve preferred printer for packaging return label: %s', printer_cfg_err)
+
+        printer = get_printer()
+        zpl = AgroWarehouseService.build_packaging_return_label_zpl(label_data)
+
+        # Last resort: use configured default printer from PrintServer.
+        _append_candidate(None, None)
+
+        last_message = 'Brak dostępnej drukarki'
+        for idx, (override_name, override_ip) in enumerate(candidate_printers, start=1):
+            ok, msg = printer.print_zpl_label(zpl, override_ip=override_ip, override_name=override_name)
+            if ok:
+                if idx > 1:
+                    logger.info(
+                        'Packaging return label printed via fallback printer (attempt=%s, printer=%s, ip=%s)',
+                        idx,
+                        override_name or printer.printer_name,
+                        override_ip or printer.printer_ip,
+                    )
+                return True, msg
+
+            last_message = msg
+            logger.warning(
+                'Packaging return label print attempt %s failed (printer=%s, ip=%s): %s',
+                idx,
+                override_name or printer.printer_name,
+                override_ip or printer.printer_ip,
+                msg,
+            )
+
+        return False, last_message
 
     @staticmethod
     def adjust_inventory(surowiec_id, actual_qty, worker_login, linia='Agro', komentarz=None):

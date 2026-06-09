@@ -678,6 +678,8 @@
 {% include 'agro_warehouse/includes/modals.html' %}
 
 <script src="{{ url_for('static', filename='js/agro_warehouse.js') }}?v={{ static_version }}"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='js/qr_scanner.js') }}?v={{ static_version }}"></script>
 <script>
     // Inicjalizacja danych dla JS (potrzebne do działania przycisków Pobierz/Korekta)
     window._inventory_groups = [

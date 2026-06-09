@@ -12,6 +12,10 @@
             align-items: start;
         }
 
+        .dosypka-layout.dosypka-layout-single {
+            grid-template-columns: 1fr;
+        }
+
         .dosypka-panel {
             border: 1px solid #dfe8f1;
             border-radius: 14px;
@@ -53,15 +57,34 @@
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            padding: 16px 20px;
-            border-bottom: 1px solid #e4ebf2;
+            padding: 20px 28px;
+            border-bottom: none;
+            border-radius: 20px 20px 0 0;
+            background: linear-gradient(135deg, #1a3a5c 0%, #2563a8 100%);
+        }
+
+        .dosypka-header-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dosypka-header-icon {
+            font-size: 1.8rem;
+            line-height: 1;
+        }
+
+        .dosypka-header-subtitle {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 2px;
         }
 
         .dosypka-title {
             margin: 0;
-            font-size: 1.16rem;
+            font-size: 1.2rem;
             font-weight: 800;
-            color: #19344f;
+            color: #ffffff;
             letter-spacing: -0.02em;
         }
 
@@ -367,13 +390,13 @@
 
         .dosypka-close-btn {
             display: none;
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
             place-items: center;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.15);
             color: #ffffff;
-            border: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
             cursor: pointer;
             font-size: 1.1rem;
             font-weight: 700;
@@ -386,20 +409,22 @@
             transform: scale(1.08) rotate(90deg);
         }
 
-        @media (min-width: 992px) {
+        @media (min-width: 820px) {
             .dosypka-close-btn {
                 display: grid !important;
             }
 
-            .quick-popup:has(.dosypka-popup-container) .qp-header {
+            .quick-popup:has(.dosypka-popup-container) .qp-header,
+            .quick-popup.qp-dosypka-full .qp-header {
                 display: none !important;
             }
 
-            .quick-popup:has(.dosypka-popup-container) {
-                max-width: 98vw !important;
-                width: 98vw !important;
-                height: 95vh !important;
-                max-height: 95vh !important;
+            .quick-popup:has(.dosypka-popup-container),
+            .quick-popup.qp-dosypka-full {
+                max-width: min(1720px, 98vw) !important;
+                width: min(1720px, 98vw) !important;
+                height: min(95vh, 1000px) !important;
+                max-height: min(95vh, 1000px) !important;
                 top: 50% !important;
                 left: 50% !important;
                 transform: translate(-50%, -50%) !important;
@@ -409,7 +434,8 @@
                 box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4) !important;
             }
 
-            .quick-popup:has(.dosypka-popup-container) .qp-body {
+            .quick-popup:has(.dosypka-popup-container) .qp-body,
+            .quick-popup.qp-dosypka-full .qp-body {
                 max-height: none !important;
                 flex: 1 !important;
                 display: flex !important;
@@ -472,11 +498,15 @@
             .dosypka-layout {
                 flex: 1 !important;
                 display: grid !important;
-                grid-template-columns: 1fr 1fr !important;
+                grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) !important;
                 gap: 24px !important;
                 overflow: hidden !important;
                 min-height: 0 !important;
                 align-items: stretch !important;
+            }
+
+            .dosypka-layout.dosypka-layout-single {
+                grid-template-columns: 1fr !important;
             }
 
             .dosypka-panel {
@@ -607,6 +637,7 @@
                 background: #fff !important;
                 flex-shrink: 0 !important;
                 position: static !important;
+                -webkit-backdrop-filter: none !important;
                 backdrop-filter: none !important;
             }
 
@@ -620,9 +651,10 @@
 
         /* Extra wide screens: bigger inputs, even more padding */
         @media (min-width: 1400px) {
-            .quick-popup:has(.dosypka-popup-container) {
-                max-width: 98vw !important;
-                width: 98vw !important;
+            .quick-popup:has(.dosypka-popup-container),
+            .quick-popup.qp-dosypka-full {
+                max-width: min(1840px, 98vw) !important;
+                width: min(1840px, 98vw) !important;
             }
 
             .dosypka-header {
@@ -718,17 +750,15 @@
         }
     </style>
 
-    <div class="dosypka-header" style="background: linear-gradient(135deg, #1a3a5c 0%, #2563a8 100%); display: flex; align-items: center; justify-content: space-between; padding: 20px 28px; border-radius: 20px 20px 0 0; border-bottom: none;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 1.8rem; line-height: 1;">🧪</span>
+    <div class="dosypka-header">
+        <div class="dosypka-header-content">
+            <span class="dosypka-header-icon">🧪</span>
             <div>
-                <h4 class="dosypka-title" style="color: #ffffff; margin: 0; font-size: 1.2rem;">Dodaj Dosypkę</h4>
-                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-top: 2px;">Korekta składu dla aktywnego zasypu</div>
+                <h4 class="dosypka-title">Dodaj Dosypkę</h4>
+                <div class="dosypka-header-subtitle">Skoryguj skład aktywnego zasypu</div>
             </div>
         </div>
-        <button type="button" class="dosypka-close-btn" data-action="close-popup" aria-label="Zamknij"
-            style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #ffffff; width: 36px; height: 36px; border-radius: 50%; font-size: 1.1rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
-            onclick="if(window.closeQuickPopup) window.closeQuickPopup(); else if(window.createQuickPopup &amp;&amp; window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close(); else this.closest('.quick-popup').style.display='none';">✕</button>
+        <button type="button" class="dosypka-close-btn" data-action="close-popup" aria-label="Zamknij">✕</button>
     </div>
 
     <form action="{{ url_for('production.dodaj_dosypke') }}" method="POST" class="dosypka-form" id="dosypka-form">
@@ -758,15 +788,15 @@
                 <span class="info-label">Zasyp (szarża):</span>
                 <span class="info-value">{{ szarza_id or '—' }}</span>
             </div>
-            <p class="dosypka-description">Dodaj pozycje dosypki (nazwa surowca + ilość w kg). Maksymalnie 10 pól.<br>Dozwolone są wyłącznie nazwy z listy magazynu surowców.</p>
+            <p class="dosypka-description">Dodaj pozycje dosypki: nazwę surowca i ilość w kg. Możesz dodać maksymalnie 10 pozycji.<br>Wybieraj tylko surowce dostępne na liście magazynu.</p>
         </div>
 
-        <div class="dosypka-layout">
+        <div class="dosypka-layout{% if not existing_dosypki %} dosypka-layout-single{% endif %}">
             <section class="dosypka-panel">
                 <div class="dosypka-panel-header">
                     <div>
                         <div class="dosypka-panel-title">Nowa dosypka</div>
-                        <div class="dosypka-panel-subtitle">Wprowadzenie korekty dla aktywnego zasypu</div>
+                        <div class="dosypka-panel-subtitle">Wprowadź korektę dla aktywnego zasypu</div>
                     </div>
                 </div>
                 <div class="dosypka-panel-body">
@@ -786,7 +816,7 @@
 
                     <div class="dosypka-add-field">
                         <button type="button" class="dosypka-btn-add" onclick="addDosypkaField()" id="add-field-btn">
-                            <span class="btn-icon">+</span> Dodaj pole (maks. 10)
+                            <span class="btn-icon">+</span> Dodaj pozycję (maks. 10)
                         </button>
                     </div>
                 </div>
@@ -797,7 +827,7 @@
                 <div class="dosypka-panel-header">
                     <div>
                         <div class="dosypka-panel-title">Historia dosypek</div>
-                        <div class="dosypka-panel-subtitle">{% if szarza_id %}Pozycje przypisane do tego zasypu{% else %}Pozycje przypisane do tego zlecenia{% endif %}</div>
+                        <div class="dosypka-panel-subtitle">{% if szarza_id %}Pozycje zapisane dla tego zasypu{% else %}Pozycje zapisane dla tego zlecenia{% endif %}</div>
                     </div>
                 </div>
                 <div class="dosypka-panel-body">
@@ -873,6 +903,12 @@ function focusFirstDosypkaNameInput() {
 }
 
 function initDosypkaPopup() {
+    const popup = document.getElementById('quickPopup') || document.querySelector('.quick-popup');
+    if (popup) {
+        popup.classList.add('qp-dosypka-full');
+        popup.classList.add('qp-wide');
+    }
+
     updateAddFieldButton();
     focusFirstDosypkaNameInput();
     setTimeout(focusFirstDosypkaNameInput, 60);

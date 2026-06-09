@@ -29,9 +29,19 @@
             <label class="form-label" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85em; color: #647684;">Gdzie odkładasz? (Lokalizacja)</label>
             <input type="text" id="returnOpakLoc" class="form-control" style="width: 100%; padding: 10px; border: 1px solid #dfe7ef; border-radius: 8px;" placeholder="np. R-01-02-03">
         </div>
+        <div class="form-group mt-15" style="margin-top: 12px; background: #f8fafc; border: 1px solid #dbe4ef; border-radius: 8px; padding: 10px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; font-size: 0.9em; color: #2c3e50; font-weight: 600;">
+                <input type="checkbox" id="returnOpakPrintLabel" checked>
+                Drukuj etykietę informacyjną zwrotu
+            </label>
+            <div style="font-size: 0.8em; color: #647684; margin-top: 6px; line-height: 1.35;">
+                Etykieta zawiera: nazwę opakowania, ilość przy zwrocie, ilość pozostałą na rolce, lokalizację, datę odłożenia i operatora.
+            </div>
+        </div>
         <input type="hidden" id="returnOpakId">
     </div>
     <div class="modal-footer" style="padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px; background: #f8f9fa; border-radius: 0 0 12px 12px;">
+        <button class="btn-action btn-outline-primary" onclick="reprintLastReturnPackagingLabel(this)" style="padding: 8px 16px;">PONÓW WYDRUK OSTATNIEGO ZWROTU</button>
         <button class="btn-action btn-outline-secondary" onclick="closeReturnModal()" style="padding: 8px 16px;">Anuluj</button>
         <button class="btn-action btn-primary" onclick="submitReturnPackaging()" style="padding: 8px 16px;">POTWIERDŹ ZWROT</button>
     </div>

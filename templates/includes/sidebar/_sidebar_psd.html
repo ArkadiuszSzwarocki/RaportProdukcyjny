@@ -47,8 +47,9 @@
         </a>
         {% endif %}
 
-        <a href="{{ url_for('production.raport_zasypy_dosypki', linia='PSD') }}" 
-           class="nav-sub-item {% if request.endpoint == 'production.raport_zasypy_dosypki' and request.args.get('linia') == 'PSD' %}active{% endif %}">
+          {% set zasypy_dosypki_endpoint = 'production.raport_zasypy_dosypki' if app.view_functions.get('production.raport_zasypy_dosypki') else 'warehouse.podsumowanie_zasypow' %}
+          <a href="{{ url_for(zasypy_dosypki_endpoint, linia='PSD') }}" 
+              class="nav-sub-item {% if request.endpoint == 'production.raport_zasypy_dosypki' and request.args.get('linia') == 'PSD' %}active{% elif request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
             Raport Zasypów i Dosypek
         </a>
     </div>

@@ -4,6 +4,7 @@ from datetime import datetime
 import uuid
 import re
 from app.utils.pallet_id import generate_pallet_id
+from app.utils.location_validator import validate_warehouse_location, is_production_tank_code
 
 class MagazynDostawyService:
     OPEN_LOCATIONS_PREFIXES = ['MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'MDM01', 'PSD01']
@@ -278,11 +279,23 @@ class MagazynDostawyService:
         lokalizacja_do = _norm_loc(data.get('lokalizacja_do', ''))
         global_skip_warehouse_lookup = _as_bool(data.get('skip_warehouse_lookup', data.get('skipWarehouseLookup', False)))
 
+        # Walidacja: lokalizacja_do NIE może być kodem zbiornika produkcyjnego
+        if lokalizacja_do:
+            is_valid, error_msg = validate_warehouse_location(lokalizacja_do, allow_empty=False)
+            if not is_valid:
+                return False, error_msg
+
         source_locations = sorted({
             _norm_loc(it.get('sourceSpot'))
             for it in items
             if _norm_loc(it.get('sourceSpot'))
         })
+
+        # Walidacja: żadna z lokalizacji źródłowych NIE może być kodem zbiornika
+        for source_loc in source_locations:
+            is_valid, error_msg = validate_warehouse_location(source_loc, allow_empty=False)
+            if not is_valid:
+                return False, f"Błąd w lokalizacji źródłowej: {error_msg}"
 
         unknown_sources = sorted([loc for loc in source_locations if not _is_known_source_location(loc)])
         if unknown_sources:
@@ -416,6 +429,20 @@ class MagazynDostawyService:
                 
                 # Status is always OCZEKUJE during creation/saving
                 status = 'OCZEKUJE'
+
+            # DEDUPLICATE items before saving (by item ID)
+            if items:
+                seen_ids = set()
+                deduped_items = []
+                for item in items:
+                    item_id = str(item.get('id', ''))
+                    if item_id and item_id not in seen_ids:
+                        seen_ids.add(item_id)
+                        deduped_items.append(item)
+                    elif not item_id:
+                        # Item without ID - keep it but it's unusual
+                        deduped_items.append(item)
+                items = deduped_items
 
             if old_data:
                 cursor.execute("""

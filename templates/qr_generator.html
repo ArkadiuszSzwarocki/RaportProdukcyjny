@@ -1,0 +1,497 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .qr-generator-view {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .qr-hero {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        padding: 40px;
+        margin-bottom: 30px;
+        color: white;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .qr-hero h1 {
+        margin: 0 0 10px 0;
+        font-size: 28px;
+        color: white;
+    }
+
+    .qr-hero .subtitle {
+        margin: 0;
+        opacity: 0.9;
+        font-size: 14px;
+    }
+
+    .qr-card {
+        background: white;
+        border-radius: 16px;
+        padding: 40px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        color: #555;
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="password"] {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 16px;
+        transition: border-color 0.3s;
+        box-sizing: border-box;
+    }
+
+    .form-group input[type="text"]:focus,
+    .form-group input[type="password"]:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+
+    .format-selector {
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .format-selector label {
+        display: block;
+        margin-bottom: 10px;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .format-selector .radio-group {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+
+    .format-selector .radio-group label {
+        display: inline-flex;
+        align-items: center;
+        margin: 0;
+        cursor: pointer;
+        font-weight: normal;
+    }
+
+    .format-selector input[type="radio"] {
+        margin-right: 8px;
+    }
+
+    .btn-qr {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        margin-top: 10px;
+    }
+
+    .btn-qr:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-qr:active {
+        transform: translateY(0);
+    }
+
+    .btn-print {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        margin-top: 20px;
+    }
+
+    .btn-print:hover {
+        box-shadow: 0 8px 20px rgba(17, 153, 142, 0.4);
+    }
+
+    .btn-clear {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        margin-top: 10px;
+    }
+
+    .btn-clear:hover {
+        box-shadow: 0 8px 20px rgba(220, 38, 38, 0.4);
+    }
+
+    .btn-print {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        margin-top: 20px;
+        font-weight: 700;
+        font-size: 18px;
+    }
+
+    .btn-print:hover {
+        box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+        transform: translateY(-2px);
+    }
+
+    .qr-container {
+        margin-top: 30px;
+        text-align: center;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 12px;
+        display: none;
+    }
+
+    .qr-container.active {
+        display: block;
+    }
+
+    #qrcode {
+        display: inline-block;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .qr-info {
+        margin-top: 20px;
+        padding: 15px;
+        background: white;
+        border-radius: 8px;
+        border-left: 4px solid #667eea;
+        text-align: left;
+    }
+
+    .qr-info h3 {
+        color: #667eea;
+        margin-bottom: 10px;
+        font-size: 16px;
+        margin-top: 0;
+    }
+
+    .qr-info p {
+        color: #666;
+        font-size: 14px;
+        margin: 5px 0;
+    }
+
+    .qr-data {
+        margin-top: 15px;
+        padding: 12px;
+        background: #f0f0f0;
+        border-radius: 6px;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        word-break: break-all;
+        color: #333;
+    }
+
+    @media print {
+        .qr-hero,
+        .form-group,
+        .format-selector,
+        .btn-qr,
+        .qr-info,
+        nav,
+        .breadcrumbs,
+        .back-button {
+            display: none !important;
+        }
+
+        .qr-container {
+            display: block !important;
+            background: white;
+            padding: 0;
+            margin: 0;
+        }
+
+        #qrcode {
+            box-shadow: none;
+            padding: 0;
+        }
+
+        #qrcode canvas {
+            width: 1cm !important;
+            height: 1cm !important;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .qr-hero {
+            padding: 24px;
+        }
+
+        .qr-card {
+            padding: 24px;
+        }
+
+        .qr-hero h1 {
+            font-size: 22px;
+        }
+    }
+</style>
+
+<div class="qr-generator-view">
+    <div class="qr-hero">
+        <h1>🔐 Generator Kodów QR</h1>
+        <p class="subtitle">Login i hasło • Rozmiar: 1cm × 1cm • Drukarka Zebra</p>
+    </div>
+
+    <div class="qr-card">
+        <div class="format-selector">
+            <label><strong>Format danych:</strong></label>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="format" value="simple" checked>
+                    Prosty (LOGIN:xxx|PASS:yyy)
+                </label>
+                <label>
+                    <input type="radio" name="format" value="json">
+                    JSON
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="login">Login:</label>
+            <input type="text" id="login" placeholder="Wpisz login użytkownika" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        </div>
+
+        <div class="form-group">
+            <label for="password">Hasło:</label>
+            <input type="password" id="password" placeholder="Wpisz hasło" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false">
+        </div>
+
+        <button class="btn-qr" onclick="generateQR()">🎯 Wygeneruj Kod QR (podgląd)</button>
+        <button class="btn-qr btn-clear" onclick="clearForm()">🗑️ Wyczyść formularz</button>
+
+        <div class="qr-container" id="qrContainer">
+            <div id="qrcode"></div>
+            
+            <div class="qr-info">
+                <h3>📋 Informacje o kodzie QR</h3>
+                <p><strong>Rozmiar:</strong> 1cm × 1cm (118px @ 300 DPI)</p>
+                <p><strong>Format:</strong> <span id="formatInfo"></span></p>
+                <p><strong>Dane zakodowane:</strong></p>
+                <div class="qr-data" id="qrData"></div>
+            </div>
+
+            <button class="btn-qr btn-print" onclick="drukujNaZebra()">🖨️ DRUKUJ NA ZEBRA</button>
+        </div>
+    </div>
+</div>
+
+<!-- Biblioteka QRCode - używamy qrcodejs -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+    // Sprawdź czy biblioteka QRCode została załadowana
+    console.log('QRCode library loaded:', typeof QRCode !== 'undefined');
+    
+    function generateQR() {
+        console.log('generateQR() called');
+        
+        const login = document.getElementById('login').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const format = document.querySelector('input[name="format"]:checked').value;
+
+        console.log('Login:', login, 'Password length:', password.length);
+
+        if (!login || !password) {
+            if (typeof showToast === 'function') {
+                showToast('⚠️ Wypełnij oba pola: login i hasło!', 'warning');
+            } else {
+                alert('⚠️ Wypełnij oba pola: login i hasło!');
+            }
+            return;
+        }
+
+        // Przygotuj dane w wybranym formacie
+        let qrData;
+        let formatName;
+
+        if (format === 'json') {
+            qrData = JSON.stringify({
+                login: login,
+                pass: password
+            });
+            formatName = 'JSON';
+        } else {
+            qrData = `LOGIN:${login}|PASS:${password}`;
+            formatName = 'Prosty (delimiter |)';
+        }
+
+        console.log('QR Data:', qrData);
+
+        // Wyczyść poprzedni kod QR
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = '';
+
+        // Sprawdź dostępność biblioteki
+        if (typeof QRCode === 'undefined') {
+            const errorMsg = '❌ Biblioteka QRCode nie została załadowana. Odśwież stronę.';
+            if (typeof showToast === 'function') {
+                showToast(errorMsg, 'error');
+            } else {
+                alert(errorMsg);
+            }
+            console.error('QRCode library not loaded');
+            return;
+        }
+
+        try {
+            // Wygeneruj nowy kod QR używając QRCodeJS (tylko podgląd)
+            // Rozmiar: 118px dla 1cm przy 300 DPI (typowy dla Zebra)
+            const qrcode = new QRCode(qrContainer, {
+                text: qrData,
+                width: 118,
+                height: 118,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+            
+            console.log('QR Code generated successfully');
+            
+            // Pokaż kontener z kodem QR
+            document.getElementById('qrContainer').classList.add('active');
+            
+            // Aktualizuj informacje
+            document.getElementById('formatInfo').textContent = formatName;
+            document.getElementById('qrData').textContent = qrData;
+
+            // Scroll do kodu QR
+            qrContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            if (typeof showToast === 'function') {
+                showToast('✅ Kod QR wygenerowany - kliknij DRUKUJ aby wysłać do Zebra', 'success');
+            }
+
+            // Automatyczne wyczyszczenie pól po 30 sekundach (bezpieczeństwo)
+            setTimeout(function() {
+                clearForm();
+                if (typeof showToast === 'function') {
+                    showToast('🔒 Formularz wyczyszczony automatycznie', 'info');
+                }
+            }, 30000);
+        } catch (e) {
+            console.error('Exception in generateQR:', e);
+            if (typeof showToast === 'function') {
+                showToast('❌ Wyjątek: ' + e.message, 'error');
+            } else {
+                alert('❌ Wyjątek: ' + e.message);
+            }
+        }
+    }
+
+    function drukujNaZebra() {
+        console.log('drukujNaZebra() called');
+        
+        const login = document.getElementById('login').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const format = document.querySelector('input[name="format"]:checked').value;
+
+        if (!login || !password) {
+            if (typeof showToast === 'function') {
+                showToast('⚠️ Najpierw wygeneruj kod QR!', 'warning');
+            } else {
+                alert('⚠️ Najpierw wygeneruj kod QR!');
+            }
+            return;
+        }
+
+        // Pokaż spinner / stan ładowania
+        if (typeof showToast === 'function') {
+            showToast('📤 Wysyłanie do drukarki Zebra...', 'info');
+        }
+
+        // Wyślij do endpointu druku ZPL
+        fetch('{{ url_for("admin.admin_qr_generator_drukuj") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                login: login,
+                password: password,
+                format: format
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const printerInfo = data.printer_name ? ` (${data.printer_name})` : '';
+                if (typeof showToast === 'function') {
+                    showToast('✅ Etykieta wysłana do drukarki Zebra' + printerInfo, 'success');
+                } else {
+                    alert('✅ Etykieta wysłana do drukarki Zebra' + printerInfo);
+                }
+                // Wyczyść formularz po udanym wydruku (bezpieczeństwo)
+                setTimeout(clearForm, 2000);
+            } else {
+                const errorMsg = data.message || 'Błąd druku';
+                if (typeof showToast === 'function') {
+                    showToast('❌ ' + errorMsg, 'error');
+                } else {
+                    alert('❌ ' + errorMsg);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Błąd wysyłania do drukarki:', error);
+            if (typeof showToast === 'function') {
+                showToast('❌ Błąd połączenia z serwerem', 'error');
+            } else {
+                alert('❌ Błąd połączenia z serwerem');
+            }
+        });
+    }
+
+    function clearForm() {
+        document.getElementById('login').value = '';
+        document.getElementById('password').value = '';
+        document.getElementById('qrContainer').classList.remove('active');
+        if (typeof showToast === 'function') {
+            showToast('Formularz wyczyszczony', 'info');
+        }
+    }
+
+    // Wyczyść pola przy ładowaniu strony (bezpieczeństwo)
+    window.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('login').value = '';
+        document.getElementById('password').value = '';
+    });
+
+    // Generuj QR po naciśnięciu Enter
+    document.getElementById('password').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            generateQR();
+        }
+    });
+
+    document.getElementById('login').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            document.getElementById('password').focus();
+        }
+    });
+</script>
+{% endblock %}

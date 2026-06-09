@@ -1,5 +1,6 @@
 from app.db import get_db_connection, get_table_name
 from datetime import datetime
+from app.utils.location_validator import validate_warehouse_location, is_production_tank_code
 
 class MagazynyNoweService:
     @staticmethod
@@ -36,6 +37,13 @@ class MagazynyNoweService:
     @staticmethod
     def move_pallet(pallet_id, pallet_type, new_location, worker_login, linia='PSD', amount_to_move=None):
         """Przenosi paletę na nową lokalizację. Jeśli amount_to_move < ilość systemowa, dzieli paletę."""
+        
+        # Walidacja: new_location NIE może być kodem zbiornika produkcyjnego
+        if new_location:
+            is_valid, error_msg = validate_warehouse_location(new_location, allow_empty=False)
+            if not is_valid:
+                return False, error_msg
+        
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)

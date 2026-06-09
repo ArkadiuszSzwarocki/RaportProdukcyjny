@@ -1,3 +1,5 @@
+import re
+
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, current_app
 from app.services.agro_warehouse_service import AgroWarehouseService
 from app.services.dashboard_service import DashboardService
@@ -7,6 +9,63 @@ from datetime import datetime, date
 from app.db import get_db_connection, get_table_name
 
 agro_warehouse_bp = Blueprint('agro_warehouse', __name__)
+
+
+def _extract_bag_kg(value):
+    """Extract bag weight (kg) from values like 'worki_zgrzewane_20'."""
+    if value is None:
+        return None
+
+    match = re.search(r"(\d+(?:[\.,]\d+)?)", str(value))
+    if not match:
+        return None
+
+    raw = match.group(1).replace(',', '.')
+    try:
+        kg = float(raw)
+    except (TypeError, ValueError):
+        return None
+
+    return kg if kg > 0 else None
+
+
+def _resolve_report_bag_kg(cursor, plan_row, rozliczenia, product_typ_cache):
+    """Resolve kg/worek for AGRO report using most reliable available source."""
+    for row in rozliczenia or []:
+        kg = row.get('kg_na_worek')
+        if kg is None:
+            continue
+        try:
+            kg_val = float(kg)
+        except (TypeError, ValueError):
+            continue
+        if kg_val > 0:
+            return kg_val
+
+    for key in ('typ_produkcji', 'zasyp_typ_produkcji'):
+        kg = _extract_bag_kg(plan_row.get(key))
+        if kg:
+            return kg
+
+    produkt = (plan_row.get('produkt') or '').strip()
+    if produkt:
+        if produkt not in product_typ_cache:
+            cursor.execute(
+                "SELECT typ_produkcji FROM produkty_receptury WHERE nazwa_produktu = %s ORDER BY id DESC LIMIT 1",
+                (produkt,),
+            )
+            product_row = cursor.fetchone()
+            product_typ_cache[produkt] = (product_row or {}).get('typ_produkcji')
+
+        kg = _extract_bag_kg(product_typ_cache.get(produkt))
+        if kg:
+            return kg
+
+    produkt_lc = produkt.lower()
+    if 'mleko' in produkt_lc or 'milk' in produkt_lc or '20' in produkt_lc:
+        return 20.0
+
+    return 25.0
 
 @agro_warehouse_bp.route('/agro/magazyn')
 @login_required
@@ -528,15 +587,70 @@ def link_packaging():
 @login_required
 def return_packaging():
     try:
-        data = request.get_json()
-        success, error = AgroWarehouseService.return_packaging_from_machine(
+        data = request.get_json() or {}
+        raw_print_label = data.get('print_label')
+        if isinstance(raw_print_label, str):
+            print_label = raw_print_label.strip().lower() in {'1', 'true', 'tak', 'yes', 'on'}
+        else:
+            print_label = bool(raw_print_label)
+
+        raw_is_partial = data.get('is_partial', False)
+        if isinstance(raw_is_partial, str):
+            is_partial = raw_is_partial.strip().lower() in {'1', 'true', 'tak', 'yes', 'on'}
+        else:
+            is_partial = bool(raw_is_partial)
+
+        result = AgroWarehouseService.return_packaging_from_machine(
             data.get('opakowanie_id'),
             data.get('stan_po'),
             data.get('lokalizacja'),
             session.get('login'),
-            is_partial=data.get('is_partial', False)
+            is_partial=is_partial,
+            print_label=print_label,
         )
-        return jsonify({'success': success, 'error': error})
+
+        extra = {}
+        if isinstance(result, tuple):
+            if len(result) >= 3:
+                success, error, extra = result[0], result[1], (result[2] or {})
+            else:
+                success, error = result[0], result[1]
+        else:
+            success, error = False, 'Nieprawidłowy wynik operacji zwrotu'
+
+        response = {'success': success, 'error': error}
+        if isinstance(extra, dict):
+            response.update(extra)
+
+            if success:
+                last_label = extra.get('return_label')
+                if isinstance(last_label, dict) and last_label:
+                    session['agro_last_return_label'] = last_label
+
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@agro_warehouse_bp.route('/agro/api/opakowania/reprint_last_return_label', methods=['POST'])
+@login_required
+def reprint_last_return_label():
+    try:
+        label_data = session.get('agro_last_return_label')
+        if not isinstance(label_data, dict) or not label_data:
+            return jsonify({'success': False, 'error': 'Brak danych ostatniego zwrotu do ponownego wydruku'}), 404
+
+        ok, message = AgroWarehouseService.print_packaging_return_label(label_data)
+        return jsonify({
+            'success': bool(ok),
+            'error': None if ok else message,
+            'message': message,
+            'print_result': {
+                'requested': True,
+                'success': bool(ok),
+                'message': message,
+            },
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -1200,7 +1314,8 @@ def raport_palet():
         query = """
             SELECT w.id as work_id, w.produkt, w.tonaz_rzeczywisty as w_kg, 
                    z.id as zasyp_id, z.tonaz_rzeczywisty as z_kg,
-                   w.nazwa_zlecenia, w.typ_produkcji
+                   w.nazwa_zlecenia, w.typ_produkcji, w.typ_opakowania,
+                   z.typ_produkcji as zasyp_typ_produkcji
             FROM plan_produkcji_agro w
             LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id
             WHERE w.data_planu = %s AND w.sekcja = 'Workowanie' AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
@@ -1215,6 +1330,7 @@ def raport_palet():
         plans = cursor.fetchall()
 
         report_data = []
+        product_typ_cache = {}
         for p in plans:
             # 1. Fetch Inputs (Szarże + Mixes)
             # Batches (including confirmed add-ons)
@@ -1284,8 +1400,10 @@ def raport_palet():
                 SELECT 
                     p.id, p.waga, p.status, p.data_dodania, 
                     p.dodal_login,
-                    COALESCE(m.user_login, p.potwierdzil_login) as potwierdzil_login,
-                    COALESCE(m.data_potwierdzenia, p.data_potwierdzenia) as data_potwierdzenia
+                    NULLIF(TRIM(COALESCE(m.user_login, p.potwierdzil_login)), '') as potwierdzil_login,
+                    COALESCE(m.data_potwierdzenia, p.data_potwierdzenia) as data_potwierdzenia,
+                    COALESCE(m.nr_plomby, p.nr_plomby) as nr_plomby,
+                    COALESCE(m.nr_palety, p.nr_palety) as nr_palety
                 FROM palety_agro p
                 LEFT JOIN magazyn_palety_agro m ON p.id = m.paleta_workowanie_id
                 WHERE p.plan_id = %s
@@ -1326,7 +1444,7 @@ def raport_palet():
 
             # 3. Fetch Packaging Settlements (Rozliczenie Workowania)
             cursor.execute("""
-                SELECT id, opakowanie_nazwa, stan_przed, wyprodukowano_szt, szt_na_palecie, zuzyte_worki, stan_po, autor_login, created_at
+                SELECT id, opakowanie_nazwa, stan_przed, wyprodukowano_szt, szt_na_palecie, zuzyte_worki, stan_po, autor_login, created_at, kg_na_worek
                 FROM agro_workowanie_rozliczenie
                 WHERE plan_id = %s
                 ORDER BY created_at ASC
@@ -1343,25 +1461,8 @@ def raport_palet():
             """, (p['work_id'],))
             aktywne_opakowania = cursor.fetchall()
 
-            # Determine bag weight dynamically from typ_produkcji
-            import re
-            bag_kg = 25.0
-            typ_prod = p.get('typ_produkcji') or ''
-            kg_match = re.search(r'(\d+)', typ_prod)
-            if kg_match:
-                bag_kg = float(kg_match.group(1))
-            else:
-                # Fallback to the first packaging record if available
-                if rozliczenia and len(rozliczenia) > 0:
-                    cursor.execute("SELECT kg_na_worek FROM agro_workowanie_rozliczenie WHERE plan_id = %s AND kg_na_worek IS NOT NULL LIMIT 1", (p['work_id'],))
-                    rw = cursor.fetchone()
-                    if rw and rw.get('kg_na_worek'):
-                        bag_kg = float(rw['kg_na_worek'])
-                else:
-                    # Fallback based on product name
-                    produkt_nazwa = str(p.get('produkt') or '').lower()
-                    if 'mleko' in produkt_nazwa or '20' in produkt_nazwa:
-                        bag_kg = 20.0
+            # Resolve bag weight using settlements -> plan types -> product registry -> heuristic.
+            bag_kg = _resolve_report_bag_kg(cursor, p, rozliczenia, product_typ_cache)
 
             # Query warehouse stock for each unique packaging name used in this plan
             packaging_stocks = {}

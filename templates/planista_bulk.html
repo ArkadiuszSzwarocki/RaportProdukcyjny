@@ -1028,6 +1028,17 @@
         </div>
       </div>
       
+      <!-- LINIA 2.5: TYP OPAKOWANIA (worki/bigbag) - pokazuje/ukrywa pola folii i etykiet -->
+      <div id="packagingTypeRow" class="form-row form-row-2-5" style="display: none; margin-top: 10px;">
+        <div class="form-field" style="flex: 1;">
+          <label>Typ opakowania <span style="color: #ef4444; font-weight: bold;">*</span></label>
+          <select id="inpTypOpakowania" aria-label="Typ opakowania">
+            <option value="worki">Worki (z folią i etykietą)</option>
+            <option value="bigbag">Big Bag (bez folii i etykiet)</option>
+          </select>
+        </div>
+      </div>
+      
       <!-- LINIA 3: AGRO specyficzne pola (opakowanie i etykieta) -->
       <div id="agroFieldsContainer" style="display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;">
         <div class="form-row form-row-3">
@@ -1272,6 +1283,8 @@
     const productsList = document.getElementById('productsList');
     const sekcjaSelect = document.getElementById('sekcja_select');
     const agroFieldsContainer = document.getElementById('agroFieldsContainer');
+    const packagingTypeRow = document.getElementById('packagingTypeRow');
+    const inpTypOpakowania = document.getElementById('inpTypOpakowania');
 
     // Planning info elements
     const planningInfoBanner = document.getElementById('planningInfoBanner');
@@ -1382,6 +1395,8 @@
           }
         }
       }
+      // Odśwież widoczność pól po zmianie produktu (może być czyszczenie)
+      toggleAgroFields();
     });
 
     // Close dropdown when clicking outside
@@ -1564,15 +1579,43 @@
       }
     }
 
+    function togglePackagingFields() {
+      // Kontrola widoczności pól opakowanie/etykieta w zależności od typ_opakowania
+      if (!agroFieldsContainer) return;
+      
+      const isAgro = sekcjaSelect && sekcjaSelect.value === 'Agro';
+      const isCzyszczenie = selectProdukt && (selectProdukt.value || '').toLowerCase().includes('czyszczenie');
+      const typOpakowania = inpTypOpakowania ? inpTypOpakowania.value : 'worki';
+      
+      // Dla big bag ukrywamy pola opakowanie i etykieta
+      if (typOpakowania === 'bigbag') {
+        agroFieldsContainer.style.display = 'none';
+      } else if (isAgro && !isCzyszczenie) {
+        agroFieldsContainer.style.display = 'block';
+      }
+    }
+
     function toggleAgroFields() {
       const isAgro = sekcjaSelect && sekcjaSelect.value === 'Agro';
+      const isCzyszczenie = selectProdukt && (selectProdukt.value || '').toLowerCase().includes('czyszczenie');
+      
       const pageTitle = document.getElementById('bulkPageTitle');
       if (pageTitle) {
         pageTitle.innerHTML = isAgro ? '📥 Dodawanie wielu zleceń dla produkcji AGRO' : '📥 Dodawanie wielu zleceń dla produkcji PSD';
       }
+      
+      // Pokazuj pole typ_opakowania dla AGRO, ale NIE dla czyszczenia
+      if (packagingTypeRow) {
+        if (isAgro && !isCzyszczenie) {
+          packagingTypeRow.style.display = 'block';
+        } else {
+          packagingTypeRow.style.display = 'none';
+        }
+      }
+      
       if (agroFieldsContainer) {
-        if (isAgro) {
-          agroFieldsContainer.style.display = 'block';
+        if (isAgro && !isCzyszczenie) {
+          togglePackagingFields(); // Kontroluj widoczność na podstawie typu opakowania
           
           // Re-trigger autofill when section changes to Agro
           if (selectProdukt.value) {
@@ -1614,6 +1657,10 @@
       // Run immediately on page load to set correct initial state
       setTimeout(toggleAgroFields, 50);
     }
+    
+    if (inpTypOpakowania) {
+      inpTypOpakowania.addEventListener('change', togglePackagingFields);
+    }
 
     const addRow = () => {
       const produkt = selectProdukt.value.trim();
@@ -1621,23 +1668,26 @@
       const tonazVal = document.getElementById('inpTonaz').value;
       const tonaz = tonazVal === '' ? null : (parseFloat(tonazVal) || 0);
       const typ = document.getElementById('inpTyp').value;
+      const typOpakowania = inpTypOpakowania ? inpTypOpakowania.value : 'worki';
 
       if (!produkt) { return safeAlert('Błąd', 'Wybierz produkt ze listy'); }
       if (tonaz === null || tonaz <= 0) { return safeAlert('Błąd', 'Podaj poprawną wagę (kg) większą od 0'); }
 
       const isAgro = sekcjaSelect && sekcjaSelect.value === 'Agro';
+      const isCzyszczenie = produkt.toLowerCase().includes('czyszczenie');
       let opakowanieId = '';
       let opakowanieNazwa = '';
       let etykietaId = '';
       let etykietaNazwa = '';
 
-      if (isAgro) {
+      if (isAgro && !isCzyszczenie && typOpakowania === 'worki') {
+        // Dla worków wymagane są opakowanie i etykieta
         const inpOpak = document.getElementById('inpOpakowanie');
         const inpEtyk = document.getElementById('inpEtykieta');
         const inpOpakSearch = document.getElementById('inpOpakowanie_search');
         const inpEtykSearch = document.getElementById('inpEtykieta_search');
         if (!inpOpak || !inpEtyk || !inpOpak.value || !inpEtyk.value) {
-          return safeAlert('Błąd', 'Dla sekcji AGRO wybór worka oraz etykiety jest obowiązkowy!');
+          return safeAlert('Błąd', 'Dla sekcji AGRO z workami wybór worka oraz etykiety jest obowiązkowy!');
         }
         opakowanieId = inpOpak.value;
         opakowanieNazwa = inpOpakSearch.value;
@@ -1659,6 +1709,7 @@
       tr.dataset.nr = nr;
       tr.dataset.tonaz = tonaz;
       tr.dataset.typ = typ;
+      tr.dataset.typOpakowania = typOpakowania;
       if (isAgro) {
         tr.dataset.opakowanieId = opakowanieId;
         tr.dataset.opakowanieNazwa = opakowanieNazwa;
@@ -1742,6 +1793,7 @@
         nr_receptury: r.dataset.nr,
         tonaz: parseFloat(r.dataset.tonaz) || 0,
         typ_produkcji: r.dataset.typ,
+        typ_opakowania: r.dataset.typOpakowania || 'worki',
         sekcja: sekcja,
         opakowanie_id: r.dataset.opakowanieId ? parseInt(r.dataset.opakowanieId) : null,
         etykieta_id: r.dataset.etykietaId ? parseInt(r.dataset.etykietaId) : null

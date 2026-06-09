@@ -242,6 +242,8 @@ def _create_tables(cursor):
             waga_brutto FLOAT DEFAULT 0,
             status VARCHAR(20) DEFAULT 'do_przyjecia',
             dodal_login VARCHAR(100) DEFAULT NULL,
+            nr_palety VARCHAR(100) DEFAULT NULL,
+            nr_plomby VARCHAR(100) DEFAULT NULL,
             data_dodania DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE
         )
@@ -257,6 +259,8 @@ def _create_tables(cursor):
             data_dodania DATETIME DEFAULT CURRENT_TIMESTAMP,
             status VARCHAR(20) DEFAULT 'do_przyjecia',
             dodal_login VARCHAR(100) DEFAULT NULL,
+            nr_palety VARCHAR(100) DEFAULT NULL,
+            nr_plomby VARCHAR(100) DEFAULT NULL,
             data_potwierdzenia DATETIME NULL,
             czas_potwierdzenia_s INT NULL,
             czas_rzeczywistego_potwierdzenia TIME NULL,
@@ -276,6 +280,8 @@ def _create_tables(cursor):
             waga_brutto FLOAT DEFAULT 0,
             tara FLOAT DEFAULT 0,
             user_login VARCHAR(100) DEFAULT NULL,
+            nr_palety VARCHAR(100) DEFAULT NULL,
+            nr_plomby VARCHAR(100) DEFAULT NULL,
             data_potwierdzenia DATETIME DEFAULT CURRENT_TIMESTAMP,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (paleta_workowanie_id) REFERENCES palety_workowanie(id) ON DELETE SET NULL,
@@ -294,6 +300,8 @@ def _create_tables(cursor):
             waga_brutto FLOAT DEFAULT 0,
             tara FLOAT DEFAULT 0,
             user_login VARCHAR(100) DEFAULT NULL,
+            nr_palety VARCHAR(100) DEFAULT NULL,
+            nr_plomby VARCHAR(100) DEFAULT NULL,
             data_potwierdzenia DATETIME DEFAULT CURRENT_TIMESTAMP,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (paleta_workowanie_id) REFERENCES palety_agro(id) ON DELETE SET NULL,
@@ -881,6 +889,8 @@ def _migrate_columns(cursor):
     # Dodanie nr_palety do tabel buforowych
     _add_column_if_missing(cursor, "palety_workowanie", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do palety_workowanie")
     _add_column_if_missing(cursor, "palety_agro", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do palety_agro")
+    _add_column_if_missing(cursor, "palety_workowanie", "nr_plomby", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_plomby' do palety_workowanie")
+    _add_column_if_missing(cursor, "palety_agro", "nr_plomby", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_plomby' do palety_agro")
 
     # aktywne_sesje columns
     _add_column_if_missing(cursor, "aktywne_sesje", "ip_address", "VARCHAR(64) NULL", "Dodawanie kolumny 'ip_address' do aktywne_sesje")
@@ -888,6 +898,8 @@ def _migrate_columns(cursor):
     # magazyn_palety_agro columns
     _add_column_if_missing(cursor, "magazyn_palety", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do magazyn_palety")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do magazyn_palety_agro")
+    _add_column_if_missing(cursor, "magazyn_palety", "nr_plomby", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_plomby' do magazyn_palety")
+    _add_column_if_missing(cursor, "magazyn_palety_agro", "nr_plomby", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_plomby' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "linia", "VARCHAR(20) DEFAULT 'AGRO'", "Dodawanie kolumny 'linia' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "user_login", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'user_login' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "data_potwierdzenia", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'data_potwierdzenia' do magazyn_palety_agro")
@@ -945,6 +957,11 @@ def _migrate_columns(cursor):
     # Własna data produkcji dla planów
     _add_column_if_missing(cursor, "plan_produkcji", "data_produkcji", "DATE DEFAULT NULL", "Dodawanie kolumny 'data_produkcji' (PSD)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "data_produkcji", "DATE DEFAULT NULL", "Dodawanie kolumny 'data_produkcji' (AGRO)")
+    
+    # Typ opakowania (worki/bigbag) dla workownia - określa czy pokazywać pola folii/etykiet
+    _add_column_if_missing(cursor, "plan_produkcji", "typ_opakowania", "VARCHAR(20) DEFAULT 'worki'", "Dodawanie kolumny 'typ_opakowania' (PSD)")
+    _add_column_if_missing(cursor, "plan_produkcji_agro", "typ_opakowania", "VARCHAR(20) DEFAULT 'worki'", "Dodawanie kolumny 'typ_opakowania' (AGRO)")
+    
     _add_column_if_missing(cursor, "plan_produkcji_agro", "opakowanie_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'opakowanie_id' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "etykieta_id", "INT NULL DEFAULT NULL", "Dodawanie kolumny 'etykieta_id' (AGRO)")
     _add_column_if_missing(cursor, "plan_produkcji_agro", "start_checklist_operator_login", "VARCHAR(100) NULL", "Dodawanie kolumny 'start_checklist_operator_login' (AGRO)")
@@ -969,6 +986,113 @@ def _migrate_columns(cursor):
             cursor.execute("ALTER TABLE plan_produkcji_agro ADD INDEX idx_plan_agro_etykieta (etykieta_id)")
     except Exception as e:
         print(f"[WARN] Failed to add index idx_plan_agro_etykieta: {e}")
+
+    # Performance indexes for dashboard queries
+    try:
+        cursor.execute("SHOW INDEX FROM plan_produkcji WHERE Key_name = 'idx_plan_data_status_deleted'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE plan_produkcji ADD INDEX idx_plan_data_status_deleted (data_planu, status, is_deleted)")
+            print("[OK] Added composite index idx_plan_data_status_deleted to plan_produkcji")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_plan_data_status_deleted: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM plan_produkcji_agro WHERE Key_name = 'idx_plan_agro_data_status_deleted'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE plan_produkcji_agro ADD INDEX idx_plan_agro_data_status_deleted (data_planu, status, is_deleted)")
+            print("[OK] Added composite index idx_plan_agro_data_status_deleted to plan_produkcji_agro")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_plan_agro_data_status_deleted: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM plan_produkcji WHERE Key_name = 'idx_plan_sekcja_data'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE plan_produkcji ADD INDEX idx_plan_sekcja_data (sekcja, data_planu, status)")
+            print("[OK] Added composite index idx_plan_sekcja_data to plan_produkcji")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_plan_sekcja_data: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM plan_produkcji_agro WHERE Key_name = 'idx_plan_agro_sekcja_data'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE plan_produkcji_agro ADD INDEX idx_plan_agro_sekcja_data (sekcja, data_planu, status)")
+            print("[OK] Added composite index idx_plan_agro_sekcja_data to plan_produkcji_agro")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_plan_agro_sekcja_data: {e}")
+
+    # Indexes for bufor queries
+    try:
+        cursor.execute("SHOW INDEX FROM bufor WHERE Key_name = 'idx_bufor_data_status'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE bufor ADD INDEX idx_bufor_data_status (data_planu, status, linia)")
+            print("[OK] Added composite index idx_bufor_data_status to bufor")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_bufor_data_status: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM bufor_agro WHERE Key_name = 'idx_bufor_agro_data_status'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE bufor_agro ADD INDEX idx_bufor_agro_data_status (data_planu, status)")
+            print("[OK] Added composite index idx_bufor_agro_data_status to bufor_agro")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_bufor_agro_data_status: {e}")
+
+    # Additional performance indexes for AGRO workowanie page
+    try:
+        cursor.execute("SHOW INDEX FROM palety_agro WHERE Key_name = 'idx_palety_agro_plan_id'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE palety_agro ADD INDEX idx_palety_agro_plan_id (plan_id)")
+            print("[OK] Added index idx_palety_agro_plan_id to palety_agro")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_palety_agro_plan_id: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM agro_workowanie_rozliczenie WHERE Key_name = 'idx_agro_work_rozl_plan'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE agro_workowanie_rozliczenie ADD INDEX idx_agro_work_rozl_plan (plan_id, created_at)")
+            print("[OK] Added index idx_agro_work_rozl_plan to agro_workowanie_rozliczenie")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_agro_work_rozl_plan: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM magazyn_opakowania WHERE Key_name = 'idx_maga_opak_linia'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE magazyn_opakowania ADD INDEX idx_maga_opak_linia (linia)")
+            print("[OK] Added index idx_maga_opak_linia to magazyn_opakowania")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_maga_opak_linia: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM dziennik_zmiany WHERE Key_name = 'idx_dziennik_data_linia'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE dziennik_zmiany ADD INDEX idx_dziennik_data_linia (data_wpisu, sekcja)")
+            print("[OK] Added index idx_dziennik_data_linia to dziennik_zmiany")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_dziennik_data_linia: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM szarze_agro WHERE Key_name = 'idx_szarze_agro_plan'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE szarze_agro ADD INDEX idx_szarze_agro_plan (plan_id, data_dodania)")
+            print("[OK] Added index idx_szarze_agro_plan to szarze_agro")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_szarze_agro_plan: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM dosypki_agro WHERE Key_name = 'idx_dosypki_agro_plan'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE dosypki_agro ADD INDEX idx_dosypki_agro_plan (plan_id, szarza_id)")
+            print("[OK] Added index idx_dosypki_agro_plan to dosypki_agro")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_dosypki_agro_plan: {e}")
+
+    try:
+        cursor.execute("SHOW INDEX FROM agro_mix_rozliczenie WHERE Key_name = 'idx_agro_mix_zuzyte'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE agro_mix_rozliczenie ADD INDEX idx_agro_mix_zuzyte (zuzyte_w_id)")
+            print("[OK] Added index idx_agro_mix_zuzyte to agro_mix_rozliczenie")
+    except Exception as e:
+        print(f"[WARN] Failed to add index idx_agro_mix_zuzyte: {e}")
 
 
 

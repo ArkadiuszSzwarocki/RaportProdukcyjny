@@ -1,4 +1,5 @@
 from datetime import date, datetime
+import os
 
 import mysql.connector
 from flask import abort, current_app, flash, jsonify, redirect, render_template, request, session
@@ -47,6 +48,28 @@ def register_warehouse_management_routes(
         except Exception as printer_err:
             current_app.logger.warning('Nie udało się pobrać preferowanej drukarki: %s', printer_err)
             return None, None
+
+    def _list_active_printers(cursor):
+        """Return active printers in preferred order for automatic fallback attempts."""
+        try:
+            cursor.execute(
+                """
+                SELECT id, nazwa, ip
+                FROM drukarki
+                WHERE aktywna = 1
+                ORDER BY
+                    CASE
+                        WHEN LOWER(COALESCE(nazwa, '')) LIKE '%zebra produkcja%' THEN 0
+                        WHEN LOWER(COALESCE(lokalizacja, '')) LIKE '%produk%' THEN 1
+                        ELSE 2
+                    END,
+                    id ASC
+                """
+            )
+            return cursor.fetchall() or []
+        except Exception as printer_err:
+            current_app.logger.warning('Nie udało się pobrać listy drukarek aktywnych: %s', printer_err)
+            return []
 
     def _parse_data_produkcji_input(raw_value):
         """Validate optional production date input (YYYY-MM-DD)."""
@@ -132,6 +155,12 @@ def register_warehouse_management_routes(
         except Exception:
             waga_input = 0
 
+        nr_plomby = str(request.form.get('nr_plomby') or '').strip()
+        if not nr_plomby:
+            nr_plomby = None
+        elif len(nr_plomby) > 100:
+            nr_plomby = nr_plomby[:100]
+
         cursor.execute(f"SELECT sekcja, data_planu, produkt, data_produkcji FROM {table_plan} WHERE id=%s", (plan_id,))
         plan_row = cursor.fetchone()
 
@@ -191,14 +220,14 @@ def register_warehouse_management_routes(
                 paleta_id = reserved_row[0]
                 nr_palety = reserved_row[1] or generate_pallet_id(linia)
                 cursor.execute(
-                    f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s WHERE id = %s",
-                    (waga_input, now_ts, user_login, nr_palety, paleta_id),
+                    f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s, nr_plomby = COALESCE(%s, nr_plomby) WHERE id = %s",
+                    (waga_input, now_ts, user_login, nr_palety, nr_plomby, paleta_id),
                 )
             else:
                 nr_palety = generate_pallet_id(linia)
                 cursor.execute(
-                    f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s)",
-                    (plan_id, waga_input, now_ts, user_login, nr_palety),
+                    f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety, nr_plomby) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s, %s)",
+                    (plan_id, waga_input, now_ts, user_login, nr_palety, nr_plomby),
                 )
                 paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
 
@@ -230,6 +259,15 @@ def register_warehouse_management_routes(
                 f"UPDATE {table_plan} SET data_produkcji = %s WHERE id = %s",
                 (selected_data_produkcji, plan_id),
             )
+
+            # Log to palety_historia - utworzenie palety
+            try:
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'UTWORZENIE', %s, %s)",
+                    (paleta_id, linia, f"Utworzono paletę: {plan_produkt}, waga: {waga_input} kg", user_login)
+                )
+            except Exception as hist_err:
+                current_app.logger.warning('Failed to log history for paleta %s: %s', paleta_id, hist_err)
 
             conn.commit()
 
@@ -697,13 +735,17 @@ def register_warehouse_management_routes(
             plan_id = None
             stored_netto = None
             try:
-                cursor.execute(f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, 0), nr_palety FROM {table_pal} WHERE id=%s", (paleta_id,))
+                cursor.execute(
+                    f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, 0), nr_palety, nr_plomby FROM {table_pal} WHERE id=%s",
+                    (paleta_id,),
+                )
                 prev_row = cursor.fetchone()
                 if prev_row:
                     plan_id = prev_row[0]
                     prev_status = prev_row[1]
                     stored_netto = int(prev_row[2] or 0)
                     nr_palety = prev_row[3]
+                    nr_plomby = prev_row[4] if len(prev_row) > 4 else None
             except Exception as error:
                 current_app.logger.warning('Failed to fetch plan_id/status/weights for paleta %s: %s', paleta_id, error)
 
@@ -779,8 +821,8 @@ def register_warehouse_management_routes(
 
                         try:
                             cursor.execute(
-                                f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                                (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'), nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety),
+                                f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'), nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby),
                             )
                             mag_id = cursor.lastrowid
                             
@@ -859,10 +901,10 @@ def register_warehouse_management_routes(
         except Exception:
             brutto = 0
 
-        cursor.execute(f"SELECT tara, plan_id, nr_palety FROM {table_pal} WHERE id=%s", (paleta_id,))
+        cursor.execute(f"SELECT tara, plan_id, nr_palety, nr_plomby FROM {table_pal} WHERE id=%s", (paleta_id,))
         res = cursor.fetchone()
         if res:
-            tara, plan_id, nr_palety = res
+            tara, plan_id, nr_palety, nr_plomby = res
             netto = brutto - int(tara)
             if netto < 0:
                 netto = 0
@@ -881,8 +923,8 @@ def register_warehouse_management_routes(
                 if not exists:
                     try:
                         cursor.execute(
-                            f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_palety) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                            (paleta_id, mp_id, row[0], row[1], netto, brutto, tara, session.get('login'), nr_palety),
+                            f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_palety, nr_plomby) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                            (paleta_id, mp_id, row[0], row[1], netto, brutto, tara, session.get('login'), nr_palety, nr_plomby),
                         )
                     except mysql.connector.IntegrityError:
                         pass
@@ -957,7 +999,25 @@ def register_warehouse_management_routes(
                 return redirect(safe_return())
 
             plan_id = res[0]
+            
+            # Get paleta details for history before deletion
+            cursor.execute(f"SELECT waga, nr_palety, status FROM {table_pal} WHERE id=%s", (id,))
+            paleta_data = cursor.fetchone()
+            waga_val = paleta_data[0] if paleta_data else 0
+            nr_palety_val = paleta_data[1] if paleta_data and len(paleta_data) > 1 else None
+            status_val = paleta_data[2] if paleta_data and len(paleta_data) > 2 else 'unknown'
+            
             cursor.execute(f"DELETE FROM {table_pal} WHERE id=%s", (id,))
+            
+            # Log to palety_historia - usunięcie palety
+            try:
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'USUNIECIE', %s, %s)",
+                    (id, linia, f"Usunięto paletę z workowania: {nr_palety_val or 'ID='+str(id)}, waga: {waga_val} kg, status: {status_val}", session.get('login'))
+                )
+            except Exception as hist_err:
+                current_app.logger.warning('Failed to log history for deleted paleta %s: %s', id, hist_err)
+            
             cursor.execute(
                 f"UPDATE {table_plan} SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s AND status != 'przyjeta') WHERE id = %s",
                 (plan_id, plan_id),
@@ -1007,6 +1067,16 @@ def register_warehouse_management_routes(
                 current_app.logger.warning('[WAREHOUSE-EDIT] %s', msg)
                 flash(msg, 'warning')
                 return redirect(safe_return())
+            
+            # Log to palety_historia - edycja wagi
+            try:
+                old_waga = result.get('old_waga', 0)
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'EDYCJA_WAGI', %s, %s)",
+                    (paleta_id, linia, f"Zmieniono wagę: {old_waga} kg → {waga} kg", session.get('login'))
+                )
+            except Exception as hist_err:
+                current_app.logger.warning('Failed to log history for edited paleta %s: %s', paleta_id, hist_err)
 
             conn.commit()
             current_app.logger.info('Edytowano paletę ID=%s, waga=%s kg, użytkownik=%s', paleta_id, waga, session.get('login'))
@@ -1095,7 +1165,25 @@ def register_warehouse_management_routes(
 
             plan_id = row[0]
             paleta_workowanie_id = row[1] if len(row) > 1 else None
+            
+            # Get paleta details for history before deletion
+            cursor.execute(f"SELECT nr_palety, produkt, waga_netto, lokalizacja FROM {table_mag} WHERE id=%s", (paleta_id,))
+            mag_data = cursor.fetchone()
+            nr_pal = mag_data[0] if mag_data else None
+            produkt = mag_data[1] if mag_data and len(mag_data) > 1 else ''
+            waga = mag_data[2] if mag_data and len(mag_data) > 2 else 0
+            lokalizacja = mag_data[3] if mag_data and len(mag_data) > 3 else ''
+            
             cursor.execute(f"DELETE FROM {table_mag} WHERE id=%s", (paleta_id,))
+            
+            # Log to palety_historia - usunięcie z magazynu
+            try:
+                cursor.execute(
+                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'USUNIECIE_Z_MAGAZYNU', %s, %s, %s)",
+                    (paleta_id, linia, lokalizacja, f"Usunięto z magazynu: {nr_pal or 'ID='+str(paleta_id)}, {produkt}, {waga} kg", session.get('login'))
+                )
+            except Exception as hist_err:
+                current_app.logger.warning('Failed to log history for deleted paleta from magazyn %s: %s', paleta_id, hist_err)
             try:
                 if paleta_workowanie_id:
                     cursor.execute(
@@ -1405,28 +1493,142 @@ def register_warehouse_management_routes(
             else:
                 override_name, override_ip = _select_preferred_printer(cursor)
 
+            candidate_printers = []
+            seen_targets = set()
+
+            def _append_candidate(name, ip):
+                key = ((name or '').strip().lower(), (ip or '').strip().lower())
+                if key in seen_targets:
+                    return
+                seen_targets.add(key)
+                candidate_printers.append((name, ip))
+
+            _append_candidate(override_name, override_ip)
+
+            # Niezależnie od wyboru ręcznego warto próbować kolejne aktywne drukarki,
+            # bo timeout pojedynczej drukarki jest częsty i chwilowy.
+            for printer_row in _list_active_printers(cursor):
+                cand_name = printer_row[1] if len(printer_row) > 1 else None
+                cand_ip = printer_row[2] if len(printer_row) > 2 else None
+                _append_candidate(cand_name, cand_ip)
+
+            # Last resort: fallback to configured default in PrintServer.
+            _append_candidate(None, None)
+
+            local_bridge_fallback = None
+            try:
+                fallback_printers = []
+                fallback_seen = set()
+                for cand_name, cand_ip in candidate_printers:
+                    final_name = cand_name or printer.printer_name
+                    final_ip = cand_ip or printer.printer_ip
+                    if not final_ip:
+                        continue
+                    fallback_key = (str(final_name).strip().lower(), str(final_ip).strip().lower())
+                    if fallback_key in fallback_seen:
+                        continue
+                    fallback_seen.add(fallback_key)
+                    fallback_printers.append({'name': final_name, 'ip': final_ip})
+
+                if fallback_printers:
+                    endpoint_entries = []
+                    endpoint_seen = set()
+
+                    def _append_bridge_endpoints(base_name, raw_base):
+                        base_value = str(raw_base or '').strip().rstrip('/')
+                        if not base_value:
+                            return
+
+                        lowered = base_value.lower()
+                        if lowered.endswith('/drukuj-zpl'):
+                            base_value = base_value[:-11]
+                        elif lowered.endswith('/status'):
+                            base_value = base_value[:-7]
+
+                        if '://' not in base_value:
+                            base_value = f'https://{base_value}'
+
+                        variants = [base_value]
+                        if base_value.lower().startswith('https://'):
+                            variants.append('http://' + base_value[8:])
+                        elif base_value.lower().startswith('http://'):
+                            variants.append('https://' + base_value[7:])
+
+                        for variant_index, variant_base in enumerate(variants, start=1):
+                            normalized_variant = variant_base.strip().rstrip('/')
+                            if not normalized_variant:
+                                continue
+                            dedupe_key = normalized_variant.lower()
+                            if dedupe_key in endpoint_seen:
+                                continue
+                            endpoint_seen.add(dedupe_key)
+                            suffix = '' if variant_index == 1 else '_alt'
+                            endpoint_entries.append(
+                                {
+                                    'name': f'{base_name}{suffix}',
+                                    'endpoint': normalized_variant + '/drukuj-zpl',
+                                    'status_endpoint': normalized_variant + '/status',
+                                }
+                            )
+
+                    shared_bridge_base = str(os.getenv('PRINTER_CLIENT_BRIDGE_URL', '') or '').strip().rstrip('/')
+                    if not shared_bridge_base:
+                        shared_bridge_base = str(os.getenv('PRINTER_BRIDGE_URL', '') or '').strip().rstrip('/')
+
+                    _append_bridge_endpoints('shared_bridge', shared_bridge_base)
+                    _append_bridge_endpoints('localhost_bridge', 'https://127.0.0.1:3001')
+
+                    primary_endpoint = endpoint_entries[0] if endpoint_entries else None
+                    local_bridge_fallback = {
+                        'endpoint': (primary_endpoint or {}).get('endpoint'),
+                        'status_endpoint': (primary_endpoint or {}).get('status_endpoint'),
+                        'endpoints': endpoint_entries,
+                        'copies': 2,
+                        'zpl': printer.build_finished_product_label_zpl(label_data),
+                        'printers': fallback_printers,
+                        'reason': 'server_printer_timeout',
+                    }
+            except Exception as fallback_err:
+                current_app.logger.warning('Nie udało się przygotować fallbacku lokalnego wydruku: %s', fallback_err)
+
+            ok = False
+            msg = 'Błąd druku'
             target_name = override_name or printer.printer_name
             target_ip = override_ip or printer.printer_ip
-            ok = True
-            msg = f"Wysłano do drukarki {target_name} ({target_ip})"
-            # Drukujemy 2 kopie etykiety wyrobu gotowego
-            for copy_num in range(1, 3):
-                print_ok, print_msg = printer.print_finished_product_label(
-                    label_data,
-                    override_ip=override_ip,
-                    override_name=override_name,
-                )
-                if not print_ok:
-                    ok = False
-                    msg = f"{print_msg} (kopia {copy_num}/2)"
-                    current_app.logger.warning(
-                        'Ręczny wydruk paleta_id=%s nieudany na kopii %s/2 (drukarka=%s, ip=%s): %s',
-                        paleta_id,
-                        copy_num,
-                        target_name,
-                        target_ip,
-                        print_msg,
+
+            for candidate_index, (cand_name, cand_ip) in enumerate(candidate_printers, start=1):
+                candidate_target_name = cand_name or printer.printer_name
+                candidate_target_ip = cand_ip or printer.printer_ip
+                candidate_ok = True
+
+                for copy_num in range(1, 3):
+                    print_ok, print_msg = printer.print_finished_product_label(
+                        label_data,
+                        override_ip=cand_ip,
+                        override_name=cand_name,
                     )
+                    if not print_ok:
+                        candidate_ok = False
+                        msg = f"{print_msg} (kopia {copy_num}/2)"
+                        current_app.logger.warning(
+                            'Ręczny wydruk paleta_id=%s nieudany na kopii %s/2 (drukarka=%s, ip=%s, próba=%s): %s',
+                            paleta_id,
+                            copy_num,
+                            candidate_target_name,
+                            candidate_target_ip,
+                            candidate_index,
+                            print_msg,
+                        )
+                        break
+
+                if candidate_ok:
+                    ok = True
+                    target_name = candidate_target_name
+                    target_ip = candidate_target_ip
+                    if candidate_index > 1:
+                        msg = f"Wysłano do drukarki {target_name} ({target_ip}) po fallbacku"
+                    else:
+                        msg = f"Wysłano do drukarki {target_name} ({target_ip})"
                     break
             
             if ok:
@@ -1438,6 +1640,10 @@ def register_warehouse_management_routes(
                 'printer_name': target_name,
                 'printer_ip': target_ip,
             }
+
+            if not ok and local_bridge_fallback:
+                response_payload['local_bridge_fallback'] = local_bridge_fallback
+
             if requested_printer_id:
                 response_payload['printer_id'] = requested_printer_id
             if requested_data_produkcji:
