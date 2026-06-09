@@ -403,7 +403,7 @@ def inject_system_errors_count():
             return dict(system_errors_count=0)
         import os
         from flask import current_app
-        error_log_path = os.path.join(current_app.root_path, '..', 'logs', 'error.log')
+        error_log_path = os.path.join(current_app.root_path, 'logs', 'error.log')
         if not os.path.exists(error_log_path):
             return dict(system_errors_count=0)
         with open(error_log_path, 'r', encoding='utf-8', errors='ignore') as f:

@@ -93,11 +93,31 @@
             <h6 style="margin: 0; font-size: 12px; font-weight: 700; color: #475569;">Szczegóły Przesunięcia</h6>
         </div>
         <div style="padding: 20px;">
-            <div style="display: grid; grid-template-columns: 120px; gap: 15px; align-items: end;">
-                <div style="display: flex; flex-direction: column;">
+            <div style="display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap;">
+                <div style="display: flex; flex-direction: column; width: 120px;">
                     <label style="font-size: 11px; font-weight: 800; color: #3b82f6; margin-bottom: 6px;">LICZBA PALET</label>
                     <input type="number" id="pallet_count" value="0" min="0" max="50" onchange="generateManualRows(this.value)" {% if is_readonly_issue %}disabled{% endif %}
                            style="height: 42px; width: 100%; background: #eff6ff; border: 2px solid #3b82f6; border-radius: 8px; padding: 0; font-weight: 900; text-align: center; font-size: 20px; color: #1e40af;">
+                </div>
+                <div style="flex: 1; min-width: 320px; max-width: 560px; background: #1e293b; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                        <span class="material-icons" style="color: #94a3b8; font-size: 20px;">qr_code_scanner</span>
+                        <input type="text" id="scanner_input" placeholder="Wpisz nazwę, regał, partię lub zeskanuj kod..." 
+                               {% if is_readonly_issue %}disabled{% endif %}
+                               list="palletGlobalSuggestionsList"
+                               oninput="queueScannerSuggestions(this.value)"
+                               style="flex: 1; min-width: 0; height: 34px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: white; font-size: 13px; font-weight: 600; outline: none; padding: 0 10px;"
+                               onkeypress="if(event.key === 'Enter') lookupAndAddPallets()">
+                        <datalist id="palletGlobalSuggestionsList"></datalist>
+                        <button id="lookup_btn" onclick="lookupAndAddPallets()" {% if is_readonly_issue %}disabled{% endif %} style="height: 34px; background: #3b82f6; color: white; border: none; border-radius: 8px; padding: 0 14px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;">
+                            SZUKAJ
+                        </button>
+                    </div>
+                    <div style="display: flex; justify-content: flex-start;">
+                        <button id="add_row_btn" onclick="addEmptyRow()" {% if is_readonly_issue %}disabled{% endif %} style="background: #10b981; color: white; border: none; border-radius: 8px; padding: 9px 12px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                            <span class="material-icons" style="font-size: 16px;">add_box</span> DODAJ WPIS
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -153,9 +173,9 @@
                         <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 160px;">SKĄD (ŹRÓDŁO)</th>
                         <th style="padding: 12px 20px; text-align: right; font-size: 11px; color: #64748b; width: 130px;">ILOŚĆ</th>
                         <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 92px;">JEDNOSTKA</th>
-                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 160px;">NR PARTII</th>
-                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 136px;">DATA PRODUKCJI</th>
-                        <th style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 136px;">DATA PRZYDATNOŚCI</th>
+                        <th id="th_partia" style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 160px;">NR PARTII</th>
+                        <th id="th_prod" style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 136px;">DATA PRODUKCJI</th>
+                        <th id="th_przyd" style="padding: 12px 20px; text-align: left; font-size: 11px; color: #64748b; width: 136px;">DATA PRZYDATNOŚCI</th>
                         <th style="padding: 12px 20px; text-align: center; font-size: 11px; color: #64748b; width: 80px;">AKCJA</th>
                     </tr>
                 </thead>
@@ -167,24 +187,7 @@
         </div>
     </div>
 
-    <div style="display: flex; gap: 16px; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; margin-top: 20px;">
-        <div style="flex: 1; min-width: 320px; max-width: 560px; background: #1e293b; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
-            <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
-                <span class="material-icons" style="color: #94a3b8; font-size: 20px;">qr_code_scanner</span>
-                <input type="text" id="scanner_input" placeholder="Zeskanuj paletę / regał / ID" 
-                       {% if is_readonly_issue %}disabled{% endif %}
-                       style="flex: 1; min-width: 0; height: 34px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: white; font-size: 13px; font-weight: 600; outline: none; padding: 0 10px;"
-                       onkeypress="if(event.key === 'Enter') lookupAndAddPallets()">
-                <button id="lookup_btn" onclick="lookupAndAddPallets()" {% if is_readonly_issue %}disabled{% endif %} style="height: 34px; background: #3b82f6; color: white; border: none; border-radius: 8px; padding: 0 14px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;">
-                    SZUKAJ
-                </button>
-            </div>
-            <div style="display: flex; justify-content: flex-start;">
-                <button id="add_row_btn" onclick="addEmptyRow()" {% if is_readonly_issue %}disabled{% endif %} style="background: #10b981; color: white; border: none; border-radius: 8px; padding: 9px 12px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
-                    <span class="material-icons" style="font-size: 16px;">add_box</span> DODAJ WPIS
-                </button>
-            </div>
-        </div>
+    <div style="display: flex; gap: 16px; justify-content: flex-end; align-items: flex-end; flex-wrap: wrap; margin-top: 20px;">
 
         <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin-left: auto;">
             <div id="save_transfer_info" style="display: none; max-width: 520px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: 8px; padding: 8px 10px; font-size: 12px; font-weight: 700; text-align: right;"></div>
@@ -206,6 +209,7 @@
     const READ_ONLY_MODE = {{ 'true' if is_readonly_issue else 'false' }};
     const IS_NEW_TRANSFER_FORM = {{ 'true' if not dostawa else 'false' }};
     let items = {{ (dostawa['items']|tojson if dostawa and dostawa.get('items') else '[]')|safe }};
+    let formSubmitAttempted = false;
     let copiedRowsInfoByItem = {};
     let palletPickerState = null;
     let pendingDraftToDecide = null;
@@ -427,14 +431,12 @@
     }
 
     function isItemComplete(item) {
+        const bypassLookup = isWarehouseLookupBypassed();
         return (
             isFilled(item && item.productName)
-            && isFilled(item && item.sourceSpot)
+            && (bypassLookup || isFilled(item && item.sourceSpot))
             && isFilled(getItemUnit(item))
             && isPositiveNumber(getItemQuantity(item))
-            && isFilled(item && item.nr_partii)
-            && isFilled(item && item.data_produkcji)
-            && isFilled(item && item.data_przydatnosci)
         );
     }
 
@@ -523,6 +525,47 @@
         }
     }
 
+    let scannerSuggestTimer = null;
+    let scannerSuggestAbortController = null;
+
+    function queueScannerSuggestions(value) {
+        if (scannerSuggestTimer) clearTimeout(scannerSuggestTimer);
+        const prefix = (value || '').trim();
+        if (prefix.length < 2) return;
+        scannerSuggestTimer = setTimeout(() => fetchScannerSuggestions(prefix), 250);
+    }
+
+    async function fetchScannerSuggestions(prefix) {
+        if (scannerSuggestAbortController) scannerSuggestAbortController.abort();
+        scannerSuggestAbortController = new AbortController();
+        const bypassLookup = isWarehouseLookupBypassed();
+        try {
+            const res = await fetch(`/magazyn-dostawy/api/dostepne-palety?linia={{ linia }}&prefix=${encodeURIComponent(prefix)}&skip_warehouse_lookup=${bypassLookup ? '1' : '0'}`, {
+                signal: scannerSuggestAbortController.signal
+            });
+            const data = await res.json();
+            if (data.success && Array.isArray(data.pallets)) {
+                let list = document.getElementById('palletGlobalSuggestionsList');
+                if (!list) return;
+                list.innerHTML = '';
+                // Ograniczamy do 25 podpowiedzi, by nie zapchać przeglądarki
+                data.pallets.slice(0, 25).forEach(p => {
+                    const option = document.createElement('option');
+                    // Jako value wstawiamy SSCC lub ID
+                    const sscc = p.nr_palety || p.id;
+                    option.value = sscc;
+                    // Jako tekst wstawiamy nazwę i lokalizację, żeby widział w podpowiedziach
+                    const stan = p.stan_magazynowy ? p.stan_magazynowy + ' kg/szt' : 'Brak';
+                    option.textContent = `${p.nazwa} | Lokalizacja: ${p.lokalizacja || '-'} | Stan: ${stan}`;
+                    list.appendChild(option);
+                });
+            }
+        } catch (error) {
+            if (error && error.name === 'AbortError') return;
+            console.warn('Scanner suggestions failed', error);
+        }
+    }
+
     function handleLocationSuggestInput(inputElement) {
         if (!inputElement) {
             return;
@@ -594,6 +637,7 @@
     }
 
     function getUnknownSourceLocations() {
+        if (isWarehouseLookupBypassed()) return [];
         const unique = new Set();
         items.forEach(item => {
             const source = normalizeLocation(item && item.sourceSpot);
@@ -605,8 +649,8 @@
     }
 
     function getValidationBorderStyle(hasError) {
-        if (hasError) {
-            return 'border: 2px solid #dc2626; box-shadow: inset 0 0 0 1px rgba(220,38,38,0.08);';
+        if (hasError && formSubmitAttempted) {
+            return 'border: 2px solid #dc2626; box-shadow: inset 0 0 0 1px rgba(220,38,38,0.08); background-color: #fff1f2;';
         }
         return 'border: 1px solid #e2e8f0;';
     }
@@ -616,9 +660,11 @@
         const unit = getItemUnit(item);
         const quantity = getItemQuantity(item);
 
+        const bypassLookup = isWarehouseLookupBypassed();
+
         const sourceInvalid =
-            !isFilled(sourceLoc)
-            || !isKnownSourceLocation(sourceLoc)
+            (!bypassLookup && !isFilled(sourceLoc))
+            || (!bypassLookup && isFilled(sourceLoc) && !isKnownSourceLocation(sourceLoc))
             || isRouteConflictLocation(sourceLoc, targetLoc);
 
         return {
@@ -626,9 +672,9 @@
             sourceSpot: sourceInvalid,
             quantity: !isPositiveNumber(quantity),
             unit: !isFilled(unit),
-            nr_partii: !isFilled(item && item.nr_partii),
-            data_produkcji: !isFilled(item && item.data_produkcji),
-            data_przydatnosci: !isFilled(item && item.data_przydatnosci),
+            nr_partii: false,
+            data_produkcji: false,
+            data_przydatnosci: false,
         };
     }
 
@@ -902,10 +948,23 @@
         if (items.length === 0) {
             noItems.style.display = 'block';
             copiedRowsInfoByItem = {};
+            
+            document.getElementById('th_partia').style.display = 'none';
+            document.getElementById('th_prod').style.display = 'none';
+            document.getElementById('th_przyd').style.display = 'none';
+            
             updateSaveButtonState();
             return;
         }
         noItems.style.display = 'none';
+
+        const anyHasPartia = items.some(it => isFilled(it.nr_partii));
+        const anyHasProd = items.some(it => isFilled(it.data_produkcji));
+        const anyHasPrzyd = items.some(it => isFilled(it.data_przydatnosci));
+
+        document.getElementById('th_partia').style.display = anyHasPartia ? 'table-cell' : 'none';
+        document.getElementById('th_prod').style.display = anyHasProd ? 'table-cell' : 'none';
+        document.getElementById('th_przyd').style.display = anyHasPrzyd ? 'table-cell' : 'none';
 
         items.forEach((item, index) => {
             const row = document.createElement('tr');
@@ -928,33 +987,34 @@
                         <span class="material-icons" style="font-size:20px;">content_copy</span>
                    </button>`
                 : '';
-            const copyNoticeInline = copiedFromNumber
-                ? `<div style="font-size: 10px; font-weight: 700; color: #b91c1c; text-align: left; margin-bottom: 4px;">Skopiowano z palety nr ${copiedFromNumber}</div>`
-                : '';
+            const showWarning = (hasErr) => (hasErr && formSubmitAttempted) ? `<span class="material-icons" style="color: #dc2626; font-size: 16px; position: absolute; right: 18px; top: 17px; pointer-events: none;">warning</span>` : '';
 
             row.innerHTML = `
-                <td style="padding: 10px 20px; font-size: 13px; color: #64748b; vertical-align: middle; font-weight: 800;">${index + 1}</td>
-                <td style="padding: 8px 10px; border: none;">
-                    ${copyNoticeInline}
+                <td style="padding: 10px 20px; font-size: 13px; color: #64748b; vertical-align: middle; font-weight: 800; white-space: nowrap;">
+                    ${index + 1}
+                </td>
+                <td style="padding: 8px 10px; border: none; position: relative;">
+                    ${copiedFromNumber ? `<div style="font-size: 10px; font-weight: 700; color: #b91c1c; margin-bottom: 4px;">Skopiowano z palety nr ${copiedFromNumber}</div>` : ''}
+                    ${showWarning(validation.productName)}
                     <input type="text" ${disabledAttr} value="${escapeAttr(item.productName || '')}" onchange="updateItem(${index}, 'productName', this.value)"
                            list="productsList" placeholder="Wybierz produkt"
                            style="width: 100%; height: 34px; ${productBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; font-weight: 700; box-sizing: border-box; min-width: 0;">
                 </td>
-                <td style="padding: 8px 10px; border: none;">
-                    ${copyNoticeInline}
+                <td style="padding: 8px 10px; border: none; position: relative;">
+                    ${showWarning(validation.sourceSpot)}
                       <input type="text" ${disabledAttr} value="${escapeAttr(item.sourceSpot || '')}" onchange="updateItem(${index}, 'sourceSpot', this.value.toUpperCase())"
                           oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" list="locationSuggestionsList" autocomplete="off"
                            placeholder="np. BF_MS01"
                            style="width: 100%; height: 34px; ${sourceBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; box-sizing: border-box; min-width: 0;">
                 </td>
-                <td style="padding: 8px 10px; border: none;">
-                    ${copyNoticeInline}
+                <td style="padding: 8px 10px; border: none; position: relative;">
+                    ${showWarning(validation.quantity)}
                     <input type="number" ${disabledAttr} value="${escapeAttr(quantityValue)}"
                            onchange="updateItem(${index}, 'quantity', this.value)" placeholder=""
                            style="width: 100%; height: 34px; ${quantityBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; text-align: right; font-weight: 700; box-sizing: border-box; min-width: 0;">
                 </td>
-                <td style="padding: 8px 10px; border: none;">
-                    ${copyNoticeInline}
+                <td style="padding: 8px 10px; border: none; position: relative;">
+                    ${showWarning(validation.unit)}
                     <select ${disabledAttr} onchange="updateItem(${index}, 'unit', this.value)"
                             style="width: 100%; height: 34px; ${unitBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 13px; font-weight: 700; box-sizing: border-box; min-width: 0; background: white;">
                         <option value="" ${unitValue === '' ? 'selected' : ''}>--</option>
@@ -962,20 +1022,17 @@
                         <option value="szt" ${unitValue === 'szt' ? 'selected' : ''}>szt</option>
                     </select>
                 </td>
-                <td style="padding: 8px 10px; border: none;">
-                    ${copyNoticeInline}
+                <td style="padding: 8px 10px; border: none; ${anyHasPartia ? '' : 'display:none;'}">
                     <input type="text" ${disabledAttr} value="${escapeAttr(item.nr_partii || '')}" onchange="updateItem(${index}, 'nr_partii', this.value)"
                            placeholder="Nr partii"
                            style="width: 100%; height: 34px; ${batchBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
                 </td>
-                <td style="padding: 8px 10px; border: none;">
-                    ${copyNoticeInline}
+                <td style="padding: 8px 10px; border: none; ${anyHasProd ? '' : 'display:none;'}">
                     <input type="date" ${disabledAttr} value="${escapeAttr(item.data_produkcji || '')}" onchange="updateItem(${index}, 'data_produkcji', this.value)"
                            title="Data produkcji"
                            style="width: 100%; height: 34px; ${prodDateBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
                 </td>
-                <td style="padding: 8px 10px; border: none;">
-                    ${copyNoticeInline}
+                <td style="padding: 8px 10px; border: none; ${anyHasPrzyd ? '' : 'display:none;'}">
                     <input type="date" ${disabledAttr} value="${escapeAttr(item.data_przydatnosci || '')}" onchange="updateItem(${index}, 'data_przydatnosci', this.value)"
                            title="Data przydatności"
                            style="width: 100%; height: 34px; ${expiryDateBorderStyle} border-radius: 4px; padding: 0 8px; font-size: 12px; font-weight: 600; box-sizing: border-box; min-width: 0;">
@@ -1550,7 +1607,13 @@
         }
 
         if (items.length === 0) return showToast('Dodaj przynajmniej jedną paletę!', 'warning');
-        if (!items.every(isItemComplete)) return showToast('Uzupełnij wszystkie pola w każdej palecie.', 'warning');
+        
+        formSubmitAttempted = true;
+        renderItems();
+        
+        if (!items.every(isItemComplete)) {
+            return showToast('Uzupełnij wszystkie pola w każdej palecie.', 'warning');
+        }
 
         const payload = {
             id: "{{ dostawa.id if dostawa else '' }}",

@@ -190,6 +190,38 @@ def _filter_audit_entries(entries, *, user, action, trigger, ip, date_from, date
     return out
 
 
+def _explain_error(lines):
+    text = '\n'.join(lines).lower()
+    if '1054' in text and 'unknown column' in text:
+        return "Błąd bazy danych: Próba odwołania się do kolumny, która nie istnieje w tabeli."
+    if '1062' in text and 'duplicate entry' in text:
+        return "Błąd bazy danych: Próba dodania rekordu z wartością, która już istnieje (naruszenie unikalności)."
+    if 'programmingerror' in text:
+        return "Błąd bazy danych: Nieprawidłowe zapytanie SQL lub błąd w strukturze bazy."
+    if 'templatenotfound' in text:
+        return "Błąd aplikacji: Nie znaleziono pliku widoku (szablonu HTML) wymaganego do wyrenderowania strony."
+    if 'keyerror' in text:
+        return "Błąd kodu: Próba odwołania się do nieistniejącego klucza w słowniku lub brakuje danych z formularza."
+    if 'attributeerror' in text:
+        return "Błąd kodu: Próba użycia metody/pola na obiekcie, który jej nie posiada (często na wartości None)."
+    if 'typeerror' in text:
+        return "Błąd kodu: Użyto nieprawidłowego typu danych (np. dodawanie tekstu do liczby)."
+    if 'valueerror' in text:
+        return "Błąd kodu: Otrzymano nieoczekiwaną wartość (np. przekonwertowanie liter na liczbę całkowitą)."
+    if 'operationalerror' in text and ('timeout' in text or 'lost connection' in text):
+        return "Błąd sieci: Przerwanie połączenia z bazą danych lub zapytanie trwało zbyt długo."
+    if 'operationalerror' in text:
+        return "Błąd bazy danych: Problem po stronie silnika bazy."
+    if 'werkzeug.routing.builderror' in text:
+        return "Błąd ścieżek: Próba wygenerowania linku do strony (url_for), która nie istnieje lub brakuje jej zmiennych."
+    if 'memoryerror' in text:
+        return "Błąd krytyczny: Brak pamięci RAM do przetworzenia zapytania."
+    if 'indentationerror' in text or 'syntaxerror' in text:
+        return "Błąd składni Pythona: Źle sformatowany kod (np. złe wcięcia, brakuje nawiasu)."
+    return "Nieoczekiwany wyjątek. Rozwiń szczegóły (Traceback), by sprawdzić dokładnie w której linijce kodu wystąpił problem."
+
+
+
 def register_admin_diagnostics_routes(admin_bp):
     @admin_bp.route('/admin/ustawienia/errors')
     @dynamic_role_required('errors')
@@ -198,9 +230,9 @@ def register_admin_diagnostics_routes(admin_bp):
         error_log_path = os.path.join(_project_root(), 'logs', 'error.log')
 
         try:
-            lines_count = int(request.args.get('lines', 100))
+            lines_count = int(request.args.get('lines', 1000))
         except ValueError:
-            lines_count = 100
+            lines_count = 1000
 
         raw_lines = _tail_lines_binary(error_log_path, lines_count)
         parsed_errors = []
@@ -222,6 +254,11 @@ def register_admin_diagnostics_routes(admin_bp):
 
             generic_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ ERROR: (.*)', line)
             if generic_match:
+                if current_entry and current_entry.get('type') == 'TRAP' and current_entry['timestamp'] == generic_match.group(1):
+                    current_entry['message'] = generic_match.group(2)
+                    current_entry['lines'].append(generic_match.group(2))
+                    continue
+
                 if current_entry:
                     parsed_errors.append(current_entry)
                 current_entry = {
@@ -241,6 +278,9 @@ def register_admin_diagnostics_routes(admin_bp):
 
         if current_entry:
             parsed_errors.append(current_entry)
+
+        for err in parsed_errors:
+            err['explanation'] = _explain_error(err['lines'])
 
         parsed_errors.reverse()
 

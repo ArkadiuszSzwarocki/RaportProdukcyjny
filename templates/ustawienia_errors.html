@@ -132,11 +132,22 @@
                     <span class="error-badge">{{ err.type }}</span>
                 </div>
                 <div class="error-body">
+                    {% if err.explanation %}
+                    <div style="background: #e8f4fd; border-left: 4px solid #2196f3; padding: 12px 20px; margin: 0; font-size: 0.9rem; color: #0d47a1; display: flex; align-items: flex-start; gap: 10px;">
+                        <span class="material-icons" style="font-size: 20px;">lightbulb</span>
+                        <div><strong>Diagnoza:</strong> {{ err.explanation }}</div>
+                    </div>
+                    {% endif %}
                     <pre>{{ err.lines|join('\n') }}</pre>
                 </div>
                 {% if err.type == 'TRAP' %}
-                <div class="error-footer">
-                    <span class="muted"><span class="material-icons" style="font-size:12px;">info</span> To zdarzenie zostało zarejestrowane przez automatyczną pułapkę błędów (Error Trap).</span>
+                <div class="error-footer" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span class="muted"><span class="material-icons" style="font-size:12px;">info</span> Zdarzenie z pułapki (Error Trap).</span>
+                    {% if err.url and err.url != 'N/A' and err.url != '?' %}
+                    <a href="{{ err.url }}" target="_blank" class="btn btn-sm btn-outline-primary" style="display:flex;align-items:center;gap:4px;">
+                        <span class="material-icons" style="font-size:16px;">bug_report</span> Sprawdź ponownie (Otwórz URL)
+                    </a>
+                    {% endif %}
                 </div>
                 {% endif %}
             </article>

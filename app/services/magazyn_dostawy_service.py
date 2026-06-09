@@ -298,7 +298,7 @@ class MagazynDostawyService:
                 return False, f"Błąd w lokalizacji źródłowej: {error_msg}"
 
         unknown_sources = sorted([loc for loc in source_locations if not _is_known_source_location(loc)])
-        if unknown_sources:
+        if unknown_sources and not global_skip_warehouse_lookup:
             preview = ', '.join(unknown_sources[:5])
             suffix = ', ...' if len(unknown_sources) > 5 else ''
             return False, f"Nieznane lokalizacje źródłowe: {preview}{suffix}."
