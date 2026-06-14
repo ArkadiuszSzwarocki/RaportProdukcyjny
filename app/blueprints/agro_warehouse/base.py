@@ -326,6 +326,16 @@ def raport_production_inventory(sesja_id):
 def close_production_inventory():
     sesja_id = request.json.get('sesja_id')
     success, msg = ProductionInventoryService.close_session(sesja_id)
+    if success:
+        from app.services.office_print_service import trigger_office_print_url
+        print_url = url_for(
+            'agro_warehouse.raport_production_inventory',
+            sesja_id=sesja_id,
+            linia=request.args.get('linia', 'AGRO').upper(),
+            internal_print=1,
+            _external=True
+        )
+        trigger_office_print_url(print_url, typ_raportu='raport_przyjecia_z_produkcji')
     return jsonify({'success': success, 'message': msg})
 
 @agro_warehouse_bp.route('/agro/api/inwentaryzacja-produkcji/zatwierdz', methods=['POST'])

@@ -852,6 +852,25 @@ def register_warehouse_management_routes(
                             (row[0], row[1]),
                         )
                         conn.commit()
+                        
+                        # --- Automatyczny wydruk raportu na drukarce biurowej, jeśli to ostatnia paleta w zakończonym zleceniu ---
+                        try:
+                            cursor.execute(f"SELECT status FROM {table_plan} WHERE id=%s", (plan_id,))
+                            plan_status_row = cursor.fetchone()
+                            if plan_status_row and str(plan_status_row[0]).strip().lower() in ('zakończone', 'zakończony', 'zakonczone'):
+                                cursor.execute(f"SELECT COUNT(id) FROM {table_pal} WHERE plan_id=%s", (plan_id,))
+                                total_pallets = cursor.fetchone()[0] or 0
+                                
+                                cursor.execute(f"SELECT COUNT(id) FROM {table_pal} WHERE plan_id=%s AND status='przyjeta'", (plan_id,))
+                                accepted_pallets = cursor.fetchone()[0] or 0
+                                
+                                if total_pallets > 0 and total_pallets == accepted_pallets:
+                                    current_app.logger.info("Magazynier przyjął ostatnią paletę zlecenia %s. Wyzwalanie wydruku biurowego.", plan_id)
+                                    from app.services.office_print_service import trigger_office_print
+                                    trigger_office_print(plan_id)
+                        except Exception as print_err:
+                            current_app.logger.error('Failed to check/trigger auto-print for plan %s: %s', plan_id, print_err)
+                        # ---------------------------------------------------------------------------------------------------------
                 except Exception as error:
                     current_app.logger.error('Failed to update Magazyn aggregates for paleta %s: %s', paleta_id, error, exc_info=True)
                     try:

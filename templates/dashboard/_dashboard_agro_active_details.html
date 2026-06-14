@@ -11,7 +11,7 @@
             {% set total_count = fb_palety|length %}
             {% set items_to_render = fb_palety|reverse %}
             {% for pal in items_to_render %}
-            {% set loop_idx = (total_count - loop.index + 1) if linia|upper == 'PSD' else loop.index %}
+            {% set loop_idx = total_count - loop.index + 1 %}
             {% set szarza_id = (pal[2]|int if pal|length > 2 else 0) %}
             {% if szarza_id <= 0 %}{% set szarza_id = loop_idx %}{% endif %}
             <div class="active-order-szarze-item">

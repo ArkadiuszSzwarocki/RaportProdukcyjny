@@ -417,7 +417,7 @@ class DashboardService:
                 from app.services.mqtt_service import get_latest_data
                 latest_d = get_latest_data()
                 current_counter = latest_d.get('counter', 0)
-                if current_counter > start_machine_counter and start_machine_counter > 0:
+                if current_counter >= start_machine_counter and start_machine_counter is not None:
                     live_total_pulled = current_counter - start_machine_counter
             except:
                 pass
@@ -479,6 +479,7 @@ class DashboardService:
                     if p_item['is_active']:
                         live_usage_for_roll = max(live_total_pulled - already_logged, 0)
                         p_item['stan_magazynowy'] = p_item['stan_poczatkowy'] - live_usage_for_roll
+                        p_item['live_zuzyte'] = live_usage_for_roll
                         maszyna_opakowania.append(p_item)
                     else:
                         inactive_opakowania.append(p_item)

@@ -1,0 +1,72 @@
+<!-- Historia rolek -->
+    <p class="section-title" style="margin-top: 24px;">
+        <span class="material-icons" style="font-size: 18px; color: #64748b;">history</span>
+        Historia rolek — zlecenie #{{ active_plan.id }}
+    </p>
+
+    {% if history %}
+    <div style="overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; background: #fff;">
+        <table class="folio-history-table">
+            <thead>
+                <tr>
+                    <th>Typ</th>
+                    <th>Opakowanie</th>
+                    <th>START</th>
+                    <th>STOP</th>
+                    <th>Pobrano</th>
+                    <th>Zużyto (Δ)</th>
+                    <th>Zostało</th>
+                    <th style="color: #dc2626;">Straty</th>
+                    <th>Czas</th>
+                    <th>Operator</th>
+                    <th>Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in history %}
+                <tr>
+                    <td>
+                        <span class="badge-zdarzenie badge-{{ row.typ_zdarzenia or 'ROZLICZENIE' }}">
+                            {{ row.typ_zdarzenia or 'ROZLICZENIE' }}
+                        </span>
+                    </td>
+                    <td>{{ row.opakowanie_nazwa }}</td>
+                    <td>{{ row.licznik_start }}</td>
+                    <td>{{ row.licznik_stop }}</td>
+                    <td>{{ row.stan_przed|int }}</td>
+                    <td>{{ row.zuzyte_worki|int }}</td>
+                    <td>{{ row.pozostalo_na_rolce|int }}</td>
+                    <td class="{% if (row.straty_worki or 0) > 0 %}losses-cell{% endif %}">
+                        {% if (row.straty_worki or 0) > 0 %}
+                            ⚠️ {{ row.straty_worki|int }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td style="white-space: nowrap;">
+                        {{ row.created_at.strftime('%d.%m %H:%M') if row.created_at else '—' }}
+                    </td>
+                    <td>{{ row.autor_login or '—' }}</td>
+                    <td>
+                        {% if row.typ_zdarzenia == 'ZAMKNIECIE' %}
+                        <form action="{{ url_for('production.agro_folio_undo_close_roll') }}" method="POST" style="display:inline;" onsubmit="return confirm('Cofnąć zamknięcie rolki? Zostanie ona przywrócona na maszynę jako aktywna.');">
+                            <input type="hidden" name="rozliczenie_id" value="{{ row.id }}">
+                            <input type="hidden" name="data_planu" value="{{ data_planu }}">
+                            <button type="submit" class="btn-xs" style="background: none; border: none; color: #dc2626; cursor: pointer;" title="Cofnij zamknięcie">
+                                <span class="material-icons" style="font-size: 18px;">undo</span>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 24px; color: #94a3b8; font-style: italic; font-size: 0.9em;">
+        Brak historii rolek dla tego zlecenia.
+    </div>
+    {% endif %}
+
+    

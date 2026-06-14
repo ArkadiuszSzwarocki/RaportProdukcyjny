@@ -7,14 +7,29 @@
      data-sekcja="{{ sekcja }}"
      data-is-active="{{ 'true' if p[3]|lower == 'w toku' else 'false' }}"
     style="position: relative; overflow: visible; {% if agro_focus_mode and p[3]|lower != 'w toku' %}display: none !important;{% endif %}">
-    <div class="card-header" style="display: flex; align-items: center; width: 100%; gap: 12px; flex-wrap: wrap;">
-        <strong class="card-title" style="margin: 0; white-space: nowrap;">
-            {{ order_index if order_index is defined else (loop.index if loop is defined else '') }}. {{ p[1] }}
-        </strong>
+    <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <strong class="card-title" style="margin: 0; white-space: nowrap;">
+                {{ order_index if order_index is defined else (loop.index if loop is defined else '') }}. {{ p[1] }}
+            </strong>
+            {% if p[7] and p[7]|int > 0 %}
+            <div style="white-space: nowrap; font-size: 0.9em;"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>
+            {% endif %}
+        </div>
+        
+        <div style="flex-grow: 1;"></div>
+        
+        {% set checklist_ok = (sekcja == 'Workowanie' and linia == 'AGRO' and p|length > 26 and p[26]) %}
+        {% if checklist_ok %}
+        <span class="checklist-ok-badge"
+              title="Checklista OK | operator: {{ p[22] if p|length > 22 and p[22] else '-' }} | jakość: {{ p[24] if p|length > 24 and p[24] else '-' }}"
+              style="font-size: 0.7em; margin: 0; white-space: nowrap;">CHECKLISTA OK</span>
+        {% endif %}
+        
         {% if p[13] %}
         <span class="date-badge" style="font-size: 0.8em; color: #334155; font-weight: bold; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">📅 {{ p[13] }}</span>
         {% endif %}
-        
+
         <div class="header-actions" style="display: flex; align-items: center; gap: 8px; margin: 0;">
             {% set role_lc = rola|string|trim|lower %}
             <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>
@@ -98,19 +113,6 @@
             {% endif %}
             {% endif %}
         </div>
-        
-        <div style="flex-grow: 1;"></div>
-        
-        {% set checklist_ok = (sekcja == 'Workowanie' and linia == 'AGRO' and p|length > 26 and p[26]) %}
-        {% if checklist_ok %}
-        <span class="checklist-ok-badge"
-              title="Checklista OK | operator: {{ p[22] if p|length > 22 and p[22] else '-' }} | jakość: {{ p[24] if p|length > 24 and p[24] else '-' }}"
-              style="font-size: 0.7em; margin: 0; white-space: nowrap;">CHECKLISTA OK</span>
-        {% endif %}
-        
-        {% if p[7] and p[7]|int > 0 %}
-        <div style="white-space: nowrap; font-size: 0.9em; margin-left: 12px;"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>
-        {% endif %}
         
     </div>
 

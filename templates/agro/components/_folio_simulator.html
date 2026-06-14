@@ -1,0 +1,32 @@
+    <!-- SYMULATOR MQTT (DEV ONLY) -->
+    <div style="background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 12px; padding: 12px 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px; color: #b45309;">
+            <span class="material-icons">bug_report</span>
+            <div>
+                <strong>Tryb testowy MQTT:</strong> Użyj przycisku, aby zasymulować produkcję worków bez fizycznej maszyny.
+            </div>
+        </div>
+        <div>
+            {% set szt_na_palecie = (1000 / bag_kg)|int if bag_kg and bag_kg > 0 else 50 %}
+            <button type="button" onclick="simMqtt({{ szt_na_palecie }}, 1)" style="background: #10b981; color: white; border: none; border-radius: 6px; padding: 6px 12px; font-weight: bold; cursor: pointer; margin-right: 8px;">+1 Paleta ({{ szt_na_palecie }} szt.)</button>
+            <button type="button" onclick="simMqtt(1, 0)" style="background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 6px 12px; font-weight: bold; cursor: pointer; margin-right: 8px;">+1 szt.</button>
+            <button type="button" onclick="simMqtt(100, 0)" style="background: #f59e0b; color: white; border: none; border-radius: 6px; padding: 6px 12px; font-weight: bold; cursor: pointer; margin-right: 8px;">+100 szt.</button>
+            <button type="button" onclick="simMqtt(500, 0)" style="background: #ea580c; color: white; border: none; border-radius: 6px; padding: 6px 12px; font-weight: bold; cursor: pointer;">+500 szt.</button>
+        </div>
+        <script>
+        function simMqtt(amount, pallets = 0) {
+            fetch('/api/mqtt_simulate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ add_counter: amount, add_pallets: pallets })
+            }).then(r => r.json()).then(data => {
+                if(data.success) {
+                    if(typeof pollLiveStatus === 'function') pollLiveStatus();
+                    else window.location.reload();
+                } else {
+                    alert('Błąd: ' + data.message);
+                }
+            });
+        }
+        </script>
+    </div>

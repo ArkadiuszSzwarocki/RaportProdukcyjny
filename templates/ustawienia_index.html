@@ -377,15 +377,27 @@
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon">🖨️</div>
                 <div class="settings-card-body">
-                    <h3>Zarządzanie Drukarkami</h3>
+                    <h3>Zarządzanie Drukarkami (Zebra)</h3>
                     <p>Konfiguruj drukarki etykiet i urządzenia ZPL.</p>
                     <div class="settings-card-meta">Dodawaj i edytuj adresy IP fizycznych drukarek, które są dostępne w magazynie</div>
                 </div>
                 <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/drukarki" class="btn btn-primary">Przejdź do Drukarek</a>
+                    <a href="/admin/ustawienia/drukarki" class="btn btn-primary">Drukarki Etykiet (Zebra)</a>
                     {% if has_master_section_access %}
                     <a href="{{ url_for('admin.admin_zpl_test') }}" class="btn btn-outline-primary" style="border: 1px solid #2f7dd1; color: #2f7dd1;">Test Drukarki (ZPL)</a>
                     {% endif %}
+                </div>
+            </article>
+
+            <article class="settings-card settings-card-accent">
+                <div class="settings-card-icon">📄</div>
+                <div class="settings-card-body">
+                    <h3>Drukarki Biurowe (Raporty A4)</h3>
+                    <p>Przypisz systemowe drukarki Windows do automatycznych raportów A4.</p>
+                    <div class="settings-card-meta">Decyduj, która drukarka z serwera ma odbierać dany typ raportu (np. zakończenia palety)</div>
+                </div>
+                <div class="settings-card-actions">
+                    <a href="/admin/ustawienia/drukarki-biurowe" class="btn btn-primary">Drukarki Biurowe</a>
                 </div>
             </article>
 

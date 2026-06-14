@@ -42,6 +42,15 @@
 </style>
 
 <div class="p-10" data-popup-title="{{ _('zatrzymaj_produkcje') }}">
+    {% if block_error %}
+    <div class="koniec-zlecenie-warning-box" style="border-left-color: #dc3545; background: #f8d7da;">
+        <label class="koniec-zlecenie-warning-label" style="color: #dc3545;">❌ Operacja zablokowana</label>
+        <p style="margin: 0; color: #495057;">{{ block_error }}</p>
+    </div>
+    <div class="koniec-zlecenie-button-group mt-15" style="margin-top: 15px;">
+        <button type="button" data-action="close-popup" class="btn-action btn-outline" style="width: 100%;">Rozumiem, wracam</button>
+    </div>
+    {% else %}
     <form action="{{ url_for('production.koniec_zlecenie', id=id) }}" method="POST" data-ajax="false">
         <input type="hidden" name="sekcja" value="{{ sekcja }}">
         <input type="hidden" name="linia" value="{{ request.args.get('linia', 'PSD') }}">
@@ -103,4 +112,5 @@
             <button type="button" data-action="close-popup" class="btn-action btn-outline">{{ _('anuluj') }}</button>
         </div>
     </form>
+    {% endif %}
 </div>

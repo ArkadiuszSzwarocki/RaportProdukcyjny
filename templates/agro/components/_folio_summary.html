@@ -1,0 +1,77 @@
+<!-- Summary Cards -->
+    <div class="folio-summary-grid">
+        <div class="folio-summary-card">
+            <div class="label">📦 Pobranych</div>
+            <div class="value">{{ summary.suma_pobranych|int }} <small style="font-size:0.5em; color:#64748b;">szt.</small></div>
+        </div>
+        <div class="folio-summary-card card-warn">
+            <div class="label">⚙️ Zużyto (licznik)</div>
+            <div class="value">{{ summary.suma_zuzyto|int }} <small style="font-size:0.5em; color:#64748b;">szt.</small></div>
+        </div>
+        <div class="folio-summary-card {% if summary.suma_strat > 0 %}card-danger{% else %}card-success{% endif %}">
+            <div class="label">💔 Straty</div>
+            <div class="value">{{ summary.suma_strat|int }} <small style="font-size:0.5em;">szt.</small></div>
+        </div>
+        <div class="folio-summary-card">
+            <div class="label">🔄 Zwrócono</div>
+            <div class="value">{{ summary.suma_pozostalo|int }} <small style="font-size:0.5em; color:#64748b;">szt.</small></div>
+        </div>
+    </div>
+
+    <!-- Kontekst produkcji z palet -->
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 24px; display: flex; gap: 24px; flex-wrap: wrap; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="material-icons" style="color: #3b82f6; font-size: 20px;">local_shipping</span>
+            <div>
+                <div style="font-size: 0.72em; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">Palety w zleceniu</div>
+                <div style="font-size: 1.3em; font-weight: 800; color: #1e293b;">{{ palety_count }} szt.</div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="material-icons" style="color: #8b5cf6; font-size: 20px;">scale</span>
+            <div>
+                <div style="font-size: 0.72em; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">Łączna waga</div>
+                <div style="font-size: 1.3em; font-weight: 800; color: #1e293b;">{{ '%.0f'|format(palety_kg) }} kg</div>
+            </div>
+        </div>
+        {% if bag_kg > 0 %}
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="material-icons" style="color: #10b981; font-size: 20px;">inventory_2</span>
+            <div>
+                <div style="font-size: 0.72em; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;">
+                    Worki z palet ({{ bag_kg|int }} kg/worek · {{ active_plan.typ_produkcji }})
+                </div>
+                <div style="font-size: 1.6em; font-weight: 800; color: #1e293b;">{{ worki_z_palet }} szt.</div>
+            </div>
+        </div>
+        {% else %}
+        <div style="font-size: 0.85em; color: #ef4444; font-style: italic;">
+            ⚠️ Brak danych kg/worek — sprawdź pole Typ zlecenia (np. WORKI_ZGRZEWANE_20)
+        </div>
+        {% endif %}
+        <div style="margin-left: auto; font-size: 0.78em; color: #94a3b8; font-style: italic;">
+            Zlecenie #{{ active_plan.id }} · {{ active_plan.produkt }}
+        </div>
+    </div>
+
+    <!-- Informacja o sposobie wyliczania strat -->
+    <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 6px; padding: 12px 16px; margin-bottom: 24px; font-size: 0.9em; color: #1e3a8a;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span class="material-icons" style="font-size: 18px; color: #2563eb;">info</span>
+            <strong style="font-size: 1.05em;">Jak wyliczane są Straty folii?</strong>
+        </div>
+        <div style="padding-left: 26px;">
+            <p style="margin: 0 0 8px 0;">
+                W powyższej <strong>Historii Zdarzeń</strong> i w kartach na górze "Straty" oznaczają <em>różnicę między fizycznym ubytkiem na rolce a wskazaniem licznika maszyny</em>.
+            </p>
+            <ol style="margin: 0 0 8px 0; padding-left: 18px; color: #1e40af;">
+                <li style="margin-bottom: 4px;"><strong>Pobrano (stan przed) - Zwrócono (stan po)</strong> = Faktyczne fizyczne zużycie folii.</li>
+                <li style="margin-bottom: 4px;"><strong>Fizyczne zużycie - Wskazanie Licznika (Zużyto)</strong> = Straty (błąd maszyny / worki przeciągnięte bez zliczenia).</li>
+            </ol>
+            <p style="margin: 0;">
+                <strong>UWAGA:</strong> Prawdziwa i całkowita strata (np. worki uszkodzone na palecie lub puste) z całego zlecenia znajduje się w ostatecznym <strong>Raporcie Zlecenia</strong>, gdzie system porównuje wszystkie fizycznie zużyte folie z workami, które faktycznie trafiły na palety.
+            </p>
+        </div>
+    </div>
+
+    

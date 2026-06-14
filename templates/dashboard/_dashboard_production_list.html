@@ -172,8 +172,8 @@
                         {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
                             {% include 'dashboard/_dashboard_agro_top_bar.html' %}
                             {% set wrctx = workowanie_rozliczenie_ctx %}
-                            <div class="active-agro-split-layout" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start;">
-                                <div class="agro-split-left" style="display: flex; flex-direction: column; gap: 15px; min-width: 0;">
+                            <div class="active-agro-split-layout" style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; width: 100%;">
+                                <div class="agro-split-left" style="flex: 1 1 500px; min-width: 0; display: flex; flex-direction: column; gap: 15px;">
                                     <!-- Podepnij material dropdown -->
                                     {% if wrctx and wrctx.active_plan and wrctx.all_warehouse_packaging %}
                                     <div style="display: flex; gap: 10px; align-items: center; background: #fff; padding: 8px 15px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); width: 100%; box-sizing: border-box;">
@@ -197,7 +197,7 @@
                                     {% include 'dashboard/_dashboard_agro_bilans.html' %}
                                     {% include 'dashboard/_dashboard_agro_settlement.html' %}
                                 </div>
-                                <div class="agro-split-right" style="display: flex; flex-direction: column; gap: 15px;">
+                                <div class="agro-split-right" style="flex: 1 1 500px; min-width: 0; display: flex; flex-direction: column; gap: 15px;">
                                     {% include 'dashboard/_dashboard_agro_active_details.html' %}
                                 </div>
                             </div>

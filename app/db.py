@@ -689,9 +689,25 @@ def _create_tables(cursor):
             nazwa VARCHAR(100) NOT NULL,
             ip VARCHAR(100) NOT NULL,
             lokalizacja VARCHAR(255) DEFAULT '',
-            aktywna TINYINT(1) DEFAULT 1
+            aktywna TINYINT(1) DEFAULT 1,
+            typ_drukarki VARCHAR(50) DEFAULT 'etykiet'
         )
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS przypisania_raportow (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            typ_raportu VARCHAR(100) NOT NULL UNIQUE,
+            nazwa_raportu VARCHAR(255) NOT NULL,
+            nazwa_drukarki VARCHAR(255) DEFAULT '',
+            aktywne TINYINT(1) DEFAULT 0
+        )
+    """)
+    
+    # Initialize default report if not exists
+    cursor.execute("SELECT id FROM przypisania_raportow WHERE typ_raportu = 'raport_palet_agro'")
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO przypisania_raportow (typ_raportu, nazwa_raportu, aktywne) VALUES ('raport_palet_agro', 'Raport Palet (Zakończenie Zlecenia AGRO)', 0)")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS produkcja_inwentaryzacja_sesje (
@@ -978,6 +994,8 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "magazyn_palety_agro", "user_login", "VARCHAR(100) DEFAULT NULL", "Dodawanie kolumny 'user_login' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "data_potwierdzenia", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'data_potwierdzenia' do magazyn_palety_agro")
     _add_column_if_missing(cursor, "magazyn_palety_agro", "created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP", "Dodawanie kolumny 'created_at' do magazyn_palety_agro")
+    
+    _add_column_if_missing(cursor, "drukarki", "typ_drukarki", "VARCHAR(50) DEFAULT 'etykiet'", "Dodawanie kolumny 'typ_drukarki' do drukarki")
     
     # agro_mix_rozliczenie columns
     _add_column_if_missing(cursor, "agro_mix_rozliczenie", "zuzyte_kiedy", "DATETIME NULL", "Dodawanie kolumny 'zuzyte_kiedy' do agro_mix_rozliczenie")

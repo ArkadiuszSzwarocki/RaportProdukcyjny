@@ -374,27 +374,47 @@ class MagazynDostawyService:
                         p_type = 'opakowanie' if item.get('packageForm') == 'packaging' else 'surowiec'
                         item['nr_palety'] = generate_pallet_id(linia, type=p_type)
                     
-                    # Ensure they are NOT accepted yet (they are pending Stage 2 confirmation!)
-                    item['accepted'] = False
-                    item.pop('accepted_by', None)
-                    item.pop('accepted_at', None)
-                    item.pop('lokalizacja_przyjecia', None)
+                    product_name = item.get('productName') or 'Brak nazwy'
+                    nr_palety = item.get('nr_palety')
+                    nr_partii = item.get('nr_partii')
+                    data_produkcji = item.get('data_produkcji') or None
+                    data_przydatnosci = item.get('data_przydatnosci') or None
                     
-                    # Trigger printing for this pallet in the background!
+                    if item.get('packageForm') == 'packaging':
+                        qty = float(item.get('quantity') or item.get('unitsPerPallet') or 0)
+                        pallet_type = 'opakowanie'
+                        target_table = table_opk
+                        pkg_form = 'packaging'
+                    else:
+                        qty = float(item.get('quantity') or item.get('netWeight') or 0)
+                        pallet_type = 'surowiec'
+                        target_table = table_sur
+                        pkg_form = item.get('packageForm', 'bags')
+
+                    # We must ACCEPT IT IMMEDIATELY
+                    item['accepted'] = True
+                    item['accepted_by'] = login
+                    item['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    item['lokalizacja_przyjecia'] = lokalizacja_do
+                    item['status_label'] = 'PRZYJĘTA'
+                    item['sourceSpot'] = 'DOSTAWA'
+
+                    # DB INSERT
+                    cursor.execute(f"INSERT INTO {target_table} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE stan_magazynowy = VALUES(stan_magazynowy), nazwa = VALUES(nazwa), nr_partii = VALUES(nr_partii), data_produkcji = VALUES(data_produkcji), data_przydatnosci = VALUES(data_przydatnosci), nr_palety = VALUES(nr_palety), typ_opakowania = VALUES(typ_opakowania)", (product_name, qty, lokalizacja_do, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form))
+                    pallet_id = cursor.lastrowid
+                    if not pallet_id or pallet_id == 0:
+                        cursor.execute(f"SELECT id FROM {target_table} WHERE lokalizacja = %s AND stan_magazynowy > 0 LIMIT 1", (lokalizacja_do,))
+                        p_row = cursor.fetchone()
+                        pallet_id = p_row['id'] if p_row else None
+
+                    item['sourcePalletId'] = pallet_id
+                    cursor.execute(
+                        "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'DOSTAWA_PRZYJECIE', %s, %s, %s, %s)",
+                        (pallet_id, linia, pallet_type, 'DOSTAWA', lokalizacja_do, f"Przyjęcie zewnętrzne z {supplier} - WZ: {order_ref}", login)
+                    )
+                    
+                    # Trigger physical printing for this pallet in the background!
                     if printer_ip and printer_name:
-                        product_name = item.get('productName') or 'Brak nazwy'
-                        nr_palety = item.get('nr_palety')
-                        nr_partii = item.get('nr_partii')
-                        data_produkcji = item.get('data_produkcji') or None
-                        data_przydatnosci = item.get('data_przydatnosci') or None
-                        
-                        if item.get('packageForm') == 'packaging':
-                            qty = float(item.get('quantity') or item.get('unitsPerPallet') or 0)
-                            pallet_type = 'opakowanie'
-                        else:
-                            qty = float(item.get('quantity') or item.get('netWeight') or 0)
-                            pallet_type = 'surowiec'
-                        
                         try:
                             import threading
                             import requests
@@ -412,7 +432,7 @@ class MagazynDostawyService:
                                         "productionDate": str(data_produkcji) if data_produkcji else '---',
                                         "expiryDate": str(data_przydatnosci) if data_przydatnosci else '---',
                                         "currentWeight": qty,
-                                        "labNotes": "Dostawa Oczekująca"
+                                        "labNotes": "Przyjęta"
                                     }
                                 }
                             }
@@ -427,8 +447,8 @@ class MagazynDostawyService:
                         except Exception as pe:
                             print(f"Błąd uruchomienia wątku drukowania: {pe}")
                 
-                # Status is always OCZEKUJE during creation/saving
-                status = 'OCZEKUJE'
+                # Status is COMPLETED because external delivery is automatically accepted
+                status = 'COMPLETED'
 
             # DEDUPLICATE items before saving (by item ID)
             if items:
@@ -1171,6 +1191,47 @@ class MagazynDostawyService:
             """, (pallet_id, linia, lokalizacja, f"Przyjęcie WG: {pallet['produkt_nazwa']}", login))
 
             conn.commit()
+            
+            # --- AUTO DRUKOWANIE RAPORTU BIUROWEGO PO PRZYJĘCIU OSTATNIEJ PALETY ---
+            try:
+                plan_id = pallet.get('plan_id')
+                if plan_id:
+                    if linia == 'AGRO':
+                        # Check if plan is 'zakonczone'
+                        cursor.execute("SELECT status FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
+                        plan_status_row = cursor.fetchone()
+                        if plan_status_row and plan_status_row.get('status') == 'zakonczone':
+                            # Count total pallets and received pallets
+                            cursor.execute("SELECT COUNT(*) as total FROM palety_agro WHERE plan_id = %s", (plan_id,))
+                            total_pallets = cursor.fetchone()['total']
+                            
+                            cursor.execute("SELECT COUNT(*) as received FROM palety_agro WHERE plan_id = %s AND status = 'w_magazynie'", (plan_id,))
+                            received_pallets = cursor.fetchone()['received']
+                            
+                            if total_pallets > 0 and total_pallets == received_pallets:
+                                from app.services.office_print_service import trigger_office_print
+                                print(f"Wszystkie {total_pallets} palet dla zlecenia AGRO {plan_id} zostały przyjęte. Uruchamiam druk raportu.")
+                                trigger_office_print(plan_id, typ_raportu='raport_palet_agro')
+                                
+                    elif linia == 'PSD':
+                        cursor.execute("SELECT status FROM plan_produkcji WHERE id = %s", (plan_id,))
+                        plan_status_row = cursor.fetchone()
+                        if plan_status_row and plan_status_row.get('status') == 'zakonczone':
+                            cursor.execute("SELECT COUNT(*) as total FROM palety_workowanie WHERE plan_id = %s", (plan_id,))
+                            total_pallets = cursor.fetchone()['total']
+                            
+                            cursor.execute("SELECT COUNT(*) as received FROM palety_workowanie WHERE plan_id = %s AND status = 'w_magazynie'", (plan_id,))
+                            received_pallets = cursor.fetchone()['received']
+                            
+                            if total_pallets > 0 and total_pallets == received_pallets:
+                                from app.services.office_print_service import trigger_office_print
+                                print(f"Wszystkie {total_pallets} palet dla zlecenia PSD {plan_id} zostały przyjęte. Uruchamiam druk raportu.")
+                                # Assuming there might be a PSD report type later, for now we can just log it or trigger 'raport_palet_psd'
+                                trigger_office_print(plan_id, typ_raportu='raport_palet_psd')
+            except Exception as pe:
+                print(f"Błąd przy próbie automatycznego wydruku raportu biurowego: {pe}")
+            # --- KONIEC AUTO DRUKOWANIA RAPORTU ---
+
             return True, "Paleta została przyjęta do magazynu."
         except Exception as e:
             return False, str(e)

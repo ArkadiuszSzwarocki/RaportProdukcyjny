@@ -1,0 +1,129 @@
+<tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.15s; background: {% if p[3]|lower == 'zakonczone' %}#f8fafc{% else %}#ffffff{% endif %};">
+    <td style="padding: 12px 16px; vertical-align: middle; white-space: nowrap;">
+        {% if p[13] %}
+            <div style="font-weight: 500; color: #475569;">📅 {{ p[13] }}</div>
+        {% else %}
+            <span style="color: #cbd5e1;">-</span>
+        {% endif %}
+    </td>
+    <td style="padding: 12px 16px; font-weight: 600; color: #0f172a; vertical-align: middle;">
+        <div style="font-size: 0.85em; color: #64748b;">{{ order_index if order_index is defined else loop.index }}. #{{ p[0] }}</div>
+        <div>{{ p[1] }}</div>
+        {% if p[15] %}
+            <div style="font-size: 0.75em; color: #856404; background: #fff3cd; display: inline-block; padding: 1px 6px; border-radius: 4px; margin-top: 2px;">📦 przeniesione z {{ p[15] }}</div>
+        {% endif %}
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; text-align: center;">
+        <span class="status-badge status-{{ p[3]|replace(' ', '') }}">{{ p[3]|upper }}</span>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        <div><strong>Plan:</strong> <span class="text-success">{{ p[2]|int }} kg</span></div>
+        {% if p[7] and p[7]|int > 0 %}
+            <div><strong>Wyk:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>
+        {% endif %}
+        {% set typ_prod_display = p[9]|upper %}
+        {% if typ_prod_display == 'AGRO' or not typ_prod_display %}
+            {% set produkt_lc = p[1]|lower %}
+            {% if 'mleko' in produkt_lc or '20' in produkt_lc %}
+                {% set typ_prod_display = '20 KG' %}
+            {% else %}
+                {% set typ_prod_display = '25 KG' %}
+            {% endif %}
+        {% endif %}
+        <div style="color: #64748b; font-size: 0.85em;">Typ: {{ typ_prod_display }}</div>
+    </td>
+    <td style="padding: 12px 16px; vertical-align: middle; font-size: 0.9em;">
+        {% if sekcja == 'Workowanie' and linia == 'AGRO' %}
+            {% set req_folia = p[20] if p|length > 20 else '' %}
+            {% set req_etykieta = p[21] if p|length > 21 else '' %}
+            <div><strong style="color:#64748b;">F:</strong> {{ req_folia or '-' }}</div>
+            <div><strong style="color:#64748b;">E:</strong> {{ req_etykieta or '-' }}</div>
+        {% endif %}
+        {% set checklist_ok = (sekcja == 'Workowanie' and linia == 'AGRO' and p|length > 26 and p[26]) %}
+        {% if checklist_ok %}
+            <span class="checklist-ok-badge" title="Checklista OK" style="font-size: 0.7em; margin-top: 4px; display: inline-block;">CHECKLISTA OK</span>
+        {% endif %}
+    </td>
+    <td style="padding: 12px 16px; text-align: right; vertical-align: middle; white-space: nowrap;">
+        {% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
+        {% set role_lc = rola|string|trim|lower %}
+        <div style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+            {# Start/Stop buttons #}
+            {% if p[3] == 'zaplanowane' and not is_readonly %}
+                {% set can_start_role = role_lc not in ['laborant', 'laboratorium'] %}
+                {% set product_active = (active_products is defined and active_products and p[1] in active_products) %}
+                {% if not can_start_role %}
+                    <span class="btn-icon-disabled" title="Brak uprawnień">🔒</span>
+                {% elif sekcja == 'Workowanie' %}
+                    {% set allowed = (allowed_work_start_ids is defined and (p[0] in allowed_work_start_ids)) %}
+                    {% set work_start_bypass_role = role_lc in ['admin', 'masteradmin', 'planista', 'zarzad', 'lider', 'magazynier'] %}
+                    {% if (work_start_bypass_role or allowed) %}
+                    <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" 
+                        {% if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' %}
+                            data-start-checklist="1" 
+                            data-required-opakowanie="{{ p[20] if p|length > 20 and p[20] else '-' }}" 
+                            data-required-etykieta="{{ p[21] if p|length > 21 and p[21] else '-' }}"
+                        {% endif %}
+                        style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <button type="submit" class="btn-icon-action" title="Rozpocznij zadanie" {% if product_active %}disabled{% endif %}>▶</button>
+                    </form>
+                    {% else %}
+                    <span class="btn-icon-disabled" title="Musisz ukończyć poprzednie zlecenie">▶</span>
+                    {% endif %}
+                {% elif sekcja == 'Zasyp' %}
+                    {% set allowed_z = (allowed_zasyp_start_ids is defined and (p[0] in allowed_zasyp_start_ids)) %}
+                    {% set zasyp_start_bypass_role = role_lc in ['admin', 'masteradmin', 'planista', 'zarzad', 'lider', 'magazynier'] %}
+                    {% if (zasyp_start_bypass_role or allowed_z) %}
+                    <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                        <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                        <input type="hidden" name="linia" value="{{ linia }}">
+                        <button type="submit" class="btn-icon-action" title="Rozpocznij zadanie" {% if product_active %}disabled{% endif %}>▶</button>
+                    </form>
+                    {% else %}
+                    <span class="btn-icon-disabled" title="Oczekuje w kolejce">▶</span>
+                    {% endif %}
+                {% endif %}
+            {% elif p[3] == 'wstrzymane' %}
+                <a href="{{ url_for('production.koniec_zlecenie_page', id=p[0], sekcja=sekcja, linia=linia) }}" class="btn-stop-icon" data-slide title="Zakończyć zadanie">⏹</a>
+            {% elif p[3] == 'zawieszone' %}
+                {% if role_lc not in ['laborant', 'laboratorium'] and not is_readonly %}
+                <form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" 
+                    {% if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' %}
+                        data-start-checklist="1" 
+                        data-required-opakowanie="{{ p[20] if p|length > 20 and p[20] else '-' }}" 
+                        data-required-etykieta="{{ p[21] if p|length > 21 and p[21] else '-' }}"
+                    {% endif %}
+                    style="display:inline;" onsubmit="return confirmStartOrder(this, '{{ p[1]|e }}', '{{ p[0] }}')">
+                    <input type="hidden" name="sekcja" value="{{ sekcja }}">
+                    <input type="hidden" name="linia" value="{{ linia }}">
+                    <button type="submit" class="btn-icon-action" style="background:#10b981;" title="Wznów zadanie (po pauzie)">▶</button>
+                </form>
+                {% endif %}
+            {% elif p[3] == 'zakonczone' %}
+                {% if role_lc in ['lider', 'admin', 'masteradmin'] and not is_readonly %}
+                <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]|int) }}" method="POST" data-confirm="Wznowić {{ p[1] }}?" style="display:inline;">
+                    <input type="hidden" name="linia" value="{{ linia }}"><input type="hidden" name="sekcja" value="{{ sekcja }}"><input type="hidden" name="data_planu" value="{{ dzisiaj }}">
+                    <button type="submit" class="btn-resume-icon" title="Wznowić zadanie">↻</button>
+                </form>
+                {% endif %}
+            {% endif %}
+
+            {# Other Actions #}
+            {% if role_lc in ['admin', 'masteradmin', 'planista'] %}
+                {# Usuwanie/Edycja przeniesiona do panelu planisty #}
+            {% endif %}
+        </div>
+    </td>
+</tr>
+
+{% if has_palety or has_zasypy %}
+<tr class="details-row" id="details-{{ p[0] }}-row" style="display: {% if agro_focus_mode %}none{% elif sekcja == 'Zasyp' and role_lc in ['laborant', 'laboratorium'] %}table-row{% else %}none{% endif %};">
+    <td colspan="6" style="padding: 0; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+        <div id="details-{{ p[0] }}" style="padding: 10px 20px;">
+            {% include 'dashboard/_dashboard_agro_active_details.html' %}
+        </div>
+    </td>
+</tr>
+{% endif %}

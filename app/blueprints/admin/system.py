@@ -452,12 +452,69 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             conn.close()
         return render_template('ustawienia_drukarki.html', printers=printers)
 
+    @admin_bp.route('/admin/ustawienia/drukarki-biurowe')
+    @dynamic_role_required('ustawienia')
+    def admin_ustawienia_drukarki_biurowe():
+        import win32print
+        from app.db import get_db_connection
+        
+        # Fetch system printers
+        try:
+            system_printers = [p[2] for p in win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS)]
+        except Exception as e:
+            system_printers = []
+            flash(f"Błąd pobierania drukarek z systemu Windows: {e}", "warning")
+            
+        # Fetch report assignments
+        conn = get_db_connection()
+        assignments = []
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM przypisania_raportow ORDER BY id ASC")
+            assignments = cursor.fetchall()
+        except Exception as e:
+            flash(f"Błąd bazy danych: {e}", "error")
+        finally:
+            conn.close()
+            
+        return render_template('ustawienia_drukarki_biurowe.html', system_printers=system_printers, assignments=assignments)
+
+    @admin_bp.route('/admin/ustawienia/drukarki-biurowe/zapisz', methods=['POST'])
+    @dynamic_role_required('ustawienia')
+    def admin_ustawienia_drukarki_biurowe_zapisz():
+        from app.db import get_db_connection
+        data = request.form
+        
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            # In order to handle multiple assignments from the form, we can iterate over them.
+            # Assuming form sends arrays or specific names like: printer_raport_palet_agro, active_raport_palet_agro
+            cursor.execute("SELECT typ_raportu FROM przypisania_raportow")
+            for row in cursor.fetchall():
+                typ_rap = row[0]
+                nazwa_drukarki = data.get(f'printer_{typ_rap}', '')
+                aktywne = 1 if data.get(f'active_{typ_rap}') else 0
+                cursor.execute(
+                    "UPDATE przypisania_raportow SET nazwa_drukarki = %s, aktywne = %s WHERE typ_raportu = %s",
+                    (nazwa_drukarki, aktywne, typ_rap)
+                )
+            conn.commit()
+            flash("Zapisano przypisania drukarek biurowych.", "success")
+        except Exception as e:
+            flash(f"Błąd zapisu: {e}", "error")
+        finally:
+            conn.close()
+            
+        return redirect(url_for('admin.admin_ustawienia_drukarki_biurowe'))
+
     @admin_bp.route('/admin/ustawienia/drukarki/add', methods=['POST'])
     @dynamic_role_required('ustawienia')
     def admin_add_printer():
         nazwa = request.form.get('nazwa', '').strip()
         ip = request.form.get('ip', '').strip()
         lokalizacja = request.form.get('lokalizacja', '').strip()
+        typ_drukarki = request.form.get('typ_drukarki', 'etykiet').strip()
         aktywna = 1 if request.form.get('aktywna') else 0
         
         if not nazwa or not ip:
@@ -469,8 +526,8 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO drukarki (nazwa, ip, lokalizacja, aktywna) VALUES (%s, %s, %s, %s)",
-                (nazwa, ip, lokalizacja, aktywna)
+                "INSERT INTO drukarki (nazwa, ip, lokalizacja, aktywna, typ_drukarki) VALUES (%s, %s, %s, %s, %s)",
+                (nazwa, ip, lokalizacja, aktywna, typ_drukarki)
             )
             conn.commit()
             flash(f"Dodano drukarkę: {nazwa}", "success")

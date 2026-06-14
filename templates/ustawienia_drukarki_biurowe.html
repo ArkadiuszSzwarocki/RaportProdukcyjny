@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="section-box">
+    <div class="row items-center space-between mb-20">
+        <h2>Zarządzanie Drukarkami Biurowymi (Automatyczne Raporty)</h2>
+        <a href="{{ url_for('admin.admin_ustawienia') }}" class="btn btn-outline">Powrót do ustawień</a>
+    </div>
+
+    <div class="grid-1 gap-20">
+        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <h3 class="mb-15" style="border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; color: #0369a1;">Przypisania Raportów do Drukarek Sieciowych / Systemowych</h3>
+            <p class="text-muted mb-20">Wybierz drukarkę z listy urządzeń zainstalowanych na serwerze (Windows), na którą system będzie automatycznie wysyłał dany raport w formie dokumentu A4 (np. zamykając ostatnią paletę).</p>
+            
+            <form action="{{ url_for('admin.admin_ustawienia_drukarki_biurowe_zapisz') }}" method="POST">
+                <table class="modern-table">
+                    <thead>
+                        <tr>
+                            <th>Nazwa Raportu</th>
+                            <th>Wskazana Drukarka Biurowa</th>
+                            <th>Wydruk Aktywny</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in assignments %}
+                        <tr>
+                            <td class="font-bold">{{ a.nazwa_raportu }}</td>
+                            <td>
+                                <select name="printer_{{ a.typ_raportu }}" class="form-control" style="width: 100%; max-width: 400px;">
+                                    <option value="">-- Brak przypisanej drukarki --</option>
+                                    {% for sp in system_printers %}
+                                    <option value="{{ sp }}" {% if a.nazwa_drukarki == sp %}selected{% endif %}>{{ sp }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" name="active_{{ a.typ_raportu }}" value="1" {% if a.aktywne %}checked{% endif %} style="width: 20px; height: 20px; accent-color: #2563eb;">
+                                    <span>Aktywny</span>
+                                </label>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted p-20">Brak zarejestrowanych raportów w bazie.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <div class="mt-20 flex" style="justify-content: flex-end;">
+                    <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 16px;">
+                        <span class="material-icons" style="font-size: 18px; margin-right: 5px; vertical-align: middle;">save</span> ZAPISZ USTAWIENIA RAPORTÓW
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

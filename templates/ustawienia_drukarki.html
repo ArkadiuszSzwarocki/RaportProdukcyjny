@@ -17,6 +17,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Nazwa</th>
+                            <th>Typ</th>
                             <th>Adres IP</th>
                             <th>Lokalizacja</th>
                             <th>Status</th>
@@ -28,6 +29,13 @@
                         <tr>
                             <td>{{ printer.id }}</td>
                             <td class="font-bold">{{ printer.nazwa }}</td>
+                            <td>
+                                {% if printer.typ_drukarki == 'biurowa' %}
+                                <span class="badge" style="background:#e0f2fe; color:#0369a1;">Biurowa (A4)</span>
+                                {% else %}
+                                <span class="badge" style="background:#f1f5f9; color:#475569;">Etykiet (Zebra)</span>
+                                {% endif %}
+                            </td>
                             <td style="font-family: monospace;">{{ printer.ip }}</td>
                             <td>{{ printer.lokalizacja or '-' }}</td>
                             <td>
@@ -45,7 +53,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="6" class="text-center text-muted p-20">Brak skonfigurowanych drukarek.</td>
+                            <td colspan="7" class="text-center text-muted p-20">Brak skonfigurowanych drukarek.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -64,9 +72,17 @@
                 </div>
                 
                 <div class="mb-15">
-                    <label class="form-label font-bold">Adres IP maszyny <span class="text-danger">*</span></label>
-                    <input type="text" name="ip" class="form-control" required placeholder="np. 192.168.1.200">
-                    <small class="text-muted">Adres IPv4 w lokalnej sieci (musi być dostępny z serwera produkcyjnego)</small>
+                    <label class="form-label font-bold">Adres IP maszyny (lub nazwa drukarki) <span class="text-danger">*</span></label>
+                    <input type="text" name="ip" class="form-control" required placeholder="np. 192.168.1.200 lub 'Brother MFC'">
+                    <small class="text-muted">Dla drukarek etykiet: adres IPv4. Dla biurowych: dokładna nazwa drukarki w systemie Windows.</small>
+                </div>
+                
+                <div class="mb-15">
+                    <label class="form-label font-bold">Typ drukarki <span class="text-danger">*</span></label>
+                    <select name="typ_drukarki" class="form-control" required>
+                        <option value="etykiet">Drukarka Etykiet (Zebra / ZPL)</option>
+                        <option value="biurowa">Drukarka Biurowa (Format A4 - Raporty)</option>
+                    </select>
                 </div>
                 
                 <div class="mb-15">

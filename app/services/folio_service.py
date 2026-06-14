@@ -258,6 +258,58 @@ class FolioService:
                 )
             )
 
+            # --- AUTO DRUKOWANIE ETYKIETY ZEBRA (ZAMKNIĘCIE ROLKI) ---
+            if pozostalo_szt > 0:
+                try:
+                    # Szukamy domyślnej drukarki (Zebra)
+                    cursor.execute("SELECT ip, nazwa FROM drukarki WHERE aktywna = 1 AND nazwa LIKE %s LIMIT 1", ('%Zebra%',))
+                    printer = cursor.fetchone()
+                    if not printer:
+                        # Fallback do jakiejkolwiek aktywnej drukarki etykiet
+                        cursor.execute("SELECT ip, nazwa FROM drukarki WHERE aktywna = 1 LIMIT 1")
+                        printer = cursor.fetchone()
+
+                    if printer:
+                        # Pobieramy dane rolki
+                        cursor.execute("SELECT nr_palety, nr_partii, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
+                        rolka_dane = cursor.fetchone()
+
+                        if rolka_dane:
+                            import threading
+                            import requests
+                            import urllib3
+                            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+                            payload = {
+                                "drukarka": printer['nazwa'],
+                                "ip": printer['ip'],
+                                "typ": "opakowanie",
+                                "dane": {
+                                    "palletData": {
+                                        "nrPalety": rolka_dane.get('nr_palety') or '---',
+                                        "productName": opak_nazwa,
+                                        "batchNumber": rolka_dane.get('nr_partii') or '---',
+                                        "productionDate": str(rolka_dane.get('data_produkcji')) if rolka_dane.get('data_produkcji') else '---',
+                                        "expiryDate": str(rolka_dane.get('data_przydatnosci')) if rolka_dane.get('data_przydatnosci') else '---',
+                                        "currentWeight": float(pozostalo_szt),
+                                        "labNotes": f"ZAMKNIĘTO ROLKĘ"
+                                    }
+                                }
+                            }
+
+                            def run_print():
+                                url = "http://127.0.0.1:3001/drukuj-zpl"
+                                for _ in range(2):
+                                    try:
+                                        requests.post(url, json=payload, verify=False, timeout=3)
+                                    except Exception:
+                                        pass
+
+                            threading.Thread(target=run_print, daemon=True).start()
+                            print(f"[FolioService] Automatyczny wydruk etykiety dla rolki {opak_nazwa} na drukarkę {printer['nazwa']}")
+                except Exception as print_ex:
+                    print(f"[FolioService] Błąd automatycznego druku po zamknięciu rolki: {print_ex}")
+
             conn.commit()
             return True, None
         except Exception as e:

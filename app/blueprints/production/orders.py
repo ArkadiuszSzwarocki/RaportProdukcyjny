@@ -504,8 +504,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             if linia == 'AGRO' and sekcja == 'Workowanie':
                 cursor.execute("SELECT COUNT(*) FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
                 if cursor.fetchone()[0] > 0:
-                    flash('❌ Nie można zakończyć zlecenia: najpierw zamknij aktywną folię.', 'error')
-                    return redirect(bezpieczny_powrot())
+                    # Zamiast przekierowania (które psuje data-slide), renderujemy ten sam szablon z przekazanym błędem
+                    return render_template('koniec_zlecenie.html', id=id, sekcja=sekcja, linia=linia, block_error='Nie można zakończyć zlecenia: najpierw zamknij aktywną folię. Przejdź do zakładki "Materiały pod bieżącą produkcję" i zdejmij rolkę z maszyny.')
 
         except Exception as e:
             current_app.logger.error(f'Failed to fetch plan {id} for koniec_zlecenie_page: {e}', exc_info=True)

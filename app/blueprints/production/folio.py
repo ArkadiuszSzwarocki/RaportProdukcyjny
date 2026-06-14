@@ -233,11 +233,15 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
             custom_licznik_stop=custom_licznik_stop
         )
 
+        source = request.form.get('source')
+
         if ok:
             flash(f'✅ Rolka zamknięta. Pozostało {pozostalo_szt:.0f} szt. (rolka pozostała na maszynie).', 'success')
         else:
             flash(f'❌ Błąd zamknięcia rolki: {err}', 'danger')
 
+        if source == 'dashboard':
+            return redirect(url_for('main.index', sekcja='Workowanie', linia='AGRO', data=data_planu))
         return redirect(url_for('production.agro_folio_rozliczenie', data=data_planu))
 
     @production_bp.route('/agro/folio/add_roll', methods=['POST'])
