@@ -124,7 +124,7 @@
         }
 
         .detail-table col.c-lp { width: 3%; }
-        .detail-table col.c-product { width: 14%; }
+        .detail-table col.c-product { width: auto; }
         .detail-table col.c-qty { width: 6%; }
         .detail-table col.c-unit { width: 4%; }
         .detail-table col.c-pallet { width: 10%; }
@@ -136,8 +136,12 @@
         .detail-table col.c-issued { width: 5%; }
         .detail-table col.c-accepted { width: 5%; }
         .detail-table col.c-time { width: 9%; }
-        .detail-table col.c-status { width: 7%; }
+        .detail-table col.c-status { width: auto; }
         .detail-table col.c-reason { width: 13%; }
+        
+        .detail-table th.c-status, .detail-table td.c-status {
+            white-space: nowrap;
+        }
 
         th,
         td {
@@ -401,30 +405,18 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="title">Raport przesuniecia do druku</h1>
-            <p class="subtitle">Wygenerowano: {{ generated_at }}</p>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h1 class="title">Raport przesuniecia do druku</h1>
+                    <p class="subtitle">Wygenerowano: {{ generated_at }}</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 700;">Referencja</div>
+                    <div class="mono" style="font-size: 16px; font-weight: 800;">{{ dostawa.order_ref or ('RUCH-' ~ dostawa.id[:8]) }}</div>
+                </div>
+            </div>
 
-            <div class="meta-grid">
-                <div class="meta-card">
-                    <div class="meta-label">Referencja</div>
-                    <div class="meta-value mono">{{ dostawa.order_ref or ('RUCH-' ~ dostawa.id[:8]) }}</div>
-                </div>
-                <div class="meta-card">
-                    <div class="meta-label">Linia</div>
-                    <div class="meta-value">{{ dostawa.linia or '-' }}</div>
-                </div>
-                <div class="meta-card">
-                    <div class="meta-label">Status</div>
-                    <div class="meta-value">{{ dostawa.status or '-' }}</div>
-                </div>
-                <div class="meta-card">
-                    <div class="meta-label">Potwierdzil</div>
-                    <div class="meta-value">{{ dostawa.potwierdzone_przez or '-' }}</div>
-                </div>
-                <div class="meta-card">
-                    <div class="meta-label">Wydal towar</div>
-                    <div class="meta-value">{{ dostawa.created_by or '-' }}</div>
-                </div>
+            <div class="meta-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 20px;">
                 <div class="meta-card">
                     <div class="meta-label">Data utworzenia</div>
                     <div class="meta-value">{{ created_at_str }}</div>
@@ -433,20 +425,18 @@
                     <div class="meta-label">Data zamkniecia</div>
                     <div class="meta-value">{{ confirmed_at_str }}</div>
                 </div>
-                <div class="meta-card">
-                    <div class="meta-label">Skad</div>
-                    <div class="meta-value mono">{{ dostawa.lokalizacja_z or '-' }}</div>
-                </div>
-                <div class="meta-card">
-                    <div class="meta-label">Dokad</div>
-                    <div class="meta-value mono">{{ dostawa.lokalizacja_do or '-' }}</div>
-                </div>
             </div>
         </div>
 
         <div class="section">
             <div class="section-head">Szczegoly pozycji</div>
             <div class="table-scroll">
+            {% set ns = namespace(has_rejections=false) %}
+            {% for row in rows %}
+                {% if row.rejected %}
+                    {% set ns.has_rejections = true %}
+                {% endif %}
+            {% endfor %}
             <table class="detail-table">
                 <colgroup>
                     <col class="c-lp">
@@ -463,7 +453,9 @@
                     <col class="c-accepted">
                     <col class="c-time">
                     <col class="c-status">
+                    {% if ns.has_rejections %}
                     <col class="c-reason">
+                    {% endif %}
                 </colgroup>
                 <thead>
                     <tr>
@@ -480,8 +472,10 @@
                         <th>Wydal</th>
                         <th>Przyjal</th>
                         <th>Czas przyjecia</th>
-                        <th>Status</th>
+                        <th class="c-status">Status</th>
+                        {% if ns.has_rejections %}
                         <th>Powod odrzucenia</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -500,7 +494,7 @@
                         <td>{{ row.issued_by }}</td>
                         <td>{{ row.accepted_by if row.accepted else (row.rejected_by if row.rejected else '-') }}</td>
                         <td>{{ row.accepted_at if row.accepted else (row.rejected_at if row.rejected else '-') }}</td>
-                        <td class="center">
+                        <td class="center c-status">
                             {% if row.rejected %}
                             <span class="pill pill-rejected">{{ row.status_label }}</span>
                             {% elif row.accepted %}
@@ -509,11 +503,13 @@
                             <span class="pill pill-pending">{{ row.status_label }}</span>
                             {% endif %}
                         </td>
+                        {% if ns.has_rejections %}
                         <td>{{ row.rejected_reason if row.rejected else '-' }}</td>
+                        {% endif %}
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="15" class="center">Brak pozycji w raporcie.</td>
+                        <td colspan="{% if ns.has_rejections %}15{% else %}14{% endif %}" class="center">Brak pozycji w raporcie.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
