@@ -297,7 +297,7 @@
                     <td>{{ op_lp.value }}</td>
                     <td><strong>{{ op.opakowanie_nazwa }}</strong></td>
                     <td>{{ '%.0f'|format(op.stan_przed or 0) }} szt.</td>
-                    <td><strong style="color: #c53030;">- {{ '%.0f'|format(op.zuzyte_worki or 0) }} szt.</strong></td>
+                    <td><strong>{{ '%.0f'|format(op.zuzyte_worki or 0) }} szt.</strong></td>
                     <td><strong>{{ '%.0f'|format(op.stan_po or 0) }} szt.</strong></td>
                     <td>{{ op.created_at.strftime('%H:%M:%S') if op.created_at else '-' }}</td>
                     <td>{{ op.autor_login or '---' }}</td>
@@ -351,11 +351,11 @@
                 </div>
                 <div>
                     <span style="color: #666; font-size: 0.9em;">Faktyczne zużycie (z rolek):</span><br>
-                    <strong style="font-size: 1.1em; color: #c53030;">{{ '%.0f'|format(faktyczne_zuzycie.val) }} szt.</strong>
+                    <strong style="font-size: 1.1em; color: var(--primary);">{{ '%.0f'|format(faktyczne_zuzycie.val) }} szt.</strong>
                 </div>
                 <div>
                     <span style="color: #666; font-size: 0.9em;">Różnica / Strata (odpad):</span><br>
-                    <strong style="{% if strata > 0 %}color: #c53030;{% else %}color: #27ae60;{% endif %} font-size: 1.25em;">
+                    <strong style="color: red; font-size: 1.25em;">
                         {{ strata }} szt.
                     </strong>
                 </div>

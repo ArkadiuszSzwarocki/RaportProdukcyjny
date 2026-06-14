@@ -481,9 +481,9 @@ def register_api_runtime_routes(api_bp):
     @login_required
     def mqtt_simulate():
         """Dodaje sztuczne wartości do liczników MQTT w celu testowania (w tym rozliczenia folii)."""
-        # Dostępne tylko dla masteradmin / admin
-        rola = (session.get('rola') or '').lower()
-        if rola not in ['masteradmin', 'admin', 'planista', 'lider']:
+        # Dostępne tylko dla masteradmin / admin / testów
+        rola = (session.get('rola') or '').lower().replace(' ', '').replace('_', '')
+        if rola not in ['masteradmin', 'admin', 'planista', 'lider', 'magazynier', 'pracownik']:
             return jsonify({'success': False, 'message': 'Brak uprawnień'}), 403
 
         try:
@@ -503,8 +503,13 @@ def register_api_runtime_routes(api_bp):
                 conn = get_db_connection()
                 try:
                     cursor = conn.cursor()
+                    cursor.execute("SELECT MAX(start_machine_counter) FROM plan_produkcji_agro WHERE status='W TOKU'")
+                    max_plan_start = cursor.fetchone()[0] or 0
+                    
                     cursor.execute("SELECT MAX(licznik_start) FROM agro_plan_opakowania WHERE is_active = TRUE")
-                    max_start = cursor.fetchone()[0]
+                    max_rolka_start = cursor.fetchone()[0] or 0
+                    
+                    max_start = max(max_plan_start, max_rolka_start)
                     if max_start and current < max_start:
                         current = max_start
                         simulate_machine_data(add_counter=(max_start - latest.get('counter', 0)))
