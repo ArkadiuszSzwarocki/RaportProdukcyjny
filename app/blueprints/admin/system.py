@@ -455,15 +455,29 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @admin_bp.route('/admin/ustawienia/drukarki-biurowe')
     @dynamic_role_required('ustawienia')
     def admin_ustawienia_drukarki_biurowe():
-        import win32print
         from app.db import get_db_connection
         
         # Fetch system printers
+        system_printers = []
         try:
+            import win32print
             system_printers = [p[2] for p in win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS)]
+        except ImportError:
+            # We are on Linux or win32print is not installed
+            import subprocess
+            try:
+                # Try to list printers on Linux using lpstat
+                result = subprocess.run(['lpstat', '-p'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    for line in result.stdout.splitlines():
+                        if line.startswith('printer '):
+                            parts = line.split(' ')
+                            if len(parts) >= 2:
+                                system_printers.append(parts[1])
+            except Exception:
+                pass
         except Exception as e:
-            system_printers = []
-            flash(f"Błąd pobierania drukarek z systemu Windows: {e}", "warning")
+            flash(f"Błąd pobierania drukarek z systemu: {e}", "warning")
             
         # Fetch report assignments
         conn = get_db_connection()
