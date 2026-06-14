@@ -168,7 +168,7 @@ def generuj_paczke_raportow(data_raportu, uwagi_lidera, lider_name='', linia='PS
 
         # Sortuj: najpierw według kolejności produktu w planie (`kolejnosc`/id),
         # potem po nazwie produktu, a wewnątrz produktu uporządkuj sekcje: Zasyp -> Workowanie -> Magazyn
-        order_map = {'Zasyp': 0, 'Workowanie': 1, 'Magazyn': 2}
+        order_map = {'Zasyp': 0, 'Workowanie': 1, 'Czyszczenie': 1, 'Magazyn': 2}
         try:
             prod_rows.sort(key=lambda r: (
                 product_order.get(r[1], 9999),

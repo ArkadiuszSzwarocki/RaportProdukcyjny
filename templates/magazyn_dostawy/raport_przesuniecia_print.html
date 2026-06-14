@@ -168,6 +168,15 @@
             font-family: Consolas, "Courier New", monospace;
         }
 
+        .c-product {
+            text-align: left;
+        }
+
+        .c-status {
+            text-align: center;
+            white-space: nowrap;
+        }
+
         .right {
             text-align: right;
         }
@@ -422,8 +431,11 @@
                     <div class="meta-value">{{ created_at_str }}</div>
                 </div>
                 <div class="meta-card">
-                    <div class="meta-label">Data zamkniecia</div>
-                    <div class="meta-value">{{ confirmed_at_str }}</div>
+                    <div class="meta-label">Data zamknięcia</div>
+                    <div class="meta-value">
+                        {% set d = confirmed_at_str if confirmed_at_str != '-' else created_at_str %}
+                        {{ d.split('T')[0].split(' ')[0] if d != '-' else '-' }}
+                    </div>
                 </div>
             </div>
         </div>
@@ -493,7 +505,14 @@
                         <td class="mono">{{ row.target_location }}</td>
                         <td>{{ row.issued_by }}</td>
                         <td>{{ row.accepted_by if row.accepted else (row.rejected_by if row.rejected else '-') }}</td>
-                        <td>{{ row.accepted_at if row.accepted else (row.rejected_at if row.rejected else '-') }}</td>
+                        <td>
+                            {% set dt = row.accepted_at if row.accepted else (row.rejected_at if row.rejected else '-') %}
+                            {% if dt != '-' %}
+                                {{ dt.split('T')[-1][:8] if 'T' in dt else dt.split(' ')[-1][:8] }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
                         <td class="center c-status">
                             {% if row.rejected %}
                             <span class="pill pill-rejected">{{ row.status_label }}</span>

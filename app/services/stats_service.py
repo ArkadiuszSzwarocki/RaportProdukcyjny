@@ -58,7 +58,7 @@ def get_chart_data(d_od, d_do, linia='PSD'):
         SELECT data_planu, 
                SUM(CASE WHEN sekcja = 'Zasyp' THEN tonaz ELSE 0 END), 
                SUM(CASE WHEN sekcja = 'Zasyp' THEN COALESCE(tonaz_rzeczywisty, 0) ELSE 0 END), 
-               SUM(CASE WHEN sekcja = 'Workowanie' THEN COALESCE(tonaz_rzeczywisty, 0) ELSE 0 END)
+               SUM(CASE WHEN sekcja IN ('Workowanie', 'Czyszczenie') THEN COALESCE(tonaz_rzeczywisty, 0) ELSE 0 END)
         FROM {table_plan} 
         WHERE data_planu BETWEEN %s AND %s AND COALESCE(typ_zlecenia, '') != 'jakosc'
         GROUP BY data_planu ORDER BY data_planu

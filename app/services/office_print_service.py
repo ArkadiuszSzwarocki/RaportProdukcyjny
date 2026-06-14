@@ -63,103 +63,40 @@ def _generate_and_print_thread(plan_id, printer_name_or_ip):
 
 def _print_pdf(pdf_path, printer_name_or_ip):
     """
-    Attempts to print the PDF.
-    First, it checks if it's an IP address. If so, it tries Port 9100 Direct PDF printing.
-    If it's a name or 9100 fails, it tries using PowerShell / SumatraPDF if available,
-    or win32api as fallback.
+    Sends the PDF file to the printer server to be printed.
     """
-    # Check if IP
-    import re
-    is_ip = re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", printer_name_or_ip)
+    import requests
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     
-    if is_ip:
-        print(f"[OFFICE_PRINT] Attempting raw TCP (Port 9100) print to {printer_name_or_ip}")
-        try:
-            with open(pdf_path, 'rb') as f:
-                pdf_data = f.read()
-            with socket.create_connection((printer_name_or_ip, 9100), timeout=5) as s:
-                s.sendall(pdf_data)
-            print("[OFFICE_PRINT] Raw TCP print successful.")
-            return
-        except Exception as e:
-            print(f"[OFFICE_PRINT] Raw TCP failed: {e}. Falling back to system print.")
-
-    # System Print Fallback
     try:
-        import win32api
-        import win32print
-        import win32ui
-        import fitz
-        from PIL import Image, ImageWin
+        # Import dynamically to avoid circular dependencies if any
+        from app.services.print_server import get_printer
+        printer = get_printer()
         
-        # If it's not an IP, assume it's the exact printer name
-        printer = printer_name_or_ip if not is_ip else win32print.GetDefaultPrinter()
-        print(f"[OFFICE_PRINT] Using PyMuPDF + win32ui with printer: {printer}")
+        # Determine bridge URL
+        base_url = printer._normalize_bridge_base()
+        url = f"{base_url}/drukuj-pdf"
         
-        # Open PDF with PyMuPDF
-        doc = fitz.open(pdf_path)
+        print(f"[OFFICE_PRINT] Sending PDF to printer server: {url} for printer: {printer_name_or_ip}")
         
-        # Setup printer Device Context
-        hDC = win32ui.CreateDC()
-        hDC.CreatePrinterDC(printer)
-        
-        # Physical printable area dimensions
-        printable_width = hDC.GetDeviceCaps(8)  # HORZRES
-        printable_height = hDC.GetDeviceCaps(10) # VERTRES
-        
-        hDC.StartDoc("Raport Produkcyjny")
-        
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            # Render page to an image (scale matrix 2.0 for higher DPI)
-            mat = fitz.Matrix(2.0, 2.0)
-            pix = page.get_pixmap(matrix=mat)
+        with open(pdf_path, 'rb') as f:
+            files = {'file': (os.path.basename(pdf_path), f, 'application/pdf')}
+            data = {'drukarka': printer_name_or_ip, 'ip': printer_name_or_ip}
+            response = requests.post(url, files=files, data=data, verify=False, timeout=30)
             
-            # Convert to PIL Image
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            
-            # Ensure correct orientation
-            if img.size[0] > img.size[1]:
-                img = img.rotate(90, expand=True)
-                
-            # Scale to fit printable area
-            ratios = [1.0 * printable_width / img.size[0], 1.0 * printable_height / img.size[1]]
-            scale = min(ratios)
-            
-            hDC.StartPage()
-            
-            dib = ImageWin.Dib(img)
-            scaled_width, scaled_height = [int(scale * i) for i in img.size]
-            
-            # Center the image on the page
-            x1 = int((printable_width - scaled_width) / 2)
-            y1 = int((printable_height - scaled_height) / 2)
-            x2 = x1 + scaled_width
-            y2 = y1 + scaled_height
-            
-            dib.draw(hDC.GetHandleOutput(), (x1, y1, x2, y2))
-            
-            hDC.EndPage()
-            
-        hDC.EndDoc()
-        hDC.DeleteDC()
-        doc.close()
-        print("[OFFICE_PRINT] Silent print successful.")
-        
-        # Wait a bit before deleting
-        time.sleep(2)
-        
-    except Exception as e:
-        print(f"[OFFICE_PRINT] PyMuPDF print failed: {e}. Falling back to ShellExecute.")
         try:
-            import win32api
-            import win32print
-            printer = printer_name_or_ip if not is_ip else win32print.GetDefaultPrinter()
-            win32api.ShellExecute(0, "printto", pdf_path, f'"{printer}"', ".", 0)
-            time.sleep(5)
-        except Exception as ex:
-            import subprocess
-            subprocess.run(["powershell", "-command", f"Start-Process -FilePath '{pdf_path}' -Verb Print -PassThru | %{{sleep 5;$_}} | stop-process"])
+            resp_json = response.json()
+        except Exception:
+            resp_json = {}
+            
+        if response.status_code == 200 and resp_json.get('success'):
+            print("[OFFICE_PRINT] Print successful via printer server.")
+        else:
+            error_msg = resp_json.get('message', response.text)
+            print(f"[OFFICE_PRINT] Printer server returned error: {error_msg}")
+    except Exception as e:
+        print(f"[OFFICE_PRINT] Failed to send PDF to printer server: {e}")
 
 def trigger_office_print(plan_id, typ_raportu='raport_palet_agro'):
     """

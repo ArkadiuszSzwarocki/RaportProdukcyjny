@@ -180,7 +180,7 @@ def build_primary_plan_metrics(cursor, plany_list, wybrana_data, wybrana_linia, 
         suma_minut_plan += dur
 
         cursor.execute(
-            f"SELECT pw.id, pw.nr_palety, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania FROM {t_pa_curr} pw JOIN {t_pp_curr} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' ORDER BY pw.id DESC",
+            f"SELECT pw.id, pw.nr_palety, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania FROM {t_pa_curr} pw JOIN {t_pp_curr} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja IN ('Workowanie', 'Czyszczenie') ORDER BY pw.id DESC",
             (wybrana_data, plan['produkt']),
         )
         palety_rows = cursor.fetchall()
@@ -356,7 +356,7 @@ def build_agro_plan_metrics(cursor, plany_agro, wybrana_data, calculate_kg_per_h
         suma_minut_plan_agro += dur
 
         cursor.execute(
-            f"SELECT pw.id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania FROM {t_pa_agro} pw JOIN {t_pp_agro} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja = 'Workowanie' ORDER BY pw.id DESC",
+            f"SELECT pw.id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania FROM {t_pa_agro} pw JOIN {t_pp_agro} pp ON pw.plan_id = pp.id WHERE pp.data_planu = %s AND pp.produkt = %s AND pp.sekcja IN ('Workowanie', 'Czyszczenie') ORDER BY pw.id DESC",
             (wybrana_data, plan['produkt']),
         )
         palety_rows = cursor.fetchall()
@@ -419,7 +419,7 @@ def build_panel_summary_context(
         res = cursor.fetchone()
         zasyp_kg = res['total'] if (res and res['total']) else plan['tonaz_rzeczywisty'] or 0
         cursor.execute(
-            f"SELECT COALESCE(SUM(CASE WHEN waga_potwierdzona > 0 THEN waga_potwierdzona ELSE waga END), 0) as total FROM {t_pa_r} WHERE plan_id IN (SELECT id FROM {t_pp_r} WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s)",
+            f"SELECT COALESCE(SUM(CASE WHEN waga_potwierdzona > 0 THEN waga_potwierdzona ELSE waga END), 0) as total FROM {t_pa_r} WHERE plan_id IN (SELECT id FROM {t_pp_r} WHERE DATE(data_planu) = %s AND sekcja IN ('Workowanie', 'Czyszczenie') AND produkt = %s)",
             (wybrana_data, produkt),
         )
         spakowano_palety = cursor.fetchone()['total'] or 0
@@ -438,7 +438,7 @@ def build_panel_summary_context(
 
         # Pobierz sumę uszkodzonych worków dla danego produktu (z Workowania)
         cursor.execute(
-            f"SELECT COALESCE(SUM(uszkodzone_worki), 0) as total FROM {t_pp_r} WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt = %s",
+            f"SELECT COALESCE(SUM(uszkodzone_worki), 0) as total FROM {t_pp_r} WHERE DATE(data_planu) = %s AND sekcja IN ('Workowanie', 'Czyszczenie') AND produkt = %s",
             (wybrana_data, produkt),
         )
         uszkodzone_worki = cursor.fetchone()['total'] or 0
@@ -481,7 +481,7 @@ def build_panel_summary_context(
     if not has_incomplete_psd:
         t_p_chk = get_table_name('plan_produkcji', 'PSD')
         cursor.execute(
-            f"SELECT COUNT(*) as cnt FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zakonczone' AND COALESCE(tonaz_rzeczywisty, 0) < COALESCE(tonaz, 0)",
+            f"SELECT COUNT(*) as cnt FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) IN ('workowanie', 'czyszczenie') AND status = 'zakonczone' AND COALESCE(tonaz_rzeczywisty, 0) < COALESCE(tonaz, 0)",
             (wybrana_data,),
         )
         if cursor.fetchone()['cnt'] > 0:
@@ -489,7 +489,7 @@ def build_panel_summary_context(
     if not has_incomplete_agro:
         t_p_chk = get_table_name('plan_produkcji', 'AGRO')
         cursor.execute(
-            f"SELECT COUNT(*) as cnt FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zakonczone' AND COALESCE(tonaz_rzeczywisty, 0) < COALESCE(tonaz, 0)",
+            f"SELECT COUNT(*) as cnt FROM {t_p_chk} WHERE DATE(data_planu) = %s AND LOWER(sekcja) IN ('workowanie', 'czyszczenie') AND status = 'zakonczone' AND COALESCE(tonaz_rzeczywisty, 0) < COALESCE(tonaz, 0)",
             (wybrana_data,),
         )
         if cursor.fetchone()['cnt'] > 0:

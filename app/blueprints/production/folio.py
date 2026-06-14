@@ -38,7 +38,7 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                     SELECT id, produkt, data_planu, status, tonaz, tonaz_rzeczywisty,
                            start_machine_counter, stop_machine_counter, opakowanie_id
                     FROM {table_plan}
-                    WHERE id = %s AND sekcja = 'Workowanie'
+                    WHERE id = %s AND sekcja IN ('Workowanie', 'Czyszczenie')
                     LIMIT 1
                     """,
                     (selected_plan_id,),
@@ -50,7 +50,7 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                            start_machine_counter, stop_machine_counter, opakowanie_id,
                            typ_produkcji
                     FROM {table_plan}
-                    WHERE sekcja = 'Workowanie' AND status IN ('w toku', 'zawieszone')
+                    WHERE sekcja IN ('Workowanie', 'Czyszczenie') AND status IN ('w toku', 'zawieszone')
                     ORDER BY FIELD(status, 'w toku', 'zawieszone') ASC, real_start DESC
                     LIMIT 1
                     """
@@ -62,9 +62,10 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                 cursor.execute(
                     f"""
                     SELECT id, produkt, data_planu, status, tonaz, tonaz_rzeczywisty,
-                           start_machine_counter, stop_machine_counter, opakowanie_id
+                           start_machine_counter, stop_machine_counter, opakowanie_id,
+                           typ_produkcji
                     FROM {table_plan}
-                    WHERE data_planu = %s AND sekcja = 'Workowanie'
+                    WHERE data_planu = %s AND sekcja IN ('Workowanie', 'Czyszczenie')
                     ORDER BY FIELD(status, 'zaplanowane', 'w toku', 'zawieszone', 'zakonczone') ASC, real_stop DESC, id ASC
                     LIMIT 1
                     """,
@@ -133,7 +134,15 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                 import re as _re
                 typ_prod = str(active_plan.get('typ_produkcji') or '')
                 m = _re.search(r'(\d+)\s*$', typ_prod)
-                bag_kg = float(m.group(1)) if m else 0.0
+                if m:
+                    bag_kg = float(m.group(1))
+                else:
+                    # Fallback dla 'agro' - 20 kg jeśli mleko/20, inaczej 25 kg
+                    produkt_lc = str(active_plan.get('produkt') or '').lower()
+                    if 'mleko' in produkt_lc or '20' in produkt_lc:
+                        bag_kg = 20.0
+                    else:
+                        bag_kg = 25.0
                 worki_z_palet = int(palety_kg / bag_kg) if bag_kg > 0 and palety_kg > 0 else 0
 
                 # Obliczamy na żywo brakujące "zepsute worki"

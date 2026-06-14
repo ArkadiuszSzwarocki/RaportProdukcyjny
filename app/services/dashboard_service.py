@@ -236,7 +236,7 @@ class DashboardService:
         table = get_table_name('plan_produkcji', linia)
         cursor.execute(
             f"SELECT produkt, MIN(id) FROM {table} "
-            f"WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' "
+            f"WHERE DATE(data_planu) = %s AND sekcja IN ('Workowanie', 'Czyszczenie') "
             f"AND status IN ('zaplanowane', 'w toku') AND is_deleted = 0 GROUP BY produkt",
             (dzisiaj,)
         )

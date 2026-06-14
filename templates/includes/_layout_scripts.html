@@ -447,6 +447,169 @@
 
     }
 
+    function openCzyszczeniePackagingModal(form, planId) {
+        var existingOverlay = document.getElementById('czyszczenie-packaging-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        var overlay = document.createElement('div');
+        overlay.id = 'czyszczenie-packaging-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+        var panel = document.createElement('div');
+        panel.style.cssText = 'width:100%;max-width:400px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.28);padding:18px;';
+
+        var title = document.createElement('h3');
+        title.textContent = 'Rozpoczęcie Czyszczenia';
+        title.style.cssText = 'margin:0 0 8px 0;font-size:1.15rem;color:#102a43;';
+
+        var subtitle = document.createElement('p');
+        subtitle.textContent = 'Wybierz w co pakujesz produkt:';
+        subtitle.style.cssText = 'margin:0 0 12px 0;color:#334e68;font-size:0.92rem;';
+
+        // Typ pakowania
+        var typSelect = document.createElement('select');
+        typSelect.name = 'typ_pakowania';
+        typSelect.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        
+        var optBigBag = document.createElement('option');
+        optBigBag.value = 'BigBag';
+        optBigBag.textContent = 'BigBag';
+        
+        var optWorki = document.createElement('option');
+        optWorki.value = 'Worki';
+        optWorki.textContent = 'Worki';
+        
+        typSelect.appendChild(optBigBag);
+        typSelect.appendChild(optWorki);
+
+        // Folia container
+        var foliaContainer = document.createElement('div');
+        foliaContainer.style.display = 'none';
+
+        var foliaLabel = document.createElement('label');
+        foliaLabel.textContent = 'Wybierz folię:';
+        foliaLabel.style.cssText = 'display:block;margin-bottom:4px;font-size:0.85rem;color:#334e68;';
+        
+        var foliaSelect = document.createElement('select');
+        foliaSelect.name = 'opakowanie_id';
+        foliaSelect.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        
+        foliaContainer.appendChild(foliaLabel);
+        foliaContainer.appendChild(foliaSelect);
+
+        typSelect.addEventListener('change', function() {
+            if (this.value === 'Worki') {
+                foliaContainer.style.display = 'block';
+                // Load folie if empty
+                if (foliaSelect.options.length === 0) {
+                    fetch('/api/opakowania/folie')
+                        .then(r => r.json())
+                        .then(data => {
+                            data.forEach(item => {
+                                var opt = document.createElement('option');
+                                opt.value = item.id;
+                                opt.textContent = item.nazwa;
+                                foliaSelect.appendChild(opt);
+                            });
+                        })
+                        .catch(err => console.error("Error loading folie:", err));
+                }
+            } else {
+                foliaContainer.style.display = 'none';
+            }
+        });
+
+        var dateLabel = document.createElement('label');
+        dateLabel.textContent = 'Data produkcji:';
+        dateLabel.style.cssText = 'display:block;margin-top:12px;margin-bottom:4px;font-size:0.85rem;color:#334e68;';
+
+        var dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #bcccdc;border-radius:8px;margin-bottom:12px;font-size:1rem;';
+        
+        var today = new Date();
+        var yyyy = today.getFullYear();
+        var mm = String(today.getMonth() + 1).padStart(2, '0');
+        var dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = yyyy + '-' + mm + '-' + dd;
+
+        var errorBox = document.createElement('div');
+        errorBox.style.cssText = 'display:none;color:#b91c1c;background:#fee2e2;padding:8px;border-radius:6px;font-size:0.85rem;margin-bottom:12px;';
+
+        var actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Anuluj';
+        cancelBtn.style.cssText = 'padding:8px 16px;border:none;background:#f0f4f8;color:#334e68;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.9rem;';
+        cancelBtn.addEventListener('click', function() {
+            overlay.remove();
+        });
+
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Zatwierdź';
+        confirmBtn.style.cssText = 'padding:8px 16px;border:none;background:#102a43;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.9rem;';
+        confirmBtn.addEventListener('click', function() {
+            if (typSelect.value === 'Worki' && (!foliaSelect.value || foliaSelect.value === '')) {
+                errorBox.textContent = 'Wybierz folię przed startem w workach!';
+                errorBox.style.display = 'block';
+                return;
+            }
+            if (!dateInput.value) {
+                errorBox.textContent = 'Wybierz datę produkcji!';
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            var hiddenTyp = document.createElement('input');
+            hiddenTyp.type = 'hidden';
+            hiddenTyp.name = 'typ_pakowania';
+            hiddenTyp.value = typSelect.value;
+            form.appendChild(hiddenTyp);
+
+            if (typSelect.value === 'Worki') {
+                var hiddenFolia = document.createElement('input');
+                hiddenFolia.type = 'hidden';
+                hiddenFolia.name = 'opakowanie_id';
+                hiddenFolia.value = foliaSelect.value;
+                form.appendChild(hiddenFolia);
+            }
+
+            var hiddenDate = document.createElement('input');
+            hiddenDate.type = 'hidden';
+            hiddenDate.name = 'data_produkcji';
+            hiddenDate.value = dateInput.value;
+            form.appendChild(hiddenDate);
+
+            overlay.remove();
+            form.submit();
+        });
+
+        overlay.addEventListener('click', function(event) {
+            if (event.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+
+        panel.appendChild(title);
+        panel.appendChild(subtitle);
+        panel.appendChild(typSelect);
+        panel.appendChild(foliaContainer);
+        panel.appendChild(dateLabel);
+        panel.appendChild(dateInput);
+        panel.appendChild(errorBox);
+        panel.appendChild(actions);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+    }
+
     function openAgroProductionDateModal(form, productName) {
         var existingOverlay = document.getElementById('start-order-date-overlay');
         if (existingOverlay) {
@@ -550,6 +713,11 @@
         
         var sekcjaInput = form.querySelector('input[name="sekcja"]');
         var sekcja = sekcjaInput ? sekcjaInput.value : '';
+
+        if (productName.toLowerCase().includes('czyszczenie') && linia === 'AGRO') {
+            openCzyszczeniePackagingModal(form, planId);
+            return false;
+        }
 
         var requiresChecklist = form && form.getAttribute('data-start-checklist') === '1';
         if (requiresChecklist) {

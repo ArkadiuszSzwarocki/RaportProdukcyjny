@@ -1082,7 +1082,7 @@ class AgroWarehouseService:
             base_query = (
                 f"SELECT id, produkt, data_planu, typ_produkcji, start_machine_counter, "
                 f"start_pallet_counter, opakowanie_id "
-                f"FROM {table_plan} WHERE status IN ('w toku', 'zawieszone') AND sekcja='Workowanie'"
+                f"FROM {table_plan} WHERE status IN ('w toku', 'zawieszone') AND sekcja IN ('Workowanie', 'Czyszczenie')"
             )
 
             if target_date:
@@ -1112,7 +1112,7 @@ class AgroWarehouseService:
             cursor = conn.cursor(dictionary=True)
             table_plan = get_table_name('plan_produkcji', linia)
             
-            query = f"SELECT id, produkt, data_planu, typ_produkcji, opakowanie_id FROM {table_plan} WHERE status='zakonczone' AND sekcja='Workowanie'"
+            query = f"SELECT id, produkt, data_planu, typ_produkcji, opakowanie_id FROM {table_plan} WHERE status='zakonczone' AND sekcja IN ('Workowanie', 'Czyszczenie')"
             params = []
             
             if target_date:
@@ -1172,7 +1172,7 @@ class AgroWarehouseService:
             
         # 1. Find active Workowanie plan
         table_plan = get_table_name('plan_produkcji', linia)
-        cursor.execute(f"SELECT id FROM {table_plan} WHERE status='w toku' AND sekcja='Workowanie' ORDER BY real_start DESC LIMIT 1")
+        cursor.execute(f"SELECT id FROM {table_plan} WHERE status='w toku' AND sekcja IN ('Workowanie', 'Czyszczenie') ORDER BY real_start DESC LIMIT 1")
         plan_row = cursor.fetchone()
         if not plan_row:
             return
@@ -1967,7 +1967,7 @@ class AgroWarehouseService:
                 return False
             
             plan_produkt, plan_sekcja = plan_row
-            if plan_sekcja != 'Workowanie':
+            if plan_sekcja not in ('Workowanie', 'Czyszczenie'):
                 return False
             
             waga_input = 1000

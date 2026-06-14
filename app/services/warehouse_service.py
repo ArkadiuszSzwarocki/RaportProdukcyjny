@@ -119,7 +119,7 @@ class WarehouseService:
             f"SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, "
             f"p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
             f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
-            f"WHERE DATE(p.data_planu) = %s AND p.produkt IN ({fmt_products}) AND p.sekcja = 'Workowanie' "
+            f"WHERE DATE(p.data_planu) = %s AND p.produkt IN ({fmt_products}) AND p.sekcja IN ('Workowanie', 'Czyszczenie') "
             "ORDER BY pw.id DESC",
             (dzisiaj, *products)
         )

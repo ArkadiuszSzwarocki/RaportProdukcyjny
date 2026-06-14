@@ -83,7 +83,7 @@ class WarehouseQueries:
             f"(SELECT COUNT(1) FROM {table_palety} pw2 WHERE pw2.plan_id = pw.plan_id AND pw2.id <= pw.id) as seq "
             f", pw.nr_palety "
             f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
-            "WHERE DATE(pw.data_dodania) = %s AND p.sekcja = 'Workowanie' "
+            "WHERE DATE(pw.data_dodania) = %s AND p.sekcja IN ('Workowanie', 'Czyszczenie') "
             "AND pw.waga > 0 AND COALESCE(pw.status,'') NOT IN ('przyjeta', 'zamknieta', 'w_magazynie')",
             (data_planu,)
         )
@@ -104,7 +104,7 @@ class WarehouseQueries:
             f"SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, "
             f"p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
             f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
-            f"WHERE DATE(p.data_planu) = %s AND p.produkt = %s AND p.sekcja = 'Workowanie' "
+            f"WHERE DATE(p.data_planu) = %s AND p.produkt = %s AND p.sekcja IN ('Workowanie', 'Czyszczenie') "
             "ORDER BY pw.id DESC",
             (data_planu, produkt)
         )
@@ -121,7 +121,7 @@ class WarehouseQueries:
         typ_param = typ_produkcji if typ_produkcji else ''
         cursor.execute(
             f"SELECT SUM(tonaz_rzeczywisty) FROM {table_plan} "
-            "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' "
+            "WHERE data_planu=%s AND produkt=%s AND sekcja IN ('Workowanie', 'Czyszczenie') "
             "AND COALESCE(typ_produkcji,'')=%s",
             (data_planu, produkt, typ_param)
         )
@@ -153,7 +153,7 @@ class WarehouseQueries:
         cursor.execute(
             f"SELECT pw.id, pw.plan_id, pw.waga, pw.tara, pw.waga_brutto, pw.data_dodania, p.produkt, p.typ_produkcji, COALESCE(pw.status, ''), pw.czas_potwierdzenia_s "
             f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
-            f"WHERE DATE(p.data_planu) = %s AND p.produkt = %s AND p.sekcja = 'Workowanie' ORDER BY pw.id DESC",
+            f"WHERE DATE(p.data_planu) = %s AND p.produkt = %s AND p.sekcja IN ('Workowanie', 'Czyszczenie') ORDER BY pw.id DESC",
             (data_planu, produkt)
         )
         result = cursor.fetchall()
@@ -169,7 +169,7 @@ class WarehouseQueries:
         typ_param = typ_produkcji if typ_produkcji is not None else ''
         cursor.execute(
             f"SELECT SUM(tonaz_rzeczywisty) FROM {table_plan} "
-            "WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND COALESCE(typ_produkcji,'')=%s",
+            "WHERE data_planu=%s AND produkt=%s AND sekcja IN ('Workowanie', 'Czyszczenie') AND COALESCE(typ_produkcji,'')=%s",
             (data_planu, produkt, typ_param)
         )
         result = cursor.fetchone()

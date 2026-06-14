@@ -89,7 +89,7 @@
     }
   </style>
   <h3 class="popup-title">{% if sekcja == 'Zasyp' %}➕ Dodaj zasyp{% else %}📦 {{ _('dodaj_palete') }}{% endif %}</h3>
-  {% if sekcja == 'Workowanie' %}
+  {% if sekcja in ['Workowanie', 'Czyszczenie'] %}
   {# Workowanie: użyj dedykowanego endpointu dodaj_palete #}
   <form id="addPaletaForm" action="{{ url_for('warehouse.dodaj_palete', plan_id=plan_id) }}" method="POST">
     <input id="waga_palety" name="waga_palety" type="number" step="1" min="1" required class="input-sm popup-input" autofocus placeholder="{{ _('waga_palety') }}" title="{{ _('waga_palety_kg_info') }}">
@@ -98,7 +98,7 @@
     <label for="nr_plomby">Nr plomby (opcjonalnie):</label>
     <input id="nr_plomby" name="nr_plomby" type="text" class="input-sm popup-input" maxlength="100" placeholder="Wpisz nr plomby (jeśli jest)" autocomplete="off">
     <input type="hidden" name="linia" value="{{ linia }}">
-      <input type="hidden" name="sekcja" value="Workowanie">
+      <input type="hidden" name="sekcja" value="{{ sekcja }}">
     <input type="hidden" name="ui_trigger" value="button:dodaj_palete_popup">
     
     <div class="popup-button-group">

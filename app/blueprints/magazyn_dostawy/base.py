@@ -385,7 +385,7 @@ def preprint_labels_view():
                 f'''
                 SELECT id
                 FROM {table_plan_local}
-                WHERE sekcja = 'Workowanie'
+                WHERE sekcja IN ('Workowanie', 'Czyszczenie')
                   AND {date_sql}
                 ORDER BY
                   CASE
@@ -441,7 +441,7 @@ def preprint_labels_view():
                 FROM {table_pal} pw
                 JOIN {table_plan} p ON p.id = pw.plan_id
                 WHERE {date_filter_sql}
-                  AND p.sekcja = 'Workowanie'
+                  AND p.sekcja IN ('Workowanie', 'Czyszczenie')
                   AND pw.waga > 0
                   {status_filter_sql}
                 ORDER BY pw.id DESC
@@ -740,7 +740,7 @@ def raport_przesuniecia(dostawa_id):
         rejected_count = sum(1 for r in rows if r.get('rejected'))
         pending_count = max(len(rows) - accepted_count - rejected_count, 0)
 
-        is_external = not dostawa.get('lokalizacja_z')
+        is_external = bool(dostawa.get('supplier')) or not dostawa.get('lokalizacja_z')
         template_name = 'magazyn_dostawy/raport_dostawy_zewnetrznej_print.html' if is_external else 'magazyn_dostawy/raport_przesuniecia_print.html'
         
         return render_template(
@@ -946,11 +946,18 @@ def zapisz_dostawe():
     success, result = MagazynDostawyService.save_dostawa(request.json, session.get('login', 'system'))
     if success:
         dostawa_id = result
-        # Check if this is an external delivery (no source location)
-        is_external = not request.json.get('lokalizacja_z')
+        # Check if this is an external delivery (no source location or has supplier)
+        is_external = bool(request.json.get('supplier')) or not request.json.get('lokalizacja_z')
         if is_external:
             from app.services.office_print_service import trigger_office_print_url
-            report_url = f"/magazyn-dostawy/raport-przesuniecia/{dostawa_id}?internal_print=1"
+            linia = request.json.get('linia', 'PSD')
+            report_url = url_for(
+                'magazyn_dostawy.raport_przesuniecia',
+                dostawa_id=dostawa_id,
+                linia=linia,
+                internal_print=1,
+                _external=True
+            )
             trigger_office_print_url(report_url, 'raport_dostawy_zewnetrznej', prefix="dostawa_zewn_")
             
         return jsonify({"success": True, "id": dostawa_id})

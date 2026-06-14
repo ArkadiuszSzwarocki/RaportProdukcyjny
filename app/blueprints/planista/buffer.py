@@ -36,7 +36,7 @@ def register_planista_buffer_routes(planista_bp):
                      w.tonaz, w.tonaz_rzeczywisty
                 FROM {table_bufor} b
                 LEFT JOIN {table_plan} z ON z.id = b.zasyp_id
-                 LEFT JOIN {table_plan} w ON w.zasyp_id = b.zasyp_id AND w.sekcja = 'Workowanie'
+                 LEFT JOIN {table_plan} w ON w.zasyp_id = b.zasyp_id AND w.sekcja IN ('Workowanie', 'Czyszczenie')
                 WHERE b.data_planu = %s AND b.status = 'aktywny'
                 ORDER BY b.kolejka ASC
             """,
@@ -411,7 +411,7 @@ def register_planista_buffer_routes(planista_bp):
             cursor.execute(
                 f"""
                 SELECT id FROM {table_plan}
-                WHERE data_planu = %s AND produkt = %s AND sekcja = 'Workowanie'
+                WHERE data_planu = %s AND produkt = %s AND sekcja IN ('Workowanie', 'Czyszczenie')
                 LIMIT 1
             """,
                 (work_date, z_produkt),
@@ -512,7 +512,7 @@ def register_planista_buffer_routes(planista_bp):
             cursor.execute(
                 f"""
                 SELECT MAX(kolejnosc) FROM {table_plan}
-                WHERE data_planu = %s AND sekcja = 'Workowanie'
+                WHERE data_planu = %s AND sekcja IN ('Workowanie', 'Czyszczenie')
             """,
                 (work_date,),
             )

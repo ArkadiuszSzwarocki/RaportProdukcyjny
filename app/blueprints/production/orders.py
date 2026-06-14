@@ -14,7 +14,18 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
     def _is_truthy(value):
         return str(value or '').strip().lower() in {'1', 'true', 'yes', 'on'}
 
-
+    @production_bp.route('/api/opakowania/folie', methods=['GET'])
+    @login_required
+    def api_get_folie():
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT MIN(id) as id, nazwa, SUM(stan_magazynowy) as stan_magazynowy FROM magazyn_opakowania WHERE stan_magazynowy > 0 GROUP BY nazwa ORDER BY nazwa")
+            return jsonify(cursor.fetchall())
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            conn.close()
 
     @production_bp.route('/start_zlecenie/<int:id>', methods=['POST'])
     @login_required
@@ -57,7 +68,18 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 else:
                     produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z
 
-                if sekcja == 'Workowanie':
+                if sekcja == 'Czyszczenie' and linia == 'AGRO':
+                    typ_pakowania = request.form.get('typ_pakowania')
+                    if typ_pakowania == 'Worki':
+                        nowe_opakowanie_id = request.form.get('opakowanie_id')
+                        if nowe_opakowanie_id:
+                            cursor.execute(f"UPDATE {table_plan} SET opakowanie_id=%s WHERE id=%s", (nowe_opakowanie_id, id))
+                            opakowanie_id = nowe_opakowanie_id
+                        elif not opakowanie_id:
+                            flash('❌ Start zablokowany: dla Czyszczenia w workach musisz wybrać rolkę folii.', 'error')
+                            return redirect(bezpieczny_powrot())
+
+                if sekcja in ('Workowanie', 'Czyszczenie'):
                     cursor.execute(
                         f"SELECT id, produkt FROM {table_plan} "
                         "WHERE sekcja='Zasyp' AND status='w toku' AND DATE(data_planu)=%s LIMIT 1",
@@ -72,7 +94,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                             'zasyp_order_name': active_on_zasyp[1],
                         }
 
-                if sekcja == 'Workowanie':
+                if sekcja in ('Workowanie', 'Czyszczenie'):
                     # Role is normalized here to avoid case/whitespace mismatches.
                     if role_lc in ('planista', 'admin', 'zarzad'):
                         current_app.logger.debug(f'[KOLEJKA] bypass for role={role_lc} plan_id={id} produkt={produkt}')
@@ -88,7 +110,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                                 WHERE DATE(b.data_planu) = %s AND b.status = 'aktywny'
                                   AND EXISTS (
                                       SELECT 1 FROM {table_plan} w
-                                      WHERE w.sekcja = 'Workowanie' AND w.status IN ('zaplanowane', 'w toku')
+                                      WHERE w.sekcja IN ('Workowanie', 'Czyszczenie') AND w.status IN ('zaplanowane', 'w toku')
                                         AND w.produkt = b.produkt AND w.data_planu = b.data_planu
                                   )
                                 """,
@@ -315,7 +337,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             if wyjasnienie:
                 sql += ', wyjasnienie_rozbieznosci=%s'
                 params.append(wyjasnienie)
-            if uszkodzone_worki and sekcja == 'Workowanie':
+            if uszkodzone_worki and sekcja in ('Workowanie', 'Czyszczenie'):
                 try:
                     uszkodzone_count = int(uszkodzone_worki)
                     sql += ', uszkodzone_worki=%s'
@@ -330,12 +352,12 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 try:
                     if str(linia).upper() == 'AGRO':
                         cursor.execute(
-                            f"UPDATE {table_plan} SET tonaz = %s WHERE produkt = %s AND data_planu = %s AND sekcja = 'Workowanie' AND status != 'zakonczone'",
+                            f"UPDATE {table_plan} SET tonaz = %s WHERE produkt = %s AND data_planu = %s AND sekcja IN ('Workowanie', 'Czyszczenie') AND status != 'zakonczone'",
                             (rzeczywista_waga, produkt, data_planu),
                         )
                     else:
                         cursor.execute(
-                            f"UPDATE {table_plan} SET tonaz = %s WHERE zasyp_id = %s AND sekcja = 'Workowanie' AND status != 'zakonczone'",
+                            f"UPDATE {table_plan} SET tonaz = %s WHERE zasyp_id = %s AND sekcja IN ('Workowanie', 'Czyszczenie') AND status != 'zakonczone'",
                             (rzeczywista_waga, id),
                         )
                     current_app.logger.info('[SYNC] Zaktualizowano tonaz Workowania na %s kg po zakończeniu Zasypu id=%s', rzeczywista_waga, id)

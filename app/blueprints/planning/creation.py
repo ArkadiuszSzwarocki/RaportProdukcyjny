@@ -279,13 +279,13 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                         current_app.logger.warning(f"Failed to mark dosypki updated on zasyp creation: {e}")
 
                     cursor.execute(
-                        f"SELECT id, tonaz, zasyp_id FROM {table_plan} WHERE zasyp_id=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",
+                        f"SELECT id, tonaz, zasyp_id FROM {table_plan} WHERE zasyp_id=%s AND sekcja IN ('Workowanie', 'Czyszczenie') ORDER BY id ASC LIMIT 1",
                         (zasyp_plan_id,),
                     )
                     workowanie_plan = cursor.fetchone()
                     if not workowanie_plan:
                         cursor.execute(
-                            f"SELECT id, tonaz, zasyp_id FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1",
+                            f"SELECT id, tonaz, zasyp_id FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja IN ('Workowanie', 'Czyszczenie') ORDER BY id ASC LIMIT 1",
                             (data_planu, produkt),
                         )
                         workowanie_plan = cursor.fetchone()
@@ -295,7 +295,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                         source_row = cursor.fetchone()
                         source_typ = source_row[0] if source_row else 'worki_zgrzewane_25'
 
-                        cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja='Workowanie'", (data_planu,))
+                        cursor.execute(f"SELECT MAX(kolejnosc) FROM {table_plan} WHERE data_planu=%s AND sekcja IN ('Workowanie', 'Czyszczenie')", (data_planu,))
                         res = cursor.fetchone()
                         nk_work = (res[0] if res and res[0] else 0) + 1
 
@@ -317,7 +317,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                         except Exception:
                             print(debug_msg)
 
-                        cursor.execute(f"SELECT id, tonaz FROM {table_plan} WHERE zasyp_id=%s AND sekcja='Workowanie' ORDER BY id ASC LIMIT 1", (zasyp_plan_id,))
+                        cursor.execute(f"SELECT id, tonaz FROM {table_plan} WHERE zasyp_id=%s AND sekcja IN ('Workowanie', 'Czyszczenie') ORDER BY id ASC LIMIT 1", (zasyp_plan_id,))
                         linked = cursor.fetchone()
                         if linked:
                             target_id, target_existing_tonaz = linked[0], linked[1] or 0
@@ -397,12 +397,12 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
                 flash('Nie znaleziono planu do dodania zasypu', 'error')
                 return redirect(return_url_builder())
 
-            if sekcja == 'Workowanie':
+            if sekcja in ('Workowanie', 'Czyszczenie'):
                 table_plan = get_table_name('plan_produkcji', linia)
                 table_pal = get_table_name('palety_workowanie', linia)
 
                 cursor.execute(
-                    f"SELECT id, typ_produkcji FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja='Workowanie' AND status IN ('zaplanowane', 'w toku') ORDER BY id ASC LIMIT 1",
+                    f"SELECT id, typ_produkcji FROM {table_plan} WHERE data_planu=%s AND produkt=%s AND sekcja IN ('Workowanie', 'Czyszczenie') AND status IN ('zaplanowane', 'w toku') ORDER BY id ASC LIMIT 1",
                     (data_planu, produkt),
                 )
                 main_plan = cursor.fetchone()

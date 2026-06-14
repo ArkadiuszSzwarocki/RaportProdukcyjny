@@ -140,7 +140,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
                 params.append(id)
                 cursor.execute(sql, tuple(params))
 
-                if tonaz_val is not None and row[2] == 'Workowanie' and current_zasyp_id:
+                if tonaz_val is not None and row[2] in ('Workowanie', 'Czyszczenie') and current_zasyp_id:
                     try:
                         table_bufor = get_table_name('bufor', linia)
                         cursor.execute(
@@ -361,7 +361,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
                 audit_log('Edytował zlecenie (AJAX)', f'ID={pid}, zmiany: {list(changes.keys())}')
 
                 try:
-                    if 'tonaz' in changes and (before[3] or '').lower() == 'workowanie' and before[8]:
+                    if 'tonaz' in changes and (before[3] or '').lower() in ('workowanie', 'czyszczenie') and before[8]:
                         table_bufor = get_table_name('bufor', linia)
                         cursor.execute(
                             f"UPDATE {table_bufor} SET tonaz_rzeczywisty = %s WHERE zasyp_id = %s AND status IN ('aktywny', 'zamkniete')",
@@ -394,7 +394,7 @@ def register_planning_adjustment_routes(planning_bp, *, return_url_builder):
                                 linked_params.append(changes[field]['after'])
 
                         if linked_updates:
-                            linked_sql = f"UPDATE {table_plan} SET {', '.join(linked_updates)} WHERE zasyp_id=%s AND status='zaplanowane' AND LOWER(sekcja)='workowanie'"
+                            linked_sql = f"UPDATE {table_plan} SET {', '.join(linked_updates)} WHERE zasyp_id=%s AND status='zaplanowane' AND LOWER(sekcja) IN ('workowanie', 'czyszczenie')"
                             linked_params.append(pid)
                             cursor.execute(linked_sql, tuple(linked_params))
                             conn.commit()

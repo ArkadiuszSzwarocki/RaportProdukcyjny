@@ -240,6 +240,100 @@ def drukuj_zpl():
         logger.error(f"❌ Błąd wydruku: {str(e)}")
         return jsonify({"success": False, "message": str(e)}), 500
 
+@app.route('/drukuj-pdf', methods=['POST'])
+def drukuj_pdf():
+    if 'file' not in request.files:
+        return jsonify({"success": False, "message": "Brak pliku PDF"}), 400
+        
+    file = request.files['file']
+    drukarka = request.form.get('drukarka')
+    ip = request.form.get('ip')
+    
+    target_printer = ip or drukarka
+    if not target_printer:
+        try:
+            import win32print
+            target_printer = win32print.GetDefaultPrinter()
+        except ImportError:
+            target_printer = "Nieznana Drukarka"
+
+    import tempfile
+    fd, pdf_path = tempfile.mkstemp(suffix=".pdf", prefix="drukowanie_")
+    os.close(fd)
+    file.save(pdf_path)
+
+    logger.info(f"Odebrano PDF do druku. Drukarka: {target_printer}")
+
+    success = False
+    error_msg = ""
+    try:
+        import win32api
+        import win32print
+        import win32ui
+        import fitz
+        from PIL import Image, ImageWin
+        
+        doc = fitz.open(pdf_path)
+        hDC = win32ui.CreateDC()
+        hDC.CreatePrinterDC(target_printer)
+        
+        printable_width = hDC.GetDeviceCaps(8)
+        printable_height = hDC.GetDeviceCaps(10)
+        
+        hDC.StartDoc("Raport Produkcyjny")
+        
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            mat = fitz.Matrix(2.0, 2.0)
+            pix = page.get_pixmap(matrix=mat)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            
+            if img.size[0] > img.size[1]:
+                img = img.rotate(90, expand=True)
+                
+            ratios = [1.0 * printable_width / img.size[0], 1.0 * printable_height / img.size[1]]
+            scale = min(ratios)
+            
+            hDC.StartPage()
+            dib = ImageWin.Dib(img)
+            scaled_width, scaled_height = [int(scale * i) for i in img.size]
+            
+            x1 = int((printable_width - scaled_width) / 2)
+            y1 = int((printable_height - scaled_height) / 2)
+            x2 = x1 + scaled_width
+            y2 = y1 + scaled_height
+            
+            dib.draw(hDC.GetHandleOutput(), (x1, y1, x2, y2))
+            hDC.EndPage()
+            
+        hDC.EndDoc()
+        hDC.DeleteDC()
+        doc.close()
+        logger.info("✅ Wydrukowano PDF pomyślnie.")
+        success = True
+    except Exception as e:
+        logger.error(f"❌ PyMuPDF print failed: {e}. Próba ShellExecute...")
+        try:
+            import win32api
+            win32api.ShellExecute(0, "printto", pdf_path, f'"{target_printer}"', ".", 0)
+            time.sleep(5)
+            logger.info("✅ Wydrukowano PDF pomyślnie przez ShellExecute.")
+            success = True
+        except Exception as ex:
+            error_msg = str(ex)
+            logger.error(f"❌ ShellExecute print failed: {ex}")
+    finally:
+        try:
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except Exception:
+            pass
+
+    if success:
+        return jsonify({"success": True})
+    else:
+        return jsonify({"success": False, "message": f"Błąd druku PDF: {error_msg}"}), 500
+
 if __name__ == '__main__':
     port = 3001
     

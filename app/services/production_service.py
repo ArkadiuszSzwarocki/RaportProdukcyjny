@@ -36,7 +36,7 @@ class ProductionService:
         
         _logger.info(f"get_production_plans(linia={linia}, sekcja={sekcja}) -> Found {len(plan_dnia)} plans from DB")
         
-        if sekcja == 'Workowanie' and not plan_dnia:
+        if sekcja in ('Workowanie', 'Czyszczenie') and not plan_dnia:
             plan_dnia = ProductionService._get_workowanie_fallback(dzisiaj, linia=linia, cursor=cursor)
         
         # Format times
@@ -156,14 +156,14 @@ class ProductionService:
         table_plan = get_table_name('plan_produkcji', linia)
         prods = [p[1] for p in plan_dnia]
         fmt = ",".join(["%s"] * len(prods))
-        if sekcja == 'Workowanie' and prods:
+        if sekcja in ('Workowanie', 'Czyszczenie') and prods:
             cursor.execute(f"SELECT produkt, COALESCE(tonaz_rzeczywisty, 0) FROM {table_plan} WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND produkt IN ({fmt})", (dzisiaj, *prods))
             weights = {r[0]: r[1] for r in cursor.fetchall()}
             for p in plan_dnia: 
                 zw = weights.get(p[1])
                 if zw: p[2] = zw
         elif sekcja == 'Zasyp' and prods:
-            cursor.execute(f"SELECT produkt, SUM(uszkodzone_worki) FROM {table_plan} WHERE DATE(data_planu) = %s AND sekcja = 'Workowanie' AND produkt IN ({fmt}) GROUP BY produkt", (dzisiaj, *prods))
+            cursor.execute(f"SELECT produkt, SUM(uszkodzone_worki) FROM {table_plan} WHERE DATE(data_planu) = %s AND sekcja IN ('Workowanie', 'Czyszczenie') AND produkt IN ({fmt}) GROUP BY produkt", (dzisiaj, *prods))
             uszk = {r[0]: r[1] for r in cursor.fetchall()}
             for p in plan_dnia: p[11] = (p[11] or 0) + int(uszk.get(p[1], 0))
 
@@ -394,7 +394,7 @@ class ProductionService:
                    kolejnosc, typ_produkcji, wyjasnienie_rozbieznosci,
                    COALESCE(uszkodzone_worki, 0), COALESCE(nazwa_zlecenia, ''), data_planu, zasyp_id
             FROM {table_plan} p
-            WHERE DATE(p.data_planu) = %s AND p.sekcja = 'Workowanie' AND p.status IN ('w toku', 'zaplanowane')
+            WHERE DATE(p.data_planu) = %s AND p.sekcja IN ('Workowanie', 'Czyszczenie') AND p.status IN ('w toku', 'zaplanowane')
             AND (EXISTS (SELECT 1 FROM {table_szarze} s WHERE s.plan_id = p.id AND s.status = 'zarejestowana')
                  OR EXISTS (SELECT 1 FROM {table_bufor} b WHERE b.produkt = p.produkt AND b.status = 'aktywny'))
             ORDER BY CASE p.status WHEN 'w toku' THEN 1 ELSE 2 END, p.kolejnosc ASC, p.id ASC

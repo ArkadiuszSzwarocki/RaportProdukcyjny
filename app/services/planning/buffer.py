@@ -244,7 +244,7 @@ class PlanningBufferService:
             return 0
 
         cursor.execute(
-            f"SELECT id, COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia, COALESCE(tonaz, 0) AS tonaz FROM {table_plan} WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'",
+            f"SELECT id, COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia, COALESCE(tonaz, 0) AS tonaz FROM {table_plan} WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) IN ('workowanie', 'czyszczenie') AND status = 'zaplanowane'",
             (next_data_str, produkt),
         )
         existing_shortfall_work = cursor.fetchone()
@@ -309,7 +309,7 @@ class PlanningBufferService:
                 " COALESCE(w.tonaz, 0) AS w_plan,"
                 " COALESCE(w.tonaz_rzeczywisty, 0) AS w_real"
                 f" FROM {table_plan} z"
-                f" LEFT JOIN {table_plan} w ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'"
+                f" LEFT JOIN {table_plan} w ON w.zasyp_id = z.id AND LOWER(w.sekcja) IN ('workowanie', 'czyszczenie')"
                 f" WHERE DATE(z.data_planu) = %s AND LOWER(z.status) IN ('zakonczone', 'zaplanowane', 'zawieszone') AND LOWER(z.sekcja) = 'zasyp' AND z.id IN ({placeholders})"
                 " ORDER BY z.id"
             )
@@ -324,7 +324,7 @@ class PlanningBufferService:
                 " COALESCE(w.tonaz, 0) AS w_plan,"
                 " COALESCE(w.tonaz_rzeczywisty, 0) AS w_real"
                 f" FROM {table_plan} z"
-                f" LEFT JOIN {table_plan} w ON w.zasyp_id = z.id AND LOWER(w.sekcja) = 'workowanie'"
+                f" LEFT JOIN {table_plan} w ON w.zasyp_id = z.id AND LOWER(w.sekcja) IN ('workowanie', 'czyszczenie')"
                 " WHERE DATE(z.data_planu) = %s AND LOWER(z.status) IN ('zakonczone', 'zaplanowane', 'zawieszone') AND LOWER(z.sekcja) = 'zasyp'"
                 " ORDER BY z.id"
             )
@@ -336,7 +336,7 @@ class PlanningBufferService:
     def _workowanie_carryover_exists(cursor, table_plan, next_data_str, produkt_for_new):
         """Check if a Workowanie carry-over already exists for the product on target date."""
         cursor.execute(
-            f"SELECT id FROM {table_plan} WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) = 'workowanie' AND status = 'zaplanowane'",
+            f"SELECT id FROM {table_plan} WHERE DATE(data_planu) = %s AND produkt = %s AND LOWER(sekcja) IN ('workowanie', 'czyszczenie') AND status = 'zaplanowane'",
             (next_data_str, produkt_for_new),
         )
         return cursor.fetchone()

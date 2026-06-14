@@ -132,7 +132,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
         prod_map[key][sec] = (plan, wyk)
 
     # Kolej sekcji do wyświetlenia
-    section_order = ['Zasyp', 'Workowanie', 'Magazyn']
+    section_order = ['Zasyp', 'Workowanie', 'Czyszczenie', 'Magazyn']
 
     import math
 
@@ -237,6 +237,13 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
         except Exception:
             z_plan = 0.0
         try:
+            # pick Workowanie, fallback to Czyszczenie if no Workowanie entry
+            w_wyk_raw_work = prod_map.get(prod, {}).get('Workowanie', (None, None))[1]
+            w_wyk_raw_czys = prod_map.get(prod, {}).get('Czyszczenie', (None, None))[1]
+            if w_wyk_raw_work is not None:
+                w_wyk_raw = w_wyk_raw_work
+            else:
+                w_wyk_raw = w_wyk_raw_czys
             w_wyk = float(w_wyk_raw) if w_wyk_raw is not None else 0.0
             if math.isnan(w_wyk):
                 w_wyk = 0.0
@@ -261,7 +268,7 @@ def generuj_pdf(dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
             pdf.set_text_color(34, 139, 34)
         else:
             pdf.set_text_color(192, 57, 43)
-        pdf.cell(0, 8, polskie_znaki_pdf(f"Rozliczenie (Workowanie - Zasyp): {diff_str}"), ln=1)
+        pdf.cell(0, 8, polskie_znaki_pdf(f"Rozliczenie (Workowanie/Czyszczenie - Zasyp): {diff_str}"), ln=1)
         pdf.set_text_color(0,0,0)
         pdf.ln(4)
 

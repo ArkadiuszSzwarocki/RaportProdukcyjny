@@ -165,11 +165,11 @@ class PlanMovementService:
             linked_ids = [pid]
             if sekcja.lower() == 'zasyp':
                 cursor.execute(
-                    f"SELECT id FROM {table_plan} WHERE zasyp_id=%s AND LOWER(sekcja)='workowanie' AND (is_deleted=0 OR is_deleted IS NULL)",
+                    f"SELECT id FROM {table_plan} WHERE zasyp_id=%s AND LOWER(sekcja) IN ('workowanie', 'czyszczenie') AND (is_deleted=0 OR is_deleted IS NULL)",
                     (pid,)
                 )
                 linked_ids.extend([r[0] for r in cursor.fetchall()])
-            elif sekcja.lower() == 'workowanie' and parent_zasyp_id:
+            elif sekcja.lower() in ('workowanie', 'czyszczenie') and parent_zasyp_id:
                 linked_ids.append(parent_zasyp_id)
             
             # De-duplicate
@@ -179,7 +179,7 @@ class PlanMovementService:
             # For simplicity, renormalize all sections that might be affected
             affected_sections = {sekcja}
             if sekcja.lower() == 'zasyp': affected_sections.add('Workowanie')
-            elif sekcja.lower() == 'workowanie': affected_sections.add('Zasyp')
+            elif sekcja.lower() in ('workowanie', 'czyszczenie'): affected_sections.add('Zasyp')
             
             for sec in affected_sections:
                 PlanMovementService.renormalize_sequences(cursor, table_plan, data_planu, sec if linia.upper() != 'AGRO' else None)

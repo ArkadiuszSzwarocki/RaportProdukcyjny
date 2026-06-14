@@ -174,7 +174,7 @@ def register_warehouse_buffer_routes(warehouse_bp):
             cursor.execute(
                 """
                 SELECT MAX(kolejnosc) FROM plan_produkcji
-                WHERE data_planu = %s AND sekcja = 'Workowanie'
+                WHERE data_planu = %s AND sekcja IN ('Workowanie', 'Czyszczenie')
                 """,
                 (work_date,),
             )
@@ -186,7 +186,7 @@ def register_warehouse_buffer_routes(warehouse_bp):
                 (data_planu, sekcja, produkt, tonaz, status, kolejnosc, typ_produkcji, nazwa_zlecenia, zasyp_id)
                 SELECT %s, 'Workowanie', %s, %s, 'zaplanowane', %s, %s, %s, %s
                 FROM DUAL
-                WHERE NOT EXISTS (SELECT 1 FROM plan_produkcji WHERE zasyp_id = %s AND sekcja = 'Workowanie')
+                WHERE NOT EXISTS (SELECT 1 FROM plan_produkcji WHERE zasyp_id = %s AND sekcja IN ('Workowanie', 'Czyszczenie'))
             """
             params = (
                 work_date,
@@ -261,7 +261,7 @@ def register_warehouse_buffer_routes(warehouse_bp):
                        w.id as workowanie_id
                 FROM bufor b
                 LEFT JOIN plan_produkcji w ON w.zasyp_id = b.zasyp_id
-                    AND w.sekcja = 'Workowanie'
+                    AND w.sekcja IN ('Workowanie', 'Czyszczenie')
                 WHERE b.kolejka = %s AND b.status = 'aktywny'
                 LIMIT 1
                 """,
@@ -279,7 +279,7 @@ def register_warehouse_buffer_routes(warehouse_bp):
                 """
                 UPDATE plan_produkcji
                 SET status = 'w toku', real_start = %s
-                WHERE id = %s AND sekcja = 'Workowanie'
+                WHERE id = %s AND sekcja IN ('Workowanie', 'Czyszczenie')
                 """,
                 (_datetime.now(), workowanie_id),
             )

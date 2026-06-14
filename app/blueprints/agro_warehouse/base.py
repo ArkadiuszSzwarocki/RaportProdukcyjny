@@ -1338,7 +1338,7 @@ def raport_palet():
                    z.typ_produkcji as zasyp_typ_produkcji, w.data_planu
             FROM plan_produkcji_agro w
             LEFT JOIN plan_produkcji_agro z ON w.zasyp_id = z.id
-            WHERE w.sekcja = 'Workowanie' AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
+            WHERE w.sekcja IN ('Workowanie', 'Czyszczenie') AND (w.is_deleted = 0 OR w.is_deleted IS NULL)
         """
         params = []
         

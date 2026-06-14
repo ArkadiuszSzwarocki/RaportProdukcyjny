@@ -31,7 +31,7 @@ class WorkowanieQueueService:
                 WHERE DATE(b.data_planu) = %s AND b.status = 'aktywny'
                   AND EXISTS (
                       SELECT 1 FROM {table_plan} w
-                      WHERE w.sekcja = 'Workowanie' AND w.status IN ('zaplanowane', 'w toku') AND w.is_deleted = 0
+                      WHERE w.sekcja IN ('Workowanie', 'Czyszczenie') AND w.status IN ('zaplanowane', 'w toku') AND w.is_deleted = 0
                         AND DATE(w.data_planu) = %s
                         AND (w.zasyp_id = b.zasyp_id OR LOWER(TRIM(w.produkt)) = LOWER(TRIM(b.produkt)))
                   )
@@ -66,7 +66,7 @@ class WorkowanieQueueService:
                         cursor.execute(
                             f"""
                             SELECT id FROM {table_plan}
-                            WHERE sekcja = 'Workowanie'
+                            WHERE sekcja IN ('Workowanie', 'Czyszczenie')
                               AND status IN ('zaplanowane', 'w toku')
                               AND zasyp_id = %s
                               AND is_deleted = 0
@@ -93,7 +93,7 @@ class WorkowanieQueueService:
                         cursor.execute(
                             f"""
                             SELECT id FROM {table_plan}
-                            WHERE sekcja = 'Workowanie'
+                            WHERE sekcja IN ('Workowanie', 'Czyszczenie')
                               AND status IN ('zaplanowane', 'w toku')
                               AND LOWER(TRIM(produkt)) = LOWER(TRIM(%s))
                               AND is_deleted = 0

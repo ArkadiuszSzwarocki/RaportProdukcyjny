@@ -192,13 +192,13 @@ def register_warehouse_management_routes(
         else:
             selected_data_produkcji = now_ts.strftime('%Y-%m-%d')
 
-        if plan_sekcja != 'Workowanie':
+        if plan_sekcja not in ('Workowanie', 'Czyszczenie'):
             conn.close()
             try:
                 current_app.logger.warning('REJECTED: Cannot add paleta to sekcja=%s', plan_sekcja)
             except Exception:
                 pass
-            return ('Błąd: Paletki można dodawać tylko do Workowania (bufora)', 400)
+            return ('Błąd: Paletki można dodawać tylko do Workowania (bufora) lub Czyszczenia', 400)
 
         if waga_input <= 0:
             conn.close()
@@ -269,15 +269,12 @@ def register_warehouse_management_routes(
             except Exception as hist_err:
                 current_app.logger.warning('Failed to log history for paleta %s: %s', paleta_id, hist_err)
 
-            conn.commit()
-
-            # --- AUTOMATYCZNY WYDRUK 2 ETYKIET ASYNCHRONICZNIE ---
-            app_obj = current_app._get_current_object()
-            
-            def _async_print_label(paleta_id_local, nr_palety_local, app):
-                with app.app_context():
-                    try:
-                        conn2 = None
+            if plan_produkt != 'Czyszczenie':
+                # --- AUTOMATYCZNY WYDRUK 2 ETYKIET ASYNCHRONICZNIE ---
+                app_obj = current_app._get_current_object()
+                
+                def _async_print_label(paleta_id_local, nr_palety_local, app):
+                    with app.app_context():
                         try:
                             from app.utils.pallet_label import prepare_pallet_label_data
                             conn2 = get_db_connection()
@@ -285,53 +282,71 @@ def register_warehouse_management_routes(
                             label_data_local = prepare_pallet_label_data(cur2, paleta_id_local, linia)
                         except Exception as prep_err:
                             app.logger.error('Failed to prepare label data for paleta %s: %s', paleta_id_local, prep_err)
-                            if conn2:
+                            if 'conn2' in locals() and conn2:
                                 try:
                                     conn2.close()
                                 except Exception:
                                     pass
                             return
-
-                        if not label_data_local:
-                            app.logger.error('No label data prepared for paleta %s', paleta_id_local)
-                            if conn2:
+    
+                        try:
+                            if not label_data_local:
+                                app.logger.error('No label data prepared for paleta %s', paleta_id_local)
+                                if 'conn2' in locals() and conn2:
+                                    try:
+                                        conn2.close()
+                                    except Exception:
+                                        pass
+                                return
+        
+                            from app.services.print_server import get_printer
+                            printer_local = get_printer()
+                            override_name, override_ip = _select_preferred_printer(cur2)
+                            for copy_num in range(1, 3):
+                                try:
+                                    ok, print_msg = printer_local.print_finished_product_label(
+                                        label_data_local,
+                                        override_ip=override_ip,
+                                        override_name=override_name,
+                                    )
+                                    app.logger.info(
+                                        'Async print copy %s/2 for paleta %s: ok=%s printer=%s ip=%s msg=%s',
+                                        copy_num, nr_palety_local, ok, override_name or getattr(printer_local, 'printer_name', None), override_ip or getattr(printer_local, 'printer_ip', None), print_msg
+                                    )
+                                except Exception as single_err:
+                                    app.logger.error('Print attempt failed for paleta %s copy %s: %s', paleta_id_local, copy_num, single_err)
+                                
+                            if 'conn2' in locals() and conn2:
                                 try:
                                     conn2.close()
                                 except Exception:
                                     pass
-                            return
+        
+                        except Exception as err:
+                            app.logger.error('Unexpected error in async print thread for paleta %s: %s', paleta_id_local, err)
+                try:
+                    t = threading.Thread(target=_async_print_label, args=(paleta_id, nr_palety, app_obj), daemon=True)
+                    t.start()
+                except Exception as thr_err:
+                    current_app.logger.error('Failed to start async print thread for paleta %s: %s', nr_palety, thr_err)
+                # ---------------------------------------------
+            else:
+                # Rozliczenie straty worków dla czyszczenia
+                try:
+                    cursor.execute(f"SELECT opakowanie_id FROM {table_plan} WHERE id=%s", (plan_id,))
+                    op_row = cursor.fetchone()
+                    opak_id = op_row[0] if op_row else None
+                    if opak_id:
+                        bags_to_deduct = max(1, int(waga_input / 25))
+                        cursor.execute(
+                            "UPDATE magazyn_opakowania SET stan_magazynowy = GREATEST(0, stan_magazynowy - %s) WHERE id=%s",
+                            (bags_to_deduct, opak_id)
+                        )
+                        current_app.logger.info("Deducted %s bags for Czyszczenie from folia %s", bags_to_deduct, opak_id)
+                except Exception as op_err:
+                    current_app.logger.error("Failed to deduct bags for Czyszczenie: %s", op_err)
 
-                        from app.services.print_server import get_printer
-                        printer_local = get_printer()
-                        override_name, override_ip = _select_preferred_printer(cur2)
-                        for copy_num in range(1, 3):
-                            try:
-                                ok, print_msg = printer_local.print_finished_product_label(
-                                    label_data_local,
-                                    override_ip=override_ip,
-                                    override_name=override_name,
-                                )
-                                app.logger.info(
-                                    'Async print copy %s/2 for paleta %s: ok=%s printer=%s ip=%s msg=%s',
-                                    copy_num, nr_palety_local, ok, override_name or getattr(printer_local, 'printer_name', None), override_ip or getattr(printer_local, 'printer_ip', None), print_msg
-                                )
-                            except Exception as single_err:
-                                app.logger.error('Print attempt failed for paleta %s copy %s: %s', paleta_id_local, copy_num, single_err)
-                        
-                        if conn2:
-                            try:
-                                conn2.close()
-                            except Exception:
-                                pass
-
-                    except Exception as err:
-                        app.logger.error('Unexpected error in async print thread for paleta %s: %s', paleta_id_local, err)
-            try:
-                t = threading.Thread(target=_async_print_label, args=(paleta_id, nr_palety, app_obj), daemon=True)
-                t.start()
-            except Exception as thr_err:
-                current_app.logger.error('Failed to start async print thread for paleta %s: %s', nr_palety, thr_err)
-            # ---------------------------------------------
+            conn.commit()
 
             try:
                 PlanningStatusService.ensure_status_after_tonaz_update(plan_id, linia=linia)
@@ -819,20 +834,52 @@ def register_warehouse_management_routes(
                         data_przydatnosci = request.form.get('data_przydatnosci')
                         lokalizacja = request.form.get('lokalizacja')
 
-                        try:
-                            cursor.execute(
-                                f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                                (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'), nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby),
-                            )
-                            mag_id = cursor.lastrowid
-                            
-                            # Log to palety_historia
-                            cursor.execute(
-                                "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE', %s, %s, %s)",
-                                (paleta_id, linia, lokalizacja, f"Przyjęcie palety: {row[1]}, partia: {nr_partii}", session.get('login'))
-                            )
-                        except mysql.connector.Error as e:
-                            current_app.logger.debug('Database error for paleta %s in %s: %s', paleta_id, table_mag, e)
+                        if row[1] == 'Czyszczenie':
+                            import uuid, json
+                            from datetime import datetime
+                            dostawa_id = str(uuid.uuid4())
+                            items = [{
+                                "id": str(uuid.uuid4()),
+                                "type": "surowiec",
+                                "name": row[1],
+                                "amount": netto_val,
+                                "unit": "kg",
+                                "confirmed": False
+                            }]
+                            try:
+                                cursor.execute("""
+                                    INSERT INTO magazyn_dostawy
+                                        (id, order_ref, supplier, delivery_date, status, items,
+                                         created_by, created_at, requires_lab, linia)
+                                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                """, (dostawa_id, f"Czyszczenie Zlecenie #{plan_id}", "PRODUKCJA", data_produkcji, "OCZEKUJE",
+                                      json.dumps(items), session.get('login'), datetime.now(), 0, linia))
+                                mag_id = None
+                                
+                                # Update status to przeklasyfikowana
+                                cursor.execute(f"UPDATE {table_pal} SET status='przeklasyfikowana' WHERE id=%s", (paleta_id,))
+                                
+                                cursor.execute(
+                                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'surowiec', 'PRZEKLASYFIKOWANIE', %s, %s, %s)",
+                                    (paleta_id, linia, lokalizacja, f"Przeklasyfikowano na surowiec: {row[1]}, Oczekuje w dostawach", session.get('login'))
+                                )
+                            except Exception as e:
+                                current_app.logger.error('Database error for Czyszczenie dostawa: %s', e)
+                        else:
+                            try:
+                                cursor.execute(
+                                    f"INSERT IGNORE INTO {table_mag} (paleta_workowanie_id, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, user_login, nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                    (paleta_id, mp_id, row[0], row[1], netto_val, provided_brutto if provided_brutto is not None else 0, tara, session.get('login'), nr_partii, data_produkcji, data_przydatnosci, lokalizacja, nr_palety, nr_plomby),
+                                )
+                                mag_id = cursor.lastrowid
+                                
+                                # Log to palety_historia
+                                cursor.execute(
+                                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE', %s, %s, %s)",
+                                    (paleta_id, linia, lokalizacja, f"Przyjęcie palety: {row[1]}, partia: {nr_partii}", session.get('login'))
+                                )
+                            except mysql.connector.Error as e:
+                                current_app.logger.debug('Database error for paleta %s in %s: %s', paleta_id, table_mag, e)
 
                         if cursor.rowcount > 0:
                             current_app.logger.info(

@@ -704,10 +704,18 @@ def _create_tables(cursor):
         )
     """)
     
-    # Initialize default report if not exists
+    # Initialize default reports if not exists
     cursor.execute("SELECT id FROM przypisania_raportow WHERE typ_raportu = 'raport_palet_agro'")
     if not cursor.fetchone():
         cursor.execute("INSERT INTO przypisania_raportow (typ_raportu, nazwa_raportu, aktywne) VALUES ('raport_palet_agro', 'Raport Palet (Zakończenie Zlecenia AGRO)', 0)")
+
+    cursor.execute("SELECT id FROM przypisania_raportow WHERE typ_raportu = 'raport_dostawy_zewnetrznej'")
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO przypisania_raportow (typ_raportu, nazwa_raportu, aktywne) VALUES ('raport_dostawy_zewnetrznej', 'Raport Dostawy Zewnętrznej (Przyjęcia)', 0)")
+
+    cursor.execute("SELECT id FROM przypisania_raportow WHERE typ_raportu = 'raport_przesuniecia'")
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO przypisania_raportow (typ_raportu, nazwa_raportu, aktywne) VALUES ('raport_przesuniecia', 'Raport Przesunięcia (Ruchy)', 0)")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS produkcja_inwentaryzacja_sesje (
@@ -1292,7 +1300,7 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
                 UPDATE {table_plan} w
                 JOIN {table_plan} z ON z.id = w.zasyp_id
                 SET w.tonaz = COALESCE(z.tonaz_rzeczywisty, 0)
-                WHERE w.sekcja = 'Workowanie' AND z.sekcja = 'Zasyp'
+                WHERE w.sekcja IN ('Workowanie', 'Czyszczenie') AND z.sekcja = 'Zasyp'
                   AND COALESCE(z.tonaz_rzeczywisty, 0) > 0
                   AND COALESCE(w.tonaz, 0) = 0
                   AND w.data_planu >= %s AND w.data_planu <= %s
@@ -1310,7 +1318,7 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
                     SELECT COALESCE(SUM(pw.waga), 0) FROM {table_palety} pw
                     WHERE pw.plan_id = w.id
                 )
-                WHERE w.sekcja = 'Workowanie' AND w.data_planu >= %s AND w.data_planu <= %s
+                WHERE w.sekcja IN ('Workowanie', 'Czyszczenie') AND w.data_planu >= %s AND w.data_planu <= %s
             """, (start_date, end_date))
             if cursor.rowcount > 0:
                 print(f"[SYNC-{linia}] Workowanie.tonaz_rzeczywisty synchronized: {cursor.rowcount} rows")
@@ -1325,7 +1333,7 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
             WHERE status = 'aktywny'
               AND NOT EXISTS (
                   SELECT 1 FROM {table_plan} w
-                  WHERE w.sekcja = 'Workowanie' AND w.status IN ('w toku', 'zaplanowane')
+                  WHERE w.sekcja IN ('Workowanie', 'Czyszczenie') AND w.status IN ('w toku', 'zaplanowane')
                     AND w.produkt = {table_bufor}.produkt AND w.data_planu = {table_bufor}.data_planu
               )
               AND COALESCE({table_bufor}.tonaz_rzeczywisty, 0) - COALESCE({table_bufor}.spakowano, 0) <= 0
@@ -1356,7 +1364,7 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
               AND z.typ_zlecenia = 'carry_over_ghost'
               AND EXISTS (
                   SELECT 1 FROM {table_plan} w
-                  WHERE w.sekcja = 'Workowanie' AND w.status IN ('w toku', 'zaplanowane')
+                  WHERE w.sekcja IN ('Workowanie', 'Czyszczenie') AND w.status IN ('w toku', 'zaplanowane')
                     AND w.produkt = b.produkt AND w.data_planu = b.data_planu
               )
         """)
@@ -1386,7 +1394,7 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
                    z.status
             FROM {table_plan} z
             INNER JOIN {table_plan} w ON w.zasyp_id = z.id
-            WHERE z.sekcja = 'Zasyp' AND w.sekcja = 'Workowanie'
+            WHERE z.sekcja = 'Zasyp' AND w.sekcja IN ('Workowanie', 'Czyszczenie')
               AND w.status IN ('w toku', 'zaplanowane')
               AND (
                   -- Normalne Zasypy: muszą mieć real_start i status 'w toku' lub 'zakonczone'
@@ -1418,7 +1426,7 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
                 FROM {table_bufor} b
                 LEFT JOIN {table_palety} pw ON pw.plan_id IN (
                     SELECT id FROM {table_plan}
-                    WHERE data_planu = %s AND produkt = %s AND sekcja = 'Workowanie'
+                    WHERE data_planu = %s AND produkt = %s AND sekcja IN ('Workowanie', 'Czyszczenie')
                 )
                 WHERE b.data_planu = %s AND b.produkt = %s
             """, (z_data, z_produkt, z_data, z_produkt))
@@ -1493,7 +1501,7 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
                     SELECT COALESCE(SUM(pw.waga), 0) FROM {table_palety} pw
                     INNER JOIN {table_plan} w ON pw.plan_id = w.id
                     WHERE w.data_planu = b.data_planu AND w.produkt = b.produkt
-                      AND w.sekcja = 'Workowanie'
+                      AND w.sekcja IN ('Workowanie', 'Czyszczenie')
                 )
             WHERE b.status = 'aktywny'
               AND COALESCE(z.tonaz_rzeczywisty, 0) > 0
@@ -1505,7 +1513,7 @@ def refresh_bufor_queue(conn=None, linia='PSD'):
         cursor.execute(f"""
             UPDATE {table_bufor} b
             JOIN {table_plan} z ON z.id = b.zasyp_id
-            JOIN {table_plan} w ON w.zasyp_id = z.id AND w.sekcja = 'Workowanie'
+            JOIN {table_plan} w ON w.zasyp_id = z.id AND w.sekcja IN ('Workowanie', 'Czyszczenie')
             SET b.tonaz_rzeczywisty = COALESCE(w.tonaz, 0),
                 b.spakowano = (
                     SELECT COALESCE(SUM(pw.waga), 0) FROM {table_palety} pw

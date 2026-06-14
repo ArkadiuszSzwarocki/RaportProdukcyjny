@@ -264,12 +264,12 @@ class PlanningMutationService:
             if sekcja == 'Zasyp':
                 cursor.execute(
                     f"SELECT id FROM {table_plan} "
-                    f"WHERE zasyp_id=%s AND sekcja='Workowanie' AND (is_deleted=0 OR is_deleted IS NULL)",
+                    f"WHERE zasyp_id=%s AND sekcja IN ('Workowanie', 'Czyszczenie') AND (is_deleted=0 OR is_deleted IS NULL)",
                     (plan_id,)
                 )
                 linked_work = [int(r[0]) for r in cursor.fetchall() if r and r[0]]
                 move_plan_ids.extend(linked_work)
-            elif sekcja == 'Workowanie' and parent_zasyp_id:
+            elif sekcja in ('Workowanie', 'Czyszczenie') and parent_zasyp_id:
                 move_plan_ids.append(int(parent_zasyp_id))
 
             # De-duplicate while keeping insertion order.

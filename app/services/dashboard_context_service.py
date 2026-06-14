@@ -27,7 +27,7 @@ class DashboardContextService:
                 WHERE DATE(b.data_planu) = %s AND b.status = 'aktywny'
                   AND EXISTS (
                       SELECT 1 FROM {table_plan} w
-                      WHERE w.sekcja = 'Workowanie' AND w.status IN ('zaplanowane', 'w toku')
+                      WHERE w.sekcja IN ('Workowanie', 'Czyszczenie') AND w.status IN ('zaplanowane', 'w toku')
                         AND w.produkt = b.produkt
                   )
                 """,
@@ -59,7 +59,7 @@ class DashboardContextService:
                         cursor.execute(
                             f"""
                             SELECT id FROM {table_plan}
-                            WHERE sekcja = 'Workowanie'
+                            WHERE sekcja IN ('Workowanie', 'Czyszczenie')
                               AND status IN ('zaplanowane', 'w toku')
                               AND LOWER(TRIM(produkt)) = LOWER(TRIM(%s))
                               AND is_deleted = 0
